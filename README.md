@@ -18,15 +18,16 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🛠 Current Development Line: 2.0.0
 
-- RC45 is the latest fully published 2.0 test candidate. Main is preparing RC46 with resource-lifecycle hardening and the reviewed optional Claude Code/Factory Droid runtime work; stable installers and images remain at `v1.9.9` until the engineering, external-environment, and human-review gates in the [2.0 launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) are complete.
+- RC46 is the latest fully published 2.0 test candidate. It includes resource-lifecycle hardening and the reviewed optional Claude Code and Factory Droid runtime work; stable installers and images remain at `v1.9.9` until the remaining external-environment and human-review gates in the [2.0 launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) are complete.
 - `main` now carries the public `clawmax.ai/v2` plugin platform. A plugin can contribute pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points through one domain-neutral host contract.
-- Lifecycle and Review are the public product plugins in the current 2.0 phase. Lifecycle provides a read-only deep view of agents, workflows, groups, and communities; Review keeps release validation organized and exportable. `PLUGINS/test/plugin-*` directories are synthetic host-contract fixtures and are never shown in the plugin manager.
+- Lifecycle and Review are the public product plugins in the current 2.0 phase. Lifecycle provides a read-only deep view of agents, workflows, groups, and communities; Review keeps release validation organized and exportable. Other deployment-managed plugins remain outside this public repository and image. `PLUGINS/test/plugin-*` directories are synthetic host-contract fixtures and are never shown in the plugin manager.
 - Public 2.0 products include AI scoring, the Lifecycle and Review plugins, curated Gmail and Microsoft 365/Outlook integrations, and a consent-gated Activity Export contract for partner event integrations such as Digo. Activity export is off by default, visibly names its destination, and never blocks agent execution on remote delivery.
 - See the public [model-fit plan](SYSTEM/docs/planning/PUBLIC_MODEL_FIT_2_0.md) for recommendation limits, capability evidence, and remaining public release gates.
 - See the public [models, gateways, and email partner plan](SYSTEM/docs/planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md) for the research, security rules, shipped provider decisions, and 2.0 test gates.
 - See the public [Lifecycle plugin plan](SYSTEM/docs/planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md) for the read-only agent/workflow inspection surface and delivery phases.
 - See the public [2.0 plugin architecture plan](SYSTEM/docs/planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) for the generic contribution-based host contract.
 - See the public [Activity Export and partner ingestion plan](SYSTEM/docs/planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md) for consent, data scope, redaction, batching, the ClawMax.ai reference receiver, and the proposed Digo API contract.
+- To extend ClawMax, start with the [plugin guide](PLUGINS/README.md), the [2.0 plugin authoring guide](PLUGINS/PLUGIN_AUTHORING_2_0.md), or the [partner contribution guide](PARTNERS/README.md). The partner guide points to shipped examples for GitHub, Gmail, Microsoft 365, Resend, and Digo and explains why configuring a partner is separate from consented activity sharing.
 
 ## ✨ 1.9.x Highlights
 
@@ -638,12 +639,16 @@ Detailed setup and troubleshooting:
 ## 📖 Documentation
 
 ### User Guides
+- **[Release Status](SYSTEM/docs/STATUS.md)** - Stable version, current 2.0 candidate, and remaining release gates
 - **[Testing Guide](SYSTEM/docs/TESTING_GUIDE.md)** - Unit, API, integration, and manual testing
 - **[Release Checklist](SYSTEM/docs/RELEASE_CHECKLIST.md)** - Final pre-release validation
 - **[Security Guide](SYSTEM/docs/SECURITY.md)** - Security best practices
 
 ### Developer Resources
 - **[System Documentation](SYSTEM/docs/README.md)** - Architecture and development
+- **[Plugin Guide](PLUGINS/README.md)** - Public plugins, plugin creation, and host-contract boundaries
+- **[Plugin Authoring Guide](PLUGINS/PLUGIN_AUTHORING_2_0.md)** - Manifest, records, capabilities, loading, and diagnostics
+- **[Partner Contribution Guide](PARTNERS/README.md)** - Partner creation, shipped examples, secrets, consent, and Activity Export
 - **[Known Issues](SYSTEM/docs/KNOWN_ISSUES.md)** - Active bugs and workarounds
 - **[Backlog](SYSTEM/docs/BACKLOG.md)** - Prioritized backlog and roadmap
 
@@ -772,9 +777,9 @@ See **[KNOWN_ISSUES.md](SYSTEM/docs/KNOWN_ISSUES.md)** for active issues and wor
 
 ## 🗺️ Roadmap
 
-- **Now** — Workflow v2 polish (DAG run buttons, per-workspace budget, cron cascade)
-- **Next** — Agent-to-agent messaging, community rules, workflow DAG visualization improvements
-- **Later** — Secure multi-user BYOK storage, broader hosted/operator-managed packaging, public template registry
+- **Now** — Complete RC46 hands-on, external-environment, provider, and controlled resource-soak evidence
+- **Next** — Promote the exact accepted 2.0 source and images, then align stable release documentation
+- **Later** — Continue plugin actions, partner receiver pilots, provider validation, and the active backlog
 
 **Full backlog**: [BACKLOG.md](SYSTEM/docs/BACKLOG.md)
 
@@ -790,7 +795,7 @@ We welcome contributions! Whether it's bug fixes, new features, or documentation
 2. **Create a feature branch** (`git checkout -b feature/amazing-feature`)
 3. **Make your changes**
 4. **Run tests** (`./SYSTEM/test.sh`)
-5. **Commit your changes** (`git commit -m 'Add amazing feature'`)
+5. **Commit your changes** with a lowercase Conventional Commit prefix (`git commit -m 'docs: improve extension guide'`)
 6. **Push to branch** (`git push origin feature/amazing-feature`)
 7. **Open a Pull Request**
 

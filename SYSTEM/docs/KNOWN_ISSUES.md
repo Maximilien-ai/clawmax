@@ -1,6 +1,6 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: August 27, 2026
+**Last Updated**: August 30, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
@@ -104,7 +104,7 @@ Before promotion, 2.0 still needs:
 - final plugin page/data loading and responsive checks;
 - an exported release review plus the final RC38 security image/runtime appendix.
 
-The plugin manager and public/private multi-architecture packaging baseline are
+The plugin manager and public/external multi-architecture packaging baseline are
 implemented. RC34 passed public and authorized combined image smoke; the final
 candidate must repeat those gates after the last release change.
 
@@ -112,10 +112,10 @@ The source security review and findings register are complete with no open
 Critical/High finding. This does not replace final-candidate image, restart,
 cloud/on-prem, and exact-digest evidence.
 
-Private plugins remain external to this repository and are never enabled by
-default in the public image. Lifecycle and Review are the current public product
-plugins; similarly named `plugin-*` content is synthetic test coverage and
-does not contain private product source.
+Deployment-managed plugin source remains external to this repository and is
+never enabled by default in the public image. Lifecycle and Review are the
+current public product plugins; `PLUGINS/test/plugin-*` content is synthetic
+contract coverage and is never presented as a product.
 
 ## Tracking
 

@@ -8,16 +8,24 @@ in the partner's repository.
 
 Choose the closest existing integration instead of inventing a new contract:
 
+- [`senso/`](senso/) and [`opik/`](opik/) show catalog metadata and bounded
+  readiness checks.
 - [`github/`](github/) shows catalog metadata, server-side readiness checks,
   and human-readable setup copy.
 - [`gmail/`](gmail/) and [`microsoft365/`](microsoft365/) show provider-neutral
   OAuth integrations backed by the shared
   [`MAIL_CAPABILITY_CONTRACT.md`](MAIL_CAPABILITY_CONTRACT.md).
 - [`resend/`](resend/) shows a partner with curated skill-catalog metadata.
+- [`cognee/`](cognee/) shows context/memory configuration and a curated
+  external installer boundary.
 - [`digo/`](digo/) is the catalog example for a consent-gated Activity Export
   destination. The complete data, consent, delivery, and conformance contract
   is in the
   [Activity Export guide](../SYSTEM/docs/planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md).
+
+These directories are the shipped public catalog. A proposed partner should
+not be described as available until its definition, fallback metadata, tests,
+and user-visible readiness boundary are merged.
 
 Every catalog contribution needs a `partner.json` for product behavior and a
 `PARTNER.md` for positioning and setup guidance. Keep required behavior in the

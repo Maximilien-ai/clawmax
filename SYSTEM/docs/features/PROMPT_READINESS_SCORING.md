@@ -59,7 +59,8 @@ must never block creation.
   prompt readiness.
 - Keep model-fit recommendations separate from prompt and artifact scores.
   Model fit must use runtime availability, capability evidence, representative
-  Evals, tokens, pricing, and latency as those inputs become available.
+  representative execution evidence, tokens, pricing, and latency as those
+  inputs become available.
 - Score saved artifacts against domain rubrics and expose evidence for each
   score.
 - Add explicit opt-in aggregation for feedback used to calibrate rules.
@@ -69,8 +70,7 @@ must never block creation.
   rewarding prompt length alone.
 - Make scoring available to public plugins through domain-neutral host
   contracts.
-- Keep scoring useful without requiring Optimize, guardrail, evaluation, or
-  any other particular plugin.
+- Keep scoring useful without requiring any particular plugin.
 
 The active model recommendation plan is documented in
 [Public Model Fit 2.0](../planning/PUBLIC_MODEL_FIT_2_0.md).

@@ -2,26 +2,29 @@
 
 > Status: v2 foundation implemented; action grants, packaging, performance, and file-open follow-through remain
 > Target: `2.0.0`
-> Last updated: August 27, 2026
+> Last updated: August 30, 2026
 
 ## Core Rule
 
-A ClawMax plugin can be anything added to the dashboard or ClawMax runtime. The host must not assume that plugins are guardrails, evaluations, records, or any other fixed product concept.
+A ClawMax plugin can be anything added to the dashboard or ClawMax runtime.
+The host must not assume that plugins share any fixed product concept.
 
-Guardrails and evaluations are plugin implementations. Optimize, Gmail, Microsoft 365, model providers, enterprise integrations, custom operational pages, workflow tools, and future capabilities must use the same generic host contract without adding their domain objects to the core plugin loader.
+Mail providers, model providers, operational pages, workflow tools, and future
+capabilities must use the same generic host contract without adding their
+domain objects to the core plugin loader.
 
 ## Goals
 
 - Keep the public dashboard and runtime extensible without editing core navigation, routes, storage, or domain unions for every plugin.
 - Let one plugin contribute any combination of UI, APIs, data, actions, jobs, events, settings, skills, providers, documentation, and extension points.
-- Keep public and private plugins on the same technical contract. Visibility and distribution are metadata, not execution types.
+- Keep public and separately distributed plugins on the same technical contract. Visibility and distribution are metadata, not execution types.
 - Make permissions, compatibility, lifecycle, migrations, health, audit, and failure isolation explicit.
 - Allow ClawMax to start and retain core functionality when an optional plugin is absent, disabled, incompatible, or unhealthy.
 
 ## Non-Goals
 
 - The core host does not define plugin-specific record schemas.
-- The core host does not contain `guardrail | eval | optimize | mail | ...` unions.
+- The core host does not contain product-specific plugin-kind unions.
 - The core host does not infer permissions from a plugin name or source repository.
 - The first release does not need arbitrary untrusted browser code downloaded at runtime. Packaged and operator-approved modules are a safer initial boundary.
 
@@ -211,29 +214,33 @@ Required hooks may include:
 
 Hooks need timeouts, cancellation, structured errors, and audit events. A failed optional plugin should degrade independently rather than preventing ClawMax startup.
 
-## Public And Private Plugins
+## Public And Separately Distributed Plugins
 
-Public and private describe source/distribution, not capability or trust level:
+Distribution describes source and availability, not capability or trust level:
 
 - both use the same manifest and runtime APIs;
 - both declare permissions and contributions;
 - both receive compatibility, lifecycle, health, audit, and isolation checks;
 - public plugins ship source, tests, documentation, and release artifacts publicly;
-- private plugins can be loaded from operator-configured paths or registries without being bundled into the public repository or default image.
+- separately distributed plugins can be loaded from operator-configured paths or registries without being bundled into the public repository or default image.
 
-The host must not contain code paths named after private plugin products.
+The host must not contain code paths named after non-public plugin products.
 
 ## Migration From MVP0
 
-The current MVP0 contract includes `objectKind: 'guardrail' | 'eval'`, hardcoded record unions, templates, and generic pages that understand those records. Replace this incrementally:
+The MVP0 contract includes host-defined object-kind unions, templates, and
+generic pages that understand specific legacy records. Replace this
+incrementally:
 
 1. Introduce the v2 contribution manifest alongside MVP0.
-2. Add a generic workspace-page fixture with no guardrail/eval concepts.
+2. Add a generic workspace-page fixture with no product-domain assumptions.
 3. Move shared discovery, enablement, navigation, route, health, and storage behavior to v2 services.
-4. Convert guardrail and evaluation implementations into independent plugins that register their own pages, APIs, stores, and schemas.
+4. Move legacy product implementations into independent plugins that register
+   their own pages, APIs, stores, and schemas.
 5. Remove `PluginObjectKind`, `PluginRecord`, and product-specific template logic from the host.
 6. Keep a bounded compatibility adapter only for the migration window.
-7. Use the public Lifecycle and Review plugins as proofs that the host supports useful products without guardrail/eval/optimization assumptions.
+7. Use the public Lifecycle and Review plugins as proofs that the host supports
+   useful products without domain-specific assumptions.
 
 ## Test Contract
 
@@ -244,19 +251,20 @@ The current MVP0 contract includes `objectKind: 'guardrail' | 'eval'`, hardcoded
 - verify enable, disable, migrate, restart, export, import, workspace delete, and uninstall;
 - confirm plugin failure does not crash core routes or dashboard navigation;
 - test stale/incompatible plugins with actionable diagnostics;
-- verify public and private plugins execute through the same host contracts;
+- verify public and separately distributed plugins execute through the same host contracts;
 - ensure one plugin cannot access another plugin's state, routes, secrets, or events without a declared shared contract;
 - run desktop/mobile/accessibility checks for contributed pages and dialogs;
-- prove Lifecycle, Review, mail, and private enterprise plugins require no product-specific branches in the host.
+- prove Lifecycle, Review, mail, and externally distributed plugins require no
+  product-specific branches in the host.
 
 ## 2.0 Release Gate
 
-- the generic host contains no `guardrail | eval` plugin-kind assumption;
+- the generic host contains no product-specific plugin-kind assumption;
 - a page-only plugin, API-only plugin, job-only plugin, provider-only plugin, and multi-contribution plugin all pass contract tests;
 - permissions and scopes are enforced by host services;
 - plugin migrations and lifecycle survive restart and workspace operations;
 - optional plugin failures remain isolated;
-- public/private distribution uses the same technical contract;
+- public and separately distributed plugins use the same technical contract;
 - Lifecycle and Review run as public plugins without core product-domain types;
-- guardrail and evaluation products run as plugins without core guardrail/eval domain types;
+- external product plugins run without core product-domain types;
 - the public SDK, schema, examples, tests, and author documentation ship together.

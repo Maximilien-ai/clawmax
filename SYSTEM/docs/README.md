@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: August 27, 2026
+> Last updated: August 30, 2026
 
 ## Active Documents
 
@@ -16,17 +16,20 @@
 | [security/SECURITY_REVIEW_2_0_RC38.md](security/SECURITY_REVIEW_2_0_RC38.md) | 2.0 source security sign-off and pending final-candidate appendix |
 | [security/SECURITY_FINDINGS_2_0.md](security/SECURITY_FINDINGS_2_0.md) | Remediated and accepted 2.0 security findings |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
-| [planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md](planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) | Active RC46 preparation and `2.0.0` promotion plan |
+| [planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md](planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) | Accepted RC46 evidence and remaining `2.0.0` promotion gates |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
 | [planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) | Active public 2.0 plugin and AI-scoring plan |
 | [planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md](planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md) | Active public Lifecycle plugin plan for deep agent/workflow inspection |
-| [planning/PUBLIC_MODEL_FIT_2_0.md](planning/PUBLIC_MODEL_FIT_2_0.md) | Active public explainable model-fit and Eval/Optimize integration plan |
+| [planning/PUBLIC_MODEL_FIT_2_0.md](planning/PUBLIC_MODEL_FIT_2_0.md) | Active public explainable model-fit and evidence-backed recommendation plan |
 | [planning/PUBLIC_SCORE_ACTIONS_2_0.md](planning/PUBLIC_SCORE_ACTIONS_2_0.md) | Shared score details, improvement suggestions, confirmed actions, audit, and undo |
 | [planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md) | Active public Gmail and Microsoft 365 partner plan; records shipped model-provider decisions |
 | [planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md](planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md) | Public consent-gated activity export contract, ClawMax.ai reference receiver, and Digo integration plan |
 | [../../PARTNERS/README.md](../../PARTNERS/README.md) | Partner contribution guide with shipped examples and the catalog-versus-activity-sharing boundary |
+| [../../PLUGINS/README.md](../../PLUGINS/README.md) | Public plugin overview, creation entry point, examples, and plugin-versus-partner guidance |
 | [../../PLUGINS/PLUGIN_SYSTEM_2_0.md](../../PLUGINS/PLUGIN_SYSTEM_2_0.md) | Public 2.0 plugin-host architecture and acceptance boundary |
 | [../../PLUGINS/PLUGIN_AUTHORING_2_0.md](../../PLUGINS/PLUGIN_AUTHORING_2_0.md) | Declarative 2.0 plugin authoring contract |
+| [../../PLUGINS/public/clawmax-lifecycle/README.md](../../PLUGINS/public/clawmax-lifecycle/README.md) | Public Lifecycle plugin scope and safety boundary |
+| [../../PLUGINS/public/clawmax-review/README.md](../../PLUGINS/public/clawmax-review/README.md) | Public Review plugin purpose and evidence boundary |
 | [architecture/DASHBOARD_RUNTIME_SPLIT.md](architecture/DASHBOARD_RUNTIME_SPLIT.md) | Investigation note for the 2-container vs 3-container dashboard runtime split |
 
 ## Specifications (External)

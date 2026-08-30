@@ -10,10 +10,10 @@ legacy-adapter removal remain release work. See
 
 ## Purpose
 
-ClawMax 2.0 provides a public plugin host. Product-specific plugins can remain in
-private repositories, while public and third-party plugins use the same host
-contract. Plugin source and production enablement do not belong in the ClawMax
-core repository.
+ClawMax 2.0 provides a public plugin host. Product-specific plugins can remain
+in their owning repositories, while public and third-party plugins use the same
+host contract. External plugin source and production enablement do not belong
+in the ClawMax core repository.
 
 The host owns the stable integration boundary:
 
@@ -33,15 +33,15 @@ Plugin repositories own their product behavior:
 - optional declarative views and actions
 - plugin-specific tests and documentation
 
-## Privacy Boundary
+## Distribution And Privacy Boundary
 
-- Private plugin repositories are mounted or installed at deployment time.
-- Private plugin files are never copied into this repository or its public
+- Separately distributed plugin repositories are mounted or installed at deployment time.
+- Non-public plugin files are never copied into this repository or its public
   container image.
 - `CLAWMAX_PLUGIN_PATHS` supplies mounted plugin roots.
 - `CLAWMAX_ENABLED_PLUGINS` explicitly selects enabled plugins.
 - A standard ClawMax runtime must work with zero plugins.
-- Public host tests use synthetic fixtures, not private plugin source.
+- Public host tests use synthetic fixtures, not external product source.
 
 The dashboard may expose manifest metadata for a loaded plugin, but must not
 serve its source tree or credentials.
@@ -79,7 +79,7 @@ Status: implemented; continue regression validation.
 - Keep zero-plugin startup working.
 - Load private and public manifests from external roots.
 - Require explicit enablement for non-default plugins.
-- Validate current private plugin manifests against the public schema.
+- Validate separately distributed plugin manifests against the public schema.
 - Preserve the MVP0 object-kind adapters while 2.0 contracts are introduced.
 
 ### Phase 2: Generic manifest and records
@@ -119,9 +119,9 @@ The 2.0 plugin host is ready when:
 - ClawMax passes its full suite with zero plugins enabled.
 - Synthetic external plugins pass discovery, CRUD, document, notification, and
   permission contract tests.
-- Private plugins can be mounted into local, cloud, and on-prem runtimes without
+- Separately distributed plugins can be mounted into local, cloud, and on-prem runtimes without
   rebuilding the public image.
 - A third plugin type can integrate without adding product-specific core code.
 - Missing mounts, incompatible API versions, invalid manifests, and denied
   permissions produce actionable diagnostics.
-- No private plugin source or production enablement is tracked in this repo.
+- No non-public plugin source or production enablement is tracked in this repo.

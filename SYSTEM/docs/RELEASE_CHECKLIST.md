@@ -160,7 +160,7 @@ Use [MANUAL_RELEASE_SMOKE_CHECKLIST.md](MANUAL_RELEASE_SMOKE_CHECKLIST.md) as th
 
 Apply this section to the `2.0.0` development line on `main` and later plugin-platform releases.
 
-- Confirm the public image and repository contain no private plugin source, credentials, or production enablement.
+- Confirm the public image and repository contain no non-public plugin source, credentials, or production enablement.
 - Run the full suite with zero plugins enabled.
 - Run discovery, CRUD, template, document, notification, and permission contract tests with synthetic external fixtures.
 - Verify a generic third object type loads without adding a product-specific core route, page, or schema branch.

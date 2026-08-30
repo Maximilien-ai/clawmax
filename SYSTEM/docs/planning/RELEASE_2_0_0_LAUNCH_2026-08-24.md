@@ -4,7 +4,7 @@
 > Latest published candidate: `2.0.0-test-rc46`
 > Next candidate: only if RC46 testing finds a source or packaging defect
 > Stable release: `v1.9.9`
-> Updated: August 28, 2026
+> Updated: August 30, 2026
 
 RC43 hands-on feedback found release-blocking model authorization, runtime
 packaging, Builder, and navigation issues. RC43 is no longer promotable
@@ -25,13 +25,10 @@ new changes on `main` required the fully validated RC46 recorded below.
 - Public amd64/arm64 build, packaged-version verification, manifest publication,
   and authenticated registry smoke passed in
   [run 33211887894](https://github.com/Maximilien-ai/clawmax/actions/runs/33211887894).
-- Private source: `dc04204d7dbe90bf9cd49b8d8a7a5f745e33fe91`.
 - Matching combined-image contracts, runtime acceptance, package privacy, build,
   live discovery, and amd64/arm64 registry smoke passed after the public-base
-  sequencing rerun in
-  [run 33211905606](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/33211905606).
-- Combined multi-architecture RepoDigest:
-  `sha256:ecd22c383e2d00f019bb767f71adbda477be32008a0e8c5f49cb704422d71010`.
+  sequencing rerun. Restricted source identity, run links, and digests remain
+  in the owning release repository.
 
 ## Accepted RC45 Engineering Evidence
 
@@ -42,8 +39,7 @@ new changes on `main` required the fully validated RC46 recorded below.
 - Public multi-architecture manifest digest:
   `sha256:26d49eb2da975a449db9513ba889f0cd78f064e4fbba2f16458312d69824f688`.
 - The matching authorized combined image passed private build, source-boundary,
-  plugin-contract, runtime-acceptance, smoke, and publication validation in
-  [run 32912142580](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/32912142580).
+  plugin-contract, runtime-acceptance, smoke, and publication validation.
 
 ## Historical RC43 Engineering Evidence
 
@@ -56,9 +52,9 @@ new changes on `main` required the fully validated RC46 recorded below.
   [run 32658795332](https://github.com/Maximilien-ai/clawmax/actions/runs/32658795332).
 - The public multi-architecture manifest digest is
   `sha256:8af1e160106db1acab5e9b853743cad943effe8de5d52dc11890dd0b2b715c44`.
-- Authorized combined-image validation, private source locking, package privacy,
+- Authorized combined-image validation, external source locking, package privacy,
   runtime acceptance, live plugin discovery, and amd64/arm64 registry smoke
-  passed. Detailed private source and evidence remain in the private plugin
+  passed. Restricted source and evidence remain in the owning release
   repository.
 
 ## RC46 Engineering Gates
@@ -72,7 +68,7 @@ new changes on `main` required the fully validated RC46 recorded below.
   evidence. A restart must not be required to reclaim routine resources.
 - [x] Build and independently smoke both public and matching authorized combined
   amd64/arm64 images from the exact RC46 source, with packaged version identity,
-  discovery, restart persistence, and public/private source-boundary evidence.
+  discovery, restart persistence, and public/external source-boundary evidence.
 
 ## Human And External-Environment Gates
 
@@ -81,8 +77,8 @@ Only work requiring human judgment or an external environment remains here:
 - [ ] Complete hands-on RC46 product testing for surfaces changed after RC45 and
   record any release-blocking observations in the current Review set.
 - [ ] Confirm the accepted candidate restarts cleanly in the supported cloud
-  and on-prem deployment paths, including authenticated private-image pulls
-  where the enterprise plugins are enabled.
+  and on-prem deployment paths, including authenticated pulls for any
+  separately distributed extensions enabled by the operator.
 - [ ] Complete real-provider checks that cannot be proven with synthetic OAuth
   fixtures, or explicitly defer them without claiming provider validation.
 - [ ] Export and retain the final Review evidence with named verifier, result,

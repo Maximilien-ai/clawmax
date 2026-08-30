@@ -8,10 +8,9 @@ release Review export.
 ## Prerequisites
 
 - Public image reports the expected RC version.
-- Private image is pulled with a GHCR credential that has `read:packages`,
-  package access, and required organization SSO authorization.
 - Public image exposes Lifecycle and Review only.
-- Private image exposes Evals, Guardrails, Optimize, Lifecycle, and Review.
+- Any separately distributed extension image is pulled with its documented
+  registry credential and expected plugin inventory.
 - Start from a fresh browser profile or clear prior Activity Export state.
 - For automatic delivery checks, configure `CLAWMAX_ACTIVITY_EXPORT_ENDPOINT`
   and `CLAWMAX_ACTIVITY_EXPORT_TOKEN`. The worker runs every five minutes by
@@ -21,13 +20,13 @@ release Review export.
 ## Plugin and Image Checks
 
 1. Open `/api/health` and `/api/system`; confirm HTTP 200 and the expected RC.
-2. Open `/api/plugins`; confirm the public/private plugin inventory matches the
-   image being tested.
+2. Open `/api/plugins`; confirm the plugin inventory matches the image and
+   explicit instance selection being tested.
 3. Open each plugin on desktop and mobile. Verify list, detail, and graph views,
    zoom controls, search/filter controls, enabled/disabled state, and no
    duplicate navigation entries.
-4. For private plugins, confirm the complete suggested catalogs load. A
-   fixture-catalog warning or only two suggestions is a deployment failure.
+4. For separately distributed plugins, confirm their documented catalog and
+   readiness state load without exposing synthetic fixtures as products.
 5. Restart the container and confirm plugin state, workspace data, and browser
    navigation preferences remain intact.
 

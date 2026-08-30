@@ -54,10 +54,10 @@ enterprise policy, evaluation, or optimization product.
 
 ## Acceptance
 
-- The public image discovers Lifecycle and Review without private plugin paths.
-- Dev discovers the same public plugins plus local private plugins when the
-  sibling `clawmax-plugins` repository is present.
+- The public image discovers Lifecycle and Review without external plugin paths.
+- Dev can discover the same public plugins plus explicitly configured external
+  plugin roots.
 - Selecting an object never exposes records outside the active workspace.
 - Disabling Lifecycle removes its navigation cleanly while preserving its saved
   state; re-enabling restores it.
-- Lifecycle contains no Evals, Guardrails, or Optimize product catalog or rules.
+- Lifecycle contains no product catalog or rules belonging to another plugin.

@@ -8,17 +8,18 @@
 
 Recommend the best currently available model for an agent or workflow without
 pretending that a model name proves quality, capability, latency, or price.
-The same public engine should support agent creation, Evals, Optimize, and
-future plugins through domain-neutral host contracts.
+The same public engine should support agent creation, representative execution
+comparisons, resource planning, and future plugins through domain-neutral host
+contracts.
 
 Model fit is separate from:
 
 - prompt readiness, which measures whether a creation prompt is sufficiently
   specific;
 - artifact quality, which scores generated or saved content against evidence;
-- Evals, which measure representative executions;
-- Optimize, which combines measured quality with tokens, price, schedule, and
-  budget.
+- representative execution comparisons, which measure actual behavior; and
+- resource planning, which combines measured quality with tokens, price,
+  schedule, and budget.
 
 ## RC Foundation
 
@@ -92,7 +93,7 @@ Recommendations should accept:
 - runtime-visible models and workspace policy;
 - hard requirements and soft preferences;
 - quality, cost, and latency priorities;
-- observed Eval results when available;
+- observed representative execution results when available;
 - token distributions and dated prices when available.
 
 They should return:
@@ -105,9 +106,9 @@ They should return:
 - confidence and missing evidence;
 - an exact, confirmable change rather than an automatic mutation.
 
-## Evals Integration
+## Representative Execution Integration
 
-Evals should turn a recommendation into a comparison plan:
+An evaluation consumer should turn a recommendation into a comparison plan:
 
 1. select representative inputs and acceptance criteria;
 2. execute the current model and candidate models under the same conditions;
@@ -115,11 +116,13 @@ Evals should turn a recommendation into a comparison plan:
 4. highlight statistically weak or incomplete evidence;
 5. allow the user to approve a model only after reviewing the comparison.
 
-An Eval result can raise recommendation confidence. A model name alone cannot.
+Measured execution results can raise recommendation confidence. A model name
+alone cannot.
 
-## Optimize Integration
+## Resource Planning Integration
 
-Optimize should combine model compatibility and Eval evidence with:
+A planning consumer should combine model compatibility and measured execution
+evidence with:
 
 - per-run and budget-period token distributions;
 - dated pricing snapshots;
@@ -129,8 +132,8 @@ Optimize should combine model compatibility and Eval evidence with:
 - preview, confirmation, audit, and undo.
 
 The cheapest candidate is not automatically the recommended candidate. When no
-compatible model satisfies the quality floor and budget, Optimize must say that
-the budget, work, or schedule assumption needs to change.
+compatible model satisfies the quality floor and budget, the consumer must say
+that the budget, work, or schedule assumption needs to change.
 
 ## Remaining Work
 
@@ -138,8 +141,8 @@ the budget, work, or schedule assumption needs to change.
 - support explicit hard requirements in agent and workflow configuration;
 - add workflow-level quality, balanced, and cost preference controls;
 - include excluded models and missing-evidence details in the UI;
-- integrate representative Eval execution and measured model comparisons;
-- integrate token/cost/latency evidence into Optimize;
+- integrate representative execution and measured model comparisons;
+- integrate token, cost, and latency evidence into resource planning;
 - add workflow participant and step-level recommendations;
 - persist approved recommendations, actor, evidence, and reversible changes;
 - calibrate ranking against an approved corpus without collecting raw prompts
@@ -153,6 +156,6 @@ the budget, work, or schedule assumption needs to change.
 - recommendations include alternatives, evidence, caveats, and confidence;
 - no model changes occur without confirmation;
 - shared agent models are not mutated for one workflow optimization;
-- representative Evals can compare candidates before application;
+- representative executions can compare candidates before application;
 - token and cost claims reconcile to observed usage and dated pricing;
 - desktop and mobile UI remains usable with long provider/model names.

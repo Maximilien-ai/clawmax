@@ -4,10 +4,11 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
-### RC46 preparation
+### RC46 accepted candidate
 - **Optional agent runtimes** — add reviewed Claude Code and Factory Droid execution across direct chat, communication, workflows, and scheduled runs, with runtime-specific credentials, pinned CLI artifacts, visible/cancellable long turns, bounded output, and focused regression coverage.
 - **Resource lifecycle hardening** — terminate retained process descendants reliably, add repeatable Podman soak evidence collection, and keep issue #187 open until a controlled 24-hour combined-image run proves bounded memory and PID behavior.
-- **Documentation source of truth** — archive the completed RC43 feedback tracker, record accepted RC45 image evidence, and align status, security, testing, backlog, and launch gates with RC46 preparation.
+- **Documentation source of truth** — archive the completed RC43 feedback tracker, record accepted RC45 and RC46 evidence, and align status, security, testing, backlog, and launch gates with the remaining 2.0 promotion work.
+- **Public extension documentation** — add one plugin creation entry point, public Lifecycle and Review references, expanded partner examples, and a clear plugin-versus-partner and catalog-versus-activity-sharing boundary without publishing non-public implementation details.
 
 ### RC45 accepted candidate
 - **RC43 feedback repairs** — authorize normalized LM Studio/Gemma execution models, package the pinned QBO CLI in Linux amd64/arm64 runtime images, prevent invented Builder agent targets, clarify first-use and agent-creation flow, disclose AI rewrite score changes with undo, separate optional skill setup from agent creation, and connect the Partner setup surfaces.
@@ -17,18 +18,18 @@ All notable changes to ClawMax are documented here.
 
 ### RC40-RC43
 - **Final-candidate plugin visibility** — RC43 surfaces generic plugin activity on agent and workflow cards, lists, relationship views, and detail views with compact summaries and inspectable evidence. The public presentation remains domain-neutral; enterprise product implementation and acceptance stay private.
-- **External plugin acceptance boundary** — RC42 decouples deployment-mounted plugin discovery from public product assumptions and adds a public launcher for contract tests owned by an external plugin repository, without copying private plugins or tests into this repository.
+- **External plugin acceptance boundary** — RC42 decouples deployment-mounted plugin discovery from public product assumptions and adds a public launcher for contract tests owned by an external plugin repository, without copying external product plugins or tests into this repository.
 - **Gemini creation reliability** — RC41 binds AI generation to the selected Gemini provider/model and retains focused provider regressions, including the previously failing Gemini path.
 - **Authorized session bootstrap consumption** — the dashboard consumes gateway-issued, authorization-bound sessions without accepting tenant, workspace, or runtime identity from caller-controlled routing inputs.
 - **Release evidence** — RC43 source `a4b78c1d` passed the `463/463` local integration, validation, coverage, and live-execution gate. Public amd64/arm64 publication and registry smoke passed in [run 32658795332](https://github.com/Maximilien-ai/clawmax/actions/runs/32658795332) with manifest digest `sha256:8af1e160106db1acab5e9b853743cad943effe8de5d52dc11890dd0b2b715c44`; matching combined-image evidence remains private.
 
 ### RC39
 - **Praveen dashboard regression candidate** — agent discovery and partial-data rendering, long-running chat stream safety, and workflow concurrency/cancellation/restart state now have a focused three-journey independent Review set. The underlying reported defects are covered by automated tests and closed optimistically for RC39 verification; RC38 criteria remain preserved as historical review evidence.
-- **Truthful plugin advisory behavior** — generic Guardrail configuration intent is preserved without claiming enforcement the host cannot provide, and unsupported AI Eval suggestions no longer fabricate deterministic scores. Private product implementation and acceptance evidence remain in the private plugin repository.
+- **Truthful plugin advisory behavior** — generic configuration intent is preserved without claiming enforcement the host cannot provide, and unsupported AI-generated suggestions no longer fabricate deterministic scores. Product-specific implementation and acceptance evidence remain with their owning repositories.
 
 ### RC38
 - **Focused independent release review** — the current tester queue is reduced from 20 component and release checks to seven end-to-end journeys that require human product judgment, real OAuth providers, or a persistent upgraded runtime. Historical 1.9.9 and earlier-2.0 checks remain preserved for traceability but are not offered as current tester work; starting a new focused checklist archives every superseded release without deleting results, notes, evidence, or verifier history.
-- **Security sign-off candidate** — RC38 carries the completed 2.0 source security hardening and zero-vulnerability dependency gate on top of the accepted RC37 OpenClaw `v2026.6.34` session-recovery runtime. Final public/private image digests and cloud/on-prem runtime evidence remain release gates.
+- **Security sign-off candidate** — RC38 carries the completed 2.0 source security hardening and zero-vulnerability dependency gate on top of the accepted RC37 OpenClaw `v2026.6.34` session-recovery runtime. Final public/external image digests and cloud/on-prem runtime evidence remain release gates.
 
 ### RC37
 - **Automatic session-conflict recovery** — post-RC36 on-prem testing found that an OpenClaw embedded-session takeover still required a manual chat reset. Chat now retries once with a fresh bounded session when no assistant output was streamed, retains that recovered session for later messages, and workflow retries use the same one-retry bound.
@@ -45,13 +46,13 @@ All notable changes to ClawMax are documented here.
 ### Added
 - **Agent Runtimes (Claude Code / Factory Droid)** — agents can now execute via the Claude Code or Factory Droid CLI instead of OpenClaw, selectable as a workspace default (Integrations → Runtime) or pinned per agent (agent editor), consistently across direct chat, group/channel chat, workflows, and scheduled/cron runs. Both CLIs run with full autonomy (`claude --dangerously-skip-permissions`, `droid --auto high`) and authenticate headlessly via `ANTHROPIC_API_KEY` / `FACTORY_API_KEY`. Ships across every deployment path: Docker image (pinned `@anthropic-ai/claude-code` + Droid installer versions), `setup.sh`/`doctor.sh` non-fatal CLI detection, and `.env.example`/README/SETUP docs.
 - **2.0 Declarative Plugin Contract** — the `clawmax.ai/v2` manifest adds generic record schemas and defaults, declarative list/form presentation, generic templates, workspace storage, and compatibility validation without requiring a new core page or route for every plugin domain.
-- **External Plugin Boundary** — plugin discovery supports deployment-mounted roots plus explicit enablement while preserving a zero-plugin runtime. Public and private plugins use the same contract; private source and production enablement remain outside the public repository and default image.
+- **External Plugin Boundary** — plugin discovery supports deployment-mounted roots plus explicit enablement while preserving a zero-plugin runtime. Public and separately distributed plugins use the same contract; non-public source and production enablement remain outside the public repository and default image.
 - **Plugin Health Diagnostics** — System & Logs and `/api/plugins/diagnostics` report loaded, disabled, invalid, incompatible, duplicate, and missing plugins with manifest versions, paths, and actionable remediation instead of silently dropping discovery failures.
 - **Least-Privilege Plugin Capabilities** — plugin document and notification operations now require explicit manifest grants, workspace context is filtered across agents, workflows, and communications, malformed capability declarations invalidate the manifest, and plugin pages plus diagnostics expose the effective grants.
 - **Test Plugin Validation Policy** — local test runs enable synthetic `plugin-*` contract fixtures for broader plugin coverage; public images enable only public product plugins.
 - **Release Review Checklists** — the public Review plugin loads each release from one versioned JSON checklist, initializes it in one action, isolates records behind one release tab at a time, reports completed/total progress, and persists checkboxes, outcomes, notes, and evidence so results from one RC cannot be mistaken for another.
 - **Public Lifecycle X-rays** — the public Lifecycle plugin provides searchable multi-agent and multi-workflow inspections with compressed proportional fishbone timelines, clickable event evidence, collapsible detail sections, workflow execution and participant history, five focused suggestions, and metadata-only artifact/conversation visibility without bundling enterprise policy, evaluation, or optimization products.
-- **Private Enterprise Plugin Boundary** — Evals, Guardrails, and Optimize manifests, catalogs, implementation plans, and product tests now live in the private `clawmax-plugins` monorepo and combined image; the public repository retains only generic host adapters and synthetic fixtures.
+- **Separately Distributed Plugin Boundary** — non-public manifests, catalogs, implementation plans, and product tests remain in their owning repositories and packages; the public repository retains only generic host adapters and synthetic fixtures.
 - **Declarative Numeric Plugin Controls** — v2 manifests can declare bounded numeric sliders with exact-value inputs, shared browser normalization, and server-enforced limits without teaching the public host any private product domain.
 - **Plugin Draft Quality Scoring** — AI Create and manual plugin creation expose a public deterministic quality score with concrete suggestions for missing targets, controls, eval inputs, expected outputs, and generic required fields.
 - **Plugin Relationships And Lifecycle Evidence** — plugin workspaces add a generic relationship view alongside grid, detail, and list views, while plugin-owned activity remains inspectable without embedding private domain schemas in the public host.
@@ -60,7 +61,7 @@ All notable changes to ClawMax are documented here.
 - **Release Review Export** — Review exports a release-specific Markdown handoff containing checklist outcomes, notes, evidence, reviewer identity, environment and instance details, timestamps, and sanitized recent runtime errors.
 - **Dedicated Plugin Suggestions** — plugin suggestions live in a separate counted tab instead of appearing above active workspace items, with independent search, tag filters, recommendation/name sorting, and a return to Active after use.
 - **Consolidated Tester Review History** — Review retains stable-line and earlier-2.0 acceptance history alongside one focused current-RC set; every check separates the action from its pass result and can identify prior tester confirmation without merging browser-local state.
-- **Actionable Review Procedures And Imported Evidence** — every retained release check now includes numbered actions and an objective pass condition; RC4/RC5 exports preserve Max's local navigation, restart, and automated-suite confirmations while keeping untested image, private-plugin, Guardrails, Evals, and RC8 work pending.
+- **Actionable Review Procedures And Imported Evidence** — every retained release check now includes numbered actions and an objective pass condition; RC4/RC5 exports preserve local navigation, restart, and automated-suite confirmations while keeping untested image, external-plugin, and RC8 work pending.
 - **Review Release Archiving** — testers can archive or restore an entire selected release from Review, archived releases no longer clutter Active, and starting a new focused checklist retires superseded sets while preserving unfinished work and evidence.
 - **Public Mail Capability Foundation** — Gmail and Microsoft 365 share a versioned read/search/read-body/create-draft contract with exact workspace, agent, plugin fingerprint, account, and capability grants; bounded fake-provider tests prove inbound message text cannot add recipients or permissions, while preview partner entries avoid unusable password fields.
 - **Encrypted Mail OAuth Foundation** — provider-neutral Gmail and Microsoft 365 connection routes add short-lived actor/workspace-bound state, PKCE S256, replay protection, encrypted restart-persistent token storage, metadata-only readiness, refresh, and disconnect behavior validated through fake provider exchanges.
@@ -71,7 +72,7 @@ All notable changes to ClawMax are documented here.
 
 ### Fixed
 - **Readable Plugin Artifact Names** — generated plugin item and summary Markdown files use a sanitized record name plus a short stable identity suffix instead of an opaque UUID-only filename, while renamed records clean up superseded item files.
-- **Local External Plugin Configuration** — local startup honors ignored `.env` plugin selections and paths before applying public synthetic defaults, allowing private plugins to load in development without exposing them in the public repository or image.
+- **Local External Plugin Configuration** — local startup honors ignored `.env` plugin selections and paths before applying public synthetic defaults, allowing separately distributed plugins to load in development without exposing their source in the public repository or image.
 - **Mail Partners Hidden After Upgrade** — the exact legacy five-partner availability default now migrates to include Gmail and Microsoft 365, while genuinely custom partner allowlists remain unchanged.
 - **Checklist-First Review UI** — release checks now render as a responsive list with direct completion and note editing. Internal checklist seeds no longer appear as misleading `Recommended` cards with `Use Template` actions.
 - **Review Outcome Visibility** — passed checks remain green and crossed out, failed checks have a direct fail action and red treatment, and checks with user notes use an amber treatment without pre-populated guidance making untouched checks look commented.
@@ -324,7 +325,7 @@ All notable changes to ClawMax are documented here.
 ## [v1.8.2] - 2026-06-12
 
 ### Added
-- **Dormant Plugin Architecture MVP0** — added a host-side plugin contract with runtime discovery, sidebar plugin sections, workspace-scoped plugin storage, shared plugin surfaces, markdown-backed plugin item files, template apply support, and dedicated plugin regression lanes. The shipped host repo includes only dormant test fixtures under `PLUGINS/test`; no customer-facing private plugins are enabled by default.
+- **Dormant Plugin Architecture MVP0** — added a host-side plugin contract with runtime discovery, sidebar plugin sections, workspace-scoped plugin storage, shared plugin surfaces, markdown-backed plugin item files, template apply support, and dedicated plugin regression lanes. The shipped host repo includes only dormant test fixtures under `PLUGINS/test`; no separately distributed product plugin is enabled by default.
 
 ### Fixed
 - **Agents / Workflows Initial Load Dedupe** — reduced redundant initial fetches on Agents and Workflows so workspace activation no longer immediately double-loads the same surface before normal polling takes over.
@@ -678,7 +679,7 @@ All notable changes to ClawMax are documented here.
 
 ### AI Builder and Onboarding
 - **AI Builder Launch Path** — added the Builder-first workspace flow for routing user intent toward existing agents, skills, workflows, agent templates, team templates, or AI generation.
-- **Routing Quality Evals** — expanded AI Builder evaluation coverage for single-agent vs. team/team-of-teams intent, existing-agent reuse, workflow follow-through, skill follow-through, template refinement, and create-new template decisions.
+- **Routing Quality Evaluations** — expanded AI Builder evaluation coverage for single-agent vs. team/team-of-teams intent, existing-agent reuse, workflow follow-through, skill follow-through, template refinement, and create-new template decisions.
 - **Prompt Editing Upgrade** — shared AI prompt editors now support expandable markdown editing, improvement direction, file/image context, save-and-generate, resize-safe layout, and a brief success highlight after AI expansion.
 - **First-Run Guided Tour** — new workspaces can show a dismissible product tour covering workspaces, Builder, agents, communications, workflows, templates, skills, notifications, and system controls.
 

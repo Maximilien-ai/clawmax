@@ -40,14 +40,15 @@ Actionable suggestions must:
 3. require confirmation before mutation;
 4. record actor, rationale, scorer evidence, and result;
 5. offer undo where the underlying operation is reversible;
-6. rerun or link to a representative Eval so improvement is measured.
+6. rerun or link to representative execution evidence so improvement is
+   measured.
 
 Multi-target actions require an explicit target checklist. A stale suggestion
 must be recomputed instead of overwriting newer configuration.
 
-## Eval Review
+## Evaluation Result Review
 
-The Eval score dialog should show:
+An evaluation result dialog should show:
 
 - overall score and trend against previous runs;
 - one subscore row per experiment case and rubric dimension;
@@ -56,13 +57,13 @@ The Eval score dialog should show:
 - ranked actions such as model changes, clearer agent/workflow instructions, or
   missing skills.
 
-The private Eval plugin owns its evaluator implementation, prompts, suggested
+The contributing plugin owns its evaluator implementation, prompts, suggested
 experiments, and plugin-specific recommendation rules. The public host owns the
 generic result, preview, confirmation, audit, notification, and undo contracts.
 
-## Optimize Health Score
+## Resource Plan Health Score
 
-An active Optimize plan should show a continuously refreshed health score, not
+An active resource plan should show a continuously refreshed health score, not
 a claim that the plan itself is correct. Initial dimensions are:
 
 - budget adherence;

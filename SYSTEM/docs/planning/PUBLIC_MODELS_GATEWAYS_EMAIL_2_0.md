@@ -89,7 +89,7 @@ Ship Gmail and Microsoft 365/Outlook as public, curated partner plugins using th
 4. Gate `send`, `reply`, `forward`, move/archive, and delete by separate grants. Require a human confirmation for sends and destructive actions by default.
 5. Keep permanent delete out of the first release. Prefer reversible organization actions and drafts.
 6. Publish manifests, source, permission declarations, setup guides, test fixtures, and compatibility results.
-7. Keep proprietary guardrail/evaluation plugins private; the mail plugins, approval contract, audit events, and public scoring integration remain public.
+7. Keep non-public plugin implementations in their owning repositories; the mail plugins, approval contract, audit events, and public scoring integration remain public.
 
 ## Public Mail Capability Contract
 

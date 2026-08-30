@@ -4,6 +4,11 @@ Use this contract for declarative plugins that define object types outside
 ClawMax core. Legacy host-defined manifests remain supported temporarily
 through the MVP0 compatibility adapters.
 
+For the plugin-versus-partner decision and public examples, start with the
+[Plugin Guide](README.md). Keep a third-party plugin in its own repository or
+package, declare only the host capabilities it needs, and use **System & Logs >
+Plugins** to inspect discovery and compatibility before debugging its page.
+
 ## Manifest
 
 A v2 plugin repository provides `clawmax-plugin.json` with:
@@ -28,7 +33,7 @@ A v2 plugin repository provides `clawmax-plugin.json` with:
   "version": "0.2.0",
   "icon": "docs",
   "objectKind": "review-note",
-  "visibility": "private",
+  "visibility": "public",
   "enabledByDefault": false,
   "nav": {
     "section": "plugins",
@@ -192,8 +197,8 @@ CLAWMAX_ENABLED_PLUGINS=example-review-plugin
 ```
 
 Multiple plugin roots use the platform path delimiter. Production deployment
-must mount private repositories or packaged plugin directories separately from
-the public ClawMax image.
+must mount separately distributed repositories or packaged plugin directories
+without copying their source into the public ClawMax image.
 
 ## Health Diagnostics
 

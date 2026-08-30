@@ -64,7 +64,7 @@ This is a release gate, not a documentation-only exercise.
 - Manifest validation, capability grants, action-specific authorization,
   untrusted plugin data, API isolation, error containment, and disabled/missing
   plugin behavior.
-- Public/private image composition and proof that private plugin source is not
+- Public/external image composition and proof that non-public plugin source is not
   included in the public repository or public image.
 - Agent, workflow, notification, DocHub, and plugin interactions that could
   cross workspace or user boundaries.

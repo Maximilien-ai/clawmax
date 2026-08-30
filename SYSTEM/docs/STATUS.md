@@ -4,7 +4,7 @@
 
 **Development Line**: 2.0.0
 
-**Last Updated**: August 28, 2026
+**Last Updated**: August 30, 2026
 
 **Status**: `v1.9.9` remains stable. RC46 is the latest fully published 2.0 test candidate; OpenClaw remains pinned to `v2026.6.34` on the 2.0 line.
 
@@ -12,9 +12,11 @@
 
 - RC43 public source, image, digest, and combined-image results are retained as historical evidence, but tester feedback made that candidate non-promotable.
 - RC45 carries the LM Studio/Gemma, QBO runtime packaging, Builder, optional-skill, Partner navigation, and focused Review repairs. Public source `4ea36c447b3380c4c3cce045b441ec3973edfccb` and amd64/arm64 image publication passed [run 32911120892](https://github.com/Maximilien-ai/clawmax/actions/runs/32911120892); the public manifest digest is `sha256:26d49eb2da975a449db9513ba889f0cd78f064e4fbba2f16458312d69824f688`. The matching authorized combined image passed its private build, contract, smoke, and publication run.
-- RC46 adds guaranteed Builder AI Create choices, Claude Code and Factory Droid runtimes, retained-process cleanup, and higher-value branch coverage. Public source `b8f45271e2ef4c4df5f8c1210bbfdab8572b2b36` passed the complete `473/473` local gate and public amd64/arm64 publication plus registry smoke in [run 33211887894](https://github.com/Maximilien-ai/clawmax/actions/runs/33211887894). Private source `dc04204d7dbe90bf9cd49b8d8a7a5f745e33fe91` passed contracts, runtime acceptance, build, package privacy, live discovery, and both architecture smokes in [run 33211905606](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/33211905606); the combined multi-architecture RepoDigest is `sha256:ecd22c383e2d00f019bb767f71adbda477be32008a0e8c5f49cb704422d71010`.
-- Generic plugin activity remains visible on agent and workflow cards and detail views without encoding private plugin domains into the public host contract.
-- Lifecycle and Review are the public product plugins for 2.0. Evals, Guardrails, and Optimize remain private enterprise plugins. Public `PLUGINS/test/plugin-*` directories are synthetic contract fixtures only.
+- RC46 adds guaranteed Builder AI Create choices, Claude Code and Factory Droid runtimes, retained-process cleanup, and higher-value branch coverage. Public source `b8f45271e2ef4c4df5f8c1210bbfdab8572b2b36` passed the complete `473/473` local gate and public amd64/arm64 publication plus registry smoke in [run 33211887894](https://github.com/Maximilien-ai/clawmax/actions/runs/33211887894). Matching authorized combined-image validation also passed; restricted source identity and evidence remain with the owning release repository.
+- Generic plugin activity remains visible on agent and workflow cards and detail views without encoding external plugin domains into the public host contract.
+- Lifecycle and Review are the public product plugins for 2.0. Other deployment-managed plugins remain outside this public repository and image. Public `PLUGINS/test/plugin-*` directories are synthetic contract fixtures only.
+- The public partner catalog covers Senso, Opik, GitHub, Resend, Cognee, Gmail, Microsoft 365, and Digo. The [partner contribution guide](../../PARTNERS/README.md) points to each shipped pattern and keeps partner configuration separate from consented Activity Export.
+- The [plugin guide](../../PLUGINS/README.md) is the public entry point for plugin creation, host boundaries, and the Lifecycle and Review examples.
 - The RC38 source security review has no unresolved Critical or High findings. Final-candidate cloud/on-prem runtime evidence and the completed Review export remain required before promotion; the source review is not a claim that those external gates have passed.
 - Real Google and Microsoft provider checks remain pending or require an explicit documented deferral. Synthetic OAuth, authorization, persistence, and adapter coverage is green.
 

@@ -67,11 +67,11 @@ Runtime deployments may additionally set `OPENCLAW_WORKSPACE`,
 `CLAWMAX_SECRET_MASTER_KEY`, gateway settings, and provider credentials. Do
 not bake credentials into an image or pass them as build arguments.
 
-## Public and private images
+## Public and separately distributed images
 
 The public image contains the public plugin infrastructure and public plugins.
-Private enterprise plugins are supplied through the separately built combined
-private image and must not be copied into this public repository or image.
+Non-public plugins are supplied through a separately built combined image and
+must not be copied into this public repository or image.
 Both images must preserve the same filesystem paths, entrypoint, healthcheck,
 and environment contract above.
 
