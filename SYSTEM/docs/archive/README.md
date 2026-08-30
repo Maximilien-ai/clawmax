@@ -5,6 +5,7 @@ history. They are not active plans or current product guidance.
 
 Recent archived operational records:
 
+- [ClawMax 1.7 and 1.8 release highlights](RELEASE_HIGHLIGHTS_1_7_1_8.md)
 - [Superseded ClawMax CLI feature proposal](CLAWMAX_CLI_SPEC.md)
 - [Implemented partner-integration foundation proposal](PARTNER_INTEGRATIONS_ARCHITECTURE.md)
 - [Legacy Dashboard known issues, March 2026](DASHBOARD_KNOWN_ISSUES_V1_0_2026-03.md)
