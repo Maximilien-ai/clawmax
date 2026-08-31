@@ -26,5 +26,6 @@ assert(panelSource.includes('With no channel IDs, workspace channels are disable
 assert(panelSource.includes('Pairing is required for new Slack direct-message users'), 'Slack pairing-required state must remain visible')
 assert(panelSource.includes('Shared runtime configuration') && panelSource.includes('profile mode'), 'Non-profile credential sharing must be disclosed')
 assert(agentsSource.includes('<AgentChannelsPanel') && (agentsSource.match(/label="Channels"/g) || []).length >= 3, 'Every agent presentation must route channel management through the shared panel')
+assert((agentsSource.match(/data-agent-action="channels"/g) || []).length === 3, 'Every agent presentation must expose Channels directly in its primary actions menu')
 
-console.log('AgentChannelsPanel.test.ts: 21 assertions passed')
+console.log('AgentChannelsPanel.test.ts: 22 assertions passed')

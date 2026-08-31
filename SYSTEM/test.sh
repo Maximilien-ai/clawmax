@@ -956,7 +956,7 @@ fi
 echo ""
 echo -e "${YELLOW}→ Running Agent channel panel contract tests...${NC}"
 npx ts-node --transpileOnly client/src/components/AgentChannelsPanel.test.ts > /tmp/clawmax-agent-channels-panel.out 2>&1 || true
-if grep -q "AgentChannelsPanel.test.ts: 21 assertions passed" /tmp/clawmax-agent-channels-panel.out; then
+if grep -q "AgentChannelsPanel.test.ts: 22 assertions passed" /tmp/clawmax-agent-channels-panel.out; then
   pass "Agent channel panel contract tests (21 assertions)"
 else
   cat /tmp/clawmax-agent-channels-panel.out

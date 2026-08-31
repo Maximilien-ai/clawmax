@@ -3674,6 +3674,16 @@ const AgentCard = React.memo(function AgentCard({
                             Chat
                           </button>
                         )}
+                        {!agent.archived && (
+                          <button
+                            data-agent-action="channels"
+                            onClick={e => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false); setActionsMenuView('main') }}
+                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors"
+                          >
+                            <ProductIconCell iconName="communication" label="Channels" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
+                            Channels
+                          </button>
+                        )}
                         <button
                           onClick={e => { e.stopPropagation(); onStatus(); setShowActionsMenu(false) }}
                           className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
@@ -3814,15 +3824,6 @@ const AgentCard = React.memo(function AgentCard({
                         >
                           <ProductIconCell iconName="budget" label="Budget" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
                           Budget
-                        </button>
-                      )}
-                      {!agent.archived && (
-                        <button
-                          onClick={e => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false); setActionsMenuView('main') }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
-                        >
-                          <ProductIconCell iconName="communication" label="Channels" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
-                          Channels
                         </button>
                       )}
                       {!agent.archived && agent.whatsapp && (
@@ -4352,6 +4353,16 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                         <ProductIconCell iconName="communication" label="Chat" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
                         Chat
                       </button>
+                      {!agent.archived && (
+                        <button
+                          data-agent-action="channels"
+                          onClick={(e) => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false); setActionsMenuView('main'); }}
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors"
+                        >
+                          <ProductIconCell iconName="communication" label="Channels" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
+                          Channels
+                        </button>
+                      )}
                       <button
                         onClick={(e) => { e.stopPropagation(); onStatus(); setShowActionsMenu(false); }}
                         className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
@@ -4493,15 +4504,6 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                         >
                           <ProductIconCell iconName="budget" label="Budget" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
                           Budget
-                        </button>
-                      )}
-                      {!agent.archived && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false); setActionsMenuView('main'); }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
-                        >
-                          <ProductIconCell iconName="communication" label="Channels" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
-                          Channels
                         </button>
                       )}
                       {!agent.archived && agent.whatsapp && (
@@ -4937,6 +4939,7 @@ const AgentTableView = React.memo(function AgentTableView({
                       )}
                       {!agent.archived && (
                         <button
+                          data-agent-action="channels"
                           onClick={(e) => {
                             e.stopPropagation()
                             setOpenDropdown(null)
