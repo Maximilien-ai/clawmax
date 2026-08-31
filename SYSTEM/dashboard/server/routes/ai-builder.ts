@@ -11,6 +11,7 @@ import {
   generateBuilderStarterPromptsWithAI,
   inferBuilderGroupingWithAI,
   setRequestByokKeys,
+  warmOpenAiCompatibleGenerationModel,
 } from '../lib/ai-generator'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getWorkspacePath } from '../lib/workspace'
@@ -66,6 +67,7 @@ router.post('/recommend', async (req, res) => {
   }
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys)
     setRequestByokKeys(byokKeys)
     const session = getAuthenticatedSession(req)
     let recommendation = buildAiBuilderRecommendation(prompt)
@@ -127,6 +129,7 @@ router.post('/question', async (req, res) => {
   if (!question) return res.status(400).json({ error: 'Question is required' })
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys)
     setRequestByokKeys(byokKeys)
     const recommendationSummary = typeof req.body?.recommendationSummary === 'string'
       ? req.body.recommendationSummary
@@ -199,6 +202,7 @@ router.post('/starter-prompts', async (req, res) => {
   }
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     const prompts = await generateBuilderStarterPromptsWithAI({
       workspaceName,

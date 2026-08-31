@@ -1,5 +1,5 @@
 import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
-import { getAvailableModelsCached } from './model-discovery'
+import { getAvailableModelsCached, getCachedOpenAiCompatibleDefaultModel } from './model-discovery'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 
 type ResolveDefaultAgentModelOptions = {
@@ -61,7 +61,10 @@ export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOption
   }
 
   const workspaceCompatibleBaseUrl = normalizeCandidate(integrations.openaiCompatibleBaseUrl)
+  // Naming a default model in BYOK is optional, so fall back to whichever chat model the endpoint
+  // itself advertises rather than leaving the agent with no model at all.
   const workspaceCompatibleModel = normalizeCandidate(integrations.openaiCompatibleDefaultModel)
+    || getCachedOpenAiCompatibleDefaultModel(workspaceCompatibleBaseUrl)
   if (workspaceCompatibleBaseUrl && workspaceCompatibleModel) {
     const qualifiedCompatible = `openai-compatible/${workspaceCompatibleModel}`
     if (matchesAvailable(qualifiedCompatible, availableModels)) return qualifiedCompatible
