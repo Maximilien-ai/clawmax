@@ -16,12 +16,17 @@ printf '%s\n' "$*" >> "${CLAWMAX_PLUGIN_TEST_LOG:?}"
 if [ "${1:-}" = plugins ] && [ "${2:-}" = inspect ]; then
   exit "${CLAWMAX_PLUGIN_INSPECT_EXIT:-1}"
 fi
+if [ "${1:-}" = --version ]; then
+  printf '%s\n' 'OpenClaw 2026.5.26 (test)'
+fi
 EOF
 chmod +x "$fake_openclaw"
 
 CLAWMAX_PLUGIN_TEST_LOG="$log_file" OPENCLAW_BIN="$fake_openclaw" bash "$script_file" >/dev/null
-grep -Fxq 'plugins install npm:@openclaw/whatsapp' "$log_file"
+grep -Fxq 'plugins install npm:@openclaw/whatsapp@2026.5.26' "$log_file"
 grep -Fxq 'plugins enable whatsapp' "$log_file"
+grep -Fxq 'plugins install npm:@openclaw/discord@2026.5.26' "$log_file"
+grep -Fxq 'plugins enable discord' "$log_file"
 
 : > "$log_file"
 CLAWMAX_PLUGIN_TEST_LOG="$log_file" CLAWMAX_PLUGIN_INSPECT_EXIT=0 OPENCLAW_BIN="$fake_openclaw" bash "$script_file" >/dev/null
@@ -30,5 +35,6 @@ if grep -q 'plugins install' "$log_file"; then
   exit 1
 fi
 grep -Fxq 'plugins enable whatsapp' "$log_file"
+grep -Fxq 'plugins enable discord' "$log_file"
 
 echo "PASS: default OpenClaw plugins install compatibly and idempotently"

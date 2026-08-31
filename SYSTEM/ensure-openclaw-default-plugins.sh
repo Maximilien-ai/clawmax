@@ -3,6 +3,20 @@
 set -euo pipefail
 
 OPENCLAW_COMMAND=${OPENCLAW_BIN:-openclaw}
+OPENCLAW_PLUGIN_VERSION=${CLAWMAX_OPENCLAW_PLUGIN_VERSION:-}
+
+if [ -z "$OPENCLAW_PLUGIN_VERSION" ]; then
+  OPENCLAW_PLUGIN_VERSION="$("$OPENCLAW_COMMAND" --version 2>/dev/null | sed -n 's/.*\([0-9][0-9][0-9][0-9]\.[0-9][0-9]*\.[0-9][0-9]*\(-[0-9A-Za-z.-][0-9A-Za-z.-]*\)\{0,1\}\).*/\1/p' | head -n 1)"
+fi
+
+official_plugin_spec() {
+  local plugin_id=$1
+  if [ -n "$OPENCLAW_PLUGIN_VERSION" ]; then
+    printf 'npm:@openclaw/%s@%s\n' "$plugin_id" "$OPENCLAW_PLUGIN_VERSION"
+  else
+    printf 'npm:@openclaw/%s\n' "$plugin_id"
+  fi
+}
 
 ensure_plugin() {
   local plugin_id=$1
@@ -14,8 +28,10 @@ ensure_plugin() {
   "$OPENCLAW_COMMAND" plugins enable "$plugin_id" >/dev/null
 }
 
-# Use the npm fallback without an exact version so OpenClaw selects the newest
-# official release compatible with the branch-pinned plugin API.
-ensure_plugin whatsapp npm:@openclaw/whatsapp
+# Keep external channel plugins on the exact OpenClaw runtime version whenever
+# the CLI exposes one, preventing setup and image builds from drifting across
+# incompatible plugin APIs.
+ensure_plugin whatsapp "$(official_plugin_spec whatsapp)"
+ensure_plugin discord "$(official_plugin_spec discord)"
 
 echo "OpenClaw default plugins are ready."

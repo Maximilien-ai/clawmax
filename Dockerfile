@@ -153,6 +153,10 @@ RUN retry() { \
 COPY --from=openclaw-builder /opt/openclaw-src/openclaw-*.tgz /tmp/openclaw.tgz
 RUN npm install -g /tmp/openclaw.tgz \
   && rm -f /tmp/openclaw.tgz
+COPY SYSTEM/ensure-openclaw-default-plugins.sh /tmp/ensure-openclaw-default-plugins.sh
+RUN chmod +x /tmp/ensure-openclaw-default-plugins.sh \
+  && HOME=/app /tmp/ensure-openclaw-default-plugins.sh \
+  && rm -f /tmp/ensure-openclaw-default-plugins.sh
 
 # Claude Code CLI (optional agent runtime: claude). Agents can be pinned to
 # this runtime instead of OpenClaw; ANTHROPIC_API_KEY must be set for it to
