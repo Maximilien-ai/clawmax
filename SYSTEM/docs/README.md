@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: August 30, 2026
+> Last updated: August 31, 2026
 
 ## Active Documents
 
@@ -17,6 +17,7 @@
 | [security/SECURITY_FINDINGS_2_0.md](security/SECURITY_FINDINGS_2_0.md) | Remediated and accepted 2.0 security findings |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
 | [planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md](planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) | Accepted RC46 evidence and remaining `2.0.0` promotion gates |
+| [planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md) | Active two-day target with separate AI Builder, Telegram, Discord, and Slack candidates plus 71.2% branch coverage |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
 | [planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) | Active public 2.0 plugin and AI-scoring plan |
 | [planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md](planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md) | Active public Lifecycle plugin plan for deep agent/workflow inspection |

@@ -1,7 +1,18 @@
 # Backlog
 
-> Last updated: August 30, 2026
+> Last updated: August 31, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
+
+## Current Mini Sprint
+
+- [ ] **AI Builder, agent channels, and branch coverage** — strengthen explicit
+  AI Create behavior first, then implement Telegram, Discord, and Slack Socket
+  Mode in ascending complexity behind a shared OpenClaw connection/binding
+  contract. Target two engineering days with a third day reserved for
+  sequential release spillover and external-provider evidence; publish a
+  separate candidate after AI Builder and each channel, and reach at least
+  71.2% branch coverage. Plan:
+  [MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md).
 
 ## Release Tracks
 
