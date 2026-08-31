@@ -362,6 +362,69 @@ async function run() {
     assert(!redactChannelError(new Error('failed xoxb-1234567890-secret-value')).includes('xoxb-1234567890-secret-value'))
   })
 
+  await test('covers malformed secret stores and absent-secret cleanup without mutation', () => {
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-channel-secret-edges-'))
+    removeAgentChannelSecret({ homeDir, agentId: 'missing', isProfile: false, provider: 'slack' })
+    const secretPath = getAgentChannelSecretsPath(homeDir, 'writer', false)
+    fs.mkdirSync(path.dirname(secretPath), { recursive: true })
+    fs.writeFileSync(secretPath, '[]')
+    assert.throws(() => writeAgentChannelSecret({ homeDir, agentId: 'writer', isProfile: false, provider: 'telegram', secret: 'new' }), /JSON object/)
+    fs.writeFileSync(secretPath, JSON.stringify({ invalid: 123 }))
+    assert.throws(() => writeAgentChannelSecret({ homeDir, agentId: 'writer', isProfile: false, provider: 'telegram', secret: 'new' }), /values must be strings/)
+  })
+
+  await test('covers legacy credentials, malformed config shapes, and normalization edges', () => {
+    assert.strictEqual(normalizeAgentChannelProvider(undefined), null)
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-channel-config-edges-'))
+    const configPath = getAgentOpenClawConfigPath(homeDir, 'edge', false)
+    fs.mkdirSync(path.dirname(configPath), { recursive: true })
+    fs.writeFileSync(configPath, JSON.stringify({
+      channels: {
+        telegram: { accounts: { edge: { token: 'legacy', allowFrom: [null, '123'] } } },
+        discord: { accounts: { edge: { botToken: 'legacy', guilds: { malformed: null, arrayChannels: { channels: [] } } } } },
+      },
+      plugins: { load: { paths: [null, '/valid'] } },
+    }))
+    const telegram = readAgentChannelState({ homeDir, agentId: 'edge', isProfile: false, provider: 'telegram' })
+    const discord = readAgentChannelState({ homeDir, agentId: 'edge', isProfile: false, provider: 'discord' })
+    assert.strictEqual(telegram.configured, true)
+    assert.deepStrictEqual(telegram.allowFrom, ['123'])
+    assert.strictEqual(discord.configured, true)
+    assert.deepStrictEqual(discord.guilds.map(guild => guild.channels), [[], []])
+    assert.deepStrictEqual(readAgentOpenClawPluginPaths({ homeDir, agentId: 'edge', isProfile: false }), ['/valid'])
+    fs.writeFileSync(configPath, '[]')
+    assert.strictEqual(readAgentChannelState({ homeDir, agentId: 'edge', isProfile: false, provider: 'slack' }).configured, false)
+  })
+
+  await test('covers all bounded probe fallback classifications', () => {
+    const result = (error?: string, status?: number) => parseOpenClawChannelProbeOutput('slack', 'edge', JSON.stringify({
+      channels: [{ channel: 'slack', accountId: 'edge', probe: error === undefined && status === undefined ? null : { ok: false, error, status } }],
+    }))
+    assert.strictEqual(parseOpenClawChannelProbeOutput('slack', 'edge', JSON.stringify({ channels: [{ channel: 'slack', accountId: 'edge', probe: { ok: true } }] })).status, 200)
+    assert.strictEqual(parseOpenClawChannelProbeOutput('slack', 'edge', JSON.stringify({ channels: null })).category, 'connection')
+    assert.strictEqual(result().category, 'unknown')
+    assert.strictEqual(result('invalid_auth', 401).category, 'authentication')
+    assert.strictEqual(result('missing access', 403).category, 'permission')
+    assert.strictEqual(result('network timeout').category, 'connection')
+    assert.strictEqual(result('unexpected provider response').category, 'unknown')
+  })
+
+  await test('covers provider validation shape and optional-field failures', () => {
+    assert.strictEqual(validateTelegramConnectionInput(undefined).ok, false)
+    assert.strictEqual(validateTelegramConnectionInput({ token: '123456789:abcdefghijklmnopqrstuvwxyz_123456', allowFrom: '123' }).ok, false)
+    assert.strictEqual(validateDiscordConnectionInput(undefined).ok, false)
+    assert.strictEqual(validateDiscordConnectionInput({ token: 'abcdefghijklmnopqrstuvwxyz_1234567890', userIds: 'bad' }).ok, false)
+    assert.strictEqual(validateDiscordConnectionInput({ token: 'abcdefghijklmnopqrstuvwxyz_1234567890', applicationId: 'bad' }).ok, false)
+    assert.strictEqual(validateDiscordConnectionInput({ token: 'abcdefghijklmnopqrstuvwxyz_1234567890', guildId: 'bad' }).ok, false)
+    assert.strictEqual(validateDiscordConnectionInput({ token: 'abcdefghijklmnopqrstuvwxyz_1234567890', channelIds: ['bad'] }).ok, false)
+    assert.strictEqual(validateDiscordConnectionInput({ token: 'abcdefghijklmnopqrstuvwxyz_1234567890', requireMention: 'yes' }).ok, false)
+    assert.strictEqual(validateSlackConnectionInput(undefined).ok, false)
+    assert.strictEqual(validateSlackConnectionInput({ botToken: 'xoxb-1234567890-abcdefghij', appToken: 'xapp-1234567890-abcdefghij', userIds: 'bad' }).ok, false)
+    assert.strictEqual(validateSlackConnectionInput({ botToken: 'xoxb-1234567890-abcdefghij', appToken: 'xapp-1234567890-abcdefghij', userIds: ['C012ABCDEF'] }).ok, false)
+    assert.strictEqual(validateSlackConnectionInput({ botToken: 'xoxb-1234567890-abcdefghij', appToken: 'xapp-1234567890-abcdefghij', channelIds: 'bad' }).ok, false)
+    assert.strictEqual(validateSlackConnectionInput({ botToken: 'xoxb-1234567890-abcdefghij', appToken: 'xapp-1234567890-abcdefghij', requireMention: 'yes' }).ok, false)
+  })
+
   console.log(`\nAgent channel tests: ${passed} passed, ${failed} failed`)
   process.exit(failed > 0 ? 1 : 0)
 }

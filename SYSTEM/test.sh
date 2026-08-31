@@ -1131,8 +1131,8 @@ fi
 echo ""
 echo -e "${YELLOW}→ Running Agent channel configuration unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/agent-channels.test.ts > /tmp/clawmax-agent-channels-server.out 2>&1 || true
-if grep -q "Agent channel tests: 21 passed, 0 failed" /tmp/clawmax-agent-channels-server.out; then
-  pass "Agent channel configuration unit tests (21 tests)"
+if grep -q "Agent channel tests: 25 passed, 0 failed" /tmp/clawmax-agent-channels-server.out; then
+  pass "Agent channel configuration unit tests (25 tests)"
 else
   cat /tmp/clawmax-agent-channels-server.out
   fail "Agent channel configuration unit tests"
