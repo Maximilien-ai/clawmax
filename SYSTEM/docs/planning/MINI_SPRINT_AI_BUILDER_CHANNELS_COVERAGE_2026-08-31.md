@@ -223,12 +223,30 @@ RC47 release evidence:
 
 #### Release checkpoint: Telegram
 
-- [ ] Commit and push the generic channel foundation and Telegram as focused,
+- [x] Commit and push the generic channel foundation and Telegram as focused,
   reviewable concerns.
-- [ ] Run the full candidate gate and publish the Telegram candidate.
-- [ ] Record the exact SHA, tag, coverage totals, and public/combined CI links.
-- [ ] Begin Discord only after the candidate is published and its required smoke
+- [x] Run the full candidate gate and publish the Telegram candidate.
+- [x] Record the exact SHA, tag, coverage totals, and public/combined CI links.
+- [x] Begin Discord only after the candidate is published and its required smoke
   jobs pass.
+
+Telegram candidate evidence:
+
+- Source: `e3bab44b` (`v2.0.0-test-rc48`); implementation checkpoint
+  `5f181b19`.
+- Local integration, validation, and coverage gate: passed with 81.77% lines
+  and statements (`48187/58927`), 91.49% functions (`1861/2034`), and 70.91%
+  branches (`11896/16776`). The sprint-wide 71.2% branch target remains for the
+  coverage-closure phase.
+- Local release identity: the rendered dashboard and `/api/system` both
+  reported `2.0.0-test-rc48`.
+- Public image: [Test Container Image run 33426373895](https://github.com/Maximilien-ai/clawmax/actions/runs/33426373895)
+  passed amd64/arm64 builds, manifest publication, packaged-version checks, and
+  registry smoke.
+- Matching authorized combined image: [Private ClawMax Plugins Image run
+  33427999925](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/33427999925)
+  passed validation, runtime acceptance, build, and amd64/arm64 registry smoke
+  using `base_tag=2.0.0-test-rc48` and `image_tag=2.0.0-test-rc48`.
 
 **Day 1 exit:** explicit-create guarantees are tested end to end, and one agent
 can be safely associated with a Telegram connection through the Dashboard
