@@ -4,6 +4,11 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC48 candidate
+- **Telegram agent channels** — connect or replace a Telegram BotFather token from the Agents page, keep the credential behind an OpenClaw file-backed SecretRef, apply pairing or an explicit numeric-user allowlist, and create a named OpenClaw account plus agent routing binding without writing secrets to argv, API responses, logs, audit evidence, or agent markdown.
+- **Provider-neutral channel panel** — manage Telegram and existing WhatsApp access from one responsive agent surface while keeping Discord and Slack visibly planned; distinguish connected, disabled, unbound, broken-binding, and healthy bound states, and confirm destructive disconnects inline.
+- **Transactional channel persistence** — preserve unknown OpenClaw configuration and sibling accounts/secrets, restore exact config and credential snapshots after failed connect or disconnect steps, and record non-secret lifecycle evidence for successful changes.
+
 ### RC47 candidate
 - **AI Builder explicit-create contract** — explicit requests to create, build, design, generate, make, set up, spin up, draft, or develop agents, workflows, skills, teams, and companies retain every matching AI Create action with the original prompt, including compound requests and post-LLM-fallback recommendations, while reuse, update, refine, and informational questions do not force unrelated creation actions.
 - **AI Builder evaluation expansion** — share one server/client creation-intent contract, expand the focused grammar suite from 14 to 43 cases, and add routing evaluations for creation synonyms, compound actions, prompt-prefill preservation, existing-asset negative controls, and workflow scope that does not inherently imply a team.

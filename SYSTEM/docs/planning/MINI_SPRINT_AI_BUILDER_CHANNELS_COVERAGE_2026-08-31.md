@@ -193,28 +193,33 @@ RC47 release evidence:
 
 #### Generic channel foundation
 
-- [ ] Define the supported channel catalog and provider-neutral connection,
-  account, binding, and health/status response types.
-- [ ] Add safe OpenClaw config read/update helpers that preserve unrelated and
+- [x] Define the supported channel catalog and provider-neutral connection,
+  account, binding, and configured-status response types.
+- [ ] Add provider-neutral live health/probe response types.
+- [x] Add safe OpenClaw config read/update helpers that preserve unrelated and
   unknown fields.
-- [ ] Add masked credential status and provider-specific validation without
+- [x] Add masked credential status and provider-specific validation without
   exposing stored values.
-- [ ] Add bind, rebind, unbind, connect/update, disconnect, probe, and pairing
-  lifecycle operations with durable success/failure evidence.
-- [ ] Keep WhatsApp behavior working while adapting it to the shared presentation
+- [x] Add bind, rebind, unbind, connect/update, and disconnect lifecycle
+  operations with durable success/failure evidence.
+- [ ] Add live provider probes and pairing lifecycle evidence beyond the
+  configured direct-message policy.
+- [x] Keep WhatsApp behavior working while adapting it to the shared presentation
   contract where practical; do not perform an unrelated WhatsApp rewrite.
 
 #### Telegram vertical slice
 
-- [ ] Connect or update a Telegram bot token through the protected secret path.
-- [ ] Configure the supported default policy and optional numeric owner/user
+- [x] Connect or update a Telegram bot token through the protected secret path.
+- [x] Configure the supported default policy and optional numeric owner/user
   allowlist without silently opening the bot publicly.
-- [ ] Bind the Telegram account, account wildcard, or selected peer to an agent.
-- [ ] Surface pairing-required, connected, probe-failed, bound, and unbound
-  states on the Agents page.
-- [ ] Support disconnect/revoke without deleting unrelated channel accounts or
+- [x] Bind the Telegram account, account wildcard, or selected peer to an agent.
+- [x] Surface pairing policy, connected, disabled, bound, unbound, and broken
+  binding states on the Agents page.
+- [ ] Surface live pairing-required and probe-failed states from the running
+  OpenClaw provider.
+- [x] Support disconnect/revoke without deleting unrelated channel accounts or
   agent bindings.
-- [ ] Add focused configuration, API, persistence, redaction, error, and UI tests.
+- [x] Add focused configuration, API, persistence, redaction, error, and UI tests.
 
 #### Release checkpoint: Telegram
 
