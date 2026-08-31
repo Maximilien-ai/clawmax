@@ -136,43 +136,60 @@ not bypassed by folding the next channel into the same candidate.
 
 #### AI Builder contract
 
-- [ ] Consolidate explicit entity/action detection into a shared module used by
+- [x] Consolidate explicit entity/action detection into a shared module used by
   the server recommendation path and client fallback/hydration path.
-- [ ] Define explicit create intent for agent, workflow, skill, team template,
+- [x] Define explicit create intent for agent, workflow, skill, team template,
   and company template.
-- [ ] Keep every required `AI Create` action visible for compound prompts, even
+- [x] Keep every required `AI Create` action visible for compound prompts, even
   when the normal secondary-action limit would hide it.
-- [ ] Reapply the guarantee after deterministic classification, LLM fallback,
+- [x] Reapply the guarantee after deterministic classification, LLM fallback,
   action hydration, semantic deduplication, and action selection.
-- [ ] Preserve the original prompt when navigating to the matching AI Create
+- [x] Preserve the original prompt when navigating to the matching AI Create
   surface.
-- [ ] Keep non-create requests on reuse/refine/review paths unless the user also
+- [x] Keep non-create requests on reuse/refine/review paths unless the user also
   asks to create something new.
 
 #### AI Builder evaluation expansion
 
 - [ ] Add clear creation prompts using `create`, `build`, `design`, `generate`,
   `make`, and `set up` for each supported entity.
-- [ ] Add short prompts such as `create an agent`, `create a workflow`, and
+- [x] Add short prompts such as `create an agent`, `create a workflow`, and
   `create a skill` as well as detailed domain-specific prompts.
-- [ ] Add compound prompts requiring multiple visible create actions.
-- [ ] Add negative controls for `use my agent`, `review this workflow`, `update
+- [x] Add compound prompts requiring multiple visible create actions.
+- [x] Add negative controls for `use my agent`, `review this workflow`, `update
   this skill`, `refine the team`, and sentences where an entity word is not the
   object being created.
 - [ ] Add ambiguity cases where Builder should ask for confirmation without
   suppressing a clearly requested create action.
 - [ ] Test action label, destination, action value, prompt prefill, and template
   target—not only the top-level classified intent.
-- [ ] Run the focused server routing, route, and client explicit-action suites,
+- [x] Run the focused server routing, route, and client explicit-action suites,
   followed by TypeScript checking.
 
 #### Release checkpoint: AI Builder
 
-- [ ] Commit and push the AI Builder test and behavior concerns.
-- [ ] Run the full candidate gate and publish the AI Builder-only candidate.
-- [ ] Record the exact SHA, tag, coverage totals, and public/combined CI links.
-- [ ] Begin generic channel work only after the candidate is published and its
+- [x] Commit and push the AI Builder test and behavior concerns.
+- [x] Run the full candidate gate and publish the AI Builder-only candidate.
+- [x] Record the exact SHA, tag, coverage totals, and public/combined CI links.
+- [x] Begin generic channel work only after the candidate is published and its
   required smoke jobs pass.
+
+RC47 release evidence:
+
+- Source SHA: `339fff4e` (`fix: strengthen AI Builder create suggestions`)
+- Candidate tag and image version: `v2.0.0-test-rc47` / `2.0.0-test-rc47`
+- Focused validation: explicit-action helper `43/43`, routing suite `114`, route
+  suite `19/19`, server TypeScript, and production server/client build
+- Full local candidate gate: passed integration, validation, and coverage
+- Coverage: statements/lines `81.67%` (`47,696 / 58,399`), branches `70.80%`
+  (`11,763 / 16,614`), functions `91.37%` (`1,833 / 2,006`)
+- Local identity: visible Dashboard version and `/api/system` both reported
+  `2.0.0-test-rc47`
+- Public image: [Test Container Image run 33415993384](https://github.com/Maximilien-ai/clawmax/actions/runs/33415993384)
+  passed amd64/arm64 builds, manifest publication, and registry smoke
+- Combined image: [Private ClawMax Plugins Image run 33418166505](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/33418166505)
+  passed private contracts, host runtime acceptance, multi-architecture build,
+  and amd64/arm64 registry smoke
 
 #### Generic channel foundation
 
