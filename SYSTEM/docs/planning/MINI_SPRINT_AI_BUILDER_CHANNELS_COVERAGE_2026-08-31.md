@@ -418,9 +418,11 @@ than reopening the completed provider sequence:
 - Desktop and 390×844 browser audits cover the primary menu, empty channel
   selection, all four expanded provider forms, maximum scroll, and reachable
   footer actions.
-- RC51 publication remains gated on the complete integration, validation, and
-  coverage suite plus exact local/package version identity and matching public
-  and combined multi-architecture image evidence.
+- The complete RC51 integration, validation, and coverage gate passed 476/476
+  checks with 81.97% statements/lines (48,790/59,520), 91.56% functions
+  (1,877/2,050), and 71.38% branches (12,180/17,062).
+- RC51 publication remains gated on exact local/package version identity and
+  matching public and combined multi-architecture image evidence.
 
 **Day 2 exit:** Telegram, Discord, and Slack Socket Mode are implemented behind
 one generic channel contract, AI Builder behavior is strengthened, and the full
