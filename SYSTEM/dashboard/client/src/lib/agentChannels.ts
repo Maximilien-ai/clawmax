@@ -10,6 +10,8 @@ export type AgentChannelView = {
   dmPolicy: string | null
   allowFrom: string[]
   applicationId: string | null
+  mode: string | null
+  channelIds: string[]
   guilds: Array<{
     id: string
     requireMention: boolean
@@ -34,6 +36,20 @@ export function parseDiscordIds(value: string): string[] {
 export function validateDiscordIds(value: string, label: string): string | null {
   const invalid = parseDiscordIds(value).find(entry => !/^\d{17,20}$/.test(entry))
   return invalid ? `${label} “${invalid}” must contain 17–20 digits.` : null
+}
+
+export function parseSlackIds(value: string): string[] {
+  return Array.from(new Set(value.split(/[\s,]+/).map(entry => entry.trim().toUpperCase()).filter(Boolean)))
+}
+
+export function validateSlackUserIds(value: string): string | null {
+  const invalid = parseSlackIds(value).find(entry => !/^[UW][A-Z0-9]{8,20}$/.test(entry))
+  return invalid ? `Slack user ID “${invalid}” must begin with U or W and contain 9–21 uppercase letters or digits.` : null
+}
+
+export function validateSlackChannelIds(value: string): string | null {
+  const invalid = parseSlackIds(value).find(entry => !/^[CG][A-Z0-9]{8,20}$/.test(entry))
+  return invalid ? `Slack channel ID “${invalid}” must begin with C or G and contain 9–21 uppercase letters or digits.` : null
 }
 
 export function agentChannelStatusLabel(channel: Pick<AgentChannelView, 'configured' | 'enabled' | 'bound'>): string {

@@ -947,7 +947,7 @@ echo ""
 echo -e "${YELLOW}→ Running Agent channel presentation helper tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentChannels.test.ts > /tmp/clawmax-agent-channels-client.out 2>&1 || true
 if grep -q "Agent channel presentation tests passed" /tmp/clawmax-agent-channels-client.out; then
-  pass "Agent channel presentation helper tests (11 assertions)"
+  pass "Agent channel presentation helper tests (16 assertions)"
 else
   cat /tmp/clawmax-agent-channels-client.out
   fail "Agent channel presentation helper tests"
@@ -956,8 +956,8 @@ fi
 echo ""
 echo -e "${YELLOW}→ Running Agent channel panel contract tests...${NC}"
 npx ts-node --transpileOnly client/src/components/AgentChannelsPanel.test.ts > /tmp/clawmax-agent-channels-panel.out 2>&1 || true
-if grep -q "AgentChannelsPanel.test.ts: 16 assertions passed" /tmp/clawmax-agent-channels-panel.out; then
-  pass "Agent channel panel contract tests (16 assertions)"
+if grep -q "AgentChannelsPanel.test.ts: 21 assertions passed" /tmp/clawmax-agent-channels-panel.out; then
+  pass "Agent channel panel contract tests (21 assertions)"
 else
   cat /tmp/clawmax-agent-channels-panel.out
   fail "Agent channel panel contract tests"
@@ -1131,8 +1131,8 @@ fi
 echo ""
 echo -e "${YELLOW}→ Running Agent channel configuration unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/agent-channels.test.ts > /tmp/clawmax-agent-channels-server.out 2>&1 || true
-if grep -q "Agent channel tests: 18 passed, 0 failed" /tmp/clawmax-agent-channels-server.out; then
-  pass "Agent channel configuration unit tests (18 tests)"
+if grep -q "Agent channel tests: 21 passed, 0 failed" /tmp/clawmax-agent-channels-server.out; then
+  pass "Agent channel configuration unit tests (21 tests)"
 else
   cat /tmp/clawmax-agent-channels-server.out
   fail "Agent channel configuration unit tests"

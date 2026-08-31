@@ -744,7 +744,7 @@ async function run() {
     assert.strictEqual(telegram.dmPolicy, 'pairing')
     const slack = res.jsonBody.channels.find((entry: any) => entry.id === 'slack')
     assert.strictEqual(discord.releaseState, 'available')
-    assert.strictEqual(slack.releaseState, 'planned')
+    assert.strictEqual(slack.releaseState, 'available')
     assert(!JSON.stringify(res.jsonBody).includes('SECRET_CHANNEL_TOKEN_VALUE'))
   })
 
@@ -972,6 +972,104 @@ async function run() {
     assert(!fs.readFileSync(path.join(workspacePath, '.clawmax', 'lifecycle', 'agents', 'discord-agent.jsonl'), 'utf-8').includes(token))
   })
 
+  await test('Slack connect persists separate SecretRefs, fail-closed scopes, and a Socket Mode binding', async () => {
+    writeAgent(workspacePath, 'slack-agent', '# IDENTITY.md\n\n- **Name:** Slack Agent\n')
+    const profileDir = path.join(tmpHome, '.openclaw-slack-agent')
+    const configPath = path.join(profileDir, 'openclaw.json')
+    fs.mkdirSync(profileDir, { recursive: true })
+    fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [{ id: 'slack-agent' }] }, unknown: { keep: true } }, null, 2))
+    const pluginPath = path.join(tmpHome, '.openclaw', 'npm', 'node_modules', '@openclaw', 'slack')
+    fs.mkdirSync(pluginPath, { recursive: true })
+    fs.writeFileSync(path.join(pluginPath, 'openclaw.plugin.json'), JSON.stringify({ id: 'slack' }))
+    const fakeCli = writeFakeOpenClawCli(tmpHome)
+    process.env.OPENCLAW_BIN = fakeCli
+    const botToken = 'xoxb-1234567890-abcdefghij'
+    const appToken = 'xapp-1234567890-abcdefghij'
+    const calls: string[][] = []
+    const writePath = (config: Record<string, any>, dottedPath: string, value: unknown) => {
+      const parts = dottedPath.split('.')
+      let cursor = config
+      for (const part of parts.slice(0, -1)) cursor = cursor[part] ||= {}
+      cursor[parts[parts.length - 1]] = value
+    }
+
+    await withChildProcessStubs({
+      execFileSync(command: string, args: string[], options: { env?: NodeJS.ProcessEnv }) {
+        assert.strictEqual(command, fakeCli)
+        calls.push([...args])
+        assert.deepStrictEqual(args.slice(0, 2), ['--profile', 'slack-agent'])
+        assert(!args.includes(botToken) && !args.includes(appToken), 'Slack tokens must not appear in process arguments')
+        assert(!options.env?.GITHUB_TOKEN && !options.env?.GH_TOKEN)
+        const commandArgs = args.slice(2)
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        if (commandArgs[0] === 'config' && commandArgs[1] === 'set') {
+          const configKey = String(commandArgs[2])
+          if (configKey === 'secrets.providers.clawmax-channels') {
+            writePath(config, configKey, { source: 'file', path: commandArgs[commandArgs.indexOf('--provider-path') + 1], mode: 'json' })
+          } else {
+            writePath(config, configKey, JSON.parse(String(commandArgs[3])))
+          }
+        } else if (commandArgs[0] === 'agents' && commandArgs[1] === 'bind') {
+          config.bindings = [{ agentId: 'slack-agent', match: { channel: 'slack', accountId: 'slack-agent' } }]
+        }
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+        return ''
+      },
+    }, async () => {
+      const handler = getRouteHandler('post', '/:id/channels/:provider')
+      const res = makeRes()
+      handler(makeReq({
+        params: { id: 'slack-agent', provider: 'slack' },
+        body: { botToken, appToken, userIds: ['U012ABCDEF'], channelIds: ['C012ABCDEF'], requireMention: false },
+      }), res)
+      assert.strictEqual(res.statusCode, 200)
+      assert.strictEqual(res.jsonBody.channel.status, 'bound')
+      assert.strictEqual(res.jsonBody.channel.mode, 'socket')
+      assert.deepStrictEqual(res.jsonBody.channel.channelIds, ['C012ABCDEF'])
+      assert(!JSON.stringify(res.jsonBody).includes(botToken) && !JSON.stringify(res.jsonBody).includes(appToken))
+    })
+
+    const persisted = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const account = persisted.channels.slack.accounts['slack-agent']
+    assert.deepStrictEqual(persisted.plugins.load.paths, [pluginPath])
+    assert.strictEqual(persisted.plugins.entries.slack.enabled, true)
+    assert.strictEqual(account.mode, 'socket')
+    assert.deepStrictEqual(account.botToken, { source: 'file', provider: 'clawmax-channels', id: '/slack-bot-slack-agent' })
+    assert.deepStrictEqual(account.appToken, { source: 'file', provider: 'clawmax-channels', id: '/slack-app-slack-agent' })
+    assert.strictEqual(account.groupPolicy, 'allowlist')
+    assert.strictEqual(account.channels.C012ABCDEF.requireMention, false)
+    assert(calls.some(args => args.includes('slack:slack-agent')))
+    assert(!calls.some(args => args.includes('channels') && args.includes('add')))
+    const secrets = JSON.parse(fs.readFileSync(path.join(profileDir, 'credentials', 'clawmax-channel-secrets.json'), 'utf-8'))
+    assert.deepStrictEqual(secrets, { 'slack-bot-slack-agent': botToken, 'slack-app-slack-agent': appToken })
+    const audit = fs.readFileSync(path.join(workspacePath, '.clawmax', 'lifecycle', 'agents', 'slack-agent.jsonl'), 'utf-8')
+    assert(!audit.includes(botToken) && !audit.includes(appToken))
+  })
+
+  await test('Slack capability probe returns actionable scope diagnostics without schema or secret leakage', async () => {
+    const leakedToken = 'xoxb-1234567890-leakedvalue'
+    await withChildProcessStubs({
+      execFileSync(_command: string, args: string[], options: { timeout?: number }) {
+        assert.deepStrictEqual(args.slice(0, 2), ['--profile', 'slack-agent'])
+        assert(args.includes('--channel') && args.includes('slack') && args.includes('--account') && args.includes('slack-agent'))
+        assert.strictEqual(options.timeout, 15000)
+        return JSON.stringify({ channels: [{
+          channel: 'slack', accountId: 'slack-agent',
+          probe: { ok: false, status: 403, error: `missing_scope channels:history ${leakedToken}` },
+          configSchema: { secret: 'must-not-return' },
+        }] })
+      },
+    }, async () => {
+      const handler = getRouteHandler('post', '/:id/channels/:provider/probe')
+      const res = makeRes()
+      handler(makeReq({ params: { id: 'slack-agent', provider: 'slack' } }), res)
+      assert.strictEqual(res.statusCode, 200)
+      assert.strictEqual(res.jsonBody.probe.category, 'scope')
+      assert(!JSON.stringify(res.jsonBody).includes(leakedToken))
+      assert(!JSON.stringify(res.jsonBody).includes('must-not-return'))
+    })
+  })
+
   await test('Discord capability probe returns bounded intent diagnostics and persists non-secret evidence', async () => {
     process.env.OPENCLAW_BIN = writeFakeOpenClawCli(tmpHome)
     const probeLeakedToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.probe_signature_1234567890.probe_tail_1234567890'
@@ -1026,6 +1124,7 @@ async function run() {
   await test('channel connect validates provider input, installation, and release state', async () => {
     writeAgent(workspacePath, 'channel-validation', '# IDENTITY.md\n\n- **Name:** Channel Validation\n')
     fs.rmSync(path.join(tmpHome, '.openclaw', 'npm', 'node_modules', '@openclaw', 'discord'), { recursive: true, force: true })
+    fs.rmSync(path.join(tmpHome, '.openclaw', 'npm', 'node_modules', '@openclaw', 'slack'), { recursive: true, force: true })
     const handler = getRouteHandler('post', '/:id/channels/:provider')
     const invalidRes = makeRes()
     handler(makeReq({
@@ -1049,13 +1148,20 @@ async function run() {
     assert.strictEqual(missingDiscordRes.statusCode, 503)
     assert(String(missingDiscordRes.jsonBody.error).includes('not installed'))
 
-    const plannedRes = makeRes()
+    const invalidSlackRes = makeRes()
     handler(makeReq({
       params: { id: 'channel-validation', provider: 'slack' },
-      body: { token: 'anything' },
-    }), plannedRes)
-    assert.strictEqual(plannedRes.statusCode, 409)
-    assert(String(plannedRes.jsonBody.error).includes('planned'))
+      body: { botToken: 'anything', appToken: 'anything' },
+    }), invalidSlackRes)
+    assert.strictEqual(invalidSlackRes.statusCode, 400)
+
+    const missingSlackRes = makeRes()
+    handler(makeReq({
+      params: { id: 'channel-validation', provider: 'slack' },
+      body: { botToken: 'xoxb-1234567890-abcdefghij', appToken: 'xapp-1234567890-abcdefghij' },
+    }), missingSlackRes)
+    assert.strictEqual(missingSlackRes.statusCode, 503)
+    assert(String(missingSlackRes.jsonBody.error).includes('Slack channel runtime'))
   })
 
   await test('Telegram disconnect removes only the named binding and account', async () => {
@@ -1190,6 +1296,43 @@ async function run() {
     assert.strictEqual(persisted.channels.discord.accounts.other.token, 'preserve-me')
     assert(persisted.bindings.some((binding: any) => binding.agentId === 'other'))
     assert.deepStrictEqual(JSON.parse(fs.readFileSync(secretPath, 'utf-8')), { 'discord-other': 'preserve-me-too' })
+  })
+
+  await test('Slack disconnect removes both credentials while preserving sibling secrets', async () => {
+    writeAgent(workspacePath, 'slack-disconnect', '# IDENTITY.md\n\n- **Name:** Slack Disconnect\n')
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      channels: { slack: { enabled: true, accounts: {
+        'slack-disconnect': { botToken: { id: '/slack-bot-slack-disconnect' }, appToken: { id: '/slack-app-slack-disconnect' } },
+        other: { botToken: 'preserve', appToken: 'preserve' },
+      } } },
+      bindings: [
+        { agentId: 'slack-disconnect', match: { channel: 'slack', accountId: 'slack-disconnect' } },
+        { agentId: 'other', match: { channel: 'slack', accountId: 'other' } },
+      ],
+    }, null, 2))
+    const secretPath = path.join(tmpHome, '.openclaw', 'credentials', 'clawmax-channel-secrets.json')
+    fs.mkdirSync(path.dirname(secretPath), { recursive: true })
+    fs.writeFileSync(secretPath, JSON.stringify({
+      'slack-bot-slack-disconnect': 'remove-bot', 'slack-app-slack-disconnect': 'remove-app', 'discord-other': 'preserve',
+    }, null, 2), { mode: 0o600 })
+    process.env.OPENCLAW_BIN = writeFakeOpenClawCli(tmpHome)
+    await withChildProcessStubs({
+      execFileSync(_command: string, args: string[]) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        if (args[0] === 'agents' && args[1] === 'unbind') config.bindings = config.bindings.filter((binding: any) => binding.agentId !== 'slack-disconnect')
+        if (args[0] === 'channels' && args[1] === 'remove') delete config.channels.slack.accounts['slack-disconnect']
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+        return ''
+      },
+    }, async () => {
+      const handler = getRouteHandler('delete', '/:id/channels/:provider')
+      const res = makeRes()
+      handler(makeReq({ params: { id: 'slack-disconnect', provider: 'slack' } }), res)
+      assert.strictEqual(res.statusCode, 200)
+      assert.strictEqual(res.jsonBody.channel.status, 'not-configured')
+    })
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(secretPath, 'utf-8')), { 'discord-other': 'preserve' })
   })
 
   await test('provision route does not pass legacy --whatsapp to openclaw agents add', async () => {

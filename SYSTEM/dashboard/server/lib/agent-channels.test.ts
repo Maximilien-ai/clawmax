@@ -17,6 +17,7 @@ import {
   snapshotAgentChannelSecrets,
   snapshotAgentOpenClawConfig,
   validateDiscordConnectionInput,
+  validateSlackConnectionInput,
   validateTelegramConnectionInput,
   writeAgentChannelSecret,
 } from './agent-channels'
@@ -92,6 +93,8 @@ async function run() {
       dmPolicy: 'allowlist',
       allowFrom: ['123', '456'],
       applicationId: null,
+      mode: null,
+      channelIds: [],
       guilds: [],
     })
     assert(!JSON.stringify(state).includes('SECRET_SHOULD_NOT_ESCAPE'))
@@ -278,6 +281,55 @@ async function run() {
     }).ok, false)
   })
 
+  await test('reads non-secret Slack Socket Mode account and selected channels', () => {
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-channel-slack-state-'))
+    const configPath = getAgentOpenClawConfigPath(homeDir, 'helper', true)
+    fs.mkdirSync(path.dirname(configPath), { recursive: true })
+    fs.writeFileSync(configPath, JSON.stringify({
+      channels: { slack: { enabled: true, accounts: { helper: {
+        name: 'Helper Slack', enabled: true, mode: 'socket',
+        botToken: { source: 'file', provider: 'clawmax-channels', id: '/slack-bot-helper' },
+        appToken: { source: 'file', provider: 'clawmax-channels', id: '/slack-app-helper' },
+        dmPolicy: 'allowlist', allowFrom: ['U012ABCDEF'],
+        channels: { C012ABCDEF: { enabled: true, requireMention: true, users: ['U012ABCDEF'] } },
+      } } } },
+      bindings: [{ agentId: 'helper', match: { channel: 'slack', accountId: 'helper' } }],
+    }))
+    const state = readAgentChannelState({ homeDir, agentId: 'helper', isProfile: true, provider: 'slack' })
+    assert.strictEqual(state.status, 'bound')
+    assert.strictEqual(state.mode, 'socket')
+    assert.deepStrictEqual(state.channelIds, ['C012ABCDEF'])
+    assert(!JSON.stringify(state).includes('slack-bot-helper'))
+  })
+
+  await test('stores and removes separate Slack bot and app secrets', () => {
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-channel-slack-secrets-'))
+    writeAgentChannelSecret({ homeDir, agentId: 'helper', isProfile: true, provider: 'slack', credential: 'bot', secret: 'xoxb-secret' })
+    writeAgentChannelSecret({ homeDir, agentId: 'helper', isProfile: true, provider: 'slack', credential: 'app', secret: 'xapp-secret' })
+    writeAgentChannelSecret({ homeDir, agentId: 'helper', isProfile: true, provider: 'discord', secret: 'preserve' })
+    const secretPath = getAgentChannelSecretsPath(homeDir, 'helper', true)
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(secretPath, 'utf-8')), {
+      'slack-bot-helper': 'xoxb-secret', 'slack-app-helper': 'xapp-secret', 'discord-helper': 'preserve',
+    })
+    removeAgentChannelSecret({ homeDir, agentId: 'helper', isProfile: true, provider: 'slack' })
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(secretPath, 'utf-8')), { 'discord-helper': 'preserve' })
+  })
+
+  await test('validates Slack Socket Mode tokens and stable scoped IDs', () => {
+    const valid = validateSlackConnectionInput({
+      botToken: 'xoxb-1234567890-abcdefghij', appToken: 'xapp-1234567890-abcdefghij',
+      userIds: ['U012ABCDEF', 'U012ABCDEF'], channelIds: ['C012ABCDEF', 'G012ABCDEF'], requireMention: false,
+    })
+    assert.strictEqual(valid.ok, true)
+    if (valid.ok) {
+      assert.deepStrictEqual(valid.value.userIds, ['U012ABCDEF'])
+      assert.strictEqual(valid.value.requireMention, false)
+    }
+    assert.strictEqual(validateSlackConnectionInput({ botToken: 'xoxp-wrong', appToken: 'xapp-1234567890-abcdefghij' }).ok, false)
+    assert.strictEqual(validateSlackConnectionInput({ botToken: 'xoxb-1234567890-abcdefghij', appToken: 'xoxb-wrong' }).ok, false)
+    assert.strictEqual(validateSlackConnectionInput({ botToken: 'xoxb-1234567890-abcdefghij', appToken: 'xapp-1234567890-abcdefghij', channelIds: ['D012ABCDEF'] }).ok, false)
+  })
+
   await test('parses a healthy bounded OpenClaw channel probe', () => {
     assert.deepStrictEqual(parseOpenClawChannelProbeOutput('discord', 'moderator', JSON.stringify({
       channels: [{ channel: 'discord', accountId: 'moderator', probe: { ok: true, status: 200 } }],
@@ -296,6 +348,8 @@ async function run() {
     assert.strictEqual(intent.category, 'intent')
     assert.strictEqual(parseOpenClawChannelProbeOutput('discord', 'missing', JSON.stringify({ channels: [] })).category, 'connection')
     assert.strictEqual(parseOpenClawChannelProbeOutput('discord', 'missing', 'not json').category, 'unknown')
+    assert.strictEqual(parseOpenClawChannelProbeOutput('slack', 'helper', JSON.stringify({ channels: [{ channel: 'slack', accountId: 'helper', probe: { ok: false, error: 'missing_scope: channels:history' } }] })).category, 'scope')
+    assert.strictEqual(parseOpenClawChannelProbeOutput('slack', 'helper', JSON.stringify({ channels: [{ channel: 'slack', accountId: 'helper', probe: { ok: false, error: 'Bot token and app token workspace mismatch' } }] })).category, 'token-mismatch')
   })
 
   await test('redacts explicit and token-shaped secrets from bounded errors', () => {
@@ -305,6 +359,7 @@ async function run() {
     assert(redacted.includes('[redacted]'))
     const discordToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.signature_part_1234567890.tail_part_1234567890'
     assert(!redactChannelError(new Error(`failed ${discordToken}`)).includes(discordToken))
+    assert(!redactChannelError(new Error('failed xoxb-1234567890-secret-value')).includes('xoxb-1234567890-secret-value'))
   })
 
   console.log(`\nAgent channel tests: ${passed} passed, ${failed} failed`)

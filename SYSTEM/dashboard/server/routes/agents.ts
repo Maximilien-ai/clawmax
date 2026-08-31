@@ -76,6 +76,7 @@ import {
   snapshotAgentChannelSecrets,
   snapshotAgentOpenClawConfig,
   validateDiscordConnectionInput,
+  validateSlackConnectionInput,
   validateTelegramConnectionInput,
   writeAgentChannelSecret,
 } from '../lib/agent-channels'
@@ -2097,7 +2098,7 @@ router.post('/:id/channels/:provider/probe', (req, res) => {
     return
   }
   const provider = normalizeAgentChannelProvider(req.params.provider)
-  if (provider !== 'discord') {
+  if (provider !== 'discord' && provider !== 'slack') {
     res.status(provider ? 409 : 404).json({ error: provider ? `${provider} probes are not available in this candidate.` : 'Unsupported channel provider' })
     return
   }
@@ -2110,7 +2111,8 @@ router.post('/:id/channels/:provider/probe', (req, res) => {
   const homeDir = process.env.HOME || ''
   const channel = readAgentChannelState({ homeDir, agentId: id, isProfile: agent.isProfile, provider })
   if (!channel.configured) {
-    res.status(409).json({ error: 'Connect Discord before running a capability probe.' })
+    const label = provider === 'discord' ? 'Discord' : 'Slack'
+    res.status(409).json({ error: `Connect ${label} before running a capability probe.` })
     return
   }
   const cliPath = resolveOpenClawCliPath()
@@ -2123,7 +2125,7 @@ router.post('/:id/channels/:provider/probe', (req, res) => {
     const output = execFileSync(cliPath, [
       ...getAgentOpenClawProfileArgs(id, agent.isProfile),
       'channels', 'capabilities',
-      '--channel', 'discord',
+      '--channel', provider,
       '--account', id,
       '--json',
       '--timeout', '10000',
@@ -2135,22 +2137,24 @@ router.post('/:id/channels/:provider/probe', (req, res) => {
     })
     const parsedProbe = parseOpenClawChannelProbeOutput(provider, id, output)
     const probe = { ...parsedProbe, message: redactChannelError(parsedProbe.message) }
+    const providerLabel = provider === 'discord' ? 'Discord' : 'Slack'
     recordAgentLifecycleAuditEvent(id, {
       type: 'modified',
-      title: probe.ok ? 'Discord channel probe passed' : 'Discord channel probe failed',
+      title: probe.ok ? `${providerLabel} channel probe passed` : `${providerLabel} channel probe failed`,
       detail: probe.ok
-        ? 'Discord credentials and channel capabilities passed a bounded OpenClaw probe.'
-        : `Discord probe reported ${probe.category}: ${redactChannelError(probe.message)}`,
+        ? `${providerLabel} credentials and channel capabilities passed a bounded OpenClaw probe.`
+        : `${providerLabel} probe reported ${probe.category}: ${redactChannelError(probe.message)}`,
     })
     res.json({ ok: true, probe })
   } catch (error) {
     const message = redactChannelError(error)
+    const providerLabel = provider === 'discord' ? 'Discord' : 'Slack'
     recordAgentLifecycleAuditEvent(id, {
       type: 'modified',
-      title: 'Discord channel probe failed',
-      detail: `Discord capability probe could not complete: ${message}`,
+      title: `${providerLabel} channel probe failed`,
+      detail: `${providerLabel} capability probe could not complete: ${message}`,
     })
-    res.status(502).json({ error: `Could not probe Discord: ${message}` })
+    res.status(502).json({ error: `Could not probe ${providerLabel}: ${message}` })
   }
 })
 
@@ -2166,11 +2170,6 @@ router.post('/:id/channels/:provider', (req, res) => {
     res.status(404).json({ error: 'Unsupported channel provider' })
     return
   }
-  if (provider === 'slack') {
-    res.status(409).json({ error: `${AGENT_CHANNEL_CATALOG.find(entry => entry.id === provider)?.label || provider} support is planned but not available in this candidate.` })
-    return
-  }
-
   const agent = listAgents().find(candidate => candidate.id === id)
   if (!agent) {
     res.status(404).json({ error: 'Agent not found' })
@@ -2182,6 +2181,7 @@ router.post('/:id/channels/:provider', (req, res) => {
   }
   let connection: {
     token: string
+    appToken: string | null
     allowFrom: string[]
     applicationId: string | null
     guildId: string | null
@@ -2196,13 +2196,14 @@ router.post('/:id/channels/:provider', (req, res) => {
     }
     connection = {
       token: validated.value.token,
+      appToken: null,
       allowFrom: validated.value.allowFrom,
       applicationId: null,
       guildId: null,
       channelIds: [],
       requireMention: true,
     }
-  } else {
+  } else if (provider === 'discord') {
     const validated = validateDiscordConnectionInput(req.body)
     if (!validated.ok) {
       res.status(400).json({ error: validated.error })
@@ -2210,9 +2211,25 @@ router.post('/:id/channels/:provider', (req, res) => {
     }
     connection = {
       token: validated.value.token,
+      appToken: null,
       allowFrom: validated.value.userIds,
       applicationId: validated.value.applicationId,
       guildId: validated.value.guildId,
+      channelIds: validated.value.channelIds,
+      requireMention: validated.value.requireMention,
+    }
+  } else {
+    const validated = validateSlackConnectionInput(req.body)
+    if (!validated.ok) {
+      res.status(400).json({ error: validated.error })
+      return
+    }
+    connection = {
+      token: validated.value.botToken,
+      appToken: validated.value.appToken,
+      allowFrom: validated.value.userIds,
+      applicationId: null,
+      guildId: null,
       channelIds: validated.value.channelIds,
       requireMention: validated.value.requireMention,
     }
@@ -2225,11 +2242,12 @@ router.post('/:id/channels/:provider', (req, res) => {
   }
 
   const homeDir = process.env.HOME || ''
-  const externalPluginPath = provider === 'discord'
+  const externalPluginPath = provider === 'discord' || provider === 'slack'
     ? getOpenClawExternalChannelPluginPath(homeDir, provider)
     : null
   if (externalPluginPath && !fs.existsSync(path.join(externalPluginPath, 'openclaw.plugin.json'))) {
-    res.status(503).json({ error: 'The Discord channel runtime is not installed. Run ClawMax setup to install the pinned OpenClaw Discord plugin.' })
+    const providerLabel = provider === 'discord' ? 'Discord' : 'Slack'
+    res.status(503).json({ error: `The ${providerLabel} channel runtime is not installed. Run ClawMax setup to install the pinned OpenClaw ${providerLabel} plugin.` })
     return
   }
   const snapshot = snapshotAgentOpenClawConfig({ homeDir, agentId: id, isProfile: agent.isProfile })
@@ -2248,7 +2266,7 @@ router.post('/:id/channels/:provider', (req, res) => {
   })
 
   try {
-    if (provider === 'discord' && externalPluginPath) {
+    if ((provider === 'discord' || provider === 'slack') && externalPluginPath) {
       if (agent.isProfile) {
         const pluginPaths = Array.from(new Set([
           ...readAgentOpenClawPluginPaths({ homeDir, agentId: id, isProfile: agent.isProfile }),
@@ -2256,7 +2274,7 @@ router.post('/:id/channels/:provider', (req, res) => {
         ]))
         run(['config', 'set', 'plugins.load.paths', JSON.stringify(pluginPaths), '--strict-json'])
       }
-      run(['config', 'set', 'plugins.entries.discord.enabled', 'true', '--strict-json'])
+      run(['config', 'set', `plugins.entries.${provider}.enabled`, 'true', '--strict-json'])
     }
     if (provider === 'telegram' && tokenPath) {
       run([
@@ -2272,8 +2290,19 @@ router.post('/:id/channels/:provider', (req, res) => {
       agentId: id,
       isProfile: agent.isProfile,
       provider,
+      credential: provider === 'slack' ? 'bot' : undefined,
       secret: connection.token,
     })
+    const appSecretRef = provider === 'slack' && connection.appToken
+      ? writeAgentChannelSecret({
+          homeDir,
+          agentId: id,
+          isProfile: agent.isProfile,
+          provider,
+          credential: 'app',
+          secret: connection.appToken,
+        })
+      : null
     run([
       'config', 'set', 'secrets.providers.clawmax-channels',
       '--provider-source', 'file',
@@ -2292,7 +2321,7 @@ router.post('/:id/channels/:provider', (req, res) => {
       ])
       run(['config', 'set', `${accountPath}.dmPolicy`, JSON.stringify(dmPolicy), '--strict-json'])
       run(['config', 'set', `${accountPath}.allowFrom`, JSON.stringify(allowFrom), '--strict-json'])
-    } else {
+    } else if (provider === 'discord') {
       const guilds = connection.guildId
         ? {
             [connection.guildId]: {
@@ -2315,11 +2344,28 @@ router.post('/:id/channels/:provider', (req, res) => {
         groupPolicy: connection.guildId ? 'allowlist' : 'disabled',
         guilds,
       }), '--strict-json'])
+    } else {
+      run(['config', 'set', 'channels.slack.enabled', 'true', '--strict-json'])
+      run(['config', 'set', accountPath, JSON.stringify({
+        name: `${agent.name} Slack`,
+        enabled: true,
+        mode: 'socket',
+        botToken: { source: 'file', provider: 'clawmax-channels', id: secretRef.jsonPointer },
+        appToken: { source: 'file', provider: 'clawmax-channels', id: appSecretRef?.jsonPointer },
+        dmPolicy,
+        allowFrom,
+        groupPolicy: connection.channelIds.length > 0 ? 'allowlist' : 'disabled',
+        channels: Object.fromEntries(connection.channelIds.map(channelId => [channelId, {
+          enabled: true,
+          requireMention: connection.requireMention,
+          users: allowFrom,
+        }])),
+      }), '--strict-json'])
     }
     run(['agents', 'bind', '--agent', id, '--bind', `${provider}:${id}`, '--json'])
 
     const channel = readAgentChannelState({ homeDir, agentId: id, isProfile: agent.isProfile, provider })
-    const providerLabel = provider === 'telegram' ? 'Telegram' : 'Discord'
+    const providerLabel = provider === 'telegram' ? 'Telegram' : provider === 'discord' ? 'Discord' : 'Slack'
     recordAgentLifecycleAuditEvent(id, {
       type: 'modified',
       title: `${providerLabel} channel connected`,
@@ -2328,9 +2374,9 @@ router.post('/:id/channels/:provider', (req, res) => {
     res.json({ ok: true, channel })
   } catch (error) {
     const rolledBack = restoreAgentChannelSnapshots(snapshot, secretSnapshot)
-    const providerLabel = provider === 'telegram' ? 'Telegram' : 'Discord'
+    const providerLabel = provider === 'telegram' ? 'Telegram' : provider === 'discord' ? 'Discord' : 'Slack'
     res.status(502).json({
-      error: `Could not connect ${providerLabel}: ${redactChannelError(error, [connection.token])}`,
+      error: `Could not connect ${providerLabel}: ${redactChannelError(error, [connection.token, connection.appToken || ''])}`,
       rolledBack,
     })
   } finally {
@@ -2350,10 +2396,6 @@ router.delete('/:id/channels/:provider', (req, res) => {
   const provider = normalizeAgentChannelProvider(req.params.provider)
   if (!provider) {
     res.status(404).json({ error: 'Unsupported channel provider' })
-    return
-  }
-  if (provider === 'slack') {
-    res.status(409).json({ error: `${provider} is not available in this candidate.` })
     return
   }
   const agent = listAgents().find(candidate => candidate.id === id)
@@ -2382,7 +2424,7 @@ router.delete('/:id/channels/:provider', (req, res) => {
     run(['channels', 'remove', '--channel', provider, '--account', id, '--delete'])
     removeAgentChannelSecret({ homeDir, agentId: id, isProfile: agent.isProfile, provider })
     const channel = readAgentChannelState({ homeDir, agentId: id, isProfile: agent.isProfile, provider })
-    const providerLabel = provider === 'telegram' ? 'Telegram' : 'Discord'
+    const providerLabel = provider === 'telegram' ? 'Telegram' : provider === 'discord' ? 'Discord' : 'Slack'
     recordAgentLifecycleAuditEvent(id, {
       type: 'modified',
       title: `${providerLabel} channel disconnected`,
@@ -2391,7 +2433,7 @@ router.delete('/:id/channels/:provider', (req, res) => {
     res.json({ ok: true, channel })
   } catch (error) {
     const rolledBack = restoreAgentChannelSnapshots(snapshot, secretSnapshot)
-    const providerLabel = provider === 'telegram' ? 'Telegram' : 'Discord'
+    const providerLabel = provider === 'telegram' ? 'Telegram' : provider === 'discord' ? 'Discord' : 'Slack'
     res.status(502).json({
       error: `Could not disconnect ${providerLabel}: ${redactChannelError(error)}`,
       rolledBack,

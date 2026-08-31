@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   agentChannelStatusLabel,
   parseDiscordIds,
+  parseSlackIds,
   parseTelegramOwnerIds,
   validateDiscordIds,
+  validateSlackChannelIds,
+  validateSlackUserIds,
   validateTelegramOwnerIds,
   type AgentChannelView,
 } from '../lib/agentChannels'
@@ -44,7 +47,18 @@ export default function AgentChannelsPanel({
   const [discordGuildId, setDiscordGuildId] = useState('')
   const [discordChannelIds, setDiscordChannelIds] = useState('')
   const [discordRequireMention, setDiscordRequireMention] = useState(true)
+  const [slackBotToken, setSlackBotToken] = useState('')
+  const [slackAppToken, setSlackAppToken] = useState('')
+  const [slackUserIds, setSlackUserIds] = useState('')
+  const [slackChannelIds, setSlackChannelIds] = useState('')
+  const [slackRequireMention, setSlackRequireMention] = useState(true)
   const [discordProbe, setDiscordProbe] = useState<{
+    ok: boolean
+    status: number | null
+    category: string
+    message: string
+  } | null>(null)
+  const [slackProbe, setSlackProbe] = useState<{
     ok: boolean
     status: number | null
     category: string
@@ -52,7 +66,7 @@ export default function AgentChannelsPanel({
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [confirmDisconnect, setConfirmDisconnect] = useState<'telegram' | 'discord' | null>(null)
+  const [confirmDisconnect, setConfirmDisconnect] = useState<'telegram' | 'discord' | 'slack' | null>(null)
 
   const telegram = useMemo(
     () => data?.channels.find(channel => channel.id === 'telegram') || null,
@@ -64,6 +78,11 @@ export default function AgentChannelsPanel({
     [data],
   )
   const discordHealthy = Boolean(discord?.configured && discord.enabled && discord.bound)
+  const slack = useMemo(
+    () => data?.channels.find(channel => channel.id === 'slack') || null,
+    [data],
+  )
+  const slackHealthy = Boolean(slack?.configured && slack.enabled && slack.bound)
 
   async function load() {
     setLoading(true)
@@ -82,6 +101,9 @@ export default function AgentChannelsPanel({
       setDiscordGuildId(guild?.id || '')
       setDiscordChannelIds(Array.isArray(guild?.channels) ? guild.channels.join(', ') : '')
       setDiscordRequireMention(guild?.requireMention !== false)
+      const currentSlack = body.channels?.find((channel: AgentChannelView) => channel.id === 'slack')
+      setSlackUserIds(Array.isArray(currentSlack?.allowFrom) ? currentSlack.allowFrom.join(', ') : '')
+      setSlackChannelIds(Array.isArray(currentSlack?.channelIds) ? currentSlack.channelIds.join(', ') : '')
     } catch (loadError: any) {
       setError(loadError.message || 'Could not load agent channels.')
     } finally {
@@ -174,32 +196,83 @@ export default function AgentChannelsPanel({
     }
   }
 
-  async function disconnectChannel(provider: 'telegram' | 'discord') {
+  async function connectSlack() {
+    const userError = validateSlackUserIds(slackUserIds)
+    const channelError = validateSlackChannelIds(slackChannelIds)
+    if (userError || channelError) {
+      setError(userError || channelError)
+      return
+    }
+    if (!slackBotToken.trim() || !slackAppToken.trim()) {
+      setError(slack?.configured
+        ? 'Enter both replacement Slack tokens to update this connection.'
+        : 'Enter both the Slack bot token and Socket Mode app token.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}/channels/slack`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          botToken: slackBotToken.trim(),
+          appToken: slackAppToken.trim(),
+          userIds: parseSlackIds(slackUserIds),
+          channelIds: parseSlackIds(slackChannelIds),
+          requireMention: slackRequireMention,
+        }),
+      })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(body.error || 'Could not connect Slack.')
+      setSlackBotToken('')
+      setSlackAppToken('')
+      setSlackProbe(null)
+      setNotice('Slack is connected in Socket Mode and bound to this agent.')
+      setConfirmDisconnect(null)
+      await load()
+      onChanged()
+    } catch (connectError: any) {
+      setError(connectError.message || 'Could not connect Slack.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function disconnectChannel(provider: 'telegram' | 'discord' | 'slack') {
     setSaving(true)
     setError(null)
     setNotice(null)
     try {
       const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}/channels/${provider}`, { method: 'DELETE' })
       const body = await response.json().catch(() => ({}))
-      const label = provider === 'telegram' ? 'Telegram' : 'Discord'
+      const label = provider === 'telegram' ? 'Telegram' : provider === 'discord' ? 'Discord' : 'Slack'
       if (!response.ok) throw new Error(body.error || `Could not disconnect ${label}.`)
       if (provider === 'telegram') {
         setToken('')
         setOwnerIds('')
-      } else {
+      } else if (provider === 'discord') {
         setDiscordToken('')
         setDiscordProbe(null)
         setDiscordApplicationId('')
         setDiscordUserIds('')
         setDiscordGuildId('')
         setDiscordChannelIds('')
+      } else {
+        setSlackBotToken('')
+        setSlackAppToken('')
+        setSlackProbe(null)
+        setSlackUserIds('')
+        setSlackChannelIds('')
       }
       setConfirmDisconnect(null)
       setNotice(`${label} was unbound and its named account was removed.`)
       await load()
       onChanged()
     } catch (disconnectError: any) {
-      setError(disconnectError.message || `Could not disconnect ${provider === 'telegram' ? 'Telegram' : 'Discord'}.`)
+      setError(disconnectError.message || `Could not disconnect ${provider === 'telegram' ? 'Telegram' : provider === 'discord' ? 'Discord' : 'Slack'}.`)
     } finally {
       setSaving(false)
     }
@@ -217,6 +290,23 @@ export default function AgentChannelsPanel({
     } catch (probeError: any) {
       setDiscordProbe(null)
       setError(probeError.message || 'Could not check Discord.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function probeSlack() {
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}/channels/slack/probe`, { method: 'POST' })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(body.error || 'Could not check Slack.')
+      setSlackProbe(body.probe || null)
+    } catch (probeError: any) {
+      setSlackProbe(null)
+      setError(probeError.message || 'Could not check Slack.')
     } finally {
       setSaving(false)
     }
@@ -373,6 +463,78 @@ export default function AgentChannelsPanel({
                     <div className="flex flex-wrap items-center gap-2 rounded-md border border-red-200 bg-red-50 p-2 dark:border-red-800 dark:bg-red-950/30">
                       <span className="text-xs text-red-700 dark:text-red-300">Remove this binding and named account?</span>
                       <button onClick={() => disconnectChannel('discord')} disabled={saving} className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white">Yes, disconnect</button>
+                      <button onClick={() => setConfirmDisconnect(null)} disabled={saving} className="px-2 py-1 text-xs text-gray-600 dark:text-gray-300">Cancel</button>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-violet-200 bg-violet-50/40 p-4 dark:border-violet-800 dark:bg-violet-950/20">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span aria-hidden="true" className="text-lg">💬</span>
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100">Slack</h3>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">{slack ? agentChannelStatusLabel(slack) : 'Not connected'}</p>
+                  </div>
+                  <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${slackHealthy ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                    {slackHealthy ? 'Bound' : slack?.bound ? 'Needs repair' : 'Available'}
+                  </span>
+                </div>
+
+                <div className="mt-3 rounded-lg border border-violet-100 bg-white/70 p-3 text-xs text-gray-600 dark:border-violet-900 dark:bg-gray-900/50 dark:text-gray-300">
+                  Enable <strong>Socket Mode</strong>. Create an app-level token with <code>connections:write</code>, grant the bot app mentions, channel/group/DM history and read access, chat write, commands, and users read scopes, then invite it to each selected channel. The runtime needs outbound access to Slack.
+                </div>
+                {slack?.configured && slack.dmPolicy === 'pairing' && (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                    Pairing is required for new Slack direct-message users. Approve their one-time code with the OpenClaw pairing command.
+                  </div>
+                )}
+                {slackProbe && (
+                  <div className={`mt-3 rounded-lg border p-3 text-xs ${slackProbe.ok ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/30 dark:text-green-300' : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300'}`} role="status">
+                    <strong>{slackProbe.ok ? 'Slack probe passed.' : `Slack ${slackProbe.category} check failed.`}</strong>{' '}{slackProbe.message}
+                  </div>
+                )}
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Bot token (xoxb-) {slack?.configured ? '(enter to replace)' : ''}</span>
+                    <input type="password" autoComplete="off" value={slackBotToken} onChange={event => setSlackBotToken(event.target.value)} placeholder={slack?.configured ? 'Stored securely by OpenClaw' : 'xoxb-…'} className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400 dark:border-gray-700 dark:bg-gray-900" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Socket Mode app token (xapp-) {slack?.configured ? '(enter to replace)' : ''}</span>
+                    <input type="password" autoComplete="off" value={slackAppToken} onChange={event => setSlackAppToken(event.target.value)} placeholder={slack?.configured ? 'Stored securely by OpenClaw' : 'xapp-…'} className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400 dark:border-gray-700 dark:bg-gray-900" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Allowed user IDs <span className="font-normal text-gray-400">(optional)</span></span>
+                    <input value={slackUserIds} onChange={event => setSlackUserIds(event.target.value)} placeholder="U012ABCDEF, W012ABCDEF" className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm uppercase outline-none focus:border-violet-400 dark:border-gray-700 dark:bg-gray-900" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Channel IDs <span className="font-normal text-gray-400">(optional)</span></span>
+                    <input value={slackChannelIds} onChange={event => setSlackChannelIds(event.target.value)} placeholder="C012ABCDEF, G012ABCDEF" className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm uppercase outline-none focus:border-violet-400 dark:border-gray-700 dark:bg-gray-900" />
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 sm:col-span-2">
+                    <input type="checkbox" checked={slackRequireMention} onChange={event => setSlackRequireMention(event.target.checked)} />
+                    Require an @mention in selected Slack channels
+                  </label>
+                  <p className="text-xs text-gray-500 sm:col-span-2">With no user IDs, direct messages use pairing. With no channel IDs, workspace channels are disabled. Selected IDs are fail-closed and the Slack tokens determine the workspace.</p>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <button onClick={connectSlack} disabled={saving} className="rounded-md bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">
+                    {saving ? 'Saving…' : slack?.configured ? 'Replace tokens and reconnect' : 'Connect Slack'}
+                  </button>
+                  {slack?.configured && (
+                    <button onClick={probeSlack} disabled={saving} className="rounded-md border border-violet-200 px-3 py-2 text-sm text-violet-700 hover:bg-violet-50 disabled:opacity-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950/30">Check connection and permissions</button>
+                  )}
+                  {slack?.configured && confirmDisconnect !== 'slack' && (
+                    <button onClick={() => setConfirmDisconnect('slack')} disabled={saving} className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30">Disconnect</button>
+                  )}
+                  {slack?.configured && confirmDisconnect === 'slack' && (
+                    <div className="flex flex-wrap items-center gap-2 rounded-md border border-red-200 bg-red-50 p-2 dark:border-red-800 dark:bg-red-950/30">
+                      <span className="text-xs text-red-700 dark:text-red-300">Remove this binding and named account?</span>
+                      <button onClick={() => disconnectChannel('slack')} disabled={saving} className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white">Yes, disconnect</button>
                       <button onClick={() => setConfirmDisconnect(null)} disabled={saving} className="px-2 py-1 text-xs text-gray-600 dark:text-gray-300">Cancel</button>
                     </div>
                   )}

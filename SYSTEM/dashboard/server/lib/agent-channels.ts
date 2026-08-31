@@ -23,6 +23,8 @@ export type AgentChannelState = {
   dmPolicy: string | null
   allowFrom: string[]
   applicationId: string | null
+  mode: string | null
+  channelIds: string[]
   guilds: Array<{
     id: string
     requireMention: boolean
@@ -50,8 +52,8 @@ export const AGENT_CHANNEL_CATALOG: readonly AgentChannelCatalogEntry[] = [
     id: 'slack',
     label: 'Slack',
     credentialLabels: ['Bot token', 'App token'],
-    available: false,
-    releaseState: 'planned',
+    available: true,
+    releaseState: 'available',
   },
 ] as const
 
@@ -74,8 +76,12 @@ export function getAgentChannelSecretsPath(homeDir: string, agentId: string, isP
   return path.join(getAgentOpenClawStateDir(homeDir, agentId, isProfile), 'credentials', 'clawmax-channel-secrets.json')
 }
 
-export function getAgentChannelSecretKey(provider: AgentChannelProvider, agentId: string): string {
-  return `${provider}-${agentId}`
+export function getAgentChannelSecretKey(
+  provider: AgentChannelProvider,
+  agentId: string,
+  credential?: 'bot' | 'app',
+): string {
+  return provider === 'slack' && credential ? `slack-${credential}-${agentId}` : `${provider}-${agentId}`
 }
 
 export function getOpenClawExternalChannelPluginPath(homeDir: string, provider: 'discord' | 'slack'): string {
@@ -167,10 +173,11 @@ export function writeAgentChannelSecret(params: {
   agentId: string
   isProfile: boolean
   provider: AgentChannelProvider
+  credential?: 'bot' | 'app'
   secret: string
 }): { filePath: string; key: string; jsonPointer: string } {
   const filePath = getAgentChannelSecretsPath(params.homeDir, params.agentId, params.isProfile)
-  const key = getAgentChannelSecretKey(params.provider, params.agentId)
+  const key = getAgentChannelSecretKey(params.provider, params.agentId, params.credential)
   writeSecretStore(filePath, { ...readSecretStore(filePath), [key]: params.secret })
   return { filePath, key, jsonPointer: `/${key}` }
 }
@@ -185,6 +192,10 @@ export function removeAgentChannelSecret(params: {
   if (!fs.existsSync(filePath)) return
   const values = readSecretStore(filePath)
   delete values[getAgentChannelSecretKey(params.provider, params.agentId)]
+  if (params.provider === 'slack') {
+    delete values[getAgentChannelSecretKey(params.provider, params.agentId, 'bot')]
+    delete values[getAgentChannelSecretKey(params.provider, params.agentId, 'app')]
+  }
   writeSecretStore(filePath, values)
 }
 
@@ -257,6 +268,10 @@ export function readAgentChannelState(params: {
     applicationId: typeof account?.applicationId === 'string' && account.applicationId.trim()
       ? account.applicationId.trim()
       : null,
+    mode: typeof account?.mode === 'string' ? account.mode : null,
+    channelIds: provider === 'slack' && account?.channels && typeof account.channels === 'object' && !Array.isArray(account.channels)
+      ? Object.keys(account.channels)
+      : [],
     guilds: provider === 'discord' ? normalizeDiscordGuilds(account?.guilds) : [],
   }
 }
@@ -315,10 +330,18 @@ export type DiscordConnectionInput = {
   requireMention: boolean
 }
 
+export type SlackConnectionInput = {
+  botToken: string
+  appToken: string
+  userIds: string[]
+  channelIds: string[]
+  requireMention: boolean
+}
+
 export type AgentChannelProbeResult = {
   ok: boolean
   status: number | null
-  category: 'healthy' | 'authentication' | 'intent' | 'permission' | 'connection' | 'unknown'
+  category: 'healthy' | 'authentication' | 'intent' | 'scope' | 'token-mismatch' | 'permission' | 'connection' | 'unknown'
   message: string
 }
 
@@ -345,7 +368,11 @@ export function parseOpenClawChannelProbeOutput(
   const status = typeof probe.status === 'number' ? probe.status : null
   const rawError = typeof probe.error === 'string' && probe.error.trim() ? probe.error.trim() : 'Channel probe failed.'
   const normalized = rawError.toLowerCase()
-  const category = status === 401 || /unauth|token|credential/.test(normalized)
+  const category = /token.{0,30}mismatch|mismatch.{0,30}token|different (?:slack )?(?:team|workspace)/.test(normalized)
+    ? 'token-mismatch'
+    : /missing[_ -]?scope|scope[_ -]?(?:required|missing)|required scope/.test(normalized)
+      ? 'scope'
+      : status === 401 || /unauth|invalid[_ -]?auth|credential/.test(normalized)
     ? 'authentication'
     : /intent/.test(normalized)
       ? 'intent'
@@ -418,10 +445,54 @@ export function validateDiscordConnectionInput(input: unknown): {
   }
 }
 
+function normalizeSlackIds(value: unknown, label: string, pattern: RegExp, description: string): {
+  ok: true
+  value: string[]
+} | {
+  ok: false
+  error: string
+} {
+  if (value == null) return { ok: true, value: [] }
+  if (!Array.isArray(value)) return { ok: false, error: `${label} must be an array of ${description}.` }
+  const ids = Array.from(new Set(value.map(entry => String(entry || '').trim()).filter(Boolean)))
+  if (ids.some(id => !pattern.test(id))) return { ok: false, error: `${label} entries must be ${description}.` }
+  return { ok: true, value: ids }
+}
+
+export function validateSlackConnectionInput(input: unknown): {
+  ok: true
+  value: SlackConnectionInput
+} | {
+  ok: false
+  error: string
+} {
+  const body = input && typeof input === 'object' ? input as Record<string, unknown> : {}
+  const botToken = String(body.botToken || '').trim()
+  const appToken = String(body.appToken || '').trim()
+  if (!/^xoxb-\S{10,295}$/.test(botToken)) {
+    return { ok: false, error: 'Slack bot token must start with xoxb- and contain no whitespace.' }
+  }
+  if (!/^xapp-\S{10,295}$/.test(appToken)) {
+    return { ok: false, error: 'Slack app token must start with xapp- and contain no whitespace.' }
+  }
+  const users = normalizeSlackIds(body.userIds, 'Slack user allowlist', /^[UW][A-Z0-9]{8,20}$/, 'stable Slack user IDs beginning with U or W')
+  if (!users.ok) return users
+  const channels = normalizeSlackIds(body.channelIds, 'Slack channel allowlist', /^[CG][A-Z0-9]{8,20}$/, 'stable Slack channel IDs beginning with C or G')
+  if (!channels.ok) return channels
+  if (body.requireMention != null && typeof body.requireMention !== 'boolean') {
+    return { ok: false, error: 'Slack require-mention must be a boolean.' }
+  }
+  return {
+    ok: true,
+    value: { botToken, appToken, userIds: users.value, channelIds: channels.value, requireMention: body.requireMention !== false },
+  }
+}
+
 export function redactChannelError(error: unknown, secrets: string[] = []): string {
   let message = error instanceof Error ? error.message : String(error || 'OpenClaw channel operation failed')
   for (const secret of secrets.filter(Boolean)) message = message.split(secret).join('[redacted]')
   message = message.replace(/\b\d{5,20}:[A-Za-z0-9_-]{20,}\b/g, '[redacted]')
   message = message.replace(/\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}\b/g, '[redacted]')
+  message = message.replace(/\bxox(?:b|a|p|r|s)-\S+/gi, '[redacted]')
   return message.slice(0, 500)
 }
