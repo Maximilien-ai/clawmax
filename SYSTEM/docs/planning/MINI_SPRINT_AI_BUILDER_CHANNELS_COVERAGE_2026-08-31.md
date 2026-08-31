@@ -368,11 +368,33 @@ catalog boundary and all plugin enablement checks passed.
 
 - [x] Commit and push Slack behavior, tests, and any separately reviewable
   coverage-only concern.
-- [ ] Run the full candidate gate and publish the Slack candidate.
-- [ ] Record the exact SHA, tag, final coverage totals, and public/combined CI
+- [x] Run the full candidate gate and publish the Slack candidate.
+- [x] Record the exact SHA, tag, final coverage totals, and public/combined CI
   links.
-- [ ] Complete sprint handoff only after the candidate is published and its
+- [x] Complete sprint handoff only after the candidate is published and its
   required smoke jobs pass.
+
+RC50 release evidence (August 31, 2026):
+
+- Candidate SHA/tag: `813928b5` / `v2.0.0-test-rc50`.
+- Local version: the visible dashboard shell and `/api/system` both reported
+  `2.0.0-test-rc50` after the ignored local `.env` was aligned and the
+  dashboard restarted.
+- Public image: [Test Container Image run
+  33446960901](https://github.com/Maximilien-ai/clawmax/actions/runs/33446960901)
+  passed amd64/arm64 builds, manifest publication, packaged-version checks, and
+  registry smoke in 24m23s.
+- Matching authorized combined image: [Private ClawMax Plugins Image run
+  33446669527, attempt 2](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/33446669527)
+  passed private validation, runtime acceptance, the combined multi-architecture
+  build, and amd64/arm64 registry smoke using
+  `base_tag=2.0.0-test-rc50` and `image_tag=2.0.0-test-rc50`.
+- Release-input correction: superseded public run `33443927208` received the
+  full candidate version where the workflow expected only suffix `rc50`, so it
+  published a doubly prefixed test tag. Combined attempt 1 consequently could
+  not resolve the intended base image. The tagged source did not change; the
+  corrected public run and the single combined failed-job rerun above are the
+  owning release evidence.
 
 **Day 2 exit:** Telegram, Discord, and Slack Socket Mode are implemented behind
 one generic channel contract, AI Builder behavior is strengthened, and the full
@@ -387,7 +409,7 @@ Use day three only if the two-day exit is not met or external credentials are
 available for real-provider validation.
 
 - [ ] Resolve defects found by the complete suite or responsive visual audit.
-- [ ] Finish any sequential candidate release still running or awaiting a
+- [x] Finish any sequential candidate release still running or awaiting a
   required public/combined smoke result.
 - [ ] Validate Telegram with a dedicated test bot.
 - [ ] Validate Discord with a dedicated test application/server.
@@ -452,22 +474,22 @@ changes remain uncommitted.
 
 ## Definition Of Done
 
-- [ ] Explicit creation requests always retain the correct AI Create action and
+- [x] Explicit creation requests always retain the correct AI Create action and
   navigate with the original prompt.
-- [ ] Negative and ambiguous AI Builder cases do not regress reuse/refine paths.
-- [ ] Telegram, Discord, and Slack Socket Mode use the shared channel contract.
-- [ ] Agents can be bound and unbound without duplicating or exposing provider
+- [x] Negative and ambiguous AI Builder cases do not regress reuse/refine paths.
+- [x] Telegram, Discord, and Slack Socket Mode use the shared channel contract.
+- [x] Agents can be bound and unbound without duplicating or exposing provider
   secrets.
-- [ ] Connection, binding, pairing/access, error, and lifecycle state are
+- [x] Connection, binding, pairing/access, error, and lifecycle state are
   visible after each user operation.
-- [ ] Focused tests cover success, failure, persistence, redaction, and
+- [x] Focused tests cover success, failure, persistence, redaction, and
   responsive presentation paths.
 - [x] Complete integration, validation, and coverage pass.
 - [x] Branch coverage is at least 71.2%.
-- [ ] AI Builder, Telegram, Discord, and Slack each have a separately published
+- [x] AI Builder, Telegram, Discord, and Slack each have a separately published
   candidate with owning SHA and public/combined CI evidence.
-- [ ] External smoke status is accurately recorded for each provider.
-- [ ] All owning-repository changes are committed and pushed with approved
+- [x] External smoke status is accurately recorded for each provider.
+- [x] All owning-repository changes are committed and pushed with approved
   lowercase Conventional Commit prefixes.
 
 ## References
