@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import { AsyncLocalStorage } from 'async_hooks'
 import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, ProviderKeys } from './dashboard-env'
-import { getPreferredAnthropicModel } from './model-discovery'
+import { getCachedOpenAiCompatibleDefaultModel, getPreferredAnthropicModel, resolveOpenAiCompatibleDefaultModel } from './model-discovery'
 import { getBestAvailableModel } from './dashboard-env'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { CLAUDE_MODEL_ALIASES, executeAgentRuntimeTurn, resolveEnabledRuntimes, resolveRuntimeCliPath, type AgentRuntimeId, isRuntimeCancelledError } from './agent-runtime'
@@ -427,17 +427,56 @@ function getPreferredAnthropicGenerationModel(): string {
   return getPreferredAnthropicModel().replace(/^anthropic\//, '')
 }
 
-export function resolveOpenAiCompatibleGenerationDefaults(byokKeys?: ProviderKeys): { baseUrl?: string; defaultModel?: string } {
+/**
+ * The OpenAI-compatible endpoint generation will use, with the key and model that belong to it.
+ *
+ * Resolved as whole endpoints rather than field by field: a workspace-configured default model and
+ * a system API key belong to the workspace's own base URL, and merging them into a base URL the
+ * browser supplied would send one endpoint's credential — and one endpoint's model id — to a
+ * different server.
+ */
+export function resolveOpenAiCompatibleGenerationDefaults(byokKeys?: ProviderKeys): { baseUrl?: string; defaultModel?: string; apiKey?: string } {
   const integrationConfig = readWorkspaceIntegrationConfig()
   const systemKeys = resolveSystemExecutionProviderKeys()
+  const endpoints = [
+    {
+      baseUrl: byokKeys?.openaiCompatibleBaseUrl?.trim(),
+      apiKey: byokKeys?.openaiCompatibleApiKey?.trim(),
+      defaultModel: byokKeys?.openaiCompatibleDefaultModel?.trim(),
+    },
+    {
+      baseUrl: integrationConfig.openaiCompatibleBaseUrl?.trim(),
+      apiKey: undefined,
+      defaultModel: integrationConfig.openaiCompatibleDefaultModel?.trim(),
+    },
+    {
+      baseUrl: systemKeys.openaiCompatibleBaseUrl?.trim(),
+      apiKey: systemKeys.openaiCompatibleApiKey?.trim(),
+      defaultModel: systemKeys.openaiCompatibleDefaultModel?.trim(),
+    },
+  ]
+  const selected = endpoints.find((endpoint) => endpoint.baseUrl)
+  if (!selected?.baseUrl) return {}
+  // Compared without a trailing slash, so the same endpoint written two ways is still one endpoint.
+  const sameEndpoint = (a?: string, b?: string) => (a || '').replace(/\/+$/, '') === (b || '').replace(/\/+$/, '')
+  // The workspace's own default model still applies when the browser named the same endpoint and
+  // the same credential — the same catalog, so the pairing holds.
+  const configuredModel = selected.defaultModel
+    || endpoints.find((endpoint) => (
+      sameEndpoint(endpoint.baseUrl, selected.baseUrl)
+      && (endpoint.apiKey || undefined) === (selected.apiKey || undefined)
+      && endpoint.defaultModel
+    ))?.defaultModel
   return {
-    baseUrl: byokKeys?.openaiCompatibleBaseUrl?.trim()
-      || integrationConfig.openaiCompatibleBaseUrl?.trim()
-      || systemKeys.openaiCompatibleBaseUrl?.trim()
-      || undefined,
-    defaultModel: byokKeys?.openaiCompatibleDefaultModel?.trim()
-      || integrationConfig.openaiCompatibleDefaultModel?.trim()
-      || systemKeys.openaiCompatibleDefaultModel?.trim()
+    baseUrl: selected.baseUrl,
+    apiKey: selected.apiKey || undefined,
+    defaultModel: configuredModel
+      // Nothing was typed into BYOK's optional "Default model" box. The endpoint still names its
+      // own models, and validation already proves a prompt completes on the first chat-capable
+      // one, so generation runs on that rather than refusing a verified endpoint. This resolver is
+      // sync and reached from deep in the generation call chain, so it reads the discovery cache
+      // that warmOpenAiCompatibleGenerationModel fills at the request boundary.
+      || getCachedOpenAiCompatibleDefaultModel(selected.baseUrl, selected.apiKey)
       || undefined,
   }
 }
@@ -468,16 +507,18 @@ function getAvailableProvider(
   // Try BYOK keys first (passed from client request)
   if (byokKeys?.openai) return { provider: 'openai', key: byokKeys.openai }
   if (byokKeys?.openaiCompatibleBaseUrl) {
-    // A base URL without a default model cannot generate. Prefer an enabled CLI runtime over
-    // dead-ending, rather than letting the unusable endpoint win just because it is configured.
-    const compatibleModel = String(byokKeys.openaiCompatibleDefaultModel || '').trim()
+    // A base URL with no model at all — none typed, and none discovered at the endpoint — cannot
+    // generate. Prefer an enabled CLI runtime over dead-ending, rather than letting the unusable
+    // endpoint win just because it is configured.
+    // compatibleDefaults already resolved this endpoint together with its own key and model.
+    const compatibleModel = String(compatibleDefaults.defaultModel || '').trim()
     const cliInstead = compatibleModel ? undefined : cliCandidate()
     if (cliInstead) return { provider: 'cli-runtime', key: cliInstead }
     return {
       provider: 'openai-compatible',
       key: byokKeys.openaiCompatibleApiKey || 'openai-compatible',
       baseUrl: byokKeys.openaiCompatibleBaseUrl,
-      defaultModel: byokKeys.openaiCompatibleDefaultModel,
+      defaultModel: compatibleModel || undefined,
     }
   }
   if (byokKeys?.anthropic) return { provider: 'anthropic', key: byokKeys.anthropic }
@@ -490,7 +531,9 @@ function getAvailableProvider(
     if (cliInstead) return { provider: 'cli-runtime', key: cliInstead }
     return {
       provider: 'openai-compatible',
-      key: keys.openaiCompatibleApiKey || 'openai-compatible',
+      // compatibleDefaults carries the key belonging to the endpoint it selected. Reaching for the
+      // system key here sent one endpoint's secret to a different endpoint's URL.
+      key: compatibleDefaults.apiKey || 'openai-compatible',
       baseUrl: compatibleDefaults.baseUrl,
       defaultModel: compatibleDefaults.defaultModel,
     }
@@ -920,6 +963,32 @@ let _requestByokKeys: ProviderKeys | undefined
 
 export function setRequestByokKeys(keys: ProviderKeys | undefined) {
   _requestByokKeys = keys
+}
+
+/**
+ * Ask the OpenAI-compatible endpoint what it runs, before generation starts.
+ *
+ * The resolvers that need this answer are synchronous and sit several frames down the generation
+ * call chain, so the one asynchronous step happens here, at the request boundary. Deliberately
+ * separate from setRequestByokKeys: that setter writes module-level request state, and awaiting
+ * inside it would widen the window in which a concurrent request can overwrite it.
+ *
+ * Warm calls return from the discovery cache without touching the network.
+ */
+export async function warmOpenAiCompatibleGenerationModel(keys?: ProviderKeys): Promise<void> {
+  try {
+    const { baseUrl, apiKey, defaultModel } = resolveOpenAiCompatibleGenerationDefaults(keys)
+    if (!baseUrl || defaultModel) return
+    // Warmed unconditionally rather than only when this endpoint looks like the winner. Provider
+    // precedence is not knowable here — a browser-supplied endpoint outranks a system OpenAI key,
+    // and an enabled CLI that fails re-resolves onto this path — and guessing wrong leaves the
+    // endpoint cold at the point generation needs it. Discovery is cached for an hour and
+    // coalesced, so the cost is one /models call per endpoint per hour.
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl, apiKey })
+  } catch {
+    // An unreachable endpoint is reported by the generation attempt itself, in the provider's own
+    // words — failing here would replace that with a vaguer missing-model message.
+  }
 }
 
 function currentClient(): { client: OpenAI; model: string } {

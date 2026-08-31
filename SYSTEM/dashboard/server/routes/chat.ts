@@ -6,6 +6,7 @@ import path from 'path'
 import { getActiveAgentLifecycleGeneration, getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
 import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
+import { getCachedOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleDefaultModel } from '../lib/model-discovery'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
@@ -252,7 +253,10 @@ export function resolveByokChatFallbackModel(byok?: ChatByokPayload): string | u
   if (hasText(byok.openrouter)) return 'openrouter/auto'
   if (hasText(byok.xai)) return 'xai/grok-3'
   if (hasText(byok.openaiCompatibleBaseUrl)) {
+    // BYOK's "Default model" box is optional; when it is empty the endpoint's own advertised chat
+    // model stands in, the same model endpoint validation completes its test prompt on.
     const configuredModel = byok.openaiCompatibleDefaultModel?.trim().replace(/^openai-compatible\//, '')
+      || getCachedOpenAiCompatibleDefaultModel(byok.openaiCompatibleBaseUrl, byok.openaiCompatibleApiKey)
     return configuredModel ? `openai-compatible/${configuredModel}` : undefined
   }
   return undefined
@@ -536,15 +540,48 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
   return text
 }
 
+/**
+ * Fill the discovery cache for the chat BYOK endpoint before readiness reads it.
+ *
+ * resolveByokChatFallbackModel is synchronous and reads that cache, so without this an agent with
+ * no model of its own is told "no model configured" on a cold cache — even though the endpoint
+ * advertises one. Warm calls cost nothing; a failed lookup leaves the previous behaviour intact.
+ */
+function resolveChatOpenAiCompatibleEndpoint(byok?: ChatByokPayload): { baseUrl?: string; apiKey?: string; defaultModel?: string } {
+  const integrationConfig = readWorkspaceIntegrationConfig()
+  const browserBaseUrl = byok?.openaiCompatibleBaseUrl?.trim()
+  const workspaceBaseUrl = integrationConfig.openaiCompatibleBaseUrl?.trim()
+  const baseUrl = browserBaseUrl || workspaceBaseUrl
+  if (!baseUrl) return {}
+  // The workspace's default model belongs to the workspace's endpoint. Applying it to a different
+  // browser-supplied endpoint runs a model id that endpoint never advertised.
+  const normalize = (value?: string) => (value || '').replace(/\/+$/, '')
+  const defaultModel = byok?.openaiCompatibleDefaultModel?.trim()
+    || (normalize(baseUrl) === normalize(workspaceBaseUrl) ? integrationConfig.openaiCompatibleDefaultModel?.trim() : undefined)
+  return { baseUrl, apiKey: byok?.openaiCompatibleApiKey, defaultModel }
+}
+
+async function warmChatOpenAiCompatibleModel(byok?: ChatByokPayload): Promise<void> {
+  const { baseUrl, apiKey, defaultModel } = resolveChatOpenAiCompatibleEndpoint(byok)
+  if (!baseUrl || defaultModel) return
+  try {
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl, apiKey })
+  } catch {
+    // Readiness reports an unreachable endpoint in its own words; this lookup must not throw here.
+  }
+}
+
 function evaluateChatExecutionReadiness(
   agentId: string,
   byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
 ) {
   const integrationConfig = readWorkspaceIntegrationConfig()
   const baseResolvedAgent = resolveAgentExecutionConfig(agentId)
+  const chatCompatibleEndpoint = resolveChatOpenAiCompatibleEndpoint(byok)
   const fallbackModel = resolveByokChatFallbackModel({
     ...byok,
-    openaiCompatibleDefaultModel: byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel,
+    openaiCompatibleBaseUrl: chatCompatibleEndpoint.baseUrl,
+    openaiCompatibleDefaultModel: chatCompatibleEndpoint.defaultModel,
   })
   const resolvedAgent = !baseResolvedAgent.model && fallbackModel
     ? {
@@ -761,7 +798,7 @@ router.get('/:id/gateway', (req, res) => {
   })
 })
 
-router.post('/:id/chat/readiness', (req, res) => {
+router.post('/:id/chat/readiness', async (req, res) => {
   const { id } = req.params
   const { byok } = req.body as {
     byok?: ChatByokPayload
@@ -772,6 +809,7 @@ router.post('/:id/chat/readiness', (req, res) => {
   }
   if (rejectStaleChatAgent(req, res, id)) return
 
+  await warmChatOpenAiCompatibleModel(byok)
   const readiness = evaluateChatExecutionReadiness(id, byok)
   if (!readiness.available) {
     return res.status(200).json(readiness)
@@ -824,6 +862,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   }
 
   const session = getAuthenticatedSession(req) || transport?.actor || null
+  await warmChatOpenAiCompatibleModel(byok)
   const readiness = evaluateChatExecutionReadiness(id, byok)
   if (!readiness.available) {
     return reject(400, readiness.error || 'Agent execution is unavailable')
