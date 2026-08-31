@@ -28,10 +28,13 @@ import {
   resolveSystemGenerationModelForProvider,
   resolveOpenAiCompatibleGenerationDefaults,
   setRequestByokKeys,
+  warmOpenAiCompatibleGenerationModel,
   shouldUseMaxCompletionTokens,
   shouldGenerateCompanyTemplate,
   validateAiGenerationProviderKeys,
 } from './ai-generator'
+import { clearModelCache } from './model-discovery'
+import { getWorkspacePath } from './workspace'
 
 let passed = 0
 let failed = 0
@@ -182,6 +185,98 @@ test('resolveOpenAiCompatibleGenerationDefaults falls back to workspace integrat
     if (originalWorkspace === undefined) delete process.env.OPENCLAW_WORKSPACE
     else process.env.OPENCLAW_WORKSPACE = originalWorkspace
   }
+})
+
+/**
+ * Writes the integrations.json the generator actually reads, whatever workspace this process
+ * resolved, and puts the previous contents back afterwards.
+ */
+async function withWorkspaceIntegrations(config: Record<string, unknown>, fn: () => Promise<void>) {
+  const filePath = path.join(getWorkspacePath(), 'SYSTEM', 'integrations.json')
+  const existed = fs.existsSync(filePath)
+  const original = existed ? fs.readFileSync(filePath, 'utf-8') : undefined
+  const originalFetch = global.fetch
+  try {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf-8')
+    clearModelCache()
+    await fn()
+  } finally {
+    setRequestByokKeys(undefined)
+    clearModelCache()
+    global.fetch = originalFetch
+    if (original !== undefined) fs.writeFileSync(filePath, original, 'utf-8')
+    else if (existed || fs.existsSync(filePath)) fs.rmSync(filePath, { force: true })
+  }
+}
+
+// Exactly what BYOK stores when the operator leaves the optional "Default model" box empty.
+const VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL = {
+  enabledRuntimes: [],
+  openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1',
+}
+
+test('A verified OpenAI-compatible endpoint generates without an explicitly typed default model', async () => {
+  await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
+    global.fetch = (async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'deepseek-ai/DeepSeek-V4-Flash-0731' }] }),
+    }) as any) as any
+
+    assert.strictEqual(resolveOpenAiCompatibleGenerationDefaults().defaultModel, undefined)
+    await warmOpenAiCompatibleGenerationModel({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any)
+    setRequestByokKeys({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any)
+
+    const resolved = resolveOpenAiCompatibleGenerationDefaults()
+    assert.strictEqual(resolved.baseUrl, 'http://172.16.1.70:8000/v1')
+    assert.strictEqual(resolved.defaultModel, 'deepseek-ai/DeepSeek-V4-Flash-0731')
+    const { model } = createAiGenerationClient({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any)
+    assert.strictEqual(model, 'deepseek-ai/DeepSeek-V4-Flash-0731')
+  })
+})
+
+test('A browser-supplied endpoint does not inherit the workspace endpoint\'s model', async () => {
+  await withWorkspaceIntegrations({
+    enabledRuntimes: [],
+    openaiCompatibleBaseUrl: 'http://workspace-endpoint:8000/v1',
+    openaiCompatibleDefaultModel: 'workspace-only-model',
+  }, async () => {
+    const requested: string[] = []
+    global.fetch = (async (url: string) => {
+      requested.push(String(url))
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'browser-endpoint-model' }] }) } as any
+    }) as any
+
+    const browserKeys = { openaiCompatibleBaseUrl: 'http://browser-endpoint:9000/v1' } as any
+    await warmOpenAiCompatibleGenerationModel(browserKeys)
+    setRequestByokKeys(browserKeys)
+
+    const resolved = resolveOpenAiCompatibleGenerationDefaults(browserKeys)
+    assert.strictEqual(resolved.baseUrl, 'http://browser-endpoint:9000/v1')
+    assert.strictEqual(resolved.defaultModel, 'browser-endpoint-model')
+    assert.ok(
+      requested.every((url) => url.startsWith('http://browser-endpoint:9000/v1')),
+      `Expected discovery to touch only the browser endpoint, got ${JSON.stringify(requested)}`,
+    )
+  })
+})
+
+test('An OpenAI-compatible endpoint that advertises no chat model still reports the missing default', async () => {
+  await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
+    global.fetch = (async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'text-embedding-nomic-embed-text-v1.5' }] }),
+    }) as any) as any
+
+    await warmOpenAiCompatibleGenerationModel({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any)
+    setRequestByokKeys({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any)
+    assert.throws(
+      () => createAiGenerationClient({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any),
+      /requires a default model/i,
+    )
+  })
 })
 
 test('resolveSystemGenerationModelForProvider applies system preferred model when it matches the provider', () => {
