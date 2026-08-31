@@ -299,21 +299,36 @@ Discord candidate evidence:
 
 #### Slack Socket Mode
 
-- [ ] Configure bot and app-level tokens through separate protected secret
+- [x] Configure bot and app-level tokens through separate protected secret
   references.
-- [ ] Validate Socket Mode prerequisites and report actionable missing-token,
+- [x] Validate Socket Mode prerequisites and report actionable missing-token,
   scope, token-mismatch, and connection errors.
-- [ ] Support agent bindings at channel, account, Slack team, and selected-peer
-  scopes supported by the UI.
-- [ ] Surface pairing-required, connected, probe-failed, bound, and unbound
+- [x] Support named agent/account bindings, token-selected Slack workspace,
+  stable channel allowlists, and selected user scopes supported by the UI.
+  OpenClaw's account schema does not accept a separate team ID, so ClawMax does
+  not invent one; the bot/app token pair determines the workspace and the probe
+  reports token/workspace mismatches.
+- [x] Surface pairing-required, connected, probe-failed, bound, and unbound
   states.
-- [ ] Add focused configuration, API, persistence, redaction, error, and UI tests.
+- [x] Add focused configuration, API, persistence, redaction, error, and UI tests.
+
+Implementation checkpoint (August 31, 2026):
+
+- Runtime packaging SHA: `1a3e04ba` (`build: package Slack channel runtime`).
+- Behavior/test SHA: `1e5ae919` (`feat: add Slack agent channels`).
+- OpenClaw schema compatibility: an isolated exact-version Slack plugin probe
+  passed profile loading, separate file-backed bot/app SecretRefs, Socket Mode
+  account validation, stable user/channel allowlists, and agent binding.
+- Focused validation: TypeScript passed; 21 server channel tests, 16 client
+  presentation assertions, 21 panel assertions, the default-plugin packaging
+  test, and all 63 agent-route tests passed. A dedicated external Slack
+  app/workspace smoke remains in the provider-validation queue.
 
 #### Shared presentation and lifecycle
 
-- [ ] Replace WhatsApp-only actions in agent cards/detail/actions with a generic
+- [x] Replace WhatsApp-only actions in agent cards/detail/actions with a generic
   Channels entry that shows each provider independently.
-- [ ] Preserve the Agents page header, controls, action menus, responsive
+- [x] Preserve the Agents page header, controls, action menus, responsive
   stacking, and grid/detail/list presentations.
 - [ ] Ensure connection and binding history remains inspectable after success,
   failure, rebind, disconnect, and restart.
@@ -322,20 +337,20 @@ Discord candidate evidence:
 
 #### Coverage and validation
 
-- [ ] Cover new channel branches as part of implementation rather than adding a
+- [x] Cover new channel branches as part of implementation rather than adding a
   test-only cleanup pass later.
 - [ ] Add focused missing branches in `server/routes/agents.ts` and
   `server/routes/channels.ts`, especially provider failures, invalid payloads,
   config preservation, and idempotent disconnect/unbind behavior.
 - [ ] Reach at least 71.2% measured branch coverage while preserving or improving
   lines and functions.
-- [ ] Run TypeScript and every directly affected unit/contract suite.
+- [x] Run TypeScript and every directly affected unit/contract suite.
 - [ ] Run the complete integration, validation, and coverage suite after focused
   work is committed.
 
 #### Release checkpoint: Slack and sprint closure
 
-- [ ] Commit and push Slack behavior, tests, and any separately reviewable
+- [x] Commit and push Slack behavior, tests, and any separately reviewable
   coverage-only concern.
 - [ ] Run the full candidate gate and publish the Slack candidate.
 - [ ] Record the exact SHA, tag, final coverage totals, and public/combined CI
