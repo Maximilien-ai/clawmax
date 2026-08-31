@@ -335,18 +335,34 @@ Implementation checkpoint (August 31, 2026):
 - [ ] Visually audit desktop and mobile layouts, long provider errors, empty
   states, loading/progress states, and disconnect confirmation dialogs.
 
+RC50 local visual evidence (August 31, 2026): Slack's prerequisites, two-token
+form, selected user/channel fields, fail-closed defaults, scroll behavior,
+sticky footer, empty state, loading state, and inline validation error passed at
+1440×1000 and 390×844. The configured disconnect state remains with the
+external Slack test-app smoke because local validation did not use provider
+credentials; its confirmation path is covered by the panel contract test.
+
 #### Coverage and validation
 
 - [x] Cover new channel branches as part of implementation rather than adding a
   test-only cleanup pass later.
-- [ ] Add focused missing branches in `server/routes/agents.ts` and
+- [x] Add focused missing branches in `server/routes/agents.ts` and
   `server/routes/channels.ts`, especially provider failures, invalid payloads,
   config preservation, and idempotent disconnect/unbind behavior.
-- [ ] Reach at least 71.2% measured branch coverage while preserving or improving
+- [x] Reach at least 71.2% measured branch coverage while preserving or improving
   lines and functions.
 - [x] Run TypeScript and every directly affected unit/contract suite.
-- [ ] Run the complete integration, validation, and coverage suite after focused
+- [x] Run the complete integration, validation, and coverage suite after focused
   work is committed.
+
+RC50 local gate evidence (August 31, 2026): `88e407bf` added focused channel
+shape, validation, legacy-config, redaction, and probe-classification branches.
+The corrected full integration/validation/coverage run passed 475/475 checks
+with 81.89% statements/lines (48,633/59,383), 91.54% functions
+(1,874/2,047), and 71.29% branches (12,130/17,014). The first run's three
+failures came from overriding the dashboard's configured plugin IDs with stale
+synthetic names; removing that override restored the intended public/private
+catalog boundary and all plugin enablement checks passed.
 
 #### Release checkpoint: Slack and sprint closure
 
@@ -446,8 +462,8 @@ changes remain uncommitted.
   visible after each user operation.
 - [ ] Focused tests cover success, failure, persistence, redaction, and
   responsive presentation paths.
-- [ ] Complete integration, validation, and coverage pass.
-- [ ] Branch coverage is at least 71.2%.
+- [x] Complete integration, validation, and coverage pass.
+- [x] Branch coverage is at least 71.2%.
 - [ ] AI Builder, Telegram, Discord, and Slack each have a separately published
   candidate with owning SHA and public/combined CI evidence.
 - [ ] External smoke status is accurately recorded for each provider.
