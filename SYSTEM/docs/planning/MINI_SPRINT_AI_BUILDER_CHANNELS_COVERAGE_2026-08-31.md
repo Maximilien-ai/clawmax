@@ -269,10 +269,33 @@ candidate before beginning Discord.
 #### Release checkpoint: Discord
 
 - [x] Commit and push Discord behavior and tests as a focused concern.
-- [ ] Run the full candidate gate and publish the Discord candidate.
-- [ ] Record the exact SHA, tag, coverage totals, and public/combined CI links.
-- [ ] Begin Slack only after the candidate is published and its required smoke
+- [x] Run the full candidate gate and publish the Discord candidate.
+- [x] Record the exact SHA, tag, coverage totals, and public/combined CI links.
+- [x] Begin Slack only after the candidate is published and its required smoke
   jobs pass.
+
+Discord candidate evidence:
+
+- Source: `4edbfd1f` (`v2.0.0-test-rc49`); runtime packaging checkpoint
+  `1c1dc8b9` and feature checkpoint `75e1185e`.
+- Local integration, validation, and coverage gate: passed with 81.83% lines
+  and statements (`48490/59254`), 91.52% functions (`1869/2042`), and 70.96%
+  branches (`12007/16919`). The sprint-wide 71.2% branch target remains for the
+  coverage-closure phase.
+- Local release identity: the rendered dashboard and `/api/system` both
+  reported `2.0.0-test-rc49`.
+- OpenClaw compatibility: an isolated exact-version Discord plugin probe passed
+  profile loading, file-backed SecretRef resolution, application/user/server/
+  channel configuration, agent binding, and config validation. A live external
+  Discord bot credential smoke remains in the separate provider-validation
+  queue.
+- Public image: [Test Container Image run 33434406827](https://github.com/Maximilien-ai/clawmax/actions/runs/33434406827)
+  passed amd64/arm64 builds, manifest publication, packaged-version checks, and
+  registry smoke.
+- Matching authorized combined image: [Private ClawMax Plugins Image run
+  33436425174](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/33436425174)
+  passed validation, runtime acceptance, build, and amd64/arm64 registry smoke
+  using `base_tag=2.0.0-test-rc49` and `image_tag=2.0.0-test-rc49`.
 
 #### Slack Socket Mode
 
