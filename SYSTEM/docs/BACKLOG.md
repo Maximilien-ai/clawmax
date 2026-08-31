@@ -11,7 +11,10 @@
   contract. Target two engineering days with a third day reserved for
   sequential release spillover and external-provider evidence; publish a
   separate candidate after AI Builder and each channel, and reach at least
-  71.2% branch coverage. Plan:
+  71.2% branch coverage. RC51 is the focused usability/reliability follow-up:
+  promote Channels into every primary agent menu, expose all released channels
+  during manual and AI-assisted agent creation, and repair the LM Studio model
+  authorization regression reported in issue #189. Plan:
   [MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md).
 
 ## Release Tracks

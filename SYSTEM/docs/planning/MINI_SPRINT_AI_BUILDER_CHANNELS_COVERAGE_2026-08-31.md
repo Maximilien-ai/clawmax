@@ -396,6 +396,32 @@ RC50 release evidence (August 31, 2026):
   corrected public run and the single combined failed-job rerun above are the
   owning release evidence.
 
+#### RC51 usability and reliability follow-up
+
+Tester feedback after RC50 produced one bounded follow-up candidate rather
+than reopening the completed provider sequence:
+
+- `635743ec` repairs the LM Studio execution allowlist when a known provider
+  model survives config migration but its exact `lmstudio/...` authorization
+  does not. This is the failure reported in public issue
+  [#189](https://github.com/Maximilien-ai/clawmax/issues/189); the focused
+  agent-execution suite passes 53/53 cases.
+- `66fefd43` promotes Channels from the nested Maintain submenu into the
+  primary action menu for grid, detail, and list agent presentations.
+- `12eec16e` replaces the WhatsApp-only creation page with one optional,
+  multi-select Channels step for WhatsApp, Telegram, Discord, and Slack. Both
+  Create with Wizard and AI Create Agent pass through it. Provider credentials
+  stay in local wizard state, never enter AI generation or draft-validation
+  requests, and are cleared after sequential post-provision connection
+  attempts. Partial failures remain visible without hiding or duplicating the
+  successfully created agent.
+- Desktop and 390×844 browser audits cover the primary menu, empty channel
+  selection, all four expanded provider forms, maximum scroll, and reachable
+  footer actions.
+- RC51 publication remains gated on the complete integration, validation, and
+  coverage suite plus exact local/package version identity and matching public
+  and combined multi-architecture image evidence.
+
 **Day 2 exit:** Telegram, Discord, and Slack Socket Mode are implemented behind
 one generic channel contract, AI Builder behavior is strengthened, and the full
 engineering suite is green above the branch target. Each increment has its own
