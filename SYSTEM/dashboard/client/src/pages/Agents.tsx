@@ -7,6 +7,7 @@ import DeleteAgentPanel from '../components/DeleteAgentPanel'
 import ArchiveAgentPanel from '../components/ArchiveAgentPanel'
 import UnarchiveAgentPanel from '../components/UnarchiveAgentPanel'
 import LinkWhatsAppPanel from '../components/LinkWhatsAppPanel'
+import AgentChannelsPanel from '../components/AgentChannelsPanel'
 import SyncGroupsPanel from '../components/SyncGroupsPanel'
 import ChatPanel from '../components/ChatPanel'
 import AgentChatPanel from '../components/AgentChatPanel'
@@ -202,6 +203,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<Agent | null>(null)
   const [unarchiveTarget, setUnarchiveTarget] = useState<Agent | null>(null)
+  const [channelTarget, setChannelTarget] = useState<Agent | null>(null)
   const [linkWaTarget, setLinkWaTarget] = useState<Agent | null>(null)
   const [syncGroupsTarget, setSyncGroupsTarget] = useState<Agent | null>(null)
   const [chatTarget, setChatTarget] = useState<Agent | null>(null)
@@ -1515,7 +1517,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       onToggle={() => toggleCollapse(agent.id)}
                       onClick={() => setSelectedAgent(agent)}
                       onDelete={() => setDeleteTarget(agent.id)}
-                      onLinkWa={() => setLinkWaTarget(agent)}
+                      onLinkWa={() => setChannelTarget(agent)}
                       onSyncGroups={() => setSyncGroupsTarget(agent)}
                       onChat={() => setChatTarget(agent)}
                       onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true) }}
@@ -1702,7 +1704,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         onDelete={() => setDeleteTarget(agent.id)}
                         onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
                       onEdit={() => setEditTarget(agent)}
-                      onLinkWa={() => setLinkWaTarget(agent)}
+                      onLinkWa={() => setChannelTarget(agent)}
                       onSyncGroups={() => setSyncGroupsTarget(agent)}
                       onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
                       onExport={() => handleExportAgent(agent.id)}
@@ -1754,7 +1756,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               onDelete={() => setDeleteTarget(agent.id)}
                               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
                               onEdit={() => setEditTarget(agent)}
-                              onLinkWa={() => setLinkWaTarget(agent)}
+                              onLinkWa={() => setChannelTarget(agent)}
                               onSyncGroups={() => setSyncGroupsTarget(agent)}
                               onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
                               onExport={() => handleExportAgent(agent.id)}
@@ -1858,7 +1860,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onDelete={() => setDeleteTarget(agent.id)}
               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
               onEdit={() => setEditTarget(agent)}
-              onLinkWa={() => setLinkWaTarget(agent)}
+              onLinkWa={() => setChannelTarget(agent)}
               onSyncGroups={() => setSyncGroupsTarget(agent)}
               onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
               onExport={() => handleExportAgent(agent.id)}
@@ -1912,7 +1914,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                           onDelete={() => setDeleteTarget(agent.id)}
                           onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
                           onEdit={() => setEditTarget(agent)}
-                          onLinkWa={() => setLinkWaTarget(agent)}
+                          onLinkWa={() => setChannelTarget(agent)}
                           onSyncGroups={() => setSyncGroupsTarget(agent)}
                           onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
                           onExport={() => handleExportAgent(agent.id)}
@@ -1966,7 +1968,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onDelete={(id) => setDeleteTarget(id)}
           onEdit={setEditTarget}
           onNavigateToSkills={onNavigateToSkills}
-          onLinkWa={setLinkWaTarget}
+          onLinkWa={setChannelTarget}
           onSyncGroups={setSyncGroupsTarget}
           onArchive={setArchiveTarget}
           onUnarchive={setUnarchiveTarget}
@@ -2138,6 +2140,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           agent={saveAsTemplateTarget}
           onClose={() => setSaveAsTemplateTarget(null)}
           onSuccess={() => fetchAgents()}
+        />
+      )}
+
+      {channelTarget && (
+        <AgentChannelsPanel
+          agentId={channelTarget.id}
+          agentName={channelTarget.name}
+          isProfile={channelTarget.isProfile}
+          whatsapp={channelTarget.whatsapp}
+          onClose={() => setChannelTarget(null)}
+          onManageWhatsApp={() => {
+            const target = channelTarget
+            setChannelTarget(null)
+            setLinkWaTarget(target)
+          }}
+          onChanged={() => fetchAgents()}
         />
       )}
 
@@ -3803,8 +3821,8 @@ const AgentCard = React.memo(function AgentCard({
                           onClick={e => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false); setActionsMenuView('main') }}
                           className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
                         >
-                          <ProductIconCell iconName="whatsapp" label={agent.whatsapp ? 'Reconnect WA' : 'Connect WA'} size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
-                          {agent.whatsapp ? 'Reconnect WA' : 'Connect WA'}
+                          <ProductIconCell iconName="communication" label="Channels" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
+                          Channels
                         </button>
                       )}
                       {!agent.archived && agent.whatsapp && (
@@ -4482,8 +4500,8 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                           onClick={(e) => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false); setActionsMenuView('main'); }}
                           className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
                         >
-                          <ProductIconCell iconName="whatsapp" label={agent.whatsapp ? 'Reconnect WA' : 'Connect WA'} size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
-                          {agent.whatsapp ? 'Reconnect WA' : 'Connect WA'}
+                          <ProductIconCell iconName="communication" label="Channels" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
+                          Channels
                         </button>
                       )}
                       {!agent.archived && agent.whatsapp && (
@@ -4926,8 +4944,8 @@ const AgentTableView = React.memo(function AgentTableView({
                           }}
                           className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                         >
-                          <ProductIconCell iconName="whatsapp" label={agent.whatsapp ? 'Reconnect WA' : 'Connect WA'} size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
-                          {agent.whatsapp ? 'Reconnect WA' : 'Connect WA'}
+                          <ProductIconCell iconName="communication" label="Channels" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
+                          Channels
                         </button>
                       )}
                       {!agent.archived && agent.whatsapp && (

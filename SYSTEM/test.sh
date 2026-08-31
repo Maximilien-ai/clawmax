@@ -944,6 +944,26 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Agent channel presentation helper tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentChannels.test.ts > /tmp/clawmax-agent-channels-client.out 2>&1 || true
+if grep -q "Agent channel presentation tests passed" /tmp/clawmax-agent-channels-client.out; then
+  pass "Agent channel presentation helper tests (8 assertions)"
+else
+  cat /tmp/clawmax-agent-channels-client.out
+  fail "Agent channel presentation helper tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Agent channel panel contract tests...${NC}"
+npx ts-node --transpileOnly client/src/components/AgentChannelsPanel.test.ts > /tmp/clawmax-agent-channels-panel.out 2>&1 || true
+if grep -q "AgentChannelsPanel.test.ts: 11 assertions passed" /tmp/clawmax-agent-channels-panel.out; then
+  pass "Agent channel panel contract tests (11 assertions)"
+else
+  cat /tmp/clawmax-agent-channels-panel.out
+  fail "Agent channel panel contract tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent delete UI regression tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentDeleteUi.test.ts > /tmp/clawmax-agent-delete-ui.out 2>&1 || true
 if grep -q "✓ " /tmp/clawmax-agent-delete-ui.out; then
@@ -1109,14 +1129,24 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}→ Running Agent doctor route unit tests...${NC}"
+echo -e "${YELLOW}→ Running Agent channel configuration unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/agent-channels.test.ts > /tmp/clawmax-agent-channels-server.out 2>&1 || true
+if grep -q "Agent channel tests: 13 passed, 0 failed" /tmp/clawmax-agent-channels-server.out; then
+  pass "Agent channel configuration unit tests (13 tests)"
+else
+  cat /tmp/clawmax-agent-channels-server.out
+  fail "Agent channel configuration unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Agent doctor and channel route unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/agents.test.ts > /tmp/clawmax-agent-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-routes.out; then
   agent_route_count=$(grep "Tests passed:" /tmp/clawmax-agent-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
-  pass "Agent doctor route unit tests (${agent_route_count:-?} tests)"
+  pass "Agent doctor and channel route unit tests (${agent_route_count:-?} tests)"
 else
   cat /tmp/clawmax-agent-routes.out
-  fail "Agent doctor route unit tests"
+  fail "Agent doctor and channel route unit tests"
 fi
 
 echo ""

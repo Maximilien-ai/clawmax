@@ -709,6 +709,273 @@ async function run() {
     }
   })
 
+  await test('agent channels route returns non-secret Telegram binding state and planned providers', async () => {
+    writeAgent(workspacePath, 'channel-reader', '# IDENTITY.md\n\n- **Name:** Channel Reader\n')
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      channels: {
+        telegram: {
+          enabled: true,
+          accounts: {
+            'channel-reader': {
+              name: 'Reader Telegram',
+              enabled: true,
+              botToken: '123456789:SECRET_CHANNEL_TOKEN_VALUE',
+              dmPolicy: 'pairing',
+            },
+          },
+        },
+      },
+      bindings: [{
+        type: 'route',
+        agentId: 'channel-reader',
+        match: { channel: 'telegram', accountId: 'channel-reader' },
+      }],
+    }, null, 2))
+
+    const handler = getRouteHandler('get', '/:id/channels')
+    const res = makeRes()
+    handler(makeReq({ params: { id: 'channel-reader' } }), res)
+
+    assert.strictEqual(res.statusCode, 200)
+    const telegram = res.jsonBody.channels.find((entry: any) => entry.id === 'telegram')
+    const discord = res.jsonBody.channels.find((entry: any) => entry.id === 'discord')
+    assert.strictEqual(telegram.status, 'bound')
+    assert.strictEqual(telegram.dmPolicy, 'pairing')
+    assert.strictEqual(discord.releaseState, 'planned')
+    assert(!JSON.stringify(res.jsonBody).includes('SECRET_CHANNEL_TOKEN_VALUE'))
+  })
+
+  await test('Telegram connect uses a protected token file, persists policy, and binds the agent', async () => {
+    writeAgent(workspacePath, 'telegram-agent', '# IDENTITY.md\n\n- **Name:** Telegram Agent\n')
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [{ id: 'telegram-agent' }] }, unknown: { keep: true } }, null, 2))
+    const fakeCli = writeFakeOpenClawCli(tmpHome)
+    process.env.OPENCLAW_BIN = fakeCli
+    const token = '123456789:abcdefghijklmnopqrstuvwxyz_123456'
+    const calls: string[][] = []
+
+    await withChildProcessStubs({
+      execFileSync(command: string, args: string[], options: { env?: NodeJS.ProcessEnv }) {
+        assert.strictEqual(command, fakeCli)
+        calls.push([...args])
+        assert(!args.includes(token), 'Expected Telegram token not to appear in process arguments')
+        assert(!options.env?.GITHUB_TOKEN && !options.env?.GH_TOKEN && !options.env?.RESEND_API_KEY, 'Expected channel CLI environment to exclude unrelated secrets')
+        if (args[0] === 'channels' && args[1] === 'add') {
+          const tokenPath = args[args.indexOf('--token-file') + 1]
+          assert.strictEqual(fs.readFileSync(tokenPath, 'utf-8'), token)
+          assert.strictEqual(fs.statSync(tokenPath).mode & 0o777, 0o600)
+          const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+          config.channels = { telegram: { enabled: true, accounts: {
+            'telegram-agent': { name: 'Telegram Agent Telegram', enabled: true, botToken: token },
+          } } }
+          fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+        } else if (args[0] === 'config' && args[1] === 'set') {
+          const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+          const configKey = String(args[2])
+          if (configKey === 'secrets.providers.clawmax-channels') {
+            config.secrets = { providers: { 'clawmax-channels': {
+              source: 'file',
+              path: args[args.indexOf('--provider-path') + 1],
+              mode: 'json',
+            } } }
+          } else if (configKey.endsWith('.botToken')) {
+            config.channels.telegram.accounts['telegram-agent'].botToken = {
+              source: 'file',
+              provider: 'clawmax-channels',
+              id: args[args.indexOf('--ref-id') + 1],
+            }
+          } else {
+            const key = configKey.split('.').pop()!
+            config.channels.telegram.accounts['telegram-agent'][key] = JSON.parse(String(args[3]))
+          }
+          fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+        } else if (args[0] === 'agents' && args[1] === 'bind') {
+          const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+          config.bindings = [{ type: 'route', agentId: 'telegram-agent', match: { channel: 'telegram', accountId: 'telegram-agent' } }]
+          fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+        }
+        return ''
+      },
+    }, async () => {
+      const handler = getRouteHandler('post', '/:id/channels/:provider')
+      const res = makeRes()
+      handler(makeReq({
+        params: { id: 'telegram-agent', provider: 'telegram' },
+        body: { token, allowFrom: ['123456', '123456'] },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 200)
+      assert.strictEqual(res.jsonBody.channel.status, 'bound')
+      assert.deepStrictEqual(res.jsonBody.channel.allowFrom, ['123456'])
+      assert(!JSON.stringify(res.jsonBody).includes(token))
+    })
+
+    const persisted = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    assert.strictEqual(persisted.unknown.keep, true)
+    assert(!JSON.stringify(persisted).includes(token), 'Expected OpenClaw config to contain a SecretRef instead of the token')
+    assert.deepStrictEqual(persisted.channels.telegram.accounts['telegram-agent'].botToken, {
+      source: 'file',
+      provider: 'clawmax-channels',
+      id: '/telegram-telegram-agent',
+    })
+    assert.strictEqual(persisted.channels.telegram.accounts['telegram-agent'].dmPolicy, 'allowlist')
+    assert.deepStrictEqual(persisted.channels.telegram.accounts['telegram-agent'].allowFrom, ['123456'])
+    assert(calls.some(args => args.includes('telegram:telegram-agent')))
+    const secretPath = path.join(tmpHome, '.openclaw', 'credentials', 'clawmax-channel-secrets.json')
+    assert.strictEqual(fs.statSync(secretPath).mode & 0o777, 0o600)
+    assert.strictEqual(JSON.parse(fs.readFileSync(secretPath, 'utf-8'))['telegram-telegram-agent'], token)
+    const auditPath = path.join(workspacePath, '.clawmax', 'lifecycle', 'agents', 'telegram-agent.jsonl')
+    assert(!fs.readFileSync(auditPath, 'utf-8').includes(token))
+  })
+
+  await test('Telegram connect restores exact config and redacts the token when binding fails', async () => {
+    writeAgent(workspacePath, 'telegram-rollback', '# IDENTITY.md\n\n- **Name:** Telegram Rollback\n')
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    const original = JSON.stringify({ agents: { list: [{ id: 'telegram-rollback' }] }, unknown: { exact: 'value' } }, null, 2)
+    fs.writeFileSync(configPath, original, { mode: 0o600 })
+    fs.chmodSync(configPath, 0o600)
+    const fakeCli = writeFakeOpenClawCli(tmpHome)
+    process.env.OPENCLAW_BIN = fakeCli
+    const token = '987654321:abcdefghijklmnopqrstuvwxyz_654321'
+
+    await withChildProcessStubs({
+      execFileSync(_command: string, args: string[]) {
+        if (args[0] === 'channels' && args[1] === 'add') {
+          fs.writeFileSync(configPath, JSON.stringify({ channels: { telegram: { accounts: {
+            'telegram-rollback': { botToken: token },
+          } } } }))
+          return ''
+        }
+        if (args[0] === 'agents' && args[1] === 'bind') {
+          throw new Error(`binding failed for ${token}`)
+        }
+        return ''
+      },
+    }, async () => {
+      const handler = getRouteHandler('post', '/:id/channels/:provider')
+      const res = makeRes()
+      handler(makeReq({
+        params: { id: 'telegram-rollback', provider: 'telegram' },
+        body: { token },
+      }), res)
+      assert.strictEqual(res.statusCode, 502)
+      assert.strictEqual(res.jsonBody.rolledBack, true)
+      assert(!JSON.stringify(res.jsonBody).includes(token))
+      assert(JSON.stringify(res.jsonBody).includes('[redacted]'))
+    })
+
+    assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), original)
+    assert.strictEqual(fs.statSync(configPath).mode & 0o777, 0o600)
+  })
+
+  await test('Telegram connect validates input and does not expose unreleased providers', async () => {
+    writeAgent(workspacePath, 'channel-validation', '# IDENTITY.md\n\n- **Name:** Channel Validation\n')
+    const handler = getRouteHandler('post', '/:id/channels/:provider')
+    const invalidRes = makeRes()
+    handler(makeReq({
+      params: { id: 'channel-validation', provider: 'telegram' },
+      body: { token: 'invalid' },
+    }), invalidRes)
+    assert.strictEqual(invalidRes.statusCode, 400)
+
+    const plannedRes = makeRes()
+    handler(makeReq({
+      params: { id: 'channel-validation', provider: 'discord' },
+      body: { token: 'anything' },
+    }), plannedRes)
+    assert.strictEqual(plannedRes.statusCode, 409)
+    assert(String(plannedRes.jsonBody.error).includes('planned'))
+  })
+
+  await test('Telegram disconnect removes only the named binding and account', async () => {
+    writeAgent(workspacePath, 'telegram-disconnect', '# IDENTITY.md\n\n- **Name:** Telegram Disconnect\n')
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      channels: { telegram: { enabled: true, accounts: {
+        'telegram-disconnect': { botToken: 'secret' },
+        other: { botToken: 'preserve-me' },
+      } } },
+      bindings: [
+        { type: 'route', agentId: 'telegram-disconnect', match: { channel: 'telegram', accountId: 'telegram-disconnect' } },
+        { type: 'route', agentId: 'other', match: { channel: 'telegram', accountId: 'other' } },
+      ],
+    }, null, 2))
+    const secretPath = path.join(tmpHome, '.openclaw', 'credentials', 'clawmax-channel-secrets.json')
+    fs.mkdirSync(path.dirname(secretPath), { recursive: true })
+    fs.writeFileSync(secretPath, JSON.stringify({
+      'telegram-telegram-disconnect': 'remove-me',
+      'telegram-other': 'preserve-me-too',
+    }, null, 2), { mode: 0o600 })
+    const fakeCli = writeFakeOpenClawCli(tmpHome)
+    process.env.OPENCLAW_BIN = fakeCli
+
+    await withChildProcessStubs({
+      execFileSync(_command: string, args: string[]) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        if (args[0] === 'agents' && args[1] === 'unbind') {
+          config.bindings = config.bindings.filter((binding: any) => binding.agentId !== 'telegram-disconnect')
+        } else if (args[0] === 'channels' && args[1] === 'remove') {
+          delete config.channels.telegram.accounts['telegram-disconnect']
+        }
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+        return ''
+      },
+    }, async () => {
+      const handler = getRouteHandler('delete', '/:id/channels/:provider')
+      const res = makeRes()
+      handler(makeReq({ params: { id: 'telegram-disconnect', provider: 'telegram' } }), res)
+      assert.strictEqual(res.statusCode, 200)
+      assert.strictEqual(res.jsonBody.channel.status, 'not-configured')
+    })
+
+    const persisted = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    assert.strictEqual(persisted.channels.telegram.accounts.other.botToken, 'preserve-me')
+    assert(persisted.bindings.some((binding: any) => binding.agentId === 'other'))
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(secretPath, 'utf-8')), {
+      'telegram-other': 'preserve-me-too',
+    })
+  })
+
+  await test('Telegram disconnect restores the binding and account when account removal fails', async () => {
+    writeAgent(workspacePath, 'telegram-disconnect-rollback', '# IDENTITY.md\n\n- **Name:** Telegram Disconnect Rollback\n')
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    const original = JSON.stringify({
+      channels: { telegram: { enabled: true, accounts: {
+        'telegram-disconnect-rollback': { botToken: 'preserve-secret', dmPolicy: 'pairing' },
+      } } },
+      bindings: [{
+        type: 'route',
+        agentId: 'telegram-disconnect-rollback',
+        match: { channel: 'telegram', accountId: 'telegram-disconnect-rollback' },
+      }],
+      unknown: { preserve: true },
+    }, null, 2)
+    fs.writeFileSync(configPath, original)
+    const fakeCli = writeFakeOpenClawCli(tmpHome)
+    process.env.OPENCLAW_BIN = fakeCli
+
+    await withChildProcessStubs({
+      execFileSync(_command: string, args: string[]) {
+        if (args[0] === 'agents' && args[1] === 'unbind') {
+          const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+          config.bindings = []
+          fs.writeFileSync(configPath, JSON.stringify(config))
+          return ''
+        }
+        throw new Error('provider account removal failed')
+      },
+    }, async () => {
+      const handler = getRouteHandler('delete', '/:id/channels/:provider')
+      const res = makeRes()
+      handler(makeReq({ params: { id: 'telegram-disconnect-rollback', provider: 'telegram' } }), res)
+      assert.strictEqual(res.statusCode, 502)
+      assert.strictEqual(res.jsonBody.rolledBack, true)
+    })
+
+    assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), original)
+  })
+
   await test('provision route does not pass legacy --whatsapp to openclaw agents add', async () => {
     const tmpCliDir = path.join(tmpHome, 'bin-no-whatsapp')
     const fakeCli = path.join(tmpCliDir, 'openclaw')

@@ -2,6 +2,7 @@ import express, { Router } from 'express'
 import { execFileSync, execSync, spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 import archiver from 'archiver'
 import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
 import { generateAgentFiles, generateAgentMeta, generateArchiveTitle, withGenerationAttribution, withGenerationRuntimePin } from '../lib/ai-generator'
@@ -59,6 +60,21 @@ import {
   parseArchiveTimestamp,
 } from '../lib/chat-archives'
 import { cancelProcessTree, detachProcessStreams } from '../lib/process-tree'
+import {
+  AGENT_CHANNEL_CATALOG,
+  type OpenClawConfigSnapshot,
+  getAgentOpenClawProfileArgs,
+  normalizeAgentChannelProvider,
+  removeAgentChannelSecret,
+  readAgentChannelState,
+  readAgentChannelStates,
+  redactChannelError,
+  restoreAgentOpenClawConfig,
+  snapshotAgentChannelSecrets,
+  snapshotAgentOpenClawConfig,
+  validateTelegramConnectionInput,
+  writeAgentChannelSecret,
+} from '../lib/agent-channels'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -115,6 +131,31 @@ function resolveAgentProvisionCliPath(): string | null {
   } catch {
     return null
   }
+}
+
+function agentChannelCliEnv(homeDir: string): NodeJS.ProcessEnv {
+  const base = safeEnv()
+  return {
+    PATH: base.PATH,
+    HOME: homeDir,
+    USER: base.USER,
+    SHELL: base.SHELL,
+    TERM: base.TERM,
+    LANG: base.LANG,
+    OPENCLAW_WORKSPACE: base.OPENCLAW_WORKSPACE,
+  }
+}
+
+function restoreAgentChannelSnapshots(...snapshots: OpenClawConfigSnapshot[]): boolean {
+  let restored = true
+  for (const snapshot of snapshots) {
+    try {
+      restoreAgentOpenClawConfig(snapshot)
+    } catch {
+      restored = false
+    }
+  }
+  return restored
 }
 
 // buildModelsResponse removed — replaced by discoverModels() from model-discovery.ts
@@ -2014,6 +2055,195 @@ router.get('/:id/activity', (req, res) => {
   if (!agent) return res.status(404).json({ error: 'Agent not found' })
   const activity = getAgentActivity(agent.workspacePath, agent.id)
   res.json(activity)
+})
+
+// GET /api/agents/:id/channels — non-secret provider connection and binding state
+router.get('/:id/channels', (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    res.status(400).json({ error: 'Invalid agent id' })
+    return
+  }
+  const agent = listAgents().find(candidate => candidate.id === id)
+  if (!agent) {
+    res.status(404).json({ error: 'Agent not found' })
+    return
+  }
+
+  const states = readAgentChannelStates({
+    homeDir: process.env.HOME || '',
+    agentId: id,
+    isProfile: agent.isProfile,
+  })
+  res.json({
+    agentId: id,
+    isProfile: agent.isProfile,
+    channels: AGENT_CHANNEL_CATALOG.map(entry => ({
+      ...entry,
+      ...states.find(state => state.provider === entry.id),
+    })),
+  })
+})
+
+// POST /api/agents/:id/channels/:provider — connect/update an account and bind it to the agent
+router.post('/:id/channels/:provider', (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    res.status(400).json({ error: 'Invalid agent id' })
+    return
+  }
+  const provider = normalizeAgentChannelProvider(req.params.provider)
+  if (!provider) {
+    res.status(404).json({ error: 'Unsupported channel provider' })
+    return
+  }
+  if (provider !== 'telegram') {
+    res.status(409).json({ error: `${AGENT_CHANNEL_CATALOG.find(entry => entry.id === provider)?.label || provider} support is planned but not available in this candidate.` })
+    return
+  }
+
+  const agent = listAgents().find(candidate => candidate.id === id)
+  if (!agent) {
+    res.status(404).json({ error: 'Agent not found' })
+    return
+  }
+  if (agent.archived) {
+    res.status(409).json({ error: 'Restore this agent before connecting a channel.' })
+    return
+  }
+  const validated = validateTelegramConnectionInput(req.body)
+  if (!validated.ok) {
+    res.status(400).json({ error: validated.error })
+    return
+  }
+
+  const cliPath = resolveOpenClawCliPath()
+  if (!cliPath) {
+    res.status(503).json({ error: 'OpenClaw CLI is not available.' })
+    return
+  }
+
+  const homeDir = process.env.HOME || ''
+  const snapshot = snapshotAgentOpenClawConfig({ homeDir, agentId: id, isProfile: agent.isProfile })
+  const secretSnapshot = snapshotAgentChannelSecrets({ homeDir, agentId: id, isProfile: agent.isProfile })
+  const profileArgs = getAgentOpenClawProfileArgs(id, agent.isProfile)
+  const tokenDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-telegram-token-'))
+  const tokenPath = path.join(tokenDir, 'token')
+  fs.writeFileSync(tokenPath, validated.value.token, { encoding: 'utf-8', mode: 0o600 })
+
+  const run = (args: string[]) => execFileSync(cliPath, [...profileArgs, ...args], {
+    encoding: 'utf-8',
+    env: agentChannelCliEnv(homeDir),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  try {
+    run([
+      'channels', 'add',
+      '--channel', 'telegram',
+      '--account', id,
+      '--name', `${agent.name} Telegram`,
+      '--token-file', tokenPath,
+    ])
+    const secretRef = writeAgentChannelSecret({
+      homeDir,
+      agentId: id,
+      isProfile: agent.isProfile,
+      provider,
+      secret: validated.value.token,
+    })
+    run([
+      'config', 'set', 'secrets.providers.clawmax-channels',
+      '--provider-source', 'file',
+      '--provider-path', secretRef.filePath,
+      '--provider-mode', 'json',
+    ])
+    run([
+      'config', 'set', `channels.telegram.accounts.${id}.botToken`,
+      '--ref-provider', 'clawmax-channels',
+      '--ref-source', 'file',
+      '--ref-id', secretRef.jsonPointer,
+    ])
+    const policyPath = `channels.telegram.accounts.${id}.dmPolicy`
+    const allowFromPath = `channels.telegram.accounts.${id}.allowFrom`
+    const dmPolicy = validated.value.allowFrom.length > 0 ? 'allowlist' : 'pairing'
+    run(['config', 'set', policyPath, JSON.stringify(dmPolicy), '--strict-json'])
+    run(['config', 'set', allowFromPath, JSON.stringify(validated.value.allowFrom), '--strict-json'])
+    run(['agents', 'bind', '--agent', id, '--bind', `telegram:${id}`, '--json'])
+
+    const channel = readAgentChannelState({ homeDir, agentId: id, isProfile: agent.isProfile, provider })
+    recordAgentLifecycleAuditEvent(id, {
+      type: 'modified',
+      title: 'Telegram channel connected',
+      detail: `Connected Telegram account ${id} with ${dmPolicy} direct-message policy and bound it to this agent.`,
+    })
+    res.json({ ok: true, channel })
+  } catch (error) {
+    const rolledBack = restoreAgentChannelSnapshots(snapshot, secretSnapshot)
+    res.status(502).json({
+      error: `Could not connect Telegram: ${redactChannelError(error, [validated.value.token])}`,
+      rolledBack,
+    })
+  } finally {
+    try { fs.rmSync(tokenDir, { recursive: true, force: true }) } catch {}
+  }
+})
+
+// DELETE /api/agents/:id/channels/:provider — unbind and delete only this agent's named account
+router.delete('/:id/channels/:provider', (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    res.status(400).json({ error: 'Invalid agent id' })
+    return
+  }
+  const provider = normalizeAgentChannelProvider(req.params.provider)
+  if (!provider) {
+    res.status(404).json({ error: 'Unsupported channel provider' })
+    return
+  }
+  if (provider !== 'telegram') {
+    res.status(409).json({ error: `${provider} is not available in this candidate.` })
+    return
+  }
+  const agent = listAgents().find(candidate => candidate.id === id)
+  if (!agent) {
+    res.status(404).json({ error: 'Agent not found' })
+    return
+  }
+  const cliPath = resolveOpenClawCliPath()
+  if (!cliPath) {
+    res.status(503).json({ error: 'OpenClaw CLI is not available.' })
+    return
+  }
+
+  const homeDir = process.env.HOME || ''
+  const snapshot = snapshotAgentOpenClawConfig({ homeDir, agentId: id, isProfile: agent.isProfile })
+  const secretSnapshot = snapshotAgentChannelSecrets({ homeDir, agentId: id, isProfile: agent.isProfile })
+  const profileArgs = getAgentOpenClawProfileArgs(id, agent.isProfile)
+  const run = (args: string[]) => execFileSync(cliPath, [...profileArgs, ...args], {
+    encoding: 'utf-8',
+    env: agentChannelCliEnv(homeDir),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  try {
+    run(['agents', 'unbind', '--agent', id, '--bind', `${provider}:${id}`, '--json'])
+    run(['channels', 'remove', '--channel', provider, '--account', id, '--delete'])
+    removeAgentChannelSecret({ homeDir, agentId: id, isProfile: agent.isProfile, provider })
+    const channel = readAgentChannelState({ homeDir, agentId: id, isProfile: agent.isProfile, provider })
+    recordAgentLifecycleAuditEvent(id, {
+      type: 'modified',
+      title: 'Telegram channel disconnected',
+      detail: `Removed the Telegram binding and named account ${id} from this agent.`,
+    })
+    res.json({ ok: true, channel })
+  } catch (error) {
+    const rolledBack = restoreAgentChannelSnapshots(snapshot, secretSnapshot)
+    res.status(502).json({
+      error: `Could not disconnect Telegram: ${redactChannelError(error)}`,
+      rolledBack,
+    })
+  }
 })
 
 // DELETE /api/agents/:id/whatsapp — unlink: delete credentials dir + clear WA line from IDENTITY.md
