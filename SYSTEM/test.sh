@@ -954,10 +954,20 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Add Agent channel helper tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/addAgentChannels.test.ts > /tmp/clawmax-add-agent-channels.out 2>&1 || true
+if grep -q "Add agent channels tests passed" /tmp/clawmax-add-agent-channels.out; then
+  pass "Add Agent channel helper tests"
+else
+  cat /tmp/clawmax-add-agent-channels.out
+  fail "Add Agent channel helper tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent channel panel contract tests...${NC}"
 npx ts-node --transpileOnly client/src/components/AgentChannelsPanel.test.ts > /tmp/clawmax-agent-channels-panel.out 2>&1 || true
 if grep -q "AgentChannelsPanel.test.ts: 22 assertions passed" /tmp/clawmax-agent-channels-panel.out; then
-  pass "Agent channel panel contract tests (21 assertions)"
+  pass "Agent channel panel contract tests (22 assertions)"
 else
   cat /tmp/clawmax-agent-channels-panel.out
   fail "Agent channel panel contract tests"

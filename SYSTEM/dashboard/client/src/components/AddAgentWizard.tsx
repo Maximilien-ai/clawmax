@@ -6,6 +6,12 @@ import { normalizeAgentTemplateOption } from '../lib/agentTemplateOptions'
 import { normalizePromptInput, resolveAddAgentWizardLaunchState } from '../lib/addAgentWizardFlow'
 import { resolveAddAgentWizardDefaultModel, resolveAddAgentWizardSuggestedModel } from '../lib/addAgentDefaultModel'
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
+import {
+  buildWizardChannelRequests,
+  createEmptyWizardChannelDraft,
+  validateWizardChannelDraft,
+  type WizardChannelProvider,
+} from '../lib/addAgentChannels'
 import { useAuth } from '../contexts/AuthContext'
 import AIPromptEditorModal from './AIPromptEditorModal'
 import PromptQualityPanel from './PromptQualityPanel'
@@ -173,6 +179,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [validationWarnings, setValidationWarnings] = useState<string[]>([])
   const [validatingProvision, setValidatingProvision] = useState(false)
+  const [channelDraft, setChannelDraft] = useState(createEmptyWizardChannelDraft)
+  const [channelErrors, setChannelErrors] = useState<string[]>([])
+  const [channelResults, setChannelResults] = useState<Array<{ label: string; ok: boolean; message?: string; error?: string }>>([])
   const selectedTemplate = form.templateSlug ? agentTemplates.find(t => t.slug === form.templateSlug) : null
   const templateSelectionMissing = !!form.templateSlug && !selectedTemplate
   const cloneSelectionMissing = !!form.cloneFrom && !existingAgents.includes(form.cloneFrom)
@@ -415,6 +424,44 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     setProvError(null)
   }
 
+  function toggleChannel(provider: WizardChannelProvider) {
+    setChannelDraft(current => ({
+      ...current,
+      selected: current.selected.includes(provider)
+        ? current.selected.filter(item => item !== provider)
+        : [...current.selected, provider],
+    }))
+    setChannelErrors([])
+  }
+
+  async function connectSelectedChannels(agentId: string) {
+    const results: Array<{ label: string; ok: boolean; message?: string; error?: string }> = []
+    if (channelDraft.selected.includes('whatsapp')) {
+      results.push({ label: 'WhatsApp', ok: true, message: 'included in provisioning; complete phone pairing if the runtime prompts for it.' })
+    }
+    for (const request of buildWizardChannelRequests(channelDraft)) {
+      try {
+        const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}/channels/${request.provider}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(request.body),
+        })
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(body.error || `Could not connect ${request.label}.`)
+        results.push({ label: request.label, ok: true })
+      } catch (error: any) {
+        results.push({ label: request.label, ok: false, error: error?.message || `Could not connect ${request.label}.` })
+      }
+    }
+    setChannelDraft(current => ({
+      ...current,
+      telegram: { ...current.telegram, token: '' },
+      discord: { ...current.discord, token: '' },
+      slack: { ...current.slack, botToken: '', appToken: '' },
+    }))
+    return results
+  }
+
   async function validateProvisionDraft(): Promise<boolean> {
     setValidatingProvision(true)
     setProvError(null)
@@ -432,7 +479,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
           runtime: runtime !== 'default' && runtime !== 'openclaw' ? runtime : undefined,
           cloneFrom: form.cloneFrom || undefined,
           templateSlug: form.templateSlug || undefined,
-          whatsapp: form.whatsapp || undefined,
+          whatsapp: channelDraft.selected.includes('whatsapp') ? form.whatsapp || undefined : undefined,
           port: form.port || undefined,
           tags: [...new Set(form.tags)],
           generatedFiles: generatedFiles || undefined,
@@ -576,7 +623,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     if (form.backupModel.trim()) body.backupModel = form.backupModel
     if (form.cloneFrom) body.cloneFrom = form.cloneFrom
     if (form.templateSlug) body.templateSlug = form.templateSlug
-    if (form.whatsapp) body.whatsapp = form.whatsapp
+    if (channelDraft.selected.includes('whatsapp') && form.whatsapp) body.whatsapp = form.whatsapp
     if (form.port > 0) body.port = form.port
     if (form.tags.length > 0) body.tags = [...new Set(form.tags)]
     if (form.skills.length > 0) body.skills = [...new Set(form.skills)]
@@ -615,6 +662,8 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
               setLogs(l => [...l, msg.data])
             } else if (msg.type === 'done') {
               if (msg.data === 'ok') {
+                const results = await connectSelectedChannels(form.name)
+                setChannelResults(results)
                 onDone(form.name)
                 window.dispatchEvent(new CustomEvent('agents-updated'))
                 setDone(true)
@@ -635,13 +684,11 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     }
   }
 
-  async function createAgentNowFromAI() {
-    setStep(4)
-    await provision()
-  }
-
   async function handleNextStep() {
     if (step === 3) {
+      const nextChannelErrors = validateWizardChannelDraft(channelDraft)
+      setChannelErrors(nextChannelErrors)
+      if (nextChannelErrors.length > 0) return
       const valid = await validateProvisionDraft()
       if (!valid) return
     }
@@ -656,7 +703,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       ? { runtime: runtimeLabelFor(runtimeCatalog, runtime) }
       : {}),
     ...(form.cloneFrom ? { clone_from: form.cloneFrom } : {}),
-    ...(form.whatsapp ? { whatsapp: form.whatsapp } : {}),
+    ...(channelDraft.selected.length > 0 ? { channels: channelDraft.selected } : {}),
     port: form.port !== '' ? form.port : suggested?.port ?? '…',
     state_dir: `~/.openclaw-${form.name || suggested?.id || '…'}`,
   }
@@ -692,7 +739,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
         {/* Step labels */}
         <div className="px-6 pb-3 flex justify-between shrink-0">
-          {['Identity', 'AI Agent', 'Channel', 'Provision'].map((label, i) => (
+          {['Identity', 'AI Agent', 'Channels', 'Provision'].map((label, i) => (
             <span key={label} className={`text-xs ${step === i + 1 ? 'text-sky-600 font-medium' : 'text-gray-400'}`}>
               {label}
             </span>
@@ -1119,7 +1166,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
                   <div className="flex items-center gap-2 pt-2">
                     <button
-                      onClick={createAgentNowFromAI}
+                      onClick={() => setStep(3)}
                       disabled={provisioning || validatingProvision}
                       className={`px-4 py-2 text-sm rounded font-medium transition-colors ${
                         provisioning || validatingProvision
@@ -1127,14 +1174,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                           : 'bg-emerald-600 text-white hover:bg-emerald-700'
                       }`}
                     >
-                      {provisioning ? 'Creating…' : validatingProvision ? 'Validating…' : 'Create Agent'}
-                    </button>
-                    <button
-                      onClick={() => setStep(4)}
-                      disabled={provisioning || validatingProvision}
-                      className="px-4 py-2 text-sm rounded border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      Review & Continue
+                      Continue to Channels
                     </button>
                   </div>
                 </div>
@@ -1142,25 +1182,122 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
             </div>
           )}
 
-          {/* Step 3: Channel (WhatsApp) */}
+          {/* Step 3: Channels */}
           {step === 3 && (
             <div className="space-y-4">
-              <p className="text-sm text-gray-500">Optionally link a WhatsApp number to this agent. Leave blank to skip.</p>
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">WhatsApp number <span className="text-gray-400">(optional)</span></label>
-                <input
-                  type="text"
-                  value={form.whatsapp}
-                  onChange={e => set('whatsapp', e.target.value.replace(/[^0-9+]/g, ''))}
-                  placeholder="12345…"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 dark:focus:border-sky-600 font-mono bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                />
-                <p className="mt-1 text-xs text-gray-400">International format, no spaces — <span className="text-amber-600 font-medium">replace with your actual number</span></p>
+                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Choose agent channels</h3>
+                <p className="mt-1 text-xs text-gray-500">Select any channels to connect during creation, or continue without one and add channels later.</p>
               </div>
-              {(validationErrors.length > 0 || provError) && (
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Available agent channels">
+                {([
+                  ['whatsapp', 'WhatsApp', 'Phone pairing'],
+                  ['telegram', 'Telegram', 'BotFather token'],
+                  ['discord', 'Discord', 'Bot application'],
+                  ['slack', 'Slack', 'Socket Mode app'],
+                ] as Array<[WizardChannelProvider, string, string]>).map(([provider, label, detail]) => {
+                  const selected = channelDraft.selected.includes(provider)
+                  return (
+                    <button
+                      key={provider}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => toggleChannel(provider)}
+                      className={`rounded-lg border p-3 text-left transition-colors ${selected ? 'border-sky-500 bg-sky-50 ring-1 ring-sky-300 dark:border-sky-500 dark:bg-sky-950/30' : 'border-gray-200 hover:border-sky-300 dark:border-gray-700 dark:hover:border-sky-700'}`}
+                    >
+                      <span className="flex items-center justify-between gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
+                        {label}<span className={`text-xs ${selected ? 'text-sky-600' : 'text-gray-400'}`}>{selected ? '✓ Selected' : 'Select'}</span>
+                      </span>
+                      <span className="mt-1 block text-xs text-gray-500">{detail}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {channelDraft.selected.includes('whatsapp') && (
+                <section className="rounded-lg border border-green-200 bg-green-50/40 p-3 dark:border-green-800 dark:bg-green-950/20">
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">WhatsApp number</label>
+                  <input
+                    type="text"
+                    inputMode="tel"
+                    value={form.whatsapp}
+                    onChange={e => {
+                      const whatsapp = e.target.value.replace(/[^0-9+]/g, '')
+                      set('whatsapp', whatsapp)
+                      setChannelDraft(current => ({ ...current, whatsapp }))
+                      setChannelErrors([])
+                    }}
+                    placeholder="+14155550123"
+                    className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-mono outline-none focus:border-green-400 dark:border-gray-700 dark:bg-gray-900"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Use international format. WhatsApp pairing continues through the existing runtime flow.</p>
+                </section>
+              )}
+
+              {channelDraft.selected.includes('telegram') && (
+                <section className="space-y-3 rounded-lg border border-sky-200 bg-sky-50/40 p-3 dark:border-sky-800 dark:bg-sky-950/20">
+                  <h4 className="text-sm font-medium text-gray-800 dark:text-gray-100">Telegram setup</h4>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">BotFather token
+                    <input type="password" autoComplete="off" value={channelDraft.telegram.token} onChange={e => { setChannelDraft(current => ({ ...current, telegram: { ...current.telegram, token: e.target.value } })); setChannelErrors([]) }} placeholder="123456789:AA…" className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-400 dark:border-gray-700 dark:bg-gray-900" />
+                  </label>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Allowed user IDs <span className="font-normal text-gray-400">(optional)</span>
+                    <input inputMode="numeric" value={channelDraft.telegram.ownerIds} onChange={e => { setChannelDraft(current => ({ ...current, telegram: { ...current.telegram, ownerIds: e.target.value } })); setChannelErrors([]) }} placeholder="123456789, 987654321" className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-400 dark:border-gray-700 dark:bg-gray-900" />
+                  </label>
+                  <p className="text-xs text-gray-500">No user IDs uses pairing mode; IDs switch direct messages to an explicit allowlist.</p>
+                </section>
+              )}
+
+              {channelDraft.selected.includes('discord') && (
+                <section className="space-y-3 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 dark:border-indigo-800 dark:bg-indigo-950/20">
+                  <h4 className="text-sm font-medium text-gray-800 dark:text-gray-100">Discord setup</h4>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Bot token
+                    <input type="password" autoComplete="off" value={channelDraft.discord.token} onChange={e => { setChannelDraft(current => ({ ...current, discord: { ...current.discord, token: e.target.value } })); setChannelErrors([]) }} placeholder="Paste the bot token" className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 dark:border-gray-700 dark:bg-gray-900" />
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Application ID <span className="font-normal text-gray-400">(optional)</span>
+                      <input inputMode="numeric" value={channelDraft.discord.applicationId} onChange={e => setChannelDraft(current => ({ ...current, discord: { ...current.discord, applicationId: e.target.value } }))} placeholder="123456789012345678" className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-gray-700 dark:bg-gray-900" />
+                    </label>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Allowed user IDs <span className="font-normal text-gray-400">(optional)</span>
+                      <input inputMode="numeric" value={channelDraft.discord.userIds} onChange={e => setChannelDraft(current => ({ ...current, discord: { ...current.discord, userIds: e.target.value } }))} placeholder="123…, 456…" className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-gray-700 dark:bg-gray-900" />
+                    </label>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Server ID <span className="font-normal text-gray-400">(optional)</span>
+                      <input inputMode="numeric" value={channelDraft.discord.guildId} onChange={e => setChannelDraft(current => ({ ...current, discord: { ...current.discord, guildId: e.target.value } }))} placeholder="123456789012345678" className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-gray-700 dark:bg-gray-900" />
+                    </label>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Channel IDs <span className="font-normal text-gray-400">(optional)</span>
+                      <input inputMode="numeric" value={channelDraft.discord.channelIds} onChange={e => setChannelDraft(current => ({ ...current, discord: { ...current.discord, channelIds: e.target.value } }))} placeholder="123…, 456…" className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-gray-700 dark:bg-gray-900" />
+                    </label>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300"><input type="checkbox" checked={channelDraft.discord.requireMention} onChange={e => setChannelDraft(current => ({ ...current, discord: { ...current.discord, requireMention: e.target.checked } }))} />Require an @mention in selected server channels</label>
+                  <p className="text-xs text-gray-500">Enable Message Content Intent. No server ID keeps guild messages disabled; direct messages use pairing unless user IDs are listed.</p>
+                </section>
+              )}
+
+              {channelDraft.selected.includes('slack') && (
+                <section className="space-y-3 rounded-lg border border-violet-200 bg-violet-50/40 p-3 dark:border-violet-800 dark:bg-violet-950/20">
+                  <h4 className="text-sm font-medium text-gray-800 dark:text-gray-100">Slack setup</h4>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Bot token (xoxb-)
+                      <input type="password" autoComplete="off" value={channelDraft.slack.botToken} onChange={e => { setChannelDraft(current => ({ ...current, slack: { ...current.slack, botToken: e.target.value } })); setChannelErrors([]) }} placeholder="xoxb-…" className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-gray-700 dark:bg-gray-900" />
+                    </label>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Socket Mode app token (xapp-)
+                      <input type="password" autoComplete="off" value={channelDraft.slack.appToken} onChange={e => { setChannelDraft(current => ({ ...current, slack: { ...current.slack, appToken: e.target.value } })); setChannelErrors([]) }} placeholder="xapp-…" className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none dark:border-gray-700 dark:bg-gray-900" />
+                    </label>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Allowed user IDs <span className="font-normal text-gray-400">(optional)</span>
+                      <input value={channelDraft.slack.userIds} onChange={e => setChannelDraft(current => ({ ...current, slack: { ...current.slack, userIds: e.target.value } }))} placeholder="U012ABCDEF" className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm uppercase outline-none dark:border-gray-700 dark:bg-gray-900" />
+                    </label>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Channel IDs <span className="font-normal text-gray-400">(optional)</span>
+                      <input value={channelDraft.slack.channelIds} onChange={e => setChannelDraft(current => ({ ...current, slack: { ...current.slack, channelIds: e.target.value } }))} placeholder="C012ABCDEF" className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm uppercase outline-none dark:border-gray-700 dark:bg-gray-900" />
+                    </label>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300"><input type="checkbox" checked={channelDraft.slack.requireMention} onChange={e => setChannelDraft(current => ({ ...current, slack: { ...current.slack, requireMention: e.target.checked } }))} />Require an @mention in selected Slack channels</label>
+                  <p className="text-xs text-gray-500">Enable Socket Mode and create an app token with <code>connections:write</code>. No channel IDs keeps workspace channels disabled.</p>
+                </section>
+              )}
+
+              {(channelErrors.length > 0 || validationErrors.length > 0 || provError) && (
                 <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400 whitespace-pre-line">
                   <div className="font-medium mb-1">Fix before review</div>
-                  {provError || validationErrors.join('\n')}
+                  {provError || [...channelErrors, ...validationErrors].join('\n')}
                 </div>
               )}
               {validationWarnings.length > 0 && (
@@ -1240,6 +1377,15 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                   <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-400 font-medium">
                     Agent <code>{form.name}</code> provisioned successfully!
                   </div>
+                  {channelResults.length > 0 && (
+                    <div className="space-y-2" aria-label="Channel setup results">
+                      {channelResults.map(result => (
+                        <div key={result.label} className={`rounded-lg border p-3 text-sm ${result.ok ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300' : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200'}`}>
+                          <strong>{result.label}:</strong> {result.ok ? result.message || 'connected to this agent.' : `${result.error} The agent still exists; retry from its Channels action.`}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {onNavigateToSkills && (
                     <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20 px-4 py-3">
                       <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
