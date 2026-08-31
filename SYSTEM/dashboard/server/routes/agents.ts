@@ -660,7 +660,8 @@ router.post('/generate', async (req, res) => {
   try {
     const session = getAuthenticatedSession(req)
     // Set BYOK keys for this request
-    const { setRequestByokKeys } = require('../lib/ai-generator')
+    const { setRequestByokKeys, warmOpenAiCompatibleGenerationModel } = require('../lib/ai-generator')
+    await warmOpenAiCompatibleGenerationModel(byokKeys)
     setRequestByokKeys(byokKeys)
 
     // If suggestMeta or no name, generate suggestions first

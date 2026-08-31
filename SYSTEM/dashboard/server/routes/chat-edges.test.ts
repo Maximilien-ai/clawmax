@@ -12,6 +12,7 @@ import {
   retryAssistantTextLookup,
   shouldUseLocalChatExecution,
 } from './chat'
+import { clearModelCache, resolveOpenAiCompatibleDefaultModel } from '../lib/model-discovery'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -46,8 +47,65 @@ function assert(condition: boolean, message: string) {
 console.log(`\n${YELLOW}=== Chat Route Edge Test Suite ===${RESET}\n`)
 
 test('resolveByokChatFallbackModel returns undefined when no usable BYOK path exists', () => {
+  clearModelCache()
   assert(resolveByokChatFallbackModel(undefined) === undefined, 'Expected undefined BYOK payload to return undefined')
-  assert(resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' }) === undefined, 'Expected missing openai-compatible default model to return undefined')
+  assert(resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' }) === undefined, 'Expected an unreachable endpoint with no default model to return undefined')
+})
+
+test('resolveByokChatFallbackModel uses the endpoint model once discovery has run', async () => {
+  clearModelCache()
+  const originalFetch = global.fetch
+  try {
+    global.fetch = (async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'text-embedding-small' }, { id: 'endpoint-chat-model' }] }),
+    }) as any) as any
+    // What the chat route now does before readiness is evaluated.
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://127.0.0.1:1234/v1' })
+    const model = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' })
+    assert(model === 'openai-compatible/endpoint-chat-model', `Expected the endpoint's chat model, got ${model}`)
+  } finally {
+    global.fetch = originalFetch
+    clearModelCache()
+  }
+})
+
+test('an unreachable endpoint still yields no fallback model', async () => {
+  clearModelCache()
+  const originalFetch = global.fetch
+  try {
+    global.fetch = (async () => { throw new Error('ECONNREFUSED') }) as any
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://offline-endpoint:9999/v1' })
+    const model = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://offline-endpoint:9999/v1' })
+    assert(model === undefined, `Expected no fallback from an unreachable endpoint, got ${model}`)
+  } finally {
+    global.fetch = originalFetch
+    clearModelCache()
+  }
+})
+
+test('one endpoint seen through two credentials does not share a model catalog', async () => {
+  clearModelCache()
+  const originalFetch = global.fetch
+  try {
+    global.fetch = (async (_url: string, init?: any) => {
+      const auth = init?.headers?.Authorization || ''
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [{ id: auth === 'Bearer key-a' ? 'tenant-a-model' : 'tenant-b-model' }] }),
+      } as any
+    }) as any
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://shared-gateway:8000/v1', apiKey: 'key-a' })
+    const asB = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://shared-gateway:8000/v1', openaiCompatibleApiKey: 'key-b' })
+    assert(asB === undefined, `Expected the second credential to see no cached catalog, got ${asB}`)
+    const asA = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://shared-gateway:8000/v1', openaiCompatibleApiKey: 'key-a' })
+    assert(asA === 'openai-compatible/tenant-a-model', `Expected the first credential's own model, got ${asA}`)
+  } finally {
+    global.fetch = originalFetch
+    clearModelCache()
+  }
 })
 
 test('shouldUseLocalChatExecution prefers direct mode only when hosted gateway execution is unavailable', () => {
