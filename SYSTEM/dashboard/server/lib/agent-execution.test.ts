@@ -1319,6 +1319,22 @@ test('withTemporaryAgentAuthProfiles authorizes the exact LM Studio execution mo
   fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
   fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/google/gemma-4-31b-qat\n', 'utf-8')
   fs.writeFileSync(configPath, JSON.stringify({
+    models: {
+      providers: {
+        lmstudio: {
+          baseUrl: 'http://127.0.0.1:1234/v1',
+          api: 'openai-completions',
+          apiKey: 'lmstudio-secret',
+          models: [{
+            id: 'google/gemma-4-31b-qat',
+            name: 'google/gemma-4-31b-qat',
+            contextWindow: 64000,
+            contextTokens: 64000,
+            maxTokens: 8192,
+          }],
+        },
+      },
+    },
     agents: {
       list: [
         { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/google/gemma-4-31b-qat' }

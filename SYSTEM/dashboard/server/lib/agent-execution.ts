@@ -33,6 +33,10 @@ interface OpenClawConfigFile {
   }
   agents?: {
     list?: Array<Record<string, any>>
+    defaults?: {
+      models?: Record<string, any>
+      [key: string]: any
+    }
   }
   skills?: {
     load?: {
@@ -1183,6 +1187,11 @@ export async function withTemporaryAgentAuthProfiles<T>(
     const normalizedOpenAiCompatibleBaseUrl = providerKeys.openaiCompatibleBaseUrl?.trim().replace(/\/+$/, '')
     const executionModelOverride = toExecutionModelOverride(preferredModel, preferredProvider)
     const executionLmstudioModelId = executionModelOverride?.replace(/^lmstudio\//, '')
+    const currentOpenClawConfig = hadConfig ? readOpenClawConfigFile(configPath) : undefined
+    const hasExecutionModelAuthorization = Boolean(
+      executionModelOverride &&
+      Object.prototype.hasOwnProperty.call(currentOpenClawConfig?.agents?.defaults?.models || {}, executionModelOverride)
+    )
     const shouldInjectOpenAiCompatibleProvider = Boolean(
       hadConfig &&
       (
@@ -1196,7 +1205,8 @@ export async function withTemporaryAgentAuthProfiles<T>(
           previousOpenAiCompatibleProvider.config?.models.some((entry: any) =>
             typeof entry === 'object' && entry !== null && String(entry.id || '').trim() === executionLmstudioModelId
           )
-        )
+        ) ||
+        !hasExecutionModelAuthorization
       )
     )
 
@@ -1210,13 +1220,19 @@ export async function withTemporaryAgentAuthProfiles<T>(
             typeof entry === 'object' && entry !== null && String(entry.id || '').trim() === executionLmstudioModelId
           )
         )
+        const latestOpenClawConfig = readOpenClawConfigFile(configPath)
+        const latestHasExecutionModelAuthorization = Boolean(
+          executionModelOverride &&
+          Object.prototype.hasOwnProperty.call(latestOpenClawConfig.agents?.defaults?.models || {}, executionModelOverride)
+        )
         let changed = false
         if (
           (normalizedOpenAiCompatibleBaseUrl && !latestOpenAiCompatibleProvider.exists) ||
           (normalizedOpenAiCompatibleBaseUrl && latestOpenAiCompatibleProvider.config?.baseUrl !== normalizedOpenAiCompatibleBaseUrl) ||
           (latestOpenAiCompatibleProvider.exists && !latestOpenAiCompatibleProvider.config?.api) ||
           (providerKeys.openaiCompatibleApiKey?.trim() && latestOpenAiCompatibleProvider.config?.apiKey !== providerKeys.openaiCompatibleApiKey.trim()) ||
-          !latestHasExecutionModel
+          !latestHasExecutionModel ||
+          !latestHasExecutionModelAuthorization
         ) {
           changed = applyOpenAiCompatibleProviderConfig(
             normalizedOpenAiCompatibleBaseUrl,
