@@ -33,5 +33,6 @@ ensure_plugin() {
 # incompatible plugin APIs.
 ensure_plugin whatsapp "$(official_plugin_spec whatsapp)"
 ensure_plugin discord "$(official_plugin_spec discord)"
+ensure_plugin slack "$(official_plugin_spec slack)"
 
 echo "OpenClaw default plugins are ready."
