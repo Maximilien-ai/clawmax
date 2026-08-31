@@ -167,10 +167,10 @@ type ApiTemplate = StarterPromptTemplate & {
 
 const TEMPLATE_KEYWORDS = ['template', 'templates', 'refine template', 'edit template', 'team template', 'organization template']
 const AGENT_TEMPLATE_KEYWORDS = ['agent template', 'agent starter', 'create agent from template', 'use template for agent']
-const TEAM_KEYWORDS = ['team', 'teams', 'handoff', 'handoffs', 'workflow', 'workflows', 'company', 'organization', 'org', 'group', 'groups']
+const TEAM_KEYWORDS = ['team', 'teams', 'handoff', 'handoffs', 'company', 'organization', 'org', 'group', 'groups']
 const TEAM_OF_TEAMS_KEYWORDS = ['team of teams', 'teams of teams', 'multi-team', 'multiple teams', 'teams and subteams', 'org of teams', 'organization of teams']
 const AGENT_KEYWORDS = ['agent', 'assistant', 'helper', 'specialist']
-const CREATE_KEYWORDS = ['create', 'build', 'design', 'new', 'from scratch', 'generate']
+const CREATE_KEYWORDS = ['create', 'build', 'design', 'new', 'from scratch', 'generate', 'make', 'set up', 'spin up', 'draft', 'develop']
 const REUSE_KEYWORDS = ['existing', 'already have', 'reuse', 'current']
 const REFINE_KEYWORDS = ['refine', 'improve', 'edit', 'update', 'adjust', 'tune']
 const WORKFLOW_PROMPT_KEYWORDS = ['workflow', 'workflows', 'handoff', 'handoffs', 'sequence', 'pipeline', 'steps', 'process', 'weekly', 'monthly', 'daily', 'recurring', 'review', 'approval', 'follow-up']

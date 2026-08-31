@@ -4,6 +4,10 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC47 candidate
+- **AI Builder explicit-create contract** — explicit requests to create, build, design, generate, make, set up, spin up, draft, or develop agents, workflows, skills, teams, and companies retain every matching AI Create action with the original prompt, including compound requests and post-LLM-fallback recommendations, while reuse, update, refine, and informational questions do not force unrelated creation actions.
+- **AI Builder evaluation expansion** — share one server/client creation-intent contract, expand the focused grammar suite from 14 to 43 cases, and add routing evaluations for creation synonyms, compound actions, prompt-prefill preservation, existing-asset negative controls, and workflow scope that does not inherently imply a team.
+
 ### RC46 accepted candidate
 - **Optional agent runtimes** — add reviewed Claude Code and Factory Droid execution across direct chat, communication, workflows, and scheduled runs, with runtime-specific credentials, pinned CLI artifacts, visible/cancellable long turns, bounded output, and focused regression coverage.
 - **Resource lifecycle hardening** — terminate retained process descendants reliably, add repeatable Podman soak evidence collection, and keep issue #187 open until a controlled 24-hour combined-image run proves bounded memory and PID behavior.

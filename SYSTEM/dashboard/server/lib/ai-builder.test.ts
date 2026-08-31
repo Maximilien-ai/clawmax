@@ -4,6 +4,7 @@ import path from 'path'
 import {
   applyAiBuilderLlmFallback,
   buildAiBuilderRecommendation,
+  requiredAiBuilderCreateTargets,
   shouldUseAiBuilderLlmFallback,
 } from './ai-builder'
 
@@ -36,6 +37,9 @@ const cases = JSON.parse(
   suggestedActionIdsInclude?: string[]
   suggestedActionIdsExclude?: string[]
   suggestedActionPagesInclude?: Array<ReturnType<typeof buildAiBuilderRecommendation>['suggestedActions'][number]['page']>
+  aiCreateLabelsInclude?: string[]
+  aiCreateLabelsExclude?: string[]
+  aiCreatePrefillMatchesPrompt?: boolean
   confirmationLabelsInclude?: string[]
   confirmationLabelsExclude?: string[]
 }>
@@ -78,6 +82,22 @@ for (const scenario of cases) {
       const actionPages = result.suggestedActions.map((action) => action.page)
       for (const expectedPage of scenario.suggestedActionPagesInclude) {
         assert(actionPages.includes(expectedPage), `Expected suggested action pages to include ${expectedPage}, got ${actionPages.join(', ')}`)
+      }
+    }
+    if (scenario.aiCreateLabelsInclude) {
+      for (const expectedLabel of scenario.aiCreateLabelsInclude) {
+        const createAction = result.suggestedActions.find((candidate) => candidate.label === expectedLabel)
+        assert(createAction, `Expected suggested actions to include ${expectedLabel}`)
+        assert.equal(createAction.action, 'create-ai', `Expected ${expectedLabel} to use create-ai`)
+        if (scenario.aiCreatePrefillMatchesPrompt) {
+          assert.equal(createAction.prefillPrompt, scenario.prompt, `Expected ${expectedLabel} to preserve the evaluation prompt`)
+        }
+      }
+    }
+    if (scenario.aiCreateLabelsExclude) {
+      const labels = result.suggestedActions.map((candidate) => candidate.label)
+      for (const unexpectedLabel of scenario.aiCreateLabelsExclude) {
+        assert(!labels.includes(unexpectedLabel), `Expected suggested actions to exclude ${unexpectedLabel}, got ${labels.join(', ')}`)
       }
     }
     if (scenario.confirmationLabelsInclude) {
@@ -256,20 +276,41 @@ test('skill-first agent prompts still surface AI Create Agent for resend agent c
 
 for (const scenario of [
   { prompt: 'Create an agent that prepares customer briefs', labels: ['AI Create Agent'] },
-  { prompt: 'I need an agent for customer briefs', labels: ['AI Create Agent'] },
-  { prompt: 'Use my existing research agent for customer briefs', labels: ['AI Create Agent'] },
+  { prompt: 'Build an assistant for municipal permit intake', labels: ['AI Create Agent'] },
+  { prompt: 'Generate a specialist for release triage', labels: ['AI Create Agent'] },
   { prompt: 'Create a team of agents for customer onboarding', labels: ['AI Create Team Template'] },
-  { prompt: 'I need a company of agents for sales and delivery', labels: ['AI Create Company Template'] },
-  { prompt: 'I need a workflow for weekly customer reviews', labels: ['AI Create Workflow'] },
-  { prompt: 'Use my existing workflow for weekly customer reviews', labels: ['AI Create Workflow'] },
-  { prompt: 'I need a skill for the customer support API', labels: ['AI Create Skill'] },
+  { prompt: 'Design a company of agents for sales and delivery', labels: ['AI Create Company Template'] },
+  { prompt: 'Set up a workflow for weekly customer reviews', labels: ['AI Create Workflow'] },
+  { prompt: 'Draft a skill for the customer support API', labels: ['AI Create Skill'] },
   { prompt: 'Create a team of agents with a workflow and a skill for customer onboarding', labels: ['AI Create Team Template', 'AI Create Workflow', 'AI Create Skill'] },
+  { prompt: 'Build an agent, a workflow, and a skill for customer onboarding', labels: ['AI Create Agent', 'AI Create Workflow', 'AI Create Skill'] },
 ]) {
   test(`builder always exposes the required AI Create option: ${scenario.prompt}`, () => {
     const result = buildAiBuilderRecommendation(scenario.prompt)
-    const labels = result.suggestedActions.map((action) => action.label)
+    const actions = result.suggestedActions
+    const labels = actions.map((action) => action.label)
     for (const label of scenario.labels) {
       assert(labels.includes(label), `Expected ${label}, got ${labels.join(', ')}`)
+      const action = actions.find((candidate) => candidate.label === label)
+      assert.equal(action?.action, 'create-ai', `Expected ${label} to use the create-ai action`)
+      assert.equal(action?.prefillPrompt, scenario.prompt, `Expected ${label} to preserve the original prompt`)
     }
+  })
+}
+
+for (const scenario of [
+  { prompt: 'Use my existing research agent for customer briefs', forbiddenLabel: 'AI Create Agent' },
+  { prompt: 'Update my current research agent for customer briefs', forbiddenLabel: 'AI Create Agent' },
+  { prompt: 'Use my existing workflow for weekly customer reviews', forbiddenLabel: 'AI Create Workflow' },
+  { prompt: 'Refine my current workflow for weekly customer reviews', forbiddenLabel: 'AI Create Workflow' },
+  { prompt: 'Improve this skill for the customer support API', forbiddenLabel: 'AI Create Skill' },
+  { prompt: 'How do I create a workflow?', forbiddenLabel: 'AI Create Workflow' },
+  { prompt: 'Can an agent create a workflow?', forbiddenLabel: 'AI Create Workflow' },
+]) {
+  test(`builder does not force an AI Create option for non-create intent: ${scenario.prompt}`, () => {
+    assert.deepEqual(requiredAiBuilderCreateTargets(scenario.prompt), [])
+    const result = buildAiBuilderRecommendation(scenario.prompt)
+    const labels = result.suggestedActions.map((action) => action.label)
+    assert(!labels.includes(scenario.forbiddenLabel), `Did not expect ${scenario.forbiddenLabel}, got ${labels.join(', ')}`)
   })
 }

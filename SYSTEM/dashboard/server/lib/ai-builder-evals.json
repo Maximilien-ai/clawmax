@@ -581,5 +581,108 @@
     "operation": "create_new",
     "page": "skills",
     "suggestedActionIdsInclude": ["create-skill"]
+  },
+  {
+    "name": "build synonym keeps explicit agent creation visible",
+    "prompt": "Build an assistant for municipal permit intake",
+    "intent": "ai_generate",
+    "scope": "single_agent",
+    "operation": "create_new",
+    "page": "agents",
+    "action": "create-ai",
+    "aiCreateLabelsInclude": ["AI Create Agent"],
+    "aiCreatePrefillMatchesPrompt": true
+  },
+  {
+    "name": "generate synonym keeps explicit agent creation visible beside a close template",
+    "prompt": "Generate a specialist for release triage",
+    "intent": "agent_template",
+    "scope": "single_agent",
+    "operation": "create_new",
+    "page": "templates",
+    "aiCreateLabelsInclude": ["AI Create Agent"],
+    "aiCreatePrefillMatchesPrompt": true
+  },
+  {
+    "name": "set up synonym keeps explicit workflow creation visible",
+    "prompt": "Set up a workflow for weekly customer reviews",
+    "intent": "team_template",
+    "scope": "unknown",
+    "operation": "create_new",
+    "page": "templates",
+    "aiCreateLabelsInclude": ["AI Create Workflow"],
+    "aiCreatePrefillMatchesPrompt": true
+  },
+  {
+    "name": "draft synonym keeps explicit skill creation visible",
+    "prompt": "Draft a skill for the customer support API",
+    "intent": "skill_or_integration",
+    "scope": "unknown",
+    "operation": "create_new",
+    "page": "skills",
+    "aiCreateLabelsInclude": ["AI Create Skill"],
+    "aiCreatePrefillMatchesPrompt": true
+  },
+  {
+    "name": "compound explicit creation retains agent workflow and skill actions",
+    "prompt": "Create an agent, a workflow, and a skill for customer onboarding",
+    "intent": "agent_template",
+    "scope": "single_agent",
+    "operation": "create_new",
+    "page": "templates",
+    "aiCreateLabelsInclude": ["AI Create Agent", "AI Create Workflow", "AI Create Skill"],
+    "aiCreatePrefillMatchesPrompt": true
+  },
+  {
+    "name": "direct need for workflow and skill retains both creation actions",
+    "prompt": "I need a workflow and a skill for customer reviews",
+    "intent": "skill_or_integration",
+    "scope": "unknown",
+    "page": "skills",
+    "aiCreateLabelsInclude": ["AI Create Workflow", "AI Create Skill"],
+    "aiCreatePrefillMatchesPrompt": true
+  },
+  {
+    "name": "existing agent reuse does not force agent creation",
+    "prompt": "Use my existing research agent for customer briefs",
+    "intent": "existing_agent",
+    "scope": "single_agent",
+    "operation": "reuse_existing",
+    "page": "agents",
+    "aiCreateLabelsExclude": ["AI Create Agent"]
+  },
+  {
+    "name": "current agent update does not force agent creation",
+    "prompt": "Update my current research agent for customer briefs",
+    "intent": "existing_agent",
+    "scope": "single_agent",
+    "operation": "improve_existing",
+    "page": "agents",
+    "aiCreateLabelsExclude": ["AI Create Agent"]
+  },
+  {
+    "name": "existing workflow reuse does not force workflow creation",
+    "prompt": "Use my existing workflow for weekly customer reviews",
+    "intent": "team_template",
+    "scope": "unknown",
+    "page": "templates",
+    "aiCreateLabelsExclude": ["AI Create Workflow"]
+  },
+  {
+    "name": "current workflow refinement does not force workflow creation",
+    "prompt": "Refine my current workflow for weekly customer reviews",
+    "intent": "team_template",
+    "scope": "unknown",
+    "operation": "improve_existing",
+    "page": "templates",
+    "aiCreateLabelsExclude": ["AI Create Workflow"]
+  },
+  {
+    "name": "current skill improvement does not force skill creation",
+    "prompt": "Improve this skill for the customer support API",
+    "intent": "skill_or_integration",
+    "scope": "unknown",
+    "page": "skills",
+    "aiCreateLabelsExclude": ["AI Create Skill"]
   }
 ]

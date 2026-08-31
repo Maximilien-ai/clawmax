@@ -225,6 +225,53 @@ async function run() {
     assert.strictEqual(res.jsonBody?.recommendation?.scope, 'organization', 'Expected fallback scope override')
   })
 
+  await test('recommend route restores required AI Create actions after LLM fallback', async () => {
+    const baseRecommendation = {
+      summary: 'Base summary',
+      intent: 'team_template',
+      scope: 'unknown',
+      operation: 'create_new',
+      confidence: 'low',
+      matchedAssets: { agents: [], skills: [], workflows: [], organizationTemplates: [], agentTemplates: [] },
+      recommendedPath: {
+        title: 'Review nearby assets',
+        reasoning: 'Fallback may replace the action list.',
+        primaryAction: { id: 'open-templates', label: 'Open Templates', description: 'Review templates.', page: 'templates' },
+      },
+      alternativePaths: [],
+      confirmationOptions: [],
+      suggestedActions: [],
+      clarifyingQuestions: [],
+      testPlan: [],
+      usedLlmFallback: false,
+    }
+    const router = loadRouterWithOverrides({
+      aiBuilder: {
+        buildAiBuilderRecommendation: () => baseRecommendation,
+        shouldUseAiBuilderLlmFallback: () => true,
+        applyAiBuilderLlmFallback: () => ({ ...baseRecommendation, usedLlmFallback: true, summary: 'Fallback replaced actions', suggestedActions: [] }),
+      },
+      aiGenerator: {
+        inferBuilderGroupingWithAI: async () => ({
+          grouping: 'single workflow',
+          rationale: 'The request names one workflow.',
+          strategy: 'create_new_template',
+        }),
+      },
+    })
+    const handler = getRouteHandler(router, 'post', '/recommend')
+    const res = makeRes()
+    const prompt = 'Create a workflow for weekly customer reviews'
+    await handler(makeReq({ body: { prompt } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected recommend success after fallback')
+    const workflowAction = res.jsonBody?.recommendation?.suggestedActions?.find((action: any) => action.label === 'AI Create Workflow')
+    assert(workflowAction, 'Expected the final route response to restore AI Create Workflow')
+    assert.strictEqual(workflowAction.action, 'create-ai')
+    assert.strictEqual(workflowAction.page, 'workflows')
+    assert.strictEqual(workflowAction.prefillPrompt, prompt, 'Expected the final route response to retain the original prompt')
+  })
+
   await test('recommend route keeps deterministic recommendation when fallback inference fails', async () => {
     const router = loadRouterWithOverrides({
       aiBuilder: {

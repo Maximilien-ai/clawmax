@@ -2,6 +2,10 @@ import { listTemplates, type Template, type AgentTemplate, type OrganizationTemp
 import { listAgents, type AgentInfo } from './workspace'
 import { listAvailableSkills, type OpenClawSkill } from './skills'
 import { listWorkflows, type Workflow } from './workflows'
+import {
+  requiredBuilderCreateTargets,
+  type BuilderCreateTarget,
+} from './builder-explicit-actions'
 
 export type AiBuilderIntent =
   | 'existing_agent'
@@ -78,7 +82,7 @@ export interface AiBuilderAction {
   templateRefineMode?: boolean
 }
 
-export type AiBuilderCreateTarget = 'agent' | 'team' | 'company' | 'workflow' | 'skill'
+export type AiBuilderCreateTarget = BuilderCreateTarget
 
 export interface AiBuilderMatchedAsset {
   id: string
@@ -137,7 +141,7 @@ type SearchableRecord = {
   family?: AiBuilderTemplateFamily
 }
 
-const TEAM_KEYWORDS = ['team', 'teams', 'handoff', 'handoffs', 'workflow', 'workflows', 'company', 'organization', 'org', 'lane', 'lanes', 'group', 'groups']
+const TEAM_KEYWORDS = ['team', 'teams', 'handoff', 'handoffs', 'company', 'organization', 'org', 'lane', 'lanes', 'group', 'groups']
 const TEAM_OF_TEAMS_KEYWORDS = ['team of teams', 'teams of teams', 'multi-team', 'multiple teams', 'teams and subteams', 'org of teams', 'organization of teams']
 const COMPANY_SCOPE_KEYWORDS = ['company template', 'organization template', 'new company template', 'new organization template', 'create a new company template', 'create a new organization template']
 const COMPANY_DRAFT_KEYWORDS = ['company template', 'organization template', 'team of teams', 'teams of teams', 'multi-team', 'multiple teams']
@@ -146,12 +150,12 @@ const AGENT_KEYWORDS = ['agent', 'assistant', 'helper', 'specialist']
 const SKILL_KEYWORDS = ['skill', 'skills', 'tool', 'tools', 'github', 'slack', 'whatsapp', 'gmail', 'calendar', 'integration', 'integrations', 'api', 'connect', 'connector']
 const CHAT_KEYWORDS = ['chat', 'talk', 'message', 'ask', 'speak']
 const WORKFLOW_PROMPT_KEYWORDS = ['workflow', 'workflows', 'handoff', 'handoffs', 'sequence', 'pipeline', 'steps', 'stage', 'stages', 'process', 'processes', 'weekly', 'monthly', 'daily', 'recurring', 'routine', 'kickoff', 'review', 'approval', 'approvals', 'follow-up']
-const CREATE_KEYWORDS = ['create', 'build', 'design', 'new', 'from scratch', 'generate']
+const CREATE_KEYWORDS = ['create', 'build', 'design', 'new', 'from scratch', 'generate', 'make', 'set up', 'spin up', 'draft', 'develop']
 const REUSE_KEYWORDS = ['existing', 'already have', 'reuse', 'use my', 'current']
 const TEMPLATE_KEYWORDS = ['template', 'templates', 'refine template', 'edit template', 'team template', 'organization template']
 const AGENT_TEMPLATE_KEYWORDS = ['agent template', 'agent starter', 'create agent from template', 'create a new agent from', 'create new agent from', 'new agent from', 'use template for agent']
 const REFINE_KEYWORDS = ['refine', 'improve', 'edit', 'update', 'adjust', 'tune']
-const NEW_BUILD_KEYWORDS = ['new', 'from scratch', 'generate', 'net new']
+const NEW_BUILD_KEYWORDS = ['new', 'from scratch', 'generate', 'net new', 'create', 'build', 'design', 'make', 'set up', 'spin up', 'draft', 'develop']
 const IMPROVE_EXISTING_KEYWORDS = ['improve my', 'improve current', 'make better', 'upgrade', 'extend', 'enhance']
 const TEMPLATE_REFINE_KEYWORDS = ['refine template', 'edit template', 'adapt template', 'customize template', 'improve template']
 const EXISTING_TEMPLATE_KEYWORDS = ['existing template', 'current template', 'already have a template', 'local template']
@@ -1064,25 +1068,7 @@ function action(id: string, label: string, description: string, page: AiBuilderA
 }
 
 export function requiredAiBuilderCreateTargets(prompt: string): AiBuilderCreateTarget[] {
-  const normalized = normalizeText(prompt).toLowerCase()
-  const hasAgentLanguage = includesAny(normalized, AGENT_KEYWORDS)
-  const hasCreateOrUseLanguage = includesAny(normalized, [...CREATE_KEYWORDS, ...REUSE_KEYWORDS, 'need', 'want', 'using'])
-  const companyIntent = /\b(?:company|organization)\s+(?:of\s+)?(?:agents?|teams?)\b/.test(normalized)
-    || (includesAny(normalized, ['company template', 'organization template']))
-    || (includesAny(normalized, ['company', 'organization']) && hasCreateOrUseLanguage)
-  const teamIntent = !companyIntent && (
-    /\bteam\s+(?:of\s+)?agents?\b/.test(normalized)
-    || includesAny(normalized, ['team template'])
-    || (includesAny(normalized, ['team', 'teams']) && hasCreateOrUseLanguage)
-  )
-
-  const targets: AiBuilderCreateTarget[] = []
-  if (companyIntent) targets.push('company')
-  else if (teamIntent) targets.push('team')
-  else if (hasAgentLanguage) targets.push('agent')
-  if (/\bworkflows?\b/.test(normalized)) targets.push('workflow')
-  if (/\bskills?\b/.test(normalized)) targets.push('skill')
-  return targets
+  return requiredBuilderCreateTargets(prompt)
 }
 
 function isAiCreateActionForTarget(candidate: AiBuilderAction, target: AiBuilderCreateTarget): boolean {

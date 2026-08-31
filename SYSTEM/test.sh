@@ -2051,8 +2051,9 @@ fi
 
 echo -e "${YELLOW}→ Running Builder required AI Create action unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/builderExplicitActions.test.ts > /tmp/clawmax-builder-explicit-actions.out 2>&1 || true
-if grep -q "builderExplicitActions.test.ts: 14 tests passed" /tmp/clawmax-builder-explicit-actions.out; then
-  pass "Builder required AI Create action unit tests (14 tests)"
+if grep -Eq '^builderExplicitActions\.test\.ts: [0-9]+ tests passed$' /tmp/clawmax-builder-explicit-actions.out; then
+  builder_explicit_action_count=$(sed -n 's/^builderExplicitActions\.test\.ts: \([0-9][0-9]*\) tests passed$/\1/p' /tmp/clawmax-builder-explicit-actions.out)
+  pass "Builder required AI Create action unit tests (${builder_explicit_action_count:-?} tests)"
 else
   cat /tmp/clawmax-builder-explicit-actions.out
   fail "Builder required AI Create action unit tests"
