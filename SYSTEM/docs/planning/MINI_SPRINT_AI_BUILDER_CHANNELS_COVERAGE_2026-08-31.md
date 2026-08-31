@@ -257,18 +257,18 @@ candidate before beginning Discord.
 
 #### Discord
 
-- [ ] Configure a Discord bot token using the shared secret boundary.
-- [ ] Capture and validate the application/server/user information required by
+- [x] Configure a Discord bot token using the shared secret boundary.
+- [x] Capture and validate the application/server/user information required by
   the selected setup path without assuming every agent uses the same guild.
-- [ ] Support pairing or explicit allowlists and agent bindings at channel,
+- [x] Support pairing or explicit allowlists and agent bindings at channel,
   account, guild, and selected-peer scopes supported by the UI.
-- [ ] Surface missing intents/permissions, pairing-required, connected,
+- [x] Surface missing intents/permissions, pairing-required, connected,
   probe-failed, bound, and unbound states.
-- [ ] Add focused configuration, API, persistence, redaction, error, and UI tests.
+- [x] Add focused configuration, API, persistence, redaction, error, and UI tests.
 
 #### Release checkpoint: Discord
 
-- [ ] Commit and push Discord behavior and tests as a focused concern.
+- [x] Commit and push Discord behavior and tests as a focused concern.
 - [ ] Run the full candidate gate and publish the Discord candidate.
 - [ ] Record the exact SHA, tag, coverage totals, and public/combined CI links.
 - [ ] Begin Slack only after the candidate is published and its required smoke

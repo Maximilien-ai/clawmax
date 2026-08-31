@@ -4,6 +4,11 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC49 candidate
+- **Discord agent channels** — connect or replace a Discord bot token without placing it in subprocess arguments or OpenClaw config, validate optional application, user, server, and channel IDs, preserve pairing or explicit DM allowlists, and route a named Discord account to one agent with fail-closed guild policy.
+- **Discord diagnostics and lifecycle** — surface portal intent/permission requirements, pairing-required and connection/binding states, run bounded credential/capability probes with categorized non-secret results, persist redacted lifecycle evidence, and remove only the selected account, binding, and credential on disconnect.
+- **Pinned channel runtime packaging** — install the official Discord and WhatsApp OpenClaw plugins at the exact runtime version during setup and image builds, share the packaged Discord plugin safely with profile-mode agents, and verify installation remains idempotent.
+
 ### RC48 candidate
 - **Telegram agent channels** — connect or replace a Telegram BotFather token from the Agents page, keep the credential behind an OpenClaw file-backed SecretRef, apply pairing or an explicit numeric-user allowlist, and create a named OpenClaw account plus agent routing binding without writing secrets to argv, API responses, logs, audit evidence, or agent markdown.
 - **Provider-neutral channel panel** — manage Telegram and existing WhatsApp access from one responsive agent surface while keeping Discord and Slack visibly planned; distinguish connected, disabled, unbound, broken-binding, and healthy bound states, and confirm destructive disconnects inline.
