@@ -64,14 +64,18 @@ import {
   AGENT_CHANNEL_CATALOG,
   type OpenClawConfigSnapshot,
   getAgentOpenClawProfileArgs,
+  getOpenClawExternalChannelPluginPath,
   normalizeAgentChannelProvider,
+  parseOpenClawChannelProbeOutput,
   removeAgentChannelSecret,
+  readAgentOpenClawPluginPaths,
   readAgentChannelState,
   readAgentChannelStates,
   redactChannelError,
   restoreAgentOpenClawConfig,
   snapshotAgentChannelSecrets,
   snapshotAgentOpenClawConfig,
+  validateDiscordConnectionInput,
   validateTelegramConnectionInput,
   writeAgentChannelSecret,
 } from '../lib/agent-channels'
@@ -2085,6 +2089,71 @@ router.get('/:id/channels', (req, res) => {
   })
 })
 
+// POST /api/agents/:id/channels/:provider/probe — bounded non-secret provider capability check
+router.post('/:id/channels/:provider/probe', (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    res.status(400).json({ error: 'Invalid agent id' })
+    return
+  }
+  const provider = normalizeAgentChannelProvider(req.params.provider)
+  if (provider !== 'discord') {
+    res.status(provider ? 409 : 404).json({ error: provider ? `${provider} probes are not available in this candidate.` : 'Unsupported channel provider' })
+    return
+  }
+  const agent = listAgents().find(candidate => candidate.id === id)
+  if (!agent) {
+    res.status(404).json({ error: 'Agent not found' })
+    return
+  }
+
+  const homeDir = process.env.HOME || ''
+  const channel = readAgentChannelState({ homeDir, agentId: id, isProfile: agent.isProfile, provider })
+  if (!channel.configured) {
+    res.status(409).json({ error: 'Connect Discord before running a capability probe.' })
+    return
+  }
+  const cliPath = resolveOpenClawCliPath()
+  if (!cliPath) {
+    res.status(503).json({ error: 'OpenClaw CLI is not available.' })
+    return
+  }
+
+  try {
+    const output = execFileSync(cliPath, [
+      ...getAgentOpenClawProfileArgs(id, agent.isProfile),
+      'channels', 'capabilities',
+      '--channel', 'discord',
+      '--account', id,
+      '--json',
+      '--timeout', '10000',
+    ], {
+      encoding: 'utf-8',
+      env: agentChannelCliEnv(homeDir),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 15000,
+    })
+    const parsedProbe = parseOpenClawChannelProbeOutput(provider, id, output)
+    const probe = { ...parsedProbe, message: redactChannelError(parsedProbe.message) }
+    recordAgentLifecycleAuditEvent(id, {
+      type: 'modified',
+      title: probe.ok ? 'Discord channel probe passed' : 'Discord channel probe failed',
+      detail: probe.ok
+        ? 'Discord credentials and channel capabilities passed a bounded OpenClaw probe.'
+        : `Discord probe reported ${probe.category}: ${redactChannelError(probe.message)}`,
+    })
+    res.json({ ok: true, probe })
+  } catch (error) {
+    const message = redactChannelError(error)
+    recordAgentLifecycleAuditEvent(id, {
+      type: 'modified',
+      title: 'Discord channel probe failed',
+      detail: `Discord capability probe could not complete: ${message}`,
+    })
+    res.status(502).json({ error: `Could not probe Discord: ${message}` })
+  }
+})
+
 // POST /api/agents/:id/channels/:provider — connect/update an account and bind it to the agent
 router.post('/:id/channels/:provider', (req, res) => {
   const { id } = req.params
@@ -2097,7 +2166,7 @@ router.post('/:id/channels/:provider', (req, res) => {
     res.status(404).json({ error: 'Unsupported channel provider' })
     return
   }
-  if (provider !== 'telegram') {
+  if (provider === 'slack') {
     res.status(409).json({ error: `${AGENT_CHANNEL_CATALOG.find(entry => entry.id === provider)?.label || provider} support is planned but not available in this candidate.` })
     return
   }
@@ -2111,10 +2180,42 @@ router.post('/:id/channels/:provider', (req, res) => {
     res.status(409).json({ error: 'Restore this agent before connecting a channel.' })
     return
   }
-  const validated = validateTelegramConnectionInput(req.body)
-  if (!validated.ok) {
-    res.status(400).json({ error: validated.error })
-    return
+  let connection: {
+    token: string
+    allowFrom: string[]
+    applicationId: string | null
+    guildId: string | null
+    channelIds: string[]
+    requireMention: boolean
+  }
+  if (provider === 'telegram') {
+    const validated = validateTelegramConnectionInput(req.body)
+    if (!validated.ok) {
+      res.status(400).json({ error: validated.error })
+      return
+    }
+    connection = {
+      token: validated.value.token,
+      allowFrom: validated.value.allowFrom,
+      applicationId: null,
+      guildId: null,
+      channelIds: [],
+      requireMention: true,
+    }
+  } else {
+    const validated = validateDiscordConnectionInput(req.body)
+    if (!validated.ok) {
+      res.status(400).json({ error: validated.error })
+      return
+    }
+    connection = {
+      token: validated.value.token,
+      allowFrom: validated.value.userIds,
+      applicationId: validated.value.applicationId,
+      guildId: validated.value.guildId,
+      channelIds: validated.value.channelIds,
+      requireMention: validated.value.requireMention,
+    }
   }
 
   const cliPath = resolveOpenClawCliPath()
@@ -2124,12 +2225,21 @@ router.post('/:id/channels/:provider', (req, res) => {
   }
 
   const homeDir = process.env.HOME || ''
+  const externalPluginPath = provider === 'discord'
+    ? getOpenClawExternalChannelPluginPath(homeDir, provider)
+    : null
+  if (externalPluginPath && !fs.existsSync(path.join(externalPluginPath, 'openclaw.plugin.json'))) {
+    res.status(503).json({ error: 'The Discord channel runtime is not installed. Run ClawMax setup to install the pinned OpenClaw Discord plugin.' })
+    return
+  }
   const snapshot = snapshotAgentOpenClawConfig({ homeDir, agentId: id, isProfile: agent.isProfile })
   const secretSnapshot = snapshotAgentChannelSecrets({ homeDir, agentId: id, isProfile: agent.isProfile })
   const profileArgs = getAgentOpenClawProfileArgs(id, agent.isProfile)
-  const tokenDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-telegram-token-'))
-  const tokenPath = path.join(tokenDir, 'token')
-  fs.writeFileSync(tokenPath, validated.value.token, { encoding: 'utf-8', mode: 0o600 })
+  const tokenDir = provider === 'telegram'
+    ? fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-telegram-token-'))
+    : null
+  const tokenPath = tokenDir ? path.join(tokenDir, 'token') : null
+  if (tokenPath) fs.writeFileSync(tokenPath, connection.token, { encoding: 'utf-8', mode: 0o600 })
 
   const run = (args: string[]) => execFileSync(cliPath, [...profileArgs, ...args], {
     encoding: 'utf-8',
@@ -2138,19 +2248,31 @@ router.post('/:id/channels/:provider', (req, res) => {
   })
 
   try {
-    run([
-      'channels', 'add',
-      '--channel', 'telegram',
-      '--account', id,
-      '--name', `${agent.name} Telegram`,
-      '--token-file', tokenPath,
-    ])
+    if (provider === 'discord' && externalPluginPath) {
+      if (agent.isProfile) {
+        const pluginPaths = Array.from(new Set([
+          ...readAgentOpenClawPluginPaths({ homeDir, agentId: id, isProfile: agent.isProfile }),
+          externalPluginPath,
+        ]))
+        run(['config', 'set', 'plugins.load.paths', JSON.stringify(pluginPaths), '--strict-json'])
+      }
+      run(['config', 'set', 'plugins.entries.discord.enabled', 'true', '--strict-json'])
+    }
+    if (provider === 'telegram' && tokenPath) {
+      run([
+        'channels', 'add',
+        '--channel', provider,
+        '--account', id,
+        '--name', `${agent.name} Telegram`,
+        '--token-file', tokenPath,
+      ])
+    }
     const secretRef = writeAgentChannelSecret({
       homeDir,
       agentId: id,
       isProfile: agent.isProfile,
       provider,
-      secret: validated.value.token,
+      secret: connection.token,
     })
     run([
       'config', 'set', 'secrets.providers.clawmax-channels',
@@ -2158,34 +2280,63 @@ router.post('/:id/channels/:provider', (req, res) => {
       '--provider-path', secretRef.filePath,
       '--provider-mode', 'json',
     ])
-    run([
-      'config', 'set', `channels.telegram.accounts.${id}.botToken`,
-      '--ref-provider', 'clawmax-channels',
-      '--ref-source', 'file',
-      '--ref-id', secretRef.jsonPointer,
-    ])
-    const policyPath = `channels.telegram.accounts.${id}.dmPolicy`
-    const allowFromPath = `channels.telegram.accounts.${id}.allowFrom`
-    const dmPolicy = validated.value.allowFrom.length > 0 ? 'allowlist' : 'pairing'
-    run(['config', 'set', policyPath, JSON.stringify(dmPolicy), '--strict-json'])
-    run(['config', 'set', allowFromPath, JSON.stringify(validated.value.allowFrom), '--strict-json'])
-    run(['agents', 'bind', '--agent', id, '--bind', `telegram:${id}`, '--json'])
+    const accountPath = `channels.${provider}.accounts.${id}`
+    const allowFrom = connection.allowFrom
+    const dmPolicy = allowFrom.length > 0 ? 'allowlist' : 'pairing'
+    if (provider === 'telegram') {
+      run([
+        'config', 'set', `${accountPath}.botToken`,
+        '--ref-provider', 'clawmax-channels',
+        '--ref-source', 'file',
+        '--ref-id', secretRef.jsonPointer,
+      ])
+      run(['config', 'set', `${accountPath}.dmPolicy`, JSON.stringify(dmPolicy), '--strict-json'])
+      run(['config', 'set', `${accountPath}.allowFrom`, JSON.stringify(allowFrom), '--strict-json'])
+    } else {
+      const guilds = connection.guildId
+        ? {
+            [connection.guildId]: {
+              requireMention: connection.requireMention,
+              users: connection.allowFrom,
+              ...(connection.channelIds.length > 0
+                ? { channels: Object.fromEntries(connection.channelIds.map(channelId => [channelId, { requireMention: connection.requireMention }])) }
+                : {}),
+            },
+          }
+        : {}
+      run(['config', 'set', 'channels.discord.enabled', 'true', '--strict-json'])
+      run(['config', 'set', accountPath, JSON.stringify({
+        name: `${agent.name} Discord`,
+        enabled: true,
+        token: { source: 'file', provider: 'clawmax-channels', id: secretRef.jsonPointer },
+        ...(connection.applicationId ? { applicationId: connection.applicationId } : {}),
+        dmPolicy,
+        allowFrom,
+        groupPolicy: connection.guildId ? 'allowlist' : 'disabled',
+        guilds,
+      }), '--strict-json'])
+    }
+    run(['agents', 'bind', '--agent', id, '--bind', `${provider}:${id}`, '--json'])
 
     const channel = readAgentChannelState({ homeDir, agentId: id, isProfile: agent.isProfile, provider })
+    const providerLabel = provider === 'telegram' ? 'Telegram' : 'Discord'
     recordAgentLifecycleAuditEvent(id, {
       type: 'modified',
-      title: 'Telegram channel connected',
-      detail: `Connected Telegram account ${id} with ${dmPolicy} direct-message policy and bound it to this agent.`,
+      title: `${providerLabel} channel connected`,
+      detail: `Connected ${providerLabel} account ${id} with ${dmPolicy} direct-message policy and bound it to this agent.`,
     })
     res.json({ ok: true, channel })
   } catch (error) {
     const rolledBack = restoreAgentChannelSnapshots(snapshot, secretSnapshot)
+    const providerLabel = provider === 'telegram' ? 'Telegram' : 'Discord'
     res.status(502).json({
-      error: `Could not connect Telegram: ${redactChannelError(error, [validated.value.token])}`,
+      error: `Could not connect ${providerLabel}: ${redactChannelError(error, [connection.token])}`,
       rolledBack,
     })
   } finally {
-    try { fs.rmSync(tokenDir, { recursive: true, force: true }) } catch {}
+    if (tokenDir) {
+      try { fs.rmSync(tokenDir, { recursive: true, force: true }) } catch {}
+    }
   }
 })
 
@@ -2201,7 +2352,7 @@ router.delete('/:id/channels/:provider', (req, res) => {
     res.status(404).json({ error: 'Unsupported channel provider' })
     return
   }
-  if (provider !== 'telegram') {
+  if (provider === 'slack') {
     res.status(409).json({ error: `${provider} is not available in this candidate.` })
     return
   }
@@ -2231,16 +2382,18 @@ router.delete('/:id/channels/:provider', (req, res) => {
     run(['channels', 'remove', '--channel', provider, '--account', id, '--delete'])
     removeAgentChannelSecret({ homeDir, agentId: id, isProfile: agent.isProfile, provider })
     const channel = readAgentChannelState({ homeDir, agentId: id, isProfile: agent.isProfile, provider })
+    const providerLabel = provider === 'telegram' ? 'Telegram' : 'Discord'
     recordAgentLifecycleAuditEvent(id, {
       type: 'modified',
-      title: 'Telegram channel disconnected',
-      detail: `Removed the Telegram binding and named account ${id} from this agent.`,
+      title: `${providerLabel} channel disconnected`,
+      detail: `Removed the ${providerLabel} binding and named account ${id} from this agent.`,
     })
     res.json({ ok: true, channel })
   } catch (error) {
     const rolledBack = restoreAgentChannelSnapshots(snapshot, secretSnapshot)
+    const providerLabel = provider === 'telegram' ? 'Telegram' : 'Discord'
     res.status(502).json({
-      error: `Could not disconnect Telegram: ${redactChannelError(error)}`,
+      error: `Could not disconnect ${providerLabel}: ${redactChannelError(error)}`,
       rolledBack,
     })
   }

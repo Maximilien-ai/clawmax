@@ -6,13 +6,17 @@ import {
   getAgentOpenClawConfigPath,
   getAgentChannelSecretsPath,
   getAgentOpenClawProfileArgs,
+  getOpenClawExternalChannelPluginPath,
   normalizeAgentChannelProvider,
+  parseOpenClawChannelProbeOutput,
   readAgentChannelState,
+  readAgentOpenClawPluginPaths,
   redactChannelError,
   restoreAgentOpenClawConfig,
   removeAgentChannelSecret,
   snapshotAgentChannelSecrets,
   snapshotAgentOpenClawConfig,
+  validateDiscordConnectionInput,
   validateTelegramConnectionInput,
   writeAgentChannelSecret,
 } from './agent-channels'
@@ -44,6 +48,10 @@ async function run() {
     )
     assert.deepStrictEqual(getAgentOpenClawProfileArgs('researcher', true), ['--profile', 'researcher'])
     assert.deepStrictEqual(getAgentOpenClawProfileArgs('researcher', false), [])
+    assert.strictEqual(
+      getOpenClawExternalChannelPluginPath('/tmp/home', 'discord'),
+      path.join('/tmp/home', '.openclaw', 'npm', 'node_modules', '@openclaw', 'discord'),
+    )
   })
 
   await test('reads configured and bound Telegram state without returning credentials', () => {
@@ -83,6 +91,8 @@ async function run() {
       status: 'bound',
       dmPolicy: 'allowlist',
       allowFrom: ['123', '456'],
+      applicationId: null,
+      guilds: [],
     })
     assert(!JSON.stringify(state).includes('SECRET_SHOULD_NOT_ESCAPE'))
   })
@@ -109,6 +119,44 @@ async function run() {
     const state = readAgentChannelState({ homeDir, agentId: 'writer', isProfile: false, provider: 'telegram' })
     assert.strictEqual(state.status, 'not-configured')
     assert.strictEqual(state.configured, false)
+  })
+
+  await test('reads non-secret Discord account, guild, channel, and plugin-path state', () => {
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-channel-discord-state-'))
+    const configPath = getAgentOpenClawConfigPath(homeDir, 'moderator', true)
+    const pluginPath = getOpenClawExternalChannelPluginPath(homeDir, 'discord')
+    fs.mkdirSync(path.dirname(configPath), { recursive: true })
+    fs.writeFileSync(configPath, JSON.stringify({
+      plugins: { load: { paths: [pluginPath, pluginPath] } },
+      channels: { discord: { enabled: true, accounts: { moderator: {
+        name: 'Moderator Discord',
+        enabled: true,
+        token: { source: 'file', provider: 'clawmax-channels', id: '/discord-moderator' },
+        applicationId: '123456789012345678',
+        dmPolicy: 'allowlist',
+        allowFrom: ['234567890123456789'],
+        guilds: {
+          '345678901234567890': {
+            requireMention: false,
+            users: ['234567890123456789'],
+            channels: { '456789012345678901': { requireMention: false } },
+          },
+        },
+      } } } },
+      bindings: [{ agentId: 'moderator', match: { channel: 'discord', accountId: 'moderator' } }],
+    }))
+
+    const state = readAgentChannelState({ homeDir, agentId: 'moderator', isProfile: true, provider: 'discord' })
+    assert.strictEqual(state.status, 'bound')
+    assert.strictEqual(state.applicationId, '123456789012345678')
+    assert.deepStrictEqual(state.guilds, [{
+      id: '345678901234567890',
+      requireMention: false,
+      users: ['234567890123456789'],
+      channels: ['456789012345678901'],
+    }])
+    assert.deepStrictEqual(readAgentOpenClawPluginPaths({ homeDir, agentId: 'moderator', isProfile: true }), [pluginPath, pluginPath])
+    assert(!JSON.stringify(state).includes('clawmax-channels'))
   })
 
   await test('restores existing config exactly after a failed transaction', () => {
@@ -202,11 +250,61 @@ async function run() {
     }).ok, false)
   })
 
+  await test('validates Discord credentials and scoped IDs', () => {
+    const result = validateDiscordConnectionInput({
+      token: 'MTIzNDU2Nzg5MDEyMzQ1Njc4.signature_part_1234567890.tail_part_1234567890',
+      applicationId: '123456789012345678',
+      userIds: ['234567890123456789', '234567890123456789'],
+      guildId: '345678901234567890',
+      channelIds: ['456789012345678901'],
+      requireMention: false,
+    })
+    assert.strictEqual(result.ok, true)
+    if (result.ok) {
+      assert.deepStrictEqual(result.value.userIds, ['234567890123456789'])
+      assert.strictEqual(result.value.requireMention, false)
+    }
+  })
+
+  await test('rejects unsafe Discord token and scope combinations', () => {
+    assert.strictEqual(validateDiscordConnectionInput({ token: 'too-short' }).ok, false)
+    assert.strictEqual(validateDiscordConnectionInput({
+      token: 'abcdefghijklmnopqrstuvwxyz_1234567890',
+      userIds: ['@owner'],
+    }).ok, false)
+    assert.strictEqual(validateDiscordConnectionInput({
+      token: 'abcdefghijklmnopqrstuvwxyz_1234567890',
+      channelIds: ['456789012345678901'],
+    }).ok, false)
+  })
+
+  await test('parses a healthy bounded OpenClaw channel probe', () => {
+    assert.deepStrictEqual(parseOpenClawChannelProbeOutput('discord', 'moderator', JSON.stringify({
+      channels: [{ channel: 'discord', accountId: 'moderator', probe: { ok: true, status: 200 } }],
+    })), {
+      ok: true,
+      status: 200,
+      category: 'healthy',
+      message: 'Credential and channel capability probe passed.',
+    })
+  })
+
+  await test('classifies failed, missing, and unreadable channel probes without returning raw payloads', () => {
+    const intent = parseOpenClawChannelProbeOutput('discord', 'moderator', JSON.stringify({
+      channels: [{ channel: 'discord', accountId: 'moderator', probe: { ok: false, status: 403, error: 'Missing Message Content intent' } }],
+    }))
+    assert.strictEqual(intent.category, 'intent')
+    assert.strictEqual(parseOpenClawChannelProbeOutput('discord', 'missing', JSON.stringify({ channels: [] })).category, 'connection')
+    assert.strictEqual(parseOpenClawChannelProbeOutput('discord', 'missing', 'not json').category, 'unknown')
+  })
+
   await test('redacts explicit and token-shaped secrets from bounded errors', () => {
     const token = '123456789:abcdefghijklmnopqrstuvwxyz_123456'
     const redacted = redactChannelError(new Error(`command failed for ${token}`), [token])
     assert(!redacted.includes(token))
     assert(redacted.includes('[redacted]'))
+    const discordToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.signature_part_1234567890.tail_part_1234567890'
+    assert(!redactChannelError(new Error(`failed ${discordToken}`)).includes(discordToken))
   })
 
   console.log(`\nAgent channel tests: ${passed} passed, ${failed} failed`)

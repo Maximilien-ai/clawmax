@@ -709,7 +709,7 @@ async function run() {
     }
   })
 
-  await test('agent channels route returns non-secret Telegram binding state and planned providers', async () => {
+  await test('agent channels route returns non-secret binding state and current provider availability', async () => {
     writeAgent(workspacePath, 'channel-reader', '# IDENTITY.md\n\n- **Name:** Channel Reader\n')
     const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
     fs.writeFileSync(configPath, JSON.stringify({
@@ -742,7 +742,9 @@ async function run() {
     const discord = res.jsonBody.channels.find((entry: any) => entry.id === 'discord')
     assert.strictEqual(telegram.status, 'bound')
     assert.strictEqual(telegram.dmPolicy, 'pairing')
-    assert.strictEqual(discord.releaseState, 'planned')
+    const slack = res.jsonBody.channels.find((entry: any) => entry.id === 'slack')
+    assert.strictEqual(discord.releaseState, 'available')
+    assert.strictEqual(slack.releaseState, 'planned')
     assert(!JSON.stringify(res.jsonBody).includes('SECRET_CHANNEL_TOKEN_VALUE'))
   })
 
@@ -869,8 +871,161 @@ async function run() {
     assert.strictEqual(fs.statSync(configPath).mode & 0o777, 0o600)
   })
 
-  await test('Telegram connect validates input and does not expose unreleased providers', async () => {
+  await test('Discord connect loads the pinned profile plugin, persists scoped policy, and binds without exposing the token', async () => {
+    writeAgent(workspacePath, 'discord-agent', '# IDENTITY.md\n\n- **Name:** Discord Agent\n')
+    const profileDir = path.join(tmpHome, '.openclaw-discord-agent')
+    const configPath = path.join(profileDir, 'openclaw.json')
+    fs.mkdirSync(profileDir, { recursive: true })
+    fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [{ id: 'discord-agent' }] }, unknown: { keep: true } }, null, 2))
+    const pluginPath = path.join(tmpHome, '.openclaw', 'npm', 'node_modules', '@openclaw', 'discord')
+    fs.mkdirSync(pluginPath, { recursive: true })
+    fs.writeFileSync(path.join(pluginPath, 'openclaw.plugin.json'), JSON.stringify({ id: 'discord' }))
+    const fakeCli = writeFakeOpenClawCli(tmpHome)
+    process.env.OPENCLAW_BIN = fakeCli
+    const token = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.signature_part_1234567890.tail_part_1234567890'
+    const calls: string[][] = []
+
+    const writePath = (config: Record<string, any>, dottedPath: string, value: unknown) => {
+      const parts = dottedPath.split('.')
+      let cursor = config
+      for (const part of parts.slice(0, -1)) cursor = cursor[part] ||= {}
+      cursor[parts[parts.length - 1]] = value
+    }
+
+    await withChildProcessStubs({
+      execFileSync(command: string, args: string[], options: { env?: NodeJS.ProcessEnv }) {
+        assert.strictEqual(command, fakeCli)
+        calls.push([...args])
+        assert.deepStrictEqual(args.slice(0, 2), ['--profile', 'discord-agent'])
+        assert(!args.includes(token), 'Expected Discord token not to appear in process arguments')
+        assert(!options.env?.GITHUB_TOKEN && !options.env?.GH_TOKEN && !options.env?.RESEND_API_KEY)
+        const commandArgs = args.slice(2)
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        if (commandArgs[0] === 'channels' && commandArgs[1] === 'add') {
+          const tokenPath = commandArgs[commandArgs.indexOf('--token-file') + 1]
+          assert.strictEqual(fs.readFileSync(tokenPath, 'utf-8'), token)
+          assert.strictEqual(fs.statSync(tokenPath).mode & 0o777, 0o600)
+          config.channels = { discord: { enabled: true, accounts: {
+            'discord-agent': { name: 'Discord Agent Discord', enabled: true, token, groupPolicy: 'allowlist' },
+          } } }
+        } else if (commandArgs[0] === 'config' && commandArgs[1] === 'set') {
+          const configKey = String(commandArgs[2])
+          if (configKey === 'secrets.providers.clawmax-channels') {
+            writePath(config, configKey, {
+              source: 'file',
+              path: commandArgs[commandArgs.indexOf('--provider-path') + 1],
+              mode: 'json',
+            })
+          } else if (configKey.endsWith('.token')) {
+            writePath(config, configKey, {
+              source: 'file',
+              provider: 'clawmax-channels',
+              id: commandArgs[commandArgs.indexOf('--ref-id') + 1],
+            })
+          } else {
+            writePath(config, configKey, JSON.parse(String(commandArgs[3])))
+          }
+        } else if (commandArgs[0] === 'agents' && commandArgs[1] === 'bind') {
+          config.bindings = [{ type: 'route', agentId: 'discord-agent', match: { channel: 'discord', accountId: 'discord-agent' } }]
+        }
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+        return ''
+      },
+    }, async () => {
+      const handler = getRouteHandler('post', '/:id/channels/:provider')
+      const res = makeRes()
+      handler(makeReq({
+        params: { id: 'discord-agent', provider: 'discord' },
+        body: {
+          token,
+          applicationId: '123456789012345678',
+          userIds: ['234567890123456789', '234567890123456789'],
+          guildId: '345678901234567890',
+          channelIds: ['456789012345678901'],
+          requireMention: false,
+        },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 200)
+      assert.strictEqual(res.jsonBody.channel.status, 'bound')
+      assert.strictEqual(res.jsonBody.channel.applicationId, '123456789012345678')
+      assert.deepStrictEqual(res.jsonBody.channel.guilds[0].channels, ['456789012345678901'])
+      assert(!JSON.stringify(res.jsonBody).includes(token))
+    })
+
+    const persisted = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    assert.strictEqual(persisted.unknown.keep, true)
+    assert.deepStrictEqual(persisted.plugins.load.paths, [pluginPath])
+    assert.strictEqual(persisted.plugins.entries.discord.enabled, true)
+    assert.deepStrictEqual(persisted.channels.discord.accounts['discord-agent'].token, {
+      source: 'file',
+      provider: 'clawmax-channels',
+      id: '/discord-discord-agent',
+    })
+    assert.strictEqual(persisted.channels.discord.accounts['discord-agent'].dmPolicy, 'allowlist')
+    assert.strictEqual(persisted.channels.discord.accounts['discord-agent'].groupPolicy, 'allowlist')
+    assert.strictEqual(persisted.channels.discord.accounts['discord-agent'].guilds['345678901234567890'].requireMention, false)
+    assert(calls.some(args => args.includes('discord:discord-agent')))
+    assert(!calls.some(args => args.includes('channels') && args.includes('add')), 'Discord must be created atomically from a SecretRef because its CLI rejects --token-file')
+    const secretPath = path.join(profileDir, 'credentials', 'clawmax-channel-secrets.json')
+    assert.strictEqual(JSON.parse(fs.readFileSync(secretPath, 'utf-8'))['discord-discord-agent'], token)
+    assert(!fs.readFileSync(path.join(workspacePath, '.clawmax', 'lifecycle', 'agents', 'discord-agent.jsonl'), 'utf-8').includes(token))
+  })
+
+  await test('Discord capability probe returns bounded intent diagnostics and persists non-secret evidence', async () => {
+    process.env.OPENCLAW_BIN = writeFakeOpenClawCli(tmpHome)
+    const probeLeakedToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.probe_signature_1234567890.probe_tail_1234567890'
+    await withChildProcessStubs({
+      execFileSync(_command: string, args: string[], options: { timeout?: number; env?: NodeJS.ProcessEnv }) {
+        assert.deepStrictEqual(args.slice(0, 2), ['--profile', 'discord-agent'])
+        assert(args.includes('capabilities') && args.includes('--account') && args.includes('discord-agent'))
+        assert.strictEqual(options.timeout, 15000)
+        assert(!options.env?.GITHUB_TOKEN && !options.env?.GH_TOKEN)
+        return JSON.stringify({
+          channels: [{
+            channel: 'discord',
+            accountId: 'discord-agent',
+            configured: true,
+            probe: { ok: false, status: 403, error: `Missing Message Content intent for ${probeLeakedToken}` },
+            configSchema: { secret: 'must-not-return' },
+          }],
+        })
+      },
+    }, async () => {
+      const handler = getRouteHandler('post', '/:id/channels/:provider/probe')
+      const res = makeRes()
+      handler(makeReq({ params: { id: 'discord-agent', provider: 'discord' } }), res)
+      assert.strictEqual(res.statusCode, 200)
+      assert.strictEqual(res.jsonBody.probe.ok, false)
+      assert.strictEqual(res.jsonBody.probe.category, 'intent')
+      assert(!JSON.stringify(res.jsonBody).includes('must-not-return'))
+      assert(!JSON.stringify(res.jsonBody).includes(probeLeakedToken))
+    })
+    const audit = fs.readFileSync(path.join(workspacePath, '.clawmax', 'lifecycle', 'agents', 'discord-agent.jsonl'), 'utf-8')
+    assert(audit.includes('Discord channel probe failed'))
+    assert(!audit.includes('must-not-return'))
+    assert(!audit.includes(probeLeakedToken))
+  })
+
+  await test('Discord capability probe redacts token-shaped subprocess errors', async () => {
+    const leakedToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.signature_part_1234567890.tail_part_1234567890'
+    await withChildProcessStubs({
+      execFileSync() {
+        throw new Error(`probe process failed for ${leakedToken}`)
+      },
+    }, async () => {
+      const handler = getRouteHandler('post', '/:id/channels/:provider/probe')
+      const res = makeRes()
+      handler(makeReq({ params: { id: 'discord-agent', provider: 'discord' } }), res)
+      assert.strictEqual(res.statusCode, 502)
+      assert(!JSON.stringify(res.jsonBody).includes(leakedToken))
+      assert(JSON.stringify(res.jsonBody).includes('[redacted]'))
+    })
+  })
+
+  await test('channel connect validates provider input, installation, and release state', async () => {
     writeAgent(workspacePath, 'channel-validation', '# IDENTITY.md\n\n- **Name:** Channel Validation\n')
+    fs.rmSync(path.join(tmpHome, '.openclaw', 'npm', 'node_modules', '@openclaw', 'discord'), { recursive: true, force: true })
     const handler = getRouteHandler('post', '/:id/channels/:provider')
     const invalidRes = makeRes()
     handler(makeReq({
@@ -879,9 +1034,24 @@ async function run() {
     }), invalidRes)
     assert.strictEqual(invalidRes.statusCode, 400)
 
-    const plannedRes = makeRes()
+    const invalidDiscordRes = makeRes()
     handler(makeReq({
       params: { id: 'channel-validation', provider: 'discord' },
+      body: { token: 'anything' },
+    }), invalidDiscordRes)
+    assert.strictEqual(invalidDiscordRes.statusCode, 400)
+
+    const missingDiscordRes = makeRes()
+    handler(makeReq({
+      params: { id: 'channel-validation', provider: 'discord' },
+      body: { token: 'abcdefghijklmnopqrstuvwxyz_1234567890' },
+    }), missingDiscordRes)
+    assert.strictEqual(missingDiscordRes.statusCode, 503)
+    assert(String(missingDiscordRes.jsonBody.error).includes('not installed'))
+
+    const plannedRes = makeRes()
+    handler(makeReq({
+      params: { id: 'channel-validation', provider: 'slack' },
       body: { token: 'anything' },
     }), plannedRes)
     assert.strictEqual(plannedRes.statusCode, 409)
@@ -974,6 +1144,52 @@ async function run() {
     })
 
     assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), original)
+  })
+
+  await test('Discord disconnect removes only the named account, binding, and secret', async () => {
+    writeAgent(workspacePath, 'discord-disconnect', '# IDENTITY.md\n\n- **Name:** Discord Disconnect\n')
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      channels: { discord: { enabled: true, accounts: {
+        'discord-disconnect': { token: { source: 'file', provider: 'clawmax-channels', id: '/discord-discord-disconnect' } },
+        other: { token: 'preserve-me' },
+      } } },
+      bindings: [
+        { agentId: 'discord-disconnect', match: { channel: 'discord', accountId: 'discord-disconnect' } },
+        { agentId: 'other', match: { channel: 'discord', accountId: 'other' } },
+      ],
+    }, null, 2))
+    const secretPath = path.join(tmpHome, '.openclaw', 'credentials', 'clawmax-channel-secrets.json')
+    fs.mkdirSync(path.dirname(secretPath), { recursive: true })
+    fs.writeFileSync(secretPath, JSON.stringify({
+      'discord-discord-disconnect': 'remove-me',
+      'discord-other': 'preserve-me-too',
+    }, null, 2), { mode: 0o600 })
+    process.env.OPENCLAW_BIN = writeFakeOpenClawCli(tmpHome)
+
+    await withChildProcessStubs({
+      execFileSync(_command: string, args: string[]) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        if (args[0] === 'agents' && args[1] === 'unbind') {
+          config.bindings = config.bindings.filter((binding: any) => binding.agentId !== 'discord-disconnect')
+        } else if (args[0] === 'channels' && args[1] === 'remove') {
+          delete config.channels.discord.accounts['discord-disconnect']
+        }
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+        return ''
+      },
+    }, async () => {
+      const handler = getRouteHandler('delete', '/:id/channels/:provider')
+      const res = makeRes()
+      handler(makeReq({ params: { id: 'discord-disconnect', provider: 'discord' } }), res)
+      assert.strictEqual(res.statusCode, 200)
+      assert.strictEqual(res.jsonBody.channel.status, 'not-configured')
+    })
+
+    const persisted = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    assert.strictEqual(persisted.channels.discord.accounts.other.token, 'preserve-me')
+    assert(persisted.bindings.some((binding: any) => binding.agentId === 'other'))
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(secretPath, 'utf-8')), { 'discord-other': 'preserve-me-too' })
   })
 
   await test('provision route does not pass legacy --whatsapp to openclaw agents add', async () => {
