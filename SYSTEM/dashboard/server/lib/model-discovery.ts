@@ -41,7 +41,14 @@ function getCached(provider: string): string[] | null {
 }
 
 function setCache(provider: string, models: string[]) {
-  cache[provider] = { models, fetchedAt: Date.now() }
+  // Entries are keyed per endpoint and per credential, so a long-lived process accumulates one
+  // per credential ever seen. Expired entries are dropped on write rather than only when that
+  // exact key is read again.
+  const now = Date.now()
+  for (const [key, entry] of Object.entries(cache)) {
+    if (now - entry.fetchedAt > CACHE_TTL_MS) delete cache[key]
+  }
+  cache[provider] = { models, fetchedAt: now }
 }
 
 /** Force-clear cache (useful for manual refresh) */
@@ -346,39 +353,100 @@ async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
   }
 }
 
+/**
+ * Cache key for one endpoint as seen through one credential.
+ *
+ * A gateway URL returns a different catalog per key, so keying on the URL alone would serve one
+ * operator's private model ids to the next caller of the same URL.
+ */
+function openAiCompatibleCacheKey(normalizedBaseUrl: string, apiKey?: string): string {
+  return `openai-compatible:${normalizedBaseUrl}::${apiKey?.trim() || ''}`
+}
+
+// One /models request per endpoint at a time. Without this, N concurrent cold generations each
+// issue their own 5s request to the same endpoint before any of them populates the cache.
+const inFlightOpenAICompatibleFetches = new Map<string, Promise<string[]>>()
+
 async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Promise<string[]> {
   const normalizedBaseUrl = (baseUrl.trim() || '').replace(/\/+$/, '')
   if (!normalizedBaseUrl) return []
-  const cacheKey = `openai-compatible:${normalizedBaseUrl}`
+  const cacheKey = openAiCompatibleCacheKey(normalizedBaseUrl, apiKey)
   const cached = getCached(cacheKey)
   if (cached) return cached
+  const inFlight = inFlightOpenAICompatibleFetches.get(cacheKey)
+  if (inFlight) return inFlight
 
-  try {
-    const headers: Record<string, string> = {}
-    if (apiKey?.trim()) {
-      headers.Authorization = `Bearer ${apiKey.trim()}`
-    }
-    const res = await fetch(`${normalizedBaseUrl}/models`, {
-      headers,
-      signal: AbortSignal.timeout(5000),
-    })
-    if (!res.ok) {
-      console.warn(`OpenAI-compatible models API returned ${res.status}`)
+  const request = (async () => {
+    try {
+      const headers: Record<string, string> = {}
+      if (apiKey?.trim()) {
+        headers.Authorization = `Bearer ${apiKey.trim()}`
+      }
+      const res = await fetch(`${normalizedBaseUrl}/models`, {
+        headers,
+        signal: AbortSignal.timeout(5000),
+      })
+      if (!res.ok) {
+        console.warn(`OpenAI-compatible models API returned ${res.status}`)
+        return []
+      }
+      const body = await res.json() as { data?: Array<{ id?: string }> }
+      // Kept in the endpoint's own order: endpoint validation completes its test prompt on the
+      // first chat-capable model as returned, and the default-model fallback must land on that
+      // same model. Callers that display the list sort it themselves.
+      const models = (body.data || [])
+        .map((m) => (m.id || '').trim())
+        .filter(Boolean)
+        .map((id) => `openai-compatible/${id}`)
+
+      setCache(cacheKey, models)
+      return models
+    } catch (err) {
+      console.warn('Failed to fetch OpenAI-compatible models:', (err as Error).message)
       return []
+    } finally {
+      inFlightOpenAICompatibleFetches.delete(cacheKey)
     }
-    const body = await res.json() as { data?: Array<{ id?: string }> }
-    const models = (body.data || [])
-      .map((m) => (m.id || '').trim())
-      .filter(Boolean)
-      .sort()
-      .map((id) => `openai-compatible/${id}`)
+  })()
+  inFlightOpenAICompatibleFetches.set(cacheKey, request)
+  return request
+}
 
-    setCache(cacheKey, models)
-    return models
-  } catch (err) {
-    console.warn('Failed to fetch OpenAI-compatible models:', (err as Error).message)
-    return []
-  }
+/**
+ * The model an OpenAI-compatible endpoint runs when the operator named no default.
+ *
+ * BYOK labels "Default model" optional, and endpoint validation already completes its test prompt
+ * on the first chat-capable discovered model — so a verified endpoint with that box empty is
+ * usable, and every consumer must resolve it the same way instead of reporting it unusable.
+ */
+export async function resolveOpenAiCompatibleDefaultModel(input: {
+  baseUrl?: string
+  apiKey?: string
+  defaultModel?: string
+}): Promise<string | undefined> {
+  const configured = input.defaultModel?.trim().replace(/^openai-compatible\//, '')
+  if (configured) return configured
+  const baseUrl = input.baseUrl?.trim()
+  if (!baseUrl) return undefined
+  const discovered = await fetchOpenAICompatibleModels(baseUrl, input.apiKey)
+  return firstChatModel(discovered)
+}
+
+/**
+ * Same answer as resolveOpenAiCompatibleDefaultModel, from the discovery cache only.
+ *
+ * Callers reached from deep inside a synchronous resolution chain cannot await; they warm the
+ * cache at their request boundary and read it here.
+ */
+export function getCachedOpenAiCompatibleDefaultModel(baseUrl?: string, apiKey?: string): string | undefined {
+  const normalizedBaseUrl = (baseUrl?.trim() || '').replace(/\/+$/, '')
+  if (!normalizedBaseUrl) return undefined
+  return firstChatModel(getCached(openAiCompatibleCacheKey(normalizedBaseUrl, apiKey)) || [])
+}
+
+function firstChatModel(discovered: string[]): string | undefined {
+  const chatModel = filterCompatibleDiscoveredModels('openai-compatible', discovered)[0]
+  return chatModel?.replace(/^openai-compatible\//, '') || undefined
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────────
@@ -468,10 +536,11 @@ export async function discoverModels(
 
   if (openaiCompatibleBaseUrl) {
     fetches.push(
+      // Sorted for the picker; the cache keeps the endpoint's own order for default-model resolution.
       fetchOpenAICompatibleModels(openaiCompatibleBaseUrl, openaiCompatibleApiKey).then(models => ({
         provider: 'openai-compatible',
         name: 'OpenAI-Compatible',
-        models,
+        models: [...models].sort(),
       }))
     )
   }
@@ -537,6 +606,9 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
   const compatibleDefaultModel = integrations.openaiCompatibleDefaultModel?.trim()
     || userKeys.openaiCompatibleDefaultModel?.trim()
     || systemKeys.openaiCompatibleDefaultModel?.trim()
+    // BYOK's "Default model" box is optional, so an endpoint that named none is still usable on
+    // whichever chat model it advertises.
+    || getCachedOpenAiCompatibleDefaultModel(compatibleBaseUrl)
   if (compatibleBaseUrl && compatibleDefaultModel) {
     localDefaults.push(`openai-compatible/${compatibleDefaultModel}`)
   }

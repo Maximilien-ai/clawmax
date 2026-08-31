@@ -21,7 +21,7 @@ import {
 } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
 import { getWorkspacePath, listAgents } from '../lib/workspace'
-import { explainOneTimeCronLimitation, generateCronFromText, generateWorkflowFromNL, isOneTimeScheduleRequest, setRequestByokKeys } from '../lib/ai-generator'
+import { explainOneTimeCronLimitation, generateCronFromText, generateWorkflowFromNL, isOneTimeScheduleRequest, setRequestByokKeys, warmOpenAiCompatibleGenerationModel } from '../lib/ai-generator'
 import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
@@ -147,6 +147,7 @@ router.post('/generate', async (req, res) => {
   }
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     const agents = listAgents()
     const agentIds = agents.filter(a => !a.archived).map(a => a.id)

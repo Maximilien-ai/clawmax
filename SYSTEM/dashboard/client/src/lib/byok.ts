@@ -348,15 +348,12 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
   const openaiVerified = !!openaiFingerprint && verifiedProviders.openai === openaiFingerprint
   const anthropicVerified = !!anthropicFingerprint && verifiedProviders.anthropic === anthropicFingerprint
   const openaiCompatibleVerified = !!openaiCompatibleFingerprint && verifiedProviders.openaiCompatible === openaiCompatibleFingerprint
-  const hasHostedBrowserKey = !!(byok.openai?.trim() || byok.anthropic?.trim() || (byok.openaiCompatibleBaseUrl?.trim() && byok.openaiCompatibleDefaultModel?.trim()))
+  // A base URL alone is a hosted path: BYOK's "Default model" box is optional, and generation runs
+  // on whichever chat model the endpoint advertises when it is empty. Requiring a typed model here
+  // warned that generation needed one while it was in fact succeeding without it — and the
+  // verification fingerprint already covers the endpoint in whichever state it was checked.
+  const hasHostedBrowserKey = !!(byok.openai?.trim() || byok.anthropic?.trim() || byok.openaiCompatibleBaseUrl?.trim())
   const hasVerifiedHostedBrowserKey = openaiVerified || anthropicVerified || openaiCompatibleVerified
-
-  if (byok.openaiCompatibleBaseUrl?.trim() && !byok.openaiCompatibleDefaultModel?.trim()) {
-    return {
-      enabled: true,
-      warning: 'OpenAI-compatible AI generation needs a default model in BYOK. Add one before using templates, agents, workflows, or skills generation.',
-    }
-  }
 
   if (hasHostedBrowserKey && !hasVerifiedHostedBrowserKey && !hasSharedHostedExecution) {
     return {

@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/byok.test.ts
  */
 
-import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, hasCogneeConfiguration, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
+import { buildByokVerificationFingerprint, byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, hasCogneeConfiguration, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -66,12 +66,12 @@ async function main() {
     assert(hasAiGenerationAccess(null) === true, 'Expected OpenAI-compatible endpoint to enable AI generation access')
   })
 
-  await test('OpenAI-compatible endpoint without default model warns for AI generation', () => {
+  await test('OpenAI-compatible endpoint without a default model is asked to be checked, not given a model', () => {
     localStorage.clear()
     writeStoredByokKeys({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' })
     const readiness = getAiGenerationReadiness(null)
     assert(readiness.enabled === true, 'Expected OpenAI-compatible path to stay visible')
-    assert(/default model/i.test(readiness.warning || ''), 'Expected default-model warning')
+    assert(/not been verified yet/i.test(readiness.warning || ''), `Expected the unverified warning, got: ${readiness.warning}`)
   })
 
   await test('user default keys enable AI generation access', () => {
@@ -152,6 +152,22 @@ async function main() {
     const readiness = getAiGenerationReadiness(null)
     assert(readiness.enabled === true, 'Expected verified hosted browser key to allow AI generation')
     assert(!readiness.warning, 'Expected no warning for verified browser key')
+  })
+
+  await test('a verified OpenAI-compatible endpoint needs no typed default model', () => {
+    localStorage.clear()
+    const keys = {
+      openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1',
+      openaiCompatibleApiKey: '',
+      openaiCompatibleDefaultModel: '',
+    }
+    writeStoredByokKeys({
+      ...keys,
+      verifiedProviders: { openaiCompatible: buildByokVerificationFingerprint('openaiCompatible', keys) },
+    })
+    const readiness = getAiGenerationReadiness(null)
+    assert(readiness.enabled === true, 'Expected a verified endpoint to allow AI generation')
+    assert(!readiness.warning, `Expected no warning for a verified endpoint, got: ${readiness.warning}`)
   })
 
   await test('chat execution access supports gemini and ollama paths', () => {

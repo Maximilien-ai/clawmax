@@ -1,4 +1,4 @@
-import { __test, clearModelCache, discoverModels } from './model-discovery'
+import { __test, clearModelCache, discoverModels, getCachedOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleDefaultModel } from './model-discovery'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -191,6 +191,80 @@ test('xAI discovery only exposes models supported by the pinned OpenClaw runtime
   assert(models.includes('xai/grok-4.3'), 'Expected compatible Grok 4.3 model')
   assert(!models.includes('xai/grok-4.5'), 'Did not expect Grok 4.5 before pinned runtime support')
   assert(!models.includes('xai/v1'), 'Did not expect non-Grok endpoint id')
+})
+
+test('An OpenAI-compatible endpoint with no configured default model resolves its own first chat model', async () => {
+  clearModelCache()
+  global.fetch = (async (url: string) => {
+    assert(url === 'http://172.16.1.70:8000/v1/models', `Expected the configured endpoint, got ${url}`)
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'text-embedding-nomic-embed-text-v1.5' }, { id: 'deepseek-ai/DeepSeek-V4-Flash-0731' }] }),
+    } as any
+  }) as any
+
+  const resolved = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  assert(resolved === 'deepseek-ai/DeepSeek-V4-Flash-0731', `Expected the endpoint's own chat model, got ${resolved}`)
+  assert(
+    getCachedOpenAiCompatibleDefaultModel('http://172.16.1.70:8000/v1/') === 'deepseek-ai/DeepSeek-V4-Flash-0731',
+    'Expected the cached read to answer with the same model regardless of a trailing slash',
+  )
+})
+
+test('A configured default model outranks whatever the endpoint advertises', async () => {
+  clearModelCache()
+  global.fetch = (async () => {
+    throw new Error('Discovery must not run when the operator named a model')
+  }) as any
+
+  const resolved = await resolveOpenAiCompatibleDefaultModel({
+    baseUrl: 'http://172.16.1.70:8000/v1',
+    defaultModel: 'openai-compatible/operator-choice',
+  })
+  assert(resolved === 'operator-choice', `Expected the operator's model without its provider prefix, got ${resolved}`)
+})
+
+test('An endpoint advertising only non-chat models resolves to no default', async () => {
+  clearModelCache()
+  global.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ data: [{ id: 'text-embedding-nomic-embed-text-v1.5' }] }),
+  }) as any) as any
+
+  const resolved = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  assert(resolved === undefined, `Expected no chat-capable default, got ${resolved}`)
+})
+
+test('A cold discovery cache answers undefined rather than guessing', () => {
+  clearModelCache()
+  assert(
+    getCachedOpenAiCompatibleDefaultModel('http://172.16.1.70:8000/v1') === undefined,
+    'Expected no answer from an unwarmed cache',
+  )
+})
+
+test('concurrent cold lookups issue one request and preserve endpoint order', async () => {
+  clearModelCache()
+  let requests = 0
+  global.fetch = (async () => {
+    requests++
+    await new Promise(r => setTimeout(r, 30))
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'zeta-chat-model' }, { id: 'alpha-chat-model' }] }),
+    } as any
+  }) as any
+
+  const resolved = await Promise.all(Array.from({ length: 8 }, () =>
+    resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://busy-endpoint:8000/v1' })))
+  assert(requests === 1, `Expected one coalesced /models request, got ${requests}`)
+  assert(
+    resolved.every(model => model === 'zeta-chat-model'),
+    `Expected the endpoint's own first chat model, got ${JSON.stringify(resolved.slice(0, 3))}`,
+  )
 })
 
 testChain.then(() => {
