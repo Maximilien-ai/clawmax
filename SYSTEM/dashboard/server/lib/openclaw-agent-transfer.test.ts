@@ -9,6 +9,7 @@ import os from 'os'
 import path from 'path'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import { execFileSync } from 'child_process'
+import { materializeDashboardAgentList } from './openclaw-config'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -35,6 +36,12 @@ async function test(name: string, fn: () => void | Promise<void>) {
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
+}
+
+function readMaterializedConfig(configPath: string): any {
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  materializeDashboardAgentList(config)
+  return config
 }
 
 function expectThrows(fn: () => unknown, expected: string) {
@@ -165,7 +172,7 @@ async function run() {
     assert(communities.includes('alpha, beta') || communities.includes('beta, alpha'), 'Expected imported agent added to community members')
     assert(groups.includes('alpha, beta') || groups.includes('beta, alpha'), 'Expected imported agent added to group members')
 
-    const config = JSON.parse(fs.readFileSync(path.join(tmpHome, '.openclaw', 'openclaw.json'), 'utf-8'))
+    const config = readMaterializedConfig(path.join(tmpHome, '.openclaw', 'openclaw.json'))
     const importedConfig = config.agents.list.find((agent: any) => agent.id === 'beta')
     assert(importedConfig, 'Expected imported agent registered in openclaw.json')
     assert(Array.isArray(importedConfig.skills) && importedConfig.skills.includes('workspace-ls'), 'Expected skills preserved in imported config')
@@ -191,7 +198,7 @@ async function run() {
     assert(result.metadataRestored === true, 'Expected bundle metadata to be restored')
     assert(result.warnings.some((warning) => warning.includes('Missing Community')), 'Expected warning for missing community')
 
-    const config = JSON.parse(fs.readFileSync(path.join(tmpHome, '.openclaw', 'openclaw.json'), 'utf-8'))
+    const config = readMaterializedConfig(path.join(tmpHome, '.openclaw', 'openclaw.json'))
     const importedConfig = config.agents.list.find((agent: any) => agent.id === 'gamma')
     assert(importedConfig?.skills?.includes('github'), 'Expected bundle skill metadata to be restored')
   })
@@ -257,7 +264,7 @@ async function run() {
     const result = importAgentFromOpenClaw('alpha', 'delta')
     assert(result.importedId === 'delta', 'Expected imported ID to be delta')
 
-    const config = JSON.parse(fs.readFileSync(path.join(tmpHome, '.openclaw', 'openclaw.json'), 'utf-8'))
+    const config = readMaterializedConfig(path.join(tmpHome, '.openclaw', 'openclaw.json'))
     const importedConfig = config.agents.list.find((agent: any) => agent.id === 'delta')
     assert(importedConfig, 'Expected imported delta registered in openclaw.json')
     assert(Array.isArray(importedConfig.skills) && importedConfig.skills.includes('workspace-ls'), 'Expected active workspace skills preserved during import')
