@@ -532,6 +532,28 @@ changes remain uncommitted.
 - [x] All owning-repository changes are committed and pushed with approved
   lowercase Conventional Commit prefixes.
 
+## Coverage 75 Continuation — 2026-09-01
+
+The first follow-on tranche targets agent-transfer error and persistence
+branches on `test/branch-coverage-75`.
+
+- Added five focused tests for absent, hidden, empty, malformed, duplicate,
+  invalid, and metadata-free transfer inputs, plus explicit skill/membership
+  omission behavior.
+- Focused agent-transfer suite: 11/11 passed.
+- Focused c8 branch result changed from 52/110 (47.27%) to 120/148 (81.08%).
+- Complete integration, validation, and coverage gate: 476/476 passed.
+- Repository branch coverage changed from 71.38% (12,180/17,062) to 71.64%
+  (12,257/17,109).
+- At the current denominator, 75% requires 12,832 covered branches. The
+  remaining gap is 575 branches.
+
+Instrumentation includes additional test-side branches, so judge each tranche
+by the repository-wide ratio and net target gap, not only the focused file's
+percentage. The next highest-value production gaps are agent routes,
+templates, plugin hosting, workflows, workspace handling, AI generation, and
+agent execution. Keep each tranche behavior-focused and independently green.
+
 ## References
 
 - [AI Builder / Designer](../features/AI_BUILDER_DESIGNER.md)
