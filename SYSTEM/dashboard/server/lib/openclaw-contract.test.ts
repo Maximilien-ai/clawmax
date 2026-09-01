@@ -86,8 +86,9 @@ test('dashboard-managed config writes preserve protected gateway fields', () => 
     assert.strictEqual(saved.gateway.auth.token, 'stable-auth')
     assert.strictEqual(saved.gateway.remote.token, 'stable-remote')
     assert.strictEqual(saved.gateway.tailscale.hostname, 'stable-host')
-    assert.strictEqual(saved.agents.list[0].workspace, '/new/workspace/AGENTS/alpha')
-    assert.deepStrictEqual(saved.agents.list[0].skills, ['slack'])
+    assert.strictEqual(saved.agents.entries.alpha.workspace, '/new/workspace/AGENTS/alpha')
+    assert.deepStrictEqual(saved.agents.entries.alpha.skills, ['slack'])
+    assert(!('list' in saved.agents), 'Expected durable config to use the OpenClaw 2 keyed roster')
   })
 })
 

@@ -9,6 +9,7 @@ import { getWorkspaceManager } from './workspace-manager'
 import { getPausedAgents } from './agent-state'
 import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
 import { REPO_ROOT } from './paths'
+import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 
 // Legacy constant for backward compatibility
 export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
@@ -334,7 +335,7 @@ function getRegisteredAgentDirectoryNames(): Set<string> {
   try {
     const configPath = path.join(home, '.openclaw', 'openclaw.json')
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = Array.isArray(config?.agents?.list) ? config.agents.list : []
+    const agentList = materializeDashboardAgentList(config)
     for (const agent of agentList) {
       const workspace = typeof agent?.workspace === 'string' ? path.resolve(agent.workspace) : ''
       if (!workspace) continue
@@ -2023,7 +2024,7 @@ export function listAgents(): AgentInfo[] {
   try {
     const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list || []
+    const agentList = materializeDashboardAgentList(config)
 
     // Validate openclaw.json structure
     const { validateAgents } = require('./validator')
@@ -2467,16 +2468,17 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
   try {
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      if (Array.isArray(config.agents?.list)) {
-        const originalLength = config.agents.list.length
-        config.agents.list = config.agents.list.filter((agent: any) => {
+      const agentList = materializeDashboardAgentList(config)
+      if (agentList.length > 0) {
+        const originalLength = agentList.length
+        config.agents.list = agentList.filter((agent: any) => {
           if (agent?.id !== id) return true
           const workspacePath = typeof agent?.workspace === 'string' ? path.resolve(agent.workspace) : ''
           return workspacePath !== path.resolve(activeWorkspaceAgentDir)
         })
         hasRemainingWorkspaceCopies = config.agents.list.some((agent: any) => agent?.id === id)
         if (config.agents.list.length < originalLength) {
-          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+          writeDashboardManagedOpenClawConfig(configPath, config, `deleteAgent(${id})`)
           steps.push(`Removed ${id} from openclaw.json for active workspace`)
         } else {
           steps.push(`No active-workspace openclaw.json entry found for ${id} (skipped)`)

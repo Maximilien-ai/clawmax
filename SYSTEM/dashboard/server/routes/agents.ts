@@ -41,7 +41,7 @@ import { recommendModelsForDescription, type ModelFitPreference } from '../lib/m
 import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
 import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleDirectory, importAgentFromOpenClaw, importAgentFromZipArchive, listImportableOpenClawAgents } from '../lib/openclaw-agent-transfer'
 import { normalizeChatMessage } from '../lib/chat-normalization'
-import { writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
+import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
 import { runExclusiveAgentExecution } from '../lib/agent-execution'
 import { withRegisteredTurn } from '../lib/agent-turns'
 import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
@@ -285,7 +285,8 @@ async function registerAgentInConfig(agentId: string, profile: boolean): Promise
 
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
 
-      if (config.agents?.list?.some((a: any) => a.id === agentId)) {
+      const agentList = materializeDashboardAgentList(config)
+      if (agentList.some((a: any) => a.id === agentId)) {
         return { ok: true }
       }
 
@@ -296,9 +297,7 @@ async function registerAgentInConfig(agentId: string, profile: boolean): Promise
         agentDir
       }
 
-      if (!config.agents) config.agents = {}
-      if (!config.agents.list) config.agents.list = []
-      config.agents.list.push(newAgent)
+      agentList.push(newAgent)
 
       writeDashboardManagedOpenClawConfig(configPath, config, `registerAgentInConfig(profile:${agentId})`)
       return { ok: true }
