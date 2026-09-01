@@ -5,6 +5,7 @@ import os from 'os'
 import { randomUUID } from 'crypto'
 import { execSync } from 'child_process'
 import { safeEnv } from './safe-env'
+import { canonicalizeDashboardAgentRoster, materializeDashboardAgentList } from './openclaw-config'
 
 export const GATEWAY_PROTOCOL_VERSION = 4
 
@@ -357,7 +358,7 @@ export class GatewayRPCClient {
 
   /**
    * Register a new agent via config.patch
-   * Uses merge patch algorithm to append to agents.list array
+   * Uses merge patch to add a canonical keyed agent entry.
    */
   async registerAgent(agent: {
     id: string
@@ -372,7 +373,7 @@ export class GatewayRPCClient {
       const configData = await this.getConfig()
       const config = configData.resolved || configData.config
       const baseHash = configData.hash
-      const agentsList = config.agents?.list || []
+      const agentsList = materializeDashboardAgentList(config)
 
       // Check if agent already exists
       if (agentsList.find((a: any) => a.id === agent.id)) {
@@ -389,11 +390,13 @@ export class GatewayRPCClient {
       if (agent.model) newAgent.model = agent.model
       if (agent.skills) newAgent.skills = agent.skills
 
-      // Use config.patch to append the new agent
-      // Merge patch algorithm will append to the list array
+      agentsList.push(newAgent)
+      canonicalizeDashboardAgentRoster(config)
+
+      // Submit the complete keyed roster so config.patch remains deterministic.
       const patch = {
         agents: {
-          list: [...agentsList, newAgent]
+          entries: config.agents.entries
         }
       }
 

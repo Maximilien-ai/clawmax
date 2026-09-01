@@ -133,10 +133,9 @@ async function run() {
 
       assert.strictEqual(patchCall.method, 'config.patch')
       assert.strictEqual(patchCall.params.baseHash, 'agents-hash')
-      const list = JSON.parse(patchCall.params.raw).agents.list
-      assert.strictEqual(list.length, 2)
-      assert.deepStrictEqual(list[1], {
-        id: 'new-agent',
+      const entries = JSON.parse(patchCall.params.raw).agents.entries
+      assert.deepStrictEqual(Object.keys(entries), ['existing', 'new-agent'])
+      assert.deepStrictEqual(entries['new-agent'], {
         name: 'New Agent',
         workspace: '/workspace',
         agentDir: '/workspace/AGENTS/new-agent',
@@ -159,12 +158,13 @@ async function run() {
         agentDir: '/workspace/AGENTS/minimal-agent',
       })
 
-      assert.deepStrictEqual(submitted.agents.list, [{
-        id: 'minimal-agent',
+      assert.deepStrictEqual(submitted.agents.entries, {
+        'minimal-agent': {
         name: 'Minimal Agent',
         workspace: '/workspace',
         agentDir: '/workspace/AGENTS/minimal-agent',
-      }])
+        },
+      })
     })
   })
 
