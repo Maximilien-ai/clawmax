@@ -220,7 +220,7 @@ function readOpenClawAgentRecord(agentId: string, activeWorkspaceAgentDir?: stri
   try {
     const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const records = (config?.agents?.list || []).filter((agent: any) => agent.id === agentId)
+    const records = materializeDashboardAgentList(config).filter((agent: any) => agent.id === agentId)
     if (records.length === 0) return null
     if (activeWorkspaceAgentDir) {
       const exactWorkspaceMatch = records.find((agent: any) => agent.workspace === activeWorkspaceAgentDir)

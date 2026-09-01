@@ -1671,7 +1671,7 @@ export function getAgentActivity(agentDir: string, agentId?: string): AgentActiv
       const HOME = process.env.HOME || ''
       const configPath = path.join(HOME, '.openclaw', 'openclaw.json')
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      const agentList = config?.agents?.list || []
+      const agentList = materializeDashboardAgentList(config)
       const normalizedAgentDir = path.resolve(agentDir)
       const matchingAgents = agentList.filter((a: any) => a.id === agentId)
       const exactWorkspaceMatch = matchingAgents.find((a: any) => typeof a?.workspace === 'string' && path.resolve(a.workspace) === normalizedAgentDir)
@@ -2275,7 +2275,7 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
   try {
     const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list || []
+    const agentList = materializeDashboardAgentList(config)
     const agentConfig = agentList.find((a: any) => a.id === id)
     if (agentConfig && agentConfig.skills) {
       skills = agentConfig.skills

@@ -1099,7 +1099,7 @@ router.post('/provision', async (req, res) => {
   let isRegistered = false
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list || []
+    const agentList = materializeDashboardAgentList(config)
     isRegistered = agentList.some((a: any) => a.id === validatedName)
   } catch {}
 
@@ -1561,7 +1561,7 @@ router.post('/doctor', async (req, res) => {
   try {
     const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list || []
+    const agentList = materializeDashboardAgentList(config)
     for (const agent of agentList) {
       if (agent.id) {
         registeredIds.add(agent.id)

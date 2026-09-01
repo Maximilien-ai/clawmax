@@ -74,7 +74,9 @@ function copyMarkdownFiles(srcDir: string, destDir: string): string[] {
 function loadOpenClawConfig(): any {
   const configPath = path.join(getOpenClawRoot(), 'openclaw.json')
   try {
-    return JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    materializeDashboardAgentList(config)
+    return config
   } catch {
     return { agents: { list: [] } }
   }

@@ -7,6 +7,7 @@ import { listAgents, getWorkspacePath, parseGroups } from './workspace'
 import { listExecutions, listWorkflows } from './workflows'
 import { readAgentLifecycleAuditEvents } from './agent-lifecycle-audit'
 import { getMessages } from './messages'
+import { materializeDashboardAgentList } from './openclaw-config'
 
 export const PLUGIN_HOST_API_VERSION = 'clawmax.ai/v2' as const
 
@@ -2327,7 +2328,7 @@ export function getAgentLifecycleEvidence(plugin: PluginManifest, agentId: strin
   let currentModel: string | null = null
   try {
     const config = JSON.parse(fs.readFileSync(path.join(String(process.env.HOME || ''), '.openclaw', 'openclaw.json'), 'utf-8'))
-    const configured = (config?.agents?.list || []).find((entry: any) => entry?.id === agentId)
+    const configured = materializeDashboardAgentList(config).find((entry: any) => entry?.id === agentId)
     currentModel = typeof configured?.model === 'string'
       ? configured.model
       : typeof configured?.model?.primary === 'string'

@@ -6,6 +6,7 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
+import { materializeDashboardAgentList } from './lib/openclaw-config'
 
 const HOME = process.env.HOME || ''
 const AGENTS_DIR = path.join(HOME, '.openclaw', 'workspace', 'AGENTS')
@@ -16,7 +17,7 @@ async function main() {
 
   // Read openclaw.json
   const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
-  const agentList = config?.agents?.list || []
+  const agentList = materializeDashboardAgentList(config)
 
   // Get all agent directories
   const agentDirs = fs.readdirSync(AGENTS_DIR).filter(name => {
