@@ -11,6 +11,7 @@ import { resetAgentSessionsForModelChange } from './agent-model'
 import { resolveDefaultAgentModel } from './agent-default-model'
 import { getAvailableModelsCached } from './model-discovery'
 import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
+import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 
 interface OpenClawAgentRecord {
   id: string
@@ -33,6 +34,7 @@ interface OpenClawConfigFile {
   }
   agents?: {
     list?: Array<Record<string, any>>
+    entries?: Record<string, Record<string, any>>
     defaults?: {
       models?: Record<string, any>
       [key: string]: any
@@ -611,11 +613,13 @@ function resetSessionsIfModelChanged(agentId: string, preferredModel?: string) {
 }
 
 function readOpenClawConfigFile(configPath: string): OpenClawConfigFile {
-  return JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  materializeDashboardAgentList(config)
+  return config
 }
 
 function writeOpenClawConfigFile(configPath: string, config: OpenClawConfigFile) {
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+  writeDashboardManagedOpenClawConfig(configPath, config, 'agent-execution')
 }
 
 function cloneJsonValue<T>(value: T): T {
@@ -634,15 +638,18 @@ function ensureWorkspaceAgentRecordForExecution(
   config.agents = config.agents || {}
   config.agents.list = Array.isArray(config.agents.list) ? config.agents.list : []
 
-  const exactIndex = config.agents.list.findIndex((agent: any) =>
+  let exactIndex = config.agents.list.findIndex((agent: any) =>
     agent?.id === agentId && typeof agent?.workspace === 'string' && agent.workspace === execution.workspace
   )
+  if (exactIndex === -1) {
+    exactIndex = config.agents.list.findIndex((agent: any) => agent?.id === agentId)
+  }
   const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
   const model = normalizeMissingModel(preferredModel)
 
   if (exactIndex >= 0) {
     const current = { ...config.agents.list[exactIndex] }
-    let changed = false
+    let changed = config.agents.list.filter((agent: any) => agent?.id === agentId).length > 1
     if (!current.name) {
       current.name = agentId
       changed = true
@@ -651,12 +658,20 @@ function ensureWorkspaceAgentRecordForExecution(
       current.agentDir = agentDir
       changed = true
     }
+    if (current.workspace !== execution.workspace) {
+      current.workspace = execution.workspace
+      changed = true
+    }
     if (model && current.model !== model) {
       current.model = model
       changed = true
     }
     if (changed) {
-      config.agents.list[exactIndex] = current
+      config.agents.list = config.agents.list.filter((agent: any, index: number) =>
+        agent?.id !== agentId || index === exactIndex
+      )
+      const retainedIndex = config.agents.list.findIndex((agent: any) => agent?.id === agentId)
+      config.agents.list[retainedIndex] = current
       writeOpenClawConfigFile(configPath, config)
     }
     return

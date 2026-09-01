@@ -28,6 +28,7 @@ import {
 } from './agent-execution'
 import { REPO_ROOT } from './paths'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
+import { materializeDashboardAgentList } from './openclaw-config'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -54,6 +55,12 @@ function test(name: string, fn: () => void | Promise<void>) {
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
+}
+
+function readMaterializedConfig(configPath: string): any {
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  materializeDashboardAgentList(config)
+  return config
 }
 
 console.log(`\n${YELLOW}=== Agent Execution Test Suite ===${RESET}\n`)
@@ -796,7 +803,7 @@ test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the durat
 
   await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {
     const current = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
-    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const currentConfig = readMaterializedConfig(configPath)
     const matchingAgent = currentConfig.agents.list.find((agent: any) => agent.id === 'test1' && agent.model === 'openai/gpt-4o-mini')
     assert(current.profiles['openai-key']?.key === 'fresh-openai', 'Expected temporary OpenAI profile')
     assert(!current.profiles['anthropic-key'], 'Expected stale Anthropic profile to be absent during execution')
@@ -805,7 +812,7 @@ test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the durat
   })
 
   const restored = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
-  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const restoredConfig = readMaterializedConfig(configPath)
   const restoredMatchingAgent = restoredConfig.agents.list.find((agent: any) => agent.id === 'test1' && agent.model === 'openai/gpt-4o-mini')
   assert(restored.profiles['anthropic-key']?.key === 'stale-anthropic', 'Expected previous auth profile restored')
   assert(restored.lastGood?.anthropic === 'anthropic-key', 'Expected previous lastGood restored')
@@ -977,7 +984,7 @@ test('withTemporaryAgentAuthProfiles registers workspace custom skill root with 
 
   await withTemporaryAgentAuthProfiles('mechdog', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {})
 
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const config = readMaterializedConfig(configPath)
   const extraDirs = config.skills?.load?.extraDirs || []
   assert(extraDirs.includes(customSkillRoot), 'Expected workspace SKILLS/custom to be registered as OpenClaw extra skill dir')
 })
@@ -1014,7 +1021,7 @@ test('withTemporaryAgentAuthProfiles registers bundled repo custom skill root wi
 
   await withTemporaryAgentAuthProfiles('resend-agent', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {})
 
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const config = readMaterializedConfig(configPath)
   const extraDirs = config.skills?.load?.extraDirs || []
   assert(extraDirs.includes(repoCustomSkillRoot), 'Expected bundled repo SKILLS/custom to be registered as an OpenClaw extra skill dir')
 })
@@ -1088,7 +1095,7 @@ test('withTemporaryAgentAuthProfiles preserves gateway config fields during temp
   resetWorkspaceManagerForTests()
 
   await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai/gpt-4.1', 'openai', async () => {
-    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const currentConfig = readMaterializedConfig(configPath)
     const matchingAgent = currentConfig.agents.list.find((agent: any) => agent.id === 'test1' && agent.model === 'openai/gpt-4.1')
     assert(currentConfig.gateway.auth.token === 'stable-token', 'Expected gateway auth token preserved during override')
     assert(currentConfig.gateway.remote.token === 'stable-token', 'Expected gateway remote token preserved during override')
@@ -1096,7 +1103,7 @@ test('withTemporaryAgentAuthProfiles preserves gateway config fields during temp
     assert(!!matchingAgent, 'Expected resolved execution model to be represented in openclaw.json')
   })
 
-  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const restoredConfig = readMaterializedConfig(configPath)
   const restoredMatchingAgent = restoredConfig.agents.list.find((agent: any) => agent.id === 'test1' && agent.model === 'openai/gpt-4.1')
   assert(restoredConfig.gateway.auth.token === 'stable-token', 'Expected gateway auth token preserved after restore')
   assert(restoredConfig.gateway.remote.token === 'stable-token', 'Expected gateway remote token preserved after restore')
@@ -1127,19 +1134,19 @@ test('withTemporaryAgentAuthProfiles can skip model config mutation for hosted e
   resetWorkspaceManagerForTests()
 
   await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai/gpt-4.1', 'openai', async () => {
-    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const currentConfig = readMaterializedConfig(configPath)
     const matchingAgent = currentConfig.agents.list.find((agent: any) => agent.id === 'test1')
     const currentProfiles = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
     assert(matchingAgent.model === 'openai/gpt-5.5', 'Expected hosted execution path to avoid mutating the saved model')
     assert(currentProfiles.profiles['openai-key']?.key === 'fresh-openai', 'Expected temporary auth profiles to still be written')
   }, { skipModelConfigMutation: true })
 
-  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const restoredConfig = readMaterializedConfig(configPath)
   const restoredMatchingAgent = restoredConfig.agents.list.find((agent: any) => agent.id === 'test1')
   assert(restoredMatchingAgent.model === 'openai/gpt-5.5', 'Expected saved model to remain unchanged after execution')
 })
 
-test('withTemporaryAgentAuthProfiles updates the matching workspace record when ids collide', async () => {
+test('withTemporaryAgentAuthProfiles converges duplicate ids on the active workspace record', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const defaultWorkspace = path.join(home, '.openclaw', 'workspace')
   const activeWorkspace = path.join(home, '.openclaw', 'workspaces', 'clawmax-system-test')
@@ -1177,25 +1184,24 @@ test('withTemporaryAgentAuthProfiles updates the matching workspace record when 
   process.env.OPENCLAW_WORKSPACE = activeWorkspace
   resetWorkspaceManagerForTests()
 
-  const before = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const before = readMaterializedConfig(configPath)
   await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai/gpt-4.1', 'openai', async () => {
-    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const currentConfig = readMaterializedConfig(configPath)
     const defaultEntry = currentConfig.agents.list.find((agent: any) => agent.workspace === defaultAgentWorkspace)
     const activeEntry = currentConfig.agents.list.find((agent: any) => agent.workspace === activeAgentWorkspace)
-    assert(defaultEntry.model === 'anthropic/claude-opus-4-6', 'Expected stale default workspace model to remain untouched')
+    assert(!defaultEntry, 'Expected stale duplicate workspace record to be removed')
     assert(activeEntry.model === 'openai/gpt-4.1', 'Expected active workspace record to receive temporary override')
   })
 
-  const restored = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  const defaultEntryBefore = before.agents.list.find((agent: any) => agent.workspace === defaultAgentWorkspace)
-  const activeEntryBefore = before.agents.list.find((agent: any) => agent.workspace === activeAgentWorkspace)
+  const restored = readMaterializedConfig(configPath)
   const defaultEntryAfter = restored.agents.list.find((agent: any) => agent.workspace === defaultAgentWorkspace)
   const activeEntryAfter = restored.agents.list.find((agent: any) => agent.workspace === activeAgentWorkspace)
-  assert(defaultEntryAfter.model === defaultEntryBefore.model, 'Expected stale default workspace model restored untouched')
+  assert(before.agents.list.length === 2, 'Expected fixture to exercise duplicate legacy records')
+  assert(!defaultEntryAfter, 'Expected stale duplicate workspace record to remain removed')
   assert(activeEntryAfter.model === 'openai/gpt-4.1', 'Expected active workspace record to keep the resolved execution model')
 })
 
-test('withTemporaryAgentAuthProfiles creates an active workspace record instead of mutating a same-id record from another workspace', async () => {
+test('withTemporaryAgentAuthProfiles moves a stale same-id record to the active workspace', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const defaultWorkspace = path.join(home, '.openclaw', 'workspace')
   const activeWorkspace = path.join(home, '.openclaw', 'workspaces', 'personal')
@@ -1230,11 +1236,11 @@ test('withTemporaryAgentAuthProfiles creates an active workspace record instead 
   resetWorkspaceManagerForTests()
 
   await withTemporaryAgentAuthProfiles('jarvis', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {
-    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const currentConfig = readMaterializedConfig(configPath)
     const defaultEntry = currentConfig.agents.list.find((agent: any) => agent.workspace === defaultAgentWorkspace)
     const activeEntry = currentConfig.agents.list.find((agent: any) => agent.workspace === activeAgentWorkspace)
-    assert(defaultEntry.model === 'ollama/qwen2.5:latest', 'Expected same-id record from another workspace to remain untouched')
-    assert(activeEntry?.model === 'openai/gpt-4o-mini', 'Expected active workspace record to be created with the resolved model')
+    assert(!defaultEntry, 'Expected stale same-id workspace record to be removed')
+    assert(activeEntry?.model === 'openai/gpt-4o-mini', 'Expected active workspace record to use the resolved model')
   })
 })
 
@@ -1263,17 +1269,17 @@ test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama 
   process.env.HOME = home
   resetWorkspaceManagerForTests()
   const before = fs.readFileSync(authProfilePath, 'utf-8')
-  const beforeConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const beforeConfig = readMaterializedConfig(configPath)
 
   await withTemporaryAgentAuthProfiles('test-ollama', {}, 'ollama/qwen2.5:latest', 'ollama', async () => {
     const current = fs.readFileSync(authProfilePath, 'utf-8')
-    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const currentConfig = readMaterializedConfig(configPath)
     const originalEntry = currentConfig.agents.list.find((agent: any) => agent.workspace === beforeConfig.agents.list[0].workspace)
     assert(current === before, 'Expected auth profiles unchanged for Ollama')
     assert(originalEntry.model === 'ollama/qwen2.5:latest', 'Expected matching Ollama record model to remain intact')
   })
 
-  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const restoredConfig = readMaterializedConfig(configPath)
   const restoredOriginalEntry = restoredConfig.agents.list.find((agent: any) => agent.workspace === beforeConfig.agents.list[0].workspace)
   assert(restoredOriginalEntry.model === 'ollama/qwen2.5:latest', 'Expected matching Ollama record model to remain intact after execution')
 })
@@ -1296,14 +1302,14 @@ test('withTemporaryAgentAuthProfiles persists Ollama provider config instead of 
   resetWorkspaceManagerForTests()
 
   await withTemporaryAgentAuthProfiles('test-ollama', { ollamaBaseUrl: 'http://127.0.0.1:11434/' }, 'ollama/qwen2.5:latest', 'ollama', async () => {
-    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const currentConfig = readMaterializedConfig(configPath)
     assert(currentConfig.models.providers.ollama.baseUrl === 'http://127.0.0.1:11434', 'Expected temporary Ollama base URL injected')
     assert(currentConfig.models.providers.ollama.api === 'ollama', 'Expected temporary Ollama api marker injected')
     assert(Array.isArray(currentConfig.models.providers.ollama.models), 'Expected temporary Ollama provider models array injected')
     assert(currentConfig.agents.list[0].model === 'ollama/qwen2.5:latest', 'Expected model to remain intact during Ollama execution')
   })
 
-  const persistedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const persistedConfig = readMaterializedConfig(configPath)
   assert(persistedConfig.models.providers.ollama.baseUrl === 'http://127.0.0.1:11434', 'Expected Ollama base URL to remain stable after execution')
   assert(persistedConfig.models.providers.ollama.api === 'ollama', 'Expected Ollama api marker to remain stable after execution')
 })
@@ -1391,7 +1397,7 @@ test('withTemporaryAgentAuthProfiles authorizes the exact LM Studio execution mo
       'openai-compatible/google/gemma-4-31b-qat',
       'openai-compatible',
       async () => {
-        const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        const currentConfig = readMaterializedConfig(configPath)
         assert(currentConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
         assert(currentConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected exact LM Studio execution ref to be authorized for OpenClaw overrides')
         assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected stable LM Studio base URL persisted')
@@ -1409,7 +1415,7 @@ test('withTemporaryAgentAuthProfiles authorizes the exact LM Studio execution mo
     global.fetch = originalFetch
   }
 
-  const persistedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const persistedConfig = readMaterializedConfig(configPath)
   assert(persistedConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', 'Expected saved dashboard model to stay unchanged after execution')
   assert(persistedConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected LM Studio execution allowlist entry to remain stable after execution')
   assert(persistedConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected LM Studio provider config to remain stable after execution')
@@ -1448,13 +1454,13 @@ test('withTemporaryAgentAuthProfiles preserves existing Ollama provider config f
   resetWorkspaceManagerForTests()
 
   await withTemporaryAgentAuthProfiles('test-ollama', { ollamaBaseUrl: 'http://127.0.0.1:11434' }, 'ollama/qwen2.5:latest', 'ollama', async () => {
-    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const currentConfig = readMaterializedConfig(configPath)
     assert(currentConfig.models.providers.ollama.baseUrl === 'http://127.0.0.1:11434', 'Expected temporary Ollama base URL override')
     assert(currentConfig.models.providers.ollama.headers['X-Test'] === 'keep-me', 'Expected existing Ollama provider fields preserved during override')
     assert(Array.isArray(currentConfig.models.providers.ollama.models), 'Expected existing Ollama provider models array normalized during override')
   })
 
-  const persistedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const persistedConfig = readMaterializedConfig(configPath)
   assert(persistedConfig.models.providers.ollama.baseUrl === 'http://127.0.0.1:11434', 'Expected Ollama base URL to remain stable after execution')
   assert(persistedConfig.models.providers.ollama.headers['X-Test'] === 'keep-me', 'Expected existing Ollama provider fields preserved')
 })
@@ -1485,7 +1491,7 @@ test('withTemporaryAgentAuthProfiles preserves config validity when an existing 
   resetWorkspaceManagerForTests()
 
   await withTemporaryAgentAuthProfiles('test-ollama', { ollamaBaseUrl: 'http://127.0.0.1:11434' }, 'ollama/qwen2.5:latest', 'ollama', async () => {
-    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const currentConfig = readMaterializedConfig(configPath)
     assert(Array.isArray(currentConfig.models.providers.ollama.models), 'Expected missing Ollama provider models array synthesized during temporary override')
   })
 })
