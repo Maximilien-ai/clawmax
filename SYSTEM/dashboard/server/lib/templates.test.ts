@@ -31,6 +31,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { REPO_ROOT } from './paths'
+import { materializeDashboardAgentList } from './openclaw-config'
 
 // ANSI color codes
 const GREEN = '\x1b[32m'
@@ -41,6 +42,12 @@ const RESET = '\x1b[0m'
 let testsPassed = 0
 let testsFailed = 0
 let testChain: Promise<void> = Promise.resolve()
+
+function readMaterializedConfig(configPath: string): any {
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  materializeDashboardAgentList(config)
+  return config
+}
 
 function test(name: string, fn: () => void | Promise<void>) {
   testChain = testChain
@@ -972,7 +979,7 @@ test('upsertOpenClawAgentRegistration adopts existing agent ids into active work
     '/new/workspace/AGENTS/test-ceo',
     '/new/home/.openclaw/agents/test-ceo/agent'
   )
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const config = readMaterializedConfig(configPath)
   const agent = config.agents.list.find((entry: any) => entry.id === 'test-ceo')
 
   assert(result?.status === 'updated-existing', `Expected existing registration to be updated, got ${result?.status || 'missing'}`)
@@ -1018,7 +1025,7 @@ test('importAgentFromTemplate registers created agents into the active OpenClaw 
 
     assert(result.ok === true, `Expected agent template import to succeed, got ${result.error || 'unknown error'}`)
 
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const config = readMaterializedConfig(configPath)
     const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
     const expectedWorkspace = path.join(tempWorkspace, 'AGENTS', targetAgentId)
     const expectedAgentDir = path.join(tempHome, '.openclaw', 'agents', targetAgentId, 'agent')
@@ -1065,7 +1072,7 @@ test('importAgentFromTemplate resolves a real default model when no override is 
 
     assert(result.ok === true, `Expected agent template import without override to succeed, got ${result.error || 'unknown error'}`)
 
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const config = readMaterializedConfig(configPath)
     const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
     const expectedRuntimeRoot = path.join(tempHome, '.openclaw', 'agents', targetAgentId)
     const configYamlPath = path.join(expectedRuntimeRoot, 'config.yaml')
@@ -1110,7 +1117,7 @@ test('importAgentFromTemplate accepts logical alias slugs for *-template directo
 
     assert(result.ok === true, `Expected logical alias import to succeed, got ${result.error || 'unknown error'}`)
 
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const config = readMaterializedConfig(configPath)
     const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
     assert(registered !== undefined, 'Expected alias-imported agent to be registered in openclaw.json')
   } finally {
@@ -1145,7 +1152,7 @@ test('importAgentFromTemplate accepts human-facing template name slugs that diff
 
     assert(result.ok === true, `Expected display-name alias import to succeed, got ${result.error || 'unknown error'}`)
 
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const config = readMaterializedConfig(configPath)
     const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
     assert(registered !== undefined, 'Expected display-name alias imported agent to be registered in openclaw.json')
   } finally {
@@ -1551,7 +1558,7 @@ test('importOrganizationTemplate creates nested teams and workflow handoff metad
     assert(qa?.memberAgentIds.includes('demo-release-analyst') === true, 'Expected QA members to include release analyst')
 
     const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const config = readMaterializedConfig(configPath)
     const demoMarketingLead = config?.agents?.list?.find((agent: any) => agent.id === 'demo-marketing-lead' && agent.workspace === path.join(tempWorkspace, 'AGENTS', 'demo-marketing-lead'))
     assert(demoMarketingLead?.model === 'openai/gpt-5.4-mini', `Expected imported live config model to use the pinned runtime default model, got ${demoMarketingLead?.model || 'missing'}`)
 

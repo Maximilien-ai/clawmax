@@ -3,7 +3,7 @@ import path from 'path'
 import matter from 'gray-matter'
 import { getSystemProviderKeys } from './dashboard-env'
 import Ajv from 'ajv'
-import { execFileSync, execSync } from 'child_process'
+import { execSync } from 'child_process'
 import { getWorkspacePath, getAgentsDir, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
 import { setAgentSkills, getAgentSkills } from './skills'
 import { listWorkflows, createWorkflow } from './workflows'
@@ -11,11 +11,10 @@ import { createTeam, getTeam, updateTeam, type TeamInput } from './teams'
 import { TEMPLATES_DIR, TEMPLATE_SCHEMAS_DIR } from './paths'
 import { validateAgentConfigSections } from './agent-config-validation'
 import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile } from './agent-model'
-import { safeEnv } from './safe-env'
 import { recordTemplateApply, type CanonicalTemplateFeedbackSource, type CanonicalTemplateFeedbackType } from './template-feedback'
 import { resolveDefaultAgentModel } from './agent-default-model'
-import { resolveOpenClawCliPath } from './openclaw-cli'
 import { applyGeneratedWorkflowHandoffs, normalizeGeneratedWorkflowReferences } from './ai-generator'
+import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 
 // Template storage paths (dynamic functions)
 
@@ -216,9 +215,7 @@ function finalizeTemplateCreatedAgentRegistration(args: {
   const { agentId, workspacePath, model } = args
   const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
   const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
-  const registrationEnv = safeEnv({ OPENCLAW_WORKSPACE: workspacePath })
-
-  const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg, registrationEnv)
+  const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg)
   if (registration.status === 'created') {
     console.log(`Registered agent ${agentId} in openclaw.json`)
   } else if (registration.status === 'updated-existing') {
@@ -229,7 +226,7 @@ function finalizeTemplateCreatedAgentRegistration(args: {
 
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  const registered = Array.isArray(config?.agents?.list) && config.agents.list.some((agent: any) =>
+  const registered = materializeDashboardAgentList(config).some((agent: any) =>
     agent?.id === agentId && String(agent?.workspace || '') === workspaceArg
   )
   if (!registered) {
@@ -697,8 +694,7 @@ function readOpenClawConfig(configPath: string): any {
   if (!fs.existsSync(configPath)) return { agents: { list: [] } }
   try {
     const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8') || '{}')
-    if (!parsed.agents || typeof parsed.agents !== 'object') parsed.agents = {}
-    if (!Array.isArray(parsed.agents.list)) parsed.agents.list = []
+    materializeDashboardAgentList(parsed)
     return parsed
   } catch {
     return { agents: { list: [] } }
@@ -729,8 +725,7 @@ export function upsertOpenClawAgentRegistration(
 
   if (changed) {
     Object.assign(existing, desired)
-    fs.mkdirSync(path.dirname(configPath), { recursive: true })
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+    writeDashboardManagedOpenClawConfig(configPath, config, `upsertOpenClawAgentRegistration(${agentId})`)
     return { status: 'updated-existing' }
   }
 
@@ -744,52 +739,25 @@ function createOpenClawAgentRegistration(
   agentDirArg: string
 ): OpenClawAgentRegistrationResult {
   const config = readOpenClawConfig(configPath)
-  config.agents = config.agents || { list: [] }
-  config.agents.list = Array.isArray(config.agents.list) ? config.agents.list : []
-  config.agents.list.push({
+  materializeDashboardAgentList(config).push({
     id: agentId,
     name: agentId,
     workspace: workspaceArg,
     agentDir: agentDirArg,
   })
-  fs.mkdirSync(path.dirname(configPath), { recursive: true })
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+  writeDashboardManagedOpenClawConfig(configPath, config, `createOpenClawAgentRegistration(${agentId})`)
   return { status: 'created' }
 }
 
 function ensureOpenClawAgentRegisteredForWorkspace(
   agentId: string,
   workspaceArg: string,
-  agentDirArg: string,
-  registrationEnv: NodeJS.ProcessEnv
+  agentDirArg: string
 ): OpenClawAgentRegistrationResult {
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   const existing = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
   if (existing) return existing
-
-  const openclawCli = resolveOpenClawCliPath()
-  if (!openclawCli) {
-    return createOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
-  }
-
-  try {
-    execFileSync(openclawCli, ['agents', 'add', agentId, '--workspace', workspaceArg, '--agent-dir', agentDirArg, '--non-interactive'], {
-      encoding: 'utf-8',
-      stdio: 'pipe',
-      env: registrationEnv,
-    })
-    const registered = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
-    return registered || createOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
-      return createOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
-    }
-    if (isOpenClawAgentAlreadyExistsError(err)) {
-      const adopted = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
-      if (adopted) return adopted
-    }
-    throw err
-  }
+  return createOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
 }
 
 function runOrganizationPostImportSetup(args: {
@@ -811,9 +779,7 @@ function runOrganizationPostImportSetup(args: {
     try {
       const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
       const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
-      const registrationEnv = safeEnv({ OPENCLAW_WORKSPACE: workspacePath })
-
-      const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg, registrationEnv)
+      const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg)
       if (registration.status === 'created') {
         console.log(`Registered agent ${agentId} in openclaw.json`)
       } else if (registration.status === 'updated-existing') {
@@ -824,7 +790,7 @@ function runOrganizationPostImportSetup(args: {
 
       const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      const registered = Array.isArray(config?.agents?.list) && config.agents.list.some((agent: any) =>
+      const registered = materializeDashboardAgentList(config).some((agent: any) =>
         agent?.id === agentId && String(agent?.workspace || '') === workspaceArg
       )
       if (!registered) {
