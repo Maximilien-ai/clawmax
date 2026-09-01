@@ -5,6 +5,7 @@ import {
   canonicalizeDashboardAgentRoster,
   healDashboardManagedOpenClawConfig,
   materializeDashboardAgentList,
+  normalizeDashboardOpenClaw2Config,
   stripUnsupportedDashboardAgentKeys,
   writeDashboardManagedOpenClawConfig,
 } from './openclaw-config'
@@ -141,6 +142,23 @@ test('canonicalizeDashboardAgentRoster rejects malformed legacy ids without data
     assert(failed, `Expected invalid roster to fail: ${JSON.stringify(list)}`)
     assert(Array.isArray(config.agents.list), 'Expected failed migration to retain the source list')
   }
+})
+
+test('normalizeDashboardOpenClaw2Config adds explicit ownership and removes retired command metadata', () => {
+  const config: any = {
+    agents: { entries: { alpha: {}, beta: {} } },
+    commands: { ownerDisplay: 'legacy-owner', native: true },
+  }
+  assert(normalizeDashboardOpenClaw2Config(config), 'Expected the OpenClaw 2.0 config to change')
+  assert(config.agents.ownership === 'explicit', 'Expected multi-agent ownership to be explicit')
+  assert(!('ownerDisplay' in config.commands), 'Expected retired commands.ownerDisplay to be removed')
+  assert(config.commands.native === true, 'Expected supported command configuration to survive')
+  assert(!normalizeDashboardOpenClaw2Config(config), 'Expected repeated normalization to be idempotent')
+
+  const single: any = { agents: { entries: { alpha: {} } }, commands: null }
+  assert(!normalizeDashboardOpenClaw2Config(single), 'Expected a single-agent config without retired keys to remain unchanged')
+  assert(!('ownership' in single.agents), 'Expected single-agent ownership to remain optional')
+  assert(normalizeDashboardOpenClaw2Config(null) === false, 'Expected invalid roots to remain a safe no-op')
 })
 
 test('healDashboardManagedOpenClawConfig is idempotent for canonical config', () => {

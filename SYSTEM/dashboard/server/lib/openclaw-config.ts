@@ -78,6 +78,24 @@ export function stripUnsupportedDashboardAgentKeys(config: any): boolean {
   return changed
 }
 
+export function normalizeDashboardOpenClaw2Config(config: any): boolean {
+  if (!isRecord(config)) return false
+
+  let changed = false
+  const agentList = materializeDashboardAgentList(config)
+  if (agentList.length > 1 && config.agents.ownership !== 'explicit') {
+    config.agents.ownership = 'explicit'
+    changed = true
+  }
+
+  if (isRecord(config.commands) && Object.prototype.hasOwnProperty.call(config.commands, 'ownerDisplay')) {
+    delete config.commands.ownerDisplay
+    changed = true
+  }
+
+  return changed
+}
+
 function safeReadJson(filePath: string): any | null {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf-8'))
@@ -120,6 +138,7 @@ export function writeDashboardManagedOpenClawConfig(
   }
 
   stripUnsupportedDashboardAgentKeys(nextConfig)
+  normalizeDashboardOpenClaw2Config(nextConfig)
   stampDashboardMetadata(nextConfig)
   canonicalizeDashboardAgentRoster(nextConfig)
   fs.writeFileSync(configPath, JSON.stringify(nextConfig, null, 2), 'utf-8')
@@ -133,6 +152,7 @@ export function healDashboardManagedOpenClawConfig(configPath: string, context: 
     }
     const before = JSON.stringify(current)
     stripUnsupportedDashboardAgentKeys(current)
+    normalizeDashboardOpenClaw2Config(current)
     stampDashboardMetadata(current)
     canonicalizeDashboardAgentRoster(current)
     if (JSON.stringify(current) === before) {
