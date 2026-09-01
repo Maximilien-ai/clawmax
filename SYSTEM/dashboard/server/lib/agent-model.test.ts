@@ -19,6 +19,7 @@ import {
   upsertAgentRuntimeInIdentityContent,
 } from './agent-model'
 import { parseIdentity } from './workspace'
+import { materializeDashboardAgentList } from './openclaw-config'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -44,6 +45,12 @@ function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
 }
 
+function readMaterializedConfig(configPath: string): any {
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  materializeDashboardAgentList(config)
+  return config
+}
+
 console.log(`\n${YELLOW}=== Agent Model Test Suite ===${RESET}\n`)
 
 test('updateAgentModelInConfigFile updates model in openclaw.json', () => {
@@ -61,10 +68,13 @@ test('updateAgentModelInConfigFile updates model in openclaw.json', () => {
   const result = updateAgentModelInConfigFile(configPath, 'ceo', 'openai/gpt-4.1')
   assert(result.ok, result.error || 'Expected update to succeed')
 
-  const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const durable = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(durable.agents.entries?.ceo, 'Expected canonical keyed agent entry to be persisted')
+  assert(!('list' in durable.agents), 'Expected legacy agent list to be removed')
+  const updated = readMaterializedConfig(configPath)
   assert(updated.agents.list[0].model === 'openai/gpt-4.1', 'Expected model to be updated')
   assert(updated.agents.defaults.models['openai/gpt-4.1'] !== undefined, 'Expected selected model to be added to the OpenClaw override allowlist')
-  assert(typeof updated.meta?.lastTouchedAt === 'string', 'Expected metadata stamp to be written')
+  assert(!('lastTouchedAt' in (updated.meta || {})), 'Expected unsupported timestamp metadata to be omitted')
 })
 
 test('updateAgentModelInConfigFile is a no-op when the normalized model is unchanged', () => {
@@ -123,12 +133,13 @@ test('updateAgentModelInConfigFile updates the matching workspace record when id
   const result = updateAgentModelInConfigFile(configPath, 'ceo', 'ollama/qwen2.5:latest', { workspacePath: activeWorkspace })
   assert(result.ok, result.error || 'Expected workspace-targeted update to succeed')
 
-  const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  assert(updated.agents.list[0].model === 'anthropic/claude-opus-4-6', 'Expected stale duplicate record to remain unchanged')
-  assert(updated.agents.list[1].model === 'ollama/qwen2.5:latest', 'Expected active workspace record to be updated')
+  const updated = readMaterializedConfig(configPath)
+  assert(updated.agents.list.length === 1, 'Expected duplicate legacy records to converge to one canonical entry')
+  assert(updated.agents.list[0].workspace === activeWorkspace, 'Expected the active workspace record to be retained')
+  assert(updated.agents.list[0].model === 'ollama/qwen2.5:latest', 'Expected active workspace record to be updated')
 })
 
-test('upsertAgentModelInConfigFile creates an active workspace record without touching same-id stale records', () => {
+test('upsertAgentModelInConfigFile moves a stale same-id record to the active workspace', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
   const configPath = path.join(tmpDir, 'openclaw.json')
   const staleWorkspace = path.join(tmpDir, 'workspace-a', 'AGENTS', 'ceo')
@@ -152,12 +163,11 @@ test('upsertAgentModelInConfigFile creates an active workspace record without to
   assert(result.changed === true, 'Expected upsert to report a changed config')
   assert(result.model === 'openai/gpt-4o-mini', 'Expected upsert to report normalized model')
 
-  const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  assert(updated.agents.list.length === 2, 'Expected active workspace record to be appended')
-  assert(updated.agents.list[0].model === 'ollama/qwen2.5:latest', 'Expected stale record to remain unchanged')
-  assert(updated.agents.list[1].workspace === activeWorkspace, 'Expected active workspace path on appended record')
-  assert(updated.agents.list[1].agentDir === activeAgentDir, 'Expected runtime agent dir on appended record')
-  assert(updated.agents.list[1].model === 'openai/gpt-4o-mini', 'Expected appended record to use normalized model')
+  const updated = readMaterializedConfig(configPath)
+  assert(updated.agents.list.length === 1, 'Expected one canonical record for the agent id')
+  assert(updated.agents.list[0].workspace === activeWorkspace, 'Expected active workspace path on canonical record')
+  assert(updated.agents.list[0].agentDir === activeAgentDir, 'Expected runtime agent dir on canonical record')
+  assert(updated.agents.list[0].model === 'openai/gpt-4o-mini', 'Expected canonical record to use normalized model')
   assert(updated.agents.defaults.models['openai/gpt-4o-mini'] !== undefined, 'Expected upserted model to be allowed for runtime overrides')
 })
 
@@ -178,7 +188,7 @@ test('upsertAgentModelInConfigFile updates the exact active workspace record', (
   assert(result.ok, result.error || 'Expected upsert update to succeed')
   assert(result.changed === true, 'Expected exact workspace update to report changed')
 
-  const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const updated = readMaterializedConfig(configPath)
   assert(updated.agents.list.length === 1, 'Expected exact workspace update not to append a duplicate')
   assert(updated.agents.list[0].model === 'openai/gpt-4o-mini', 'Expected active workspace model to be updated')
 })
@@ -232,7 +242,7 @@ test('upsertAgentModelInConfigFile writes a new agent when its model is already 
   assert(result.ok, result.error || 'Expected upsert to succeed')
   assert(result.changed === true, 'Expected a newly inserted agent to report a change')
 
-  const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const updated = readMaterializedConfig(configPath)
   assert(updated.agents.list.length === 1, 'Expected the new agent record to be persisted')
   assert(updated.agents.list[0].id === 'new-agent', 'Expected the persisted agent id')
   assert(updated.agents.list[0].model === 'openai/gpt-4o-mini', 'Expected the persisted agent model')
@@ -542,7 +552,7 @@ test('updateAgentBackupModelInConfigFile strips unsupported backup model from op
   assert(result.ok, result.error || 'Expected backup model update to succeed')
   assert(result.backupModel === 'anthropic/claude-sonnet-4-6', 'Expected normalized backup model result')
 
-  const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const updated = readMaterializedConfig(configPath)
   assert(!('backupModel' in updated.agents.list[0]), 'Expected unsupported backupModel key to be removed from openclaw.json')
 })
 
@@ -561,7 +571,7 @@ test('updateAgentModelInConfigFile strips stale unsupported backup model keys wh
   const result = updateAgentModelInConfigFile(configPath, 'ceo', 'openai/gpt-4.1')
   assert(result.ok, result.error || 'Expected model update to succeed')
 
-  const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const updated = readMaterializedConfig(configPath)
   assert(updated.agents.list[0].model === 'openai/gpt-4.1', 'Expected primary model update to persist')
   assert(!('backupModel' in updated.agents.list[0]), 'Expected stale unsupported backupModel key to be scrubbed')
 })
