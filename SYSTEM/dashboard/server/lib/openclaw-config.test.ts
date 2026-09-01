@@ -116,9 +116,18 @@ test('materializeDashboardAgentList projects canonical keyed entries for dashboa
   assert(config.agents.defaults.model === 'openai/gpt-4o-mini', 'Expected agent defaults to survive canonicalization')
 })
 
-test('canonicalizeDashboardAgentRoster rejects duplicate or malformed legacy ids without data loss', () => {
+test('canonicalizeDashboardAgentRoster keeps the last legacy duplicate to match keyed roster semantics', () => {
+  const config: any = { agents: { list: [
+    { id: 'duplicate', workspace: '/stale' },
+    { id: 'duplicate', workspace: '/active' },
+  ] } }
+  canonicalizeDashboardAgentRoster(config)
+  assert(config.agents.entries.duplicate.workspace === '/active', 'Expected the last duplicate record to win')
+  assert(!('list' in config.agents), 'Expected the legacy list to be removed')
+})
+
+test('canonicalizeDashboardAgentRoster rejects malformed legacy ids without data loss', () => {
   for (const list of [
-    [{ id: 'duplicate' }, { id: 'duplicate' }],
     [{ id: ' spaced ' }],
     [null],
   ]) {
@@ -172,7 +181,7 @@ test('roster helpers fail closed for invalid roots and safely initialize absent 
   assert(stripUnsupportedDashboardAgentKeys(malformedList) === false, 'Expected malformed list entries to be skipped safely')
 })
 
-test('write creates a new canonical config and heal reports invalid or duplicate sources safely', () => {
+test('write creates a canonical config and heal safely handles invalid JSON and duplicate rosters', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-config-test-'))
   const configPath = path.join(tmpDir, 'new', 'openclaw.json')
   writeDashboardManagedOpenClawConfig(configPath, { agents: { list: [] } }, 'new-config-test')
@@ -185,10 +194,14 @@ test('write creates a new canonical config and heal reports invalid or duplicate
   assert(invalid.ok && invalid.changed === false, 'Expected invalid JSON healing to remain a safe no-op')
 
   const duplicatePath = path.join(tmpDir, 'duplicate.json')
-  fs.writeFileSync(duplicatePath, JSON.stringify({ agents: { list: [{ id: 'same' }, { id: 'same' }] } }), 'utf-8')
+  fs.writeFileSync(duplicatePath, JSON.stringify({ agents: { list: [
+    { id: 'same', workspace: '/stale' },
+    { id: 'same', workspace: '/active' },
+  ] } }), 'utf-8')
   const duplicate = healDashboardManagedOpenClawConfig(duplicatePath, 'duplicate-heal-test')
-  assert(!duplicate.ok && duplicate.changed === false, 'Expected duplicate legacy IDs to fail without writing')
-  assert(Boolean(duplicate.error?.includes('duplicate id')), 'Expected duplicate failure to remain actionable')
+  assert(duplicate.ok && duplicate.changed === true, 'Expected duplicate legacy IDs to heal into keyed roster semantics')
+  const healed = JSON.parse(fs.readFileSync(duplicatePath, 'utf-8'))
+  assert(healed.agents.entries.same.workspace === '/active', 'Expected healing to retain the last duplicate record')
 })
 
 console.log(`\nTests passed: ${testsPassed}`)

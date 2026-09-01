@@ -39,10 +39,10 @@ export function canonicalizeDashboardAgentRoster(config: any): boolean {
     if (typeof id !== 'string' || !id || id.trim() !== id) {
       throw new Error('OpenClaw agent roster entries require a non-empty, trimmed id')
     }
-    if (Object.prototype.hasOwnProperty.call(entries, id)) {
-      throw new Error(`OpenClaw agent roster contains duplicate id: ${id}`)
-    }
     const { id: _id, backupModel: _backupModel, ...entry } = item
+    // OpenClaw 2 keys the roster by id, so legacy duplicates cannot survive.
+    // Match the upstream migration's object-assignment behavior: the last
+    // record wins, which favors the most recently appended workspace record.
     entries[id] = entry
   }
 
