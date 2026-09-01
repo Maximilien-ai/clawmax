@@ -3,6 +3,13 @@ import path from 'path'
 import os from 'os'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import type { OpenClawSkill, SkillInstallOption } from './skills'
+import { materializeDashboardAgentList } from './openclaw-config'
+
+function readMaterializedConfig(configPath: string): any {
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  materializeDashboardAgentList(config)
+  return config
+}
 
 /**
  * Skills API Test Suite
@@ -756,10 +763,10 @@ test('setAgentSkills() updates only the active workspace record and preserves ga
 
   setAgentSkills('shared-agent', ['github', 'workspace-ls'])
 
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const config = readMaterializedConfig(configPath)
   const defaultEntry = config.agents.list.find((entry: any) => entry.workspace === defaultWorkspaceAgent)
   const activeEntry = config.agents.list.find((entry: any) => entry.workspace === activeWorkspaceAgent)
-  assertEqual(JSON.stringify(defaultEntry.skills), JSON.stringify(['github']), 'Expected stale workspace skills unchanged')
+  assertEqual(defaultEntry, undefined, 'Expected stale duplicate workspace record removed')
   assertEqual(JSON.stringify(activeEntry.skills), JSON.stringify(['github', 'workspace-ls']), 'Expected active workspace skills updated')
   assertEqual(config.gateway.auth.token, 'stable-token', 'Expected gateway auth token preserved')
   assertEqual(config.gateway.remote.token, 'stable-token', 'Expected gateway remote token preserved')
@@ -925,7 +932,7 @@ test('setAgentSkills() tolerates minimal openclaw.json root shape', () => {
 
   setAgentSkills('minimal-agent', ['github'])
 
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const config = readMaterializedConfig(configPath)
   assertEqual(JSON.stringify(config.agents.list[0].skills), JSON.stringify(['github']), 'Expected skills to persist even from a minimal agent record')
 })
 
