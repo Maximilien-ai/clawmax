@@ -421,8 +421,20 @@ than reopening the completed provider sequence:
 - The complete RC51 integration, validation, and coverage gate passed 476/476
   checks with 81.97% statements/lines (48,790/59,520), 91.56% functions
   (1,877/2,050), and 71.38% branches (12,180/17,062).
-- RC51 publication remains gated on exact local/package version identity and
-  matching public and combined multi-architecture image evidence.
+- Candidate SHA/tag: `4c6bc116` / `v2.0.0-test-rc51`. The ignored local
+  dashboard environment, rendered shell, and `/api/system` all reported
+  `2.0.0-test-rc51` before tagging.
+- Public [Test Container Image run
+  33452675300](https://github.com/Maximilien-ai/clawmax/actions/runs/33452675300)
+  passed amd64/arm64 builds, packaged-version checks, manifest publication, and
+  registry smoke in 24m01s using `source_ref=refs/tags/v2.0.0-test-rc51` and
+  the required suffix input `test_tag=rc51`.
+- Matching [Private ClawMax Plugins Image run
+  33454979102](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/33454979102)
+  passed private validation, public-host runtime acceptance, the combined
+  multi-architecture build, package privacy, live plugin discovery, and
+  amd64/arm64 registry smoke in 6m34s with
+  `base_tag=image_tag=2.0.0-test-rc51`.
 
 **Day 2 exit:** Telegram, Discord, and Slack Socket Mode are implemented behind
 one generic channel contract, AI Builder behavior is strengthened, and the full
