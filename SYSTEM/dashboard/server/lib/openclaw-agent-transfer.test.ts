@@ -37,6 +37,16 @@ function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
 }
 
+function expectThrows(fn: () => unknown, expected: string) {
+  try {
+    fn()
+  } catch (err: any) {
+    assert(String(err?.message || err).includes(expected), `Expected error containing "${expected}", got "${err?.message || err}"`)
+    return
+  }
+  throw new Error(`Expected error containing "${expected}"`)
+}
+
 function createZipArchive(zipPath: string, folderName: string, cwd: string) {
   try {
     execFileSync('zip', ['-qr', zipPath, folderName], { cwd, stdio: 'ignore' })
@@ -254,6 +264,81 @@ async function run() {
     assert(config.gateway.auth.token === 'stable-token', 'Expected gateway auth token preserved')
     assert(config.gateway.remote.token === 'stable-token', 'Expected gateway remote token preserved')
     assert(config.gateway.tailscale.hostname === 'stable-host', 'Expected gateway tailscale config preserved')
+  })
+
+  await test('listImportableOpenClawAgents handles absent and non-importable entries', () => {
+    const openClawAgentsDir = path.join(tmpHome, '.openclaw', 'agents')
+    const parkedAgentsDir = path.join(tmpHome, '.openclaw', 'agents-parked')
+    fs.renameSync(openClawAgentsDir, parkedAgentsDir)
+    try {
+      assert(listImportableOpenClawAgents().length === 0, 'Expected no importable agents when the OpenClaw agents directory is absent')
+    } finally {
+      fs.renameSync(parkedAgentsDir, openClawAgentsDir)
+    }
+
+    fs.mkdirSync(path.join(openClawAgentsDir, '.hidden', 'agent'), { recursive: true })
+    fs.writeFileSync(path.join(openClawAgentsDir, '.hidden', 'agent', 'IDENTITY.md'), '# Hidden\n', 'utf-8')
+    fs.mkdirSync(path.join(openClawAgentsDir, 'empty', 'agent'), { recursive: true })
+    fs.writeFileSync(path.join(openClawAgentsDir, 'not-a-directory'), 'ignored', 'utf-8')
+
+    const importable = listImportableOpenClawAgents()
+    assert(!importable.some((entry) => entry.id === '.hidden'), 'Expected hidden agent directories to be ignored')
+    assert(!importable.some((entry) => entry.id === 'empty'), 'Expected agents without markdown files to be ignored')
+    assert(!importable.some((entry) => entry.id === 'not-a-directory'), 'Expected non-directory entries to be ignored')
+    assert(importable.every((entry, index) => index === 0 || importable[index - 1].id.localeCompare(entry.id) <= 0), 'Expected importable agents to be sorted')
+  })
+
+  await test('export options omit skills and memberships and reject missing agents', () => {
+    const metadata = getAgentTransferMetadata('alpha', { includeSkills: false, includeMemberships: false })
+    assert(metadata.skills.length === 0, 'Expected metadata skills to be omitted')
+    assert(metadata.communities.length === 0 && metadata.groups.length === 0, 'Expected metadata memberships to be omitted')
+
+    const result = exportAgentToOpenClaw('alpha', 'alpha-minimal', { includeSkills: false, includeMemberships: false })
+    assert(result.exportedId === 'alpha-minimal', 'Expected explicit export target ID')
+    const saved = JSON.parse(fs.readFileSync(path.join(tmpHome, '.openclaw', 'agents', 'alpha-minimal', 'clawmax-export.json'), 'utf-8'))
+    assert(saved.skills.length === 0, 'Expected exported skill metadata to be empty')
+    assert(saved.communities.length === 0 && saved.groups.length === 0, 'Expected exported membership metadata to be empty')
+    expectThrows(() => exportAgentToOpenClaw('missing-agent'), 'Agent not found')
+  })
+
+  await test('bundle directory validation rejects missing, file, malformed, invalid, and duplicate targets', () => {
+    expectThrows(() => importAgentFromBundleDirectory(path.join(tmpHome, 'missing-bundle')), 'Bundle path not found')
+
+    const fileBundle = path.join(tmpHome, 'bundle-file')
+    fs.writeFileSync(fileBundle, 'not a directory', 'utf-8')
+    expectThrows(() => importAgentFromBundleDirectory(fileBundle), 'Expected a directory')
+
+    const malformedBundle = path.join(tmpHome, 'malformed-bundle')
+    fs.mkdirSync(path.join(malformedBundle, '.hidden-child'), { recursive: true })
+    expectThrows(() => importAgentFromBundleDirectory(malformedBundle), 'Could not find an agent bundle')
+
+    const validBundle = path.join(tmpHome, 'valid-source')
+    fs.mkdirSync(validBundle, { recursive: true })
+    fs.writeFileSync(path.join(validBundle, 'IDENTITY.md'), '# Valid\n', 'utf-8')
+    expectThrows(() => importAgentFromBundleDirectory(validBundle, 'invalid id'), 'Invalid imported agent ID')
+    expectThrows(() => importAgentFromBundleDirectory(validBundle, 'alpha'), 'Agent already exists')
+  })
+
+  await test('bundle import without metadata restores files with bounded warnings', () => {
+    const plainBundle = path.join(tmpHome, 'plain-source')
+    fs.mkdirSync(plainBundle, { recursive: true })
+    fs.writeFileSync(path.join(plainBundle, 'IDENTITY.md'), '# Plain\n', 'utf-8')
+    fs.writeFileSync(path.join(plainBundle, 'notes.txt'), 'ignored', 'utf-8')
+
+    const result = importAgentFromBundleDirectory(plainBundle, 'plain-import')
+    assert(result.metadataRestored === false, 'Expected missing metadata to be reported')
+    assert(result.files.length === 1 && result.files[0] === 'IDENTITY.md', 'Expected only markdown files to be imported')
+    assert(result.warnings.some((warning) => warning.includes('without skills')), 'Expected missing-skill warning')
+  })
+
+  await test('OpenClaw import rejects missing, duplicate, and empty sources', () => {
+    expectThrows(() => importAgentFromOpenClaw('missing-openclaw-agent'), 'OpenClaw agent not found')
+    expectThrows(() => importAgentFromOpenClaw('alpha'), 'Agent already exists')
+
+    const emptyAgentDir = path.join(tmpHome, '.openclaw', 'agents', 'empty-source', 'agent')
+    fs.mkdirSync(emptyAgentDir, { recursive: true })
+    fs.writeFileSync(path.join(emptyAgentDir, 'notes.txt'), 'no markdown', 'utf-8')
+    expectThrows(() => importAgentFromOpenClaw('empty-source'), 'No markdown files found')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME
