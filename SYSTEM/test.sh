@@ -5344,9 +5344,9 @@ else
     warn "Agent chat skipped (${PERF_CHAT_NOTE#skipped:})"
   elif [[ "$PERF_CHAT_NOTE" == error:* ]]; then
     error_msg="${PERF_CHAT_NOTE#error:}"
-    warn "Agent chat: $error_msg (may need gateway)"
+    fail "Agent chat failed: $error_msg"
   else
-    warn "Agent chat returned unexpected format"
+    fail "Agent chat returned unexpected format"
   fi
 fi
 
@@ -5417,7 +5417,7 @@ for i in $(seq 1 24); do
   fi
   if [ "$i" = "24" ]; then
     PERF_WORKFLOW_PROGRESS_NOTE="timeout:${status}"
-    warn "Kickoff did not complete in 120s (status: $status)"
+    fail "Kickoff did not complete in 120s (status: $status)"
   fi
 done
 

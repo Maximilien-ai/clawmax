@@ -17,6 +17,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 . "$SCRIPT_DIR/test-run-lock.sh"
+. "$SCRIPT_DIR/openclaw-version.sh"
 
 BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
@@ -38,6 +39,39 @@ for arg in "$@"; do
     FORWARDED_ARGS+=("$arg")
   fi
 done
+
+ensure_target_openclaw_for_integration() {
+  if [ "$RUN_INTEGRATION" != "true" ]; then
+    return 0
+  fi
+
+  if [ -z "${OPENCLAW_BIN:-}" ]; then
+    echo "Preparing targeted OpenClaw ${CLAWMAX_OPENCLAW_TARGET} for integration tests..."
+    OPENCLAW_BIN="$(bash "$SCRIPT_DIR/prepare-openclaw-target.sh" --print-bin)" || return 1
+    export OPENCLAW_BIN
+  fi
+
+  if [ ! -x "$OPENCLAW_BIN" ]; then
+    echo "Targeted OpenClaw binary is not executable: $OPENCLAW_BIN" >&2
+    return 1
+  fi
+
+  local version_output expected_version
+  version_output="$($OPENCLAW_BIN --version 2>&1)" || {
+    echo "Could not read OpenClaw version from $OPENCLAW_BIN" >&2
+    return 1
+  }
+  expected_version="${CLAWMAX_OPENCLAW_TARGET#v}"
+  if [[ "$version_output" != *"$expected_version"* ]]; then
+    echo "Integration tests require OpenClaw ${CLAWMAX_OPENCLAW_TARGET}; selected binary reports: $version_output" >&2
+    return 1
+  fi
+  echo "Using targeted OpenClaw: $version_output"
+}
+
+if ! ensure_target_openclaw_for_integration; then
+  exit 1
+fi
 
 export DASHBOARD_PORT="$BACKEND_PORT"
 export DASHBOARD_CLIENT_PORT="$FRONTEND_PORT"

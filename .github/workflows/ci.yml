@@ -22,7 +22,7 @@ jobs:
       DASHBOARD_AUTH_DISABLED: "true"
       DASHBOARD_PORT: "3001"
       CORS_ORIGIN: http://localhost:5173
-      CLAWMAX_OPENCLAW_TARGET: v2026.8.1
+      CLAWMAX_OPENCLAW_TARGET: v2026.8.2
 
     steps:
       - uses: actions/checkout@v4
