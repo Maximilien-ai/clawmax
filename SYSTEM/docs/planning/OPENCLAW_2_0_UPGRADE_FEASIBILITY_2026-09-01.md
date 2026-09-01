@@ -7,20 +7,15 @@ Previous ClawMax target: `v2026.6.34`
 
 ## Decision
 
-OpenClaw 2.0 meets the ClawMax low-friction discovery threshold, but it is not
-ready to merge or release yet.
+OpenClaw 2.0 is a low-friction upgrade and should be targeted for the next RC.
 
-The complete ClawMax integration, validation, and coverage gate reported
-470/472 passing checks (99.58%). This exceeds the required 90% feasibility
-threshold. At least one remaining failure is in a release-critical
-configuration contract, so the upgrade must not enter an RC until the agent
-roster migration is complete and the full gate, image builds, and smoke tests
-are green.
+The keyed-agent migration is contained behind a central adapter. The complete
+ClawMax integration, validation, and coverage gate now reports 473/473 passing
+checks. Branch coverage is 71.77%, above the 71.54% pre-migration floor.
 
-Recommendation: remediate on this spike branch and target the next RC if the
-keyed-agent migration remains contained. Defer to a later RC if the migration
-requires compatibility writes to both schemas or cannot preserve existing
-installations without loss.
+Recommendation: merge after review, then complete the normal public and
+combined-image RC build and smoke matrix. Those packaging checks remain RC
+release evidence; they are no longer feasibility blockers.
 
 ## Evidence
 
@@ -55,20 +50,18 @@ OPENCLAW_BIN=/path/to/openclaw-2026.8.1/bin/openclaw \
   ./SYSTEM/test-with-server.sh integration --with-validation --coverage
 ```
 
-Result:
+Remediation result:
 
-- passed: 470
-- failed: 2
-- total: 472
-- pass rate: 99.58%
-- statements/lines: 81.91% (48,755/59,520)
-- functions: 91.51% (1,876/2,050)
-- branches: 71.40% (12,178/17,055)
-- live integration duration: 78 seconds
-- observed complete-gate wall time: approximately 13 minutes
-
-Coverage from a failing gate is diagnostic only. Re-establish the coverage
-baseline after the compatibility fixes and a completely green run.
+- passed: 473
+- failed: 0
+- total: 473
+- pass rate: 100%
+- statements/lines: 82.12% (48,897/59,543)
+- functions: 91.62% (1,882/2,054)
+- branches: 71.77% (12,288/17,121)
+- branch baseline before migration: 71.54%
+- branch change: +0.23 percentage points
+- live integration duration: 51 seconds
 
 ## Confirmed Compatibility Changes
 
@@ -102,30 +95,33 @@ OpenClaw config is invalid
 agents.list moved to keyed agents.entries
 ```
 
-This caused organization-template registration to lose the expected live
-agent model after the first registration. The affected test was
-`importOrganizationTemplate creates nested teams and workflow handoff metadata`.
-The bounded terminal output preserved the final count but truncated the other
-failed top-level check. Capture its exact name from a complete retained log on
-the remediation rerun instead of inferring it from intermediate artifacts.
+The initial probe caused organization-template registration to lose the
+expected live agent model after the first registration. Remediation introduced
+a central mutable-list projection for dashboard code and canonical keyed writes
+for OpenClaw 2.0. Legacy duplicate IDs converge deterministically using the
+upstream last-record-wins behavior, favoring the most recently appended active
+workspace record.
 
-The migration is broader than a single template fix. Production server code
-currently has 49 `agents.list` references across eight files:
+Production roster consumers were migrated across:
 
 - `server/lib/agent-execution.ts`
 - `server/lib/agent-model.ts`
 - `server/lib/gateway-rpc.ts`
 - `server/lib/openclaw-agent-transfer.ts`
+- `server/lib/openclaw-config.ts`
+- `server/lib/plugin-system.ts`
 - `server/lib/skills.ts`
 - `server/lib/templates.ts`
 - `server/lib/workspace.ts`
+- `server/index.ts`
+- `server/migrate-live-config.ts`
 - `server/routes/agents.ts`
 
-Implement a central roster adapter and explicit one-way migration rather than
-performing isolated string replacements. Tests must cover duplicate IDs,
-workspace-specific records, model and skill persistence, bindings, rollback,
-and existing legacy installations. Never run `doctor --fix` against a user's
-real configuration during testing.
+Focused tests cover legacy migration, idempotence, malformed data, duplicate
+IDs, workspace selection, model and skill persistence, agent execution,
+template registration, transfer, lifecycle deletion, Gateway patches, and
+protected Gateway fields. No test invoked `doctor --fix` against a user's real
+configuration.
 
 ## Upstream Benefits Verified
 
@@ -143,19 +139,20 @@ References:
 
 ## Next-RC Exit Criteria
 
-- Introduce and test one canonical ClawMax adapter for `agents.entries`.
-- Migrate legacy `agents.list` without losing IDs, workspaces, agent dirs,
-  models, skills, runtime pins, defaults, or bindings.
-- Stop writing `meta.lastTouchedAt` while preserving `lastTouchedVersion` if
+- [x] Introduce and test one canonical ClawMax adapter for `agents.entries`.
+- [x] Migrate legacy `agents.list` while preserving canonical IDs, workspaces,
+  agent dirs, models, skills, runtime pins, defaults, and bindings.
+- [x] Stop writing `meta.lastTouchedAt` while preserving `lastTouchedVersion` if
   supported by the upstream schema.
-- Add a disposable-config migration test, including idempotence and rollback.
-- Run the focused compatibility suites with zero failures.
-- Run the complete integration, validation, and coverage gate with zero
+- [x] Add disposable-config migration tests, including idempotence and safe failure.
+- [x] Run the focused compatibility suites with zero failures.
+- [x] Run the complete integration, validation, and coverage gate with zero
   failures and record the restored check count.
-- Build and smoke the public amd64 and arm64 images.
-- For a combined release, build and smoke the matching private plugin image.
-- Verify packaged runtime identity, plugin/channel discovery, agent create,
+- [ ] Build and smoke the public amd64 and arm64 images.
+- [ ] For a combined release, build and smoke the matching private plugin image.
+- [ ] Verify packaged runtime identity, plugin/channel discovery, agent create,
   agent chat, workflows, restart persistence, model discovery, and usage.
 
-Until these criteria pass, keep the OpenClaw 2.0 pin on the spike branch and do
-not include it in an RC.
+The source upgrade is ready for review and merge. Keep it on the spike branch
+until review completes; do not call the RC release-ready until the remaining
+image and smoke evidence is green.
