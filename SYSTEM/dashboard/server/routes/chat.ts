@@ -248,6 +248,15 @@ export function shouldUseManagedSecretStatelessChatSession(_input: {
   return false
 }
 
+export function shouldRetryViaGatewayAfterLocalCollision(input: {
+  useLocal: boolean
+  provider?: ChatProvider
+  rawError: string
+}): boolean {
+  if (!input.useLocal || input.provider === 'ollama' || input.provider === 'openai-compatible') return false
+  return /Gateway is running for this state directory/i.test(input.rawError)
+}
+
 export function shouldRecoverPersistedAssistant(normalizedText: string): boolean {
   return normalizedText.trim().length === 0
 }
@@ -1011,7 +1020,11 @@ router.post('/:id/chat', async (req, res) => {
     } else {
       const openclawCli = resolveOpenClawCliPath()
 
-      const runChatAttempt = async (attemptModel: string | undefined, attemptProvider: ChatProvider | undefined) => {
+      const runChatAttempt = async (
+        attemptModel: string | undefined,
+        attemptProvider: ChatProvider | undefined,
+        forceGateway = false,
+      ) => {
         const attemptSessionSeed = buildDashboardChatRetrySeed(sessionSeed, chatSessionRetryAttempt)
         const executionSessionId = scopeSessionIdToModel(
           attemptSessionSeed,
@@ -1026,7 +1039,7 @@ router.post('/:id/chat', async (req, res) => {
           '--session-id', executionSessionId,
           '--message', executionMessage,
           ...(attemptExecutionModel ? ['--model', attemptExecutionModel] : []),
-          ...(attemptUseOpenAiCompatible || attemptProvider === 'ollama' ? ['--local'] : (useLocal ? ['--local'] : [])),
+          ...(forceGateway ? [] : (attemptUseOpenAiCompatible || attemptProvider === 'ollama' || useLocal ? ['--local'] : [])),
         ]
         console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
 
@@ -1246,7 +1259,15 @@ router.post('/:id/chat', async (req, res) => {
       }
 
       await runExclusiveAgentExecution(id, async () => {
-        const primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
+        let primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
+        if (shouldRetryViaGatewayAfterLocalCollision({
+          useLocal,
+          provider: resolvedAgent.provider,
+          rawError: primaryResult.rawError,
+        })) {
+          console.warn(`[Chat Route] Gateway claimed state ownership during local startup; retrying agent ${id} through the Gateway`)
+          primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
+        }
         throwIfChatAttemptNeedsSessionRetry(primaryResult)
         const fallbackModel = resolvedAgent.backupModel
         const fallbackProvider = resolvedAgent.backupProvider

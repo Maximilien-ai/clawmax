@@ -16,6 +16,7 @@ import {
   shouldRecoverPersistedAssistant,
   shouldAttemptManagedResendDispatch,
   shouldUseLocalChatExecution,
+  shouldRetryViaGatewayAfterLocalCollision,
   throwIfChatAttemptNeedsSessionRetry,
 } from './chat'
 import fs from 'fs'
@@ -88,6 +89,14 @@ test('shouldUseLocalChatExecution still falls back to direct mode for hosted BYO
     byok: { openai: 'sk-test' },
     gatewayRunning: false,
   }), 'Expected BYOK OpenAI chat to use local execution when gateway is unavailable')
+})
+
+test('local chat retries through gateway only when a hosted provider loses the state ownership race', () => {
+  const collision = 'A Gateway is running for this state directory (pid 123, port 18789). Run without --local to use it.'
+  assert(shouldRetryViaGatewayAfterLocalCollision({ useLocal: true, provider: 'openai', rawError: collision }), 'Expected hosted local collision to retry through gateway')
+  assert(!shouldRetryViaGatewayAfterLocalCollision({ useLocal: false, provider: 'openai', rawError: collision }), 'Expected an existing gateway attempt not to retry')
+  assert(!shouldRetryViaGatewayAfterLocalCollision({ useLocal: true, provider: 'ollama', rawError: collision }), 'Expected local-only provider not to reroute')
+  assert(!shouldRetryViaGatewayAfterLocalCollision({ useLocal: true, provider: 'openai', rawError: 'connection refused' }), 'Expected unrelated errors not to reroute')
 })
 
 test('shouldUseLocalChatExecution uses gateway for hosted env-key execution when gateway is running', () => {
