@@ -4262,9 +4262,6 @@ else
   # Save current config
   cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.rpc-test-backup
 
-  # Get current metadata timestamp before update
-  META_BEFORE=$(jq -r '.meta.lastTouchedAt' ~/.openclaw/openclaw.json)
-
   # Update skills via dashboard API (should use Gateway RPC)
   response=$(apicurl -X PUT "$API_BASE/api/skills/agent/$TEST_AGENT" \
     -H 'Content-Type: application/json' \
@@ -4276,13 +4273,16 @@ else
   # Wait for write to complete
   sleep 0.5
 
-  # Verify metadata was stamped (indicating Gateway RPC was used)
-  META_AFTER=$(jq -r '.meta.lastTouchedAt' ~/.openclaw/openclaw.json)
+  # OpenClaw 2 owns Gateway metadata and no longer preserves the retired
+  # lastTouchedAt marker. Verify the user-visible mutation and canonical keyed
+  # roster instead of treating an upstream metadata rewrite as a direct write.
+  UPDATED_SKILLS=$(jq -c --arg id "$TEST_AGENT" '.agents.entries[$id].skills // []' ~/.openclaw/openclaw.json)
+  HAS_LEGACY_LIST=$(jq -r '.agents | has("list")' ~/.openclaw/openclaw.json)
 
-  if [ "$META_AFTER" != "$META_BEFORE" ] && [ "$META_AFTER" != "null" ]; then
-    pass "Config metadata stamped by Gateway"
+  if [ "$UPDATED_SKILLS" = "$TEST_SKILLS_PAYLOAD" ] && [ "$HAS_LEGACY_LIST" = "false" ]; then
+    pass "Gateway persisted canonical OpenClaw 2 agent config"
   else
-    fail "Config metadata NOT stamped (direct write detected!)"
+    fail "Gateway did not persist canonical OpenClaw 2 agent config"
   fi
 
     # Verify OpenClaw CLI can still read config

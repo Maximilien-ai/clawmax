@@ -222,6 +222,13 @@ Auth profile store ~/.openclaw/agents/ceo/agent/openclaw-agent.sqlite requires l
   assert(normalized === '', `Expected migration-only output to normalize to empty, got: ${normalized}`)
 })
 
+test('strips OpenClaw 2 historical transcript migration notices', () => {
+  const raw = `◇ Doctor notices ─────────────────────────────────╮
+│ - Skipped historical transcript directive migration: shared-state lease inspection failed │
+╰─────────────────────────────────────────────────╯`
+  assert(normalizeChatMessage(raw) === '', 'Expected historical transcript migration notice to be suppressed')
+})
+
 test('strips state-migration warning variants from chat output so on-prem runtime leftovers do not appear as assistant replies', () => {
   const raw = `│ - Left migrated task registry sidecar in place because archive already │ │ exists: /app/DATA/.home/.openclaw/tasks/runs.sqlite.migrated │ │ - Left legacy update-check state in place because shared SQLite state │ │ already differs: /app/DATA/.home/.openclaw/update-check.json │ │ with shared SQLite state: │
 

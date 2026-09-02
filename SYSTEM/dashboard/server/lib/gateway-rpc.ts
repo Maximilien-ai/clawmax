@@ -309,12 +309,9 @@ export class GatewayRPCClient {
       // The merge patch algorithm will find the agent by ID and update only the skills field
       const patch = {
         agents: {
-          list: [
-            {
-              id: agentId,
-              skills
-            }
-          ]
+          entries: {
+            [agentId]: { skills },
+          },
         }
       }
 
@@ -459,6 +456,14 @@ export function isGatewayRunning(): { running: boolean; port: number | null } {
   } catch {
     return { running: false, port }
   }
+}
+
+export function shouldTreatGatewayAsRunning(responsive: boolean, processRunning: boolean): boolean {
+  // OpenClaw 2026.8.2 refuses `agent --local` whenever this state directory already owns a
+  // Gateway process. A temporarily busy Gateway can miss the authenticated readiness deadline, so
+  // process ownership is sufficient to keep execution on the Gateway path instead of issuing a
+  // local command that the CLI will reject before the model runs.
+  return responsive || processRunning
 }
 
 export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ running: boolean; port: number | null; error?: string }> {

@@ -9,7 +9,7 @@ import { getWorkspacePath, listAgents, parseGroups } from './workspace'
 import { listTeams, type Team } from './teams'
 import { addMessage } from './messages'
 import { getConfiguredDashboardInstanceId, traceAgentChat, traceWorkflowExecution } from './opik'
-import { waitForGatewayResponsive } from './gateway-rpc'
+import { isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from './gateway-rpc'
 import { checkBudgetBlock } from './budget'
 import { validateWorkflow } from './validator'
 import {
@@ -2275,7 +2275,10 @@ export function triggerWorkflow(workflowId: string, options?: {
               }
               const gatewayRunning = attemptProvider === 'ollama'
                 ? false
-                : (await waitForGatewayResponsive()).running
+                : shouldTreatGatewayAsRunning(
+                    (await waitForGatewayResponsive()).running,
+                    isGatewayRunning().running,
+                  )
               const useLocal = attemptProvider === 'ollama' || attemptProvider === 'openai-compatible' || !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
               const sessionId = buildWorkflowRetrySessionId(executionId, participant.agentId, workflowSessionRetryAttempt)
               const executionModelOverride = toExecutionModelOverride(attemptModel, attemptProvider)

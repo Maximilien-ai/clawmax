@@ -4,7 +4,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
-import { waitForGatewayResponsive } from '../lib/gateway-rpc'
+import { isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
@@ -810,7 +810,10 @@ router.post('/:id/chat', async (req, res) => {
         resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'
       )
       ? false
-      : (await waitForGatewayResponsive()).running
+      : shouldTreatGatewayAsRunning(
+          (await waitForGatewayResponsive()).running,
+          isGatewayRunning().running,
+        )
 
   const useLocal = isNonOpenclawChatRuntime(resolvedAgent.runtime)
     ? false

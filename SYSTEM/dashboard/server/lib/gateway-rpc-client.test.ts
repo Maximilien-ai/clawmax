@@ -7,6 +7,7 @@ import {
   getConfiguredGatewayPort,
   getGatewayClient,
   isGatewayConfigured,
+  shouldTreatGatewayAsRunning,
 } from './gateway-rpc'
 
 let testsPassed = 0
@@ -74,7 +75,7 @@ async function run() {
       assert.deepStrictEqual(calls.map(call => call.method), ['config.get', 'config.patch'])
       assert.strictEqual(calls[1].params.baseHash, 'base-hash')
       assert.deepStrictEqual(JSON.parse(calls[1].params.raw), {
-        agents: { list: [{ id: 'agent-1', skills: ['github', 'notion'] }] },
+        agents: { entries: { 'agent-1': { skills: ['github', 'notion'] } } },
       })
     })
   })
@@ -201,6 +202,12 @@ async function run() {
       else process.env.HOME = originalHome
       fs.rmSync(tempHome, { recursive: true, force: true })
     }
+  })
+
+  await test('gateway execution stays gateway-backed while its owned process is temporarily unresponsive', async () => {
+    assert.strictEqual(shouldTreatGatewayAsRunning(true, false), true)
+    assert.strictEqual(shouldTreatGatewayAsRunning(false, true), true)
+    assert.strictEqual(shouldTreatGatewayAsRunning(false, false), false)
   })
 
   console.log(`\nTests passed: ${testsPassed}`)
