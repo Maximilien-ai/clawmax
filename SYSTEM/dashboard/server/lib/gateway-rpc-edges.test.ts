@@ -128,6 +128,30 @@ test('config RPC falls back only for scope and transport failures', () => {
   assert(!__test.shouldFallbackConfigCallToCli(new Error('invalid agent model')), 'Expected application errors not to be retried through CLI')
 })
 
+test('gateway CLI output parsing accepts strings and buffers without masking invalid output', () => {
+  assert(__test.parseGatewayCliOutput('{"ok":true}')?.ok === true, 'Expected string output to parse')
+  assert(__test.parseGatewayCliOutput(Buffer.from('{"hash":"abc"}'))?.hash === 'abc', 'Expected buffer output to parse')
+  assert(__test.parseGatewayCliOutput('not json') === null, 'Expected invalid JSON to remain unparsed')
+})
+
+test('only persisted config.patch recovery restarts are treated as successful writes', () => {
+  const persistedRestart = {
+    ok: false,
+    error: {
+      type: 'gateway_request_error',
+      code: 'UNAVAILABLE',
+      message: 'config.patch persisted and updated the active Gateway, but a recovery restart is required; wait for the Gateway to restart',
+    },
+  }
+
+  assert(__test.isPersistedConfigPatchRestartOutcome('config.patch', persistedRestart), 'Expected exact persisted restart response to be accepted')
+  assert(!__test.isPersistedConfigPatchRestartOutcome('config.get', persistedRestart), 'Expected non-patch method to fail')
+  assert(!__test.isPersistedConfigPatchRestartOutcome('config.patch', {
+    ...persistedRestart,
+    error: { ...persistedRestart.error, message: 'Gateway unavailable before config.patch persisted' },
+  }), 'Expected an ordinary unavailable response to fail')
+})
+
 setTimeout(() => {
   console.log(`\nPassed: ${testsPassed}`)
   console.log(`Failed: ${testsFailed}`)

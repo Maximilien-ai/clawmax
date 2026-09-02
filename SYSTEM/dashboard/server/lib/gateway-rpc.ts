@@ -99,6 +99,26 @@ function shouldFallbackConfigCallToCli(error: unknown): boolean {
   return /missing scope:|Gateway RPC timeout|Gateway WebSocket error|Gateway connection closed/i.test(message)
 }
 
+function parseGatewayCliOutput(output: unknown): any | null {
+  const text = Buffer.isBuffer(output) ? output.toString('utf-8') : String(output || '')
+  if (!text.trim()) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+function isPersistedConfigPatchRestartOutcome(method: string, result: any): boolean {
+  return method === 'config.patch'
+    && result?.ok === false
+    && result?.error?.type === 'gateway_request_error'
+    && result?.error?.code === 'UNAVAILABLE'
+    && /config\.patch persisted and updated the active Gateway, but a recovery restart is required/i.test(
+      String(result?.error?.message || ''),
+    )
+}
+
 export const __test = {
   parseGatewayConfig,
   normalizeGatewayHttpUrl,
@@ -109,6 +129,8 @@ export const __test = {
   buildGatewayProbeConnectParams,
   buildGatewayCliCallArgs,
   shouldFallbackConfigCallToCli,
+  parseGatewayCliOutput,
+  isPersistedConfigPatchRestartOutcome,
 }
 
 function buildGatewayProbeClient() {
@@ -322,12 +344,21 @@ export class GatewayRPCClient {
       // so use that canonical transport for config methods only.
       const cliPath = resolveOpenClawCliPath()
       if (!cliPath) throw err
-      const { stdout } = await execFileAsync(cliPath, buildGatewayCliCallArgs(method, params), {
-        encoding: 'utf-8',
-        env: safeEnv(),
-        maxBuffer: 10 * 1024 * 1024,
-      })
-      const result = JSON.parse(stdout || '{}')
+      let result: any
+      try {
+        const { stdout } = await execFileAsync(cliPath, buildGatewayCliCallArgs(method, params), {
+          encoding: 'utf-8',
+          env: safeEnv(),
+          maxBuffer: 10 * 1024 * 1024,
+        })
+        result = parseGatewayCliOutput(stdout) || {}
+      } catch (cliError: any) {
+        result = parseGatewayCliOutput(cliError?.stdout)
+        if (isPersistedConfigPatchRestartOutcome(method, result)) {
+          return { ok: true, restartRequired: true } as T
+        }
+        throw cliError
+      }
       if (result?.ok === false) {
         throw new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
       }

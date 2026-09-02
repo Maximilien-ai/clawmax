@@ -230,8 +230,10 @@ async function finalizeTemplateCreatedAgentRegistration(args: {
       model: model?.trim() || undefined,
       skills,
     })
-    const postPatchGateway = await waitForGatewayResponsive(15000, 500)
-    if (!postPatchGateway.running && !isGatewayRunning().running) {
+    // Large OpenClaw 2.0 installations may need over a minute to reopen every
+    // agent store after config.patch requests a recovery restart.
+    const postPatchGateway = await waitForGatewayResponsive(120000, 500)
+    if (!postPatchGateway.running) {
       throw new Error(`OpenClaw Gateway did not become ready after synchronizing agent ${agentId}`)
     }
     console.log(`Synchronized agent ${agentId} through the OpenClaw Gateway`)
