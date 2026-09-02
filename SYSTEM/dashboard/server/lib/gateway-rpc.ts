@@ -128,6 +128,15 @@ function isPersistedConfigPatchRestartOutcome(method: string, result: any): bool
     )
 }
 
+function isGatewayCliClosedTransportOutcome(result: any): boolean {
+  return result?.ok === false
+    && result?.error?.type === 'gateway_transport_error'
+    && result?.error?.kind === 'closed'
+    && /ECONNREFUSED|not reachable/i.test(
+      `${String(result?.error?.message || '')} ${String(result?.error?.reason || '')}`,
+    )
+}
+
 export const __test = {
   parseGatewayConfig,
   normalizeGatewayHttpUrl,
@@ -140,6 +149,7 @@ export const __test = {
   shouldFallbackConfigCallToCli,
   parseGatewayCliOutput,
   isPersistedConfigPatchRestartOutcome,
+  isGatewayCliClosedTransportOutcome,
 }
 
 function buildGatewayProbeClient() {
@@ -353,25 +363,38 @@ export class GatewayRPCClient {
       // so use that canonical transport for config methods only.
       const cliPath = resolveOpenClawCliPath()
       if (!cliPath) throw err
-      let result: any
+      const runCliCall = async (): Promise<T> => {
+        let result: any
+        try {
+          const { stdout } = await execFileAsync(cliPath, buildGatewayCliCallArgs(method, params), {
+            encoding: 'utf-8',
+            env: safeEnv(),
+            maxBuffer: 10 * 1024 * 1024,
+          })
+          result = parseGatewayCliOutput(stdout) || {}
+        } catch (cliError: any) {
+          result = parseGatewayCliOutput(cliError?.stdout)
+          if (isPersistedConfigPatchRestartOutcome(method, result)) {
+            return { ok: true, restartRequired: true } as T
+          }
+          cliError.gatewayCliResult = result
+          throw cliError
+        }
+        if (result?.ok === false) {
+          throw new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
+        }
+        return result as T
+      }
+
       try {
-        const { stdout } = await execFileAsync(cliPath, buildGatewayCliCallArgs(method, params), {
-          encoding: 'utf-8',
-          env: safeEnv(),
-          maxBuffer: 10 * 1024 * 1024,
-        })
-        result = parseGatewayCliOutput(stdout) || {}
+        return await runCliCall()
       } catch (cliError: any) {
-        result = parseGatewayCliOutput(cliError?.stdout)
-        if (isPersistedConfigPatchRestartOutcome(method, result)) {
-          return { ok: true, restartRequired: true } as T
+        if (isGatewayCliClosedTransportOutcome(cliError?.gatewayCliResult)) {
+          const recovered = await waitForGatewayResponsive(120000, 500)
+          if (recovered.running) return await runCliCall()
         }
         throw cliError
       }
-      if (result?.ok === false) {
-        throw new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
-      }
-      return result as T
     }
   }
 

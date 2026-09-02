@@ -152,6 +152,28 @@ test('only persisted config.patch recovery restarts are treated as successful wr
   }), 'Expected an ordinary unavailable response to fail')
 })
 
+test('only closed CLI transport responses qualify for a Gateway recovery wait', () => {
+  const closedTransport = {
+    ok: false,
+    error: {
+      type: 'gateway_transport_error',
+      kind: 'closed',
+      message: 'Gateway not reachable at ws://127.0.0.1:18789 (ECONNREFUSED).',
+      reason: 'connect ECONNREFUSED 127.0.0.1:18789',
+    },
+  }
+
+  assert(__test.isGatewayCliClosedTransportOutcome(closedTransport), 'Expected closed refused transport to trigger recovery wait')
+  assert(!__test.isGatewayCliClosedTransportOutcome({
+    ...closedTransport,
+    error: { ...closedTransport.error, type: 'gateway_request_error' },
+  }), 'Expected request failures not to trigger a transport recovery wait')
+  assert(!__test.isGatewayCliClosedTransportOutcome({
+    ...closedTransport,
+    error: { ...closedTransport.error, kind: 'timeout', message: 'Gateway request timed out' },
+  }), 'Expected non-closed transport failures not to trigger this recovery wait')
+})
+
 setTimeout(() => {
   console.log(`\nPassed: ${testsPassed}`)
   console.log(`Failed: ${testsFailed}`)
