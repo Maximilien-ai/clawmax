@@ -2,28 +2,34 @@
 
 Date: 2026-09-01  
 Spike branch: `spike/openclaw-2026.8.1`  
-Target: OpenClaw `v2026.8.1` (OpenClaw 2.0)  
+Target: OpenClaw `v2026.8.2` (latest OpenClaw 2.0 patch)
 Previous ClawMax target: `v2026.6.34`
 
 ## Decision
 
-OpenClaw 2.0 is a low-friction upgrade and should be targeted for the next RC.
+OpenClaw 2.0 is not yet a low-friction upgrade and must not be merged into the
+next RC until the remaining live Gateway lifecycle failure is resolved.
 
-The keyed-agent migration is contained behind a central adapter. The complete
-ClawMax integration, validation, and coverage gate now reports 473/473 passing
-checks. Branch coverage is 71.77%, above the 71.54% pre-migration floor.
+The keyed-agent and persistent-state migrations are contained, and the latest
+strict gate reports 475/476 checks passing (99.8%). Branch coverage is 71.76%,
+above the 71.54% pre-migration floor. The remaining test is release-critical:
+after the launch-managed Gateway claims the OpenClaw state directory, its
+process can exit before accepting WebSocket connections. OpenClaw then rejects
+local execution because a Gateway owns the state while Gateway execution fails
+with `ECONNREFUSED` or an opening-handshake timeout.
 
-Recommendation: merge after review, then complete the normal public and
-combined-image RC build and smoke matrix. Those packaging checks remain RC
-release evidence; they are no longer feasibility blockers.
+Recommendation: keep the spike branch unmerged. Diagnose the v2026.8.2 Gateway
+process lifecycle/stale ownership state, prove a stable live chat, and rerun the
+476-check gate. Only then reconsider the normal public and combined-image RC
+build and smoke matrix.
 
 ## Evidence
 
 ### Target preparation
 
 - The source pin is aligned in `SYSTEM/openclaw-version.sh`, Docker, and CI.
-- OpenClaw `v2026.8.1` cloned and built successfully from source.
-- The built CLI reports `OpenClaw 2026.8.1 (ea80657)`.
+- OpenClaw `v2026.8.2` cloned and built successfully from source.
+- The built CLI reports `OpenClaw 2026.8.2 (0965053)`.
 - TypeScript passed.
 - Pin alignment, preparation-contract, and Docker builder tests passed.
 - Focused compatibility tests passed 187/187:
@@ -33,7 +39,9 @@ release evidence; they are no longer feasibility blockers.
   - workflows: 76
   - agent routes: 63
   - chat routes: 33
-- Live integration passed, including agent chat and workflow execution.
+- Organization import, keyed Gateway registration, and workflow execution pass.
+- Live agent chat remains blocked by the Gateway lifecycle failure described in
+  the decision above.
 
 The valid full run explicitly set `OPENCLAW_BIN` to the isolated 2.0 binary.
 An earlier partial run was discarded because the wrapper selected the globally
@@ -44,24 +52,24 @@ installed OpenClaw binary; it is not upgrade evidence.
 Command:
 
 ```bash
-OPENCLAW_BIN=/path/to/openclaw-2026.8.1/bin/openclaw \
+OPENCLAW_BIN=/path/to/openclaw-2026.8.2/bin/openclaw \
   DASHBOARD_CLIENT_PORT=5174 \
   DASHBOARD_APP_URL=http://localhost:5174 \
   ./SYSTEM/test-with-server.sh integration --with-validation --coverage
 ```
 
-Remediation result:
+Latest strict result:
 
-- passed: 473
-- failed: 0
-- total: 473
-- pass rate: 100%
-- statements/lines: 82.12% (48,897/59,543)
-- functions: 91.62% (1,882/2,054)
-- branches: 71.77% (12,288/17,121)
+- passed: 475
+- failed: 1
+- total: 476
+- pass rate: 99.8%
+- statements/lines: 82.06% (48,977/59,682)
+- functions: 91.65% (1,888/2,060)
+- branches: 71.76% (12,313/17,158)
 - branch baseline before migration: 71.54%
-- branch change: +0.23 percentage points
-- live integration duration: 51 seconds
+- branch change: +0.22 percentage points
+- remaining failure: live agent chat cannot reach the transient Gateway owner
 
 ## Confirmed Compatibility Changes
 
@@ -120,8 +128,25 @@ Production roster consumers were migrated across:
 Focused tests cover legacy migration, idempotence, malformed data, duplicate
 IDs, workspace selection, model and skill persistence, agent execution,
 template registration, transfer, lifecycle deletion, Gateway patches, and
-protected Gateway fields. No test invoked `doctor --fix` against a user's real
-configuration.
+protected Gateway fields. The feasibility exercise also confirmed that an
+existing 2.0 state directory may require a one-time `doctor --fix` migration
+from per-agent auth JSON to SQLite. The migration preserved archived backups;
+normal test runs do not invoke that repair against user state.
+
+### Gateway registration and ownership
+
+OpenClaw 2.0.2 does not grant configuration read/write scopes to the
+dashboard's token-only WebSocket client even when those scopes are requested.
+ClawMax now falls back to OpenClaw's paired CLI for `config.get` and
+`config.patch`, using a single keyed-agent patch so large rosters do not exceed
+command argument limits. Imported agents then appear in the canonical config.
+
+The unresolved gap is after registration. A launch-managed Gateway can claim
+the state directory while its listener is unavailable. ClawMax detects the
+local/Gateway ownership collision and waits up to 30 seconds for authenticated
+readiness, but v2026.8.2 can leave the port refused for the entire window. This
+must be resolved upstream or with a deterministic lifecycle contract before
+the branch is safe to merge.
 
 ## Upstream Benefits Verified
 
@@ -146,13 +171,14 @@ References:
   supported by the upstream schema.
 - [x] Add disposable-config migration tests, including idempotence and safe failure.
 - [x] Run the focused compatibility suites with zero failures.
-- [x] Run the complete integration, validation, and coverage gate with zero
-  failures and record the restored check count.
+- [ ] Stabilize the v2026.8.2 Gateway process after it claims state ownership.
+- [ ] Run the complete integration, validation, and coverage gate with zero
+  failures and record the restored check count (current: 475/476).
 - [ ] Build and smoke the public amd64 and arm64 images.
 - [ ] For a combined release, build and smoke the matching private plugin image.
 - [ ] Verify packaged runtime identity, plugin/channel discovery, agent create,
   agent chat, workflows, restart persistence, model discovery, and usage.
 
-The source upgrade is ready for review and merge. Keep it on the spike branch
-until review completes; do not call the RC release-ready until the remaining
-image and smoke evidence is green.
+The source upgrade is not ready to merge. Keep it on the spike branch until the
+Gateway lifecycle gap and the remaining strict-gate failure are resolved. Do
+not start RC image work from this branch.
