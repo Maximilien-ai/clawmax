@@ -15,7 +15,6 @@ import { recordTemplateApply, type CanonicalTemplateFeedbackSource, type Canonic
 import { resolveDefaultAgentModel } from './agent-default-model'
 import { applyGeneratedWorkflowHandoffs, normalizeGeneratedWorkflowReferences } from './ai-generator'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
-import { getGatewayClient, isGatewayConfigured, isGatewayRunning, waitForGatewayResponsive } from './gateway-rpc'
 
 // Template storage paths (dynamic functions)
 
@@ -213,42 +212,21 @@ async function finalizeTemplateCreatedAgentRegistration(args: {
   workspacePath: string
   model?: string
   skills?: string[]
-  gatewayAlreadySynchronized?: boolean
 }) {
-  const { agentId, workspacePath, model, skills, gatewayAlreadySynchronized = false } = args
+  const { agentId, workspacePath, model, skills } = args
   const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
   const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
-  const gatewayProcessRunning = isGatewayRunning().running
-  const gatewayRestarted = !gatewayProcessRunning && isGatewayConfigured()
-    ? (await waitForGatewayResponsive(5000, 500)).running
-    : false
-  if (gatewayAlreadySynchronized) {
-    console.log(`Agent ${agentId} was synchronized through the OpenClaw Gateway batch`)
-  } else if (gatewayProcessRunning || gatewayRestarted) {
-    await getGatewayClient().upsertAgent({
-      id: agentId,
-      name: agentId,
-      workspace: workspaceArg,
-      agentDir: agentDirArg,
-      model: model?.trim() || undefined,
-      skills,
-    })
-    // Large OpenClaw 2.0 installations may need over a minute to reopen every
-    // agent store after config.patch requests a recovery restart.
-    const postPatchGateway = await waitForGatewayResponsive(120000, 500)
-    if (!postPatchGateway.running) {
-      throw new Error(`OpenClaw Gateway did not become ready after synchronizing agent ${agentId}`)
-    }
-    console.log(`Synchronized agent ${agentId} through the OpenClaw Gateway`)
+  // OpenClaw 2 hot-reloads canonical agent roster file changes, while its
+  // config.patch path requires a full recovery restart. Persist atomically on
+  // disk here so template creation does not interrupt an otherwise healthy
+  // Gateway; the integration chat test verifies the live roster reload.
+  const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg)
+  if (registration.status === 'created') {
+    console.log(`Registered agent ${agentId} in openclaw.json`)
+  } else if (registration.status === 'updated-existing') {
+    console.log(`Updated existing OpenClaw agent ${agentId} for active workspace`)
   } else {
-    const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg)
-    if (registration.status === 'created') {
-      console.log(`Registered agent ${agentId} in openclaw.json`)
-    } else if (registration.status === 'updated-existing') {
-      console.log(`Updated existing OpenClaw agent ${agentId} for active workspace`)
-    } else {
-      console.log(`Agent ${agentId} already registered in openclaw.json`)
-    }
+    console.log(`Agent ${agentId} already registered in openclaw.json`)
   }
 
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
@@ -807,30 +785,6 @@ async function runOrganizationPostImportSetup(args: {
 
   // Agent registration is required before workflows can run against new agents.
   // Await Gateway synchronization so an immediate post-apply run sees the new roster.
-  const gatewayProcessRunning = isGatewayRunning().running
-  const gatewayRestarted = !gatewayProcessRunning && isGatewayConfigured()
-    ? (await waitForGatewayResponsive(5000, 500)).running
-    : false
-  let gatewayBatchSynchronized = false
-  if ((gatewayProcessRunning || gatewayRestarted) && createdAgents.length > 0) {
-    await getGatewayClient().upsertAgents(createdAgents.map((agentId) => {
-      const templateAgent = agentsToCreate.find((entry) => `${prefix}${entry.id}${suffix}` === agentId)
-      return {
-        id: agentId,
-        name: agentId,
-        workspace: path.join(workspacePath, 'AGENTS', agentId),
-        agentDir: path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent'),
-        model: appliedModelsByAgentId?.[agentId]?.trim() || undefined,
-        skills: templateAgent?.skills,
-      }
-    }))
-    const postPatchGateway = await waitForGatewayResponsive(120000, 500)
-    if (!postPatchGateway.running) {
-      throw new Error('OpenClaw Gateway did not become ready after synchronizing imported agents')
-    }
-    gatewayBatchSynchronized = true
-  }
-
   for (const agentId of createdAgents) {
     try {
       const templateAgent = agentsToCreate.find((entry) => `${prefix}${entry.id}${suffix}` === agentId)
@@ -839,7 +793,6 @@ async function runOrganizationPostImportSetup(args: {
         workspacePath,
         model: appliedModelsByAgentId?.[agentId],
         skills: templateAgent?.skills,
-        gatewayAlreadySynchronized: gatewayBatchSynchronized,
       })
     } catch (err) {
       console.warn(`Failed to register agent ${agentId}: ${err}`)
