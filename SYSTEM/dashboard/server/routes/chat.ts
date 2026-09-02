@@ -257,17 +257,6 @@ export function shouldRetryViaGatewayAfterLocalCollision(input: {
   return /Gateway is running for this state directory/i.test(input.rawError)
 }
 
-export function shouldRetryGatewayOpeningHandshake(input: {
-  useLocal: boolean
-  provider?: ChatProvider
-  rawError: string
-}): boolean {
-  if (input.useLocal || input.provider === 'ollama' || input.provider === 'openai-compatible') return false
-  return /Opening handshake has timed out/i.test(input.rawError)
-}
-
-export const OPENCLAW_GATEWAY_RECOVERY_TIMEOUT_MS = 120000
-
 export function shouldRecoverPersistedAssistant(normalizedText: string): boolean {
   return normalizedText.trim().length === 0
 }
@@ -1281,22 +1270,11 @@ router.post('/:id/chat', async (req, res) => {
           // agent database. A large real-world roster has taken ~103 seconds
           // from process start to `ready`, so a 30-second retry window can
           // expire while the owner is healthy but still booting.
-          const gatewayReady = await waitForGatewayResponsive(OPENCLAW_GATEWAY_RECOVERY_TIMEOUT_MS, 1000)
+          const gatewayReady = await waitForGatewayResponsive(120000, 1000)
           if (gatewayReady.running) {
             primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
           } else {
             console.warn(`[Chat Route] Gateway did not become ready for retry: ${gatewayReady.error || 'unknown readiness failure'}`)
-          }
-        }
-        if (shouldRetryGatewayOpeningHandshake({
-          useLocal,
-          provider: resolvedAgent.provider,
-          rawError: primaryResult.rawError,
-        })) {
-          console.warn(`[Chat Route] Gateway opening handshake timed out; retrying agent ${id} once after readiness probe`)
-          const gatewayReady = await waitForGatewayResponsive(OPENCLAW_GATEWAY_RECOVERY_TIMEOUT_MS, 1000)
-          if (gatewayReady.running) {
-            primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
           }
         }
         throwIfChatAttemptNeedsSessionRetry(primaryResult)

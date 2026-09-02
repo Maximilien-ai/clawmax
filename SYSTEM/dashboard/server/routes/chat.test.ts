@@ -17,8 +17,6 @@ import {
   shouldAttemptManagedResendDispatch,
   shouldUseLocalChatExecution,
   shouldRetryViaGatewayAfterLocalCollision,
-  shouldRetryGatewayOpeningHandshake,
-  OPENCLAW_GATEWAY_RECOVERY_TIMEOUT_MS,
   throwIfChatAttemptNeedsSessionRetry,
 } from './chat'
 import fs from 'fs'
@@ -99,15 +97,6 @@ test('local chat retries through gateway only when a hosted provider loses the s
   assert(!shouldRetryViaGatewayAfterLocalCollision({ useLocal: false, provider: 'openai', rawError: collision }), 'Expected an existing gateway attempt not to retry')
   assert(!shouldRetryViaGatewayAfterLocalCollision({ useLocal: true, provider: 'ollama', rawError: collision }), 'Expected local-only provider not to reroute')
   assert(!shouldRetryViaGatewayAfterLocalCollision({ useLocal: true, provider: 'openai', rawError: 'connection refused' }), 'Expected unrelated errors not to reroute')
-})
-
-test('gateway chat retries only a hosted-provider opening handshake timeout', () => {
-  const timeout = 'Opening handshake has timed out'
-  assert(shouldRetryGatewayOpeningHandshake({ useLocal: false, provider: 'openai', rawError: timeout }), 'Expected hosted Gateway handshake timeout to retry')
-  assert(!shouldRetryGatewayOpeningHandshake({ useLocal: true, provider: 'openai', rawError: timeout }), 'Expected local attempts not to use Gateway handshake retry')
-  assert(!shouldRetryGatewayOpeningHandshake({ useLocal: false, provider: 'ollama', rawError: timeout }), 'Expected local-only providers not to retry through Gateway')
-  assert(!shouldRetryGatewayOpeningHandshake({ useLocal: false, provider: 'openai', rawError: 'authentication failed' }), 'Expected unrelated Gateway failures not to retry')
-  assert(OPENCLAW_GATEWAY_RECOVERY_TIMEOUT_MS === 120000, 'Expected recovery to cover OpenClaw startup and large-roster reloads')
 })
 
 test('shouldUseLocalChatExecution uses gateway for hosted env-key execution when gateway is running', () => {
