@@ -266,6 +266,8 @@ export function shouldRetryGatewayOpeningHandshake(input: {
   return /Opening handshake has timed out/i.test(input.rawError)
 }
 
+export const OPENCLAW_GATEWAY_RECOVERY_TIMEOUT_MS = 120000
+
 export function shouldRecoverPersistedAssistant(normalizedText: string): boolean {
   return normalizedText.trim().length === 0
 }
@@ -1279,7 +1281,7 @@ router.post('/:id/chat', async (req, res) => {
           // agent database. A large real-world roster has taken ~103 seconds
           // from process start to `ready`, so a 30-second retry window can
           // expire while the owner is healthy but still booting.
-          const gatewayReady = await waitForGatewayResponsive(120000, 1000)
+          const gatewayReady = await waitForGatewayResponsive(OPENCLAW_GATEWAY_RECOVERY_TIMEOUT_MS, 1000)
           if (gatewayReady.running) {
             primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
           } else {
@@ -1292,7 +1294,7 @@ router.post('/:id/chat', async (req, res) => {
           rawError: primaryResult.rawError,
         })) {
           console.warn(`[Chat Route] Gateway opening handshake timed out; retrying agent ${id} once after readiness probe`)
-          const gatewayReady = await waitForGatewayResponsive(30000, 1000)
+          const gatewayReady = await waitForGatewayResponsive(OPENCLAW_GATEWAY_RECOVERY_TIMEOUT_MS, 1000)
           if (gatewayReady.running) {
             primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
           }

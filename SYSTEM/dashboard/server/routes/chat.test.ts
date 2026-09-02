@@ -18,6 +18,7 @@ import {
   shouldUseLocalChatExecution,
   shouldRetryViaGatewayAfterLocalCollision,
   shouldRetryGatewayOpeningHandshake,
+  OPENCLAW_GATEWAY_RECOVERY_TIMEOUT_MS,
   throwIfChatAttemptNeedsSessionRetry,
 } from './chat'
 import fs from 'fs'
@@ -106,6 +107,7 @@ test('gateway chat retries only a hosted-provider opening handshake timeout', ()
   assert(!shouldRetryGatewayOpeningHandshake({ useLocal: true, provider: 'openai', rawError: timeout }), 'Expected local attempts not to use Gateway handshake retry')
   assert(!shouldRetryGatewayOpeningHandshake({ useLocal: false, provider: 'ollama', rawError: timeout }), 'Expected local-only providers not to retry through Gateway')
   assert(!shouldRetryGatewayOpeningHandshake({ useLocal: false, provider: 'openai', rawError: 'authentication failed' }), 'Expected unrelated Gateway failures not to retry')
+  assert(OPENCLAW_GATEWAY_RECOVERY_TIMEOUT_MS === 120000, 'Expected recovery to cover OpenClaw startup and large-roster reloads')
 })
 
 test('shouldUseLocalChatExecution uses gateway for hosted env-key execution when gateway is running', () => {
