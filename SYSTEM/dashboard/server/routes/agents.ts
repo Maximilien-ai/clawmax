@@ -1019,9 +1019,9 @@ router.post('/provision', async (req, res) => {
     send('log', `Wrote AI-generated files: IDENTITY.md, SOUL.md, TOOLS.md\n`)
   }
 
-  const applyWorkspaceFiles = () => {
+  const applyWorkspaceFiles = async () => {
     if (templateSlug) {
-      const result = importAgentFromTemplate(templateSlug, {
+      const result = await importAgentFromTemplate(templateSlug, {
         newAgentId: validatedName,
         model: validatedModel,
         port,
@@ -1107,7 +1107,7 @@ router.post('/provision', async (req, res) => {
     // Agent already registered - skip openclaw agents add
     send('log', `Agent "${validatedName}" is already registered\n`)
     try {
-      applyWorkspaceFiles()
+      await applyWorkspaceFiles()
     } catch (err: any) {
       send('error', err.message || 'Failed to prepare agent workspace files')
       res.end()
@@ -1265,7 +1265,7 @@ router.post('/provision', async (req, res) => {
     }
 
     try {
-      applyWorkspaceFiles()
+      await applyWorkspaceFiles()
       syncProvisionedAgentModels()
     } catch (err: any) {
       send('error', `Failed to prepare agent workspace files: ${err.message}`)
@@ -1300,11 +1300,11 @@ router.post('/provision', async (req, res) => {
   child.stdout!.on('data', (chunk: Buffer) => send('log', chunk.toString()))
   child.stderr!.on('data', (chunk: Buffer) => send('log', chunk.toString()))
 
-  child.on('close', (code, signal) => {
+  child.on('close', async (code, signal) => {
     cleanup()
     if (code === 0) {
       try {
-        applyWorkspaceFiles()
+        await applyWorkspaceFiles()
         syncProvisionedAgentModels()
       } catch (err: any) {
         send('error', `Failed to prepare agent workspace files: ${err.message}`)

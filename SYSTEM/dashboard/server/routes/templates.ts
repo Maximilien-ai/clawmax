@@ -653,7 +653,7 @@ router.post('/generate', async (req, res) => {
 })
 
 // POST /api/templates/agents/import - Import an agent from a template
-router.post('/agents/import', (req, res) => {
+router.post('/agents/import', async (req, res) => {
   const { templateSlug, agentId, model, port, whatsapp } = req.body
 
   if (!templateSlug || typeof templateSlug !== 'string') {
@@ -668,7 +668,7 @@ router.post('/agents/import', (req, res) => {
     throw error
   }
 
-  const result = importAgentFromTemplate(templateSlug, {
+  const result = await importAgentFromTemplate(templateSlug, {
     newAgentId: agentId,
     model,
     port,
@@ -762,7 +762,7 @@ router.post('/organizations/conflicts', (req, res) => {
   })
 })
 
-router.post('/organizations/import', (req, res) => {
+router.post('/organizations/import', async (req, res) => {
   const { templateSlug, prefix, suffix, includeBuiltIn, modelOverride, agentCounts, workflowOverrides, groupRenames, communityRenames, workflowRenames } = req.body
 
   if (!templateSlug || typeof templateSlug !== 'string') {
@@ -791,7 +791,7 @@ router.post('/organizations/import', (req, res) => {
     throw error
   }
 
-  const result = importOrganizationTemplate(templateSlug, {
+  const result = await importOrganizationTemplate(templateSlug, {
     prefix,
     suffix,
     includeBuiltIn: includeBuiltIn !== false, // Default to true

@@ -1857,14 +1857,12 @@ function findOpenClawConfigPath(): string {
   return path.join(home, '.openclaw', 'openclaw.json')
 }
 
-const OPENCLAW_CONFIG_PATH = findOpenClawConfigPath()
-
 /**
  * Load openclaw.json configuration
  */
 function loadOpenClawConfig(): OpenClawConfig {
   try {
-    const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
+    const content = fs.readFileSync(findOpenClawConfigPath(), 'utf-8')
     const parsed = JSON.parse(content || '{}')
     materializeDashboardAgentList(parsed)
     return parsed
@@ -1892,11 +1890,12 @@ function saveOpenClawConfig(config: OpenClawConfig): void {
     saveOpenClawConfigDeprecationWarned = true
   }
   try {
+    const configPath = findOpenClawConfigPath()
     // Create backup before saving
-    const backupPath = `${OPENCLAW_CONFIG_PATH}.bak`
-    fs.copyFileSync(OPENCLAW_CONFIG_PATH, backupPath)
+    const backupPath = `${configPath}.bak`
+    fs.copyFileSync(configPath, backupPath)
 
-    writeDashboardManagedOpenClawConfig(OPENCLAW_CONFIG_PATH, config, 'setAgentSkills')
+    writeDashboardManagedOpenClawConfig(configPath, config, 'setAgentSkills')
 
     if (!saveOpenClawConfigDeprecatedPathLogged) {
       console.log('Successfully saved openclaw.json (DEPRECATED PATH)')

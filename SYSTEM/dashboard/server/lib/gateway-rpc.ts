@@ -406,6 +406,52 @@ export class GatewayRPCClient {
       throw new Error(`Failed to register agent via gateway: ${err.message}`)
     }
   }
+
+  /**
+   * Create or replace an agent registration in the Gateway's live config.
+   *
+   * Template imports may intentionally reuse an agent id for a different
+   * workspace. Going through config.patch ensures the running Gateway reloads
+   * that registration instead of leaving its in-memory roster stale after a
+   * direct config-file write.
+   */
+  async upsertAgent(agent: {
+    id: string
+    name: string
+    workspace: string
+    agentDir: string
+    model?: string
+    skills?: string[]
+  }): Promise<void> {
+    try {
+      const configData = await this.getConfig()
+      const config = configData.resolved || configData.config || {}
+      const baseHash = configData.hash
+      const agentsList = materializeDashboardAgentList(config)
+      const existingIndex = agentsList.findIndex((entry: any) => entry.id === agent.id)
+      const entry: any = {
+        ...(existingIndex >= 0 ? agentsList[existingIndex] : {}),
+        id: agent.id,
+        name: agent.name,
+        workspace: agent.workspace,
+        agentDir: agent.agentDir,
+      }
+      if (agent.model) entry.model = agent.model
+      if (agent.skills) entry.skills = agent.skills
+
+      if (existingIndex >= 0) agentsList[existingIndex] = entry
+      else agentsList.push(entry)
+      canonicalizeDashboardAgentRoster(config)
+
+      await this.call('config.patch', {
+        raw: JSON.stringify({ agents: { entries: config.agents.entries } }),
+        baseHash,
+      })
+    } catch (err: any) {
+      console.error('Gateway RPC upsertAgent failed:', err)
+      throw new Error(`Failed to synchronize agent via gateway: ${err.message}`)
+    }
+  }
 }
 
 /**

@@ -15,6 +15,7 @@ import { recordTemplateApply, type CanonicalTemplateFeedbackSource, type Canonic
 import { resolveDefaultAgentModel } from './agent-default-model'
 import { applyGeneratedWorkflowHandoffs, normalizeGeneratedWorkflowReferences } from './ai-generator'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
+import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
 
 // Template storage paths (dynamic functions)
 
@@ -207,30 +208,48 @@ function ensureTemplateCreatedAgentRuntimeArtifacts(args: {
   }
 }
 
-function finalizeTemplateCreatedAgentRegistration(args: {
+async function finalizeTemplateCreatedAgentRegistration(args: {
   agentId: string
   workspacePath: string
   model?: string
+  skills?: string[]
 }) {
-  const { agentId, workspacePath, model } = args
+  const { agentId, workspacePath, model, skills } = args
   const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
   const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
-  const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg)
-  if (registration.status === 'created') {
-    console.log(`Registered agent ${agentId} in openclaw.json`)
-  } else if (registration.status === 'updated-existing') {
-    console.log(`Updated existing OpenClaw agent ${agentId} for active workspace`)
+  if (isGatewayRunning().running) {
+    await getGatewayClient().upsertAgent({
+      id: agentId,
+      name: agentId,
+      workspace: workspaceArg,
+      agentDir: agentDirArg,
+      model: model?.trim() || undefined,
+      skills,
+    })
+    console.log(`Synchronized agent ${agentId} through the OpenClaw Gateway`)
   } else {
-    console.log(`Agent ${agentId} already registered in openclaw.json`)
+    const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg)
+    if (registration.status === 'created') {
+      console.log(`Registered agent ${agentId} in openclaw.json`)
+    } else if (registration.status === 'updated-existing') {
+      console.log(`Updated existing OpenClaw agent ${agentId} for active workspace`)
+    } else {
+      console.log(`Agent ${agentId} already registered in openclaw.json`)
+    }
   }
 
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  const registered = materializeDashboardAgentList(config).some((agent: any) =>
+  const registeredAgent = materializeDashboardAgentList(config).find((agent: any) =>
     agent?.id === agentId && String(agent?.workspace || '') === workspaceArg
   )
-  if (!registered) {
+  if (!registeredAgent) {
     throw new Error(`Agent ${agentId} registration did not persist for active workspace`)
+  }
+
+  if (skills && Array.isArray(skills)) {
+    registeredAgent.skills = Array.from(new Set(skills))
+    writeDashboardManagedOpenClawConfig(configPath, config, `finalizeTemplateCreatedAgentRegistration(${agentId})`)
   }
 
   const appliedModel = model?.trim()
@@ -760,7 +779,7 @@ function ensureOpenClawAgentRegisteredForWorkspace(
   return createOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
 }
 
-function runOrganizationPostImportSetup(args: {
+async function runOrganizationPostImportSetup(args: {
   createdAgents: string[]
   agentsToCreate: Array<{ id: string; skills?: string[] }>
   appliedModelsByAgentId?: Record<string, string | undefined>
@@ -774,58 +793,19 @@ function runOrganizationPostImportSetup(args: {
   const { createdAgents, agentsToCreate, appliedModelsByAgentId, template, prefix, suffix, workspacePath, agentsDir, workflowOverrides } = args
 
   // Agent registration is required before workflows can run against new agents.
-  // Do this synchronously so an immediate post-apply workflow run doesn't fail.
+  // Await Gateway synchronization so an immediate post-apply run sees the new roster.
   for (const agentId of createdAgents) {
     try {
-      const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
-      const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
-      const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg)
-      if (registration.status === 'created') {
-        console.log(`Registered agent ${agentId} in openclaw.json`)
-      } else if (registration.status === 'updated-existing') {
-        console.log(`Updated existing OpenClaw agent ${agentId} for active workspace`)
-      } else {
-        console.log(`Agent ${agentId} already registered in openclaw.json`)
-      }
-
-      const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      const registered = materializeDashboardAgentList(config).some((agent: any) =>
-        agent?.id === agentId && String(agent?.workspace || '') === workspaceArg
-      )
-      if (!registered) {
-        throw new Error(`Agent ${agentId} registration did not persist for active workspace`)
-      }
-
-      const appliedModel = appliedModelsByAgentId?.[agentId]?.trim()
-      if (appliedModel) {
-        const update = updateAgentModelInConfigFile(configPath, agentId, appliedModel, { workspacePath: workspaceArg })
-        if (!update.ok) {
-          throw new Error(update.error || `Failed to persist model ${appliedModel} for ${agentId}`)
-        }
-      }
-
-      ensureTemplateCreatedAgentRuntimeArtifacts({
+      const templateAgent = agentsToCreate.find((entry) => `${prefix}${entry.id}${suffix}` === agentId)
+      await finalizeTemplateCreatedAgentRegistration({
         agentId,
-        workspaceArg,
-        agentDirArg,
-        model: appliedModel,
+        workspacePath,
+        model: appliedModelsByAgentId?.[agentId],
+        skills: templateAgent?.skills,
       })
-      const authProfilePath = path.join(agentDirArg, 'auth-profiles.json')
-      if (!fs.existsSync(authProfilePath)) {
-        const authProfile: Record<string, any> = { version: 1, profiles: {} }
-        const systemKeys = getSystemProviderKeys()
-        if (systemKeys.openai) {
-          authProfile.profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: systemKeys.openai }
-        }
-        if (systemKeys.anthropic) {
-          authProfile.profiles['anthropic-key'] = { type: 'api_key', provider: 'anthropic', key: systemKeys.anthropic }
-        }
-        fs.writeFileSync(authProfilePath, JSON.stringify(authProfile, null, 2), 'utf-8')
-        console.log(`Created auth profile for agent ${agentId}`)
-      }
     } catch (err) {
       console.warn(`Failed to register agent ${agentId}: ${err}`)
+      throw err
     }
   }
 
@@ -2051,7 +2031,7 @@ export function copyAgentFilesFromTemplate(
 /**
  * Import an agent from a template, creating a new agent in AGENTS/ directory
  */
-export function importAgentFromTemplate(
+export async function importAgentFromTemplate(
   templateSlug: string,
   options: {
     newAgentId?: string
@@ -2060,7 +2040,7 @@ export function importAgentFromTemplate(
     whatsapp?: string
     allowExistingTargetDir?: boolean
   }
-): { ok: boolean; agentId?: string; error?: string } {
+): Promise<{ ok: boolean; agentId?: string; error?: string }> {
   try {
     const normalizedSlug = slugify(templateSlug)
     const resolvedAliasSlug = resolveAgentTemplateSlug(templateSlug)
@@ -2194,21 +2174,27 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       fs.writeFileSync(identityPath, identity, 'utf-8')
     }
 
-    // Assign skills from template if defined
+    await finalizeTemplateCreatedAgentRegistration({
+      agentId: targetAgentId,
+      workspacePath: getWorkspacePath(),
+      model: effectiveModel,
+      skills: sourceAgent.skills,
+    })
+
+    // Registration must exist before the local skill helper can resolve the
+    // active-workspace record. The Gateway upsert already carries these IDs;
+    // this call also synchronizes TOOLS.md and supports offline imports.
     if (sourceAgent.skills && Array.isArray(sourceAgent.skills) && sourceAgent.skills.length > 0) {
       try {
         setAgentSkills(targetAgentId, sourceAgent.skills)
         console.log(`Assigned skills [${sourceAgent.skills.join(', ')}] to agent ${targetAgentId}`)
       } catch (err) {
-        console.warn(`Failed to assign skills to ${targetAgentId}: ${err}`)
+        // The registration already persists the canonical skill IDs. This
+        // helper additionally updates local TOOLS.md when its config path is
+        // available (it may not be in isolated HOME-based tests).
+        console.warn(`Deferred local skill workspace synchronization for ${targetAgentId}: ${err}`)
       }
     }
-
-    finalizeTemplateCreatedAgentRegistration({
-      agentId: targetAgentId,
-      workspacePath: getWorkspacePath(),
-      model: effectiveModel,
-    })
     initializeTemplateCreatedAgent(targetAgentId)
     recordTemplateApply(buildTemplateFeedbackMetadata(feedbackTemplate))
 
@@ -2496,7 +2482,7 @@ export function createOrganizationTemplate(
  * Import an organization template and create all agents, communities, and groups
  * Supports prefix/suffix for agent IDs to avoid conflicts
  */
-export function importOrganizationTemplate(
+export async function importOrganizationTemplate(
   templateSlug: string,
   options?: {
     prefix?: string
@@ -2509,7 +2495,7 @@ export function importOrganizationTemplate(
     communityRenames?: Record<string, string>
     workflowRenames?: Record<string, string>
   }
-): { ok: boolean; agentIds?: string[]; error?: string } {
+): Promise<{ ok: boolean; agentIds?: string[]; error?: string }> {
   try {
     // Check workspace templates first (user templates)
     let templateDir = path.join(getOrgTemplatesDir(), templateSlug)
@@ -3407,7 +3393,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         }
       }
 
-      runOrganizationPostImportSetup({
+      await runOrganizationPostImportSetup({
         createdAgents,
         agentsToCreate,
         appliedModelsByAgentId,

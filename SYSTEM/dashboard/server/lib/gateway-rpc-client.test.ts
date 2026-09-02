@@ -184,6 +184,63 @@ async function run() {
     })
   })
 
+  await test('upsertAgent replaces an existing registration and preserves unrelated metadata', async () => {
+    await withGatewayConfig(async (client) => {
+      let patchCall: any
+      ;(client as any).getConfig = async () => ({
+        hash: 'upsert-hash',
+        resolved: {
+          agents: {
+            entries: {
+              existing: {
+                name: 'Old Name',
+                workspace: '/old/workspace',
+                agentDir: '/old/agent',
+                runtime: 'codex',
+              },
+              sibling: { workspace: '/sibling' },
+            },
+          },
+        },
+      })
+      ;(client as any).call = async (method: string, params: any) => { patchCall = { method, params } }
+
+      await client.upsertAgent({
+        id: 'existing',
+        name: 'Existing',
+        workspace: '/new/workspace',
+        agentDir: '/new/agent',
+        model: 'openai/gpt-5.4',
+        skills: ['github'],
+      })
+
+      assert.strictEqual(patchCall.method, 'config.patch')
+      assert.strictEqual(patchCall.params.baseHash, 'upsert-hash')
+      const entries = JSON.parse(patchCall.params.raw).agents.entries
+      assert.deepStrictEqual(entries.existing, {
+        name: 'Existing',
+        workspace: '/new/workspace',
+        agentDir: '/new/agent',
+        runtime: 'codex',
+        model: 'openai/gpt-5.4',
+        skills: ['github'],
+      })
+      assert.deepStrictEqual(entries.sibling, { workspace: '/sibling' })
+    })
+  })
+
+  await test('upsertAgent reports Gateway synchronization failures with context', async () => {
+    await withGatewayConfig(async (client) => {
+      ;(client as any).getConfig = async () => { throw new Error('gateway busy') }
+      await expectFailure(() => client.upsertAgent({
+        id: 'new-agent',
+        name: 'New Agent',
+        workspace: '/workspace',
+        agentDir: '/agent',
+      }), 'Failed to synchronize agent via gateway: gateway busy')
+    })
+  })
+
   await test('configured-state helpers report disk configuration and missing configuration', async () => {
     await withGatewayConfig(async () => {
       assert.strictEqual(isGatewayConfigured(), true)
