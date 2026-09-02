@@ -11,17 +11,19 @@ OpenClaw 2.0 is not yet a low-friction upgrade and must not be merged into the
 next RC until the remaining live Gateway lifecycle failure is resolved.
 
 The keyed-agent and persistent-state migrations are contained, and the latest
-strict gate reports 475/476 checks passing (99.8%). Branch coverage is 71.76%,
+strict gate reports 475/476 checks passing (99.8%). Branch coverage is 71.73%,
 above the 71.54% pre-migration floor. The remaining test is release-critical:
-after the launch-managed Gateway claims the OpenClaw state directory, its
-process can exit before accepting WebSocket connections. OpenClaw then rejects
-local execution because a Gateway owns the state while Gateway execution fails
-with `ECONNREFUSED` or an opening-handshake timeout.
+after a template adds agents, v2026.8.2 synchronously rebuilds metadata for the
+entire configured roster during config hot reload. On the 317-agent test host,
+the event loop stopped accepting WebSocket handshakes for about 43 seconds and
+Gateway memory reached 1.83 GiB. The CLI chat consequently fails with an
+opening-handshake timeout even though the process remains alive.
 
-Recommendation: keep the spike branch unmerged. Diagnose the v2026.8.2 Gateway
-process lifecycle/stale ownership state, prove a stable live chat, and rerun the
-476-check gate. Only then reconsider the normal public and combined-image RC
-build and smoke matrix.
+Recommendation: keep the spike branch unmerged. Replace the direct config-file
+registration/hot-reload race with OpenClaw 2's native `agents.create` and
+`agents.update` lifecycle where feasible, or add a deterministic post-mutation
+readiness contract that proves the new roster is usable before returning.
+Prove stable live chat and rerun the 476-check gate before starting RC images.
 
 ## Evidence
 
@@ -58,18 +60,20 @@ OPENCLAW_BIN=/path/to/openclaw-2026.8.2/bin/openclaw \
   ./SYSTEM/test-with-server.sh integration --with-validation --coverage
 ```
 
-Latest strict result:
+Latest strict result (commit `0b2efea2`; the ineffective long-retry experiment
+was subsequently removed by `9e9d6d2d`):
 
 - passed: 475
 - failed: 1
 - total: 476
 - pass rate: 99.8%
-- statements/lines: 82.06% (48,977/59,682)
-- functions: 91.65% (1,888/2,060)
-- branches: 71.76% (12,313/17,158)
+- statements/lines: 82.02% (49,018/59,760)
+- functions: 91.63% (1,894/2,067)
+- branches: 71.73% (12,317/17,170)
 - branch baseline before migration: 71.54%
-- branch change: +0.22 percentage points
-- remaining failure: live agent chat cannot reach the transient Gateway owner
+- branch change: +0.19 percentage points
+- remaining failure: live agent chat cannot connect while the Gateway rebuilds
+  large-roster metadata after the template registration hot reload
 
 ## Confirmed Compatibility Changes
 
@@ -141,12 +145,18 @@ ClawMax now falls back to OpenClaw's paired CLI for `config.get` and
 `config.patch`, using a single keyed-agent patch so large rosters do not exceed
 command argument limits. Imported agents then appear in the canonical config.
 
-The unresolved gap is after registration. A launch-managed Gateway can claim
-the state directory while its listener is unavailable. ClawMax detects the
-local/Gateway ownership collision and waits up to 30 seconds for authenticated
-readiness, but v2026.8.2 can leave the port refused for the entire window. This
-must be resolved upstream or with a deterministic lifecycle contract before
-the branch is safe to merge.
+The unresolved gap is after registration. The Gateway remains alive but its
+large-roster metadata rebuild blocks new WebSocket handshakes. An experiment
+that retried after a 120-second readiness window still failed and stretched the
+chat request to 146 seconds, so it was removed rather than shipping a latency
+regression. The next implementation should use the native agent lifecycle RPC
+or an explicit upstream reload-complete signal instead of timeout escalation.
+
+A separate one-time host cleanup quarantined 247 identical synthetic invalid
+skill fixtures from the repository workspace at
+`/tmp/clawmax-invalid-skill-quarantine-E1cuAB`. A clean restart and rerun still
+reproduced the failure, proving those fixtures amplified noise but were not the
+root cause.
 
 ## Upstream Benefits Verified
 
@@ -171,7 +181,10 @@ References:
   supported by the upstream schema.
 - [x] Add disposable-config migration tests, including idempotence and safe failure.
 - [x] Run the focused compatibility suites with zero failures.
-- [ ] Stabilize the v2026.8.2 Gateway process after it claims state ownership.
+- [ ] Integrate OpenClaw 2 native `agents.create`/`agents.update`, or establish a
+  deterministic reload-complete contract, for template agent registration.
+- [ ] Verify registration and immediate chat on both a small roster and the
+  current 317-agent host without an opening-handshake timeout or memory spike.
 - [ ] Run the complete integration, validation, and coverage gate with zero
   failures and record the restored check count (current: 475/476).
 - [ ] Build and smoke the public amd64 and arm64 images.
