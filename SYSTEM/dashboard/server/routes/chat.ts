@@ -257,6 +257,15 @@ export function shouldRetryViaGatewayAfterLocalCollision(input: {
   return /Gateway is running for this state directory/i.test(input.rawError)
 }
 
+export function shouldRetryGatewayOpeningHandshake(input: {
+  useLocal: boolean
+  provider?: ChatProvider
+  rawError: string
+}): boolean {
+  if (input.useLocal || input.provider === 'ollama' || input.provider === 'openai-compatible') return false
+  return /Opening handshake has timed out/i.test(input.rawError)
+}
+
 export function shouldRecoverPersistedAssistant(normalizedText: string): boolean {
   return normalizedText.trim().length === 0
 }
@@ -1275,6 +1284,17 @@ router.post('/:id/chat', async (req, res) => {
             primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
           } else {
             console.warn(`[Chat Route] Gateway did not become ready for retry: ${gatewayReady.error || 'unknown readiness failure'}`)
+          }
+        }
+        if (shouldRetryGatewayOpeningHandshake({
+          useLocal,
+          provider: resolvedAgent.provider,
+          rawError: primaryResult.rawError,
+        })) {
+          console.warn(`[Chat Route] Gateway opening handshake timed out; retrying agent ${id} once after readiness probe`)
+          const gatewayReady = await waitForGatewayResponsive(30000, 1000)
+          if (gatewayReady.running) {
+            primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
           }
         }
         throwIfChatAttemptNeedsSessionRetry(primaryResult)
