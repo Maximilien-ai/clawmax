@@ -216,7 +216,7 @@ export class GatewayRPCClient {
             caps: [],
             auth: { token: this.authToken },
             role: 'operator',
-            scopes: ['operator.admin']
+            scopes: ['operator.read', 'operator.admin']
           }
         }
         ws.send(JSON.stringify(connectMessage))
