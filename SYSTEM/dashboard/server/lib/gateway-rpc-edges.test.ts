@@ -110,6 +110,17 @@ test('gateway probe connect params preserve protocol version and read-only opera
   assert(params.client.id === 'openclaw-dashboard', 'Expected dashboard probe client id')
 })
 
+test('gateway CLI config calls serialize params without shell interpolation', () => {
+  const args = __test.buildGatewayCliCallArgs('config.patch', {
+    raw: JSON.stringify({ agents: { entries: { lead: { workspace: '/tmp/lead' } } } }),
+    baseHash: 'hash-1',
+  })
+
+  assert(args.slice(0, 6).join(' ') === 'gateway call config.patch --json --timeout 30000', 'Expected canonical gateway call arguments')
+  assert(args[6] === '--params', 'Expected params flag')
+  assert(JSON.parse(args[7]).baseHash === 'hash-1', 'Expected params to be serialized as one argv value')
+})
+
 setTimeout(() => {
   console.log(`\nPassed: ${testsPassed}`)
   console.log(`Failed: ${testsFailed}`)

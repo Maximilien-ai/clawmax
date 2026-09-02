@@ -3,11 +3,14 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { randomUUID } from 'crypto'
-import { execSync } from 'child_process'
+import { execFile, execSync } from 'child_process'
+import { promisify } from 'util'
 import { safeEnv } from './safe-env'
 import { canonicalizeDashboardAgentRoster, materializeDashboardAgentList } from './openclaw-config'
+import { resolveOpenClawCliPath } from './openclaw-cli'
 
 export const GATEWAY_PROTOCOL_VERSION = 4
+const execFileAsync = promisify(execFile)
 
 interface GatewayConfig {
   port: number
@@ -85,6 +88,12 @@ function loadGatewayConfigFromDisk(): GatewayConfig | null {
   }
 }
 
+function buildGatewayCliCallArgs(method: string, params?: any): string[] {
+  const args = ['gateway', 'call', method, '--json', '--timeout', '30000']
+  if (params !== undefined) args.push('--params', JSON.stringify(params))
+  return args
+}
+
 export const __test = {
   parseGatewayConfig,
   normalizeGatewayHttpUrl,
@@ -93,6 +102,7 @@ export const __test = {
   GATEWAY_PROTOCOL_VERSION,
   buildGatewayProbeClient,
   buildGatewayProbeConnectParams,
+  buildGatewayCliCallArgs,
 }
 
 function buildGatewayProbeClient() {
@@ -295,6 +305,30 @@ export class GatewayRPCClient {
     })
   }
 
+  private async callConfig<T = any>(method: string, params?: any): Promise<T> {
+    try {
+      return await this.call<T>(method, params)
+    } catch (err: any) {
+      if (!String(err?.message || '').includes('missing scope:')) throw err
+
+      // OpenClaw 2.0.2 limits token-only WebSocket clients even when they ask
+      // for operator scopes. Its own CLI supplies the paired device identity,
+      // so use that canonical transport for config methods only.
+      const cliPath = resolveOpenClawCliPath()
+      if (!cliPath) throw err
+      const { stdout } = await execFileAsync(cliPath, buildGatewayCliCallArgs(method, params), {
+        encoding: 'utf-8',
+        env: safeEnv(),
+        maxBuffer: 10 * 1024 * 1024,
+      })
+      const result = JSON.parse(stdout || '{}')
+      if (result?.ok === false) {
+        throw new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
+      }
+      return result as T
+    }
+  }
+
   /**
    * Update agent skills via Gateway RPC
    * Uses config.patch with merge patch algorithm to update agent skills array
@@ -302,7 +336,7 @@ export class GatewayRPCClient {
   async updateAgentSkills(agentId: string, skills: string[]): Promise<void> {
     try {
       // Get current config to obtain the baseHash for optimistic locking
-      const configData = await this.call('config.get')
+      const configData = await this.callConfig('config.get')
       const baseHash = configData.hash
 
       // Use config.patch to update the agent's skills array
@@ -315,7 +349,7 @@ export class GatewayRPCClient {
         }
       }
 
-      await this.call('config.patch', {
+      await this.callConfig('config.patch', {
         raw: JSON.stringify(patch),
         baseHash
       })
@@ -331,7 +365,7 @@ export class GatewayRPCClient {
    */
   async patchConfig(patch: any): Promise<void> {
     try {
-      await this.call('config.patch', {
+      await this.callConfig('config.patch', {
         raw: JSON.stringify(patch)
       })
     } catch (err: any) {
@@ -346,7 +380,7 @@ export class GatewayRPCClient {
    */
   async getConfig(): Promise<any> {
     try {
-      return await this.call('config.get')
+      return await this.callConfig('config.get')
     } catch (err: any) {
       console.error(`Gateway RPC config.get failed:`, err)
       throw new Error(`Failed to get config via gateway: ${err.message}`)
@@ -397,7 +431,7 @@ export class GatewayRPCClient {
         }
       }
 
-      await this.call('config.patch', {
+      await this.callConfig('config.patch', {
         raw: JSON.stringify(patch),
         baseHash
       })
@@ -443,7 +477,7 @@ export class GatewayRPCClient {
       else agentsList.push(entry)
       canonicalizeDashboardAgentRoster(config)
 
-      await this.call('config.patch', {
+      await this.callConfig('config.patch', {
         raw: JSON.stringify({ agents: { entries: config.agents.entries } }),
         baseHash,
       })
