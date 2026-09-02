@@ -59,6 +59,29 @@ if (host?.plugins && typeof host.plugins === 'object') {
   working.plugins = JSON.parse(JSON.stringify(host.plugins))
 }
 
+working.agents = working.agents && typeof working.agents === 'object' && !Array.isArray(working.agents)
+  ? working.agents
+  : {}
+if (Array.isArray(working.agents.list)) {
+  const entries = {}
+  for (const agent of working.agents.list) {
+    if (!agent || typeof agent !== 'object' || Array.isArray(agent)) continue
+    const id = typeof agent.id === 'string' ? agent.id.trim() : ''
+    if (!id) continue
+    const { id: _id, backupModel: _backupModel, ...entry } = agent
+    entries[id] = entry
+  }
+  delete working.agents.list
+  working.agents.entries = entries
+}
+const agentCount = working.agents.entries && typeof working.agents.entries === 'object' && !Array.isArray(working.agents.entries)
+  ? Object.keys(working.agents.entries).length
+  : 0
+if (agentCount > 1) working.agents.ownership = 'explicit'
+if (working.commands && typeof working.commands === 'object' && !Array.isArray(working.commands)) {
+  delete working.commands.ownerDisplay
+}
+
 if (strictPluginPolicy) {
   working.plugins = working.plugins || {}
   const explicitAllow = Array.isArray(working.plugins.allow)
@@ -141,6 +164,24 @@ ensure_openclaw_cli() {
 
   echo "[entrypoint] ERROR: no agent runtime CLI (openclaw, claude, or droid) is available in the runtime image" >&2
   exit 1
+}
+
+migrate_openclaw_2_state() {
+  legacy_auth="$(find "$HOME/.openclaw/agents" -type f -name auth-profiles.json -print -quit 2>/dev/null || true)"
+  [ -n "$legacy_auth" ] || return 0
+
+  echo "[entrypoint] migrating legacy OpenClaw auth profiles to SQLite"
+  if ! openclaw doctor --fix --non-interactive --yes; then
+    echo "[entrypoint] ERROR: OpenClaw state migration failed; legacy auth profiles were preserved for recovery" >&2
+    return 1
+  fi
+
+  legacy_auth="$(find "$HOME/.openclaw/agents" -type f -name auth-profiles.json -print -quit 2>/dev/null || true)"
+  if [ -n "$legacy_auth" ]; then
+    echo "[entrypoint] ERROR: OpenClaw reported success but legacy auth profiles remain" >&2
+    return 1
+  fi
+  echo "[entrypoint] OpenClaw auth profile migration complete"
 }
 
 get_gateway_auth_token() {
@@ -307,6 +348,7 @@ main() {
   verify_runtime_version_matches_image
   ensure_openclaw_cli
   sync_gateway_config
+  migrate_openclaw_2_state
   ensure_gateway_auth_token
 
   gateway_port="$(get_gateway_port)"

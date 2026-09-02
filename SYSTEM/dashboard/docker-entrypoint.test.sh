@@ -40,6 +40,13 @@ case "$1 ${2:-} ${3:-}" in
     printf '%s' "${4:-}" > "${GATEWAY_AUTH_TOKEN_FILE:?}"
     exit 0
     ;;
+  "doctor --fix --non-interactive")
+    if [ "${DOCTOR_EXIT_CODE:-0}" -ne 0 ]; then
+      exit "$DOCTOR_EXIT_CODE"
+    fi
+    rm -f "${LEGACY_AUTH_PROFILE_FILE:?}"
+    exit 0
+    ;;
   "gateway run --port")
     sleep 5
     ;;
@@ -271,5 +278,53 @@ assert_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
 assert_contains '"allowConversationAccess": true' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
+
+cat > "$HOME/.openclaw/openclaw.json" <<'EOF'
+{
+  "agents": {
+    "list": [
+      {"id": "alpha", "workspace": "/workspace/alpha", "backupModel": "retired/model"},
+      {"id": "beta", "workspace": "/workspace/beta"}
+    ]
+  },
+  "commands": {
+    "ownerDisplay": "raw",
+    "native": true
+  }
+}
+EOF
+sync_gateway_config
+assert_contains '"entries": {' "$HOME/.openclaw/openclaw.json"
+assert_contains '"ownership": "explicit"' "$HOME/.openclaw/openclaw.json"
+assert_contains '"native": true' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"list": [' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"backupModel"' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"ownerDisplay"' "$HOME/.openclaw/openclaw.json"
+
+LEGACY_AUTH_PROFILE_FILE="$HOME/.openclaw/agents/alpha/agent/auth-profiles.json"
+export LEGACY_AUTH_PROFILE_FILE
+mkdir -p "$(dirname "$LEGACY_AUTH_PROFILE_FILE")"
+printf '%s\n' '{}' > "$LEGACY_AUTH_PROFILE_FILE"
+: > "$LOG_FILE"
+migrate_openclaw_2_state
+assert_contains "doctor --fix --non-interactive --yes" "$LOG_FILE"
+[ ! -f "$LEGACY_AUTH_PROFILE_FILE" ] || {
+  echo "Expected successful migration to archive the legacy auth profile" >&2
+  exit 1
+}
+
+: > "$LOG_FILE"
+migrate_openclaw_2_state
+assert_not_contains "doctor --fix --non-interactive --yes" "$LOG_FILE"
+
+printf '%s\n' '{}' > "$LEGACY_AUTH_PROFILE_FILE"
+if DOCTOR_EXIT_CODE=1 migrate_openclaw_2_state >/dev/null 2>&1; then
+  echo "Expected a failed OpenClaw migration to fail the entrypoint gate" >&2
+  exit 1
+fi
+[ -f "$LEGACY_AUTH_PROFILE_FILE" ] || {
+  echo "Expected a failed migration to preserve the legacy auth profile" >&2
+  exit 1
+}
 
 echo "docker-entrypoint gateway tests passed"
