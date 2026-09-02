@@ -116,9 +116,16 @@ test('gateway CLI config calls serialize params without shell interpolation', ()
     baseHash: 'hash-1',
   })
 
-  assert(args.slice(0, 6).join(' ') === 'gateway call config.patch --json --timeout 30000', 'Expected canonical gateway call arguments')
+  assert(args.slice(0, 6).join(' ') === 'gateway call config.patch --json --timeout 120000', 'Expected canonical gateway call arguments')
   assert(args[6] === '--params', 'Expected params flag')
   assert(JSON.parse(args[7]).baseHash === 'hash-1', 'Expected params to be serialized as one argv value')
+})
+
+test('config RPC falls back only for scope and transport failures', () => {
+  assert(__test.shouldFallbackConfigCallToCli(new Error('missing scope: operator.read')), 'Expected scope rejection to use paired CLI')
+  assert(__test.shouldFallbackConfigCallToCli(new Error('Gateway RPC timeout for method: config.get')), 'Expected RPC timeout to use paired CLI')
+  assert(__test.shouldFallbackConfigCallToCli(new Error('Gateway WebSocket error: ECONNREFUSED')), 'Expected WebSocket failure to use paired CLI')
+  assert(!__test.shouldFallbackConfigCallToCli(new Error('invalid agent model')), 'Expected application errors not to be retried through CLI')
 })
 
 setTimeout(() => {

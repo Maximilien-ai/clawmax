@@ -89,9 +89,14 @@ function loadGatewayConfigFromDisk(): GatewayConfig | null {
 }
 
 function buildGatewayCliCallArgs(method: string, params?: any): string[] {
-  const args = ['gateway', 'call', method, '--json', '--timeout', '30000']
+  const args = ['gateway', 'call', method, '--json', '--timeout', '120000']
   if (params !== undefined) args.push('--params', JSON.stringify(params))
   return args
+}
+
+function shouldFallbackConfigCallToCli(error: unknown): boolean {
+  const message = String((error as any)?.message || error || '')
+  return /missing scope:|Gateway RPC timeout|Gateway WebSocket error|Gateway connection closed/i.test(message)
 }
 
 export const __test = {
@@ -103,6 +108,7 @@ export const __test = {
   buildGatewayProbeClient,
   buildGatewayProbeConnectParams,
   buildGatewayCliCallArgs,
+  shouldFallbackConfigCallToCli,
 }
 
 function buildGatewayProbeClient() {
@@ -309,7 +315,7 @@ export class GatewayRPCClient {
     try {
       return await this.call<T>(method, params)
     } catch (err: any) {
-      if (!String(err?.message || '').includes('missing scope:')) throw err
+      if (!shouldFallbackConfigCallToCli(err)) throw err
 
       // OpenClaw 2.0.2 limits token-only WebSocket clients even when they ask
       // for operator scopes. Its own CLI supplies the paired device identity,
