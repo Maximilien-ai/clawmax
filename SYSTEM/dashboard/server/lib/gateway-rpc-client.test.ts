@@ -229,6 +229,30 @@ async function run() {
     })
   })
 
+  await test('upsertAgents batches multiple registrations into one scoped patch', async () => {
+    await withGatewayConfig(async (client) => {
+      const patchCalls: any[] = []
+      ;(client as any).getConfig = async () => ({
+        hash: 'batch-hash',
+        resolved: { agents: { entries: { existing: { runtime: 'codex', workspace: '/old' } } } },
+      })
+      ;(client as any).call = async (method: string, params: any) => { patchCalls.push({ method, params }) }
+
+      await client.upsertAgents([
+        { id: 'existing', name: 'Existing', workspace: '/new', agentDir: '/agents/existing' },
+        { id: 'new-agent', name: 'New Agent', workspace: '/new-agent', agentDir: '/agents/new' },
+      ])
+
+      assert.strictEqual(patchCalls.length, 1)
+      assert.strictEqual(patchCalls[0].method, 'config.patch')
+      assert.strictEqual(patchCalls[0].params.baseHash, 'batch-hash')
+      const entries = JSON.parse(patchCalls[0].params.raw).agents.entries
+      assert.strictEqual(entries.existing.runtime, 'codex')
+      assert.strictEqual(entries.existing.workspace, '/new')
+      assert.strictEqual(entries['new-agent'].workspace, '/new-agent')
+    })
+  })
+
   await test('upsertAgent reports Gateway synchronization failures with context', async () => {
     await withGatewayConfig(async (client) => {
       ;(client as any).getConfig = async () => { throw new Error('gateway busy') }

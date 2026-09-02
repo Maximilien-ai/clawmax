@@ -64,7 +64,7 @@ apicurl() {
 
 # Some integration actions legitimately take longer than the default API timeout.
 apicurl_long() {
-  local long_opts="--connect-timeout 5 --max-time 60"
+  local long_opts="--connect-timeout 5 --max-time 180"
   if [ -n "$DASHBOARD_AUTH" ]; then
     curl -s $long_opts -H "Authorization: Bearer $DASHBOARD_AUTH" "$@"
   else

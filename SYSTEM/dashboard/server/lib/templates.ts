@@ -213,15 +213,18 @@ async function finalizeTemplateCreatedAgentRegistration(args: {
   workspacePath: string
   model?: string
   skills?: string[]
+  gatewayAlreadySynchronized?: boolean
 }) {
-  const { agentId, workspacePath, model, skills } = args
+  const { agentId, workspacePath, model, skills, gatewayAlreadySynchronized = false } = args
   const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
   const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
   const gatewayProcessRunning = isGatewayRunning().running
   const gatewayRestarted = !gatewayProcessRunning && isGatewayConfigured()
     ? (await waitForGatewayResponsive(5000, 500)).running
     : false
-  if (gatewayProcessRunning || gatewayRestarted) {
+  if (gatewayAlreadySynchronized) {
+    console.log(`Agent ${agentId} was synchronized through the OpenClaw Gateway batch`)
+  } else if (gatewayProcessRunning || gatewayRestarted) {
     await getGatewayClient().upsertAgent({
       id: agentId,
       name: agentId,
@@ -804,6 +807,30 @@ async function runOrganizationPostImportSetup(args: {
 
   // Agent registration is required before workflows can run against new agents.
   // Await Gateway synchronization so an immediate post-apply run sees the new roster.
+  const gatewayProcessRunning = isGatewayRunning().running
+  const gatewayRestarted = !gatewayProcessRunning && isGatewayConfigured()
+    ? (await waitForGatewayResponsive(5000, 500)).running
+    : false
+  let gatewayBatchSynchronized = false
+  if ((gatewayProcessRunning || gatewayRestarted) && createdAgents.length > 0) {
+    await getGatewayClient().upsertAgents(createdAgents.map((agentId) => {
+      const templateAgent = agentsToCreate.find((entry) => `${prefix}${entry.id}${suffix}` === agentId)
+      return {
+        id: agentId,
+        name: agentId,
+        workspace: path.join(workspacePath, 'AGENTS', agentId),
+        agentDir: path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent'),
+        model: appliedModelsByAgentId?.[agentId]?.trim() || undefined,
+        skills: templateAgent?.skills,
+      }
+    }))
+    const postPatchGateway = await waitForGatewayResponsive(120000, 500)
+    if (!postPatchGateway.running) {
+      throw new Error('OpenClaw Gateway did not become ready after synchronizing imported agents')
+    }
+    gatewayBatchSynchronized = true
+  }
+
   for (const agentId of createdAgents) {
     try {
       const templateAgent = agentsToCreate.find((entry) => `${prefix}${entry.id}${suffix}` === agentId)
@@ -812,6 +839,7 @@ async function runOrganizationPostImportSetup(args: {
         workspacePath,
         model: appliedModelsByAgentId?.[agentId],
         skills: templateAgent?.skills,
+        gatewayAlreadySynchronized: gatewayBatchSynchronized,
       })
     } catch (err) {
       console.warn(`Failed to register agent ${agentId}: ${err}`)

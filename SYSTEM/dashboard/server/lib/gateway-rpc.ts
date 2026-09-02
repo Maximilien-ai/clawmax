@@ -23,6 +23,15 @@ interface GatewayConfig {
   }
 }
 
+interface GatewayAgentRegistration {
+  id: string
+  name: string
+  workspace: string
+  agentDir: string
+  model?: string
+  skills?: string[]
+}
+
 function getGatewayOrigin(config: GatewayConfig): string {
   return config.httpUrl || `http://localhost:${config.port}`
 }
@@ -488,41 +497,41 @@ export class GatewayRPCClient {
    * that registration instead of leaving its in-memory roster stale after a
    * direct config-file write.
    */
-  async upsertAgent(agent: {
-    id: string
-    name: string
-    workspace: string
-    agentDir: string
-    model?: string
-    skills?: string[]
-  }): Promise<void> {
+  async upsertAgent(agent: GatewayAgentRegistration): Promise<void> {
+    await this.upsertAgents([agent])
+  }
+
+  /** Synchronize multiple registrations in one patch and one Gateway restart. */
+  async upsertAgents(agents: GatewayAgentRegistration[]): Promise<void> {
     try {
+      if (agents.length === 0) return
       const configData = await this.getConfig()
       const config = configData.resolved || configData.config || {}
       const baseHash = configData.hash
       const agentsList = materializeDashboardAgentList(config)
-      const existingIndex = agentsList.findIndex((entry: any) => entry.id === agent.id)
-      const entry: any = {
-        ...(existingIndex >= 0 ? agentsList[existingIndex] : {}),
-        id: agent.id,
-        name: agent.name,
-        workspace: agent.workspace,
-        agentDir: agent.agentDir,
-      }
-      if (agent.model) entry.model = agent.model
-      if (agent.skills) entry.skills = agent.skills
+      const keyedEntries: Record<string, any> = {}
 
-      if (existingIndex >= 0) agentsList[existingIndex] = entry
-      else agentsList.push(entry)
-      const keyedEntry = Object.fromEntries(Object.entries(entry).filter(([key]) => key !== 'id'))
+      for (const agent of agents) {
+        const existing = agentsList.find((entry: any) => entry.id === agent.id)
+        const entry: any = {
+          ...(existing || {}),
+          id: agent.id,
+          name: agent.name,
+          workspace: agent.workspace,
+          agentDir: agent.agentDir,
+        }
+        if (agent.model) entry.model = agent.model
+        if (agent.skills) entry.skills = agent.skills
+        keyedEntries[agent.id] = Object.fromEntries(Object.entries(entry).filter(([key]) => key !== 'id'))
+      }
 
       await this.callConfig('config.patch', {
-        raw: JSON.stringify({ agents: { entries: { [agent.id]: keyedEntry } } }),
+        raw: JSON.stringify({ agents: { entries: keyedEntries } }),
         baseHash,
       })
     } catch (err: any) {
-      console.error('Gateway RPC upsertAgent failed:', err)
-      throw new Error(`Failed to synchronize agent via gateway: ${err.message}`)
+      console.error('Gateway RPC upsertAgents failed:', err)
+      throw new Error(`Failed to synchronize agent${agents.length === 1 ? '' : 's'} via gateway: ${err.message}`)
     }
   }
 }
