@@ -15,7 +15,7 @@ import { recordTemplateApply, type CanonicalTemplateFeedbackSource, type Canonic
 import { resolveDefaultAgentModel } from './agent-default-model'
 import { applyGeneratedWorkflowHandoffs, normalizeGeneratedWorkflowReferences } from './ai-generator'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
-import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
+import { getGatewayClient, isGatewayConfigured, isGatewayRunning, waitForGatewayResponsive } from './gateway-rpc'
 
 // Template storage paths (dynamic functions)
 
@@ -217,7 +217,11 @@ async function finalizeTemplateCreatedAgentRegistration(args: {
   const { agentId, workspacePath, model, skills } = args
   const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
   const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
-  if (isGatewayRunning().running) {
+  const gatewayProcessRunning = isGatewayRunning().running
+  const gatewayRestarted = !gatewayProcessRunning && isGatewayConfigured()
+    ? (await waitForGatewayResponsive(5000, 500)).running
+    : false
+  if (gatewayProcessRunning || gatewayRestarted) {
     await getGatewayClient().upsertAgent({
       id: agentId,
       name: agentId,
@@ -226,6 +230,10 @@ async function finalizeTemplateCreatedAgentRegistration(args: {
       model: model?.trim() || undefined,
       skills,
     })
+    const postPatchGateway = await waitForGatewayResponsive(15000, 500)
+    if (!postPatchGateway.running && !isGatewayRunning().running) {
+      throw new Error(`OpenClaw Gateway did not become ready after synchronizing agent ${agentId}`)
+    }
     console.log(`Synchronized agent ${agentId} through the OpenClaw Gateway`)
   } else {
     const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg)
