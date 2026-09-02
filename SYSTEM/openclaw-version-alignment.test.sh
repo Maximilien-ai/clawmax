@@ -44,6 +44,8 @@ grep -Fq 'Integration tests require OpenClaw' "$test_wrapper" \
   || fail "expected integration wrapper to reject a mismatched OpenClaw binary"
 grep -Fq 'fail "Agent chat failed:' "$test_suite" \
   || fail "expected live agent chat failures to fail the gate"
+grep -Fq 'fail "Agent chat returned diagnostics or an unexpected response:' "$test_suite" \
+  || fail "expected the live chat gate to reject diagnostic output and unexpected replies"
 grep -Fq 'fail "Kickoff did not complete in 120s' "$test_suite" \
   || fail "expected blocked workflow timeouts to fail the gate"
 

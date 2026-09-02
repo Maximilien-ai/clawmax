@@ -2831,7 +2831,7 @@ fi
 
 echo -e "${YELLOW}→ Running OpenClaw version alignment shell tests...${NC}"
 bash "$SYSTEM_DIR/openclaw-version-alignment.test.sh" > /tmp/clawmax-openclaw-version-alignment-shell.out 2>&1 || true
-if grep -q "PASS: OpenClaw target is aligned across helper, Dockerfile, and CI" /tmp/clawmax-openclaw-version-alignment-shell.out; then
+if grep -q "PASS: OpenClaw target and live-gate contracts are aligned" /tmp/clawmax-openclaw-version-alignment-shell.out; then
   pass "OpenClaw version alignment shell tests"
 else
   [ -f /tmp/clawmax-openclaw-version-alignment-shell.out ] && cat /tmp/clawmax-openclaw-version-alignment-shell.out
@@ -5337,9 +5337,12 @@ else
     PERF_CHAT_NOTE=$(echo "$chat_classification" | jq -r '.note // "unexpected-format"' 2>/dev/null)
   fi
 
-  if echo "$chat_classification" | jq -e '.ok == true' > /dev/null 2>&1; then
+  if echo "$chat_classification" | jq -e '.ok == true and ((.text // "") | ascii_upcase | gsub("[[:space:]]"; "") == "HELLO")' > /dev/null 2>&1; then
     response_text=$(echo "$chat_classification" | jq -r '.text // ""' | head -1)
     pass "Agent chat works (response: ${response_text:0:50})"
+  elif echo "$chat_classification" | jq -e '.ok == true' > /dev/null 2>&1; then
+    response_text=$(echo "$chat_classification" | jq -r '.text // ""' | head -1)
+    fail "Agent chat returned diagnostics or an unexpected response: ${response_text:0:120}"
   elif [[ "$PERF_CHAT_NOTE" == skipped:* ]]; then
     warn "Agent chat skipped (${PERF_CHAT_NOTE#skipped:})"
   elif [[ "$PERF_CHAT_NOTE" == error:* ]]; then

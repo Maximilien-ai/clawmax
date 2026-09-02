@@ -131,7 +131,7 @@ function isBenignPluginRuntimeWarningLine(trimmed: string): boolean {
 
 function isDoctorWarningLine(trimmed: string): boolean {
   if (!trimmed) return false
-  if (/doctor warnings/i.test(trimmed)) return true
+  if (/doctor (?:warnings|changes)/i.test(trimmed)) return true
   if (/config warnings/i.test(trimmed)) return true
   if (/plugins\.allow:\s*plugin not found:/i.test(trimmed)) return true
   if (/stale config entry ignored; remove it from plugins config/i.test(trimmed)) return true
@@ -144,6 +144,9 @@ function isDoctorWarningLine(trimmed: string): boolean {
   if (/runs\.sqlite\.migrated/i.test(trimmed)) return true
   if (/update-check\.json/i.test(trimmed)) return true
   if (/legacy state migration warnings:/i.test(trimmed)) return true
+  if (/requires legacy credential migration; run openclaw doctor --fix/i.test(trimmed)) return true
+  if (/migrated auth profile json for/i.test(trimmed)) return true
+  if (/into sqlite \(archive:/i.test(trimmed)) return true
   if (/shared sqlite state/i.test(trimmed)) return true
   if (/^[\s|│┌┐└┘├┤┬┴┼─━═╭╮╰╯]+$/.test(trimmed)) return true
   return false
