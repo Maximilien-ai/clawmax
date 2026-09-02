@@ -1266,7 +1266,11 @@ router.post('/:id/chat', async (req, res) => {
           rawError: primaryResult.rawError,
         })) {
           console.warn(`[Chat Route] Gateway claimed state ownership during local startup; retrying agent ${id} through the Gateway`)
-          const gatewayReady = await waitForGatewayResponsive(30000, 500)
+          // OpenClaw 2.0.2 acquires its state lock before initializing every
+          // agent database. A large real-world roster has taken ~103 seconds
+          // from process start to `ready`, so a 30-second retry window can
+          // expire while the owner is healthy but still booting.
+          const gatewayReady = await waitForGatewayResponsive(120000, 1000)
           if (gatewayReady.running) {
             primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
           } else {
