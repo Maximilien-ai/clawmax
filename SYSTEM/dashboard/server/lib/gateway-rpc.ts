@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto'
 import { execFile, execSync } from 'child_process'
 import { promisify } from 'util'
 import { safeEnv } from './safe-env'
-import { canonicalizeDashboardAgentRoster, materializeDashboardAgentList } from './openclaw-config'
+import { materializeDashboardAgentList } from './openclaw-config'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 
 export const GATEWAY_PROTOCOL_VERSION = 4
@@ -422,12 +422,14 @@ export class GatewayRPCClient {
       if (agent.skills) newAgent.skills = agent.skills
 
       agentsList.push(newAgent)
-      canonicalizeDashboardAgentRoster(config)
 
-      // Submit the complete keyed roster so config.patch remains deterministic.
+      // Keyed entries are independently merge-patchable in OpenClaw 2.0.2.
+      // Keep the payload scoped so large installations do not exceed CLI argv limits.
       const patch = {
         agents: {
-          entries: config.agents.entries
+          entries: {
+            [agent.id]: Object.fromEntries(Object.entries(newAgent).filter(([key]) => key !== 'id')),
+          },
         }
       }
 
@@ -475,10 +477,10 @@ export class GatewayRPCClient {
 
       if (existingIndex >= 0) agentsList[existingIndex] = entry
       else agentsList.push(entry)
-      canonicalizeDashboardAgentRoster(config)
+      const keyedEntry = Object.fromEntries(Object.entries(entry).filter(([key]) => key !== 'id'))
 
       await this.callConfig('config.patch', {
-        raw: JSON.stringify({ agents: { entries: config.agents.entries } }),
+        raw: JSON.stringify({ agents: { entries: { [agent.id]: keyedEntry } } }),
         baseHash,
       })
     } catch (err: any) {

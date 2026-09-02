@@ -135,7 +135,7 @@ async function run() {
       assert.strictEqual(patchCall.method, 'config.patch')
       assert.strictEqual(patchCall.params.baseHash, 'agents-hash')
       const entries = JSON.parse(patchCall.params.raw).agents.entries
-      assert.deepStrictEqual(Object.keys(entries), ['existing', 'new-agent'])
+      assert.deepStrictEqual(Object.keys(entries), ['new-agent'])
       assert.deepStrictEqual(entries['new-agent'], {
         name: 'New Agent',
         workspace: '/workspace',
@@ -225,7 +225,7 @@ async function run() {
         model: 'openai/gpt-5.4',
         skills: ['github'],
       })
-      assert.deepStrictEqual(entries.sibling, { workspace: '/sibling' })
+      assert.strictEqual(entries.sibling, undefined)
     })
   })
 
