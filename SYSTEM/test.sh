@@ -4246,6 +4246,7 @@ echo ""
 # =========================================
 # Section 15: Gateway RPC Compatibility
 # =========================================
+run_gateway_rpc_compatibility_tests() {
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "15. Gateway RPC Compatibility"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -4300,6 +4301,11 @@ else
 fi
 
 echo ""
+}
+
+# OpenClaw 2 config.patch can require a full Gateway recovery restart. Run this
+# after live agent execution so that lifecycle validation cannot race the
+# independent chat assertion.
 
 # =========================================
 # Section 16: Workflows APIs
@@ -5576,6 +5582,8 @@ echo "  Workflow first visible progress: $(format_perf_metric "$PERF_WORKFLOW_FI
 echo "  Workflow kickoff complete: $(format_perf_metric "$PERF_WORKFLOW_COMPLETE_MS")"
 write_perf_summary
 echo ""
+
+run_gateway_rpc_compatibility_tests
 
 fi
 # End integration tests
