@@ -1266,7 +1266,12 @@ router.post('/:id/chat', async (req, res) => {
           rawError: primaryResult.rawError,
         })) {
           console.warn(`[Chat Route] Gateway claimed state ownership during local startup; retrying agent ${id} through the Gateway`)
-          primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
+          const gatewayReady = await waitForGatewayResponsive(30000, 500)
+          if (gatewayReady.running) {
+            primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
+          } else {
+            console.warn(`[Chat Route] Gateway did not become ready for retry: ${gatewayReady.error || 'unknown readiness failure'}`)
+          }
         }
         throwIfChatAttemptNeedsSessionRetry(primaryResult)
         const fallbackModel = resolvedAgent.backupModel
