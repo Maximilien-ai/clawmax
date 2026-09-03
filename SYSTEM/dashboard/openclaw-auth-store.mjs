@@ -22,12 +22,17 @@ const roots = [
 ].filter(Boolean)
 
 let storeModulePath = ''
+let saveExportName = ''
 for (const root of roots) {
   const distDir = path.join(root, 'dist')
   if (!fs.existsSync(distDir)) continue
   const match = fs.readdirSync(distDir).find((name) => {
     if (!name.startsWith('store-') || !name.endsWith('.js')) return false
-    return fs.readFileSync(path.join(distDir, name), 'utf8').includes('saveAuthProfileStore as p')
+    const source = fs.readFileSync(path.join(distDir, name), 'utf8')
+    const exportMatch = source.match(/saveAuthProfileStore as ([A-Za-z_$][\w$]*)/)
+    if (!exportMatch) return false
+    saveExportName = exportMatch[1]
+    return true
   })
   if (match) {
     storeModulePath = path.join(distDir, match)
@@ -40,8 +45,12 @@ if (!storeModulePath) {
 }
 
 const storeModule = await import(pathToFileURL(storeModulePath).href)
-if (typeof storeModule.p !== 'function') {
+const saveAuthProfileStore = storeModule[saveExportName]
+if (typeof saveAuthProfileStore !== 'function') {
   throw new Error('Pinned OpenClaw auth store module does not export saveAuthProfileStore')
 }
 
-storeModule.p(store, agentDir)
+saveAuthProfileStore(store, agentDir)
+process.stdout.write(JSON.stringify({
+  native: fs.existsSync(path.join(agentDir, 'openclaw-agent.sqlite')),
+}))

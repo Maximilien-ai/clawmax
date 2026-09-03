@@ -51,6 +51,13 @@ ensure_target_openclaw_for_integration() {
     export OPENCLAW_BIN
   fi
 
+  local prepared_package_root
+  prepared_package_root="$(cd "$(dirname "$OPENCLAW_BIN")/../src" 2>/dev/null && pwd || true)"
+  if [ -f "$prepared_package_root/package.json" ]; then
+    OPENCLAW_PACKAGE_ROOT="$prepared_package_root"
+    export OPENCLAW_PACKAGE_ROOT
+  fi
+
   if [ ! -x "$OPENCLAW_BIN" ]; then
     echo "Targeted OpenClaw binary is not executable: $OPENCLAW_BIN" >&2
     return 1
