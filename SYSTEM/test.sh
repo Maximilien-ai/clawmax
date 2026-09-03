@@ -5185,9 +5185,11 @@ pass "System test workspace activated"
 # Step 2: Clean and re-apply template
 echo -e "${YELLOW}→ Applying system-test template...${NC}"
 
-# Delete existing test agents
+# Delete existing test agents. Include the fixed synthetic IDs explicitly:
+# stale OpenClaw registrations can outlive a removed workspace and therefore
+# cannot appear in the active workspace's /api/agents listing.
 existing_agents=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/null)
-for agent_id in $existing_agents; do
+for agent_id in test-lead test-agent1 test-agent2 $existing_agents; do
   apicurl -X DELETE "$API_BASE/api/agents/$agent_id" \
     -H 'Content-Type: application/json' -d '{"confirm":true}' > /dev/null 2>&1
 done
@@ -5527,7 +5529,8 @@ echo -e "${YELLOW}→ Cleaning up system-test workspace...${NC}"
 for wf_id in $(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[]?.id' 2>/dev/null); do
   apicurl -X DELETE "$API_BASE/api/workflows/$wf_id" > /dev/null 2>&1
 done
-for agent_id in $(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/null); do
+cleanup_agents=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/null)
+for agent_id in test-lead test-agent1 test-agent2 $cleanup_agents; do
   apicurl -X DELETE "$API_BASE/api/agents/$agent_id" \
     -H 'Content-Type: application/json' -d '{"confirm":true}' > /dev/null 2>&1
 done

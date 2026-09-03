@@ -1273,8 +1273,14 @@ export async function withTemporaryAgentAuthProfiles<T>(
 
   const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
   const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const nativeAuthStorePath = path.join(agentDir, 'openclaw-agent.sqlite')
   fs.mkdirSync(agentDir, { recursive: true })
 
+  // OpenClaw 2 consumes the provider environment passed to the child process
+  // and persists its own SQLite credential store. Writing auth-profiles.json
+  // beside that database is interpreted as an unfinished legacy migration and
+  // blocks execution. Keep the JSON compatibility path only for older runtimes.
+  const usesNativeAuthStore = fs.existsSync(nativeAuthStorePath)
   const hadExisting = fs.existsSync(authProfilePath)
   const previous = hadExisting ? fs.readFileSync(authProfilePath, 'utf-8') : null
   // If preferred provider's key is missing, fall back to available provider's model
@@ -1301,10 +1307,10 @@ export async function withTemporaryAgentAuthProfiles<T>(
 
   const nextAuthProfiles = buildAuthProfiles(providerKeys, effectiveProvider)
   const nextAuthProfilesSerialized = JSON.stringify(nextAuthProfiles, null, 2)
-  const authProfilesChanged = authProfileStateFingerprint(previous) !== authProfileStateFingerprint(nextAuthProfilesSerialized)
+  const authProfilesChanged = !usesNativeAuthStore && authProfileStateFingerprint(previous) !== authProfileStateFingerprint(nextAuthProfilesSerialized)
   const hasNextAuthProfiles = Object.keys(nextAuthProfiles.profiles).length > 0
 
-  if (hasNextAuthProfiles) {
+  if (hasNextAuthProfiles && !usesNativeAuthStore) {
     fs.writeFileSync(authProfilePath, nextAuthProfilesSerialized, 'utf-8')
     persistPinnedOpenClawAuthStore(agentDir, nextAuthProfiles)
     if (authProfilesChanged) {
@@ -1334,7 +1340,9 @@ export async function withTemporaryAgentAuthProfiles<T>(
       }
     })
   } finally {
-    if (options.persistAuthProfiles) {
+    if (usesNativeAuthStore) {
+      // The child runtime used its scoped provider environment and native DB.
+    } else if (options.persistAuthProfiles) {
       // Agent runs can launch async OpenClaw subagents after the parent CLI command exits.
       // Leave Dashboard-provided auth in place so those child lanes can authenticate.
     } else if (!hasNextAuthProfiles) {

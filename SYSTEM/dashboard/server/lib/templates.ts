@@ -260,7 +260,10 @@ async function finalizeTemplateCreatedAgentRegistration(args: {
     model: appliedModel,
   })
   const authProfilePath = path.join(agentDirArg, 'auth-profiles.json')
-  if (!fs.existsSync(authProfilePath)) {
+  // OpenClaw 2 initializes credentials in openclaw-agent.sqlite as part of the
+  // native agent lifecycle. Re-introducing the legacy JSON store after that
+  // point makes the CLI stop and demand `openclaw doctor --fix`.
+  if (!gatewayAlreadySynchronized && !fs.existsSync(authProfilePath)) {
     const authProfile: Record<string, any> = { version: 1, profiles: {} }
     const systemKeys = getSystemProviderKeys()
     if (systemKeys.openai) {

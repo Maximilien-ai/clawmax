@@ -1693,6 +1693,42 @@ test('withTemporaryAgentAuthProfiles runs the normal openclaw auth-profile flow 
   assert(sawAuthProfile, 'Expected auth-profiles.json to be written for the openclaw runtime')
 })
 
+test('withTemporaryAgentAuthProfiles leaves OpenClaw 2 SQLite auth stores free of legacy JSON', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-openclaw2-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'openclaw2-agent', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const nativeAuthStorePath = path.join(agentDir, 'openclaw-agent.sqlite')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.writeFileSync(nativeAuthStorePath, 'sqlite-fixture')
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'openclaw2-agent', workspace: path.join(home, 'workspace', 'AGENTS', 'openclaw2-agent'), agentDir }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  let legacyStoreAppeared = false
+  await withTemporaryAgentAuthProfiles(
+    'openclaw2-agent',
+    { openai: 'test-openai' },
+    'openai/gpt-5.4-mini',
+    'openai',
+    async () => {
+      legacyStoreAppeared = fs.existsSync(authProfilePath)
+    },
+    { runtime: 'openclaw' }
+  )
+
+  assert(!legacyStoreAppeared, 'Expected execution not to create auth-profiles.json beside the SQLite store')
+  assert(!fs.existsSync(authProfilePath), 'Expected legacy auth JSON to remain absent after execution')
+  assert(fs.readFileSync(nativeAuthStorePath, 'utf-8') === 'sqlite-fixture', 'Expected the native auth store to remain unchanged')
+})
+
 setTimeout(async () => {
   await testQueue
   if (typeof originalHome === 'undefined') delete process.env.HOME
