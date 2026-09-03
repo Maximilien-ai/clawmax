@@ -14,6 +14,7 @@ import {
   deriveWorkspaceRootFromAgentWorkspace,
   getAgentExecutionRetryDelay,
   isOpenClawSessionLockError,
+  migrateLegacyOpenClawAuthStore,
   providerFromModel,
   readLatestAssistantTextFromPersistedSession,
   readLatestAssistantUsageFromPersistedSession,
@@ -1691,6 +1692,30 @@ test('withTemporaryAgentAuthProfiles runs the normal openclaw auth-profile flow 
   )
 
   assert(sawAuthProfile, 'Expected auth-profiles.json to be written for the openclaw runtime')
+})
+
+test('migrateLegacyOpenClawAuthStore publishes credentials and archives the retired JSON source', () => {
+  const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-auth-migration-'))
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const serializedStore = JSON.stringify({
+    version: 1,
+    profiles: { 'openai-key': { type: 'api_key', provider: 'openai', key: 'test-openai' } },
+  })
+  fs.writeFileSync(authProfilePath, serializedStore)
+
+  let persistedStore: any
+  const migrated = migrateLegacyOpenClawAuthStore(agentDir, serializedStore, (_agentDir, store) => {
+    persistedStore = store
+    return true
+  })
+
+  assert(migrated, 'Expected the legacy auth store to migrate')
+  assert(persistedStore?.profiles?.['openai-key']?.key === 'test-openai', 'Expected credentials to be published unchanged')
+  assert(!fs.existsSync(authProfilePath), 'Expected the retired JSON source to be removed from the active path')
+  assert(
+    fs.readdirSync(agentDir).some((entry) => entry.startsWith('auth-profiles.json.migrated-')),
+    'Expected the retired JSON source to be archived'
+  )
 })
 
 test('withTemporaryAgentAuthProfiles leaves OpenClaw 2 SQLite auth stores free of legacy JSON', async () => {

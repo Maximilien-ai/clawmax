@@ -933,6 +933,28 @@ function persistPinnedOpenClawAuthStore(agentDir: string, store: AuthProfileFile
   }
 }
 
+export function migrateLegacyOpenClawAuthStore(
+  agentDir: string,
+  serializedStore: string,
+  persistStore: (agentDir: string, store: AuthProfileFile) => boolean = persistPinnedOpenClawAuthStore
+): boolean {
+  let store: AuthProfileFile
+  try {
+    store = JSON.parse(serializedStore) as AuthProfileFile
+  } catch {
+    return false
+  }
+  if (!store || typeof store !== 'object' || !store.profiles || typeof store.profiles !== 'object') return false
+  if (!persistStore(agentDir, store)) return false
+
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  if (fs.existsSync(authProfilePath)) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    fs.renameSync(authProfilePath, `${authProfilePath}.migrated-${timestamp}`)
+  }
+  return true
+}
+
 export async function withTemporaryAgentAuthProfiles<T>(
   agentId: string,
   providerKeys: ProviderKeys,
@@ -1288,9 +1310,9 @@ export async function withTemporaryAgentAuthProfiles<T>(
   // and persists its own SQLite credential store. Writing auth-profiles.json
   // beside that database is interpreted as an unfinished legacy migration and
   // blocks execution. Keep the JSON compatibility path only for older runtimes.
-  let usesNativeAuthStore = fs.existsSync(nativeAuthStorePath)
   const hadExisting = fs.existsSync(authProfilePath)
   const previous = hadExisting ? fs.readFileSync(authProfilePath, 'utf-8') : null
+  let usesNativeAuthStore = fs.existsSync(nativeAuthStorePath)
   // If preferred provider's key is missing, fall back to available provider's model
   let effectiveModel = preferredModel
   let effectiveProvider = preferredProvider
@@ -1317,6 +1339,12 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const nextAuthProfilesSerialized = JSON.stringify(nextAuthProfiles, null, 2)
   const hasNextAuthProfiles = Object.keys(nextAuthProfiles.profiles).length > 0
 
+  if (hasNextAuthProfiles && previous !== null) {
+    // Upgrade an existing ClawMax/OpenClaw 1 credential file before using the
+    // OpenClaw 2 store. OpenClaw intentionally refuses to fall through to env
+    // credentials while an unmigrated legacy file remains beside SQLite.
+    usesNativeAuthStore = migrateLegacyOpenClawAuthStore(agentDir, previous) || usesNativeAuthStore
+  }
   if (hasNextAuthProfiles && !usesNativeAuthStore) {
     // OpenClaw 2's store writer initializes the complete agent schema. Keep it
     // empty so request-scoped/BYOK credentials remain only in the child env.
