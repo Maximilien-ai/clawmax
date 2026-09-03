@@ -5189,8 +5189,9 @@ echo -e "${YELLOW}→ Applying system-test template...${NC}"
 # stale OpenClaw registrations can outlive a removed workspace and therefore
 # cannot appear in the active workspace's /api/agents listing.
 existing_agents=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/null)
-for agent_id in test-lead test-agent1 test-agent2 $existing_agents; do
-  apicurl -X DELETE "$API_BASE/api/agents/$agent_id" \
+test_agent_cleanup_ids=$(printf '%s\n' test-lead test-agent1 test-agent2 $existing_agents | sort -u)
+for agent_id in $test_agent_cleanup_ids; do
+  apicurl_long -X DELETE "$API_BASE/api/agents/$agent_id" \
     -H 'Content-Type: application/json' -d '{"confirm":true}' > /dev/null 2>&1
 done
 
@@ -5256,7 +5257,7 @@ else
 fi
 
 # Step 3: Verify agents created
-agent_list=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[].id' 2>/dev/null | sort)
+agent_list=$(apicurl_long "$API_BASE/api/agents" | jq -r '.agents[].id' 2>/dev/null | sort)
 expected_agents="test-agent1 test-agent2 test-lead"
 for agent_id in $expected_agents; do
   if echo "$agent_list" | grep -q "^${agent_id}$"; then
@@ -5530,8 +5531,9 @@ for wf_id in $(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[]?.id' 2>/d
   apicurl -X DELETE "$API_BASE/api/workflows/$wf_id" > /dev/null 2>&1
 done
 cleanup_agents=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/null)
-for agent_id in test-lead test-agent1 test-agent2 $cleanup_agents; do
-  apicurl -X DELETE "$API_BASE/api/agents/$agent_id" \
+test_agent_cleanup_ids=$(printf '%s\n' test-lead test-agent1 test-agent2 $cleanup_agents | sort -u)
+for agent_id in $test_agent_cleanup_ids; do
+  apicurl_long -X DELETE "$API_BASE/api/agents/$agent_id" \
     -H 'Content-Type: application/json' -d '{"confirm":true}' > /dev/null 2>&1
 done
 # Dismiss all test notifications

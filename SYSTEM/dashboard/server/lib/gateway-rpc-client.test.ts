@@ -302,6 +302,25 @@ async function run() {
     })
   })
 
+  await test('deleteAgentNative closes state through the native lifecycle and tolerates missing agents', async () => {
+    await withGatewayConfig(async (client) => {
+      const calls: Array<{ method: string; params: any }> = []
+      ;(client as any).callAgentLifecycle = async (method: string, params: any) => {
+        calls.push({ method, params })
+        return { ok: true, agentId: params.agentId }
+      }
+
+      assert.strictEqual(await client.deleteAgentNative('retired-agent'), 'deleted')
+      assert.deepStrictEqual(calls, [{
+        method: 'agents.delete',
+        params: { agentId: 'retired-agent', deleteFiles: false },
+      }])
+
+      ;(client as any).callAgentLifecycle = async () => { throw new Error('agent "missing-agent" not found') }
+      assert.strictEqual(await client.deleteAgentNative('missing-agent'), 'not-found')
+    })
+  })
+
   await test('upsertAgent reports Gateway synchronization failures with context', async () => {
     await withGatewayConfig(async (client) => {
       ;(client as any).getConfig = async () => { throw new Error('gateway busy') }

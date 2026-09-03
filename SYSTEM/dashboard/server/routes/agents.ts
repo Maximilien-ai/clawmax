@@ -1812,12 +1812,24 @@ router.delete('/bulk', (req, res) => {
 })
 
 // DELETE /api/agents/:id
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const { id } = req.params
   const { removeStateDir } = req.body as { removeStateDir?: boolean }
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     res.status(400).json({ ok: false, error: 'Invalid agent id' })
     return
+  }
+  if (isGatewayRunning().running) {
+    try {
+      await getGatewayClient().deleteAgentNative(id)
+    } catch (err: any) {
+      res.status(503).json({
+        ok: false,
+        steps: [],
+        errors: [`Failed to remove agent from OpenClaw lifecycle: ${String(err?.message || err || 'unknown error')}`],
+      })
+      return
+    }
   }
   const result = deleteAgent(id, removeStateDir === true)
   res.json({ ok: result.errors.length === 0, ...result })

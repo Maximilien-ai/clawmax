@@ -426,7 +426,7 @@ export class GatewayRPCClient {
    * paired OpenClaw CLI so the connection is established before OpenClaw
    * mutates and reloads its own roster.
    */
-  private async callAgentLifecycle<T = any>(method: 'agents.create' | 'agents.update', params: any): Promise<T> {
+  private async callAgentLifecycle<T = any>(method: 'agents.create' | 'agents.update' | 'agents.delete', params: any): Promise<T> {
     const cliPath = resolveOpenClawCliPath()
     if (!cliPath) throw new Error('OpenClaw CLI is unavailable for native agent lifecycle')
 
@@ -635,6 +635,17 @@ export class GatewayRPCClient {
     } catch (err: any) {
       console.error('Gateway native agent lifecycle failed:', err)
       throw new Error(`Failed to synchronize agent${agents.length === 1 ? '' : 's'} through native OpenClaw lifecycle: ${err.message}`)
+    }
+  }
+
+  /** Remove a live agent registration while allowing OpenClaw to close its SQLite handles. */
+  async deleteAgentNative(agentId: string): Promise<'deleted' | 'not-found'> {
+    try {
+      await this.callAgentLifecycle('agents.delete', { agentId, deleteFiles: false })
+      return 'deleted'
+    } catch (err: any) {
+      if (/agent .* not found|unknown agent/i.test(String(err?.message || err || ''))) return 'not-found'
+      throw err
     }
   }
 
