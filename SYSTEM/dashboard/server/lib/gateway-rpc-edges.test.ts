@@ -180,6 +180,26 @@ test('only closed CLI transport responses qualify for a Gateway recovery wait', 
   }), 'Expected non-closed transport failures not to trigger this recovery wait')
 })
 
+test('only OpenClaw CLI opening-handshake timeouts qualify for lifecycle retry', () => {
+  const openingTimeout = {
+    ok: false,
+    error: {
+      type: 'cli_error',
+      message: 'Opening handshake has timed out',
+    },
+  }
+
+  assert(__test.isGatewayCliOpeningHandshakeTimeoutOutcome(openingTimeout), 'Expected opening handshake timeout to be retried')
+  assert(!__test.isGatewayCliOpeningHandshakeTimeoutOutcome({
+    ...openingTimeout,
+    error: { ...openingTimeout.error, type: 'gateway_request_error' },
+  }), 'Expected non-CLI errors not to use handshake retry')
+  assert(!__test.isGatewayCliOpeningHandshakeTimeoutOutcome({
+    ...openingTimeout,
+    error: { ...openingTimeout.error, message: 'Agent model is invalid' },
+  }), 'Expected application failures not to use handshake retry')
+})
+
 setTimeout(() => {
   console.log(`\nPassed: ${testsPassed}`)
   console.log(`Failed: ${testsFailed}`)

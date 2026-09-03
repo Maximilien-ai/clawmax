@@ -137,6 +137,27 @@ function isGatewayCliClosedTransportOutcome(result: any): boolean {
     )
 }
 
+function isGatewayCliOpeningHandshakeTimeoutOutcome(result: any): boolean {
+  return result?.ok === false
+    && result?.error?.type === 'cli_error'
+    && /opening handshake has timed out/i.test(String(result?.error?.message || ''))
+}
+
+async function retryGatewayCliOpeningHandshake<T>(operation: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  let lastError: any
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await operation()
+    } catch (err: any) {
+      lastError = err
+      const result = err?.gatewayCliResult || parseGatewayCliOutput(err?.stdout)
+      if (!isGatewayCliOpeningHandshakeTimeoutOutcome(result) || attempt === maxAttempts) throw err
+      await new Promise(resolve => setTimeout(resolve, attempt * 1000))
+    }
+  }
+  throw lastError
+}
+
 export const __test = {
   parseGatewayConfig,
   normalizeGatewayHttpUrl,
@@ -150,6 +171,7 @@ export const __test = {
   parseGatewayCliOutput,
   isPersistedConfigPatchRestartOutcome,
   isGatewayCliClosedTransportOutcome,
+  isGatewayCliOpeningHandshakeTimeoutOutcome,
 }
 
 function buildGatewayProbeClient() {
@@ -387,7 +409,7 @@ export class GatewayRPCClient {
       }
 
       try {
-        return await runCliCall()
+        return await retryGatewayCliOpeningHandshake(runCliCall)
       } catch (cliError: any) {
         if (isGatewayCliClosedTransportOutcome(cliError?.gatewayCliResult)) {
           const recovered = await waitForGatewayResponsive(120000, 500)
@@ -408,24 +430,32 @@ export class GatewayRPCClient {
     const cliPath = resolveOpenClawCliPath()
     if (!cliPath) throw new Error('OpenClaw CLI is unavailable for native agent lifecycle')
 
-    try {
-      const { stdout } = await execFileAsync(cliPath, buildGatewayCliCallArgs(method, params, 180000), {
-        encoding: 'utf-8',
-        env: safeEnv(),
-        maxBuffer: 10 * 1024 * 1024,
-      })
-      const result = parseGatewayCliOutput(stdout) || {}
-      if (result?.ok === false) {
-        throw new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
+    const runCliCall = async (): Promise<T> => {
+      try {
+        const { stdout } = await execFileAsync(cliPath, buildGatewayCliCallArgs(method, params, 180000), {
+          encoding: 'utf-8',
+          env: safeEnv(),
+          maxBuffer: 10 * 1024 * 1024,
+        })
+        const result = parseGatewayCliOutput(stdout) || {}
+        if (result?.ok === false) {
+          const failure: any = new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
+          failure.gatewayCliResult = result
+          throw failure
+        }
+        return result as T
+      } catch (err: any) {
+        const result = err?.gatewayCliResult || parseGatewayCliOutput(err?.stdout)
+        if (result?.ok === false && !err?.gatewayCliResult) {
+          const failure: any = new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
+          failure.gatewayCliResult = result
+          throw failure
+        }
+        throw err
       }
-      return result as T
-    } catch (err: any) {
-      const result = parseGatewayCliOutput(err?.stdout)
-      if (result?.ok === false) {
-        throw new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
-      }
-      throw err
     }
+
+    return await retryGatewayCliOpeningHandshake(runCliCall)
   }
 
   /**
