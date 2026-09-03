@@ -516,6 +516,14 @@ export class GatewayRPCClient {
     }
   }
 
+  async reloadSecrets(): Promise<void> {
+    try {
+      await this.callConfig('secrets.reload')
+    } catch (err: any) {
+      throw new Error(`Failed to reload secrets via gateway: ${err.message}`)
+    }
+  }
+
   /**
    * Register a new agent via config.patch
    * Uses merge patch to add a canonical keyed agent entry.

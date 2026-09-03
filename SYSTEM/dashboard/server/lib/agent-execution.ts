@@ -12,6 +12,7 @@ import { resolveDefaultAgentModel } from './agent-default-model'
 import { getAvailableModelsCached } from './model-discovery'
 import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
+import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
 
 interface OpenClawAgentRecord {
   id: string
@@ -1338,12 +1339,14 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const nextAuthProfiles = buildAuthProfiles(providerKeys, effectiveProvider)
   const nextAuthProfilesSerialized = JSON.stringify(nextAuthProfiles, null, 2)
   const hasNextAuthProfiles = Object.keys(nextAuthProfiles.profiles).length > 0
+  let nativeAuthStoreChanged = false
 
   if (hasNextAuthProfiles && previous !== null) {
     // Upgrade an existing ClawMax/OpenClaw 1 credential file before using the
     // OpenClaw 2 store. OpenClaw intentionally refuses to fall through to env
     // credentials while an unmigrated legacy file remains beside SQLite.
-    usesNativeAuthStore = migrateLegacyOpenClawAuthStore(agentDir, previous) || usesNativeAuthStore
+    nativeAuthStoreChanged = migrateLegacyOpenClawAuthStore(agentDir, previous)
+    usesNativeAuthStore = nativeAuthStoreChanged || usesNativeAuthStore
   }
   if (hasNextAuthProfiles && !usesNativeAuthStore) {
     // OpenClaw 2's store writer initializes the complete agent schema. Keep it
@@ -1353,6 +1356,12 @@ export async function withTemporaryAgentAuthProfiles<T>(
       profiles: {},
       usageStats: {},
     })
+    nativeAuthStoreChanged = usesNativeAuthStore
+  }
+  if (nativeAuthStoreChanged && isGatewayRunning().running) {
+    // OpenClaw 2 intentionally caches migration failures until its secrets
+    // runtime reloads. Publish the newly canonical store before starting chat.
+    await getGatewayClient().reloadSecrets()
   }
   const authProfilesChanged = !usesNativeAuthStore && authProfileStateFingerprint(previous) !== authProfileStateFingerprint(nextAuthProfilesSerialized)
   if (hasNextAuthProfiles && !usesNativeAuthStore) {

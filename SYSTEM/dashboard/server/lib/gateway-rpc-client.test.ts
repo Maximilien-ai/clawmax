@@ -112,6 +112,22 @@ async function run() {
     })
   })
 
+  await test('reloadSecrets refreshes the OpenClaw secrets runtime', async () => {
+    await withGatewayConfig(async (client) => {
+      const calls: Array<{ method: string; params?: any }> = []
+      ;(client as any).call = async (method: string, params?: any) => {
+        calls.push({ method, params })
+        return { ok: true }
+      }
+
+      await client.reloadSecrets()
+      assert.deepStrictEqual(calls, [{ method: 'secrets.reload', params: undefined }])
+
+      ;(client as any).call = async () => { throw new Error('reload unavailable') }
+      await expectFailure(() => client.reloadSecrets(), 'Failed to reload secrets via gateway: reload unavailable')
+    })
+  })
+
   await test('registerAgent appends optional model and skills using the resolved config hash', async () => {
     await withGatewayConfig(async (client) => {
       let patchCall: any
