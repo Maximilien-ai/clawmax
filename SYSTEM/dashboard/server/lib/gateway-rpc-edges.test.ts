@@ -121,6 +121,12 @@ test('gateway CLI config calls serialize params without shell interpolation', ()
   assert(JSON.parse(args[7]).baseHash === 'hash-1', 'Expected params to be serialized as one argv value')
 })
 
+test('gateway CLI lifecycle calls can extend the bounded timeout', () => {
+  const args = __test.buildGatewayCliCallArgs('agents.create', { name: 'agent-1' }, 180000)
+  assert(args.slice(0, 6).join(' ') === 'gateway call agents.create --json --timeout 180000', 'Expected lifecycle timeout override')
+  assert(JSON.parse(args[7]).name === 'agent-1', 'Expected lifecycle params to remain one argv value')
+})
+
 test('config RPC falls back only for scope and transport failures', () => {
   assert(__test.shouldFallbackConfigCallToCli(new Error('missing scope: operator.read')), 'Expected scope rejection to use paired CLI')
   assert(__test.shouldFallbackConfigCallToCli(new Error('Gateway RPC timeout for method: config.get')), 'Expected RPC timeout to use paired CLI')

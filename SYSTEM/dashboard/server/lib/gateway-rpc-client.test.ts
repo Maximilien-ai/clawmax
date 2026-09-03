@@ -253,6 +253,55 @@ async function run() {
     })
   })
 
+  await test('upsertAgentsNative provisions through native lifecycle before one guarded supplemental patch', async () => {
+    await withGatewayConfig(async (client) => {
+      const lifecycleCalls: Array<{ method: string; params: any }> = []
+      let configReads = 0
+      let patchCall: any
+      ;(client as any).getConfig = async () => {
+        configReads++
+        return configReads === 1
+          ? { hash: 'initial-hash', resolved: { agents: { entries: { existing: { workspace: '/old' } } } } }
+          : { hash: 'native-hash', resolved: { agents: { entries: {} } } }
+      }
+      ;(client as any).callAgentLifecycle = async (method: string, params: any) => {
+        lifecycleCalls.push({ method, params })
+        return method === 'agents.create' ? { ok: true, agentId: params.name } : { ok: true, agentId: params.agentId }
+      }
+      ;(client as any).call = async (method: string, params: any) => { patchCall = { method, params } }
+
+      await client.upsertAgentsNative([
+        { id: 'existing', name: 'Existing', workspace: '/new', agentDir: '/agents/existing', model: 'openai/gpt-5.4' },
+        { id: 'new-agent', name: 'New Agent', workspace: '/new-agent', agentDir: '/agents/new', skills: ['github', 'github'] },
+      ])
+
+      assert.deepStrictEqual(lifecycleCalls.map((call) => call.method), ['agents.update', 'agents.create'])
+      assert.deepStrictEqual(lifecycleCalls[0].params, {
+        agentId: 'existing',
+        name: 'Existing',
+        workspace: '/new',
+        model: 'openai/gpt-5.4',
+      })
+      assert.strictEqual(lifecycleCalls[1].params.name, 'new-agent')
+      assert.strictEqual(patchCall.method, 'config.patch')
+      assert.strictEqual(patchCall.params.baseHash, 'native-hash')
+      assert.deepStrictEqual(JSON.parse(patchCall.params.raw).agents.entries, {
+        existing: { agentDir: '/agents/existing' },
+        'new-agent': { agentDir: '/agents/new', skills: ['github'] },
+      })
+    })
+  })
+
+  await test('upsertAgentsNative rejects unexpected OpenClaw-created IDs', async () => {
+    await withGatewayConfig(async (client) => {
+      ;(client as any).getConfig = async () => ({ hash: 'hash', resolved: { agents: { entries: {} } } })
+      ;(client as any).callAgentLifecycle = async () => ({ ok: true, agentId: 'different-id' })
+      await expectFailure(() => client.upsertAgentsNative([
+        { id: 'expected-id', name: 'Expected', workspace: '/workspace', agentDir: '/agents/expected' },
+      ]), 'OpenClaw created agent different-id instead of expected-id')
+    })
+  })
+
   await test('upsertAgent reports Gateway synchronization failures with context', async () => {
     await withGatewayConfig(async (client) => {
       ;(client as any).getConfig = async () => { throw new Error('gateway busy') }

@@ -97,8 +97,8 @@ function loadGatewayConfigFromDisk(): GatewayConfig | null {
   }
 }
 
-function buildGatewayCliCallArgs(method: string, params?: any): string[] {
-  const args = ['gateway', 'call', method, '--json', '--timeout', '120000']
+function buildGatewayCliCallArgs(method: string, params?: any, timeoutMs = 120000): string[] {
+  const args = ['gateway', 'call', method, '--json', '--timeout', String(timeoutMs)]
   if (params !== undefined) args.push('--params', JSON.stringify(params))
   return args
 }
@@ -399,6 +399,36 @@ export class GatewayRPCClient {
   }
 
   /**
+   * Agent lifecycle mutations can legitimately take longer than the generic
+   * WebSocket client's 30-second request window on large rosters. Use the
+   * paired OpenClaw CLI so the connection is established before OpenClaw
+   * mutates and reloads its own roster.
+   */
+  private async callAgentLifecycle<T = any>(method: 'agents.create' | 'agents.update', params: any): Promise<T> {
+    const cliPath = resolveOpenClawCliPath()
+    if (!cliPath) throw new Error('OpenClaw CLI is unavailable for native agent lifecycle')
+
+    try {
+      const { stdout } = await execFileAsync(cliPath, buildGatewayCliCallArgs(method, params, 180000), {
+        encoding: 'utf-8',
+        env: safeEnv(),
+        maxBuffer: 10 * 1024 * 1024,
+      })
+      const result = parseGatewayCliOutput(stdout) || {}
+      if (result?.ok === false) {
+        throw new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
+      }
+      return result as T
+    } catch (err: any) {
+      const result = parseGatewayCliOutput(err?.stdout)
+      if (result?.ok === false) {
+        throw new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
+      }
+      throw err
+    }
+  }
+
+  /**
    * Update agent skills via Gateway RPC
    * Uses config.patch with merge patch algorithm to update agent skills array
    */
@@ -522,6 +552,60 @@ export class GatewayRPCClient {
    */
   async upsertAgent(agent: GatewayAgentRegistration): Promise<void> {
     await this.upsertAgents([agent])
+  }
+
+  /**
+   * Provision agents through OpenClaw's native lifecycle, then apply the
+   * fields its closed create/update schema does not accept in one guarded
+   * patch. This keeps per-agent skill allowlists intact without racing a
+   * filesystem-triggered roster reload.
+   */
+  async upsertAgentsNative(agents: GatewayAgentRegistration[]): Promise<void> {
+    try {
+      if (agents.length === 0) return
+      const initialConfigData = await this.getConfig()
+      const initialConfig = initialConfigData.resolved || initialConfigData.config || {}
+      const configuredIds = new Set(materializeDashboardAgentList(initialConfig).map((entry: any) => entry.id))
+
+      for (const agent of agents) {
+        const model = agent.model?.trim() || undefined
+        if (configuredIds.has(agent.id)) {
+          await this.callAgentLifecycle('agents.update', {
+            agentId: agent.id,
+            name: agent.name,
+            workspace: agent.workspace,
+            ...(model ? { model } : {}),
+          })
+        } else {
+          const created = await this.callAgentLifecycle<{ agentId?: string }>('agents.create', {
+            name: agent.id,
+            workspace: agent.workspace,
+            ...(model ? { model } : {}),
+          })
+          if (created.agentId !== agent.id) {
+            throw new Error(`OpenClaw created agent ${created.agentId || 'unknown'} instead of ${agent.id}`)
+          }
+          configuredIds.add(agent.id)
+        }
+      }
+
+      const configData = await this.getConfig()
+      const baseHash = configData.hash
+      const supplementalEntries: Record<string, any> = {}
+      for (const agent of agents) {
+        supplementalEntries[agent.id] = {
+          agentDir: agent.agentDir,
+          ...(agent.skills ? { skills: Array.from(new Set(agent.skills)) } : {}),
+        }
+      }
+      await this.callConfig('config.patch', {
+        raw: JSON.stringify({ agents: { entries: supplementalEntries } }),
+        baseHash,
+      })
+    } catch (err: any) {
+      console.error('Gateway native agent lifecycle failed:', err)
+      throw new Error(`Failed to synchronize agent${agents.length === 1 ? '' : 's'} through native OpenClaw lifecycle: ${err.message}`)
+    }
   }
 
   /** Synchronize multiple registrations in one patch and one Gateway restart. */
