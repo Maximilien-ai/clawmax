@@ -907,11 +907,8 @@ function authProfileStateFingerprint(raw: string | null): string | null {
 
 function persistPinnedOpenClawAuthStore(agentDir: string, store: AuthProfileFile): boolean {
   const helperPath = path.join(REPO_ROOT, 'SYSTEM', 'dashboard', 'openclaw-auth-store.mjs')
-  const cliPath = process.env.OPENCLAW_BIN?.trim()
-  const inferredTargetRoot = cliPath ? path.resolve(path.dirname(cliPath), '..', 'src') : ''
   const packageRoot = [
     process.env.OPENCLAW_PACKAGE_ROOT,
-    inferredTargetRoot,
     '/usr/local/lib/node_modules/openclaw',
     '/opt/homebrew/lib/node_modules/openclaw',
   ].find((root) => root && fs.existsSync(path.join(root, 'dist')))

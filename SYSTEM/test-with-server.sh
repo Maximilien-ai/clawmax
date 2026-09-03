@@ -54,8 +54,7 @@ ensure_target_openclaw_for_integration() {
   local prepared_package_root
   prepared_package_root="$(cd "$(dirname "$OPENCLAW_BIN")/../src" 2>/dev/null && pwd || true)"
   if [ -f "$prepared_package_root/package.json" ]; then
-    OPENCLAW_PACKAGE_ROOT="$prepared_package_root"
-    export OPENCLAW_PACKAGE_ROOT
+    CLAWMAX_TEST_OPENCLAW_PACKAGE_ROOT="$prepared_package_root"
   fi
 
   if [ ! -x "$OPENCLAW_BIN" ]; then
@@ -320,9 +319,9 @@ if ! health_ready; then
   fi
   STARTED_SERVER=true
   if [ "$START_WITH_RESTART" = true ]; then
-    CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" --restart
+    OPENCLAW_PACKAGE_ROOT="${CLAWMAX_TEST_OPENCLAW_PACKAGE_ROOT:-${OPENCLAW_PACKAGE_ROOT:-}}" CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" --restart
   else
-    CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh"
+    OPENCLAW_PACKAGE_ROOT="${CLAWMAX_TEST_OPENCLAW_PACKAGE_ROOT:-${OPENCLAW_PACKAGE_ROOT:-}}" CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh"
   fi
 
   if ! wait_for_health 60; then
@@ -335,7 +334,7 @@ elif [ "$RUN_INTEGRATION" = true ] && [ "${CLAWMAX_TEST_REUSE_SERVER:-}" != "tru
   echo "Integration mode detected; restarting dashboard to test the current source tree."
   configure_default_test_plugins
   STARTED_SERVER=true
-  CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" --restart
+  OPENCLAW_PACKAGE_ROOT="${CLAWMAX_TEST_OPENCLAW_PACKAGE_ROOT:-${OPENCLAW_PACKAGE_ROOT:-}}" CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" --restart
   if ! wait_for_health 60; then
     echo "Dashboard did not become healthy on $API_BASE after restart"
     echo "Logs: tail -f /tmp/dashboard.log"
