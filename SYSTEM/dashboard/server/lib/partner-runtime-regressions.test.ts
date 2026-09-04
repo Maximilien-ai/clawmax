@@ -121,13 +121,13 @@ test('workspace-managed Resend and Cognee settings override empty runtime env fo
   })
 })
 
-test('workspace-managed partner secrets force local chat execution even when gateway is up', () => {
-  assert(shouldUseLocalChatExecution({
+test('workspace-managed partner secrets do not create a competing OpenClaw 2 state owner', () => {
+  assert(!shouldUseLocalChatExecution({
     provider: 'openai',
     byok: {},
     gatewayRunning: true,
     hasWorkspaceManagedSecrets: true,
-  }), 'Expected local execution so Resend/Cognee runtime secrets are available to tools')
+  }), 'Expected hosted chat to use the process that already owns OpenClaw state')
 })
 
 test('managed Resend dispatch sends inline status without temp files', () => {

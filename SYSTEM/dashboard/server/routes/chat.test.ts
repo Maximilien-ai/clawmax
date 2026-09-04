@@ -107,13 +107,19 @@ test('shouldUseLocalChatExecution uses gateway for hosted env-key execution when
   }), 'Expected server-key hosted chat to use gateway when available')
 })
 
-test('shouldUseLocalChatExecution forces local mode when workspace-managed partner secrets are present', () => {
-  assert(shouldUseLocalChatExecution({
+test('shouldUseLocalChatExecution prefers an active gateway when workspace-managed partner secrets are present', () => {
+  assert(!shouldUseLocalChatExecution({
     provider: 'openai',
     byok: {},
     gatewayRunning: true,
     hasWorkspaceManagedSecrets: true,
-  }), 'Expected hosted chat to use local execution when workspace-managed partner secrets must be available to tools')
+  }), 'Expected OpenClaw 2 state ownership to route hosted chat through the active gateway')
+  assert(shouldUseLocalChatExecution({
+    provider: 'openai',
+    byok: {},
+    gatewayRunning: false,
+    hasWorkspaceManagedSecrets: true,
+  }), 'Expected direct execution to retain managed partner secrets when the gateway is unavailable')
 })
 
 test('shouldUseManagedSecretStatelessChatSession stays disabled for normal dashboard chat', () => {

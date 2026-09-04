@@ -50,19 +50,19 @@ test('resolveByokChatFallbackModel returns undefined when no usable BYOK path ex
   assert(resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' }) === undefined, 'Expected missing openai-compatible default model to return undefined')
 })
 
-test('shouldUseLocalChatExecution prefers direct mode for managed secrets and gateway outages', () => {
+test('shouldUseLocalChatExecution prefers direct mode only when hosted gateway execution is unavailable', () => {
   assert(shouldUseLocalChatExecution({
     provider: 'anthropic',
     byok: { anthropic: 'sk-ant-test' },
     gatewayRunning: false,
   }), 'Expected hosted BYOK chat to use local mode when gateway is down')
 
-  assert(shouldUseLocalChatExecution({
+  assert(!shouldUseLocalChatExecution({
     provider: 'gemini',
     byok: {},
     gatewayRunning: true,
     hasWorkspaceManagedSecrets: true,
-  }), 'Expected managed workspace secrets to force local execution')
+  }), 'Expected the active OpenClaw 2 gateway to retain state ownership')
 })
 
 test('retryAssistantTextLookup returns on the first successful retry instead of exhausting attempts', async () => {

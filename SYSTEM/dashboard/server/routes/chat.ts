@@ -235,8 +235,12 @@ export function shouldUseLocalChatExecution(input: {
   hasWorkspaceManagedSecrets?: boolean
 }): boolean {
   if (input.provider === 'ollama' || input.provider === 'openai-compatible') return true
-  if (input.hasWorkspaceManagedSecrets) return true
-  if (hasByokExecutionPathForProvider(input.provider, input.byok)) return !input.gatewayRunning
+  // OpenClaw 2 allows only one process to own a state directory. When the
+  // Gateway is running, starting a local agent can spend a long time loading
+  // state before it detects that ownership collision, after which chat has to
+  // repeat the request through the Gateway anyway. Prefer the existing owner
+  // immediately; direct execution still receives managed secrets when no
+  // Gateway is available.
   return !input.gatewayRunning
 }
 
