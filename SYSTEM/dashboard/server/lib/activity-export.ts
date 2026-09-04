@@ -76,6 +76,7 @@ export interface ActivityExportEvent extends ActivityExportEventInput {
 interface ActivityExportState {
   consents: Record<string, ActivityExportConsent>
   enrollments: Record<string, ActivityExportEnrollment>
+  purges: ActivityExportPurgeEntry[]
   outbox: ActivityExportQueueEntry[]
   received: Record<string, ActivityExportEvent>
 }
@@ -93,6 +94,15 @@ export interface ActivityExportQueueEntry extends ActivityExportEvent {
   deliveredAt?: string
 }
 
+export interface ActivityExportPurgeEntry {
+  receiptId: string
+  destinationId: string
+  requestedAt: string
+  attempts: number
+  lastError?: string
+  completedAt?: string
+}
+
 export function getActivityExportStatePath(): string {
   return process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH?.trim() || path.join(os.homedir(), '.openclaw', 'activity-export.json')
 }
@@ -103,6 +113,7 @@ function readState(): ActivityExportState {
     return {
       consents: parsed?.consents && typeof parsed.consents === 'object' ? parsed.consents : {},
       enrollments: parsed?.enrollments && typeof parsed.enrollments === 'object' ? parsed.enrollments : {},
+      purges: Array.isArray(parsed?.purges) ? parsed.purges : [],
       outbox: Array.isArray(parsed?.outbox) ? parsed.outbox.map((entry: ActivityExportEvent & Partial<ActivityExportQueueEntry>) => ({
         ...entry,
         attempts: typeof entry.attempts === 'number' ? entry.attempts : 0,
@@ -110,7 +121,7 @@ function readState(): ActivityExportState {
       received: parsed?.received && typeof parsed.received === 'object' ? parsed.received : {},
     }
   } catch {
-    return { consents: {}, enrollments: {}, outbox: [], received: {} }
+    return { consents: {}, enrollments: {}, purges: [], outbox: [], received: {} }
   }
 }
 
@@ -134,6 +145,31 @@ export function saveActivityExportConsent(consent: ActivityExportConsent): Activ
   state.consents[consent.receiptId] = consent
   writeState(state)
   return consent
+}
+
+export function enqueueActivityExportPurge(receiptId: string, destinationId: string): ActivityExportPurgeEntry {
+  const state = readState()
+  const existing = state.purges.find((entry) => entry.receiptId === receiptId && entry.destinationId === destinationId)
+  if (existing) return existing
+  const entry: ActivityExportPurgeEntry = { receiptId, destinationId, requestedAt: new Date().toISOString(), attempts: 0 }
+  state.purges.push(entry)
+  writeState(state)
+  activityExportQueueListener?.()
+  return entry
+}
+
+export function listActivityExportPurges(destinationId?: string): ActivityExportPurgeEntry[] {
+  return readState().purges.filter((entry) => !destinationId || entry.destinationId === destinationId)
+}
+
+export function recordActivityExportPurgeResult(receiptId: string, destinationId: string, result: { completed: boolean; error?: string }): void {
+  const state = readState()
+  const entry = state.purges.find((candidate) => candidate.receiptId === receiptId && candidate.destinationId === destinationId)
+  if (!entry) return
+  entry.attempts += 1
+  entry.lastError = result.completed ? undefined : result.error || 'Purge request failed.'
+  entry.completedAt = result.completed ? new Date().toISOString() : undefined
+  writeState(state)
 }
 
 export function getActivityExportEnrollment(userId: string, workspaceId: string, destinationId: string): ActivityExportEnrollment | null {

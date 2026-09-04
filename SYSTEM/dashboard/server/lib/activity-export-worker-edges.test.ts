@@ -3,15 +3,20 @@ import assert from 'assert'
 const activityExportPath = require.resolve('./activity-export')
 const integrationsPath = require.resolve('./workspace-integrations')
 const workerPath = require.resolve('./activity-export-worker')
+const agentforgePath = require.resolve('./agentforge-activity-export')
 const activityExport = require(activityExportPath)
 const integrations = require(integrationsPath)
+const agentforge = require(agentforgePath)
 
 const originals = {
   listAllActivityExportOutbox: activityExport.listAllActivityExportOutbox,
   flushActivityExportOutbox: activityExport.flushActivityExportOutbox,
   setActivityExportQueueListener: activityExport.setActivityExportQueueListener,
+  listActivityExportPurges: activityExport.listActivityExportPurges,
+  recordActivityExportPurgeResult: activityExport.recordActivityExportPurgeResult,
   getResolvedWorkspaceIntegrationConfig: integrations.getResolvedWorkspaceIntegrationConfig,
   readWorkspaceIntegrationSecrets: integrations.readWorkspaceIntegrationSecrets,
+  revokeAgentForgeConsent: agentforge.revokeAgentForgeConsent,
   endpoint: process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT,
   token: process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN,
   interval: process.env.CLAWMAX_ACTIVITY_EXPORT_INTERVAL_MS,
@@ -24,12 +29,22 @@ let flushImpl: (options: any) => Promise<any> = async () => ({ attempted: 0, del
 let integrationConfig: any = {}
 let integrationSecrets: any = {}
 let queueListener: (() => void) | null = null
+let purges: Array<{ receiptId: string; destinationId: string; attempts: number; completedAt?: string }> = []
+let recordedPurges: Array<{ receiptId: string; destinationId: string; completed: boolean; error?: string }> = []
+let revokeImpl: (receiptId: string) => Promise<any> = async (receiptId) => ({ receiptId, status: 'revoked', purgeStatus: 'pending' })
 
 activityExport.listAllActivityExportOutbox = () => outbox
 activityExport.flushActivityExportOutbox = (options: any) => flushImpl(options)
 activityExport.setActivityExportQueueListener = (listener: (() => void) | null) => { queueListener = listener }
+activityExport.listActivityExportPurges = (destinationId?: string) => purges.filter((entry) => !destinationId || entry.destinationId === destinationId)
+activityExport.recordActivityExportPurgeResult = (receiptId: string, destinationId: string, result: { completed: boolean; error?: string }) => {
+  recordedPurges.push({ receiptId, destinationId, ...result })
+  const entry = purges.find((item) => item.receiptId === receiptId && item.destinationId === destinationId)
+  if (entry && result.completed) entry.completedAt = new Date().toISOString()
+}
 integrations.getResolvedWorkspaceIntegrationConfig = () => integrationConfig
 integrations.readWorkspaceIntegrationSecrets = () => integrationSecrets
+agentforge.revokeAgentForgeConsent = (receiptId: string) => revokeImpl(receiptId)
 delete require.cache[workerPath]
 const worker = require(workerPath) as typeof import('./activity-export-worker')
 
@@ -113,6 +128,21 @@ void (async () => {
       ['agentforge', 'https://agentforge.example/api/v1/clawmax/activity-events', 'agentforge-token'],
     ])
     assert.strictEqual(worker.getActivityExportWorkerStatus().configured.agentforge, true)
+  })
+
+  await test('worker retries receipt-linked AgentForge purge jobs', async () => {
+    outbox = []
+    purges = [{ receiptId: 'consent_1', destinationId: 'agentforge', attempts: 0 }]
+    recordedPurges = []
+    integrationConfig = { partners: { agentforge: { apiUrl: 'https://agentforge.example', privacyUrl: 'https://agentforge.example/privacy' } } }
+    integrationSecrets = { partners: { agentforge: { apiKey: 'agentforge-token' } } }
+    revokeImpl = async () => { throw new Error('purge receiver offline') }
+    assert.deepStrictEqual(await worker.flushActivityExportWorker(), { attempted: 0, delivered: 0, remaining: 0, error: 'purge receiver offline' })
+    assert.strictEqual(recordedPurges[0].completed, false)
+    revokeImpl = async (receiptId) => ({ receiptId, status: 'revoked', purgeStatus: 'pending' })
+    assert.strictEqual((await worker.flushActivityExportWorker())?.error, undefined)
+    assert.strictEqual(recordedPurges.at(-1)?.completed, true)
+    assert.strictEqual(worker.getActivityExportWorkerStatus().purge?.remaining, 0)
   })
 
   await test('worker records and rethrows delivery failures', async () => {
@@ -199,8 +229,11 @@ void (async () => {
   activityExport.listAllActivityExportOutbox = originals.listAllActivityExportOutbox
   activityExport.flushActivityExportOutbox = originals.flushActivityExportOutbox
   activityExport.setActivityExportQueueListener = originals.setActivityExportQueueListener
+  activityExport.listActivityExportPurges = originals.listActivityExportPurges
+  activityExport.recordActivityExportPurgeResult = originals.recordActivityExportPurgeResult
   integrations.getResolvedWorkspaceIntegrationConfig = originals.getResolvedWorkspaceIntegrationConfig
   integrations.readWorkspaceIntegrationSecrets = originals.readWorkspaceIntegrationSecrets
+  agentforge.revokeAgentForgeConsent = originals.revokeAgentForgeConsent
   global.setInterval = originals.setInterval
   global.clearInterval = originals.clearInterval
   if (originals.endpoint === undefined) delete process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT

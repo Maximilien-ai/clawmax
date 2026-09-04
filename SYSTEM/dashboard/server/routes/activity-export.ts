@@ -6,12 +6,14 @@ import { getResolvedWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets 
 import {
   ACTIVITY_EXPORT_VERSION,
   appendActivityExportEventsForActiveConsents,
+  enqueueActivityExportPurge,
   getActivityExportConsent,
   getActivityExportEnrollment,
   getOpaqueActivityUserId,
   getOpaqueActivityWorkspaceId,
   flushActivityExportOutbox,
   listActivityExportConsents,
+  recordActivityExportPurgeResult,
   listActivityExportOutbox,
   listReceivedActivityExportEvents,
   receiveActivityExportBatch,
@@ -174,14 +176,17 @@ router.delete('/consent', async (req, res) => {
   const remoteConsent = destinationId === AGENTFORGE_DESTINATION_ID
     ? listActivityExportConsents(userId, workspaceId).find((entry) => entry.destinationId === AGENTFORGE_DESTINATION_ID)
     : undefined
+  if (remoteConsent) enqueueActivityExportPurge(remoteConsent.receiptId, AGENTFORGE_DESTINATION_ID)
   const revoked = destinationId
     ? revokeActivityExportDestinationConsent(userId, workspaceId, destinationId)
     : revokeActivityExportConsent(userId, workspaceId)
   if (remoteConsent) {
     try {
       const remote = await revokeAgentForgeConsent(remoteConsent.receiptId)
+      recordActivityExportPurgeResult(remoteConsent.receiptId, AGENTFORGE_DESTINATION_ID, { completed: true })
       return res.status(202).json({ ok: true, revoked, remote })
     } catch (error: any) {
+      recordActivityExportPurgeResult(remoteConsent.receiptId, AGENTFORGE_DESTINATION_ID, { completed: false, error: error?.message || 'AgentForge purge request failed.' })
       return res.status(202).json({ ok: true, revoked, remote: { purgeStatus: 'needs-retry', error: error?.message || 'AgentForge purge request failed.' } })
     }
   }

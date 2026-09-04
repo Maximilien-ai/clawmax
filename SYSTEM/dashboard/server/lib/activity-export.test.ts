@@ -8,6 +8,7 @@ import {
   getOpaqueActivityUserId,
   createActivityExportEvent,
   deliverActivityExportBatch,
+  enqueueActivityExportPurge,
   appendActivityExportEvent,
   appendActivityExportEventsForActiveConsents,
   flushActivityExportOutbox,
@@ -15,6 +16,8 @@ import {
   getActivityExportConsent,
   getActivityExportEnrollment,
   listActivityExportOutbox,
+  listActivityExportPurges,
+  recordActivityExportPurgeResult,
   redactActivityText,
   saveActivityExportConsent,
   saveActivityExportEnrollment,
@@ -70,6 +73,12 @@ saveActivityExportEnrollment({ enrollmentId: 'enrollment_demo', destinationId: '
 assert.strictEqual(getActivityExportEnrollment('user_demo', 'workspace_demo', 'agentforge')?.enrollmentId, 'enrollment_demo')
 assert.strictEqual(revokeActivityExportEnrollment('user_demo', 'workspace_demo', 'agentforge'), true)
 assert.strictEqual(getActivityExportEnrollment('user_demo', 'workspace_demo', 'agentforge'), null)
+assert.strictEqual(enqueueActivityExportPurge('consent_remote', 'agentforge').attempts, 0)
+assert.strictEqual(enqueueActivityExportPurge('consent_remote', 'agentforge').receiptId, 'consent_remote', 'purge enqueue must be idempotent')
+recordActivityExportPurgeResult('consent_remote', 'agentforge', { completed: false, error: 'offline' })
+assert.strictEqual(listActivityExportPurges('agentforge')[0].lastError, 'offline')
+recordActivityExportPurgeResult('consent_remote', 'agentforge', { completed: true })
+assert(listActivityExportPurges('agentforge')[0].completedAt, 'successful purge result must be durable')
 saveActivityExportConsent(consent)
 assert.strictEqual(getActivityExportConsent('user_demo', 'workspace_demo')?.receiptId, 'consent_demo')
 const persisted = appendActivityExportEvent({ source: 'workflow', workspaceId: 'workspace_demo', userId: 'user_demo', content: 'workflow output' }, consent)
@@ -114,7 +123,7 @@ else process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = previousStatePath
   assert.strictEqual(fanout.length, 2)
   assert.strictEqual((await flushActivityExportOutbox({ destinationId: 'clawmax-ai', endpoint: 'https://receiver.example/activity', token: 'demo-token', fetchImpl: async () => new Response('{}', { status: 202 }) })).delivered, 1)
   assert.strictEqual((await flushActivityExportOutbox({ destinationId: 'digo', endpoint: 'https://digo.example/activity', token: 'digo-token', fetchImpl: async () => new Response('{}', { status: 202 }) })).delivered, 1)
-  console.log('Activity export tests: 31 passed')
+  console.log('Activity export tests: 36 passed')
 })().catch((error) => {
   console.error(error)
   process.exitCode = 1

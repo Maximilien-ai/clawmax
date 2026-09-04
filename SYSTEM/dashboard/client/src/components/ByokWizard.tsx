@@ -270,7 +270,7 @@ export function ByokWizard({
   const [activityConfirmOpen, setActivityConfirmOpen] = useState(false)
   const [activityDelivery, setActivityDelivery] = useState<{
     queuedEvents: number
-    worker?: { running?: boolean; lastAttemptAt?: string; lastError?: string; configured?: { clawmaxAi?: boolean; digo?: boolean; agentforge?: boolean } }
+    worker?: { running?: boolean; lastAttemptAt?: string; lastError?: string; configured?: { clawmaxAi?: boolean; digo?: boolean; agentforge?: boolean }; purge?: { attempted?: number; completed?: number; remaining?: number; error?: string } }
     retry?: { attempts?: number; lastError?: string }
   } | null>(null)
   const [agentForgeStatus, setAgentForgeStatus] = useState<{ configured: boolean; connected: boolean; purpose?: string; privacyUrl?: string; retentionDays?: number; supportedScopes?: string[] } | null>(null)
@@ -2938,6 +2938,7 @@ export function ByokWizard({
                             : 'Delivery credentials are not configured in this dashboard runtime.'}
                       </div>
                       {(activityDelivery.worker?.lastError || activityDelivery.retry?.lastError) && <div className="mt-1 break-words">Latest delivery error: {activityDelivery.worker.lastError || activityDelivery.retry?.lastError}</div>}
+                      {Boolean(activityDelivery.worker?.purge?.remaining) && <div className="mt-1 break-words">Deletion request pending: {activityDelivery.worker?.purge?.remaining}. The runtime will retry without resuming activity capture.</div>}
                     </div>
                   )}
                 </div>

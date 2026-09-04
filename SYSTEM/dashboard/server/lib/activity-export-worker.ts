@@ -1,6 +1,6 @@
-import { flushActivityExportOutbox, listAllActivityExportOutbox, setActivityExportQueueListener, type ActivityExportFlushResult } from './activity-export'
+import { flushActivityExportOutbox, listActivityExportPurges, listAllActivityExportOutbox, recordActivityExportPurgeResult, setActivityExportQueueListener, type ActivityExportFlushResult } from './activity-export'
 import { getResolvedWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets } from './workspace-integrations'
-import { AGENTFORGE_DESTINATION_ID, agentForgeActivityEndpoint, getAgentForgeRuntimeConfig } from './agentforge-activity-export'
+import { AGENTFORGE_DESTINATION_ID, agentForgeActivityEndpoint, getAgentForgeRuntimeConfig, revokeAgentForgeConsent } from './agentforge-activity-export'
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000
 let timer: ReturnType<typeof setInterval> | null = null
@@ -9,6 +9,31 @@ let startedAt: string | undefined
 let lastAttemptAt: string | undefined
 let lastResult: ActivityExportFlushResult | null = null
 let lastError: string | undefined
+let lastPurgeResult: { attempted: number; completed: number; remaining: number; error?: string } | null = null
+
+async function flushAgentForgePurgeQueue(): Promise<typeof lastPurgeResult> {
+  const config = getAgentForgeRuntimeConfig()
+  const pending = listActivityExportPurges(AGENTFORGE_DESTINATION_ID).filter((entry) => !entry.completedAt).slice(0, 20)
+  if (!config || pending.length === 0) return null
+  let completed = 0
+  let error: string | undefined
+  for (const entry of pending) {
+    try {
+      await revokeAgentForgeConsent(entry.receiptId, { config })
+      recordActivityExportPurgeResult(entry.receiptId, entry.destinationId, { completed: true })
+      completed += 1
+    } catch (cause: any) {
+      error = cause?.message || String(cause)
+      recordActivityExportPurgeResult(entry.receiptId, entry.destinationId, { completed: false, error })
+    }
+  }
+  return {
+    attempted: pending.length,
+    completed,
+    remaining: listActivityExportPurges(AGENTFORGE_DESTINATION_ID).filter((entry) => !entry.completedAt).length,
+    error,
+  }
+}
 
 function intervalMs(): number {
   const configured = Number.parseInt(process.env.CLAWMAX_ACTIVITY_EXPORT_INTERVAL_MS || '', 10)
@@ -32,6 +57,12 @@ export async function flushActivityExportWorker(): Promise<ActivityExportFlushRe
         remaining: result.remaining,
         error: combined.error || result.error,
       } : result
+    }
+    lastPurgeResult = await flushAgentForgePurgeQueue()
+    if (lastPurgeResult?.error) {
+      combined = combined
+        ? { ...combined, error: combined.error || lastPurgeResult.error }
+        : { attempted: 0, delivered: 0, remaining: listAllActivityExportOutbox().length, error: lastPurgeResult.error }
     }
     lastResult = combined
     lastError = combined?.error
@@ -111,6 +142,7 @@ export function getActivityExportWorkerStatus(): {
   lastError?: string
   intervalMs: number
   configured: { clawmaxAi: boolean; digo: boolean; agentforge: boolean }
+  purge: { attempted: number; completed: number; remaining: number; error?: string } | null
 } {
   return {
     running: Boolean(timer),
@@ -124,5 +156,6 @@ export function getActivityExportWorkerStatus(): {
       digo: Boolean(destinationCredentials('digo')),
       agentforge: Boolean(destinationCredentials(AGENTFORGE_DESTINATION_ID)),
     },
+    purge: lastPurgeResult,
   }
 }

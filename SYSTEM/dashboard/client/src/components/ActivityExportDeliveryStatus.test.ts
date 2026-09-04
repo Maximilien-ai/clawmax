@@ -14,5 +14,6 @@ assert(source.includes('AgentForge connection code'), 'AgentForge must use a par
 assert(source.includes('Identity is pseudonymous'), 'AgentForge consent must disclose pseudonymous mapping')
 assert(source.includes('Read the privacy notice'), 'AgentForge consent must link the configured privacy notice')
 assert(source.includes("['agent-chat', 'workflow', 'builder']"), 'AgentForge launch consent must exclude group and community scopes')
+assert(source.includes('Deletion request pending:'), 'receipt-linked purge retries must remain visible')
 
-console.log('ActivityExportDeliveryStatus.test.ts: 10 assertions passed')
+console.log('ActivityExportDeliveryStatus.test.ts: 11 assertions passed')
