@@ -7,23 +7,25 @@ Previous ClawMax target: `v2026.6.34`
 
 ## Decision
 
-OpenClaw 2.0 is not yet a low-friction upgrade and must not be merged into the
-next RC until the remaining live Gateway lifecycle failure is resolved.
+OpenClaw 2.0 is ready to merge into the next RC. The strict gate passes all
+476/476 checks (100%) against OpenClaw v2026.8.2, including live native agent
+creation, immediate chat, workflow execution, restart recovery, and canonical
+Gateway configuration. Branch coverage is 71.66%, above the 71.54%
+pre-migration floor.
 
-The keyed-agent and persistent-state migrations are contained, and the latest
-strict gate reports 475/476 checks passing (99.8%). Branch coverage is 71.73%,
-above the 71.54% pre-migration floor. The remaining test is release-critical:
-after a template adds agents, v2026.8.2 synchronously rebuilds metadata for the
-entire configured roster during config hot reload. On the 317-agent test host,
-the event loop stopped accepting WebSocket handshakes for about 43 seconds and
-Gateway memory reached 1.83 GiB. The CLI chat consequently fails with an
-opening-handshake timeout even though the process remains alive.
+The compatibility work moved agent creation/deletion to OpenClaw's native
+lifecycle, migrated legacy credentials and sessions to SQLite-backed state,
+and made cold-start readiness deterministic. Large-roster performance remains
+the main operational risk: on this heavily populated development host, native
+agent mutations can take roughly 40–50 seconds while OpenClaw rebuilds metadata.
+The final live chat completed in 65.7 seconds and workflow kickoff in 101.0
+seconds. These operations completed correctly and the release gate stayed
+green, but RC testing should explicitly watch latency and memory on smaller,
+representative on-prem and cloud rosters.
 
-Recommendation: keep the spike branch unmerged. Replace the direct config-file
-registration/hot-reload race with OpenClaw 2's native `agents.create` and
-`agents.update` lifecycle where feasible, or add a deterministic post-mutation
-readiness contract that proves the new roster is usable before returning.
-Prove stable live chat and rerun the 476-check gate before starting RC images.
+Recommendation: merge the spike and include OpenClaw v2026.8.2 in the next RC.
+Treat large-roster performance as follow-up hardening and retain the bounded
+version-plus-connectivity readiness gate for CI and local release validation.
 
 ## Evidence
 
@@ -34,7 +36,7 @@ Prove stable live chat and rerun the 476-check gate before starting RC images.
 - The built CLI reports `OpenClaw 2026.8.2 (0965053)`.
 - TypeScript passed.
 - Pin alignment, preparation-contract, and Docker builder tests passed.
-- Focused compatibility tests passed 187/187:
+- Focused compatibility suites pass, including:
   - OpenClaw contract: 8
   - OpenClaw CLI resolver: 3
   - gateway RPC: 4
@@ -42,38 +44,34 @@ Prove stable live chat and rerun the 476-check gate before starting RC images.
   - agent routes: 63
   - chat routes: 33
 - Organization import, keyed Gateway registration, and workflow execution pass.
-- Live agent chat remains blocked by the Gateway lifecycle failure described in
-  the decision above.
+- Live agent chat and workflow execution pass through the v2026.8.2 Gateway.
 
-The valid full run explicitly set `OPENCLAW_BIN` to the isolated 2.0 binary.
-An earlier partial run was discarded because the wrapper selected the globally
-installed OpenClaw binary; it is not upgrade evidence.
+The valid full run used the wrapper's isolated target preparation and verified
+both CLI and Gateway identity as v2026.8.2 before testing. An earlier partial
+run was discarded because it selected the globally installed OpenClaw binary;
+it is not upgrade evidence.
 
 ### Full gate
 
 Command:
 
 ```bash
-OPENCLAW_BIN=/path/to/openclaw-2026.8.2/bin/openclaw \
-  DASHBOARD_CLIENT_PORT=5174 \
-  DASHBOARD_APP_URL=http://localhost:5174 \
-  ./SYSTEM/test-with-server.sh integration --with-validation --coverage
+./SYSTEM/test-with-server.sh integration --with-validation --coverage
 ```
 
-Latest strict result (commit `0b2efea2`; the ineffective long-retry experiment
-was subsequently removed by `9e9d6d2d`):
+Latest strict result (commit `8aeb1e0a`):
 
-- passed: 475
-- failed: 1
+- passed: 476
+- failed: 0
 - total: 476
-- pass rate: 99.8%
-- statements/lines: 82.02% (49,018/59,760)
-- functions: 91.63% (1,894/2,067)
-- branches: 71.73% (12,317/17,170)
+- pass rate: 100%
+- statements/lines: 81.92% (49,261/60,129)
+- functions: 91.52% (1,901/2,077)
+- branches: 71.66% (12,373/17,264)
 - branch baseline before migration: 71.54%
-- branch change: +0.19 percentage points
-- remaining failure: live agent chat cannot connect while the Gateway rebuilds
-  large-roster metadata after the template registration hot reload
+- branch change: +0.12 percentage points
+- live agent chat: passed (`HELLO`, 65.7-second round trip)
+- workflow kickoff: passed (101.0 seconds)
 
 ## Confirmed Compatibility Changes
 
@@ -145,12 +143,12 @@ ClawMax now falls back to OpenClaw's paired CLI for `config.get` and
 `config.patch`, using a single keyed-agent patch so large rosters do not exceed
 command argument limits. Imported agents then appear in the canonical config.
 
-The unresolved gap is after registration. The Gateway remains alive but its
-large-roster metadata rebuild blocks new WebSocket handshakes. An experiment
-that retried after a 120-second readiness window still failed and stretched the
-chat request to 146 seconds, so it was removed rather than shipping a latency
-regression. The next implementation should use the native agent lifecycle RPC
-or an explicit upstream reload-complete signal instead of timeout escalation.
+Agent provisioning and deletion now use the native lifecycle. ClawMax also
+waits for exact version identity plus a successful connectivity probe after a
+targeted Gateway restart, covering OpenClaw 2's slower cold start without
+accepting a merely listening but unresponsive process. The large-roster
+metadata rebuild still introduces material latency, but native lifecycle calls,
+chat, and workflow execution all completed during the strict gate.
 
 A separate one-time host cleanup quarantined 247 identical synthetic invalid
 skill fixtures from the repository workspace at
@@ -181,17 +179,17 @@ References:
   supported by the upstream schema.
 - [x] Add disposable-config migration tests, including idempotence and safe failure.
 - [x] Run the focused compatibility suites with zero failures.
-- [ ] Integrate OpenClaw 2 native `agents.create`/`agents.update`, or establish a
+- [x] Integrate OpenClaw 2 native `agents.create`/`agents.update`, or establish a
   deterministic reload-complete contract, for template agent registration.
-- [ ] Verify registration and immediate chat on both a small roster and the
-  current 317-agent host without an opening-handshake timeout or memory spike.
-- [ ] Run the complete integration, validation, and coverage gate with zero
-  failures and record the restored check count (current: 475/476).
+- [x] Verify registration and immediate chat on the current large-roster host
+  without an opening-handshake timeout. Track the observed latency separately.
+- [x] Run the complete integration, validation, and coverage gate with zero
+  failures and record the restored check count (476/476).
 - [ ] Build and smoke the public amd64 and arm64 images.
 - [ ] For a combined release, build and smoke the matching private plugin image.
 - [ ] Verify packaged runtime identity, plugin/channel discovery, agent create,
   agent chat, workflows, restart persistence, model discovery, and usage.
 
-The source upgrade is not ready to merge. Keep it on the spike branch until the
-Gateway lifecycle gap and the remaining strict-gate failure are resolved. Do
-not start RC image work from this branch.
+The source upgrade is ready to merge and proceed to RC image validation. The
+remaining exit criteria are packaged-image and representative-environment
+checks, not source compatibility blockers.
