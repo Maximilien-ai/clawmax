@@ -79,7 +79,7 @@ router.get('/status', (req, res) => {
 router.post('/agentforge/enrollment', async (req, res) => {
   const { userId, workspaceId } = actor(req)
   const connectionCode = typeof req.body?.connectionCode === 'string' ? req.body.connectionCode.trim().toUpperCase() : ''
-  if (!connectionCode) return res.status(400).json({ error: 'Enter the single-use connection code created in AgentForge.' })
+  if (!connectionCode) return res.status(400).json({ error: 'The AgentForge enrollment handoff is missing or expired.' })
   if (!getAgentForgeRuntimeConfig()) return res.status(503).json({ error: 'The operator has not configured AgentForge delivery.' })
   const externalWorkspaceId = getOpaqueActivityWorkspaceId(workspaceId)
   const externalUserId = getOpaqueActivityUserId(userId, workspaceId, AGENTFORGE_DESTINATION_ID)

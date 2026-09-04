@@ -274,7 +274,6 @@ export function ByokWizard({
     retry?: { attempts?: number; lastError?: string }
   } | null>(null)
   const [agentForgeStatus, setAgentForgeStatus] = useState<{ configured: boolean; connected: boolean; purpose?: string; privacyUrl?: string; retentionDays?: number; supportedScopes?: string[] } | null>(null)
-  const [agentForgeConnectionCode, setAgentForgeConnectionCode] = useState('')
   const [agentForgeConnecting, setAgentForgeConnecting] = useState(false)
   const [validating, setValidating] = useState(false)
   const [resendTestSending, setResendTestSending] = useState(false)
@@ -377,20 +376,36 @@ export function ByokWizard({
     window.dispatchEvent(new CustomEvent('activity-export-updated'))
     showSuccess(`Activity sharing revoked for ${destinationId === 'digo' ? 'Digo' : destinationId === 'agentforge' ? 'NYU - AgentForge' : 'ClawMax.ai'}`)
   }
-  async function connectAgentForge() {
-    if (!agentForgeConnectionCode.trim()) { showWarning('Create a connection code in AgentForge and paste it here.'); return }
+  async function connectAgentForge(enrollmentToken: string) {
+    if (!enrollmentToken.trim()) { showWarning('Open ClawMax from AgentForge to connect your event account.'); return }
     setAgentForgeConnecting(true)
     try {
-      const response = await fetch('/api/activity-export/agentforge/enrollment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ connectionCode: agentForgeConnectionCode.trim() }) })
+      const response = await fetch('/api/activity-export/agentforge/enrollment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ connectionCode: enrollmentToken.trim() }) })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) { showWarning(payload?.error || 'Unable to connect AgentForge'); return }
       setAgentForgeStatus((current) => ({ configured: true, connected: true, purpose: current?.purpose, privacyUrl: current?.privacyUrl, retentionDays: current?.retentionDays, supportedScopes: current?.supportedScopes }))
-      setAgentForgeConnectionCode('')
-      showSuccess('AgentForge enrollment connected. Review the scopes before enabling sharing.')
+      setSelectedPartners((current) => current.includes('agentforge') ? current : [...current, 'agentforge'])
+      setActivityDestination('agentforge')
+      setActivityScopes(['agent-chat', 'workflow', 'builder'])
+      setActivityConfirmOpen(true)
+      setStep('partners')
+      setOpen(true)
+      showSuccess('AgentForge connected. Review the purpose and scopes before enabling sharing.')
+    } catch (problem) {
+      showWarning(problem instanceof Error ? problem.message : 'Unable to connect AgentForge')
     } finally {
       setAgentForgeConnecting(false)
     }
   }
+
+  useEffect(() => {
+    if (initialStep !== 'partners') return
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const enrollmentToken = fragment.get('agentforge_enrollment')?.trim() || ''
+    if (!enrollmentToken) return
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+    void connectAgentForge(enrollmentToken)
+  }, [initialStep])
   const ollamaEnabled = isOllamaUiAvailable(config)
   const managedRuntime = config?.managedRuntime === true || deploymentKind !== 'local'
   const defaultOllamaBaseUrl = config?.defaultOllamaBaseUrl || localDevOllamaBaseUrl
@@ -3492,20 +3507,9 @@ export function ByokWizard({
                   {currentPartner.slug === 'agentforge' && (
                     <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-950 dark:border-violet-800 dark:bg-violet-950/20 dark:text-violet-100">
                       <div className="font-medium">Connect your AgentForge event account</div>
-                      <div className="mt-1">Operator configuration only makes the destination available. It does not authorize sharing. Create a single-use code in AgentForge, connect it here, then review the purpose and scopes.</div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <input
-                          aria-label="AgentForge connection code"
-                          value={agentForgeConnectionCode}
-                          onChange={(event) => setAgentForgeConnectionCode(event.target.value.toUpperCase())}
-                          placeholder="AgentForge connection code"
-                          disabled={agentForgeStatus?.connected || agentForgeConnecting}
-                          className="min-w-56 flex-1 rounded-md border border-violet-300 bg-white px-3 py-2 font-mono tracking-wider text-gray-900 dark:border-violet-700 dark:bg-gray-900 dark:text-gray-100"
-                        />
-                        <button type="button" onClick={() => void connectAgentForge()} disabled={agentForgeStatus?.connected || agentForgeConnecting} className="rounded-md bg-violet-700 px-3 py-2 font-medium text-white disabled:opacity-60">
-                          {agentForgeStatus?.connected ? 'Connected' : agentForgeConnecting ? 'Connecting…' : 'Connect AgentForge'}
-                        </button>
-                      </div>
+                      <div className="mt-1">Operator configuration makes the destination available, but does not authorize sharing. Participants open ClawMax from AgentForge; the signed enrollment is exchanged automatically, with no code or API key to copy.</div>
+                      {agentForgeConnecting && <div className="mt-3 font-medium text-violet-700 dark:text-violet-300">Connecting your AgentForge event account…</div>}
+                      {!agentForgeStatus?.connected && !agentForgeConnecting && <a href="https://agentforge-hackathon-os.yr2110.chatgpt.site/#/settings" className="mt-3 inline-flex rounded-md bg-violet-700 px-3 py-2 font-medium text-white hover:bg-violet-800">Open AgentForge to connect</a>}
                       {agentForgeStatus?.connected && <button type="button" onClick={() => { setActivityDestination('agentforge'); setActivityScopes(['agent-chat', 'workflow', 'builder']); setActivityConfirmOpen(true) }} className="mt-3 rounded-md border border-violet-400 px-3 py-1.5 font-medium hover:bg-violet-100 dark:border-violet-700 dark:hover:bg-violet-900/30">Review AgentForge sharing</button>}
                       {!agentForgeStatus?.configured && <div className="mt-2 text-amber-700 dark:text-amber-300">Save the AgentForge API URL, privacy URL, and Partner API key before connecting.</div>}
                     </div>

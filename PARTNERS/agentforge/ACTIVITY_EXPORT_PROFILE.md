@@ -41,15 +41,17 @@ predates consent are never included.
 
 ## Participant mapping
 
-ClawMax exchanges the participant's single-use AgentForge connection code using
-server-to-server authentication. Wire identity uses:
+The participant opens ClawMax from AgentForge. The browser carries a short-lived
+enrollment token in the URL fragment, ClawMax removes it immediately, and the
+ClawMax server exchanges it with AgentForge using server-to-server
+authentication. No participant copies or enters a code. Wire identity uses:
 
 - `workspaceId = ws_<SHA-256(local workspace identity)>`
 - `userId = usr_<SHA-256(destination + workspace + authenticated user)>`
 - `enrollmentId = AgentForge-issued partner-scoped identifier`
 
 The raw local workspace path, login, email, name, AgentForge Session, and
-connection code are never placed in an exported event. The same opaque IDs are
+enrollment token are never placed in an exported event. The same opaque IDs are
 used for enrollment exchange, receipt registration, activity delivery, and
 purge authorization.
 

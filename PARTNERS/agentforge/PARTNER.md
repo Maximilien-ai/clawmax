@@ -5,7 +5,8 @@ AgentForge is the onboarding, learning-support, Prompt evidence, and progress la
 The initial Activity Export profile is frozen in
 [`ACTIVITY_EXPORT_PROFILE.md`](ACTIVITY_EXPORT_PROFILE.md). The integration is
 disabled until an operator configures the AgentForge API and a participant
-connects an enrollment and explicitly consents.
+launches ClawMax from AgentForge, completes the automatic enrollment handoff,
+and explicitly consents.
 
 ## Activity Export role
 
