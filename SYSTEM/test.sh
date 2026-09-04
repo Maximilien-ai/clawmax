@@ -5405,8 +5405,10 @@ PERF_WORKFLOW_TRIGGER_MS=$(elapsed_ms "$workflow_trigger_started_ms" "$workflow_
 workflow_execution_started_ms="$workflow_trigger_finished_ms"
 
 if echo "$trigger_result" | jq -e '.executionId' > /dev/null 2>&1; then
+  kickoff_execution_id=$(echo "$trigger_result" | jq -r '.executionId')
   pass "Kickoff workflow triggered"
 else
+  kickoff_execution_id=""
   fail "Failed to trigger kickoff"
 fi
 
@@ -5429,6 +5431,14 @@ for i in $(seq 1 24); do
   fi
   if [ "$i" = "24" ]; then
     PERF_WORKFLOW_PROGRESS_NOTE="timeout:${status}"
+    if [ -n "$kickoff_execution_id" ]; then
+      kickoff_diagnostic=$(apicurl "$API_BASE/api/workflows/test-kickoff/executions/$kickoff_execution_id" \
+        | jq -c '{executionId: .id, status, error, participants: [.participants[]? | {agentId, status, error}], logs: ((.logs // []) | .[-5:])}' \
+        2>/dev/null || true)
+      if [ -n "$kickoff_diagnostic" ]; then
+        echo "  Kickoff diagnostic: $kickoff_diagnostic"
+      fi
+    fi
     fail "Kickoff did not complete in 120s (status: $status)"
   fi
 done

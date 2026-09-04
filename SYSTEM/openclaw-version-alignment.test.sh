@@ -56,5 +56,7 @@ grep -Fq 'fail "Agent chat returned diagnostics or an unexpected response:' "$te
   || fail "expected the live chat gate to reject diagnostic output and unexpected replies"
 grep -Fq 'fail "Kickoff did not complete in 120s' "$test_suite" \
   || fail "expected blocked workflow timeouts to fail the gate"
+grep -Fq 'Kickoff diagnostic:' "$test_suite" \
+  || fail "expected blocked workflow timeouts to retain participant diagnostics"
 
 pass "OpenClaw target and live-gate contracts are aligned"
