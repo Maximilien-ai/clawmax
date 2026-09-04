@@ -1719,13 +1719,16 @@ test('migrateLegacyOpenClawAuthStore publishes credentials and archives the reti
 })
 
 test('withTemporaryAgentAuthProfiles leaves OpenClaw 2 SQLite auth stores free of legacy JSON', async () => {
+  const { DatabaseSync } = require('node:sqlite')
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-openclaw2-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'openclaw2-agent', 'agent')
   const authProfilePath = path.join(agentDir, 'auth-profiles.json')
   const nativeAuthStorePath = path.join(agentDir, 'openclaw-agent.sqlite')
   const configPath = path.join(home, '.openclaw', 'openclaw.json')
   fs.mkdirSync(agentDir, { recursive: true })
-  fs.writeFileSync(nativeAuthStorePath, 'sqlite-fixture')
+  const nativeStore = new DatabaseSync(nativeAuthStorePath)
+  nativeStore.exec('CREATE TABLE session_key_contract (id INTEGER PRIMARY KEY)')
+  nativeStore.close()
   fs.writeFileSync(configPath, JSON.stringify({
     agents: {
       list: [
@@ -1751,7 +1754,12 @@ test('withTemporaryAgentAuthProfiles leaves OpenClaw 2 SQLite auth stores free o
 
   assert(!legacyStoreAppeared, 'Expected execution not to create auth-profiles.json beside the SQLite store')
   assert(!fs.existsSync(authProfilePath), 'Expected legacy auth JSON to remain absent after execution')
-  assert(fs.readFileSync(nativeAuthStorePath, 'utf-8') === 'sqlite-fixture', 'Expected the native auth store to remain unchanged')
+  const persistedNativeStore = new DatabaseSync(nativeAuthStorePath, { readOnly: true })
+  const contractTable = persistedNativeStore.prepare(
+    "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'session_key_contract'"
+  ).get()
+  persistedNativeStore.close()
+  assert(!!contractTable, 'Expected the ready native auth store to remain unchanged')
 })
 
 setTimeout(async () => {

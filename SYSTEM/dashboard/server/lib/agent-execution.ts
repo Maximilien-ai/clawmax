@@ -934,6 +934,22 @@ function persistPinnedOpenClawAuthStore(agentDir: string, store: AuthProfileFile
   }
 }
 
+function hasReadyOpenClawNativeAuthStore(databasePath: string): boolean {
+  if (!fs.existsSync(databasePath)) return false
+  let database: any
+  try {
+    const { DatabaseSync } = require('node:sqlite')
+    database = new DatabaseSync(databasePath, { readOnly: true })
+    return Boolean(database.prepare(
+      "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'session_key_contract'"
+    ).get())
+  } catch {
+    return false
+  } finally {
+    database?.close()
+  }
+}
+
 export function migrateLegacyOpenClawAuthStore(
   agentDir: string,
   serializedStore: string,
@@ -1313,7 +1329,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
   // blocks execution. Keep the JSON compatibility path only for older runtimes.
   const hadExisting = fs.existsSync(authProfilePath)
   const previous = hadExisting ? fs.readFileSync(authProfilePath, 'utf-8') : null
-  let usesNativeAuthStore = fs.existsSync(nativeAuthStorePath)
+  let usesNativeAuthStore = hasReadyOpenClawNativeAuthStore(nativeAuthStorePath)
   // If preferred provider's key is missing, fall back to available provider's model
   let effectiveModel = preferredModel
   let effectiveProvider = preferredProvider
