@@ -28,9 +28,18 @@ export function y(store, agentDir) {
 }
 // Bundle marker: saveAuthProfileStore as y
 EOF
+cat > "$TMP_DIR/openclaw/dist/persisted-fixture.js" <<'EOF'
+import fs from 'node:fs'
+export function m(agentDir) {
+  return JSON.parse(fs.readFileSync(`${agentDir}/saved.json`, 'utf8'))
+}
+// Bundle marker: loadPersistedAuthProfileStore as m
+EOF
 printf '{"version":1,"profiles":{},"usageStats":{}}' \
   | OPENCLAW_PACKAGE_ROOT="$TMP_DIR/openclaw" node "$ROOT_DIR/SYSTEM/dashboard/openclaw-auth-store.mjs" "$TMP_DIR/agent" \
   | grep -F '"native":true' >/dev/null
 grep -F 'fixture-v2' "$TMP_DIR/agent/openclaw-agent.sqlite" >/dev/null
+OPENCLAW_PACKAGE_ROOT="$TMP_DIR/openclaw" node "$ROOT_DIR/SYSTEM/dashboard/openclaw-auth-store.mjs" "$TMP_DIR/agent" read \
+  | grep -F '"profiles":{}' >/dev/null
 
 echo "OpenClaw auth store bridge tests passed"

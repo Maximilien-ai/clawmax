@@ -906,21 +906,26 @@ function authProfileStateFingerprint(raw: string | null): string | null {
   }
 }
 
-function persistPinnedOpenClawAuthStore(agentDir: string, store: AuthProfileFile): boolean {
+function resolvePinnedOpenClawAuthBridge(): { helperPath: string; packageRoot: string } | null {
   const helperPath = path.join(REPO_ROOT, 'SYSTEM', 'dashboard', 'openclaw-auth-store.mjs')
   const packageRoot = [
     process.env.OPENCLAW_PACKAGE_ROOT,
     '/usr/local/lib/node_modules/openclaw',
     '/opt/homebrew/lib/node_modules/openclaw',
   ].find((root) => root && fs.existsSync(path.join(root, 'dist')))
-  if (!fs.existsSync(helperPath) || !packageRoot) return false
+  return fs.existsSync(helperPath) && packageRoot ? { helperPath, packageRoot } : null
+}
 
-  const result = spawnSync(process.execPath, [helperPath, agentDir], {
+function persistPinnedOpenClawAuthStore(agentDir: string, store: AuthProfileFile): boolean {
+  const bridge = resolvePinnedOpenClawAuthBridge()
+  if (!bridge) return false
+
+  const result = spawnSync(process.execPath, [bridge.helperPath, agentDir], {
     input: JSON.stringify(store),
     encoding: 'utf8',
     env: {
       ...process.env,
-      OPENCLAW_PACKAGE_ROOT: packageRoot,
+      OPENCLAW_PACKAGE_ROOT: bridge.packageRoot,
     },
   })
   if (result.status !== 0) {
@@ -932,6 +937,26 @@ function persistPinnedOpenClawAuthStore(agentDir: string, store: AuthProfileFile
   } catch {
     return fs.existsSync(path.join(agentDir, 'openclaw-agent.sqlite'))
   }
+}
+
+function readPinnedOpenClawAuthStore(agentDir: string): AuthProfileFile | null {
+  const bridge = resolvePinnedOpenClawAuthBridge()
+  if (!bridge) return null
+  const result = spawnSync(process.execPath, [bridge.helperPath, agentDir, 'read'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      OPENCLAW_PACKAGE_ROOT: bridge.packageRoot,
+    },
+  })
+  if (result.status !== 0) {
+    const detail = String(result.stderr || result.stdout || '').trim()
+    throw new Error(`Failed to read OpenClaw auth store for ${path.basename(path.dirname(agentDir))}: ${detail || `exit ${result.status}`}`)
+  }
+  const parsed = JSON.parse(String(result.stdout || ''))
+  return parsed?.native === true && parsed?.store?.profiles && typeof parsed.store.profiles === 'object'
+    ? parsed.store as AuthProfileFile
+    : null
 }
 
 function hasReadyOpenClawNativeAuthStore(databasePath: string): boolean {
@@ -1323,10 +1348,9 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const nativeAuthStorePath = path.join(agentDir, 'openclaw-agent.sqlite')
   fs.mkdirSync(agentDir, { recursive: true })
 
-  // OpenClaw 2 consumes the provider environment passed to the child process
-  // and persists its own SQLite credential store. Writing auth-profiles.json
-  // beside that database is interpreted as an unfinished legacy migration and
-  // blocks execution. Keep the JSON compatibility path only for older runtimes.
+  // OpenClaw 2 executes turns in the Gateway process, so child-process env
+  // credentials do not reach the model runtime. Publish request-scoped keys to
+  // SQLite for the turn and restore the prior canonical store afterward.
   const hadExisting = fs.existsSync(authProfilePath)
   const previous = hadExisting ? fs.readFileSync(authProfilePath, 'utf-8') : null
   let usesNativeAuthStore = hasReadyOpenClawNativeAuthStore(nativeAuthStorePath)
@@ -1356,6 +1380,12 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const nextAuthProfilesSerialized = JSON.stringify(nextAuthProfiles, null, 2)
   const hasNextAuthProfiles = Object.keys(nextAuthProfiles.profiles).length > 0
   let nativeAuthStoreChanged = false
+  let previousNativeAuthStore = usesNativeAuthStore && hasNextAuthProfiles
+    ? readPinnedOpenClawAuthStore(agentDir)
+    : null
+  if (usesNativeAuthStore && hasNextAuthProfiles && !previousNativeAuthStore) {
+    throw new Error(`Failed to snapshot OpenClaw auth store for ${agentId} before scoped credential update`)
+  }
 
   if (hasNextAuthProfiles && previous !== null) {
     // Upgrade an existing ClawMax/OpenClaw 1 credential file before using the
@@ -1363,21 +1393,31 @@ export async function withTemporaryAgentAuthProfiles<T>(
     // credentials while an unmigrated legacy file remains beside SQLite.
     nativeAuthStoreChanged = migrateLegacyOpenClawAuthStore(agentDir, previous)
     usesNativeAuthStore = nativeAuthStoreChanged || usesNativeAuthStore
+    if (nativeAuthStoreChanged) previousNativeAuthStore = JSON.parse(previous) as AuthProfileFile
   }
-  if (hasNextAuthProfiles && !usesNativeAuthStore) {
-    // OpenClaw 2's store writer initializes the complete agent schema. Keep it
-    // empty so request-scoped/BYOK credentials remain only in the child env.
-    usesNativeAuthStore = persistPinnedOpenClawAuthStore(agentDir, {
+  if (hasNextAuthProfiles) {
+    const persistedNativeStore = persistPinnedOpenClawAuthStore(agentDir, nextAuthProfiles)
+    usesNativeAuthStore = persistedNativeStore || usesNativeAuthStore
+    nativeAuthStoreChanged = persistedNativeStore || nativeAuthStoreChanged
+  }
+
+  const restoreNativeAuthStore = async () => {
+    if (!nativeAuthStoreChanged || options.persistAuthProfiles) return
+    persistPinnedOpenClawAuthStore(agentDir, previousNativeAuthStore || {
       version: 1,
       profiles: {},
       usageStats: {},
     })
-    nativeAuthStoreChanged = usesNativeAuthStore
+    if (isGatewayRunning().running) await getGatewayClient().reloadSecrets()
+    nativeAuthStoreChanged = false
   }
   if (nativeAuthStoreChanged && isGatewayRunning().running) {
-    // OpenClaw 2 intentionally caches migration failures until its secrets
-    // runtime reloads. Publish the newly canonical store before starting chat.
-    await getGatewayClient().reloadSecrets()
+    try {
+      await getGatewayClient().reloadSecrets()
+    } catch (err) {
+      await restoreNativeAuthStore()
+      throw err
+    }
   }
   const authProfilesChanged = !usesNativeAuthStore && authProfileStateFingerprint(previous) !== authProfileStateFingerprint(nextAuthProfilesSerialized)
   if (hasNextAuthProfiles && !usesNativeAuthStore) {
@@ -1410,7 +1450,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
     })
   } finally {
     if (usesNativeAuthStore) {
-      // The child runtime used its scoped provider environment and native DB.
+      await restoreNativeAuthStore()
     } else if (options.persistAuthProfiles) {
       // Agent runs can launch async OpenClaw subagents after the parent CLI command exits.
       // Leave Dashboard-provided auth in place so those child lanes can authenticate.

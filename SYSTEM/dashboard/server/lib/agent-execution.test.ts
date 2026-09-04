@@ -1743,7 +1743,7 @@ test('withTemporaryAgentAuthProfiles leaves OpenClaw 2 SQLite auth stores free o
   let legacyStoreAppeared = false
   await withTemporaryAgentAuthProfiles(
     'openclaw2-agent',
-    { openai: 'test-openai' },
+    {},
     'openai/gpt-5.4-mini',
     'openai',
     async () => {
