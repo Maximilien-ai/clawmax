@@ -959,7 +959,7 @@ function readPinnedOpenClawAuthStore(agentDir: string): AuthProfileFile | null {
     : null
 }
 
-function hasReadyOpenClawNativeAuthStore(databasePath: string): boolean {
+export function hasReadyOpenClawNativeAgentStore(databasePath: string): boolean {
   if (!fs.existsSync(databasePath)) return false
   let database: any
   try {
@@ -1353,7 +1353,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
   // SQLite for the turn and restore the prior canonical store afterward.
   const hadExisting = fs.existsSync(authProfilePath)
   const previous = hadExisting ? fs.readFileSync(authProfilePath, 'utf-8') : null
-  let usesNativeAuthStore = hasReadyOpenClawNativeAuthStore(nativeAuthStorePath)
+  let usesNativeAuthStore = hasReadyOpenClawNativeAgentStore(nativeAuthStorePath)
   // If preferred provider's key is missing, fall back to available provider's model
   let effectiveModel = preferredModel
   let effectiveProvider = preferredProvider

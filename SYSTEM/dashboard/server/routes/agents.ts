@@ -42,7 +42,7 @@ import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgent
 import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleDirectory, importAgentFromOpenClaw, importAgentFromZipArchive, listImportableOpenClawAgents } from '../lib/openclaw-agent-transfer'
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
-import { runExclusiveAgentExecution } from '../lib/agent-execution'
+import { hasReadyOpenClawNativeAgentStore, runExclusiveAgentExecution } from '../lib/agent-execution'
 import { withRegisteredTurn } from '../lib/agent-turns'
 import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
 import { resolveDefaultAgentModel } from '../lib/agent-default-model'
@@ -2882,12 +2882,15 @@ router.post('/:id/chat/messages', async (req, res) => {
 
           if (actualSessionId) {
             try {
-              let sessions: Record<string, any> = {}
-              if (fs.existsSync(sessionsPath)) {
-                sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+              const nativeStorePath = path.join(HOME, '.openclaw', 'agents', id, 'agent', 'openclaw-agent.sqlite')
+              if (!hasReadyOpenClawNativeAgentStore(nativeStorePath)) {
+                let sessions: Record<string, any> = {}
+                if (fs.existsSync(sessionsPath)) {
+                  sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+                }
+                sessions[sessionKey] = { sessionId: actualSessionId, updatedAt: Date.now() }
+                fs.writeFileSync(sessionsPath, JSON.stringify(sessions, null, 2))
               }
-              sessions[sessionKey] = { sessionId: actualSessionId, updatedAt: Date.now() }
-              fs.writeFileSync(sessionsPath, JSON.stringify(sessions, null, 2))
             } catch (e) {
               console.error('Failed to update sessions.json:', e)
             }

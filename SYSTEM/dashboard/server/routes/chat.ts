@@ -15,6 +15,7 @@ import { getAgentSkills, getAssignedSkillPromptNotes, getSkillById } from '../li
 import { executeClawmaxResendSend } from '../lib/clawmax-resend-command'
 import {
   deriveWorkspaceRootFromAgentWorkspace,
+  hasReadyOpenClawNativeAgentStore,
   providerFromModel,
   readLatestAssistantUsageFromPersistedSession,
   readLatestAssistantTextFromPersistedSession,
@@ -622,6 +623,8 @@ function evaluateChatExecutionReadiness(
 function persistDashboardChatSession(agentId: string, sessionId: string) {
   try {
     const homeDir = process.env.HOME || ''
+    const nativeStorePath = path.join(homeDir, '.openclaw', 'agents', agentId, 'agent', 'openclaw-agent.sqlite')
+    if (hasReadyOpenClawNativeAgentStore(nativeStorePath)) return
     const sessionKey = `agent:${agentId}:dashboard-chat`
     const resolvedSessionId = resolvePersistedAgentSessionId(agentId, sessionKey, sessionId, homeDir) || sessionId
     const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')

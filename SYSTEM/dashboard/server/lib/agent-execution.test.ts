@@ -15,6 +15,7 @@ import {
   getAgentExecutionRetryDelay,
   isOpenClawSessionLockError,
   migrateLegacyOpenClawAuthStore,
+  hasReadyOpenClawNativeAgentStore,
   providerFromModel,
   readLatestAssistantTextFromPersistedSession,
   readLatestAssistantUsageFromPersistedSession,
@@ -1727,8 +1728,10 @@ test('withTemporaryAgentAuthProfiles leaves OpenClaw 2 SQLite auth stores free o
   const configPath = path.join(home, '.openclaw', 'openclaw.json')
   fs.mkdirSync(agentDir, { recursive: true })
   const nativeStore = new DatabaseSync(nativeAuthStorePath)
+  assert(!hasReadyOpenClawNativeAgentStore(nativeAuthStorePath), 'Expected an incomplete SQLite store not to select native state')
   nativeStore.exec('CREATE TABLE session_key_contract (id INTEGER PRIMARY KEY)')
   nativeStore.close()
+  assert(hasReadyOpenClawNativeAgentStore(nativeAuthStorePath), 'Expected the OpenClaw 2 contract table to select native state')
   fs.writeFileSync(configPath, JSON.stringify({
     agents: {
       list: [
