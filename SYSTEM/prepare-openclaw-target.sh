@@ -20,14 +20,22 @@ EOF
 
 ensure_supported_node() {
   node <<'EOF'
-const [majorRaw = "0", minorRaw = "0"] = process.versions.node.split(".");
+const [majorRaw = "0", minorRaw = "0", patchRaw = "0"] = process.versions.node.split(".");
 const major = Number(majorRaw);
 const minor = Number(minorRaw);
-if (major > 22 || (major === 22 && minor >= 19)) {
+const patch = Number(patchRaw);
+const atLeast = (wantedMinor, wantedPatch) =>
+  minor > wantedMinor || (minor === wantedMinor && patch >= wantedPatch);
+if (
+  (major === 22 && atLeast(22, 3)) ||
+  (major === 24 && atLeast(15, 0)) ||
+  (major === 25 && atLeast(9, 0)) ||
+  major > 25
+) {
   process.exit(0);
 }
 console.error(
-  `prepare-openclaw-target.sh requires Node.js >=22.19.0 (current: ${process.versions.node})`,
+  `prepare-openclaw-target.sh requires Node.js 22.22.3+, 24.15.0+, or 25.9.0+ (current: ${process.versions.node})`,
 );
 process.exit(1);
 EOF

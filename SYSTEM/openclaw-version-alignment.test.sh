@@ -7,6 +7,7 @@ version_file="$repo_root/SYSTEM/openclaw-version.sh"
 dockerfile="$repo_root/Dockerfile"
 ci_workflow="$repo_root/.github/workflows/ci.yml"
 test_wrapper="$repo_root/SYSTEM/test-with-server.sh"
+start_script="$repo_root/SYSTEM/start.sh"
 test_suite="$repo_root/SYSTEM/test.sh"
 
 fail() {
@@ -22,6 +23,7 @@ pass() {
 [ -f "$dockerfile" ] || fail "expected Dockerfile to exist"
 [ -f "$ci_workflow" ] || fail "expected CI workflow to exist"
 [ -f "$test_wrapper" ] || fail "expected dashboard test wrapper to exist"
+[ -f "$start_script" ] || fail "expected dashboard start script to exist"
 [ -f "$test_suite" ] || fail "expected dashboard test suite to exist"
 
 helper_ref="$(sed -n 's/^export CLAWMAX_OPENCLAW_TARGET="${CLAWMAX_OPENCLAW_TARGET:-\(v[^"]*\)}"$/\1/p' "$version_file")"
@@ -50,6 +52,12 @@ grep -Fq 'Connectivity probe: ok' "$test_wrapper" \
   || fail "expected integration wrapper to require a responsive targeted OpenClaw gateway"
 grep -Fq 'Waiting for targeted OpenClaw gateway readiness' "$test_wrapper" \
   || fail "expected integration wrapper to tolerate bounded OpenClaw cold-start latency"
+grep -Fq '. "$SCRIPT_DIR/openclaw-version.sh"' "$start_script" \
+  || fail "expected local development to source the branch OpenClaw target"
+grep -Fq 'prepare-openclaw-target.sh" --print-bin' "$start_script" \
+  || fail "expected local development to prepare a mismatched OpenClaw target"
+grep -Fq 'Local development requires OpenClaw' "$start_script" \
+  || fail "expected local development to reject an unresolved OpenClaw mismatch"
 grep -Fq 'fail "Agent chat failed:' "$test_suite" \
   || fail "expected live agent chat failures to fail the gate"
 grep -Fq 'fail "Agent chat returned diagnostics or an unexpected response:' "$test_suite" \
