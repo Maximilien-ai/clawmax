@@ -26,10 +26,10 @@ function test(name: string, fn: () => void) {
 
 console.log(`\n${YELLOW}=== Gateway Probe Regression Tests ===${RESET}\n`)
 
-test('dashboard probe client uses operator identity instead of control-ui mode', () => {
+test('dashboard probe client uses the OpenClaw 2 probe identity', () => {
   const client = __test.buildGatewayProbeClient()
-  assert(client.id === 'openclaw-dashboard', `Expected openclaw-dashboard id, got ${client.id}`)
-  assert(client.mode === 'operator', `Expected operator mode, got ${client.mode}`)
+  assert(client.id === 'openclaw-probe', `Expected openclaw-probe id, got ${client.id}`)
+  assert(client.mode === 'probe', `Expected probe mode, got ${client.mode}`)
 })
 
 test('dashboard probe display name stays stable for diagnostics', () => {

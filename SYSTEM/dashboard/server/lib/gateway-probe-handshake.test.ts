@@ -26,13 +26,13 @@ function test(name: string, fn: () => void) {
 
 console.log(`\n${YELLOW}=== Gateway Probe Handshake Tests ===${RESET}\n`)
 
-test('probe connect params use dashboard operator identity and read-only scope', () => {
+test('probe connect params use the canonical probe identity and read-only scope', () => {
   const params = __test.buildGatewayProbeConnectParams('gateway-token')
 
   assert(params.minProtocol === __test.GATEWAY_PROTOCOL_VERSION, 'Expected min protocol to match gateway protocol')
   assert(params.maxProtocol === __test.GATEWAY_PROTOCOL_VERSION, 'Expected max protocol to match gateway protocol')
-  assert(params.client.id === 'openclaw-dashboard', `Expected dashboard client id, got ${params.client.id}`)
-  assert(params.client.mode === 'operator', `Expected operator client mode, got ${params.client.mode}`)
+  assert(params.client.id === 'openclaw-probe', `Expected canonical probe client id, got ${params.client.id}`)
+  assert(params.client.mode === 'probe', `Expected canonical probe client mode, got ${params.client.mode}`)
   assert(params.role === 'operator', `Expected operator role, got ${params.role}`)
   assert(Array.isArray(params.scopes) && params.scopes.length === 1 && params.scopes[0] === 'operator.read', 'Expected read-only operator scope')
   assert(params.auth.token === 'gateway-token', 'Expected auth token to be forwarded')
