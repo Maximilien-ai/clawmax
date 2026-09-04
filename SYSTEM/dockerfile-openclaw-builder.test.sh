@@ -36,7 +36,7 @@ assert_contains "retry 3 5 npm ci --legacy-peer-deps --ignore-scripts;"
 assert_contains "RUN npm run build:docker"
 assert_contains "COPY SYSTEM/patch-openclaw-fs-safe.mjs /tmp/patch-openclaw-fs-safe.mjs"
 assert_contains "RUN node /tmp/patch-openclaw-fs-safe.mjs /opt/openclaw-src"
-assert_contains "RUN npm pack --ignore-scripts"
+assert_contains "RUN pnpm pack --ignore-scripts"
 assert_contains "COPY SYSTEM/ensure-openclaw-default-plugins.sh /tmp/ensure-openclaw-default-plugins.sh"
 assert_contains "HOME=/app /tmp/ensure-openclaw-default-plugins.sh"
 assert_contains "RUN node scripts/postinstall-bundled-plugins.mjs \\"
@@ -84,6 +84,8 @@ assert_not_contains() {
     exit 1
   fi
 }
+
+assert_not_contains "RUN npm pack --ignore-scripts"
 
 # Factory Droid must be genuinely pinned via a checksum-verified direct
 # download keyed off FACTORY_DROID_VERSION, not the mutable curl|sh

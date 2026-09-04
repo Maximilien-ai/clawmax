@@ -52,7 +52,10 @@ RUN node /tmp/patch-openclaw-fs-safe.mjs /opt/openclaw-src
 # before packing so the runtime image receives a complete OpenClaw artifact.
 RUN node scripts/postinstall-bundled-plugins.mjs \
   && node -e 'const metadata = require("./dist/cli-startup-metadata.json"); for (const channel of ["whatsapp", "discord", "telegram", "slack"]) { if (!metadata.channelOptions?.includes(channel)) throw new Error(`missing bundled channel: ${channel}`) }'
-RUN npm pack --ignore-scripts
+# OpenClaw 2 uses workspace protocol dependencies (for example
+# @openclaw/ai@workspace:*). pnpm pack rewrites those to publishable versions;
+# npm pack preserves workspace:* and makes the runtime npm install fail.
+RUN pnpm pack --ignore-scripts
 
 FROM --platform=$BUILDPLATFORM node:22.22.3-bookworm-slim AS builder
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
