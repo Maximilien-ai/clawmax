@@ -1765,6 +1765,59 @@ test('withTemporaryAgentAuthProfiles leaves OpenClaw 2 SQLite auth stores free o
   assert(!!contractTable, 'Expected the ready native auth store to remain unchanged')
 })
 
+test('withTemporaryAgentAuthProfiles falls back when the selected OpenClaw lacks persisted auth support', async () => {
+  const { DatabaseSync } = require('node:sqlite')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-openclaw1-fallback-home-'))
+  const packageRoot = path.join(home, 'openclaw-package')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'legacy-agent', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const nativeAuthStorePath = path.join(agentDir, 'openclaw-agent.sqlite')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(path.join(packageRoot, 'dist'), { recursive: true })
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.writeFileSync(path.join(packageRoot, 'dist', 'store-fixture.js'), `
+    import fs from 'node:fs'
+    // Bundle marker: saveAuthProfileStore as s
+    export function s(store, targetDir) {
+      fs.writeFileSync(targetDir + '/legacy-save-observed.json', JSON.stringify(store))
+    }
+  `)
+  const nativeStore = new DatabaseSync(nativeAuthStorePath)
+  nativeStore.exec('CREATE TABLE session_key_contract (id INTEGER PRIMARY KEY)')
+  nativeStore.close()
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'legacy-agent', workspace: path.join(home, 'workspace', 'AGENTS', 'legacy-agent'), agentDir }
+      ]
+    }
+  }, null, 2))
+
+  const originalPackageRoot = process.env.OPENCLAW_PACKAGE_ROOT
+  process.env.HOME = home
+  process.env.OPENCLAW_PACKAGE_ROOT = packageRoot
+  resetWorkspaceManagerForTests()
+
+  try {
+    let sawLegacyProfile = false
+    await withTemporaryAgentAuthProfiles(
+      'legacy-agent',
+      { openai: 'test-openai' },
+      'openai/gpt-4o-mini',
+      'openai',
+      async () => {
+        sawLegacyProfile = fs.existsSync(authProfilePath)
+      },
+      { runtime: 'openclaw' }
+    )
+    assert(sawLegacyProfile, 'Expected an OpenClaw 1-compatible auth profile during execution')
+    assert(!fs.existsSync(authProfilePath), 'Expected the scoped legacy profile to be removed after execution')
+  } finally {
+    if (typeof originalPackageRoot === 'undefined') delete process.env.OPENCLAW_PACKAGE_ROOT
+    else process.env.OPENCLAW_PACKAGE_ROOT = originalPackageRoot
+  }
+})
+
 setTimeout(async () => {
   await testQueue
   if (typeof originalHome === 'undefined') delete process.env.HOME

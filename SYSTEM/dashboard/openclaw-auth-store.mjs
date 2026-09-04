@@ -62,7 +62,11 @@ if (!storeModulePath) {
 
 if (mode === 'read') {
   if (!persistedModulePath) {
-    throw new Error('Unable to locate the pinned OpenClaw persisted auth module')
+    // OpenClaw 1 installations do not expose the SQLite persisted-auth API.
+    // Report that capability as unavailable so the dashboard can use the
+    // legacy JSON auth store instead of failing a chat request.
+    process.stdout.write(JSON.stringify({ native: false, supported: false }))
+    process.exit(0)
   }
   const persistedModule = await import(pathToFileURL(persistedModulePath).href)
   const loadAuthProfileStore = persistedModule[loadExportName]
@@ -82,5 +86,5 @@ if (typeof saveAuthProfileStore !== 'function') {
 
 saveAuthProfileStore(store, agentDir)
 process.stdout.write(JSON.stringify({
-  native: fs.existsSync(path.join(agentDir, 'openclaw-agent.sqlite')),
+  native: Boolean(persistedModulePath) && fs.existsSync(path.join(agentDir, 'openclaw-agent.sqlite')),
 }))

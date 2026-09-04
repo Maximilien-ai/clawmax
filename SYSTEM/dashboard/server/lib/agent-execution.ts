@@ -1384,7 +1384,12 @@ export async function withTemporaryAgentAuthProfiles<T>(
     ? readPinnedOpenClawAuthStore(agentDir)
     : null
   if (usesNativeAuthStore && hasNextAuthProfiles && !previousNativeAuthStore) {
-    throw new Error(`Failed to snapshot OpenClaw auth store for ${agentId} before scoped credential update`)
+    // A source checkout can encounter an OpenClaw 2 SQLite file left by the
+    // pinned test runtime while the developer's PATH still selects OpenClaw 1.
+    // That runtime cannot read or write the native auth API, so use its legacy
+    // JSON store until the selected CLI is upgraded. Actual bridge failures
+    // still throw from readPinnedOpenClawAuthStore above.
+    usesNativeAuthStore = false
   }
 
   if (hasNextAuthProfiles && previous !== null) {

@@ -14,11 +14,14 @@ export function p(store, agentDir) {
   fs.writeFileSync(`${agentDir}/openclaw-agent.sqlite`, 'fixture')
 }
 EOF
-printf '{"version":1,"profiles":{"openai:test":{"type":"api_key","provider":"openai","key":"fixture"}},"usageStats":{}}' \
-  | OPENCLAW_PACKAGE_ROOT="$TMP_DIR/openclaw" node "$ROOT_DIR/SYSTEM/dashboard/openclaw-auth-store.mjs" "$TMP_DIR/agent"
+legacy_write_result="$(printf '{"version":1,"profiles":{"openai:test":{"type":"api_key","provider":"openai","key":"fixture"}},"usageStats":{}}' \
+  | OPENCLAW_PACKAGE_ROOT="$TMP_DIR/openclaw" node "$ROOT_DIR/SYSTEM/dashboard/openclaw-auth-store.mjs" "$TMP_DIR/agent")"
 
 grep -F '"openai:test"' "$TMP_DIR/agent/saved.json" >/dev/null
 grep -F '"key":"fixture"' "$TMP_DIR/agent/saved.json" >/dev/null
+printf '%s' "$legacy_write_result" | grep -F '"native":false' >/dev/null
+OPENCLAW_PACKAGE_ROOT="$TMP_DIR/openclaw" node "$ROOT_DIR/SYSTEM/dashboard/openclaw-auth-store.mjs" "$TMP_DIR/agent" read \
+  | grep -F '"supported":false' >/dev/null
 
 cat > "$TMP_DIR/openclaw/dist/store-fixture.js" <<'EOF'
 import fs from 'node:fs'
