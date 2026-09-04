@@ -46,6 +46,10 @@ grep -Fq '"$OPENCLAW_BIN" gateway restart' "$test_wrapper" \
   || fail "expected integration wrapper to restart the targeted OpenClaw gateway"
 grep -Fq 'Gateway version: $expected_version' "$test_wrapper" \
   || fail "expected integration wrapper to verify the targeted OpenClaw gateway version"
+grep -Fq 'Connectivity probe: ok' "$test_wrapper" \
+  || fail "expected integration wrapper to require a responsive targeted OpenClaw gateway"
+grep -Fq 'Waiting for targeted OpenClaw gateway readiness' "$test_wrapper" \
+  || fail "expected integration wrapper to tolerate bounded OpenClaw cold-start latency"
 grep -Fq 'fail "Agent chat failed:' "$test_suite" \
   || fail "expected live agent chat failures to fail the gate"
 grep -Fq 'fail "Agent chat returned diagnostics or an unexpected response:' "$test_suite" \

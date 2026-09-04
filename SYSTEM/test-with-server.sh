@@ -82,12 +82,20 @@ ensure_target_openclaw_for_integration() {
     }
   fi
 
-  local gateway_status
-  gateway_status="$($OPENCLAW_BIN gateway status 2>&1)" || {
-    echo "Could not verify the targeted OpenClaw gateway" >&2
-    return 1
-  }
-  if [[ "$gateway_status" != *"Gateway version: $expected_version"* ]]; then
+  local gateway_status="" gateway_ready=false attempt
+  for attempt in 1 2 3 4 5 6; do
+    gateway_status="$($OPENCLAW_BIN gateway status 2>&1)" || true
+    if [[ "$gateway_status" == *"Gateway version: $expected_version"* \
+      && "$gateway_status" == *"Connectivity probe: ok"* ]]; then
+      gateway_ready=true
+      break
+    fi
+    if [ "$attempt" -lt 6 ]; then
+      echo "Waiting for targeted OpenClaw gateway readiness (attempt $attempt/6)..."
+      sleep 10
+    fi
+  done
+  if [ "$gateway_ready" != "true" ]; then
     echo "Integration tests require an OpenClaw $expected_version gateway; status was:" >&2
     echo "$gateway_status" >&2
     return 1
