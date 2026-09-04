@@ -2,9 +2,10 @@
 
 AgentForge is the onboarding, learning-support, Prompt evidence, and progress layer for NYU personal-agent hackathons. Participants complete registration, privacy consent, the dynamic survey, foundational tutorials, and progress review in AgentForge, then continue to ClawMax to build and run their personal agents.
 
-This catalog entry introduces AgentForge as a planned Activity Export partner.
-It does not yet provide AgentForge endpoint configuration, consent controls, or
-activity delivery in ClawMax.
+The initial Activity Export profile is frozen in
+[`ACTIVITY_EXPORT_PROFILE.md`](ACTIVITY_EXPORT_PROFILE.md). The integration is
+disabled until an operator configures the AgentForge API and a participant
+connects an enrollment and explicitly consents.
 
 ## Activity Export role
 
@@ -19,7 +20,12 @@ Activity may be delivered only when:
 - ClawMax can map the participant and workspace to the AgentForge enrollment; and
 - the server-side AgentForge endpoint and Partner credential are configured.
 
-Eligible launch evidence can include consented agent-chat Prompts and responses, selected context, Builder actions, workflow activity, execution errors, and agent test results. ClawMax redacts eligible activity before its durable outbox. AgentForge validates, normalizes, stores, and links accepted evidence before it is used for progress support, Prompt coaching, Organizer analysis, or Cognee memory.
+Eligible launch evidence is limited to the independently selected `agent-chat`,
+`workflow`, and `builder` scopes. Group and community conversations are not
+supported in the initial profile. ClawMax redacts eligible activity before its
+durable outbox. AgentForge validates, normalizes, stores, and links accepted
+evidence before it is used for progress support, Prompt coaching, Organizer
+analysis, or Cognee memory.
 
 ## Privacy and revocation
 
@@ -31,8 +37,7 @@ Partner API keys are deployment secrets. They must remain server-managed and mus
 
 ## Current integration boundary
 
-The public Partner definition currently provides catalog metadata only. Cloud
-account provisioning, endpoint and credential configuration, opaque
-participant/workspace mapping, consent-receipt synchronization, client consent
-and status controls, and the production Activity Export adapter remain subject
-to the shared ClawMax-AgentForge implementation profile and conformance tests.
+The Partner definition includes operator configuration metadata. Enrollment,
+receipt synchronization, asynchronous delivery, status, retry, revocation, and
+receiver conformance remain required before the destination can be described as
+production-ready.
