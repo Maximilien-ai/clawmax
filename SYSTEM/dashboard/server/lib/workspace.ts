@@ -378,7 +378,7 @@ const PROTECTED_AGENT_WORKSPACE_FILES = new Set([
 ])
 
 function extractIdentityField(content: string, field: string): string {
-  const match = content.match(new RegExp(`\\*\\*${field}:\\*\\*[ \\t]*([^\\n]*)`, 'i'))
+  const match = content.match(new RegExp(`^[ \\t]*(?:-[ \\t]*)?(?:\\*\\*)?${field}:(?:\\*\\*)?[ \\t]*([^\\n]*)`, 'im'))
   return match?.[1]?.trim() || ''
 }
 
