@@ -23,6 +23,7 @@ import {
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
+  shouldUpdateNativeAuthStore,
   shouldUseExplicitBackupModelRetry,
   shouldRetryWithBackupModel,
   toExecutionModelOverride,
@@ -1717,6 +1718,24 @@ test('migrateLegacyOpenClawAuthStore publishes credentials and archives the reti
     fs.readdirSync(agentDir).some((entry) => entry.startsWith('auth-profiles.json.migrated-')),
     'Expected the retired JSON source to be archived'
   )
+})
+
+test('shouldUpdateNativeAuthStore skips unchanged credentials while ignoring usage metadata', () => {
+  const nextStore = {
+    version: 1,
+    profiles: { 'openai-key': { type: 'api_key' as const, provider: 'openai', key: 'test-openai' } },
+    lastGood: { openai: 'openai-key' },
+    usageStats: {},
+  }
+  assert(!shouldUpdateNativeAuthStore({
+    ...nextStore,
+    usageStats: { 'openai-key': { lastUsed: Date.now() } },
+  }, nextStore), 'Expected an unchanged credential store not to trigger OpenClaw secrets.reload')
+  assert(shouldUpdateNativeAuthStore({
+    ...nextStore,
+    profiles: { 'openai-key': { type: 'api_key', provider: 'openai', key: 'different-openai' } },
+  }, nextStore), 'Expected changed credentials to be published and reloaded')
+  assert(shouldUpdateNativeAuthStore(null, nextStore), 'Expected a missing native store to be initialized')
 })
 
 test('withTemporaryAgentAuthProfiles leaves OpenClaw 2 SQLite auth stores free of legacy JSON', async () => {

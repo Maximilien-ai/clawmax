@@ -906,6 +906,14 @@ function authProfileStateFingerprint(raw: string | null): string | null {
   }
 }
 
+export function shouldUpdateNativeAuthStore(
+  previousStore: AuthProfileFile | null,
+  nextStore: AuthProfileFile,
+): boolean {
+  return authProfileStateFingerprint(previousStore ? JSON.stringify(previousStore) : null)
+    !== authProfileStateFingerprint(JSON.stringify(nextStore))
+}
+
 function resolvePinnedOpenClawAuthBridge(): { helperPath: string; packageRoot: string } | null {
   const helperPath = path.join(REPO_ROOT, 'SYSTEM', 'dashboard', 'openclaw-auth-store.mjs')
   const packageRoot = [
@@ -1400,7 +1408,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
     usesNativeAuthStore = nativeAuthStoreChanged || usesNativeAuthStore
     if (nativeAuthStoreChanged) previousNativeAuthStore = JSON.parse(previous) as AuthProfileFile
   }
-  if (hasNextAuthProfiles) {
+  if (hasNextAuthProfiles && (!usesNativeAuthStore || shouldUpdateNativeAuthStore(previousNativeAuthStore, nextAuthProfiles))) {
     const persistedNativeStore = persistPinnedOpenClawAuthStore(agentDir, nextAuthProfiles)
     usesNativeAuthStore = persistedNativeStore || usesNativeAuthStore
     nativeAuthStoreChanged = persistedNativeStore || nativeAuthStoreChanged
