@@ -73,6 +73,26 @@ ensure_target_openclaw_for_integration() {
     return 1
   fi
   echo "Using targeted OpenClaw: $version_output"
+
+  if [ "${CLAWMAX_TEST_REUSE_GATEWAY:-}" != "true" ]; then
+    echo "Restarting targeted OpenClaw gateway to clear stale runtime state..."
+    "$OPENCLAW_BIN" gateway restart || {
+      echo "Could not restart the targeted OpenClaw gateway" >&2
+      return 1
+    }
+  fi
+
+  local gateway_status
+  gateway_status="$($OPENCLAW_BIN gateway status 2>&1)" || {
+    echo "Could not verify the targeted OpenClaw gateway" >&2
+    return 1
+  }
+  if [[ "$gateway_status" != *"Gateway version: $expected_version"* ]]; then
+    echo "Integration tests require an OpenClaw $expected_version gateway; status was:" >&2
+    echo "$gateway_status" >&2
+    return 1
+  fi
+  echo "Verified targeted OpenClaw gateway: $expected_version"
 }
 
 if ! ensure_target_openclaw_for_integration; then

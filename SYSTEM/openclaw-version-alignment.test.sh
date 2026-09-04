@@ -42,6 +42,10 @@ grep -Fq 'prepare-openclaw-target.sh" --print-bin' "$test_wrapper" \
   || fail "expected integration wrapper to prepare the branch OpenClaw target"
 grep -Fq 'Integration tests require OpenClaw' "$test_wrapper" \
   || fail "expected integration wrapper to reject a mismatched OpenClaw binary"
+grep -Fq '"$OPENCLAW_BIN" gateway restart' "$test_wrapper" \
+  || fail "expected integration wrapper to restart the targeted OpenClaw gateway"
+grep -Fq 'Gateway version: $expected_version' "$test_wrapper" \
+  || fail "expected integration wrapper to verify the targeted OpenClaw gateway version"
 grep -Fq 'fail "Agent chat failed:' "$test_suite" \
   || fail "expected live agent chat failures to fail the gate"
 grep -Fq 'fail "Agent chat returned diagnostics or an unexpected response:' "$test_suite" \
