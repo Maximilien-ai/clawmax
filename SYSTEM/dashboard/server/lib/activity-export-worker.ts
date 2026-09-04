@@ -1,5 +1,6 @@
 import { flushActivityExportOutbox, listAllActivityExportOutbox, setActivityExportQueueListener, type ActivityExportFlushResult } from './activity-export'
 import { getResolvedWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets } from './workspace-integrations'
+import { AGENTFORGE_DESTINATION_ID, agentForgeActivityEndpoint, getAgentForgeRuntimeConfig } from './agentforge-activity-export'
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000
 let timer: ReturnType<typeof setInterval> | null = null
@@ -57,6 +58,11 @@ function destinationCredentials(destinationId: string): { endpoint: string; toke
       ? { endpoint, token: token.trim() }
       : null
   }
+  if (destinationId === AGENTFORGE_DESTINATION_ID) {
+    const config = getAgentForgeRuntimeConfig()
+    const endpoint = agentForgeActivityEndpoint(config)
+    return config && endpoint ? { endpoint, token: config.apiKey } : null
+  }
   return null
 }
 
@@ -68,7 +74,7 @@ export function startActivityExportWorker(log: (message: string) => void = conso
   }
   startedAt = new Date().toISOString()
   setActivityExportQueueListener(() => { runFlush(log) })
-  log(`[Activity Export] worker started (interval=${intervalMs()}ms; clawmax-ai=${Boolean(process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT?.trim() && process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN?.trim())}; digo=${Boolean(destinationCredentials('digo'))})`)
+  log(`[Activity Export] worker started (interval=${intervalMs()}ms; clawmax-ai=${Boolean(process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT?.trim() && process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN?.trim())}; digo=${Boolean(destinationCredentials('digo'))}; agentforge=${Boolean(destinationCredentials(AGENTFORGE_DESTINATION_ID))})`)
   timer = setInterval(() => runFlush(log), intervalMs())
   timer.unref?.()
   runFlush(log)
@@ -85,7 +91,8 @@ function runFlush(log: (message: string) => void): void {
 function hasConfiguredDestination(): boolean {
   return Boolean(
     (process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT?.trim() && process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN?.trim()) ||
-    destinationCredentials('digo'),
+    destinationCredentials('digo') ||
+    destinationCredentials(AGENTFORGE_DESTINATION_ID),
   )
 }
 
@@ -103,7 +110,7 @@ export function getActivityExportWorkerStatus(): {
   lastResult: ActivityExportFlushResult | null
   lastError?: string
   intervalMs: number
-  configured: { clawmaxAi: boolean; digo: boolean }
+  configured: { clawmaxAi: boolean; digo: boolean; agentforge: boolean }
 } {
   return {
     running: Boolean(timer),
@@ -115,6 +122,7 @@ export function getActivityExportWorkerStatus(): {
     configured: {
       clawmaxAi: Boolean(process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT?.trim() && process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN?.trim()),
       digo: Boolean(destinationCredentials('digo')),
+      agentforge: Boolean(destinationCredentials(AGENTFORGE_DESTINATION_ID)),
     },
   }
 }

@@ -5,6 +5,7 @@ import path from 'path'
 import {
   ACTIVITY_EXPORT_VERSION,
   getOpaqueActivityWorkspaceId,
+  getOpaqueActivityUserId,
   createActivityExportEvent,
   deliverActivityExportBatch,
   appendActivityExportEvent,
@@ -12,9 +13,12 @@ import {
   flushActivityExportOutbox,
   receiveActivityExportBatch,
   getActivityExportConsent,
+  getActivityExportEnrollment,
   listActivityExportOutbox,
   redactActivityText,
   saveActivityExportConsent,
+  saveActivityExportEnrollment,
+  revokeActivityExportEnrollment,
   revokeActivityExportConsent,
   validateActivityExportBatch,
   type ActivityExportConsent,
@@ -43,6 +47,8 @@ const event = createActivityExportEvent({
 assert(event, 'active matching consent should create an event')
 assert.strictEqual(event?.version, ACTIVITY_EXPORT_VERSION)
 assert.strictEqual(event?.workspaceId, getOpaqueActivityWorkspaceId('workspace_demo'))
+assert.strictEqual(event?.userId, getOpaqueActivityUserId('user_demo', 'workspace_demo', 'clawmax-ai'))
+assert.notStrictEqual(event?.userId, 'user_demo', 'exported identity must not expose the authenticated local user id')
 assert(!event?.workspaceId.includes('/'), 'exported workspace id must not contain a filesystem path')
 assert(event?.content?.includes('[REDACTED]'), 'event content must redact credentials')
 assert(!event?.content?.includes('sk-secret-value'), 'raw API keys must not survive redaction')
@@ -60,6 +66,10 @@ assert.strictEqual(validateActivityExportBatch([]).ok, false, 'empty batches mus
 const previousStatePath = process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH
 const statePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-activity-export-')), 'state.json')
 process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = statePath
+saveActivityExportEnrollment({ enrollmentId: 'enrollment_demo', destinationId: 'agentforge', workspaceId: 'workspace_demo', userId: 'user_demo', externalWorkspaceId: getOpaqueActivityWorkspaceId('workspace_demo'), externalUserId: getOpaqueActivityUserId('user_demo', 'workspace_demo', 'agentforge'), status: 'active', connectedAt: new Date().toISOString() })
+assert.strictEqual(getActivityExportEnrollment('user_demo', 'workspace_demo', 'agentforge')?.enrollmentId, 'enrollment_demo')
+assert.strictEqual(revokeActivityExportEnrollment('user_demo', 'workspace_demo', 'agentforge'), true)
+assert.strictEqual(getActivityExportEnrollment('user_demo', 'workspace_demo', 'agentforge'), null)
 saveActivityExportConsent(consent)
 assert.strictEqual(getActivityExportConsent('user_demo', 'workspace_demo')?.receiptId, 'consent_demo')
 const persisted = appendActivityExportEvent({ source: 'workflow', workspaceId: 'workspace_demo', userId: 'user_demo', content: 'workflow output' }, consent)
@@ -104,7 +114,7 @@ else process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = previousStatePath
   assert.strictEqual(fanout.length, 2)
   assert.strictEqual((await flushActivityExportOutbox({ destinationId: 'clawmax-ai', endpoint: 'https://receiver.example/activity', token: 'demo-token', fetchImpl: async () => new Response('{}', { status: 202 }) })).delivered, 1)
   assert.strictEqual((await flushActivityExportOutbox({ destinationId: 'digo', endpoint: 'https://digo.example/activity', token: 'digo-token', fetchImpl: async () => new Response('{}', { status: 202 }) })).delivered, 1)
-  console.log('Activity export tests: 26 passed')
+  console.log('Activity export tests: 31 passed')
 })().catch((error) => {
   console.error(error)
   process.exitCode = 1

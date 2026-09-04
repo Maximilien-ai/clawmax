@@ -19,6 +19,10 @@ export function getOpaqueActivityWorkspaceId(workspaceId: string): string {
   return `ws_${createHash('sha256').update(String(workspaceId)).digest('hex').slice(0, 24)}`
 }
 
+export function getOpaqueActivityUserId(userId: string, workspaceId: string, destinationId: string): string {
+  return `usr_${createHash('sha256').update(`${destinationId}\0${workspaceId}\0${userId}`).digest('hex').slice(0, 24)}`
+}
+
 export type ActivityExportScope = 'agent-chat' | 'group-chat' | 'community-chat' | 'workflow' | 'builder'
 
 export interface ActivityExportConsent {
@@ -31,6 +35,21 @@ export interface ActivityExportConsent {
   active: boolean
   consentedAt: string
   expiresAt?: string
+  enrollmentId?: string
+  purpose?: string
+  privacyUrl?: string
+  retentionUntil?: string
+}
+
+export interface ActivityExportEnrollment {
+  enrollmentId: string
+  destinationId: string
+  workspaceId: string
+  userId: string
+  externalWorkspaceId: string
+  externalUserId: string
+  status: 'active' | 'revoked'
+  connectedAt: string
 }
 
 export interface ActivityExportEventInput {
@@ -56,6 +75,7 @@ export interface ActivityExportEvent extends ActivityExportEventInput {
 
 interface ActivityExportState {
   consents: Record<string, ActivityExportConsent>
+  enrollments: Record<string, ActivityExportEnrollment>
   outbox: ActivityExportQueueEntry[]
   received: Record<string, ActivityExportEvent>
 }
@@ -82,6 +102,7 @@ function readState(): ActivityExportState {
     const parsed = JSON.parse(fs.readFileSync(getActivityExportStatePath(), 'utf8'))
     return {
       consents: parsed?.consents && typeof parsed.consents === 'object' ? parsed.consents : {},
+      enrollments: parsed?.enrollments && typeof parsed.enrollments === 'object' ? parsed.enrollments : {},
       outbox: Array.isArray(parsed?.outbox) ? parsed.outbox.map((entry: ActivityExportEvent & Partial<ActivityExportQueueEntry>) => ({
         ...entry,
         attempts: typeof entry.attempts === 'number' ? entry.attempts : 0,
@@ -89,7 +110,7 @@ function readState(): ActivityExportState {
       received: parsed?.received && typeof parsed.received === 'object' ? parsed.received : {},
     }
   } catch {
-    return { consents: {}, outbox: [], received: {} }
+    return { consents: {}, enrollments: {}, outbox: [], received: {} }
   }
 }
 
@@ -113,6 +134,35 @@ export function saveActivityExportConsent(consent: ActivityExportConsent): Activ
   state.consents[consent.receiptId] = consent
   writeState(state)
   return consent
+}
+
+export function getActivityExportEnrollment(userId: string, workspaceId: string, destinationId: string): ActivityExportEnrollment | null {
+  return Object.values(readState().enrollments).find((entry) => (
+    entry.userId === userId && entry.workspaceId === workspaceId && entry.destinationId === destinationId && entry.status === 'active'
+  )) || null
+}
+
+export function saveActivityExportEnrollment(enrollment: ActivityExportEnrollment): ActivityExportEnrollment {
+  const state = readState()
+  for (const entry of Object.values(state.enrollments)) {
+    if (entry.userId === enrollment.userId && entry.workspaceId === enrollment.workspaceId && entry.destinationId === enrollment.destinationId) {
+      entry.status = 'revoked'
+    }
+  }
+  state.enrollments[enrollment.enrollmentId] = enrollment
+  writeState(state)
+  return enrollment
+}
+
+export function revokeActivityExportEnrollment(userId: string, workspaceId: string, destinationId: string): boolean {
+  const state = readState()
+  const entries = Object.values(state.enrollments).filter((entry) => (
+    entry.userId === userId && entry.workspaceId === workspaceId && entry.destinationId === destinationId && entry.status === 'active'
+  ))
+  if (entries.length === 0) return false
+  entries.forEach((entry) => { entry.status = 'revoked' })
+  writeState(state)
+  return true
 }
 
 export function revokeActivityExportConsent(userId: string, workspaceId: string): boolean {
@@ -156,7 +206,9 @@ export function appendActivityExportEventsForActiveConsents(input: ActivityExpor
 
 export function listActivityExportOutbox(userId: string, workspaceId: string): ActivityExportEvent[] {
   const opaqueWorkspaceId = getOpaqueActivityWorkspaceId(workspaceId)
-  return readState().outbox.filter((event) => event.userId === userId && event.workspaceId === opaqueWorkspaceId)
+  return readState().outbox.filter((event) => (
+    event.workspaceId === opaqueWorkspaceId && event.userId === getOpaqueActivityUserId(userId, workspaceId, event.destinationId)
+  ))
 }
 
 export function listAllActivityExportOutbox(): ActivityExportEvent[] {
@@ -188,7 +240,9 @@ export function receiveActivityExportBatch(events: ActivityExportEvent[]): Activ
 
 export function listReceivedActivityExportEvents(userId: string, workspaceId: string): ActivityExportEvent[] {
   const opaqueWorkspaceId = getOpaqueActivityWorkspaceId(workspaceId)
-  return Object.values(readState().received).filter((event) => event.userId === userId && event.workspaceId === opaqueWorkspaceId)
+  return Object.values(readState().received).filter((event) => (
+    event.workspaceId === opaqueWorkspaceId && event.userId === getOpaqueActivityUserId(userId, workspaceId, event.destinationId)
+  ))
 }
 
 export interface ActivityExportFlushResult {
@@ -214,7 +268,7 @@ export async function flushActivityExportOutbox(
   const maxEvents = Math.max(1, Math.min(options.maxEvents || ACTIVITY_EXPORT_BATCH_LIMIT, ACTIVITY_EXPORT_BATCH_LIMIT))
   const candidates = state.outbox.filter((entry) =>
     !entry.deliveredAt &&
-    (!options.userId || entry.userId === options.userId) &&
+    (!options.userId || !options.workspaceId || entry.userId === getOpaqueActivityUserId(options.userId, options.workspaceId, entry.destinationId)) &&
     (!options.workspaceId || entry.workspaceId === getOpaqueActivityWorkspaceId(options.workspaceId)) &&
     (!options.destinationId || entry.destinationId === options.destinationId),
   ).slice(0, maxEvents)
@@ -287,6 +341,7 @@ export function createActivityExportEvent(input: ActivityExportEventInput, conse
     consentReceiptId: consent.receiptId,
     occurredAt,
     workspaceId: getOpaqueActivityWorkspaceId(input.workspaceId),
+    userId: getOpaqueActivityUserId(input.userId, input.workspaceId, consent.destinationId),
     content: redactActivityText(input.content),
     metadata: redactActivityMetadata({
       ...(input.metadata || {}),

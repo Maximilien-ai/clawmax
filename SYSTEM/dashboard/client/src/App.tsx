@@ -1379,7 +1379,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
               title="Review or revoke activity sharing"
               aria-expanded={activitySharingOpen}
             >
-              Sharing with {activitySharing.destinationId === 'clawmax-ai' ? 'ClawMax.ai' : activitySharing.destinationId}
+              Sharing with {activitySharing.destinationId === 'clawmax-ai' ? 'ClawMax.ai' : activitySharing.destinationId === 'agentforge' ? 'NYU - AgentForge' : activitySharing.destinationId}
               {activitySharing.queuedEvents > 0 ? ` · ${activitySharing.queuedEvents} queued` : ''}
             </button>
             {activitySharingOpen && (
@@ -1390,7 +1390,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
                   {(activitySharing.destinations.length > 0 ? activitySharing.destinations : [{ destinationId: activitySharing.destinationId, scopes: [] }]).map((destination) => (
                     <div key={destination.destinationId} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
                       <div className="min-w-0">
-                        <div className="truncate text-xs font-medium text-gray-900 dark:text-gray-100">{destination.destinationId === 'clawmax-ai' ? 'ClawMax.ai' : destination.destinationId}</div>
+                        <div className="truncate text-xs font-medium text-gray-900 dark:text-gray-100">{destination.destinationId === 'clawmax-ai' ? 'ClawMax.ai' : destination.destinationId === 'agentforge' ? 'NYU - AgentForge' : destination.destinationId}</div>
                         <div className="truncate text-[11px] text-gray-500">{destination.scopes.length > 0 ? destination.scopes.join(', ') : 'Configured destination'}</div>
                       </div>
                       <button

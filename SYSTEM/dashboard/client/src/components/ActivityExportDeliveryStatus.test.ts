@@ -10,5 +10,9 @@ assert(source.includes('Activity delivery:'), 'activity export UI must show deli
 assert(source.includes('No pending activity is waiting in this runtime.'), 'empty activity queues must be explicitly identified')
 assert(source.includes('Delivery credentials are not configured in this dashboard runtime.'), 'missing dashboard credentials must be actionable')
 assert(source.includes('Latest delivery error:'), 'retry failures must be visible without exposing credentials')
+assert(source.includes('AgentForge connection code'), 'AgentForge must use a participant-entered single-use connection code')
+assert(source.includes('Identity is pseudonymous'), 'AgentForge consent must disclose pseudonymous mapping')
+assert(source.includes('Read the privacy notice'), 'AgentForge consent must link the configured privacy notice')
+assert(source.includes("['agent-chat', 'workflow', 'builder']"), 'AgentForge launch consent must exclude group and community scopes')
 
-console.log('ActivityExportDeliveryStatus.test.ts: 6 assertions passed')
+console.log('ActivityExportDeliveryStatus.test.ts: 10 assertions passed')

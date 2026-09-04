@@ -97,11 +97,28 @@ void (async () => {
     const status = worker.getActivityExportWorkerStatus()
     assert.strictEqual(status.lastResult?.delivered, 3)
     assert.strictEqual(status.lastError, 'retry one')
-    assert.deepStrictEqual(status.configured, { clawmaxAi: true, digo: true })
+    assert.deepStrictEqual(status.configured, { clawmaxAi: true, digo: true, agentforge: false })
+  })
+
+  await test('worker resolves the AgentForge versioned activity endpoint', async () => {
+    outbox = [{ destinationId: 'agentforge' }]
+    delete process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT
+    delete process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN
+    integrationConfig = { partners: { agentforge: { apiUrl: 'https://agentforge.example', privacyUrl: 'https://agentforge.example/privacy' } } }
+    integrationSecrets = { partners: { agentforge: { apiKey: ' agentforge-token ' } } }
+    const calls: any[] = []
+    flushImpl = async (options) => { calls.push(options); return { attempted: 1, delivered: 1, remaining: 0 } }
+    assert.deepStrictEqual(await worker.flushActivityExportWorker(), { attempted: 1, delivered: 1, remaining: 0 })
+    assert.deepStrictEqual(calls.map((call) => [call.destinationId, call.endpoint, call.token]), [
+      ['agentforge', 'https://agentforge.example/api/v1/clawmax/activity-events', 'agentforge-token'],
+    ])
+    assert.strictEqual(worker.getActivityExportWorkerStatus().configured.agentforge, true)
   })
 
   await test('worker records and rethrows delivery failures', async () => {
     outbox = [{ destinationId: 'clawmax-ai' }]
+    process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT = 'https://receiver.example'
+    process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN = 'token'
     flushImpl = async () => { throw new Error('receiver offline') }
     await assert.rejects(() => worker.flushActivityExportWorker(), /receiver offline/)
     assert.strictEqual(worker.getActivityExportWorkerStatus().lastError, 'receiver offline')
