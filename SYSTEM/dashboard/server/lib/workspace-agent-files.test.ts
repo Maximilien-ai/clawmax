@@ -7,7 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { ensureManagedAgentWorkspaceFiles, listAgents, listDocEntries } from './workspace'
+import { ensureManagedAgentWorkspaceFiles, isManagedAgentWorkspaceDir, listAgents, listDocEntries } from './workspace'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -33,6 +33,16 @@ function test(name: string, fn: () => void) {
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
 }
+
+test('managed agent detection accepts template-generated plain Name fields', () => {
+  const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workspace-plain-name-'))
+  try {
+    fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), '# Test Lead\n\n- Name: test-lead\n- **Role:** Test orchestrator\n')
+    assert(isManagedAgentWorkspaceDir(agentDir), 'Expected the imported template identity to be recognized as managed')
+  } finally {
+    fs.rmSync(agentDir, { recursive: true, force: true })
+  }
+})
 
 console.log(`\n${YELLOW}=== Workspace Agent File Seeding Test Suite ===${RESET}\n`)
 

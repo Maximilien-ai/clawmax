@@ -8,6 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import { execFile } from 'child_process'
 import simpleGit from 'simple-git'
+import { materializeDashboardAgentList } from './lib/openclaw-config'
 import docsRouter from './routes/docs'
 import agentsRouter from './routes/agents'
 import channelsRouter from './routes/channels'
@@ -92,7 +93,7 @@ async function autoRegisterWorkspaceAgents(): Promise<void> {
   const registeredIds = new Set<string>()
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    for (const a of config?.agents?.list || []) {
+    for (const a of materializeDashboardAgentList(config)) {
       if (a.id) registeredIds.add(a.id)
     }
   } catch {}

@@ -64,7 +64,7 @@ apicurl() {
 
 # Some integration actions legitimately take longer than the default API timeout.
 apicurl_long() {
-  local long_opts="--connect-timeout 5 --max-time 60"
+  local long_opts="--connect-timeout 5 --max-time 180"
   if [ -n "$DASHBOARD_AUTH" ]; then
     curl -s $long_opts -H "Authorization: Bearer $DASHBOARD_AUTH" "$@"
   else
@@ -2831,7 +2831,7 @@ fi
 
 echo -e "${YELLOW}→ Running OpenClaw version alignment shell tests...${NC}"
 bash "$SYSTEM_DIR/openclaw-version-alignment.test.sh" > /tmp/clawmax-openclaw-version-alignment-shell.out 2>&1 || true
-if grep -q "PASS: OpenClaw target is aligned across helper, Dockerfile, and CI" /tmp/clawmax-openclaw-version-alignment-shell.out; then
+if grep -q "PASS: OpenClaw target and live-gate contracts are aligned" /tmp/clawmax-openclaw-version-alignment-shell.out; then
   pass "OpenClaw version alignment shell tests"
 else
   [ -f /tmp/clawmax-openclaw-version-alignment-shell.out ] && cat /tmp/clawmax-openclaw-version-alignment-shell.out
@@ -4246,6 +4246,7 @@ echo ""
 # =========================================
 # Section 15: Gateway RPC Compatibility
 # =========================================
+run_gateway_rpc_compatibility_tests() {
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "15. Gateway RPC Compatibility"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -4262,9 +4263,6 @@ else
   # Save current config
   cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.rpc-test-backup
 
-  # Get current metadata timestamp before update
-  META_BEFORE=$(jq -r '.meta.lastTouchedAt' ~/.openclaw/openclaw.json)
-
   # Update skills via dashboard API (should use Gateway RPC)
   response=$(apicurl -X PUT "$API_BASE/api/skills/agent/$TEST_AGENT" \
     -H 'Content-Type: application/json' \
@@ -4276,13 +4274,16 @@ else
   # Wait for write to complete
   sleep 0.5
 
-  # Verify metadata was stamped (indicating Gateway RPC was used)
-  META_AFTER=$(jq -r '.meta.lastTouchedAt' ~/.openclaw/openclaw.json)
+  # OpenClaw 2 owns Gateway metadata and no longer preserves the retired
+  # lastTouchedAt marker. Verify the user-visible mutation and canonical keyed
+  # roster instead of treating an upstream metadata rewrite as a direct write.
+  UPDATED_SKILLS=$(jq -c --arg id "$TEST_AGENT" '.agents.entries[$id].skills // []' ~/.openclaw/openclaw.json)
+  HAS_LEGACY_LIST=$(jq -r '.agents | has("list")' ~/.openclaw/openclaw.json)
 
-  if [ "$META_AFTER" != "$META_BEFORE" ] && [ "$META_AFTER" != "null" ]; then
-    pass "Config metadata stamped by Gateway"
+  if [ "$UPDATED_SKILLS" = "$TEST_SKILLS_PAYLOAD" ] && [ "$HAS_LEGACY_LIST" = "false" ]; then
+    pass "Gateway persisted canonical OpenClaw 2 agent config"
   else
-    fail "Config metadata NOT stamped (direct write detected!)"
+    fail "Gateway did not persist canonical OpenClaw 2 agent config"
   fi
 
     # Verify OpenClaw CLI can still read config
@@ -4300,6 +4301,11 @@ else
 fi
 
 echo ""
+}
+
+# OpenClaw 2 config.patch can require a full Gateway recovery restart. Run this
+# after live agent execution so that lifecycle validation cannot race the
+# independent chat assertion.
 
 # =========================================
 # Section 16: Workflows APIs
@@ -5179,10 +5185,13 @@ pass "System test workspace activated"
 # Step 2: Clean and re-apply template
 echo -e "${YELLOW}→ Applying system-test template...${NC}"
 
-# Delete existing test agents
+# Delete existing test agents. Include the fixed synthetic IDs explicitly:
+# stale OpenClaw registrations can outlive a removed workspace and therefore
+# cannot appear in the active workspace's /api/agents listing.
 existing_agents=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/null)
-for agent_id in $existing_agents; do
-  apicurl -X DELETE "$API_BASE/api/agents/$agent_id" \
+test_agent_cleanup_ids=$(printf '%s\n' test-lead test-agent1 test-agent2 $existing_agents | sort -u)
+for agent_id in $test_agent_cleanup_ids; do
+  apicurl_long -X DELETE "$API_BASE/api/agents/$agent_id" \
     -H 'Content-Type: application/json' -d '{"confirm":true}' > /dev/null 2>&1
 done
 
@@ -5248,7 +5257,7 @@ else
 fi
 
 # Step 3: Verify agents created
-agent_list=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[].id' 2>/dev/null | sort)
+agent_list=$(apicurl_long "$API_BASE/api/agents" | jq -r '.agents[].id' 2>/dev/null | sort)
 expected_agents="test-agent1 test-agent2 test-lead"
 for agent_id in $expected_agents; do
   if echo "$agent_list" | grep -q "^${agent_id}$"; then
@@ -5337,16 +5346,19 @@ else
     PERF_CHAT_NOTE=$(echo "$chat_classification" | jq -r '.note // "unexpected-format"' 2>/dev/null)
   fi
 
-  if echo "$chat_classification" | jq -e '.ok == true' > /dev/null 2>&1; then
+  if echo "$chat_classification" | jq -e '.ok == true and ((.text // "") | ascii_upcase | gsub("[[:space:]]"; "") == "HELLO")' > /dev/null 2>&1; then
     response_text=$(echo "$chat_classification" | jq -r '.text // ""' | head -1)
     pass "Agent chat works (response: ${response_text:0:50})"
+  elif echo "$chat_classification" | jq -e '.ok == true' > /dev/null 2>&1; then
+    response_text=$(echo "$chat_classification" | jq -r '.text // ""' | head -1)
+    fail "Agent chat returned diagnostics or an unexpected response: ${response_text:0:120}"
   elif [[ "$PERF_CHAT_NOTE" == skipped:* ]]; then
     warn "Agent chat skipped (${PERF_CHAT_NOTE#skipped:})"
   elif [[ "$PERF_CHAT_NOTE" == error:* ]]; then
     error_msg="${PERF_CHAT_NOTE#error:}"
-    warn "Agent chat: $error_msg (may need gateway)"
+    fail "Agent chat failed: $error_msg"
   else
-    warn "Agent chat returned unexpected format"
+    fail "Agent chat returned unexpected format"
   fi
 fi
 
@@ -5417,7 +5429,7 @@ for i in $(seq 1 24); do
   fi
   if [ "$i" = "24" ]; then
     PERF_WORKFLOW_PROGRESS_NOTE="timeout:${status}"
-    warn "Kickoff did not complete in 120s (status: $status)"
+    fail "Kickoff did not complete in 120s (status: $status)"
   fi
 done
 
@@ -5518,8 +5530,10 @@ echo -e "${YELLOW}→ Cleaning up system-test workspace...${NC}"
 for wf_id in $(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[]?.id' 2>/dev/null); do
   apicurl -X DELETE "$API_BASE/api/workflows/$wf_id" > /dev/null 2>&1
 done
-for agent_id in $(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/null); do
-  apicurl -X DELETE "$API_BASE/api/agents/$agent_id" \
+cleanup_agents=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/null)
+test_agent_cleanup_ids=$(printf '%s\n' test-lead test-agent1 test-agent2 $cleanup_agents | sort -u)
+for agent_id in $test_agent_cleanup_ids; do
+  apicurl_long -X DELETE "$API_BASE/api/agents/$agent_id" \
     -H 'Content-Type: application/json' -d '{"confirm":true}' > /dev/null 2>&1
 done
 # Dismiss all test notifications
@@ -5573,6 +5587,8 @@ echo "  Workflow first visible progress: $(format_perf_metric "$PERF_WORKFLOW_FI
 echo "  Workflow kickoff complete: $(format_perf_metric "$PERF_WORKFLOW_COMPLETE_MS")"
 write_perf_summary
 echo ""
+
+run_gateway_rpc_compatibility_tests
 
 fi
 # End integration tests

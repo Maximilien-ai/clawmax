@@ -11,6 +11,8 @@ import { resetAgentSessionsForModelChange } from './agent-model'
 import { resolveDefaultAgentModel } from './agent-default-model'
 import { getAvailableModelsCached } from './model-discovery'
 import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
+import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
+import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
 
 interface OpenClawAgentRecord {
   id: string
@@ -33,6 +35,7 @@ interface OpenClawConfigFile {
   }
   agents?: {
     list?: Array<Record<string, any>>
+    entries?: Record<string, Record<string, any>>
     defaults?: {
       models?: Record<string, any>
       [key: string]: any
@@ -218,7 +221,7 @@ function readOpenClawAgentRecord(agentId: string, activeWorkspaceAgentDir?: stri
   try {
     const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const records = (config?.agents?.list || []).filter((agent: any) => agent.id === agentId)
+    const records = materializeDashboardAgentList(config).filter((agent: any) => agent.id === agentId)
     if (records.length === 0) return null
     if (activeWorkspaceAgentDir) {
       const exactWorkspaceMatch = records.find((agent: any) => agent.workspace === activeWorkspaceAgentDir)
@@ -611,11 +614,13 @@ function resetSessionsIfModelChanged(agentId: string, preferredModel?: string) {
 }
 
 function readOpenClawConfigFile(configPath: string): OpenClawConfigFile {
-  return JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  materializeDashboardAgentList(config)
+  return config
 }
 
 function writeOpenClawConfigFile(configPath: string, config: OpenClawConfigFile) {
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+  writeDashboardManagedOpenClawConfig(configPath, config, 'agent-execution')
 }
 
 function cloneJsonValue<T>(value: T): T {
@@ -634,15 +639,18 @@ function ensureWorkspaceAgentRecordForExecution(
   config.agents = config.agents || {}
   config.agents.list = Array.isArray(config.agents.list) ? config.agents.list : []
 
-  const exactIndex = config.agents.list.findIndex((agent: any) =>
+  let exactIndex = config.agents.list.findIndex((agent: any) =>
     agent?.id === agentId && typeof agent?.workspace === 'string' && agent.workspace === execution.workspace
   )
+  if (exactIndex === -1) {
+    exactIndex = config.agents.list.findIndex((agent: any) => agent?.id === agentId)
+  }
   const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
   const model = normalizeMissingModel(preferredModel)
 
   if (exactIndex >= 0) {
     const current = { ...config.agents.list[exactIndex] }
-    let changed = false
+    let changed = config.agents.list.filter((agent: any) => agent?.id === agentId).length > 1
     if (!current.name) {
       current.name = agentId
       changed = true
@@ -651,12 +659,20 @@ function ensureWorkspaceAgentRecordForExecution(
       current.agentDir = agentDir
       changed = true
     }
+    if (current.workspace !== execution.workspace) {
+      current.workspace = execution.workspace
+      changed = true
+    }
     if (model && current.model !== model) {
       current.model = model
       changed = true
     }
     if (changed) {
-      config.agents.list[exactIndex] = current
+      config.agents.list = config.agents.list.filter((agent: any, index: number) =>
+        agent?.id !== agentId || index === exactIndex
+      )
+      const retainedIndex = config.agents.list.findIndex((agent: any) => agent?.id === agentId)
+      config.agents.list[retainedIndex] = current
       writeOpenClawConfigFile(configPath, config)
     }
     return
@@ -890,22 +906,93 @@ function authProfileStateFingerprint(raw: string | null): string | null {
   }
 }
 
-function persistPinnedOpenClawAuthStore(agentDir: string, store: AuthProfileFile): boolean {
+function resolvePinnedOpenClawAuthBridge(): { helperPath: string; packageRoot: string } | null {
   const helperPath = path.join(REPO_ROOT, 'SYSTEM', 'dashboard', 'openclaw-auth-store.mjs')
-  const packageRoot = process.env.OPENCLAW_PACKAGE_ROOT || '/usr/local/lib/node_modules/openclaw'
-  if (!fs.existsSync(helperPath) || !fs.existsSync(path.join(packageRoot, 'dist'))) return false
+  const packageRoot = [
+    process.env.OPENCLAW_PACKAGE_ROOT,
+    '/usr/local/lib/node_modules/openclaw',
+    '/opt/homebrew/lib/node_modules/openclaw',
+  ].find((root) => root && fs.existsSync(path.join(root, 'dist')))
+  return fs.existsSync(helperPath) && packageRoot ? { helperPath, packageRoot } : null
+}
 
-  const result = spawnSync(process.execPath, [helperPath, agentDir], {
+function persistPinnedOpenClawAuthStore(agentDir: string, store: AuthProfileFile): boolean {
+  const bridge = resolvePinnedOpenClawAuthBridge()
+  if (!bridge) return false
+
+  const result = spawnSync(process.execPath, [bridge.helperPath, agentDir], {
     input: JSON.stringify(store),
     encoding: 'utf8',
     env: {
       ...process.env,
-      OPENCLAW_PACKAGE_ROOT: packageRoot,
+      OPENCLAW_PACKAGE_ROOT: bridge.packageRoot,
     },
   })
   if (result.status !== 0) {
     const detail = String(result.stderr || result.stdout || '').trim()
     throw new Error(`Failed to persist OpenClaw auth store for ${path.basename(path.dirname(agentDir))}: ${detail || `exit ${result.status}`}`)
+  }
+  try {
+    return JSON.parse(String(result.stdout || '')).native === true
+  } catch {
+    return fs.existsSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  }
+}
+
+function readPinnedOpenClawAuthStore(agentDir: string): AuthProfileFile | null {
+  const bridge = resolvePinnedOpenClawAuthBridge()
+  if (!bridge) return null
+  const result = spawnSync(process.execPath, [bridge.helperPath, agentDir, 'read'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      OPENCLAW_PACKAGE_ROOT: bridge.packageRoot,
+    },
+  })
+  if (result.status !== 0) {
+    const detail = String(result.stderr || result.stdout || '').trim()
+    throw new Error(`Failed to read OpenClaw auth store for ${path.basename(path.dirname(agentDir))}: ${detail || `exit ${result.status}`}`)
+  }
+  const parsed = JSON.parse(String(result.stdout || ''))
+  return parsed?.native === true && parsed?.store?.profiles && typeof parsed.store.profiles === 'object'
+    ? parsed.store as AuthProfileFile
+    : null
+}
+
+export function hasReadyOpenClawNativeAgentStore(databasePath: string): boolean {
+  if (!fs.existsSync(databasePath)) return false
+  let database: any
+  try {
+    const { DatabaseSync } = require('node:sqlite')
+    database = new DatabaseSync(databasePath, { readOnly: true })
+    return Boolean(database.prepare(
+      "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'session_key_contract'"
+    ).get())
+  } catch {
+    return false
+  } finally {
+    database?.close()
+  }
+}
+
+export function migrateLegacyOpenClawAuthStore(
+  agentDir: string,
+  serializedStore: string,
+  persistStore: (agentDir: string, store: AuthProfileFile) => boolean = persistPinnedOpenClawAuthStore
+): boolean {
+  let store: AuthProfileFile
+  try {
+    store = JSON.parse(serializedStore) as AuthProfileFile
+  } catch {
+    return false
+  }
+  if (!store || typeof store !== 'object' || !store.profiles || typeof store.profiles !== 'object') return false
+  if (!persistStore(agentDir, store)) return false
+
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  if (fs.existsSync(authProfilePath)) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    fs.renameSync(authProfilePath, `${authProfilePath}.migrated-${timestamp}`)
   }
   return true
 }
@@ -1258,10 +1345,15 @@ export async function withTemporaryAgentAuthProfiles<T>(
 
   const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
   const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const nativeAuthStorePath = path.join(agentDir, 'openclaw-agent.sqlite')
   fs.mkdirSync(agentDir, { recursive: true })
 
+  // OpenClaw 2 executes turns in the Gateway process, so child-process env
+  // credentials do not reach the model runtime. Publish request-scoped keys to
+  // SQLite for the turn and restore the prior canonical store afterward.
   const hadExisting = fs.existsSync(authProfilePath)
   const previous = hadExisting ? fs.readFileSync(authProfilePath, 'utf-8') : null
+  let usesNativeAuthStore = hasReadyOpenClawNativeAgentStore(nativeAuthStorePath)
   // If preferred provider's key is missing, fall back to available provider's model
   let effectiveModel = preferredModel
   let effectiveProvider = preferredProvider
@@ -1286,12 +1378,50 @@ export async function withTemporaryAgentAuthProfiles<T>(
 
   const nextAuthProfiles = buildAuthProfiles(providerKeys, effectiveProvider)
   const nextAuthProfilesSerialized = JSON.stringify(nextAuthProfiles, null, 2)
-  const authProfilesChanged = authProfileStateFingerprint(previous) !== authProfileStateFingerprint(nextAuthProfilesSerialized)
   const hasNextAuthProfiles = Object.keys(nextAuthProfiles.profiles).length > 0
+  let nativeAuthStoreChanged = false
+  let previousNativeAuthStore = usesNativeAuthStore && hasNextAuthProfiles
+    ? readPinnedOpenClawAuthStore(agentDir)
+    : null
+  if (usesNativeAuthStore && hasNextAuthProfiles && !previousNativeAuthStore) {
+    throw new Error(`Failed to snapshot OpenClaw auth store for ${agentId} before scoped credential update`)
+  }
 
+  if (hasNextAuthProfiles && previous !== null) {
+    // Upgrade an existing ClawMax/OpenClaw 1 credential file before using the
+    // OpenClaw 2 store. OpenClaw intentionally refuses to fall through to env
+    // credentials while an unmigrated legacy file remains beside SQLite.
+    nativeAuthStoreChanged = migrateLegacyOpenClawAuthStore(agentDir, previous)
+    usesNativeAuthStore = nativeAuthStoreChanged || usesNativeAuthStore
+    if (nativeAuthStoreChanged) previousNativeAuthStore = JSON.parse(previous) as AuthProfileFile
+  }
   if (hasNextAuthProfiles) {
+    const persistedNativeStore = persistPinnedOpenClawAuthStore(agentDir, nextAuthProfiles)
+    usesNativeAuthStore = persistedNativeStore || usesNativeAuthStore
+    nativeAuthStoreChanged = persistedNativeStore || nativeAuthStoreChanged
+  }
+
+  const restoreNativeAuthStore = async () => {
+    if (!nativeAuthStoreChanged || options.persistAuthProfiles) return
+    persistPinnedOpenClawAuthStore(agentDir, previousNativeAuthStore || {
+      version: 1,
+      profiles: {},
+      usageStats: {},
+    })
+    if (isGatewayRunning().running) await getGatewayClient().reloadSecrets()
+    nativeAuthStoreChanged = false
+  }
+  if (nativeAuthStoreChanged && isGatewayRunning().running) {
+    try {
+      await getGatewayClient().reloadSecrets()
+    } catch (err) {
+      await restoreNativeAuthStore()
+      throw err
+    }
+  }
+  const authProfilesChanged = !usesNativeAuthStore && authProfileStateFingerprint(previous) !== authProfileStateFingerprint(nextAuthProfilesSerialized)
+  if (hasNextAuthProfiles && !usesNativeAuthStore) {
     fs.writeFileSync(authProfilePath, nextAuthProfilesSerialized, 'utf-8')
-    persistPinnedOpenClawAuthStore(agentDir, nextAuthProfiles)
     if (authProfilesChanged) {
       resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
     }
@@ -1319,7 +1449,9 @@ export async function withTemporaryAgentAuthProfiles<T>(
       }
     })
   } finally {
-    if (options.persistAuthProfiles) {
+    if (usesNativeAuthStore) {
+      await restoreNativeAuthStore()
+    } else if (options.persistAuthProfiles) {
       // Agent runs can launch async OpenClaw subagents after the parent CLI command exits.
       // Leave Dashboard-provided auth in place so those child lanes can authenticate.
     } else if (!hasNextAuthProfiles) {

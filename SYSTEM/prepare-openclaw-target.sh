@@ -34,13 +34,13 @@ EOF
 }
 
 run_pnpm() {
-  if command -v pnpm >/dev/null 2>&1; then
-    pnpm "$@"
+  if command -v corepack >/dev/null 2>&1; then
+    corepack pnpm "$@"
     return 0
   fi
 
-  if command -v corepack >/dev/null 2>&1; then
-    corepack pnpm "$@"
+  if command -v pnpm >/dev/null 2>&1; then
+    pnpm "$@"
     return 0
   fi
 
@@ -51,23 +51,24 @@ run_pnpm() {
 ensure_pnpm_on_path() {
   local shim_dir="$1"
 
-  if command -v pnpm >/dev/null 2>&1; then
-    return 0
-  fi
-
-  if ! command -v corepack >/dev/null 2>&1; then
-    echo "pnpm or corepack is required to prepare OpenClaw ${CLAWMAX_OPENCLAW_TARGET}" >&2
-    exit 1
-  fi
-
-  mkdir -p "$shim_dir"
-  cat >"${shim_dir}/pnpm" <<'EOF'
+  if command -v corepack >/dev/null 2>&1; then
+    mkdir -p "$shim_dir"
+    cat >"${shim_dir}/pnpm" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 exec corepack pnpm "$@"
 EOF
-  chmod +x "${shim_dir}/pnpm"
-  export PATH="${shim_dir}:${PATH}"
+    chmod +x "${shim_dir}/pnpm"
+    export PATH="${shim_dir}:${PATH}"
+    return 0
+  fi
+
+  if command -v pnpm >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "pnpm or corepack is required to prepare OpenClaw ${CLAWMAX_OPENCLAW_TARGET}" >&2
+  exit 1
 }
 
 sanitize_ref() {
@@ -111,12 +112,22 @@ prepare_checkout() {
   if [ ! -f "${src_dir}/dist/index.js" ] || [ ! -f "$prepared_stamp" ] || [ "$(cat "$prepared_stamp" 2>/dev/null || true)" != "$current_commit" ]; then
     (
       cd "$src_dir"
+      export COREPACK_HOME="${COREPACK_HOME:-${work_root}/corepack}"
       ensure_pnpm_on_path "${work_root}/bin"
       run_pnpm install --frozen-lockfile --ignore-scripts >&2
       run_pnpm run build:docker >&2
       node "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs" "$src_dir" >&2
       node scripts/postinstall-bundled-plugins.mjs >&2 || true
-      grep -q '"qqbot"' dist/cli-startup-metadata.json
+      node - dist/cli-startup-metadata.json <<'EOF'
+const fs = require("node:fs");
+const metadata = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const channels = new Set(metadata.channelOptions ?? []);
+for (const channel of ["whatsapp", "discord", "telegram", "slack"]) {
+  if (!channels.has(channel)) {
+    throw new Error(`OpenClaw startup metadata is missing channel: ${channel}`);
+  }
+}
+EOF
     )
     printf '%s\n' "$current_commit" > "$prepared_stamp"
   fi

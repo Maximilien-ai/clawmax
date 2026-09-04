@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { writeDashboardManagedOpenClawConfig } from './openclaw-config'
+import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getModelLifecycleEntry } from './openAiModelLifecycle'
 
 export interface AgentModelConfigUpdateResult {
@@ -74,6 +74,11 @@ function ensureAgentModelAllowed(config: any, model: string): boolean {
   return true
 }
 
+function retainOnlySelectedAgentIdRecord(config: any, agentList: any[], agentId: string, selectedIndex: number): void {
+  if (agentList.filter((agent: any) => agent?.id === agentId).length < 2) return
+  config.agents.list = agentList.filter((agent: any, index: number) => agent?.id !== agentId || index === selectedIndex)
+}
+
 function splitIdentityRuntimeSection(content: string): { runtime: string; suffix: string } {
   const metadataIndex = content.search(/^##\s+Creation Metadata\b/im)
   if (metadataIndex === -1) {
@@ -107,10 +112,7 @@ export function updateAgentModelInConfigFile(
     }
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list
-    if (!Array.isArray(agentList)) {
-      return { ok: false, error: 'Invalid openclaw.json structure: agents.list is missing' }
-    }
+    const agentList = materializeDashboardAgentList(config)
 
     const agentIndex = typeof options?.workspacePath === 'string'
       ? agentList.findIndex((agent: any) => agent.id === agentId && agent.workspace === options.workspacePath)
@@ -130,6 +132,7 @@ export function updateAgentModelInConfigFile(
       ...agentList[agentIndex],
       model: nextModel,
     }
+    retainOnlySelectedAgentIdRecord(config, agentList, agentId, agentIndex)
 
     writeDashboardManagedOpenClawConfig(configPath, config, `updateAgentModelInConfigFile(${agentId})`)
     return { ok: true, changed, model: nextModel }
@@ -152,10 +155,7 @@ export function updateAgentBackupModelInConfigFile(
     }
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list
-    if (!Array.isArray(agentList)) {
-      return { ok: false, error: 'Invalid openclaw.json structure: agents.list is missing' }
-    }
+    const agentList = materializeDashboardAgentList(config)
 
     const agentIndex = typeof options?.workspacePath === 'string'
       ? agentList.findIndex((agent: any) => agent.id === agentId && agent.workspace === options.workspacePath)
@@ -172,6 +172,7 @@ export function updateAgentBackupModelInConfigFile(
     const nextAgent = { ...agentList[agentIndex] }
     delete nextAgent.backupModel
     agentList[agentIndex] = nextAgent
+    retainOnlySelectedAgentIdRecord(config, agentList, agentId, agentIndex)
 
     writeDashboardManagedOpenClawConfig(configPath, config, `updateAgentBackupModelInConfigFile(${agentId})`)
     return { ok: true, changed: true, backupModel: nextBackupModel }
@@ -201,20 +202,14 @@ export function upsertAgentModelInConfigFile(
       return { ok: false, error: 'Invalid openclaw.json structure: root must be an object' }
     }
 
-    if (!config.agents || typeof config.agents !== 'object' || Array.isArray(config.agents)) {
-      config.agents = {}
-    }
-    if (config.agents.list === undefined) {
-      config.agents.list = []
-    }
-    if (!Array.isArray(config.agents.list)) {
-      return { ok: false, error: 'Invalid openclaw.json structure: agents.list must be an array' }
-    }
-
-    const agentList = config.agents.list
-    const agentIndex = typeof options?.workspacePath === 'string'
+    const agentList = materializeDashboardAgentList(config)
+    let agentIndex = typeof options?.workspacePath === 'string'
       ? agentList.findIndex((agent: any) => agent.id === agentId && agent.workspace === options.workspacePath)
       : agentList.findIndex((agent: any) => agent.id === agentId)
+
+    if (agentIndex === -1 && typeof options?.workspacePath === 'string') {
+      agentIndex = agentList.findIndex((agent: any) => agent.id === agentId)
+    }
 
     let changed = ensureAgentModelAllowed(config, nextModel)
     if (agentIndex === -1) {
@@ -237,6 +232,7 @@ export function upsertAgentModelInConfigFile(
         ...(options?.agentDir ? { agentDir: options.agentDir } : {}),
         model: nextModel,
       }
+      retainOnlySelectedAgentIdRecord(config, agentList, agentId, agentIndex)
     }
 
     if (!changed) {
@@ -261,10 +257,7 @@ export function readAgentModelFromConfigFile(
     }
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list
-    if (!Array.isArray(agentList)) {
-      return { ok: false, error: 'Invalid openclaw.json structure: agents.list is missing' }
-    }
+    const agentList = materializeDashboardAgentList(config)
 
     const agent = typeof options?.workspacePath === 'string'
       ? agentList.find((entry: any) => entry.id === agentId && entry.workspace === options.workspacePath)
@@ -290,10 +283,7 @@ export function readAgentBackupModelFromConfigFile(
     }
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list
-    if (!Array.isArray(agentList)) {
-      return { ok: false, error: 'Invalid openclaw.json structure: agents.list is missing' }
-    }
+    const agentList = materializeDashboardAgentList(config)
 
     const agent = typeof options?.workspacePath === 'string'
       ? agentList.find((entry: any) => entry.id === agentId && entry.workspace === options.workspacePath)
@@ -320,10 +310,7 @@ export function restoreAgentModelInConfigFile(
     }
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list
-    if (!Array.isArray(agentList)) {
-      return { ok: false, error: 'Invalid openclaw.json structure: agents.list is missing' }
-    }
+    const agentList = materializeDashboardAgentList(config)
 
     const agentIndex = typeof options?.workspacePath === 'string'
       ? agentList.findIndex((agent: any) => agent.id === agentId && agent.workspace === options.workspacePath)
@@ -346,6 +333,7 @@ export function restoreAgentModelInConfigFile(
     }
 
     agentList[agentIndex] = nextAgent
+    retainOnlySelectedAgentIdRecord(config, agentList, agentId, agentIndex)
 
     writeDashboardManagedOpenClawConfig(configPath, config, `restoreAgentModelInConfigFile(${agentId})`)
     return { ok: true, changed: true, model: nextModel }
@@ -366,10 +354,7 @@ export function restoreAgentBackupModelInConfigFile(
     }
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list
-    if (!Array.isArray(agentList)) {
-      return { ok: false, error: 'Invalid openclaw.json structure: agents.list is missing' }
-    }
+    const agentList = materializeDashboardAgentList(config)
 
     const agentIndex = typeof options?.workspacePath === 'string'
       ? agentList.findIndex((agent: any) => agent.id === agentId && agent.workspace === options.workspacePath)
@@ -387,6 +372,7 @@ export function restoreAgentBackupModelInConfigFile(
     const nextAgent = { ...agentList[agentIndex] }
     delete nextAgent.backupModel
     agentList[agentIndex] = nextAgent
+    retainOnlySelectedAgentIdRecord(config, agentList, agentId, agentIndex)
 
     writeDashboardManagedOpenClawConfig(configPath, config, `restoreAgentBackupModelInConfigFile(${agentId})`)
     return { ok: true, changed: true, backupModel: nextBackupModel }

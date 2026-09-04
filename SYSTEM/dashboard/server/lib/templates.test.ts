@@ -31,6 +31,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { REPO_ROOT } from './paths'
+import { materializeDashboardAgentList } from './openclaw-config'
 
 // ANSI color codes
 const GREEN = '\x1b[32m'
@@ -41,6 +42,12 @@ const RESET = '\x1b[0m'
 let testsPassed = 0
 let testsFailed = 0
 let testChain: Promise<void> = Promise.resolve()
+
+function readMaterializedConfig(configPath: string): any {
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  materializeDashboardAgentList(config)
+  return config
+}
 
 function test(name: string, fn: () => void | Promise<void>) {
   testChain = testChain
@@ -972,7 +979,7 @@ test('upsertOpenClawAgentRegistration adopts existing agent ids into active work
     '/new/workspace/AGENTS/test-ceo',
     '/new/home/.openclaw/agents/test-ceo/agent'
   )
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const config = readMaterializedConfig(configPath)
   const agent = config.agents.list.find((entry: any) => entry.id === 'test-ceo')
 
   assert(result?.status === 'updated-existing', `Expected existing registration to be updated, got ${result?.status || 'missing'}`)
@@ -984,7 +991,7 @@ test('upsertOpenClawAgentRegistration adopts existing agent ids into active work
   fs.rmSync(home, { recursive: true, force: true })
 })
 
-test('importAgentFromTemplate registers created agents into the active OpenClaw workspace config', () => {
+test('importAgentFromTemplate registers created agents into the active OpenClaw workspace config', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-template-import-home-'))
@@ -1011,14 +1018,14 @@ test('importAgentFromTemplate registers created agents into the active OpenClaw 
   }, null, 2), 'utf-8')
 
   try {
-    const result = importAgentFromTemplate('briefing-writer-template', {
+    const result = await importAgentFromTemplate('briefing-writer-template', {
       newAgentId: targetAgentId,
       model: 'openai/gpt-4o-mini',
     })
 
     assert(result.ok === true, `Expected agent template import to succeed, got ${result.error || 'unknown error'}`)
 
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const config = readMaterializedConfig(configPath)
     const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
     const expectedWorkspace = path.join(tempWorkspace, 'AGENTS', targetAgentId)
     const expectedAgentDir = path.join(tempHome, '.openclaw', 'agents', targetAgentId, 'agent')
@@ -1041,7 +1048,7 @@ test('importAgentFromTemplate registers created agents into the active OpenClaw 
   }
 })
 
-test('importAgentFromTemplate resolves a real default model when no override is provided', () => {
+test('importAgentFromTemplate resolves a real default model when no override is provided', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
@@ -1059,13 +1066,13 @@ test('importAgentFromTemplate resolves a real default model when no override is 
   seedOpenClawConfig(tempHome)
 
   try {
-    const result = importAgentFromTemplate('data-engineer-template', {
+    const result = await importAgentFromTemplate('data-engineer-template', {
       newAgentId: targetAgentId,
     })
 
     assert(result.ok === true, `Expected agent template import without override to succeed, got ${result.error || 'unknown error'}`)
 
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const config = readMaterializedConfig(configPath)
     const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
     const expectedRuntimeRoot = path.join(tempHome, '.openclaw', 'agents', targetAgentId)
     const configYamlPath = path.join(expectedRuntimeRoot, 'config.yaml')
@@ -1073,6 +1080,7 @@ test('importAgentFromTemplate resolves a real default model when no override is 
 
     assert(registered !== undefined, 'Expected imported agent to be registered in openclaw.json')
     assertEqual(registered.model, 'openai/gpt-5.4-mini', 'Expected template import without override to resolve the pinned runtime default model')
+    assertEqual(JSON.stringify(registered.skills), JSON.stringify(['github']), 'Expected template skills to persist after agent registration')
     assert(configYaml.includes('model: openai/gpt-5.4-mini'), 'Expected runtime config.yaml to contain the pinned runtime default model')
   } finally {
     if (typeof originalHome === 'undefined') delete process.env.HOME
@@ -1088,7 +1096,7 @@ test('importAgentFromTemplate resolves a real default model when no override is 
   }
 })
 
-test('importAgentFromTemplate accepts logical alias slugs for *-template directories', () => {
+test('importAgentFromTemplate accepts logical alias slugs for *-template directories', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-template-alias-home-'))
@@ -1103,14 +1111,14 @@ test('importAgentFromTemplate accepts logical alias slugs for *-template directo
   seedOpenClawConfig(tempHome)
 
   try {
-    const result = importAgentFromTemplate('test-agent', {
+    const result = await importAgentFromTemplate('test-agent', {
       newAgentId: targetAgentId,
       model: 'openai/gpt-4o-mini',
     })
 
     assert(result.ok === true, `Expected logical alias import to succeed, got ${result.error || 'unknown error'}`)
 
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const config = readMaterializedConfig(configPath)
     const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
     assert(registered !== undefined, 'Expected alias-imported agent to be registered in openclaw.json')
   } finally {
@@ -1123,7 +1131,7 @@ test('importAgentFromTemplate accepts logical alias slugs for *-template directo
   }
 })
 
-test('importAgentFromTemplate accepts human-facing template name slugs that differ from directory slugs', () => {
+test('importAgentFromTemplate accepts human-facing template name slugs that differ from directory slugs', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-template-name-alias-home-'))
@@ -1138,14 +1146,14 @@ test('importAgentFromTemplate accepts human-facing template name slugs that diff
   seedOpenClawConfig(tempHome)
 
   try {
-    const result = importAgentFromTemplate('software-engineer', {
+    const result = await importAgentFromTemplate('software-engineer', {
       newAgentId: targetAgentId,
       model: 'openai/gpt-4o-mini',
     })
 
     assert(result.ok === true, `Expected display-name alias import to succeed, got ${result.error || 'unknown error'}`)
 
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const config = readMaterializedConfig(configPath)
     const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
     assert(registered !== undefined, 'Expected display-name alias imported agent to be registered in openclaw.json')
   } finally {
@@ -1510,7 +1518,7 @@ test('saveTemplate strips derived kind from persisted organization templates', (
   }
 })
 
-test('importOrganizationTemplate creates nested teams and workflow handoff metadata', () => {
+test('importOrganizationTemplate creates nested teams and workflow handoff metadata', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
@@ -1524,7 +1532,7 @@ test('importOrganizationTemplate creates nested teams and workflow handoff metad
   seedOpenClawConfig(tempHome)
 
   try {
-    const result = importOrganizationTemplate('build-a-company-hack-test', {
+    const result = await importOrganizationTemplate('build-a-company-hack-test', {
       prefix: 'demo-',
     })
 
@@ -1551,7 +1559,7 @@ test('importOrganizationTemplate creates nested teams and workflow handoff metad
     assert(qa?.memberAgentIds.includes('demo-release-analyst') === true, 'Expected QA members to include release analyst')
 
     const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const config = readMaterializedConfig(configPath)
     const demoMarketingLead = config?.agents?.list?.find((agent: any) => agent.id === 'demo-marketing-lead' && agent.workspace === path.join(tempWorkspace, 'AGENTS', 'demo-marketing-lead'))
     assert(demoMarketingLead?.model === 'openai/gpt-5.4-mini', `Expected imported live config model to use the pinned runtime default model, got ${demoMarketingLead?.model || 'missing'}`)
 
@@ -1591,7 +1599,7 @@ test('importOrganizationTemplate creates nested teams and workflow handoff metad
   }
 })
 
-test('importOrganizationTemplate keeps multiple company applies isolated by prefix', () => {
+test('importOrganizationTemplate keeps multiple company applies isolated by prefix', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
@@ -1605,8 +1613,8 @@ test('importOrganizationTemplate keeps multiple company applies isolated by pref
   seedOpenClawConfig(tempHome)
 
   try {
-    const first = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'alpha-' })
-    const second = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'beta-' })
+    const first = await importOrganizationTemplate('build-a-company-hack-test', { prefix: 'alpha-' })
+    const second = await importOrganizationTemplate('build-a-company-hack-test', { prefix: 'beta-' })
 
     assert(first.ok === true, `Expected first import to succeed, got ${first.error || 'unknown error'}`)
     assert(second.ok === true, `Expected second import to succeed, got ${second.error || 'unknown error'}`)
@@ -1634,7 +1642,7 @@ test('importOrganizationTemplate keeps multiple company applies isolated by pref
   }
 })
 
-test('importOrganizationTemplate re-apply replaces stale workflow targeting', () => {
+test('importOrganizationTemplate re-apply replaces stale workflow targeting', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
@@ -1672,7 +1680,7 @@ test('importOrganizationTemplate re-apply replaces stale workflow targeting', ()
     })
     assert(stale.success === true, `Expected stale workflow creation to succeed, got ${stale.error || 'unknown error'}`)
 
-    const imported = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'b2b-' })
+    const imported = await importOrganizationTemplate('build-a-company-hack-test', { prefix: 'b2b-' })
     assert(imported.ok === true, `Expected import to succeed, got ${imported.error || 'unknown error'}`)
 
     const refreshed = getWorkflow(kickoffId)
@@ -1695,7 +1703,7 @@ test('importOrganizationTemplate re-apply replaces stale workflow targeting', ()
   }
 })
 
-test('importOrganizationTemplate namespaces groups and communities for prefixed company imports', () => {
+test('importOrganizationTemplate namespaces groups and communities for prefixed company imports', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
@@ -1709,7 +1717,7 @@ test('importOrganizationTemplate namespaces groups and communities for prefixed 
   seedOpenClawConfig(tempHome)
 
   try {
-    const imported = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'test-' })
+    const imported = await importOrganizationTemplate('build-a-company-hack-test', { prefix: 'test-' })
     assert(imported.ok === true, `Expected import to succeed, got ${imported.error || 'unknown error'}`)
 
     const groupsMd = fs.readFileSync(path.join(tempWorkspace, 'ORG', 'GROUPS.md'), 'utf-8')
@@ -1732,7 +1740,7 @@ test('importOrganizationTemplate namespaces groups and communities for prefixed 
   }
 })
 
-test('importOrganizationTemplate sanitizes invalid team ancestry before creating teams', () => {
+test('importOrganizationTemplate sanitizes invalid team ancestry before creating teams', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
@@ -1764,7 +1772,7 @@ test('importOrganizationTemplate sanitizes invalid team ancestry before creating
       workflows: [],
     }, null, 2), 'utf-8')
 
-    const imported = importOrganizationTemplate('cycle-company', {})
+    const imported = await importOrganizationTemplate('cycle-company', {})
     assert(imported.ok === true, `Expected import to succeed, got ${imported.error || 'unknown error'}`)
 
     const company = getTeam('company')
@@ -1785,7 +1793,7 @@ test('importOrganizationTemplate sanitizes invalid team ancestry before creating
   }
 })
 
-test('importOrganizationTemplate backfills workflow handoff metadata for dependency-only templates', () => {
+test('importOrganizationTemplate backfills workflow handoff metadata for dependency-only templates', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
@@ -1799,7 +1807,7 @@ test('importOrganizationTemplate backfills workflow handoff metadata for depende
   seedOpenClawConfig(tempHome)
 
   try {
-    const imported = importOrganizationTemplate('travel-planning-desk', { prefix: 'handoff-' })
+    const imported = await importOrganizationTemplate('travel-planning-desk', { prefix: 'handoff-' })
     assert(imported.ok === true, `Expected import to succeed, got ${imported.error || 'unknown error'}`)
 
     const kickoff = getWorkflow('handoff-trip-kickoff')
@@ -1866,7 +1874,7 @@ test('organization template catalog normalizes workflow handoffs for dependency 
   assert(failures.length === 0, `Expected all organization templates to normalize handoffs cleanly:\n${failures.slice(0, 20).join('\n')}`)
 })
 
-test('importOrganizationTemplate maps parameterized agent references for teams and workflows', () => {
+test('importOrganizationTemplate maps parameterized agent references for teams and workflows', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
@@ -1922,7 +1930,7 @@ test('importOrganizationTemplate maps parameterized agent references for teams a
       ],
     }, null, 2), 'utf-8')
 
-    const imported = importOrganizationTemplate('parameterized-team', {
+    const imported = await importOrganizationTemplate('parameterized-team', {
       agentCounts: { researcher: 2 },
     })
     assert(imported.ok === true, `Expected parameterized import to succeed, got ${imported.error || 'unknown error'}`)
@@ -1949,7 +1957,7 @@ test('importOrganizationTemplate maps parameterized agent references for teams a
   }
 })
 
-test('importOrganizationTemplate infers workflow output channels from targeted teams when groups are omitted', () => {
+test('importOrganizationTemplate infers workflow output channels from targeted teams when groups are omitted', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
@@ -2007,7 +2015,7 @@ test('importOrganizationTemplate infers workflow output channels from targeted t
       ],
     }, null, 2), 'utf-8')
 
-    const imported = importOrganizationTemplate('team-channel-inference', {})
+    const imported = await importOrganizationTemplate('team-channel-inference', {})
     assert(imported.ok === true, `Expected team-channel import to succeed, got ${imported.error || 'unknown error'}`)
 
     const workflow = getWorkflow('research-kickoff')
@@ -2026,7 +2034,7 @@ test('importOrganizationTemplate infers workflow output channels from targeted t
   }
 })
 
-test('importOrganizationTemplate infers workflow output channels from shared targeted-agent memberships when groups are omitted', () => {
+test('importOrganizationTemplate infers workflow output channels from shared targeted-agent memberships when groups are omitted', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
   const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
@@ -2078,7 +2086,7 @@ test('importOrganizationTemplate infers workflow output channels from shared tar
       ],
     }, null, 2), 'utf-8')
 
-    const imported = importOrganizationTemplate('agent-channel-inference', {})
+    const imported = await importOrganizationTemplate('agent-channel-inference', {})
     assert(imported.ok === true, `Expected agent-channel import to succeed, got ${imported.error || 'unknown error'}`)
 
     const workflow = getWorkflow('research-kickoff')

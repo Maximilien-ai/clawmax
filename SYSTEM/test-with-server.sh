@@ -17,6 +17,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 . "$SCRIPT_DIR/test-run-lock.sh"
+. "$SCRIPT_DIR/openclaw-version.sh"
 
 BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
@@ -38,6 +39,73 @@ for arg in "$@"; do
     FORWARDED_ARGS+=("$arg")
   fi
 done
+
+ensure_target_openclaw_for_integration() {
+  if [ "$RUN_INTEGRATION" != "true" ]; then
+    return 0
+  fi
+
+  if [ -z "${OPENCLAW_BIN:-}" ]; then
+    echo "Preparing targeted OpenClaw ${CLAWMAX_OPENCLAW_TARGET} for integration tests..."
+    OPENCLAW_BIN="$(bash "$SCRIPT_DIR/prepare-openclaw-target.sh" --print-bin)" || return 1
+    export OPENCLAW_BIN
+  fi
+
+  local prepared_package_root
+  prepared_package_root="$(cd "$(dirname "$OPENCLAW_BIN")/../src" 2>/dev/null && pwd || true)"
+  if [ -f "$prepared_package_root/package.json" ]; then
+    CLAWMAX_TEST_OPENCLAW_PACKAGE_ROOT="$prepared_package_root"
+  fi
+
+  if [ ! -x "$OPENCLAW_BIN" ]; then
+    echo "Targeted OpenClaw binary is not executable: $OPENCLAW_BIN" >&2
+    return 1
+  fi
+
+  local version_output expected_version
+  version_output="$($OPENCLAW_BIN --version 2>&1)" || {
+    echo "Could not read OpenClaw version from $OPENCLAW_BIN" >&2
+    return 1
+  }
+  expected_version="${CLAWMAX_OPENCLAW_TARGET#v}"
+  if [[ "$version_output" != *"$expected_version"* ]]; then
+    echo "Integration tests require OpenClaw ${CLAWMAX_OPENCLAW_TARGET}; selected binary reports: $version_output" >&2
+    return 1
+  fi
+  echo "Using targeted OpenClaw: $version_output"
+
+  if [ "${CLAWMAX_TEST_REUSE_GATEWAY:-}" != "true" ]; then
+    echo "Restarting targeted OpenClaw gateway to clear stale runtime state..."
+    "$OPENCLAW_BIN" gateway restart || {
+      echo "Could not restart the targeted OpenClaw gateway" >&2
+      return 1
+    }
+  fi
+
+  local gateway_status="" gateway_ready=false attempt
+  for attempt in 1 2 3 4 5 6; do
+    gateway_status="$($OPENCLAW_BIN gateway status 2>&1)" || true
+    if [[ "$gateway_status" == *"Gateway version: $expected_version"* \
+      && "$gateway_status" == *"Connectivity probe: ok"* ]]; then
+      gateway_ready=true
+      break
+    fi
+    if [ "$attempt" -lt 6 ]; then
+      echo "Waiting for targeted OpenClaw gateway readiness (attempt $attempt/6)..."
+      sleep 10
+    fi
+  done
+  if [ "$gateway_ready" != "true" ]; then
+    echo "Integration tests require an OpenClaw $expected_version gateway; status was:" >&2
+    echo "$gateway_status" >&2
+    return 1
+  fi
+  echo "Verified targeted OpenClaw gateway: $expected_version"
+}
+
+if ! ensure_target_openclaw_for_integration; then
+  exit 1
+fi
 
 export DASHBOARD_PORT="$BACKEND_PORT"
 export DASHBOARD_CLIENT_PORT="$FRONTEND_PORT"
@@ -279,9 +347,9 @@ if ! health_ready; then
   fi
   STARTED_SERVER=true
   if [ "$START_WITH_RESTART" = true ]; then
-    CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" --restart
+    OPENCLAW_PACKAGE_ROOT="${CLAWMAX_TEST_OPENCLAW_PACKAGE_ROOT:-${OPENCLAW_PACKAGE_ROOT:-}}" CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" --restart
   else
-    CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh"
+    OPENCLAW_PACKAGE_ROOT="${CLAWMAX_TEST_OPENCLAW_PACKAGE_ROOT:-${OPENCLAW_PACKAGE_ROOT:-}}" CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh"
   fi
 
   if ! wait_for_health 60; then
@@ -294,7 +362,7 @@ elif [ "$RUN_INTEGRATION" = true ] && [ "${CLAWMAX_TEST_REUSE_SERVER:-}" != "tru
   echo "Integration mode detected; restarting dashboard to test the current source tree."
   configure_default_test_plugins
   STARTED_SERVER=true
-  CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" --restart
+  OPENCLAW_PACKAGE_ROOT="${CLAWMAX_TEST_OPENCLAW_PACKAGE_ROOT:-${OPENCLAW_PACKAGE_ROOT:-}}" CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" --restart
   if ! wait_for_health 60; then
     echo "Dashboard did not become healthy on $API_BASE after restart"
     echo "Logs: tail -f /tmp/dashboard.log"

@@ -103,12 +103,12 @@ async function withModuleOverrides<T>(modulePath: string, overrides: Record<stri
 /** Points HOME at a scratch dir for the duration of the test so persistDashboardChatSession and
  *  the persisted-session lookups chat.ts does on a real completion never touch the developer's
  *  actual ~/.openclaw. */
-async function withScratchHome<T>(fn: () => Promise<T>): Promise<T> {
+async function withScratchHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-chat-turn-registry-'))
   const originalHome = process.env.HOME
   process.env.HOME = dir
   try {
-    return await fn()
+    return await fn(dir)
   } finally {
     process.env.HOME = originalHome
     fs.rmSync(dir, { recursive: true, force: true })
@@ -167,7 +167,13 @@ console.log(`\n${YELLOW}=== Chat Route Turn Registry Test Suite ===${RESET}\n`)
 
 async function run() {
   await test('openclaw success path releases the turn -- it used to leak on every completed chat', async () => {
-    await withScratchHome(async () => {
+    await withScratchHome(async (home) => {
+      const { DatabaseSync } = require('node:sqlite')
+      const nativeStorePath = path.join(home, '.openclaw', 'agents', 'openclaw-success-agent', 'agent', 'openclaw-agent.sqlite')
+      fs.mkdirSync(path.dirname(nativeStorePath), { recursive: true })
+      const nativeStore = new DatabaseSync(nativeStorePath)
+      nativeStore.exec('CREATE TABLE session_key_contract (id INTEGER PRIMARY KEY)')
+      nativeStore.close()
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-fake-openclaw-'))
       const cli = writeFakeCli(dir, 'openclaw', `
         process.stdout.write('Hello from the agent')
@@ -185,6 +191,10 @@ async function run() {
           await waitForActiveTurnCount(before)
           assert.strictEqual(activeTurnCount(), before, 'the completed turn must not remain in the registry')
           assert.ok(!listActiveTurns().some((t) => t.agentId === 'openclaw-success-agent'), 'GET /turns/active must not show a finished openclaw chat')
+          assert.ok(
+            !fs.existsSync(path.join(home, '.openclaw', 'agents', 'openclaw-success-agent', 'sessions', 'sessions.json')),
+            'OpenClaw 2 chat must not recreate the retired sessions.json index',
+          )
         }))
       fs.rmSync(dir, { recursive: true, force: true })
     })

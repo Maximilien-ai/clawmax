@@ -208,6 +208,27 @@ Useful agent response.`
   assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
 })
 
+test('strips OpenClaw 2 doctor migration changes and credential errors from chat output', () => {
+  const raw = `◇ Doctor changes ────────────────────────────────╮
+│ Migrated auth profile JSON for ~/.openclaw/agents/ceo/agent/auth-profiles.json │
+│ into SQLite (archive: ~/.openclaw/agents/ceo/agent/auth-profiles.json.migrated-2026-09-02). │
+╰────────────────────────────────────────────────╯
+Auth profile store ~/.openclaw/agents/ceo/agent/openclaw-agent.sqlite requires legacy credential migration; run openclaw doctor --fix.`
+  const stripped = stripBenignChatRuntimeWarnings(raw)
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!/Doctor changes/i.test(stripped), 'Expected doctor changes header stripped from streamed chunks')
+  assert(!/legacy credential migration/i.test(stripped), 'Expected credential migration diagnostic stripped from streamed chunks')
+  assert(normalized === '', `Expected migration-only output to normalize to empty, got: ${normalized}`)
+})
+
+test('strips OpenClaw 2 historical transcript migration notices', () => {
+  const raw = `◇ Doctor notices ─────────────────────────────────╮
+│ - Skipped historical transcript directive migration: shared-state lease inspection failed │
+╰─────────────────────────────────────────────────╯`
+  assert(normalizeChatMessage(raw) === '', 'Expected historical transcript migration notice to be suppressed')
+})
+
 test('strips state-migration warning variants from chat output so on-prem runtime leftovers do not appear as assistant replies', () => {
   const raw = `│ - Left migrated task registry sidecar in place because archive already │ │ exists: /app/DATA/.home/.openclaw/tasks/runs.sqlite.migrated │ │ - Left legacy update-check state in place because shared SQLite state │ │ already differs: /app/DATA/.home/.openclaw/update-check.json │ │ with shared SQLite state: │
 

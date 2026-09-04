@@ -92,7 +92,7 @@ function authenticate(socket: FakeWebSocket) {
   message(socket, { event: 'connect.challenge', payload: { nonce: 'challenge-nonce' } })
   assert.strictEqual(socket.sent[0]?.method, 'connect')
   assert.strictEqual(socket.sent[0]?.params.auth.token, 'rpc-token')
-  assert.strictEqual(socket.sent[0]?.params.scopes[0], 'operator.admin')
+  assert.deepStrictEqual(socket.sent[0]?.params.scopes, ['operator.read', 'operator.admin'])
   message(socket, { type: 'res', ok: true })
 }
 

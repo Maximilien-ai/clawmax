@@ -41,8 +41,8 @@ import { recommendModelsForDescription, type ModelFitPreference } from '../lib/m
 import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
 import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleDirectory, importAgentFromOpenClaw, importAgentFromZipArchive, listImportableOpenClawAgents } from '../lib/openclaw-agent-transfer'
 import { normalizeChatMessage } from '../lib/chat-normalization'
-import { writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
-import { runExclusiveAgentExecution } from '../lib/agent-execution'
+import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
+import { hasReadyOpenClawNativeAgentStore, runExclusiveAgentExecution } from '../lib/agent-execution'
 import { withRegisteredTurn } from '../lib/agent-turns'
 import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
 import { resolveDefaultAgentModel } from '../lib/agent-default-model'
@@ -285,7 +285,8 @@ async function registerAgentInConfig(agentId: string, profile: boolean): Promise
 
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
 
-      if (config.agents?.list?.some((a: any) => a.id === agentId)) {
+      const agentList = materializeDashboardAgentList(config)
+      if (agentList.some((a: any) => a.id === agentId)) {
         return { ok: true }
       }
 
@@ -296,9 +297,7 @@ async function registerAgentInConfig(agentId: string, profile: boolean): Promise
         agentDir
       }
 
-      if (!config.agents) config.agents = {}
-      if (!config.agents.list) config.agents.list = []
-      config.agents.list.push(newAgent)
+      agentList.push(newAgent)
 
       writeDashboardManagedOpenClawConfig(configPath, config, `registerAgentInConfig(profile:${agentId})`)
       return { ok: true }
@@ -1020,9 +1019,9 @@ router.post('/provision', async (req, res) => {
     send('log', `Wrote AI-generated files: IDENTITY.md, SOUL.md, TOOLS.md\n`)
   }
 
-  const applyWorkspaceFiles = () => {
+  const applyWorkspaceFiles = async () => {
     if (templateSlug) {
-      const result = importAgentFromTemplate(templateSlug, {
+      const result = await importAgentFromTemplate(templateSlug, {
         newAgentId: validatedName,
         model: validatedModel,
         port,
@@ -1100,7 +1099,7 @@ router.post('/provision', async (req, res) => {
   let isRegistered = false
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list || []
+    const agentList = materializeDashboardAgentList(config)
     isRegistered = agentList.some((a: any) => a.id === validatedName)
   } catch {}
 
@@ -1108,7 +1107,7 @@ router.post('/provision', async (req, res) => {
     // Agent already registered - skip openclaw agents add
     send('log', `Agent "${validatedName}" is already registered\n`)
     try {
-      applyWorkspaceFiles()
+      await applyWorkspaceFiles()
     } catch (err: any) {
       send('error', err.message || 'Failed to prepare agent workspace files')
       res.end()
@@ -1266,7 +1265,7 @@ router.post('/provision', async (req, res) => {
     }
 
     try {
-      applyWorkspaceFiles()
+      await applyWorkspaceFiles()
       syncProvisionedAgentModels()
     } catch (err: any) {
       send('error', `Failed to prepare agent workspace files: ${err.message}`)
@@ -1301,11 +1300,11 @@ router.post('/provision', async (req, res) => {
   child.stdout!.on('data', (chunk: Buffer) => send('log', chunk.toString()))
   child.stderr!.on('data', (chunk: Buffer) => send('log', chunk.toString()))
 
-  child.on('close', (code, signal) => {
+  child.on('close', async (code, signal) => {
     cleanup()
     if (code === 0) {
       try {
-        applyWorkspaceFiles()
+        await applyWorkspaceFiles()
         syncProvisionedAgentModels()
       } catch (err: any) {
         send('error', `Failed to prepare agent workspace files: ${err.message}`)
@@ -1562,7 +1561,7 @@ router.post('/doctor', async (req, res) => {
   try {
     const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list || []
+    const agentList = materializeDashboardAgentList(config)
     for (const agent of agentList) {
       if (agent.id) {
         registeredIds.add(agent.id)
@@ -1813,12 +1812,24 @@ router.delete('/bulk', (req, res) => {
 })
 
 // DELETE /api/agents/:id
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const { id } = req.params
   const { removeStateDir } = req.body as { removeStateDir?: boolean }
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     res.status(400).json({ ok: false, error: 'Invalid agent id' })
     return
+  }
+  if (isGatewayRunning().running) {
+    try {
+      await getGatewayClient().deleteAgentNative(id)
+    } catch (err: any) {
+      res.status(503).json({
+        ok: false,
+        steps: [],
+        errors: [`Failed to remove agent from OpenClaw lifecycle: ${String(err?.message || err || 'unknown error')}`],
+      })
+      return
+    }
   }
   const result = deleteAgent(id, removeStateDir === true)
   res.json({ ok: result.errors.length === 0, ...result })
@@ -2871,12 +2882,15 @@ router.post('/:id/chat/messages', async (req, res) => {
 
           if (actualSessionId) {
             try {
-              let sessions: Record<string, any> = {}
-              if (fs.existsSync(sessionsPath)) {
-                sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+              const nativeStorePath = path.join(HOME, '.openclaw', 'agents', id, 'agent', 'openclaw-agent.sqlite')
+              if (!hasReadyOpenClawNativeAgentStore(nativeStorePath)) {
+                let sessions: Record<string, any> = {}
+                if (fs.existsSync(sessionsPath)) {
+                  sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+                }
+                sessions[sessionKey] = { sessionId: actualSessionId, updatedAt: Date.now() }
+                fs.writeFileSync(sessionsPath, JSON.stringify(sessions, null, 2))
               }
-              sessions[sessionKey] = { sessionId: actualSessionId, updatedAt: Date.now() }
-              fs.writeFileSync(sessionsPath, JSON.stringify(sessions, null, 2))
             } catch (e) {
               console.error('Failed to update sessions.json:', e)
             }

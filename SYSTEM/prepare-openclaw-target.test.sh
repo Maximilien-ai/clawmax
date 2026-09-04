@@ -23,7 +23,9 @@ grep -q 'pnpm install --frozen-lockfile --ignore-scripts' "$script_file" || fail
 grep -q 'npm run build:docker' "$script_file" || fail "expected docker-oriented OpenClaw build path"
 grep -q 'patch-openclaw-fs-safe.mjs' "$script_file" || fail "expected OpenClaw fs-safe compatibility patch"
 grep -q 'postinstall-bundled-plugins.mjs' "$script_file" || fail "expected bundled plugin postinstall repair step"
-grep -q 'qqbot' "$script_file" || fail "expected qqbot startup metadata smoke check"
+for channel in whatsapp discord telegram slack; do
+  grep -q "\\\"$channel\\\"" "$script_file" || fail "expected $channel startup metadata smoke check"
+done
 grep -q -- '--print-bin' "$script_file" || fail "expected print-bin option"
 grep -q -- '--print-skills-dir' "$script_file" || fail "expected print-skills-dir option"
 grep -q 'openclaw.mjs' "$script_file" || fail "expected wrapper to launch openclaw.mjs"
@@ -90,7 +92,7 @@ case "${1:-}" in
   nested-build-smoke)
     mkdir -p dist
     printf 'export {};\n' > dist/index.js
-    printf '{"plugins":["qqbot"]}\n' > dist/cli-startup-metadata.json
+    printf '{"channelOptions":["whatsapp","discord","telegram","slack"]}\n' > dist/cli-startup-metadata.json
     ;;
   *)
     exit 33

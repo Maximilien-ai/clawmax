@@ -3,7 +3,7 @@ import os from 'os'
 import path from 'path'
 import { getAgentsDir, getWorkspacePath, listAgents, updateGroupMembers, parseGroupsWithMembers } from './workspace'
 import { getAgentSkills } from './skills'
-import { writeDashboardManagedOpenClawConfig } from './openclaw-config'
+import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { extractZipSecurely } from './archive-security'
 
 interface TransferGroupEntry {
@@ -74,7 +74,9 @@ function copyMarkdownFiles(srcDir: string, destDir: string): string[] {
 function loadOpenClawConfig(): any {
   const configPath = path.join(getOpenClawRoot(), 'openclaw.json')
   try {
-    return JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    materializeDashboardAgentList(config)
+    return config
   } catch {
     return { agents: { list: [] } }
   }
@@ -89,20 +91,19 @@ function saveOpenClawConfig(config: any): void {
 
 function upsertOpenClawAgentConfig(agentId: string, workspacePath: string, agentDir: string, skills: string[]) {
   const config = loadOpenClawConfig()
-  if (!config.agents) config.agents = {}
-  if (!Array.isArray(config.agents.list)) config.agents.list = []
-  let existingIndex = config.agents.list.findIndex((agent: any) => agent.id === agentId && agent.workspace === workspacePath)
+  const agentList = materializeDashboardAgentList(config)
+  let existingIndex = agentList.findIndex((agent: any) => agent.id === agentId && agent.workspace === workspacePath)
   if (existingIndex === -1) {
-    existingIndex = config.agents.list.findIndex((agent: any) => {
+    existingIndex = agentList.findIndex((agent: any) => {
       const workspace = String(agent.workspace || '')
       return agent.id === agentId && workspace && workspacePath.startsWith(workspace)
     })
   }
   if (existingIndex === -1) {
-    existingIndex = config.agents.list.findIndex((agent: any) => agent.id === agentId)
+    existingIndex = agentList.findIndex((agent: any) => agent.id === agentId)
   }
   const next = {
-    ...(existingIndex >= 0 ? config.agents.list[existingIndex] : {}),
+    ...(existingIndex >= 0 ? agentList[existingIndex] : {}),
     id: agentId,
     name: agentId,
     workspace: workspacePath,
@@ -110,8 +111,8 @@ function upsertOpenClawAgentConfig(agentId: string, workspacePath: string, agent
     skills,
   }
 
-  if (existingIndex >= 0) config.agents.list[existingIndex] = next
-  else config.agents.list.push(next)
+  if (existingIndex >= 0) agentList[existingIndex] = next
+  else agentList.push(next)
 
   console.log(`[OpenClaw Transfer] Upserting agent "${agentId}" for workspace "${workspacePath}"`)
   saveOpenClawConfig(config)

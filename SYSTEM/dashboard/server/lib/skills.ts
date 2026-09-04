@@ -5,7 +5,7 @@ import matter from 'gray-matter'
 import { execFileSync } from 'child_process'
 import { getGatewayClient } from './gateway-rpc'
 import { getWorkspacePath } from './workspace'
-import { writeDashboardManagedOpenClawConfig } from './openclaw-config'
+import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { REPO_ROOT } from './paths'
 import { resetAgentSessionsForModelChange } from './agent-model'
 
@@ -828,9 +828,7 @@ function findAgentRecordIndexForSkillSync(config: any, agentId: string, activeWo
 
 export function syncAssignedSkillGuidanceForAgent(agentId: string, options: { agentWorkspaceDir?: string } = {}): boolean {
   const config = loadOpenClawConfig()
-  if (!config.agents || !config.agents.list) {
-    return false
-  }
+  const agentList = materializeDashboardAgentList(config)
 
   const activeWorkspaceAgentDir = options.agentWorkspaceDir
     || path.join(getWorkspacePath(), 'AGENTS', agentId)
@@ -839,7 +837,7 @@ export function syncAssignedSkillGuidanceForAgent(agentId: string, options: { ag
     return false
   }
 
-  const targetAgentRecord = config.agents.list[agentIndex]
+  const targetAgentRecord = agentList[agentIndex]
   const targetWorkspaceDir = typeof targetAgentRecord.workspace === 'string' && targetAgentRecord.workspace.trim()
     ? targetAgentRecord.workspace
     : activeWorkspaceAgentDir
@@ -1624,9 +1622,7 @@ export function getAgentSkills(agentId: string): string[] {
 export function setAgentSkills(agentId: string, skillIds: string[]): void {
   try {
     const config = loadOpenClawConfig()
-    if (!config.agents || !config.agents.list) {
-      throw new Error('Invalid openclaw.json structure')
-    }
+    const agentList = materializeDashboardAgentList(config)
 
     const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
     const agentIndex = findAgentRecordIndexForSkillSync(config, agentId, activeWorkspaceAgentDir)
@@ -1635,7 +1631,7 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
     }
 
     const normalizedSkillIds = Array.from(new Set(skillIds))
-    const targetAgentRecord = config.agents.list[agentIndex]
+    const targetAgentRecord = agentList[agentIndex]
     const targetWorkspaceDir = typeof targetAgentRecord.workspace === 'string' && targetAgentRecord.workspace.trim()
       ? targetAgentRecord.workspace
       : activeWorkspaceAgentDir
@@ -1656,18 +1652,17 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
       return
     }
 
-    config.agents.list[agentIndex] = {
+    agentList[agentIndex] = {
       ...targetAgentRecord,
       skills: normalizedSkillIds,
     }
 
     // Stamp metadata (critical for OpenClaw compatibility)
-    const now = new Date().toISOString()
     config.meta = {
       ...config.meta,
       lastTouchedVersion: 'dashboard-0.1.0',
-      lastTouchedAt: now
     }
+    delete config.meta.lastTouchedAt
 
     saveOpenClawConfig(config)
     syncAgentToolsAssignedSkills(targetWorkspaceDir, normalizedSkillIds)
@@ -1842,7 +1837,9 @@ function findOpenClawConfigPath(): string {
     if (fs.existsSync(candidate)) {
       try {
         const content = JSON.parse(fs.readFileSync(candidate, 'utf-8'))
-        const count = content.agents?.list?.length || 0
+        const count = Array.isArray(content.agents?.list)
+          ? content.agents.list.length
+          : Object.keys(content.agents?.entries || {}).length
         if (count > bestCount) {
           bestCount = count
           bestPath = candidate
@@ -1860,17 +1857,14 @@ function findOpenClawConfigPath(): string {
   return path.join(home, '.openclaw', 'openclaw.json')
 }
 
-const OPENCLAW_CONFIG_PATH = findOpenClawConfigPath()
-
 /**
  * Load openclaw.json configuration
  */
 function loadOpenClawConfig(): OpenClawConfig {
   try {
-    const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
+    const content = fs.readFileSync(findOpenClawConfigPath(), 'utf-8')
     const parsed = JSON.parse(content || '{}')
-    if (!parsed.agents || typeof parsed.agents !== 'object') parsed.agents = {}
-    if (!Array.isArray(parsed.agents.list)) parsed.agents.list = []
+    materializeDashboardAgentList(parsed)
     return parsed
   } catch (err) {
     console.error('Error loading openclaw.json:', err)
@@ -1896,11 +1890,12 @@ function saveOpenClawConfig(config: OpenClawConfig): void {
     saveOpenClawConfigDeprecationWarned = true
   }
   try {
+    const configPath = findOpenClawConfigPath()
     // Create backup before saving
-    const backupPath = `${OPENCLAW_CONFIG_PATH}.bak`
-    fs.copyFileSync(OPENCLAW_CONFIG_PATH, backupPath)
+    const backupPath = `${configPath}.bak`
+    fs.copyFileSync(configPath, backupPath)
 
-    writeDashboardManagedOpenClawConfig(OPENCLAW_CONFIG_PATH, config, 'setAgentSkills')
+    writeDashboardManagedOpenClawConfig(configPath, config, 'setAgentSkills')
 
     if (!saveOpenClawConfigDeprecatedPathLogged) {
       console.log('Successfully saved openclaw.json (DEPRECATED PATH)')

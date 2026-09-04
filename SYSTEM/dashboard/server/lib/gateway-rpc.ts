@@ -3,10 +3,14 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { randomUUID } from 'crypto'
-import { execSync } from 'child_process'
+import { execFile, execSync } from 'child_process'
+import { promisify } from 'util'
 import { safeEnv } from './safe-env'
+import { materializeDashboardAgentList } from './openclaw-config'
+import { resolveOpenClawCliPath } from './openclaw-cli'
 
 export const GATEWAY_PROTOCOL_VERSION = 4
+const execFileAsync = promisify(execFile)
 
 interface GatewayConfig {
   port: number
@@ -17,6 +21,15 @@ interface GatewayConfig {
     mode: string
     token: string
   }
+}
+
+interface GatewayAgentRegistration {
+  id: string
+  name: string
+  workspace: string
+  agentDir: string
+  model?: string
+  skills?: string[]
 }
 
 function getGatewayOrigin(config: GatewayConfig): string {
@@ -84,6 +97,67 @@ function loadGatewayConfigFromDisk(): GatewayConfig | null {
   }
 }
 
+function buildGatewayCliCallArgs(method: string, params?: any, timeoutMs = 120000): string[] {
+  const args = ['gateway', 'call', method, '--json', '--timeout', String(timeoutMs)]
+  if (params !== undefined) args.push('--params', JSON.stringify(params))
+  return args
+}
+
+function shouldFallbackConfigCallToCli(error: unknown): boolean {
+  const message = String((error as any)?.message || error || '')
+  return /missing scope:|Gateway RPC timeout|Gateway WebSocket error|Gateway connection closed/i.test(message)
+}
+
+function parseGatewayCliOutput(output: unknown): any | null {
+  const text = Buffer.isBuffer(output) ? output.toString('utf-8') : String(output || '')
+  if (!text.trim()) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+function isPersistedConfigPatchRestartOutcome(method: string, result: any): boolean {
+  return method === 'config.patch'
+    && result?.ok === false
+    && result?.error?.type === 'gateway_request_error'
+    && result?.error?.code === 'UNAVAILABLE'
+    && /config\.patch persisted and updated the active Gateway, but a recovery restart is required/i.test(
+      String(result?.error?.message || ''),
+    )
+}
+
+function isGatewayCliClosedTransportOutcome(result: any): boolean {
+  return result?.ok === false
+    && result?.error?.type === 'gateway_transport_error'
+    && result?.error?.kind === 'closed'
+    && /ECONNREFUSED|not reachable/i.test(
+      `${String(result?.error?.message || '')} ${String(result?.error?.reason || '')}`,
+    )
+}
+
+function isGatewayCliOpeningHandshakeTimeoutOutcome(result: any): boolean {
+  return result?.ok === false
+    && result?.error?.type === 'cli_error'
+    && /opening handshake has timed out/i.test(String(result?.error?.message || ''))
+}
+
+async function retryGatewayCliOpeningHandshake<T>(operation: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  let lastError: any
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await operation()
+    } catch (err: any) {
+      lastError = err
+      const result = err?.gatewayCliResult || parseGatewayCliOutput(err?.stdout)
+      if (!isGatewayCliOpeningHandshakeTimeoutOutcome(result) || attempt === maxAttempts) throw err
+      await new Promise(resolve => setTimeout(resolve, attempt * 1000))
+    }
+  }
+  throw lastError
+}
+
 export const __test = {
   parseGatewayConfig,
   normalizeGatewayHttpUrl,
@@ -92,6 +166,12 @@ export const __test = {
   GATEWAY_PROTOCOL_VERSION,
   buildGatewayProbeClient,
   buildGatewayProbeConnectParams,
+  buildGatewayCliCallArgs,
+  shouldFallbackConfigCallToCli,
+  parseGatewayCliOutput,
+  isPersistedConfigPatchRestartOutcome,
+  isGatewayCliClosedTransportOutcome,
+  isGatewayCliOpeningHandshakeTimeoutOutcome,
 }
 
 function buildGatewayProbeClient() {
@@ -215,7 +295,7 @@ export class GatewayRPCClient {
             caps: [],
             auth: { token: this.authToken },
             role: 'operator',
-            scopes: ['operator.admin']
+            scopes: ['operator.read', 'operator.admin']
           }
         }
         ws.send(JSON.stringify(connectMessage))
@@ -294,6 +374,90 @@ export class GatewayRPCClient {
     })
   }
 
+  private async callConfig<T = any>(method: string, params?: any): Promise<T> {
+    try {
+      return await this.call<T>(method, params)
+    } catch (err: any) {
+      if (!shouldFallbackConfigCallToCli(err)) throw err
+
+      // OpenClaw 2.0.2 limits token-only WebSocket clients even when they ask
+      // for operator scopes. Its own CLI supplies the paired device identity,
+      // so use that canonical transport for config methods only.
+      const cliPath = resolveOpenClawCliPath()
+      if (!cliPath) throw err
+      const runCliCall = async (): Promise<T> => {
+        let result: any
+        try {
+          const { stdout } = await execFileAsync(cliPath, buildGatewayCliCallArgs(method, params), {
+            encoding: 'utf-8',
+            env: safeEnv(),
+            maxBuffer: 10 * 1024 * 1024,
+          })
+          result = parseGatewayCliOutput(stdout) || {}
+        } catch (cliError: any) {
+          result = parseGatewayCliOutput(cliError?.stdout)
+          if (isPersistedConfigPatchRestartOutcome(method, result)) {
+            return { ok: true, restartRequired: true } as T
+          }
+          cliError.gatewayCliResult = result
+          throw cliError
+        }
+        if (result?.ok === false) {
+          throw new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
+        }
+        return result as T
+      }
+
+      try {
+        return await retryGatewayCliOpeningHandshake(runCliCall)
+      } catch (cliError: any) {
+        if (isGatewayCliClosedTransportOutcome(cliError?.gatewayCliResult)) {
+          const recovered = await waitForGatewayResponsive(120000, 500)
+          if (recovered.running) return await runCliCall()
+        }
+        throw cliError
+      }
+    }
+  }
+
+  /**
+   * Agent lifecycle mutations can legitimately take longer than the generic
+   * WebSocket client's 30-second request window on large rosters. Use the
+   * paired OpenClaw CLI so the connection is established before OpenClaw
+   * mutates and reloads its own roster.
+   */
+  private async callAgentLifecycle<T = any>(method: 'agents.create' | 'agents.update' | 'agents.delete', params: any): Promise<T> {
+    const cliPath = resolveOpenClawCliPath()
+    if (!cliPath) throw new Error('OpenClaw CLI is unavailable for native agent lifecycle')
+
+    const runCliCall = async (): Promise<T> => {
+      try {
+        const { stdout } = await execFileAsync(cliPath, buildGatewayCliCallArgs(method, params, 180000), {
+          encoding: 'utf-8',
+          env: safeEnv(),
+          maxBuffer: 10 * 1024 * 1024,
+        })
+        const result = parseGatewayCliOutput(stdout) || {}
+        if (result?.ok === false) {
+          const failure: any = new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
+          failure.gatewayCliResult = result
+          throw failure
+        }
+        return result as T
+      } catch (err: any) {
+        const result = err?.gatewayCliResult || parseGatewayCliOutput(err?.stdout)
+        if (result?.ok === false && !err?.gatewayCliResult) {
+          const failure: any = new Error(result?.error?.message || result?.error || `OpenClaw CLI ${method} failed`)
+          failure.gatewayCliResult = result
+          throw failure
+        }
+        throw err
+      }
+    }
+
+    return await retryGatewayCliOpeningHandshake(runCliCall)
+  }
+
   /**
    * Update agent skills via Gateway RPC
    * Uses config.patch with merge patch algorithm to update agent skills array
@@ -301,23 +465,20 @@ export class GatewayRPCClient {
   async updateAgentSkills(agentId: string, skills: string[]): Promise<void> {
     try {
       // Get current config to obtain the baseHash for optimistic locking
-      const configData = await this.call('config.get')
+      const configData = await this.callConfig('config.get')
       const baseHash = configData.hash
 
       // Use config.patch to update the agent's skills array
       // The merge patch algorithm will find the agent by ID and update only the skills field
       const patch = {
         agents: {
-          list: [
-            {
-              id: agentId,
-              skills
-            }
-          ]
+          entries: {
+            [agentId]: { skills },
+          },
         }
       }
 
-      await this.call('config.patch', {
+      await this.callConfig('config.patch', {
         raw: JSON.stringify(patch),
         baseHash
       })
@@ -333,7 +494,7 @@ export class GatewayRPCClient {
    */
   async patchConfig(patch: any): Promise<void> {
     try {
-      await this.call('config.patch', {
+      await this.callConfig('config.patch', {
         raw: JSON.stringify(patch)
       })
     } catch (err: any) {
@@ -348,16 +509,24 @@ export class GatewayRPCClient {
    */
   async getConfig(): Promise<any> {
     try {
-      return await this.call('config.get')
+      return await this.callConfig('config.get')
     } catch (err: any) {
       console.error(`Gateway RPC config.get failed:`, err)
       throw new Error(`Failed to get config via gateway: ${err.message}`)
     }
   }
 
+  async reloadSecrets(): Promise<void> {
+    try {
+      await this.callConfig('secrets.reload')
+    } catch (err: any) {
+      throw new Error(`Failed to reload secrets via gateway: ${err.message}`)
+    }
+  }
+
   /**
    * Register a new agent via config.patch
-   * Uses merge patch algorithm to append to agents.list array
+   * Uses merge patch to add a canonical keyed agent entry.
    */
   async registerAgent(agent: {
     id: string
@@ -372,7 +541,7 @@ export class GatewayRPCClient {
       const configData = await this.getConfig()
       const config = configData.resolved || configData.config
       const baseHash = configData.hash
-      const agentsList = config.agents?.list || []
+      const agentsList = materializeDashboardAgentList(config)
 
       // Check if agent already exists
       if (agentsList.find((a: any) => a.id === agent.id)) {
@@ -389,21 +558,136 @@ export class GatewayRPCClient {
       if (agent.model) newAgent.model = agent.model
       if (agent.skills) newAgent.skills = agent.skills
 
-      // Use config.patch to append the new agent
-      // Merge patch algorithm will append to the list array
+      agentsList.push(newAgent)
+
+      // Keyed entries are independently merge-patchable in OpenClaw 2.0.2.
+      // Keep the payload scoped so large installations do not exceed CLI argv limits.
       const patch = {
         agents: {
-          list: [...agentsList, newAgent]
+          entries: {
+            [agent.id]: Object.fromEntries(Object.entries(newAgent).filter(([key]) => key !== 'id')),
+          },
         }
       }
 
-      await this.call('config.patch', {
+      await this.callConfig('config.patch', {
         raw: JSON.stringify(patch),
         baseHash
       })
     } catch (err: any) {
       console.error(`Gateway RPC registerAgent failed:`, err)
       throw new Error(`Failed to register agent via gateway: ${err.message}`)
+    }
+  }
+
+  /**
+   * Create or replace an agent registration in the Gateway's live config.
+   *
+   * Template imports may intentionally reuse an agent id for a different
+   * workspace. Going through config.patch ensures the running Gateway reloads
+   * that registration instead of leaving its in-memory roster stale after a
+   * direct config-file write.
+   */
+  async upsertAgent(agent: GatewayAgentRegistration): Promise<void> {
+    await this.upsertAgents([agent])
+  }
+
+  /**
+   * Provision agents through OpenClaw's native lifecycle, then apply the
+   * fields its closed create/update schema does not accept in one guarded
+   * patch. This keeps per-agent skill allowlists intact without racing a
+   * filesystem-triggered roster reload.
+   */
+  async upsertAgentsNative(agents: GatewayAgentRegistration[]): Promise<void> {
+    try {
+      if (agents.length === 0) return
+      const initialConfigData = await this.getConfig()
+      const initialConfig = initialConfigData.resolved || initialConfigData.config || {}
+      const configuredIds = new Set(materializeDashboardAgentList(initialConfig).map((entry: any) => entry.id))
+
+      for (const agent of agents) {
+        const model = agent.model?.trim() || undefined
+        if (configuredIds.has(agent.id)) {
+          await this.callAgentLifecycle('agents.update', {
+            agentId: agent.id,
+            name: agent.name,
+            workspace: agent.workspace,
+            ...(model ? { model } : {}),
+          })
+        } else {
+          const created = await this.callAgentLifecycle<{ agentId?: string }>('agents.create', {
+            name: agent.id,
+            workspace: agent.workspace,
+            ...(model ? { model } : {}),
+          })
+          if (created.agentId !== agent.id) {
+            throw new Error(`OpenClaw created agent ${created.agentId || 'unknown'} instead of ${agent.id}`)
+          }
+          configuredIds.add(agent.id)
+        }
+      }
+
+      const configData = await this.getConfig()
+      const baseHash = configData.hash
+      const supplementalEntries: Record<string, any> = {}
+      for (const agent of agents) {
+        supplementalEntries[agent.id] = {
+          agentDir: agent.agentDir,
+          ...(agent.skills ? { skills: Array.from(new Set(agent.skills)) } : {}),
+        }
+      }
+      await this.callConfig('config.patch', {
+        raw: JSON.stringify({ agents: { entries: supplementalEntries } }),
+        baseHash,
+      })
+    } catch (err: any) {
+      console.error('Gateway native agent lifecycle failed:', err)
+      throw new Error(`Failed to synchronize agent${agents.length === 1 ? '' : 's'} through native OpenClaw lifecycle: ${err.message}`)
+    }
+  }
+
+  /** Remove a live agent registration while allowing OpenClaw to close its SQLite handles. */
+  async deleteAgentNative(agentId: string): Promise<'deleted' | 'not-found'> {
+    try {
+      await this.callAgentLifecycle('agents.delete', { agentId, deleteFiles: false })
+      return 'deleted'
+    } catch (err: any) {
+      if (/agent .* not found|unknown agent/i.test(String(err?.message || err || ''))) return 'not-found'
+      throw err
+    }
+  }
+
+  /** Synchronize multiple registrations in one patch and one Gateway restart. */
+  async upsertAgents(agents: GatewayAgentRegistration[]): Promise<void> {
+    try {
+      if (agents.length === 0) return
+      const configData = await this.getConfig()
+      const config = configData.resolved || configData.config || {}
+      const baseHash = configData.hash
+      const agentsList = materializeDashboardAgentList(config)
+      const keyedEntries: Record<string, any> = {}
+
+      for (const agent of agents) {
+        const existing = agentsList.find((entry: any) => entry.id === agent.id)
+        const entry: any = {
+          ...(existing || {}),
+          id: agent.id,
+          name: agent.name,
+          workspace: agent.workspace,
+          agentDir: agent.agentDir,
+        }
+        if (agent.model) entry.model = agent.model
+        if (agent.skills) entry.skills = agent.skills
+        keyedEntries[agent.id] = Object.fromEntries(Object.entries(entry).filter(([key]) => key !== 'id'))
+      }
+
+      await this.callConfig('config.patch', {
+        raw: JSON.stringify({ agents: { entries: keyedEntries } }),
+        baseHash,
+      })
+    } catch (err: any) {
+      console.error('Gateway RPC upsertAgents failed:', err)
+      throw new Error(`Failed to synchronize agent${agents.length === 1 ? '' : 's'} via gateway: ${err.message}`)
     }
   }
 }
@@ -456,6 +740,14 @@ export function isGatewayRunning(): { running: boolean; port: number | null } {
   } catch {
     return { running: false, port }
   }
+}
+
+export function shouldTreatGatewayAsRunning(responsive: boolean, processRunning: boolean): boolean {
+  // OpenClaw 2026.8.2 refuses `agent --local` whenever this state directory already owns a
+  // Gateway process. A temporarily busy Gateway can miss the authenticated readiness deadline, so
+  // process ownership is sufficient to keep execution on the Gateway path instead of issuing a
+  // local command that the CLI will reject before the model runs.
+  return responsive || processRunning
 }
 
 export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ running: boolean; port: number | null; error?: string }> {

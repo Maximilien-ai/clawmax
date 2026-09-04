@@ -8,7 +8,7 @@ import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessage
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { listWorkflows, resolveParticipants, deleteWorkflow } from '../lib/workflows'
 import { getConfiguredDashboardInstanceId, traceAgentChat } from '../lib/opik'
-import { isGatewayConfigured, waitForGatewayResponsive } from '../lib/gateway-rpc'
+import { isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { deleteTeams, listTeams } from '../lib/teams'
 import { findImpactedTopLevelTeamsForCommunityDelete } from '../lib/organization-delete'
 import {
@@ -418,7 +418,10 @@ export async function callAgent(
       resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'
     )
       ? false
-      : (await waitForGatewayResponsive()).running
+      : shouldTreatGatewayAsRunning(
+          (await waitForGatewayResponsive()).running,
+          isGatewayRunning().running,
+        )
     const useLocal = !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
     const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
     const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)

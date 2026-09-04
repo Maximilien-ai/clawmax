@@ -94,7 +94,7 @@ async function run() {
     assert(!fs.existsSync(path.join(tmpHome, '.openclaw', 'agents', agentId)), 'Expected shared ~/.openclaw agent dir to be removed')
 
     const config = JSON.parse(fs.readFileSync(openclawConfigPath, 'utf-8'))
-    const stillPresent = (config.agents?.list || []).some((agent: any) => agent.id === agentId)
+    const stillPresent = Boolean(config.agents?.entries?.[agentId])
     assert(!stillPresent, 'Expected agent entry to be removed from openclaw.json')
   })
 
@@ -137,9 +137,9 @@ async function run() {
     assert(fs.existsSync(sharedRootDir), 'Expected shared runtime preserved for remaining workspace copy')
 
     const config = JSON.parse(fs.readFileSync(multiConfigPath, 'utf-8'))
-    const remaining = (config.agents?.list || []).filter((agent: any) => agent.id === duplicateId)
-    assert(remaining.length === 1, `Expected one duplicate entry to remain, got ${remaining.length}`)
-    assert(remaining[0].workspace === otherAgentDir, 'Expected other workspace entry to remain registered')
+    const remaining = config.agents?.entries?.[duplicateId]
+    assert(remaining, 'Expected one keyed agent entry to remain')
+    assert(remaining.workspace === otherAgentDir, 'Expected other workspace entry to remain registered')
   })
 
   await test('parseGroups supports agent membership files that use ## entry headings', () => {

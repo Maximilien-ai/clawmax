@@ -4,7 +4,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
-import { waitForGatewayResponsive } from '../lib/gateway-rpc'
+import { isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
@@ -15,6 +15,7 @@ import { getAgentSkills, getAssignedSkillPromptNotes, getSkillById } from '../li
 import { executeClawmaxResendSend } from '../lib/clawmax-resend-command'
 import {
   deriveWorkspaceRootFromAgentWorkspace,
+  hasReadyOpenClawNativeAgentStore,
   providerFromModel,
   readLatestAssistantUsageFromPersistedSession,
   readLatestAssistantTextFromPersistedSession,
@@ -246,6 +247,15 @@ export function shouldUseManagedSecretStatelessChatSession(_input: {
   // Normal dashboard chat must preserve a stable session so replies and history
   // can be recovered consistently from the same explicit/local session path.
   return false
+}
+
+export function shouldRetryViaGatewayAfterLocalCollision(input: {
+  useLocal: boolean
+  provider?: ChatProvider
+  rawError: string
+}): boolean {
+  if (!input.useLocal || input.provider === 'ollama' || input.provider === 'openai-compatible') return false
+  return /Gateway is running for this state directory/i.test(input.rawError)
 }
 
 export function shouldRecoverPersistedAssistant(normalizedText: string): boolean {
@@ -613,6 +623,8 @@ function evaluateChatExecutionReadiness(
 function persistDashboardChatSession(agentId: string, sessionId: string) {
   try {
     const homeDir = process.env.HOME || ''
+    const nativeStorePath = path.join(homeDir, '.openclaw', 'agents', agentId, 'agent', 'openclaw-agent.sqlite')
+    if (hasReadyOpenClawNativeAgentStore(nativeStorePath)) return
     const sessionKey = `agent:${agentId}:dashboard-chat`
     const resolvedSessionId = resolvePersistedAgentSessionId(agentId, sessionKey, sessionId, homeDir) || sessionId
     const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
@@ -810,7 +822,10 @@ router.post('/:id/chat', async (req, res) => {
         resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'
       )
       ? false
-      : (await waitForGatewayResponsive()).running
+      : shouldTreatGatewayAsRunning(
+          (await waitForGatewayResponsive()).running,
+          isGatewayRunning().running,
+        )
 
   const useLocal = isNonOpenclawChatRuntime(resolvedAgent.runtime)
     ? false
@@ -1008,7 +1023,11 @@ router.post('/:id/chat', async (req, res) => {
     } else {
       const openclawCli = resolveOpenClawCliPath()
 
-      const runChatAttempt = async (attemptModel: string | undefined, attemptProvider: ChatProvider | undefined) => {
+      const runChatAttempt = async (
+        attemptModel: string | undefined,
+        attemptProvider: ChatProvider | undefined,
+        forceGateway = false,
+      ) => {
         const attemptSessionSeed = buildDashboardChatRetrySeed(sessionSeed, chatSessionRetryAttempt)
         const executionSessionId = scopeSessionIdToModel(
           attemptSessionSeed,
@@ -1023,7 +1042,7 @@ router.post('/:id/chat', async (req, res) => {
           '--session-id', executionSessionId,
           '--message', executionMessage,
           ...(attemptExecutionModel ? ['--model', attemptExecutionModel] : []),
-          ...(attemptUseOpenAiCompatible || attemptProvider === 'ollama' ? ['--local'] : (useLocal ? ['--local'] : [])),
+          ...(forceGateway ? [] : (attemptUseOpenAiCompatible || attemptProvider === 'ollama' || useLocal ? ['--local'] : [])),
         ]
         console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
 
@@ -1243,7 +1262,24 @@ router.post('/:id/chat', async (req, res) => {
       }
 
       await runExclusiveAgentExecution(id, async () => {
-        const primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
+        let primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
+        if (shouldRetryViaGatewayAfterLocalCollision({
+          useLocal,
+          provider: resolvedAgent.provider,
+          rawError: primaryResult.rawError,
+        })) {
+          console.warn(`[Chat Route] Gateway claimed state ownership during local startup; retrying agent ${id} through the Gateway`)
+          // OpenClaw 2.0.2 acquires its state lock before initializing every
+          // agent database. A large real-world roster has taken ~103 seconds
+          // from process start to `ready`, so a 30-second retry window can
+          // expire while the owner is healthy but still booting.
+          const gatewayReady = await waitForGatewayResponsive(120000, 1000)
+          if (gatewayReady.running) {
+            primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
+          } else {
+            console.warn(`[Chat Route] Gateway did not become ready for retry: ${gatewayReady.error || 'unknown readiness failure'}`)
+          }
+        }
         throwIfChatAttemptNeedsSessionRetry(primaryResult)
         const fallbackModel = resolvedAgent.backupModel
         const fallbackProvider = resolvedAgent.backupProvider

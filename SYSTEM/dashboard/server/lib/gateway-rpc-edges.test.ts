@@ -110,6 +110,96 @@ test('gateway probe connect params preserve protocol version and read-only opera
   assert(params.client.id === 'openclaw-dashboard', 'Expected dashboard probe client id')
 })
 
+test('gateway CLI config calls serialize params without shell interpolation', () => {
+  const args = __test.buildGatewayCliCallArgs('config.patch', {
+    raw: JSON.stringify({ agents: { entries: { lead: { workspace: '/tmp/lead' } } } }),
+    baseHash: 'hash-1',
+  })
+
+  assert(args.slice(0, 6).join(' ') === 'gateway call config.patch --json --timeout 120000', 'Expected canonical gateway call arguments')
+  assert(args[6] === '--params', 'Expected params flag')
+  assert(JSON.parse(args[7]).baseHash === 'hash-1', 'Expected params to be serialized as one argv value')
+})
+
+test('gateway CLI lifecycle calls can extend the bounded timeout', () => {
+  const args = __test.buildGatewayCliCallArgs('agents.create', { name: 'agent-1' }, 180000)
+  assert(args.slice(0, 6).join(' ') === 'gateway call agents.create --json --timeout 180000', 'Expected lifecycle timeout override')
+  assert(JSON.parse(args[7]).name === 'agent-1', 'Expected lifecycle params to remain one argv value')
+})
+
+test('config RPC falls back only for scope and transport failures', () => {
+  assert(__test.shouldFallbackConfigCallToCli(new Error('missing scope: operator.read')), 'Expected scope rejection to use paired CLI')
+  assert(__test.shouldFallbackConfigCallToCli(new Error('Gateway RPC timeout for method: config.get')), 'Expected RPC timeout to use paired CLI')
+  assert(__test.shouldFallbackConfigCallToCli(new Error('Gateway WebSocket error: ECONNREFUSED')), 'Expected WebSocket failure to use paired CLI')
+  assert(!__test.shouldFallbackConfigCallToCli(new Error('invalid agent model')), 'Expected application errors not to be retried through CLI')
+})
+
+test('gateway CLI output parsing accepts strings and buffers without masking invalid output', () => {
+  assert(__test.parseGatewayCliOutput('{"ok":true}')?.ok === true, 'Expected string output to parse')
+  assert(__test.parseGatewayCliOutput(Buffer.from('{"hash":"abc"}'))?.hash === 'abc', 'Expected buffer output to parse')
+  assert(__test.parseGatewayCliOutput('not json') === null, 'Expected invalid JSON to remain unparsed')
+})
+
+test('only persisted config.patch recovery restarts are treated as successful writes', () => {
+  const persistedRestart = {
+    ok: false,
+    error: {
+      type: 'gateway_request_error',
+      code: 'UNAVAILABLE',
+      message: 'config.patch persisted and updated the active Gateway, but a recovery restart is required; wait for the Gateway to restart',
+    },
+  }
+
+  assert(__test.isPersistedConfigPatchRestartOutcome('config.patch', persistedRestart), 'Expected exact persisted restart response to be accepted')
+  assert(!__test.isPersistedConfigPatchRestartOutcome('config.get', persistedRestart), 'Expected non-patch method to fail')
+  assert(!__test.isPersistedConfigPatchRestartOutcome('config.patch', {
+    ...persistedRestart,
+    error: { ...persistedRestart.error, message: 'Gateway unavailable before config.patch persisted' },
+  }), 'Expected an ordinary unavailable response to fail')
+})
+
+test('only closed CLI transport responses qualify for a Gateway recovery wait', () => {
+  const closedTransport = {
+    ok: false,
+    error: {
+      type: 'gateway_transport_error',
+      kind: 'closed',
+      message: 'Gateway not reachable at ws://127.0.0.1:18789 (ECONNREFUSED).',
+      reason: 'connect ECONNREFUSED 127.0.0.1:18789',
+    },
+  }
+
+  assert(__test.isGatewayCliClosedTransportOutcome(closedTransport), 'Expected closed refused transport to trigger recovery wait')
+  assert(!__test.isGatewayCliClosedTransportOutcome({
+    ...closedTransport,
+    error: { ...closedTransport.error, type: 'gateway_request_error' },
+  }), 'Expected request failures not to trigger a transport recovery wait')
+  assert(!__test.isGatewayCliClosedTransportOutcome({
+    ...closedTransport,
+    error: { ...closedTransport.error, kind: 'timeout', message: 'Gateway request timed out' },
+  }), 'Expected non-closed transport failures not to trigger this recovery wait')
+})
+
+test('only OpenClaw CLI opening-handshake timeouts qualify for lifecycle retry', () => {
+  const openingTimeout = {
+    ok: false,
+    error: {
+      type: 'cli_error',
+      message: 'Opening handshake has timed out',
+    },
+  }
+
+  assert(__test.isGatewayCliOpeningHandshakeTimeoutOutcome(openingTimeout), 'Expected opening handshake timeout to be retried')
+  assert(!__test.isGatewayCliOpeningHandshakeTimeoutOutcome({
+    ...openingTimeout,
+    error: { ...openingTimeout.error, type: 'gateway_request_error' },
+  }), 'Expected non-CLI errors not to use handshake retry')
+  assert(!__test.isGatewayCliOpeningHandshakeTimeoutOutcome({
+    ...openingTimeout,
+    error: { ...openingTimeout.error, message: 'Agent model is invalid' },
+  }), 'Expected application failures not to use handshake retry')
+})
+
 setTimeout(() => {
   console.log(`\nPassed: ${testsPassed}`)
   console.log(`Failed: ${testsFailed}`)

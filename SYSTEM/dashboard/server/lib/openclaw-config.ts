@@ -1,19 +1,68 @@
 import fs from 'fs'
 import path from 'path'
 
+function isRecord(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+export function materializeDashboardAgentList(config: any): any[] {
+  if (!isRecord(config)) {
+    throw new Error('OpenClaw config must be an object')
+  }
+  if (!isRecord(config.agents)) config.agents = {}
+  if (Array.isArray(config.agents.list)) return config.agents.list
+
+  const entries = isRecord(config.agents.entries) ? config.agents.entries : {}
+  const list = Object.entries(entries).flatMap(([id, entry]) => {
+    if (!isRecord(entry)) return []
+    const { id: _retiredId, ...rest } = entry
+    return [{ id, ...rest }]
+  })
+  config.agents.list = list
+  return list
+}
+
+export function canonicalizeDashboardAgentRoster(config: any): boolean {
+  if (!isRecord(config)) {
+    throw new Error('OpenClaw config must be an object')
+  }
+  if (!isRecord(config.agents)) config.agents = {}
+  const agents = config.agents
+  if (!Array.isArray(agents.list)) return false
+
+  const entries: Record<string, any> = Object.create(null)
+  for (const item of agents.list) {
+    if (!isRecord(item)) {
+      throw new Error('OpenClaw agent roster entries must be objects')
+    }
+    const id = item.id
+    if (typeof id !== 'string' || !id || id.trim() !== id) {
+      throw new Error('OpenClaw agent roster entries require a non-empty, trimmed id')
+    }
+    const { id: _id, backupModel: _backupModel, ...entry } = item
+    // OpenClaw 2 keys the roster by id, so legacy duplicates cannot survive.
+    // Match the upstream migration's object-assignment behavior: the last
+    // record wins, which favors the most recently appended workspace record.
+    entries[id] = entry
+  }
+
+  delete agents.list
+  agents.entries = entries
+  return true
+}
+
 export function stampDashboardMetadata(config: any): any {
-  const now = new Date().toISOString()
   config.meta = {
     ...(config.meta || {}),
     lastTouchedVersion: 'dashboard-0.1.0',
-    lastTouchedAt: now,
   }
+  delete config.meta.lastTouchedAt
   return config
 }
 
 export function stripUnsupportedDashboardAgentKeys(config: any): boolean {
-  const agentList = config?.agents?.list
-  if (!Array.isArray(agentList)) return false
+  if (!isRecord(config)) return false
+  const agentList = materializeDashboardAgentList(config)
 
   let changed = false
   for (let index = 0; index < agentList.length; index++) {
@@ -23,6 +72,24 @@ export function stripUnsupportedDashboardAgentKeys(config: any): boolean {
     const nextEntry = { ...entry }
     delete nextEntry.backupModel
     agentList[index] = nextEntry
+    changed = true
+  }
+
+  return changed
+}
+
+export function normalizeDashboardOpenClaw2Config(config: any): boolean {
+  if (!isRecord(config)) return false
+
+  let changed = false
+  const agentList = materializeDashboardAgentList(config)
+  if (agentList.length > 1 && config.agents.ownership !== 'explicit') {
+    config.agents.ownership = 'explicit'
+    changed = true
+  }
+
+  if (isRecord(config.commands) && Object.prototype.hasOwnProperty.call(config.commands, 'ownerDisplay')) {
+    delete config.commands.ownerDisplay
     changed = true
   }
 
@@ -71,7 +138,9 @@ export function writeDashboardManagedOpenClawConfig(
   }
 
   stripUnsupportedDashboardAgentKeys(nextConfig)
+  normalizeDashboardOpenClaw2Config(nextConfig)
   stampDashboardMetadata(nextConfig)
+  canonicalizeDashboardAgentRoster(nextConfig)
   fs.writeFileSync(configPath, JSON.stringify(nextConfig, null, 2), 'utf-8')
 }
 
@@ -81,7 +150,12 @@ export function healDashboardManagedOpenClawConfig(configPath: string, context: 
     if (!current || typeof current !== 'object' || Array.isArray(current)) {
       return { ok: true, changed: false }
     }
-    if (!stripUnsupportedDashboardAgentKeys(current)) {
+    const before = JSON.stringify(current)
+    stripUnsupportedDashboardAgentKeys(current)
+    normalizeDashboardOpenClaw2Config(current)
+    stampDashboardMetadata(current)
+    canonicalizeDashboardAgentRoster(current)
+    if (JSON.stringify(current) === before) {
       return { ok: true, changed: false }
     }
     writeDashboardManagedOpenClawConfig(configPath, current, context)

@@ -21,6 +21,7 @@ const RESET = '\x1b[0m'
 
 let testsPassed = 0
 let testsFailed = 0
+let testQueue = Promise.resolve()
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
@@ -32,19 +33,18 @@ function assertEqual<T>(actual: T, expected: T, message?: string) {
   }
 }
 
-function test(name: string, fn: () => void) {
-  try {
-    fn()
+function test(name: string, fn: () => void | Promise<void>) {
+  testQueue = testQueue.then(fn).then(() => {
     console.log(`${GREEN}✓${RESET} ${name}`)
     testsPassed++
-  } catch (err: any) {
+  }).catch((err: any) => {
     console.log(`${RED}✗${RESET} ${name}`)
     console.log(`  Error: ${err.message}`)
     testsFailed++
-  }
+  })
 }
 
-function withTempWorkspace(name: string, fn: (workspacePath: string) => void) {
+async function withTempWorkspace(name: string, fn: (workspacePath: string) => void | Promise<void>) {
   const originalHome = process.env.HOME
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
@@ -58,7 +58,7 @@ function withTempWorkspace(name: string, fn: (workspacePath: string) => void) {
   resetWorkspaceManagerForTests()
 
   try {
-    fn(workspacePath)
+    await fn(workspacePath)
   } finally {
     if (typeof originalHome === 'undefined') delete process.env.HOME
     else process.env.HOME = originalHome
@@ -200,9 +200,9 @@ function writeGeneratedB2BTemplate(workspacePath: string) {
 
 console.log(`\n${YELLOW}=== Build-a-Company Demo Smoke Tests ===${RESET}\n`)
 
-test('hack-test template imports as a one-agent-per-step company workflow chain', () => {
-  withTempWorkspace('hack-demo-smoke', () => {
-    const result = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'test-' })
+test('hack-test template imports as a one-agent-per-step company workflow chain', async () => {
+  await withTempWorkspace('hack-demo-smoke', async () => {
+    const result = await importOrganizationTemplate('build-a-company-hack-test', { prefix: 'test-' })
     assert(result.ok === true, `Expected import to succeed, got ${result.error || 'unknown error'}`)
 
     const teams = listTeams()
@@ -238,11 +238,11 @@ test('hack-test template imports as a one-agent-per-step company workflow chain'
   })
 })
 
-test('generated B2B company import keeps one root, nested teams, handoffs, and narrow participants', () => {
-  withTempWorkspace('b2b-demo-smoke', (workspacePath) => {
+test('generated B2B company import keeps one root, nested teams, handoffs, and narrow participants', async () => {
+  await withTempWorkspace('b2b-demo-smoke', async (workspacePath) => {
     writeGeneratedB2BTemplate(workspacePath)
 
-    const result = importOrganizationTemplate('generated-b2b-company', { prefix: 'b2b-' })
+    const result = await importOrganizationTemplate('generated-b2b-company', { prefix: 'b2b-' })
     assert(result.ok === true, `Expected import to succeed, got ${result.error || 'unknown error'}`)
 
     const b2bTeams = listTeams().filter((team) => team.id.startsWith('b2b-'))
@@ -276,14 +276,16 @@ test('generated B2B company import keeps one root, nested teams, handoffs, and n
   })
 })
 
-console.log('\n========================================')
-console.log(`Tests passed: ${testsPassed}`)
-console.log(`Tests failed: ${testsFailed}`)
-console.log('========================================\n')
+void testQueue.then(() => {
+  console.log('\n========================================')
+  console.log(`Tests passed: ${testsPassed}`)
+  console.log(`Tests failed: ${testsFailed}`)
+  console.log('========================================\n')
 
-if (testsFailed > 0) {
-  console.log(`${RED}Some tests failed${RESET}`)
-  process.exit(1)
-} else {
-  console.log(`${GREEN}All tests passed${RESET}`)
-}
+  if (testsFailed > 0) {
+    console.log(`${RED}Some tests failed${RESET}`)
+    process.exit(1)
+  } else {
+    console.log(`${GREEN}All tests passed${RESET}`)
+  }
+})

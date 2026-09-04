@@ -8,8 +8,11 @@ Keep ClawMax on a recent, deliberate OpenClaw baseline without letting local dev
 
 ## Current Baseline
 
-- ClawMax release line: `v1.7.3`
-- Tested OpenClaw target: `v2026.5.26`
+- Stable ClawMax release line: `v2.0.0`
+- Main-branch OpenClaw target before the active 2.0 spike: `v2026.6.34`
+- Active compatibility spike target: `v2026.8.1`
+- Spike evidence:
+  - [OPENCLAW_2_0_UPGRADE_FEASIBILITY_2026-09-01.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/OPENCLAW_2_0_UPGRADE_FEASIBILITY_2026-09-01.md)
 - Source of truth:
   - [SYSTEM/openclaw-version.sh](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/openclaw-version.sh)
 
