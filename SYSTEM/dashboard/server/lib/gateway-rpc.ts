@@ -176,11 +176,11 @@ export const __test = {
 
 function buildGatewayProbeClient() {
   return {
-    id: 'openclaw-dashboard',
+    id: 'openclaw-probe',
     displayName: 'Dashboard Probe',
     version: '1.0.0',
     platform: process.platform,
-    mode: 'operator',
+    mode: 'probe',
   }
 }
 

@@ -107,7 +107,8 @@ test('gateway probe connect params preserve protocol version and read-only opera
   assert(params.maxProtocol === __test.GATEWAY_PROTOCOL_VERSION, 'Expected max protocol to match current version')
   assert(params.auth.token === 'secret-token', 'Expected auth token to be passed through')
   assert(Array.isArray(params.scopes) && params.scopes.length === 1 && params.scopes[0] === 'operator.read', 'Expected read-only operator scope')
-  assert(params.client.id === 'openclaw-dashboard', 'Expected dashboard probe client id')
+  assert(params.client.id === 'openclaw-probe', 'Expected canonical OpenClaw probe client id')
+  assert(params.client.mode === 'probe', 'Expected canonical OpenClaw probe client mode')
 })
 
 test('gateway CLI config calls serialize params without shell interpolation', () => {
