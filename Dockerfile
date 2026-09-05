@@ -55,7 +55,7 @@ RUN node scripts/postinstall-bundled-plugins.mjs \
 # OpenClaw 2 uses workspace protocol dependencies (for example
 # @openclaw/ai@workspace:*). pnpm pack rewrites those to publishable versions;
 # npm pack preserves workspace:* and makes the runtime npm install fail.
-RUN pnpm pack --ignore-scripts
+RUN pnpm --config.ignore-scripts=true pack
 
 FROM --platform=$BUILDPLATFORM node:22.22.3-bookworm-slim AS builder
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
