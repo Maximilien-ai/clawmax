@@ -37,14 +37,14 @@ const previous = process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
 test('getEnabledPartnerSlugs defaults to current partner parity set', () => {
   delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
   const slugs = getEnabledPartnerSlugs()
-  assert(slugs.join(',') === 'senso,opik,github,resend,cognee,gmail,microsoft365,digo', `Unexpected default partner slugs: ${slugs.join(',')}`)
+  assert(slugs.join(',') === 'senso,opik,github,resend,cognee,gmail,microsoft365,digo,agentforge', `Unexpected default partner slugs: ${slugs.join(',')}`)
 })
 
 test('legacy default allowlist gains newly shipped default partners', () => {
   process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'github,senso,opik,resend,cognee'
   const partners = listPartnerDefinitions()
   const slugs = partners.map((partner) => partner.slug)
-  assert(slugs.join(',') === 'senso,opik,github,resend,cognee,gmail,microsoft365,digo', `Unexpected migrated partners: ${slugs.join(',')}`)
+  assert(slugs.join(',') === 'senso,opik,github,resend,cognee,gmail,microsoft365,digo,agentforge', `Unexpected migrated partners: ${slugs.join(',')}`)
 })
 
 test('custom partner allowlist remains explicit', () => {
@@ -97,6 +97,17 @@ test('digo partner exposes server API key and HTTPS ingestion URL fields', () =>
   assert(partner.fields?.some((field) => field.key === 'apiKey' && field.secret === true && field.storage === 'server') === true, 'Expected Digo server-stored API key field')
   assert(partner.fields?.some((field) => field.key === 'apiUrl' && field.secret !== true) === true, 'Expected Digo ingestion URL field')
   assert(/consent/i.test(partner.validation?.helperText || ''), 'Expected Digo readiness copy to mention consent')
+})
+
+test('agentforge partner is honest about its catalog-only Activity Export boundary', () => {
+  process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'agentforge'
+  const partner = listPartnerDefinitions()[0]
+  assert(partner.slug === 'agentforge', 'Expected agentforge partner')
+  assert(partner.name === 'NYU - AgentForge', 'Expected NYU - AgentForge display name')
+  assert((partner.fields || []).length === 0, 'Catalog-only AgentForge entry must not expose inactive export configuration fields')
+  assert(!partner.validation, 'Catalog-only AgentForge entry must not imply that connection validation is available')
+  assert(/planned opt-in/i.test(partner.description), 'Expected AgentForge description to disclose planned status')
+  assert(partner.docsUrl === 'https://github.com/Maximilien-ai/clawmax/blob/main/PARTNERS/agentforge/PARTNER.md', 'Expected a specific public setup document')
 })
 
 if (typeof previous === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES

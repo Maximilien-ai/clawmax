@@ -8,11 +8,11 @@ type PartnerLogoProps = {
   variant?: 'compact' | 'hero'
 }
 
-function fallbackLogo(className: string, name: string) {
+function fallbackLogo(className: string, slug: string, name: string) {
   const glyphs: Record<string, string> = {
-    cognee: 'C', digo: 'D', gmail: 'G', microsoft365: 'M', opik: 'O', resend: 'R', senso: 'S',
+    agentforge: 'A', cognee: 'C', digo: 'D', gmail: 'G', microsoft365: 'M', opik: 'O', resend: 'R', senso: 'S',
   }
-  const glyph = glyphs[name.toLowerCase()] || name.trim().slice(0, 1).toUpperCase() || '?'
+  const glyph = glyphs[slug.toLowerCase()] || name.trim().slice(0, 1).toUpperCase() || '?'
   return React.createElement(
     'span',
     {
@@ -31,7 +31,7 @@ export function PartnerLogo({ slug, name, logoUrl, variant = 'compact' }: Partne
   const chipClassName = `${className} inline-flex items-center justify-center overflow-hidden`
 
   if (!logoUrl || imageFailed) {
-    return fallbackLogo(className, name)
+    return fallbackLogo(className, slug, name)
   }
 
   return React.createElement(
