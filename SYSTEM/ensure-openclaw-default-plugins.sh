@@ -23,14 +23,15 @@ ensure_plugin() {
   local install_spec=$2
 
   if ! "$OPENCLAW_COMMAND" plugins inspect "$plugin_id" --json >/dev/null 2>&1; then
-    "$OPENCLAW_COMMAND" plugins install "$install_spec"
+    "$OPENCLAW_COMMAND" plugins install "$install_spec" --accept-capabilities
   fi
-  "$OPENCLAW_COMMAND" plugins enable "$plugin_id" >/dev/null
+  "$OPENCLAW_COMMAND" plugins enable "$plugin_id" --accept-capabilities >/dev/null
 }
 
 # Keep external channel plugins on the exact OpenClaw runtime version whenever
 # the CLI exposes one, preventing setup and image builds from drifting across
-# incompatible plugin APIs.
+# incompatible plugin APIs. These are ClawMax's trusted default channel plugins,
+# so explicitly persist consent for their declared OpenClaw capability surfaces.
 ensure_plugin whatsapp "$(official_plugin_spec whatsapp)"
 ensure_plugin discord "$(official_plugin_spec discord)"
 ensure_plugin slack "$(official_plugin_spec slack)"
