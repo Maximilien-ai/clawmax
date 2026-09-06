@@ -28,7 +28,13 @@ assert_contains() {
   fi
 }
 
-assert_contains "RUN npm install -g pnpm"
+assert_contains "openclaw_pnpm_version=\"\$(node -p"
+assert_contains "npm install -g \"pnpm@\${openclaw_pnpm_version}\""
+assert_contains "test \"\$(pnpm --version)\" = \"\${openclaw_pnpm_version}\""
+if grep -F "RUN npm install -g pnpm" "$DOCKERFILE" >/dev/null 2>&1; then
+  echo "Expected OpenClaw builder pnpm install to be version-pinned" >&2
+  exit 1
+fi
 assert_contains "ARG OPENCLAW_GIT_REF=$CLAWMAX_OPENCLAW_TARGET"
 assert_contains "retry() { \\"
 assert_contains "retry 3 5 pnpm install --frozen-lockfile --ignore-scripts;"

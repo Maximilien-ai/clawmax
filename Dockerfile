@@ -19,7 +19,10 @@ RUN git clone https://github.com/openclaw/openclaw.git . \
   && git checkout "${OPENCLAW_GIT_REF}"
 COPY SYSTEM/patch-openclaw-fs-safe.mjs /tmp/patch-openclaw-fs-safe.mjs
 
-RUN npm install -g pnpm
+RUN openclaw_pnpm_version="$(node -p "String(require('./package.json').packageManager || '').match(/^pnpm@([^+]+)/)?.[1] || ''")" \
+  && test -n "${openclaw_pnpm_version}" \
+  && npm install -g "pnpm@${openclaw_pnpm_version}" \
+  && test "$(pnpm --version)" = "${openclaw_pnpm_version}"
 # Some pinned OpenClaw transitive git-hosted dependencies currently fail in
 # their own `prepare` hooks during clean-room container builds (for example
 # @tloncorp/api via Tessl-related dependency chains). We only need a resolved
