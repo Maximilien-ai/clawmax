@@ -1160,6 +1160,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running WhatsApp dependency resolver unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/whatsapp-dependencies.test.ts > /tmp/clawmax-whatsapp-dependencies.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-whatsapp-dependencies.out; then
+  whatsapp_dependency_count=$(grep "Tests passed:" /tmp/clawmax-whatsapp-dependencies.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "WhatsApp dependency resolver unit tests (${whatsapp_dependency_count:-?} tests)"
+else
+  cat /tmp/clawmax-whatsapp-dependencies.out
+  fail "WhatsApp dependency resolver unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent runtime edge-case route tests...${NC}"
 npx ts-node --transpileOnly server/routes/agents-runtime-edges.test.ts > /tmp/clawmax-agent-runtime-edges.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-runtime-edges.out; then

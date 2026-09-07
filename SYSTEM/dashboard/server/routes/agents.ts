@@ -49,6 +49,8 @@ import { resolveDefaultAgentModel } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
+import { resolveWhatsAppDependencyPaths } from '../lib/whatsapp-dependencies'
+import { REPO_ROOT } from '../lib/paths'
 import { buildNamedExportFilename } from '../lib/export-filename'
 import { recordAgentLifecycleAuditEvent } from '../lib/agent-lifecycle-audit'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
@@ -80,39 +82,6 @@ import {
   validateTelegramConnectionInput,
   writeAgentChannelSecret,
 } from '../lib/agent-channels'
-
-/** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
-function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
-  const pnpmDir = path.join(repoDir, 'node_modules', '.pnpm')
-  try {
-    const entries = fs.readdirSync(pnpmDir)
-    for (const e of entries) {
-      if (!e.startsWith(prefix)) continue
-      const candidate = path.join(pnpmDir, e, 'node_modules', pkgSubPath)
-      if (fs.existsSync(path.join(candidate, 'lib', 'index.js'))) return candidate
-    }
-  } catch {}
-  // Fallback: direct node_modules
-  const direct = path.join(repoDir, 'node_modules', pkgSubPath)
-  if (fs.existsSync(path.join(direct, 'lib', 'index.js'))) return direct
-  return null
-}
-
-/** Detect Baileys and Boom paths from known openclaw repo locations */
-function detectWaPaths(): { baileys: string | null; boom: string | null } {
-  const HOME = process.env.HOME || ''
-  // Search order: openclaw main repo, workspace itself
-  const repoDirs = [
-    path.join(HOME, 'github', 'maximilien', 'openclaw'),
-    getWorkspacePath(),
-  ]
-  for (const dir of repoDirs) {
-    const baileys = findPnpmPkg(dir, '@whiskeysockets+baileys', '@whiskeysockets/baileys')
-    const boom = findPnpmPkg(dir, '@hapi+boom', '@hapi/boom')
-    if (baileys && boom) return { baileys, boom }
-  }
-  return { baileys: null, boom: null }
-}
 
 /** Synchronous model list for validation — uses cached discovery or fallback */
 function getAvailableModels(): string[] {
@@ -2514,8 +2483,15 @@ router.post('/:id/whatsapp/pair', (req, res) => {
     return
   }
 
-  // Detect Baileys/Boom
-  const { baileys, boom } = detectWaPaths()
+  // Resolve the current OpenClaw runtime before looking up its WhatsApp
+  // dependencies. OpenClaw 2 uses an unscoped `baileys` package and may live
+  // in ClawMax's pinned target cache or an external-plugin npm project.
+  const cliPath = resolveOpenClawCliPath()
+  const { baileys, boom } = resolveWhatsAppDependencyPaths({
+    cliPath,
+    homeDir: process.env.HOME || '',
+    repositoryRoot: REPO_ROOT,
+  })
   if (!baileys || !boom) {
     res.status(500).json({ error: 'Could not find Baileys/Boom libraries. Is openclaw installed?' })
     return
@@ -2528,7 +2504,7 @@ router.post('/:id/whatsapp/pair', (req, res) => {
   const stateDir = isProfile ? profileStateDir : path.join(HOME, '.openclaw')
   const credsDir = path.join(stateDir, 'credentials', 'whatsapp', 'default')
 
-  const scriptPath = path.join(getWorkspacePath(), 'SYSTEM', 'scripts', 'instances', 'lib', 'whatsapp-pair.mjs')
+  const scriptPath = path.join(REPO_ROOT, 'SYSTEM', 'scripts', 'instances', 'lib', 'whatsapp-pair.mjs')
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream')
@@ -2549,7 +2525,7 @@ router.post('/:id/whatsapp/pair', (req, res) => {
   send('log', `Credentials dir: ${credsDir}\n`)
 
   const child = spawn('node', [scriptPath, phone, credsDir, baileys, boom], {
-    cwd: getWorkspacePath(),
+    cwd: REPO_ROOT,
     env: safeEnv({ TERM: 'dumb' }),
     stdio: ['ignore', 'pipe', 'pipe'],
   })

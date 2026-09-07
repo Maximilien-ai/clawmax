@@ -23,6 +23,7 @@ const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
 const originalOpenClawBin = process.env.OPENCLAW_BIN
 const gatewayRpcModulePath = require.resolve('../lib/gateway-rpc')
+const whatsappDependenciesModulePath = require.resolve('../lib/whatsapp-dependencies')
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -129,6 +130,20 @@ async function withModelDiscoveryStubs<T>(overrides: Record<string, any>, fn: ()
     return await fn()
   } finally {
     Object.assign(modelDiscovery, originals)
+    delete require.cache[require.resolve('./agents')]
+  }
+}
+
+async function withWhatsAppDependencyStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
+  delete require.cache[whatsappDependenciesModulePath]
+  const whatsappDependencies = require('../lib/whatsapp-dependencies')
+  const originals = Object.fromEntries(Object.keys(overrides).map((key) => [key, whatsappDependencies[key]]))
+  Object.assign(whatsappDependencies, overrides)
+  delete require.cache[require.resolve('./agents')]
+  try {
+    return await fn()
+  } finally {
+    Object.assign(whatsappDependencies, originals)
     delete require.cache[require.resolve('./agents')]
   }
 }
@@ -1393,6 +1408,52 @@ async function run() {
       childProcess.spawn = originalSpawn
       delete require.cache[require.resolve('./agents')]
     }
+  })
+
+  await test('WhatsApp pairing uses resolved OpenClaw 2 dependencies and repository script', async () => {
+    process.env.OPENCLAW_BIN = writeFakeOpenClawCli(tmpHome)
+    const fakeBaileys = path.join(tmpHome, 'runtime', 'node_modules', 'baileys')
+    const fakeBoom = path.join(tmpHome, 'runtime', 'node_modules', '@hapi', 'boom')
+    const child = new EventEmitter() as any
+    child.stdout = new EventEmitter()
+    child.stderr = new EventEmitter()
+    let spawnCall: { command: string; args: string[]; options: Record<string, any> } | null = null
+
+    await withWhatsAppDependencyStubs({
+      resolveWhatsAppDependencyPaths() {
+        return { baileys: fakeBaileys, boom: fakeBoom }
+      },
+    }, async () => {
+      await withChildProcessStubs({
+        spawn(command: string, args: string[], options: Record<string, any>) {
+          spawnCall = { command, args, options }
+          return child
+        },
+      }, async () => {
+        const handler = getRouteHandler('post', '/:id/whatsapp/pair')
+        const writes: string[] = []
+        const res: any = {
+          setHeader() {},
+          flushHeaders() {},
+          write(value: string) { writes.push(value) },
+          end() {},
+        }
+        handler(makeReq({
+          params: { id: 'whatsapp-agent' },
+          body: { phone: '15142427899' },
+          on() {},
+        }), res)
+
+        assert(spawnCall, 'Expected the pairing helper to be spawned')
+        const { REPO_ROOT } = require('../lib/paths')
+        const expectedScript = path.join(REPO_ROOT, 'SYSTEM', 'scripts', 'instances', 'lib', 'whatsapp-pair.mjs')
+        assert.strictEqual(spawnCall!.command, 'node')
+        assert.deepStrictEqual(spawnCall!.args, [expectedScript, '15142427899', path.join(tmpHome, '.openclaw', 'credentials', 'whatsapp', 'default'), fakeBaileys, fakeBoom])
+        assert.strictEqual(spawnCall!.options.cwd, REPO_ROOT)
+        assert(writes.some(value => value.includes('Pairing WhatsApp +15142427899')))
+        child.emit('close', 0, null)
+      })
+    })
   })
 
   await test('provision assigns only installed selected skills after agent creation succeeds', async () => {
