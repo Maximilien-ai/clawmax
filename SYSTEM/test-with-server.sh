@@ -76,7 +76,7 @@ ensure_target_openclaw_for_integration() {
 
   if [ "${CLAWMAX_TEST_REUSE_GATEWAY:-}" != "true" ]; then
     echo "Restarting targeted OpenClaw gateway to clear stale runtime state..."
-    "$OPENCLAW_BIN" gateway restart || {
+    "$OPENCLAW_BIN" gateway restart --force || {
       echo "Could not restart the targeted OpenClaw gateway" >&2
       return 1
     }
