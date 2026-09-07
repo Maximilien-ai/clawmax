@@ -47,11 +47,6 @@ case "$1 ${2:-} ${3:-}" in
     rm -f "${LEGACY_AUTH_PROFILE_FILE:?}"
     exit 0
     ;;
-  "plugins enable codex")
-    if [ "${CODEX_CONSENT_EXIT_CODE:-0}" -ne 0 ]; then
-      exit "$CODEX_CONSENT_EXIT_CODE"
-    fi
-    ;;
   "gateway run --port")
     sleep 5
     ;;
@@ -332,28 +327,9 @@ fi
   exit 1
 }
 
-CODEX_CONSENT_MARKER="$TMP_DIR/codex-consent"
-export CLAWMAX_OPENCLAW_CODEX_CONSENT_MARKER="$CODEX_CONSENT_MARKER"
-: > "$LOG_FILE"
-ensure_openclaw_codex_capability_consent
-assert_contains "plugins enable codex --accept-capabilities" "$LOG_FILE"
-[ -f "$CODEX_CONSENT_MARKER" ] || {
-  echo "Expected successful Codex capability migration to persist its marker" >&2
-  exit 1
-}
-
-: > "$LOG_FILE"
-ensure_openclaw_codex_capability_consent
-assert_not_contains "plugins enable codex --accept-capabilities" "$LOG_FILE"
-
-rm -f "$CODEX_CONSENT_MARKER"
-if CODEX_CONSENT_EXIT_CODE=1 ensure_openclaw_codex_capability_consent >/dev/null 2>&1; then
-  echo "Expected a failed Codex capability migration to fail the entrypoint gate" >&2
+if grep -F -- '--accept-capabilities' "$SCRIPT" >/dev/null 2>&1; then
+  echo "Expected container startup not to accept capabilities for persisted user plugins" >&2
   exit 1
 fi
-[ ! -f "$CODEX_CONSENT_MARKER" ] || {
-  echo "Expected a failed Codex capability migration not to persist its marker" >&2
-  exit 1
-}
 
 echo "docker-entrypoint gateway tests passed"

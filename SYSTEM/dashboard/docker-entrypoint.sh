@@ -184,20 +184,6 @@ migrate_openclaw_2_state() {
   echo "[entrypoint] OpenClaw auth profile migration complete"
 }
 
-ensure_openclaw_codex_capability_consent() {
-  marker="${CLAWMAX_OPENCLAW_CODEX_CONSENT_MARKER:-$HOME/.openclaw/.clawmax-codex-capabilities-v1}"
-  [ -f "$marker" ] && return 0
-
-  echo "[entrypoint] accepting bundled OpenClaw Codex plugin capabilities"
-  if ! openclaw plugins enable codex --accept-capabilities >/tmp/openclaw-codex-capability-consent.log; then
-    echo "[entrypoint] ERROR: bundled OpenClaw Codex capability migration failed; refusing to start an unusable gateway" >&2
-    return 1
-  fi
-  printf '%s\n' 'accepted' >"${marker}.tmp"
-  mv "${marker}.tmp" "$marker"
-  echo "[entrypoint] bundled OpenClaw Codex capability migration complete"
-}
-
 get_gateway_auth_token() {
   openclaw config get gateway.auth.token 2>/dev/null | tr -d '[:space:]' || true
 }
@@ -363,7 +349,6 @@ main() {
   ensure_openclaw_cli
   sync_gateway_config
   migrate_openclaw_2_state
-  ensure_openclaw_codex_capability_consent
   ensure_gateway_auth_token
 
   gateway_port="$(get_gateway_port)"
