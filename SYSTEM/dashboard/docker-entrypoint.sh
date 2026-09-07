@@ -184,6 +184,15 @@ migrate_openclaw_2_state() {
   echo "[entrypoint] OpenClaw auth profile migration complete"
 }
 
+refresh_openclaw_plugin_registry() {
+  echo "[entrypoint] refreshing OpenClaw plugin registry"
+  if ! openclaw plugins registry --refresh --json >/tmp/openclaw-plugin-registry-refresh.json; then
+    echo "[entrypoint] ERROR: OpenClaw plugin registry refresh failed; refusing to start a potentially unusable gateway" >&2
+    return 1
+  fi
+  echo "[entrypoint] OpenClaw plugin registry refresh complete"
+}
+
 get_gateway_auth_token() {
   openclaw config get gateway.auth.token 2>/dev/null | tr -d '[:space:]' || true
 }
@@ -349,6 +358,7 @@ main() {
   ensure_openclaw_cli
   sync_gateway_config
   migrate_openclaw_2_state
+  refresh_openclaw_plugin_registry
   ensure_gateway_auth_token
 
   gateway_port="$(get_gateway_port)"

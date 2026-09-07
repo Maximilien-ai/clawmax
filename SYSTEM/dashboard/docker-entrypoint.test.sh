@@ -47,6 +47,12 @@ case "$1 ${2:-} ${3:-}" in
     rm -f "${LEGACY_AUTH_PROFILE_FILE:?}"
     exit 0
     ;;
+  "plugins registry --refresh")
+    if [ "${PLUGIN_REGISTRY_EXIT_CODE:-0}" -ne 0 ]; then
+      exit "$PLUGIN_REGISTRY_EXIT_CODE"
+    fi
+    printf '%s\n' '{"ok":true}'
+    ;;
   "gateway run --port")
     sleep 5
     ;;
@@ -326,5 +332,14 @@ fi
   echo "Expected a failed migration to preserve the legacy auth profile" >&2
   exit 1
 }
+
+: > "$LOG_FILE"
+refresh_openclaw_plugin_registry
+assert_contains "plugins registry --refresh --json" "$LOG_FILE"
+
+if PLUGIN_REGISTRY_EXIT_CODE=1 refresh_openclaw_plugin_registry >/dev/null 2>&1; then
+  echo "Expected a failed OpenClaw plugin registry refresh to fail the entrypoint gate" >&2
+  exit 1
+fi
 
 echo "docker-entrypoint gateway tests passed"
