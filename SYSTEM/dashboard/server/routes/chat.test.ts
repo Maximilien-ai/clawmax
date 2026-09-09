@@ -15,6 +15,7 @@ import {
   shouldUseManagedSecretStatelessChatSession,
   shouldRecoverPersistedAssistant,
   shouldAttemptManagedResendDispatch,
+  configuredAutoStartGatewayOwnsState,
   shouldUseLocalChatExecution,
   shouldRetryViaGatewayAfterLocalCollision,
   throwIfChatAttemptNeedsSessionRetry,
@@ -81,6 +82,13 @@ test('shouldUseLocalChatExecution prefers gateway for hosted BYOK models when ga
     byok: { openai: 'sk-test' },
     gatewayRunning: true,
   }), 'Expected BYOK OpenAI chat to use gateway when available')
+})
+
+test('configured auto-start gateway owns state across transient readiness probe misses', () => {
+  assert(configuredAutoStartGatewayOwnsState({ configured: true }), 'Expected the default auto-start gateway to own configured state')
+  assert(configuredAutoStartGatewayOwnsState({ configured: true, autoStartSetting: 'true' }), 'Expected explicit auto-start gateway ownership')
+  assert(!configuredAutoStartGatewayOwnsState({ configured: true, autoStartSetting: 'false' }), 'Expected explicitly disabled auto-start to allow local execution')
+  assert(!configuredAutoStartGatewayOwnsState({ configured: false }), 'Expected missing gateway config not to claim state ownership')
 })
 
 test('shouldUseLocalChatExecution still falls back to direct mode for hosted BYOK when gateway is down', () => {

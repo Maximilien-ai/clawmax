@@ -4,7 +4,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
-import { isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
+import { isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
@@ -241,6 +241,13 @@ export function shouldUseLocalChatExecution(input: {
   // immediately; direct execution still receives managed secrets when no
   // Gateway is available.
   return !input.gatewayRunning
+}
+
+export function configuredAutoStartGatewayOwnsState(input: {
+  configured: boolean
+  autoStartSetting?: string
+}): boolean {
+  return input.configured && input.autoStartSetting !== 'false'
 }
 
 export function shouldUseManagedSecretStatelessChatSession(_input: {
@@ -826,7 +833,10 @@ router.post('/:id/chat', async (req, res) => {
     ? false
     : shouldTreatGatewayAsRunning(
         (await waitForGatewayResponsive()).running,
-        isGatewayRunning().running,
+        isGatewayRunning().running || configuredAutoStartGatewayOwnsState({
+          configured: isGatewayConfigured(),
+          autoStartSetting: process.env.CLAWMAX_AUTO_START_GATEWAY,
+        }),
       )
 
   const useLocal = isNonOpenclawChatRuntime(resolvedAgent.runtime)
