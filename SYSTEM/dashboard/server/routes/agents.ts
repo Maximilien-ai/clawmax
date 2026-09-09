@@ -23,6 +23,7 @@ import {
   type AgentModelPreference,
   type AgentModelSelectionMode,
   upsertAgentRuntimeInIdentityContent,
+  upsertAgentTagsInIdentityContent,
 } from '../lib/agent-model'
 import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, listRuntimeModels, normalizeAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime, runtimeAcceptsModelId, runtimeLabel } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
@@ -1065,6 +1066,11 @@ router.post('/provision', async (req, res) => {
         configUpdate.model || validatedModel,
         backupConfigUpdate.backupModel,
         { selectionMode: validatedModelSelection, preference: validatedModelPreference },
+      ), 'utf-8')
+      const modelSyncedIdentity = fs.readFileSync(identityPath, 'utf-8')
+      fs.writeFileSync(identityPath, upsertAgentTagsInIdentityContent(
+        modelSyncedIdentity,
+        Array.isArray(tags) ? tags : [],
       ), 'utf-8')
       // Persist the runtime pin chosen at creation. Without this the Add Agent wizard could not
       // set a runtime at all and every new agent silently started on OpenClaw.
@@ -3035,17 +3041,12 @@ router.patch('/:id/tags', (req, res) => {
     // Read current IDENTITY.md
     const content = fs.readFileSync(identityPath, 'utf-8')
 
-    // Update tags line
-    const tagsLine = tags.length > 0 ? tags.join(', ') : 'untagged'
-    const updatedContent = content.replace(
-      /^-\s+\*\*Tags:\*\*\s+.+$/m,
-      `- **Tags:** ${tagsLine}`
-    )
+    const updatedContent = upsertAgentTagsInIdentityContent(content, tags)
 
     // Write back
     fs.writeFileSync(identityPath, updatedContent, 'utf-8')
 
-    res.json({ ok: true, tags })
+    res.json({ ok: true, tags: parseIdentity(updatedContent).tags })
   } catch (err) {
     console.error('Failed to update tags:', err)
     res.status(500).json({ error: 'Failed to update tags' })

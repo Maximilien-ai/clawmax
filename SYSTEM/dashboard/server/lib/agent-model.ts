@@ -416,6 +416,38 @@ export function upsertAgentModelInIdentityContent(content: string, model: string
   return joinIdentityRuntimeSection(`${runtime.trimEnd()}\n\n- **Model:** ${nextModel}\n`, suffix)
 }
 
+export function upsertAgentTagsInIdentityContent(content: string, tags: string[]): string {
+  const orderedTags = [...new Set(tags.map((tag) => String(tag || '').trim()).filter(Boolean))]
+  const { runtime, suffix } = splitIdentityRuntimeSection(content)
+  const tagsPattern = /^[-*]\s+\*\*Tags:\*\*\s*.*$/m
+
+  if (orderedTags.length === 0) {
+    if (!tagsPattern.test(runtime)) return content
+    return joinIdentityRuntimeSection(
+      runtime.replace(/^[-*]\s+\*\*Tags:\*\*\s*.*$\n?/m, '').replace(/\n{3,}/g, '\n\n'),
+      suffix,
+    )
+  }
+
+  const tagsLine = `- **Tags:** ${orderedTags.join(', ')}`
+  if (tagsPattern.test(runtime)) {
+    return joinIdentityRuntimeSection(runtime.replace(tagsPattern, tagsLine), suffix)
+  }
+  if (/^[-*]\s+\*\*Role:\*\*\s+.*$/m.test(runtime)) {
+    return joinIdentityRuntimeSection(runtime.replace(
+      /^[-*]\s+\*\*Role:\*\*\s+.*$/m,
+      match => `${match}\n${tagsLine}`,
+    ), suffix)
+  }
+  if (/^[-*]\s+\*\*Name:\*\*\s+.*$/m.test(runtime)) {
+    return joinIdentityRuntimeSection(runtime.replace(
+      /^[-*]\s+\*\*Name:\*\*\s+.*$/m,
+      match => `${match}\n${tagsLine}`,
+    ), suffix)
+  }
+  return joinIdentityRuntimeSection(`${runtime.trimEnd()}\n\n${tagsLine}\n`, suffix)
+}
+
 export function upsertAgentRuntimeInIdentityContent(content: string, runtime: string): string {
   const { runtime: runtimeSection, suffix } = splitIdentityRuntimeSection(content)
   const hasExistingLine = /^[-*]\s+\*\*Runtime:\*\*\s*.*$/m.test(runtimeSection)

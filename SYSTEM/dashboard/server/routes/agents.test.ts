@@ -1712,7 +1712,7 @@ async function run() {
         body: {
           name: 'proto-bot',
           model: 'openai/gpt-4o-mini',
-          tags: [],
+          tags: ['acceptance-probe', 'read-only'],
           generatedFiles: {
             identity: '# IDENTITY\n\n**Name:** proto-bot\n**Creature:** assistant\n**Vibe:** helpful\n**Emoji:** 🤖\n',
             soul: '# SOUL\n\nThis is a generated soul file with enough content to pass validation.\n',
@@ -1726,8 +1726,16 @@ async function run() {
 
       const generatedIdentityPath = path.join(workspacePath, 'AGENTS', 'proto-bot', 'IDENTITY.md')
       assert(fs.existsSync(generatedIdentityPath), 'Expected generated IDENTITY.md to be written after successful registration')
+      const generatedIdentity = fs.readFileSync(generatedIdentityPath, 'utf-8')
+      assert(generatedIdentity.includes('- **Tags:** acceptance-probe, read-only'), 'Expected ordered requested tags in generated identity')
       assert(writes.some(chunk => chunk.includes('Wrote AI-generated files')), 'Expected streamed logs to mention generated files')
       assert(writes.some(chunk => chunk.includes('"type":"done"') && chunk.includes('"data":"ok"')), 'Expected successful create completion event')
+
+      const listHandler = getRouteHandler('get', '/')
+      const listRes = makeRes()
+      await listHandler(makeReq(), listRes)
+      const listed = listRes.jsonBody?.agents?.find((agent: any) => agent.id === 'proto-bot')
+      assert.deepStrictEqual(listed?.tags, ['acceptance-probe', 'read-only'], 'Expected GET /api/agents to preserve ordered tags')
     } finally {
       childProcess.spawn = originalSpawn
       delete require.cache[require.resolve('./agents')]

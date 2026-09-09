@@ -16,6 +16,7 @@ import {
   upsertAgentModelFitInIdentityContent,
   upsertAgentModelInConfigFile,
   upsertAgentModelInIdentityContent,
+  upsertAgentTagsInIdentityContent,
   upsertAgentRuntimeInIdentityContent,
 } from './agent-model'
 import { parseIdentity } from './workspace'
@@ -408,6 +409,30 @@ test('upsertAgentModelInIdentityContent normalizes OpenAI aliases', () => {
 
   const parsed = parseIdentity(updated)
   assert(parsed.model === 'openai/gpt-4o-mini', 'Expected identity model alias to normalize')
+})
+
+test('upsertAgentTagsInIdentityContent preserves caller order before creation metadata', () => {
+  const content = `# Identity
+
+- **Name:** Probe
+- **Role:** Collector
+- **Tags:** old, values
+
+## Creation Metadata
+
+- **Tags:** historical
+`
+  const updated = upsertAgentTagsInIdentityContent(content, ['acceptance-probe', 'read-only', 'acceptance-probe'])
+  assert(updated.includes('- **Tags:** acceptance-probe, read-only'), 'Expected ordered unique tags')
+  assert(updated.indexOf('acceptance-probe') < updated.indexOf('## Creation Metadata'), 'Expected runtime tags before metadata')
+  assert(updated.includes('- **Tags:** historical'), 'Expected creation metadata to remain unchanged')
+})
+
+test('upsertAgentTagsInIdentityContent inserts missing tags and removes an empty selection', () => {
+  const inserted = upsertAgentTagsInIdentityContent('# Identity\n\n- **Name:** Probe\n', ['first', 'second'])
+  assert(inserted.includes('- **Tags:** first, second'), 'Expected missing tags line to be inserted')
+  const removed = upsertAgentTagsInIdentityContent(inserted, [])
+  assert(!removed.includes('**Tags:**'), 'Expected empty tag selection to remove the runtime tags line')
 })
 
 test('parseIdentity extracts runtime pin from markdown', () => {
