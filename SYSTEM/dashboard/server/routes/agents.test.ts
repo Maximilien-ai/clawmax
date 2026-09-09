@@ -24,6 +24,7 @@ const originalWorkspace = process.env.OPENCLAW_WORKSPACE
 const originalOpenClawBin = process.env.OPENCLAW_BIN
 const gatewayRpcModulePath = require.resolve('../lib/gateway-rpc')
 const whatsappDependenciesModulePath = require.resolve('../lib/whatsapp-dependencies')
+const openClawWorkspaceStateModulePath = require.resolve('../lib/openclaw-workspace-state')
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -91,6 +92,20 @@ async function withGatewayRpcStubs<T>(overrides: Record<string, any>, fn: () => 
     return await fn()
   } finally {
     Object.assign(gatewayRpc, originals)
+    delete require.cache[require.resolve('./agents')]
+  }
+}
+
+async function withOpenClawWorkspaceStateStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
+  delete require.cache[openClawWorkspaceStateModulePath]
+  const workspaceState = require('../lib/openclaw-workspace-state')
+  const originals = Object.fromEntries(Object.keys(overrides).map((key) => [key, workspaceState[key]]))
+  Object.assign(workspaceState, overrides)
+  delete require.cache[require.resolve('./agents')]
+  try {
+    return await fn()
+  } finally {
+    Object.assign(workspaceState, originals)
     delete require.cache[require.resolve('./agents')]
   }
 }
@@ -785,29 +800,59 @@ async function run() {
       agents: { entries: { [agentId]: { workspace: agentWorkspace } } },
     }, null, 2))
     const calls: Array<{ agentId: string; deleteFiles: boolean }> = []
+    const clearedWorkspaces: string[] = []
 
     try {
+      await withOpenClawWorkspaceStateStubs({
+        clearPinnedOpenClawWorkspaceState: async (workspaceDir: string) => { clearedWorkspaces.push(workspaceDir) },
+      }, async () => {
+        await withGatewayRpcStubs({
+          isGatewayRunning: () => ({ running: true, port: 18789 }),
+          getGatewayClient: () => ({
+            deleteAgentNative: async (id: string, deleteFiles: boolean) => {
+              calls.push({ agentId: id, deleteFiles })
+              return 'deleted'
+            },
+          }),
+        }, async () => {
+          const handler = getRouteHandler('delete', '/:id')
+          const res = makeRes()
+          await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: true } }), res)
+
+          assert.strictEqual(res.statusCode, 200)
+          assert.strictEqual(res.jsonBody?.ok, true)
+          assert.deepStrictEqual(calls, [{ agentId, deleteFiles: true }])
+          assert.deepStrictEqual(clearedWorkspaces, [agentWorkspace])
+          assert(res.jsonBody.steps.includes(`Cleared OpenClaw workspace state for ${agentId}`))
+        })
+      })
+    } finally {
+      fs.writeFileSync(configPath, previousConfig)
+      fs.rmSync(agentWorkspace, { recursive: true, force: true })
+    }
+  })
+
+  await test('remove-state fails closed when OpenClaw attestation cleanup cannot be verified', async () => {
+    const agentId = 'remove-state-failure'
+    const agentWorkspace = path.join(workspacePath, 'AGENTS', agentId)
+    writeAgent(workspacePath, agentId, '# IDENTITY.md\n\n- **Name:** Remove State Failure\n')
+
+    await withOpenClawWorkspaceStateStubs({
+      clearPinnedOpenClawWorkspaceState: async () => { throw new Error('attestation still present') },
+    }, async () => {
       await withGatewayRpcStubs({
-        isGatewayRunning: () => ({ running: true, port: 18789 }),
-        getGatewayClient: () => ({
-          deleteAgentNative: async (id: string, deleteFiles: boolean) => {
-            calls.push({ agentId: id, deleteFiles })
-            return 'deleted'
-          },
-        }),
+        isGatewayRunning: () => ({ running: false, port: 18789 }),
       }, async () => {
         const handler = getRouteHandler('delete', '/:id')
         const res = makeRes()
         await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: true } }), res)
 
         assert.strictEqual(res.statusCode, 200)
-        assert.strictEqual(res.jsonBody?.ok, true)
-        assert.deepStrictEqual(calls, [{ agentId, deleteFiles: true }])
+        assert.strictEqual(res.jsonBody?.ok, false)
+        assert(res.jsonBody.errors.some((error: string) => error.includes('attestation still present')))
+        assert(!fs.existsSync(agentWorkspace), 'Expected visible agent workspace to be removed')
       })
-    } finally {
-      fs.writeFileSync(configPath, previousConfig)
-      fs.rmSync(agentWorkspace, { recursive: true, force: true })
-    }
+    })
   })
 
   await test('agent channels route returns non-secret binding state and current provider availability', async () => {

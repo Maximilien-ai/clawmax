@@ -54,6 +54,7 @@ import { resolveWhatsAppDependencyPaths } from '../lib/whatsapp-dependencies'
 import { REPO_ROOT } from '../lib/paths'
 import { buildNamedExportFilename } from '../lib/export-filename'
 import { recordAgentLifecycleAuditEvent } from '../lib/agent-lifecycle-audit'
+import { clearPinnedOpenClawWorkspaceState } from '../lib/openclaw-workspace-state'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 import { listAvailableSkills, setAgentSkills } from '../lib/skills'
 import {
@@ -1814,6 +1815,7 @@ router.delete('/:id', async (req, res) => {
     res.status(400).json({ ok: false, error: 'Invalid agent id' })
     return
   }
+  const agentWorkspaceDir = path.join(getAgentsDir(), id)
   if (isGatewayRunning().running) {
     try {
       // Let OpenClaw delete its workspace attestation together with the files
@@ -1830,6 +1832,18 @@ router.delete('/:id', async (req, res) => {
     }
   }
   const result = deleteAgent(id, removeStateDir === true)
+  if (removeStateDir === true && result.errors.length === 0) {
+    try {
+      // OpenClaw 2026.8.2 treats workspace-state cleanup as best effort and can
+      // return ok after swallowing a SQLite cleanup failure. Reconcile through
+      // its pinned state-store implementation and verify the exact workspace no
+      // longer has setup or attestation state before reporting removal success.
+      await clearPinnedOpenClawWorkspaceState(agentWorkspaceDir)
+      result.steps.push(`Cleared OpenClaw workspace state for ${id}`)
+    } catch (err: any) {
+      result.errors.push(String(err?.message || err || 'Failed to clear OpenClaw workspace state'))
+    }
+  }
   res.json({ ok: result.errors.length === 0, ...result })
 })
 

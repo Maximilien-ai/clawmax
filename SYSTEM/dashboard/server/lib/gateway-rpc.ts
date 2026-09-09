@@ -649,7 +649,14 @@ export class GatewayRPCClient {
   /** Remove a live agent registration while allowing OpenClaw to close its SQLite handles. */
   async deleteAgentNative(agentId: string, deleteFiles = false): Promise<'deleted' | 'not-found'> {
     try {
-      await this.callAgentLifecycle('agents.delete', { agentId, deleteFiles })
+      const result = await this.callAgentLifecycle<any>('agents.delete', { agentId, deleteFiles })
+      const failedPaths = Array.isArray(result?.failed) ? result.failed : []
+      if (failedPaths.length > 0) {
+        const details = failedPaths
+          .map((failure: any) => `${String(failure?.path || 'unknown path')}: ${String(failure?.reason || 'cleanup failed')}`)
+          .join('; ')
+        throw new Error(`OpenClaw failed to remove agent state: ${details}`)
+      }
       return 'deleted'
     } catch (err: any) {
       if (/agent .* not found|unknown agent/i.test(String(err?.message || err || ''))) return 'not-found'

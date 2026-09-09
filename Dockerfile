@@ -256,6 +256,7 @@ COPY SYSTEM/schemas ./SYSTEM/schemas
 COPY SYSTEM/dashboard/.env.example ./SYSTEM/dashboard/.env.example
 COPY SYSTEM/dashboard/docker-entrypoint.sh ./SYSTEM/dashboard/docker-entrypoint.sh
 COPY SYSTEM/dashboard/openclaw-auth-store.mjs ./SYSTEM/dashboard/openclaw-auth-store.mjs
+COPY SYSTEM/dashboard/openclaw-workspace-state.mjs ./SYSTEM/dashboard/openclaw-workspace-state.mjs
 COPY SYSTEM/dashboard/clawmax-resend-send /usr/local/bin/clawmax-resend-send
 COPY SYSTEM/dashboard/clawmax-skill-run /usr/local/bin/clawmax-skill-run
 COPY SYSTEM/dashboard/clawmax-mail-run /usr/local/bin/clawmax-mail-run

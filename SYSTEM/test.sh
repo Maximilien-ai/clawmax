@@ -2757,6 +2757,15 @@ else
   fail "Dockerfile OpenClaw builder tests"
 fi
 
+echo -e "${YELLOW}→ Running OpenClaw workspace-state cleanup tests...${NC}"
+bash "$SYSTEM_DIR/dashboard/openclaw-workspace-state.test.sh" > /tmp/clawmax-openclaw-workspace-state.out 2>&1 || true
+if grep -q "openclaw-workspace-state.test.sh: 6 tests passed" /tmp/clawmax-openclaw-workspace-state.out; then
+  pass "OpenClaw workspace-state cleanup tests (6 tests)"
+else
+  cat /tmp/clawmax-openclaw-workspace-state.out
+  fail "OpenClaw workspace-state cleanup tests"
+fi
+
 echo -e "${YELLOW}→ Running local plugin startup contract tests...${NC}"
 bash "$SYSTEM_DIR/start-local-plugins.test.sh" > /tmp/clawmax-start-local-plugins.out 2>&1 || true
 if grep -q "start-local-plugins.test.sh: 9 tests passed" /tmp/clawmax-start-local-plugins.out; then

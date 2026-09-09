@@ -340,6 +340,15 @@ async function run() {
 
       ;(client as any).callAgentLifecycle = async () => { throw new Error('agent "missing-agent" not found') }
       assert.strictEqual(await client.deleteAgentNative('missing-agent'), 'not-found')
+
+      ;(client as any).callAgentLifecycle = async () => ({
+        ok: true,
+        failed: [{ path: '/workspace/retired-agent', reason: 'state store busy' }],
+      })
+      await expectFailure(
+        () => client.deleteAgentNative('retired-agent', true),
+        'OpenClaw failed to remove agent state: /workspace/retired-agent: state store busy',
+      )
     })
   })
 
