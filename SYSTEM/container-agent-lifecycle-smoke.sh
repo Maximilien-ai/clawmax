@@ -37,6 +37,7 @@ start_dashboard() {
     -e DASHBOARD_DEPLOYMENT_KIND=onprem \
     -e CLAWMAX_DATA_ROOT=/app/DATA \
     -e OLLAMA_BASE_URL="http://host.docker.internal:${mock_ollama_port}" \
+    -e OLLAMA_API_KEY=ollama-local \
     -e HOME=/app/DATA/.home \
     -e OPENCLAW_WORKSPACE=/app/DATA/.home/.openclaw/workspaces/acceptance \
     -v "$volume_name:/app/DATA" \
