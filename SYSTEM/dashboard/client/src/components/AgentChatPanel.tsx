@@ -1379,7 +1379,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
             </button>
             <textarea
               ref={inputRef}
-              rows={2}
+              rows={1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {

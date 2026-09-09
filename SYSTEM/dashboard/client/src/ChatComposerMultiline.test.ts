@@ -18,5 +18,6 @@ for (const [name, source] of [
 }
 
 assert(agentChatSource.includes("if (input.includes('\\n')) return"), 'Multiline agent chat must preserve native arrow-key navigation')
+assert(agentChatSource.includes('rows={1}'), 'Agent chat composer must start at its compact single-line height')
 
-console.log('ChatComposerMultiline.test.ts: 11 assertions passed')
+console.log('ChatComposerMultiline.test.ts: 12 assertions passed')
