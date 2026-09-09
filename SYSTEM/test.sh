@@ -2267,8 +2267,8 @@ fi
 
 echo -e "${YELLOW}→ Running RC15 security baseline contract tests...${NC}"
 npx ts-node --transpileOnly server/lib/security-baseline.test.ts > /tmp/clawmax-security-baseline.out 2>&1 || true
-if grep -q "security-baseline.test.ts: 9 tests passed" /tmp/clawmax-security-baseline.out; then
-  pass "RC15 security baseline contract tests (9 tests)"
+if grep -q "security-baseline.test.ts: 10 tests passed" /tmp/clawmax-security-baseline.out; then
+  pass "RC15 security baseline contract tests (10 tests)"
 else
   cat /tmp/clawmax-security-baseline.out
   fail "RC15 security baseline contract tests"
