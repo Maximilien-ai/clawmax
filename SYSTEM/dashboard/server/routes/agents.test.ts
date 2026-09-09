@@ -775,6 +775,41 @@ async function run() {
     }
   })
 
+  await test('remove-state delegates file deletion so OpenClaw clears workspace attestation', async () => {
+    const agentId = 'remove-state-agent'
+    const agentWorkspace = path.join(workspacePath, 'AGENTS', agentId)
+    writeAgent(workspacePath, agentId, '# IDENTITY.md\n\n- **Name:** Remove State Agent\n')
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    const previousConfig = fs.readFileSync(configPath, 'utf-8')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: { entries: { [agentId]: { workspace: agentWorkspace } } },
+    }, null, 2))
+    const calls: Array<{ agentId: string; deleteFiles: boolean }> = []
+
+    try {
+      await withGatewayRpcStubs({
+        isGatewayRunning: () => ({ running: true, port: 18789 }),
+        getGatewayClient: () => ({
+          deleteAgentNative: async (id: string, deleteFiles: boolean) => {
+            calls.push({ agentId: id, deleteFiles })
+            return 'deleted'
+          },
+        }),
+      }, async () => {
+        const handler = getRouteHandler('delete', '/:id')
+        const res = makeRes()
+        await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: true } }), res)
+
+        assert.strictEqual(res.statusCode, 200)
+        assert.strictEqual(res.jsonBody?.ok, true)
+        assert.deepStrictEqual(calls, [{ agentId, deleteFiles: true }])
+      })
+    } finally {
+      fs.writeFileSync(configPath, previousConfig)
+      fs.rmSync(agentWorkspace, { recursive: true, force: true })
+    }
+  })
+
   await test('agent channels route returns non-secret binding state and current provider availability', async () => {
     writeAgent(workspacePath, 'channel-reader', '# IDENTITY.md\n\n- **Name:** Channel Reader\n')
     const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')

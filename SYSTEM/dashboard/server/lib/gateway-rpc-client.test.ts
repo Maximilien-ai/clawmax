@@ -332,6 +332,12 @@ async function run() {
         params: { agentId: 'retired-agent', deleteFiles: false },
       }])
 
+      assert.strictEqual(await client.deleteAgentNative('purged-agent', true), 'deleted')
+      assert.deepStrictEqual(calls[1], {
+        method: 'agents.delete',
+        params: { agentId: 'purged-agent', deleteFiles: true },
+      })
+
       ;(client as any).callAgentLifecycle = async () => { throw new Error('agent "missing-agent" not found') }
       assert.strictEqual(await client.deleteAgentNative('missing-agent'), 'not-found')
     })

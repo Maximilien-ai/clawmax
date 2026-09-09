@@ -1810,7 +1810,10 @@ router.delete('/:id', async (req, res) => {
   }
   if (isGatewayRunning().running) {
     try {
-      await getGatewayClient().deleteAgentNative(id)
+      // Let OpenClaw delete its workspace attestation together with the files
+      // when the operator explicitly requests state removal. Removing only the
+      // visible directories leaves the exact workspace ID blocked for 24 hours.
+      await getGatewayClient().deleteAgentNative(id, removeStateDir === true)
     } catch (err: any) {
       res.status(503).json({
         ok: false,

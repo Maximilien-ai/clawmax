@@ -647,9 +647,9 @@ export class GatewayRPCClient {
   }
 
   /** Remove a live agent registration while allowing OpenClaw to close its SQLite handles. */
-  async deleteAgentNative(agentId: string): Promise<'deleted' | 'not-found'> {
+  async deleteAgentNative(agentId: string, deleteFiles = false): Promise<'deleted' | 'not-found'> {
     try {
-      await this.callAgentLifecycle('agents.delete', { agentId, deleteFiles: false })
+      await this.callAgentLifecycle('agents.delete', { agentId, deleteFiles })
       return 'deleted'
     } catch (err: any) {
       if (/agent .* not found|unknown agent/i.test(String(err?.message || err || ''))) return 'not-found'
