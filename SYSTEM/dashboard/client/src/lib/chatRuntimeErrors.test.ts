@@ -37,6 +37,21 @@ test('summarizeAgentChatFailure normalizes invalid provider credentials', () => 
   assert(/api key was rejected/i.test(message), `Unexpected message: ${message}`)
 })
 
+test('summarizeAgentChatFailure explains full instance storage without blaming the model', () => {
+  const sqliteMessage = summarizeAgentChatFailure('Error: database or disk is full: code=ERR_SQLITE_ERROR')
+  assert(/instance is out of storage space/i.test(sqliteMessage), `Unexpected message: ${sqliteMessage}`)
+  assert(/No model change is needed/i.test(sqliteMessage), `Expected model guidance: ${sqliteMessage}`)
+
+  const filesystemMessage = summarizeAgentChatFailure("Error: ENOSPC: no space left on device, mkdir '/app/DATA/default/TEMPLATES'")
+  assert(filesystemMessage === sqliteMessage, `Expected equivalent storage guidance: ${filesystemMessage}`)
+})
+
+test('summarizeAgentChatFailure explains state initialization failures', () => {
+  const message = summarizeAgentChatFailure('initialize transport failed: failed to initialize sqlite state runtime under /app/DATA/.home/.openclaw/agents/sample-agent/agent/codex-home')
+  assert(/could not initialize its local chat state/i.test(message), `Unexpected message: ${message}`)
+  assert(/storage capacity and permissions/i.test(message), `Expected operator guidance: ${message}`)
+})
+
 test('summarizeAgentChatFailure normalizes missing execution path guidance', () => {
   const message = summarizeAgentChatFailure('No execution path configured. Add hosted provider keys, configure Ollama, or add an OpenAI-compatible endpoint in BYOK / workspace integrations.')
   assert(/No model execution path is configured for this chat/i.test(message), `Unexpected message: ${message}`)
