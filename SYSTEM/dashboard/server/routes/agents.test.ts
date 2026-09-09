@@ -719,6 +719,57 @@ async function run() {
       await new Promise(resolve => setTimeout(resolve, 20))
       assert(writes.some(chunk => chunk.includes(fakeCli)), 'Expected streamed logs to include the resolved CLI path')
       assert(writes.some(chunk => chunk.includes('"type":"done"') && chunk.includes('"data":"ok"')), 'Expected successful create completion event')
+      const config = JSON.parse(fs.readFileSync(path.join(tmpHome, '.openclaw', 'openclaw.json'), 'utf-8'))
+      const registered = Object.entries(config.agents?.entries || {})
+        .find(([id, value]: [string, any]) => id === 'fresh-agent' && value.workspace === path.join(workspacePath, 'AGENTS', 'fresh-agent'))
+      assert(registered, 'Expected done: ok only after the exact agent and workspace were durable in openclaw.json')
+    } finally {
+      childProcess.spawn = originalSpawn
+    }
+  })
+
+  await test('provision emits an SSE error and never done when openclaw exits nonzero', async () => {
+    const tmpCliDir = path.join(tmpHome, 'bin-failing-provision')
+    const fakeCli = path.join(tmpCliDir, 'openclaw')
+    fs.mkdirSync(tmpCliDir, { recursive: true })
+    fs.writeFileSync(fakeCli, '#!/bin/sh\necho test-openclaw\n', 'utf-8')
+    fs.chmodSync(fakeCli, 0o755)
+    process.env.OPENCLAW_BIN = fakeCli
+
+    const childProcess = require('child_process')
+    const originalSpawn = childProcess.spawn
+    childProcess.spawn = () => {
+      const listeners: Record<string, Function> = {}
+      return {
+        stdout: { on() {} },
+        stderr: { on() {} },
+        on(event: string, handler: Function) {
+          listeners[event] = handler
+          if (event === 'close') setTimeout(() => handler(1, null), 0)
+        },
+      }
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/provision')
+      const writes: string[] = []
+      const res: any = {
+        writableEnded: false,
+        setHeader() {},
+        flushHeaders() {},
+        write(chunk: string) { writes.push(String(chunk)) },
+        end() { this.writableEnded = true },
+      }
+      await handler(makeReq({
+        body: { name: 'failed-provision', model: 'openai/gpt-4o-mini', tags: [] },
+        on() {},
+      }), res)
+      await new Promise(resolve => setTimeout(resolve, 20))
+
+      assert(writes.some(chunk => chunk.includes('"type":"error"') && chunk.includes('exit code 1')), 'Expected nonzero exit to emit an SSE error')
+      assert(!writes.some(chunk => chunk.includes('"type":"done"')), 'Expected nonzero exit never to emit done')
+      const config = JSON.parse(fs.readFileSync(path.join(tmpHome, '.openclaw', 'openclaw.json'), 'utf-8'))
+      assert(!Object.prototype.hasOwnProperty.call(config.agents?.entries || {}, 'failed-provision'), 'Expected failed agent not to be registered')
     } finally {
       childProcess.spawn = originalSpawn
     }

@@ -177,6 +177,20 @@ function updateAgentIdentityRuntime(identityPath: string, runtime: string) {
   fs.writeFileSync(identityPath, upsertAgentRuntimeInIdentityContent(content, runtime), 'utf-8')
 }
 
+function isAgentDurablyRegistered(agentId: string, expectedWorkspace: string): boolean {
+  try {
+    const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    return materializeDashboardAgentList(config).some((agent: any) => (
+      agent?.id === agentId
+      && typeof agent?.workspace === 'string'
+      && path.resolve(agent.workspace) === path.resolve(expectedWorkspace)
+    ))
+  } catch {
+    return false
+  }
+}
+
 function resetAgentRuntimeForModelChange(agentId: string) {
   const HOME = process.env.HOME || ''
   const reset = resetAgentSessionsForModelChange(HOME, agentId)
@@ -1277,7 +1291,11 @@ router.post('/provision', async (req, res) => {
         syncProvisionedAgentModels()
       } catch (err: any) {
         send('error', `Failed to prepare agent workspace files: ${err.message}`)
-        send('done', 'post-provision file setup failed')
+        res.end()
+        return
+      }
+      if (!isAgentDurablyRegistered(validatedName, workspaceArg)) {
+        send('error', `Agent ${validatedName} was not durably registered in openclaw.json`)
         res.end()
         return
       }
@@ -1286,7 +1304,9 @@ router.post('/provision', async (req, res) => {
       saveCreationMetadata()
       send('done', 'ok')
     } else {
-      send('done', signal ? `killed by signal ${signal}` : `exit code ${code}`)
+      send('error', signal
+        ? `Agent ${validatedName} provisioning was killed by signal ${signal}`
+        : `Agent ${validatedName} provisioning failed with exit code ${code}`)
     }
     res.end()
   })
