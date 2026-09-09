@@ -13,7 +13,7 @@ partners, plugins, schemas, and the OpenClaw patch alongside the dashboard.
 ```sh
 docker build -f Dockerfile \
   --build-arg CLAWMAX_VERSION=2.0.0-test-rcN \
-  --build-arg OPENCLAW_GIT_REF=v2026.6.34 \
+  --build-arg OPENCLAW_GIT_REF=v2026.8.2 \
   --build-arg CLAWMAX_ENABLED_PLUGINS= \
   -t clawmax-dashboard:local .
 ```
@@ -43,6 +43,16 @@ The entrypoint creates and preserves these runtime locations:
 Persist `/app/WORKSPACES` and `/app/.openclaw` in a deployment. Replacing or
 mounting over `/app/SYSTEM/dashboard` with files from another release can
 trigger the entrypoint's version-mismatch diagnostic and is unsupported.
+
+Custom agent and organization templates are user data. They are stored below
+the active workspace in `TEMPLATES/agents` and `TEMPLATES/organizations`, so
+they must survive a runtime-image replacement whenever the active workspace is
+mounted persistently. Deployments that override both `HOME` and
+`OPENCLAW_WORKSPACE` may persist one parent data volume instead; for example,
+the CLI layout mounts `/app/DATA` and places the active workspace below
+`/app/DATA/.home/.openclaw/workspaces`. The release-image lifecycle smoke test
+replaces its container with that volume retained and verifies both custom
+template types remain readable.
 
 The dashboard listens on `DASHBOARD_PORT=3001`. The OpenClaw gateway is
 started and watched by the entrypoint using the persisted gateway config. The
@@ -84,6 +94,9 @@ from the root `Dockerfile`, then checking:
    version.
 2. `openclaw --version` reports the pinned OpenClaw baseline.
 3. `/app/WORKSPACES` and `/app/.openclaw` survive a restart.
-4. The entrypoint starts the dashboard and gateway without a generated
+4. Custom agent and organization templates survive runtime-image replacement.
+5. An agent can be created, removed with state, and recreated immediately with
+   the same exact ID and ordered tags.
+6. The entrypoint starts the dashboard and gateway without a generated
    replacement entrypoint.
-5. The expected plugin payload is discoverable under `/app/PLUGINS`.
+7. The expected plugin payload is discoverable under `/app/PLUGINS`.
