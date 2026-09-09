@@ -55,6 +55,12 @@ assert_contains "FROM --platform=\$BUILDPLATFORM node:22.22.3-bookworm-slim AS o
 assert_contains "FROM --platform=\$BUILDPLATFORM node:22.22.3-bookworm-slim AS builder"
 assert_contains "FROM --platform=\$TARGETPLATFORM node:22.22.3-bookworm-slim AS runtime"
 assert_contains "ARG TARGETARCH"
+assert_contains "ARG OPENCLAW_CODEX_APP_SERVER_VERSION=0.151.0"
+assert_contains 'npm install -g --include=optional "@openai/codex@${OPENCLAW_CODEX_APP_SERVER_VERSION}"'
+assert_contains "require('/usr/local/lib/node_modules/@openai/codex/package.json').version"
+assert_contains 'codex --version | grep -F "${OPENCLAW_CODEX_APP_SERVER_VERSION}"'
+assert_contains "ENV OPENCLAW_CODEX_APP_SERVER_BIN=/usr/local/bin/codex"
+assert_contains 'ENV OPENCLAW_CODEX_APP_SERVER_VERSION=${OPENCLAW_CODEX_APP_SERVER_VERSION}'
 assert_contains "ARG QBO_VERSION=0.6.1"
 assert_contains "ARG QBO_LINUX_AMD64_SHA256=ce7774c7c641b1c6fe356e2e522465fbf16d80bce0a87fd2c8027774e2a46f31"
 assert_contains "ARG QBO_LINUX_ARM64_SHA256=150cdb50c2dacc8c990c3594b358dcd84f2336de31cad73de266bbdf32b3d4e0"
@@ -82,6 +88,10 @@ grep -Fq 'TEST_PLUGIN_IDS="plugin-evals,plugin-guardrails,plugin-resource-plans,
   || { echo "Expected local test wrapper to enable synthetic plugins" >&2; exit 1; }
 grep -Fq 'CLAWMAX_ENABLED_PLUGINS=clawmax-lifecycle,plugin-review-notes' "$TEST_IMAGE_WORKFLOW" \
   || { echo "Expected public test images to enable only public product plugins" >&2; exit 1; }
+grep -Fq 'test "$OPENCLAW_CODEX_APP_SERVER_BIN" = /usr/local/bin/codex' "$TEST_IMAGE_WORKFLOW" \
+  || { echo "Expected public image validation to exercise the configured Codex app-server binary" >&2; exit 1; }
+grep -Fq '*0.151.0*)' "$TEST_IMAGE_WORKFLOW" \
+  || { echo "Expected public image validation to enforce the pinned Codex app-server version" >&2; exit 1; }
 
 assert_not_contains() {
   needle="$1"
