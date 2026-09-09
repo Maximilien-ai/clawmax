@@ -790,7 +790,7 @@ async function run() {
     }
   })
 
-  await test('remove-state delegates file deletion so OpenClaw clears workspace attestation', async () => {
+  await test('remove-state clears attestation before registration-only OpenClaw deletion', async () => {
     const agentId = 'remove-state-agent'
     const agentWorkspace = path.join(workspacePath, 'AGENTS', agentId)
     writeAgent(workspacePath, agentId, '# IDENTITY.md\n\n- **Name:** Remove State Agent\n')
@@ -801,16 +801,21 @@ async function run() {
     }, null, 2))
     const calls: Array<{ agentId: string; deleteFiles: boolean }> = []
     const clearedWorkspaces: string[] = []
+    const lifecycleOrder: string[] = []
 
     try {
       await withOpenClawWorkspaceStateStubs({
-        clearPinnedOpenClawWorkspaceState: async (workspaceDir: string) => { clearedWorkspaces.push(workspaceDir) },
+        clearPinnedOpenClawWorkspaceState: async (workspaceDir: string) => {
+          clearedWorkspaces.push(workspaceDir)
+          lifecycleOrder.push('clear-attestation')
+        },
       }, async () => {
         await withGatewayRpcStubs({
           isGatewayRunning: () => ({ running: true, port: 18789 }),
           getGatewayClient: () => ({
             deleteAgentNative: async (id: string, deleteFiles: boolean) => {
               calls.push({ agentId: id, deleteFiles })
+              lifecycleOrder.push('delete-registration')
               return 'deleted'
             },
           }),
@@ -821,8 +826,9 @@ async function run() {
 
           assert.strictEqual(res.statusCode, 200)
           assert.strictEqual(res.jsonBody?.ok, true)
-          assert.deepStrictEqual(calls, [{ agentId, deleteFiles: true }])
+          assert.deepStrictEqual(calls, [{ agentId, deleteFiles: false }])
           assert.deepStrictEqual(clearedWorkspaces, [agentWorkspace])
+          assert.deepStrictEqual(lifecycleOrder, ['clear-attestation', 'delete-registration'])
           assert(res.jsonBody.steps.includes(`Cleared OpenClaw workspace state for ${agentId}`))
         })
       })
@@ -836,21 +842,26 @@ async function run() {
     const agentId = 'remove-state-failure'
     const agentWorkspace = path.join(workspacePath, 'AGENTS', agentId)
     writeAgent(workspacePath, agentId, '# IDENTITY.md\n\n- **Name:** Remove State Failure\n')
+    const nativeDeleteCalls: string[] = []
 
     await withOpenClawWorkspaceStateStubs({
       clearPinnedOpenClawWorkspaceState: async () => { throw new Error('attestation still present') },
     }, async () => {
       await withGatewayRpcStubs({
-        isGatewayRunning: () => ({ running: false, port: 18789 }),
+        isGatewayRunning: () => ({ running: true, port: 18789 }),
+        getGatewayClient: () => ({
+          deleteAgentNative: async (id: string) => { nativeDeleteCalls.push(id) },
+        }),
       }, async () => {
         const handler = getRouteHandler('delete', '/:id')
         const res = makeRes()
         await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: true } }), res)
 
-        assert.strictEqual(res.statusCode, 200)
+        assert.strictEqual(res.statusCode, 503)
         assert.strictEqual(res.jsonBody?.ok, false)
         assert(res.jsonBody.errors.some((error: string) => error.includes('attestation still present')))
-        assert(!fs.existsSync(agentWorkspace), 'Expected visible agent workspace to be removed')
+        assert(fs.existsSync(agentWorkspace), 'Expected visible agent workspace to remain unchanged')
+        assert.deepStrictEqual(nativeDeleteCalls, [], 'Expected native registration to remain unchanged')
       })
     })
   })

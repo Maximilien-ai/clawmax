@@ -1816,12 +1816,29 @@ router.delete('/:id', async (req, res) => {
     return
   }
   const agentWorkspaceDir = path.join(getAgentsDir(), id)
+  const lifecycleSteps: string[] = []
+  if (removeStateDir === true) {
+    try {
+      // OpenClaw 2026.8.2 removes the config entry before moving workspace
+      // files to Trash. On persistent container volumes that move can fail,
+      // leaving the agent only partly removed. Clear and verify the attestation
+      // first, then keep all filesystem deletion under Dashboard control.
+      await clearPinnedOpenClawWorkspaceState(agentWorkspaceDir)
+      lifecycleSteps.push(`Cleared OpenClaw workspace state for ${id}`)
+    } catch (err: any) {
+      res.status(503).json({
+        ok: false,
+        steps: [],
+        errors: [String(err?.message || err || 'Failed to clear OpenClaw workspace state')],
+      })
+      return
+    }
+  }
   if (isGatewayRunning().running) {
     try {
-      // Let OpenClaw delete its workspace attestation together with the files
-      // when the operator explicitly requests state removal. Removing only the
-      // visible directories leaves the exact workspace ID blocked for 24 hours.
-      await getGatewayClient().deleteAgentNative(id, removeStateDir === true)
+      // Registration-only deletion avoids OpenClaw's non-atomic Trash move.
+      // deleteAgent below owns the persistent-volume filesystem lifecycle.
+      await getGatewayClient().deleteAgentNative(id, false)
     } catch (err: any) {
       res.status(503).json({
         ok: false,
@@ -1832,18 +1849,7 @@ router.delete('/:id', async (req, res) => {
     }
   }
   const result = deleteAgent(id, removeStateDir === true)
-  if (removeStateDir === true && result.errors.length === 0) {
-    try {
-      // OpenClaw 2026.8.2 treats workspace-state cleanup as best effort and can
-      // return ok after swallowing a SQLite cleanup failure. Reconcile through
-      // its pinned state-store implementation and verify the exact workspace no
-      // longer has setup or attestation state before reporting removal success.
-      await clearPinnedOpenClawWorkspaceState(agentWorkspaceDir)
-      result.steps.push(`Cleared OpenClaw workspace state for ${id}`)
-    } catch (err: any) {
-      result.errors.push(String(err?.message || err || 'Failed to clear OpenClaw workspace state'))
-    }
-  }
+  result.steps.unshift(...lifecycleSteps)
   res.json({ ok: result.errors.length === 0, ...result })
 })
 
