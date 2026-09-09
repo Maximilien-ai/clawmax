@@ -16,6 +16,7 @@ import { resolveDefaultAgentModel } from './agent-default-model'
 import { applyGeneratedWorkflowHandoffs, normalizeGeneratedWorkflowReferences } from './ai-generator'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
+import { getWorkspaceManager } from './workspace-manager'
 
 // Template storage paths (dynamic functions)
 
@@ -33,8 +34,39 @@ export function getGlobalOrgTemplatesDir(): string {
 }
 
 // Workspace templates (private to current workspace - user-created)
+function copyMissingTemplateTree(sourceDir: string, destinationDir: string): void {
+  if (!fs.existsSync(sourceDir)) return
+  fs.mkdirSync(destinationDir, { recursive: true })
+  for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+    const sourcePath = path.join(sourceDir, entry.name)
+    const destinationPath = path.join(destinationDir, entry.name)
+    if (entry.isDirectory()) {
+      copyMissingTemplateTree(sourcePath, destinationPath)
+    } else if (entry.isFile() && !fs.existsSync(destinationPath)) {
+      fs.copyFileSync(sourcePath, destinationPath, fs.constants.COPYFILE_EXCL)
+    }
+  }
+}
+
 export function getTemplatesDir(): string {
-  return path.join(getWorkspacePath(), 'TEMPLATES')
+  const legacyDir = path.join(getWorkspacePath(), 'TEMPLATES')
+  const dataRoot = `${process.env.CLAWMAX_DATA_ROOT || ''}`.trim()
+  if (!dataRoot) return legacyDir
+
+  const workspaceId = encodeURIComponent(getWorkspaceManager().getActiveWorkspaceId())
+  const persistentDir = path.join(path.resolve(dataRoot), 'templates', workspaceId)
+  const migrationMarker = path.join(persistentDir, '.legacy-workspace-templates-migrated-v1')
+  fs.mkdirSync(persistentDir, { recursive: true })
+
+  // RC61 and earlier stored custom templates below the active OpenClaw
+  // workspace. Copy those files once into Dashboard-owned persistent storage;
+  // retain the legacy copy so rolling back an image remains safe.
+  if (!fs.existsSync(migrationMarker)) {
+    copyMissingTemplateTree(legacyDir, persistentDir)
+    fs.writeFileSync(migrationMarker, `${new Date().toISOString()}\n`, 'utf-8')
+  }
+
+  return persistentDir
 }
 
 export function getAgentTemplatesDir(): string {

@@ -28,6 +28,7 @@ start_dashboard() {
     -e BYPASS_OAUTH=true \
     -e DASHBOARD_AUTH_MODE=bypass \
     -e DASHBOARD_DEPLOYMENT_KIND=onprem \
+    -e CLAWMAX_DATA_ROOT=/app/DATA \
     -e HOME=/app/DATA/.home \
     -e OPENCLAW_WORKSPACE=/app/DATA/.home/.openclaw/workspaces/acceptance \
     -v "$volume_name:/app/DATA" \

@@ -18,6 +18,7 @@ import {
   readWorkspaceAgentFilesForOrganizationTemplate,
   isOpenClawAgentAlreadyExistsError,
   upsertOpenClawAgentRegistration,
+  getTemplatesDir,
   slugify,
   type OrganizationTemplate,
   type AgentTemplate
@@ -1515,6 +1516,48 @@ test('saveTemplate strips derived kind from persisted organization templates', (
     resetWorkspaceManagerForTests()
     fs.rmSync(tempHome, { recursive: true, force: true })
     fs.rmSync(tempWorkspace, { recursive: true, force: true })
+  }
+})
+
+test('container template storage migrates legacy agent and organization canaries once', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const originalDataRoot = process.env.CLAWMAX_DATA_ROOT
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-template-storage-'))
+  const tempHome = path.join(tempRoot, 'home')
+  const tempWorkspace = path.join(tempRoot, 'workspace')
+  const dataRoot = path.join(tempRoot, 'data')
+  const legacyAgent = path.join(tempWorkspace, 'TEMPLATES', 'agents', 'read-only-collector', 'template.json')
+  const legacyOrganization = path.join(tempWorkspace, 'TEMPLATES', 'organizations', 'clawmax-local-multi-agent-acceptance', 'template.json')
+
+  fs.mkdirSync(path.dirname(legacyAgent), { recursive: true })
+  fs.mkdirSync(path.dirname(legacyOrganization), { recursive: true })
+  fs.writeFileSync(legacyAgent, JSON.stringify({ name: 'Read-only Collector' }), 'utf-8')
+  fs.writeFileSync(legacyOrganization, JSON.stringify({ name: 'Local Multi-agent Acceptance' }), 'utf-8')
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.CLAWMAX_DATA_ROOT = dataRoot
+  resetWorkspaceManagerForTests()
+
+  try {
+    const persistentDir = getTemplatesDir()
+    assertEqual(persistentDir, path.join(dataRoot, 'templates', 'default'))
+    assert(fs.existsSync(path.join(persistentDir, 'agents', 'read-only-collector', 'template.json')), 'Expected agent canary migration')
+    assert(fs.existsSync(path.join(persistentDir, 'organizations', 'clawmax-local-multi-agent-acceptance', 'template.json')), 'Expected organization canary migration')
+
+    fs.writeFileSync(path.join(persistentDir, 'agents', 'read-only-collector', 'template.json'), JSON.stringify({ name: 'Persistent Edit' }), 'utf-8')
+    assertEqual(getTemplatesDir(), persistentDir)
+    const persisted = JSON.parse(fs.readFileSync(path.join(persistentDir, 'agents', 'read-only-collector', 'template.json'), 'utf-8'))
+    assertEqual(persisted.name, 'Persistent Edit', 'Migration must not overwrite later persistent edits')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    if (typeof originalDataRoot === 'undefined') delete process.env.CLAWMAX_DATA_ROOT
+    else process.env.CLAWMAX_DATA_ROOT = originalDataRoot
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempRoot, { recursive: true, force: true })
   }
 })
 

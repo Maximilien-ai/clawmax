@@ -44,15 +44,15 @@ Persist `/app/WORKSPACES` and `/app/.openclaw` in a deployment. Replacing or
 mounting over `/app/SYSTEM/dashboard` with files from another release can
 trigger the entrypoint's version-mismatch diagnostic and is unsupported.
 
-Custom agent and organization templates are user data. They are stored below
-the active workspace in `TEMPLATES/agents` and `TEMPLATES/organizations`, so
-they must survive a runtime-image replacement whenever the active workspace is
-mounted persistently. Deployments that override both `HOME` and
-`OPENCLAW_WORKSPACE` may persist one parent data volume instead; for example,
-the CLI layout mounts `/app/DATA` and places the active workspace below
-`/app/DATA/.home/.openclaw/workspaces`. The release-image lifecycle smoke test
-replaces its container with that volume retained and verifies both custom
-template types remain readable.
+Custom agent and organization templates are user data. When
+`CLAWMAX_DATA_ROOT` is configured, Dashboard stores them by workspace ID below
+`$CLAWMAX_DATA_ROOT/templates`; the CLI container layout therefore uses
+`/app/DATA/templates`. On first access, Dashboard copies templates from the
+legacy active-workspace `TEMPLATES/agents` and `TEMPLATES/organizations`
+directories without deleting or overwriting them. Source and legacy
+deployments without `CLAWMAX_DATA_ROOT` continue using the active workspace.
+The release-image lifecycle smoke test replaces its container with the data
+volume retained and verifies both custom template types remain readable.
 
 The dashboard listens on `DASHBOARD_PORT=3001`. The OpenClaw gateway is
 started and watched by the entrypoint using the persisted gateway config. The
