@@ -91,11 +91,12 @@ test('shouldUseLocalChatExecution still falls back to direct mode for hosted BYO
   }), 'Expected BYOK OpenAI chat to use local execution when gateway is unavailable')
 })
 
-test('local chat retries through gateway only when a hosted provider loses the state ownership race', () => {
+test('local chat retries through gateway when any OpenClaw provider loses the state ownership race', () => {
   const collision = 'A Gateway is running for this state directory (pid 123, port 18789). Run without --local to use it.'
   assert(shouldRetryViaGatewayAfterLocalCollision({ useLocal: true, provider: 'openai', rawError: collision }), 'Expected hosted local collision to retry through gateway')
   assert(!shouldRetryViaGatewayAfterLocalCollision({ useLocal: false, provider: 'openai', rawError: collision }), 'Expected an existing gateway attempt not to retry')
-  assert(!shouldRetryViaGatewayAfterLocalCollision({ useLocal: true, provider: 'ollama', rawError: collision }), 'Expected local-only provider not to reroute')
+  assert(shouldRetryViaGatewayAfterLocalCollision({ useLocal: true, provider: 'ollama', rawError: collision }), 'Expected Ollama collision to reroute through its healthy Gateway owner')
+  assert(shouldRetryViaGatewayAfterLocalCollision({ useLocal: true, provider: 'openai-compatible', rawError: collision }), 'Expected OpenAI-compatible collision to reroute through its healthy Gateway owner')
   assert(!shouldRetryViaGatewayAfterLocalCollision({ useLocal: true, provider: 'openai', rawError: 'connection refused' }), 'Expected unrelated errors not to reroute')
 })
 
@@ -139,15 +140,28 @@ test('shouldRecoverPersistedAssistant enables recovery when stdout normalized to
   assert(!shouldRecoverPersistedAssistant('Hello from the agent.'), 'Expected real assistant text to skip persisted fallback')
 })
 
-test('shouldUseLocalChatExecution always uses direct mode for local providers', () => {
-  assert(shouldUseLocalChatExecution({
+test('shouldUseLocalChatExecution uses the active gateway for local providers', () => {
+  assert(!shouldUseLocalChatExecution({
     provider: 'ollama',
     gatewayRunning: true,
-  }), 'Expected Ollama chat to use local execution')
-  assert(shouldUseLocalChatExecution({
+  }), 'Expected Ollama chat to use its active Gateway owner')
+  assert(!shouldUseLocalChatExecution({
     provider: 'openai-compatible',
     gatewayRunning: true,
-  }), 'Expected OpenAI-compatible chat to use local execution')
+  }), 'Expected OpenAI-compatible chat to use its active Gateway owner')
+  assert(shouldUseLocalChatExecution({
+    provider: 'ollama',
+    gatewayRunning: false,
+  }), 'Expected Ollama chat to use direct execution when no Gateway owns state')
+})
+
+test('deriveChatError preserves the local-mode ownership conflict', () => {
+  const message = deriveChatError(
+    'A Gateway is running for this state directory. Run without --local to use it, or stop the Gateway first.',
+    'ollama',
+  )
+  assert(/refused local execution/i.test(message), 'Expected an accurate local ownership classification')
+  assert(/could not complete its Gateway retry/i.test(message), 'Expected actionable Gateway retry context')
 })
 
 test('deriveChatError returns an LM Studio-specific context hint for openai-compatible models', () => {

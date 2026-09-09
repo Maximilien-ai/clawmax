@@ -234,7 +234,6 @@ export function shouldUseLocalChatExecution(input: {
   gatewayRunning: boolean
   hasWorkspaceManagedSecrets?: boolean
 }): boolean {
-  if (input.provider === 'ollama' || input.provider === 'openai-compatible') return true
   // OpenClaw 2 allows only one process to own a state directory. When the
   // Gateway is running, starting a local agent can spend a long time loading
   // state before it detects that ownership collision, after which chat has to
@@ -258,7 +257,7 @@ export function shouldRetryViaGatewayAfterLocalCollision(input: {
   provider?: ChatProvider
   rawError: string
 }): boolean {
-  if (!input.useLocal || input.provider === 'ollama' || input.provider === 'openai-compatible') return false
+  if (!input.useLocal) return false
   return /Gateway is running for this state directory/i.test(input.rawError)
 }
 
@@ -479,6 +478,9 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
   }
   if (/All models failed/i.test(text) && /Unknown model:/i.test(text)) {
     return formatUnsupportedModelError(text, context)
+  }
+  if (/Gateway is running for this state directory/i.test(text) && /Run without --local/i.test(text)) {
+    return 'OpenClaw refused local execution because the healthy Gateway owns this state directory. ClawMax could not complete its Gateway retry; verify Gateway readiness and retry.'
   }
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
   if (/timeout/i.test(text)) return 'Agent chat timed out before a reply was produced. Retry once, or switch this agent to a faster model if the issue persists.'
@@ -822,14 +824,10 @@ router.post('/:id/chat', async (req, res) => {
   // Gateway + --local are openclaw-only concepts; non-openclaw runtimes spawn their own CLI directly.
   const gatewayRunning = isNonOpenclawChatRuntime(resolvedAgent.runtime)
     ? false
-    : (
-        resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'
+    : shouldTreatGatewayAsRunning(
+        (await waitForGatewayResponsive()).running,
+        isGatewayRunning().running,
       )
-      ? false
-      : shouldTreatGatewayAsRunning(
-          (await waitForGatewayResponsive()).running,
-          isGatewayRunning().running,
-        )
 
   const useLocal = isNonOpenclawChatRuntime(resolvedAgent.runtime)
     ? false
@@ -1046,7 +1044,7 @@ router.post('/:id/chat', async (req, res) => {
           '--session-id', executionSessionId,
           '--message', executionMessage,
           ...(attemptExecutionModel ? ['--model', attemptExecutionModel] : []),
-          ...(forceGateway ? [] : (attemptUseOpenAiCompatible || attemptProvider === 'ollama' || useLocal ? ['--local'] : [])),
+          ...(forceGateway || !useLocal ? [] : ['--local']),
         ]
         console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
 
