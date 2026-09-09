@@ -7,8 +7,14 @@ run_key="${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$$"
 container_name="clawmax-agent-lifecycle-${run_key}"
 volume_name="clawmax-agent-lifecycle-${run_key}"
 base_url=''
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+mock_ollama_port="$((19000 + ($$ % 1000)))"
+mock_ollama_pid=''
 
 cleanup() {
+  if [ -n "$mock_ollama_pid" ]; then
+    kill "$mock_ollama_pid" >/dev/null 2>&1 || true
+  fi
   docker rm -f "$container_name" >/dev/null 2>&1 || true
   docker volume rm "$volume_name" >/dev/null 2>&1 || true
 }
@@ -24,11 +30,13 @@ start_dashboard() {
   docker run -d \
     --platform "$platform" \
     --name "$container_name" \
+    --add-host host.docker.internal:host-gateway \
     -p 127.0.0.1::3001 \
     -e BYPASS_OAUTH=true \
     -e DASHBOARD_AUTH_MODE=bypass \
     -e DASHBOARD_DEPLOYMENT_KIND=onprem \
     -e CLAWMAX_DATA_ROOT=/app/DATA \
+    -e OLLAMA_BASE_URL="http://host.docker.internal:${mock_ollama_port}" \
     -e HOME=/app/DATA/.home \
     -e OPENCLAW_WORKSPACE=/app/DATA/.home/.openclaw/workspaces/acceptance \
     -v "$volume_name:/app/DATA" \
@@ -76,11 +84,39 @@ assert_one_ordered_agent() {
     || fail "agent list did not contain exactly one probe with ordered tags: $response"
 }
 
+assert_gateway_chat() {
+  local response logs spawn_line
+  response="$(curl -fsS --no-buffer --max-time 240 \
+    -H 'Content-Type: application/json' \
+    -d '{"message":"Reply with the acceptance status.","sessionId":"rc-image-gateway-chat"}' \
+    "$base_url/api/agents/rc-image-reuse-probe/chat")" || fail 'Dashboard gateway chat request failed'
+  printf '%s' "$response" | grep -F 'RC image gateway chat completed through Ollama.' >/dev/null \
+    || fail "Dashboard gateway chat did not return the mock model reply: $response"
+  printf '%s' "$response" | grep -F '"type":"complete"' >/dev/null \
+    || fail "Dashboard gateway chat did not complete: $response"
+
+  logs="$(docker logs "$container_name" 2>&1)"
+  spawn_line="$(printf '%s\n' "$logs" | grep -F '[Chat Route] Spawning:' | tail -n 1 || true)"
+  [ -n "$spawn_line" ] || fail 'Dashboard did not log the OpenClaw chat invocation'
+  if printf '%s\n' "$spawn_line" | grep -F -- ' --local' >/dev/null; then
+    fail "Dashboard forced local mode while its gateway was running: $spawn_line"
+  fi
+}
+
 docker volume create "$volume_name" >/dev/null
+node "$script_dir/mock-ollama-server.mjs" "$mock_ollama_port" >/tmp/clawmax-mock-ollama.log 2>&1 &
+mock_ollama_pid=$!
+for _ in $(seq 1 20); do
+  curl -fsS "http://127.0.0.1:${mock_ollama_port}/api/tags" >/dev/null 2>&1 && break
+  sleep 1
+done
+curl -fsS "http://127.0.0.1:${mock_ollama_port}/api/tags" >/dev/null \
+  || fail 'mock Ollama server did not become ready'
 start_dashboard
 
 provision_agent
 assert_one_ordered_agent
+assert_gateway_chat
 
 delete_response="$(curl -fsS -X DELETE \
   -H 'Content-Type: application/json' \
