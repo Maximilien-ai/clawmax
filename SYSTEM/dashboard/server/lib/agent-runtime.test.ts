@@ -1095,14 +1095,22 @@ async function run(): Promise<void> {
       fs.chmodSync(cli, 0o755)
       const controller = new AbortController()
       const deltas: string[] = []
+      let resolveFirstDelta: (() => void) | undefined
+      const firstDelta = new Promise<void>((resolve) => { resolveFirstDelta = resolve })
       const run = runRuntimeCli({
         plan: { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: true },
         env: process.env as NodeJS.ProcessEnv, signal: controller.signal,
         rebuildPlan: () => { throw new Error('rebuildPlan should not be called') },
         runtime: 'claude', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
-        onDelta: (t) => deltas.push(t),
+        onDelta: (t) => {
+          deltas.push(t)
+          resolveFirstDelta?.()
+        },
       })
-      await new Promise((r) => setTimeout(r, 400))
+      await Promise.race([
+        firstDelta,
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timed out waiting for partial runtime output')), 5000)),
+      ])
       controller.abort()
       const result = await run
       assert.strictEqual(result.errorText, RUNTIME_CANCELLED)
