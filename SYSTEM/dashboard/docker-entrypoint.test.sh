@@ -122,6 +122,11 @@ export CLAWMAX_HOST_OPENCLAW_CONFIG="$TMP_DIR/host-openclaw.json"
 
 . "$SCRIPT"
 
+[ "$NPM_CONFIG_CACHE" = "/tmp/clawmax-npm-cache" ] || {
+  echo "Expected runtime npm cache to default to ephemeral storage" >&2
+  exit 1
+}
+
 ensure_gateway_auth_token
 [ -s "$GATEWAY_AUTH_TOKEN_FILE" ] || {
   echo "Expected missing gateway auth token to be generated" >&2

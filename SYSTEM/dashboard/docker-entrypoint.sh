@@ -2,6 +2,10 @@
 set -eu
 
 export HOME="${HOME:-/app}"
+# Runtime plugin installs can be hundreds of megabytes. Keep npm's disposable
+# download cache off the persistent workspace volume; installed OpenClaw state
+# remains under HOME, while cached tarballs can be recreated after a restart.
+export NPM_CONFIG_CACHE="${NPM_CONFIG_CACHE:-/tmp/clawmax-npm-cache}"
 export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE:-/app/WORKSPACES/default}"
 export CLAWMAX_AUTO_START_GATEWAY="${CLAWMAX_AUTO_START_GATEWAY:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG="${CLAWMAX_GATEWAY_WATCHDOG:-true}"
