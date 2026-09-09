@@ -87,6 +87,7 @@ test('shouldUseLocalChatExecution prefers gateway for hosted BYOK models when ga
 test('configured auto-start gateway owns state across transient readiness probe misses', () => {
   assert(configuredAutoStartGatewayOwnsState({ configured: true }), 'Expected the default auto-start gateway to own configured state')
   assert(configuredAutoStartGatewayOwnsState({ configured: true, autoStartSetting: 'true' }), 'Expected explicit auto-start gateway ownership')
+  assert(configuredAutoStartGatewayOwnsState({ configured: false, autoStartSetting: 'true' }), 'Expected entrypoint auto-start to own state before generated config becomes readable')
   assert(!configuredAutoStartGatewayOwnsState({ configured: true, autoStartSetting: 'false' }), 'Expected explicitly disabled auto-start to allow local execution')
   assert(!configuredAutoStartGatewayOwnsState({ configured: false }), 'Expected missing gateway config not to claim state ownership')
 })

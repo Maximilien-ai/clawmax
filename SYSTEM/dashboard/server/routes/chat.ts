@@ -247,7 +247,8 @@ export function configuredAutoStartGatewayOwnsState(input: {
   configured: boolean
   autoStartSetting?: string
 }): boolean {
-  return input.configured && input.autoStartSetting !== 'false'
+  if (input.autoStartSetting === 'false') return false
+  return input.configured || input.autoStartSetting === 'true'
 }
 
 export function shouldUseManagedSecretStatelessChatSession(_input: {
