@@ -1299,7 +1299,7 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
       'add',
       '--name', jobName,
       '--agent', agentId,
-      '--cron', `"${workflow.schedule}"`,
+      '--cron', workflow.schedule,
       '--tz', workflow.timezone || 'UTC',
       '--message', JSON.stringify(workflow.content).slice(0, 2000),
       ...(agentModel ? ['--model', agentModel] : []),

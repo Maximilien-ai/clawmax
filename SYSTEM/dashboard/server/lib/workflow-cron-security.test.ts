@@ -34,10 +34,13 @@ try {
 
   const add = invocations.find((call) => call.args.includes('add'))
   assert(add, 'Expected cron add invocation')
+  const cronArgIndex = add!.args.indexOf('--cron')
+  assert(cronArgIndex >= 0, 'Expected cron schedule flag')
+  assert.strictEqual(add!.args[cronArgIndex + 1], '0 8 * * *', 'Expected the complete five-field cron expression as one argv value without embedded quotes')
   assert(add!.args.includes('UTC; touch /tmp/clawmax-timezone-injection'), 'Expected timezone metacharacters to remain one literal argument')
   assert(add!.args.some((arg) => arg.includes(marker)), 'Expected workflow content metacharacters to remain literal data')
 
-  console.log('workflow-cron-security.test.ts: 8 tests passed')
+  console.log('workflow-cron-security.test.ts: 10 tests passed')
 } finally {
   ;(childProcess as any).execFileSync = originalExecFileSync
 }

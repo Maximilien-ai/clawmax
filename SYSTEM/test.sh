@@ -3175,8 +3175,8 @@ fi
 
 echo -e "${YELLOW}→ Running Workflow cron command security tests...${NC}"
 npx ts-node --transpileOnly server/lib/workflow-cron-security.test.ts > /tmp/clawmax-workflow-cron-security.out 2>&1 || true
-if grep -q "workflow-cron-security.test.ts: 8 tests passed" /tmp/clawmax-workflow-cron-security.out; then
-  pass "Workflow cron command security tests (8 tests)"
+if grep -q "workflow-cron-security.test.ts: 10 tests passed" /tmp/clawmax-workflow-cron-security.out; then
+  pass "Workflow cron command security tests (10 tests)"
 else
   cat /tmp/clawmax-workflow-cron-security.out
   fail "Workflow cron command security tests"
