@@ -52,9 +52,17 @@ function normalizeGatewayHttpUrl(raw: string): string | null {
 }
 
 function parseGatewayConfig(config: any): GatewayConfig | null {
-  const port = config?.gateway?.port
+  // OpenClaw omits the port from persisted config when the standard gateway
+  // port is used. Treat that valid representation exactly like the CLI does;
+  // otherwise Dashboard incorrectly decides no Gateway exists and adds
+  // `--local`, which OpenClaw 2 rejects while the default-port Gateway owns
+  // the state directory.
+  const configuredPort = Number(config?.gateway?.port)
+  const port = Number.isInteger(configuredPort) && configuredPort > 0
+    ? configuredPort
+    : 18789
   const token = config?.gateway?.auth?.token || config?.gateway?.remote?.token
-  if (!port || !token) {
+  if (!config?.gateway || !token) {
     return null
   }
 

@@ -94,6 +94,44 @@ test('loadGatewayConfigFromDisk parses a valid local gateway config from HOME', 
   })
 })
 
+test('loadGatewayConfigFromDisk uses the OpenClaw default port when it is omitted', () => {
+  withTempHome((homeDir) => {
+    const configDir = path.join(homeDir, '.openclaw')
+    fs.mkdirSync(configDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(configDir, 'openclaw.json'),
+      JSON.stringify({
+        gateway: {
+          mode: 'local',
+          auth: { token: 'default-port-token' },
+        },
+      }),
+      'utf8',
+    )
+
+    const parsed = __test.loadGatewayConfigFromDisk()
+    assert(!!parsed, 'Expected an omitted port to remain a valid gateway config')
+    assert(parsed?.port === 18789, `Expected default port 18789, got ${parsed?.port}`)
+    assert(parsed?.httpUrl === 'http://127.0.0.1:18789', `Expected default http url, got ${parsed?.httpUrl}`)
+    assert(parsed?.wsUrl === 'ws://127.0.0.1:18789', `Expected default ws url, got ${parsed?.wsUrl}`)
+  })
+})
+
+test('loadGatewayConfigFromDisk rejects auth without a gateway section', () => {
+  withTempHome((homeDir) => {
+    const configDir = path.join(homeDir, '.openclaw')
+    fs.mkdirSync(configDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(configDir, 'openclaw.json'),
+      JSON.stringify({ gatewayToken: 'not-a-gateway' }),
+      'utf8',
+    )
+
+    const parsed = __test.loadGatewayConfigFromDisk()
+    assert(parsed === null, 'Expected config without a gateway section to be rejected')
+  })
+})
+
 test('loadGatewayConfigFromDisk honors OPENCLAW_STATE_DIR', () => {
   withTempHome((homeDir) => {
     const stateDir = path.join(homeDir, 'isolated-state')
