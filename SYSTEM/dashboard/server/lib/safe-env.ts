@@ -97,6 +97,9 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
     LANG: process.env.LANG,
     // OpenClaw needs these
     OPENCLAW_WORKSPACE: process.env.OPENCLAW_WORKSPACE,
+    OPENCLAW_STATE_DIR: process.env.OPENCLAW_STATE_DIR,
+    OPENCLAW_CONFIG_PATH: process.env.OPENCLAW_CONFIG_PATH,
+    OPENCLAW_GATEWAY_URL: process.env.OPENCLAW_GATEWAY_URL,
     NODE_ENV: process.env.NODE_ENV,
     // GitHub CLI auth (needed for agents with github/gh-issues skills)
     GITHUB_TOKEN: process.env.GITHUB_TOKEN || workspaceGitHubToken,

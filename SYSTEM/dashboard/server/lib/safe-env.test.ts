@@ -42,6 +42,10 @@ const originalEnv = {
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   HOME: process.env.HOME,
   OPENCLAW_WORKSPACE: process.env.OPENCLAW_WORKSPACE,
+  OPENCLAW_STATE_DIR: process.env.OPENCLAW_STATE_DIR,
+  OPENCLAW_CONFIG_PATH: process.env.OPENCLAW_CONFIG_PATH,
+  OPENCLAW_GATEWAY_URL: process.env.OPENCLAW_GATEWAY_URL,
+  OPENCLAW_GATEWAY_TOKEN: process.env.OPENCLAW_GATEWAY_TOKEN,
   CLAWMAX_TEST_WORKSPACE: process.env.CLAWMAX_TEST_WORKSPACE,
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   FACTORY_API_KEY: process.env.FACTORY_API_KEY,
@@ -64,6 +68,20 @@ test('safeEnv never forwards ambient shell provider keys by default', () => {
 
   assert(typeof env.OPENAI_API_KEY === 'undefined', 'Expected ambient OpenAI key to stay out of child env')
   assert(typeof env.ANTHROPIC_API_KEY === 'undefined', 'Expected ambient Anthropic key to stay out of child env')
+})
+
+test('safeEnv preserves OpenClaw runtime selection without forwarding its gateway secret', () => {
+  process.env.OPENCLAW_STATE_DIR = '/tmp/clawmax-openclaw-state'
+  process.env.OPENCLAW_CONFIG_PATH = '/tmp/clawmax-openclaw-state/openclaw.json'
+  process.env.OPENCLAW_GATEWAY_URL = 'http://127.0.0.1:18789'
+  process.env.OPENCLAW_GATEWAY_TOKEN = 'must-not-leak'
+
+  const env = safeEnv()
+
+  assert(env.OPENCLAW_STATE_DIR === process.env.OPENCLAW_STATE_DIR, 'Expected selected OpenClaw state directory')
+  assert(env.OPENCLAW_CONFIG_PATH === process.env.OPENCLAW_CONFIG_PATH, 'Expected selected OpenClaw config path')
+  assert(env.OPENCLAW_GATEWAY_URL === process.env.OPENCLAW_GATEWAY_URL, 'Expected selected OpenClaw gateway URL')
+  assert(typeof env.OPENCLAW_GATEWAY_TOKEN === 'undefined', 'Expected gateway secret to remain out of shared child env')
 })
 
 test('user execution prefers BYOK request keys over env defaults', () => {
