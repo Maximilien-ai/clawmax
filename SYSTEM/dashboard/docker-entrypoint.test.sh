@@ -48,7 +48,18 @@ case "$1 ${2:-} ${3:-}" in
     exit 0
     ;;
   "gateway run --port")
+    gateway_instance="$$"
+    printf '%s\n' "$gateway_instance" > "${GATEWAY_RUNNING_FILE:?}"
     sleep 5
+    if [ "$(cat "$GATEWAY_RUNNING_FILE" 2>/dev/null || true)" = "$gateway_instance" ]; then
+      rm -f "$GATEWAY_RUNNING_FILE"
+    fi
+    ;;
+  "gateway call health")
+    if [ "${GATEWAY_HEALTH_EXIT_CODE:-0}" -ne 0 ]; then
+      exit "$GATEWAY_HEALTH_EXIT_CODE"
+    fi
+    [ -f "${GATEWAY_RUNNING_FILE:?}" ]
     ;;
   *)
     exit 0
@@ -112,6 +123,7 @@ assert_not_contains() {
 
 export PATH="$BIN_DIR:$PATH"
 export OPENCLAW_LOG="$LOG_FILE"
+export GATEWAY_RUNNING_FILE="$TMP_DIR/gateway.running"
 export HOME="$TMP_DIR/home"
 export OPENCLAW_WORKSPACE="$TMP_DIR/workspace"
 export CLAWMAX_ENTRYPOINT_TEST_MODE=true
@@ -144,17 +156,27 @@ ensure_gateway_auth_token
 export SS_OUTPUT=""
 ensure_gateway_running "18789"
 assert_contains "gateway run --port 18789" "$LOG_FILE"
+assert_contains "gateway call health --json --timeout 3000 --url ws://127.0.0.1:18789 --token" "$LOG_FILE"
 assert_not_contains "gateway restart" "$LOG_FILE"
 
 : > "$LOG_FILE"
 export SS_OUTPUT="LISTEN 0      128          0.0.0.0:18789      0.0.0.0:*"
 ensure_gateway_running "18789"
 assert_not_contains "gateway run --port 18789" "$LOG_FILE"
+assert_contains "gateway call health --json --timeout 3000 --url ws://127.0.0.1:18789 --token" "$LOG_FILE"
+
+if GATEWAY_HEALTH_EXIT_CODE=1 ensure_gateway_running "18789" >/dev/null 2>&1; then
+  echo "Expected an occupied port without authenticated gateway readiness to fail" >&2
+  exit 1
+fi
+unset GATEWAY_HEALTH_EXIT_CODE
 
 : > "$LOG_FILE"
 export SS_OUTPUT=""
+rm -f "$GATEWAY_RUNNING_FILE"
 gateway_watchdog_tick "18789"
 assert_contains "gateway run --port 18789" "$LOG_FILE"
+assert_contains "gateway call health --json --timeout 3000 --url ws://127.0.0.1:18789 --token" "$LOG_FILE"
 
 : > "$LOG_FILE"
 if ! PATH="$NODE_ONLY_BIN_DIR" HOME="$TMP_DIR/home" OPENCLAW_WORKSPACE="$TMP_DIR/workspace" CLAWMAX_ENTRYPOINT_TEST_MODE=true OPENCLAW_LOG="$LOG_FILE" NODE_EXIT_CODE=0 /bin/sh -c '. "$1"; gateway_port_listening "18789"' _ "$SCRIPT"; then

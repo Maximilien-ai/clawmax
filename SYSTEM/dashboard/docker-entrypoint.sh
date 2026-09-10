@@ -10,6 +10,7 @@ export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE:-/app/WORKSPACES/default}"
 export CLAWMAX_AUTO_START_GATEWAY="${CLAWMAX_AUTO_START_GATEWAY:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG="${CLAWMAX_GATEWAY_WATCHDOG:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC="${CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC:-30}"
+export CLAWMAX_GATEWAY_READY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_READY_TIMEOUT_SEC:-25}"
 export CLAWMAX_HOST_OPENCLAW_CONFIG="${CLAWMAX_HOST_OPENCLAW_CONFIG:-/root/.openclaw/openclaw.json}"
 export CLAWMAX_RUNTIME_PACKAGE_JSON="${CLAWMAX_RUNTIME_PACKAGE_JSON:-/app/SYSTEM/dashboard/package.json}"
 export CLAWMAX_STRICT_OPENCLAW_PLUGIN_POLICY="${CLAWMAX_STRICT_OPENCLAW_PLUGIN_POLICY:-true}"
@@ -306,6 +307,44 @@ gateway_port_listening() {
   return 1
 }
 
+gateway_authenticated_ready() {
+  port="$1"
+  gateway_token="$(get_gateway_auth_token)"
+  [ -n "$gateway_token" ] || return 1
+  openclaw gateway call health \
+    --json \
+    --timeout 3000 \
+    --url "ws://127.0.0.1:${port}" \
+    --token "$gateway_token" >/dev/null 2>&1
+}
+
+wait_for_gateway_ready() {
+  port="$1"
+  timeout_sec="$CLAWMAX_GATEWAY_READY_TIMEOUT_SEC"
+  case "$timeout_sec" in
+    ''|*[!0-9]*) timeout_sec=25 ;;
+  esac
+  [ "$timeout_sec" -gt 0 ] || timeout_sec=1
+  deadline=$(( $(date +%s) + timeout_sec ))
+
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    if gateway_authenticated_ready "$port"; then
+      echo "[entrypoint] gateway authenticated readiness verified on port ${port}"
+      return 0
+    fi
+    if [ -n "${gateway_pid:-}" ] && ! kill -0 "$gateway_pid" 2>/dev/null; then
+      echo "[entrypoint] ERROR: gateway exited before authenticated readiness" >&2
+      tail -n 40 /tmp/openclaw-gateway.log >&2 2>/dev/null || true
+      return 1
+    fi
+    sleep 1
+  done
+
+  echo "[entrypoint] ERROR: gateway did not pass authenticated readiness within ${timeout_sec}s on port ${port}" >&2
+  tail -n 40 /tmp/openclaw-gateway.log >&2 2>/dev/null || true
+  return 1
+}
+
 start_gateway_run() {
   port="$1"
   echo "[entrypoint] starting gateway on port ${port}"
@@ -316,24 +355,39 @@ start_gateway_run() {
     echo "[entrypoint] gateway started (pid ${gateway_pid})"
   else
     echo "[entrypoint] gateway failed to start — check /tmp/openclaw-gateway.log" >&2
+    tail -n 40 /tmp/openclaw-gateway.log >&2 2>/dev/null || true
+    return 1
   fi
 }
 
 ensure_gateway_running() {
   port="$1"
-  if gateway_port_listening "$port"; then
-    echo "[entrypoint] gateway already running on port ${port}"
+  if gateway_authenticated_ready "$port"; then
+    echo "[entrypoint] gateway already running and authenticated on port ${port}"
     return 0
   fi
+  if gateway_port_listening "$port"; then
+    echo "[entrypoint] ERROR: port ${port} is listening but the gateway failed authenticated readiness" >&2
+    return 1
+  fi
   start_gateway_run "$port"
+  wait_for_gateway_ready "$port"
 }
 
 gateway_watchdog_tick() {
   port="$1"
-  if ! gateway_port_listening "$port"; then
-    echo "[entrypoint] gateway watchdog detected gateway down"
-    start_gateway_run "$port"
+  gateway_authenticated_ready "$port" && return 0
+
+  echo "[entrypoint] gateway watchdog detected an unhealthy gateway"
+  if [ -n "${gateway_pid:-}" ] && kill -0 "$gateway_pid" 2>/dev/null; then
+    kill "$gateway_pid" 2>/dev/null || true
+    wait "$gateway_pid" 2>/dev/null || true
+  elif gateway_port_listening "$port"; then
+    echo "[entrypoint] ERROR: unhealthy gateway on port ${port} is not managed by this container" >&2
+    return 1
   fi
+  start_gateway_run "$port"
+  wait_for_gateway_ready "$port"
 }
 
 start_gateway_watchdog() {
