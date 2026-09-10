@@ -88,7 +88,10 @@ function parseGatewayConfig(config: any): GatewayConfig | null {
 
 function loadGatewayConfigFromDisk(): GatewayConfig | null {
   try {
-    const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
+    const explicitConfigPath = String(process.env.OPENCLAW_CONFIG_PATH || '').trim()
+    const stateDir = String(process.env.OPENCLAW_STATE_DIR || '').trim()
+    const configPath = explicitConfigPath
+      || (stateDir ? path.join(stateDir, 'openclaw.json') : path.join(os.homedir(), '.openclaw', 'openclaw.json'))
     const content = fs.readFileSync(configPath, 'utf-8')
     const config = JSON.parse(content)
     return parseGatewayConfig(config)
