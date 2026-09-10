@@ -79,6 +79,11 @@ async function run() {
     assert.strictEqual(result.json.instance.dashboardVersion, '2.0.0-test-rc65')
     assert.deepStrictEqual(result.json.auth.modes, ['authorization_code_pkce'])
     assert.strictEqual(result.json.auth.tokenEndpoint, 'https://mbp14.example.test/api/cli/v1/auth/token')
+
+    delete process.env.DASHBOARD_PUBLIC_URL
+    const derived = await request('/api/cli/v1/discovery', { headers: { 'x-forwarded-host': 'loopback.example.test' } })
+    assert.strictEqual(derived.json.auth.issuer, 'https://loopback.example.test')
+    process.env.DASHBOARD_PUBLIC_URL = 'https://mbp14.example.test'
   })
 
   await test('PKCE login issues a one-time access session and rotating refresh credential', async () => {
@@ -137,6 +142,28 @@ async function run() {
   await test('PKCE endpoints reject malformed, replayed, and unsupported requests', async () => {
     const invalidAuthorize = await request('/api/cli/v1/auth/authorize?response_type=code')
     assert.strictEqual(invalidAuthorize.json.error.code, 'invalid_authorization_request')
+    const malformedToken = await request('/api/cli/v1/auth/token', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '[]',
+    })
+    assert.strictEqual(malformedToken.json.error.code, 'invalid_token_request')
+    const malformedCode = await request('/api/cli/v1/auth/token', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ grantType: 'authorization_code' }),
+    })
+    assert.strictEqual(malformedCode.json.error.code, 'invalid_token_request')
+    const invalidCode = await request('/api/cli/v1/auth/token', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        grantType: 'authorization_code', clientId: 'clawmax-cli', code: 'missing',
+        redirectUri: 'http://127.0.0.1:49152/callback', codeVerifier: 'invalid',
+      }),
+    })
+    assert.strictEqual(invalidCode.json.error.code, 'invalid_grant')
+    const invalidRefresh = await request('/api/cli/v1/auth/token', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ grantType: 'refresh_token', clientId: 'wrong', refreshToken: 'missing' }),
+    })
+    assert.strictEqual(invalidRefresh.json.error.code, 'invalid_token_request')
     const unsupported = await request('/api/cli/v1/auth/token', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ grantType: 'password' }),
     })
@@ -148,11 +175,13 @@ async function run() {
   })
 
   await test('identity rejects missing authentication with a versioned error', async () => {
-    const result = await request('/api/cli/v1/identity')
+    const result = await request('/api/cli/v1/identity', { headers: { 'x-request-id': 'request-from-cli' } })
     assert.strictEqual(result.response.status, 401)
     assert.strictEqual(result.json.kind, 'Error')
     assert.strictEqual(result.json.error.code, 'authentication_required')
-    assert.match(result.json.requestId, /^req_/)
+    assert.strictEqual(result.json.requestId, 'request-from-cli')
+    const wrongToken = await request('/api/cli/v1/identity', { headers: { authorization: 'Bearer wrong-token' } })
+    assert.strictEqual(wrongToken.response.status, 401)
   })
 
   await test('identity derives actor and membership on the server', async () => {
@@ -247,6 +276,8 @@ async function run() {
     assert.strictEqual(result.json.apiVersion, 'clawmax.instance/v1')
     assert.strictEqual(result.json.kind, 'WorkflowList')
     assert.deepStrictEqual(result.json.items, [])
+    const missing = await request('/api/cli/v1/workspaces/missing/workflows', { headers: auth })
+    assert.strictEqual(missing.response.status, 403)
   })
 
   await test('unknown CLI paths return versioned JSON 404 and never SPA HTML', async () => {
@@ -256,6 +287,17 @@ async function run() {
     assert.strictEqual(result.json.apiVersion, 'clawmax.instance/v1')
     assert.strictEqual(result.json.error.code, 'route_not_found')
     assert(!result.text.includes('<html>'))
+  })
+
+  await test('corrupt CLI authorization state fails closed with an actionable versioned error', async () => {
+    const stateFile = process.env.CLAWMAX_CLI_API_STATE_PATH!
+    const valid = fs.readFileSync(stateFile, 'utf8')
+    fs.writeFileSync(stateFile, '{"version":999}', 'utf8')
+    const result = await request('/api/cli/v1/workspaces', { headers: auth })
+    assert.strictEqual(result.response.status, 503)
+    assert.strictEqual(result.json.error.code, 'workspace_store_unavailable')
+    assert.strictEqual(result.json.error.retryable, true)
+    fs.writeFileSync(stateFile, valid, 'utf8')
   })
 
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
