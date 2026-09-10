@@ -248,6 +248,30 @@ async function run() {
     assert.strictEqual((await create({ ...body, idempotencyKey: 'strict-key', tenantId: 'attacker' })).response.status, 400)
   })
 
+  await test('workspace creation rejects malformed versioned fields before writing state', async () => {
+    const invalidBodies = [
+      [],
+      { ...body, apiVersion: 'clawmax.instance/v2', idempotencyKey: 'bad-version' },
+      { ...body, kind: 'Workspace', idempotencyKey: 'bad-kind' },
+      { ...body, name: ' Operations ', idempotencyKey: 'bad-trim' },
+      { ...body, name: 'x'.repeat(129), idempotencyKey: 'bad-length' },
+      { ...body, name: 'Operations\nInjected', idempotencyKey: 'bad-newline' },
+      { ...body, idempotencyKey: 'not valid' },
+      { ...body, membershipId: 'not valid', idempotencyKey: 'bad-membership' },
+      { ...body, name: '---', idempotencyKey: 'bad-name' },
+    ]
+
+    for (const invalidBody of invalidBodies) {
+      const result = await request('/api/cli/v1/workspaces', {
+        method: 'POST',
+        headers: { ...auth, 'content-type': 'application/json', 'idempotency-key': 'invalid-request' },
+        body: JSON.stringify(invalidBody),
+      })
+      assert.strictEqual(result.response.status, 400)
+      assert.strictEqual(result.json.error.code, 'invalid_request')
+    }
+  })
+
   await test('ambiguous membership requires explicit selection', () => {
     const actor = {
       actorId: 'actor', email: 'actor@example.test', displayName: 'Actor',
