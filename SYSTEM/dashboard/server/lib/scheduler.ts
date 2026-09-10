@@ -1,6 +1,7 @@
 import * as cron from 'node-cron'
-import { listWorkflows, triggerWorkflow, updateWorkflow, resolveParticipants, syncWorkflowToCron } from './workflows'
+import { listWorkflows, triggerWorkflow, updateWorkflow, resolveParticipants, syncWorkflowToCron, syncWorkflowToCronAsync } from './workflows'
 import { listAgents } from './workspace'
+import { waitForGatewayResponsive } from './gateway-rpc'
 
 interface ScheduledJob {
   task: any
@@ -11,6 +12,27 @@ interface ScheduledJob {
 
 const activeJobs = new Map<string, ScheduledJob>()
 export const DEFAULT_WORKFLOW_TIMEZONE = 'UTC'
+
+export type SchedulerDiagnostics = {
+  status: 'idle' | 'running' | 'healthy' | 'degraded'
+  startedAt: string | null
+  completedAt: string | null
+  failures: Array<{ workflowId: string; error: string }>
+}
+
+let schedulerDiagnostics: SchedulerDiagnostics = {
+  status: 'idle',
+  startedAt: null,
+  completedAt: null,
+  failures: [],
+}
+
+export function getSchedulerDiagnostics(): SchedulerDiagnostics {
+  return {
+    ...schedulerDiagnostics,
+    failures: schedulerDiagnostics.failures.map((failure) => ({ ...failure })),
+  }
+}
 
 export function normalizeWorkflowTimezone(timezone?: string): string {
   return `${timezone || ''}`.trim() || DEFAULT_WORKFLOW_TIMEZONE
@@ -24,10 +46,70 @@ export function getWorkflowScheduleOptions(timezone?: string) {
  * Start the workflow scheduler. Scans all enabled workflows and
  * schedules them using node-cron. Called once on server startup.
  */
-export function startScheduler() {
+export function startScheduler(options: { syncGatewayCron?: boolean } = {}) {
   console.log('[Scheduler] Starting workflow scheduler...')
-  syncAllWorkflows({ syncCronRegistrations: true })
+  // Local scheduling is required, but Gateway cron registration is optional
+  // startup work. Keep it asynchronous so a populated workspace cannot starve
+  // /api/health while OpenClaw CLI calls wait or retry.
+  syncAllWorkflows({ syncCronRegistrations: false })
   console.log(`[Scheduler] ${activeJobs.size} workflow(s) scheduled`)
+  if (options.syncGatewayCron !== false) {
+    void syncGatewayCronRegistrations().catch((error) => {
+      console.error(`[Scheduler] Gateway cron synchronization failed: ${error instanceof Error ? error.message : String(error)}`)
+    })
+  }
+}
+
+export async function syncGatewayCronRegistrations(): Promise<SchedulerDiagnostics> {
+  schedulerDiagnostics = {
+    status: 'running',
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+    failures: [],
+  }
+
+  const gateway = await waitForGatewayResponsive(25000, 500)
+  if (!gateway.running) {
+    schedulerDiagnostics = {
+      ...schedulerDiagnostics,
+      status: 'degraded',
+      completedAt: new Date().toISOString(),
+      failures: [{ workflowId: '*', error: gateway.error || 'Gateway unavailable for cron synchronization' }],
+    }
+    return getSchedulerDiagnostics()
+  }
+
+  const workflows = listWorkflows()
+  const agents = listAgents()
+  const failures: Array<{ workflowId: string; error: string }> = []
+
+  for (const workflow of workflows) {
+    if (workflow.enabled && workflow.schedule !== 'manual' && !cron.validate(workflow.schedule)) {
+      failures.push({ workflowId: workflow.id, error: `Invalid cron schedule: ${workflow.schedule}` })
+      continue
+    }
+
+    try {
+      const participants = resolveParticipants(workflow, agents).map((participant) => participant.agentId)
+      const result = await syncWorkflowToCronAsync(workflow, participants)
+      if (!result.ok && workflow.enabled && workflow.schedule !== 'manual') {
+        failures.push({ workflowId: workflow.id, error: result.error || 'OpenClaw cron synchronization failed' })
+      } else if ((workflow.cronJobId || undefined) !== result.cronJobId) {
+        const persisted = updateWorkflow(workflow.id, { cronJobId: result.cronJobId })
+        if (!persisted.success) failures.push({ workflowId: workflow.id, error: persisted.error || 'Failed to persist cron registration' })
+      }
+    } catch (error) {
+      failures.push({ workflowId: workflow.id, error: error instanceof Error ? error.message : String(error) })
+    }
+  }
+
+  schedulerDiagnostics = {
+    ...schedulerDiagnostics,
+    status: failures.length > 0 ? 'degraded' : 'healthy',
+    completedAt: new Date().toISOString(),
+    failures,
+  }
+  return getSchedulerDiagnostics()
 }
 
 /**
@@ -43,18 +125,23 @@ export function syncAllWorkflows(options: { syncCronRegistrations?: boolean } = 
   const activeIds = new Set<string>()
 
   for (const workflow of workflows) {
+    const hasValidSchedule = workflow.schedule === 'manual' || cron.validate(workflow.schedule)
     if (shouldSyncCronRegistrations) {
-      const participants = resolveParticipants(workflow, agents).map((participant) => participant.agentId)
-      const syncResult = syncWorkflowToCron(workflow, participants)
-      const nextCronJobId = syncResult.cronJobId
-      if (!syncResult.ok && workflow.enabled && workflow.schedule !== 'manual') {
-        console.warn(`[Scheduler] Failed to sync gateway cron for ${workflow.id}: ${syncResult.error}`)
-      } else if ((workflow.cronJobId || undefined) !== nextCronJobId) {
-        updateWorkflow(workflow.id, { cronJobId: nextCronJobId })
+      if (!hasValidSchedule) {
+        console.warn(`[Scheduler] Skipping invalid gateway cron for ${workflow.id}: ${workflow.schedule}`)
+      } else {
+        const participants = resolveParticipants(workflow, agents).map((participant) => participant.agentId)
+        const syncResult = syncWorkflowToCron(workflow, participants)
+        const nextCronJobId = syncResult.cronJobId
+        if (!syncResult.ok && workflow.enabled && workflow.schedule !== 'manual') {
+          console.warn(`[Scheduler] Failed to sync gateway cron for ${workflow.id}: ${syncResult.error}`)
+        } else if ((workflow.cronJobId || undefined) !== nextCronJobId) {
+          updateWorkflow(workflow.id, { cronJobId: nextCronJobId })
+        }
       }
     }
 
-    if (workflow.enabled && workflow.schedule !== 'manual') {
+    if (workflow.enabled && workflow.schedule !== 'manual' && hasValidSchedule) {
       activeIds.add(workflow.id)
       scheduleWorkflow(workflow.id, workflow.schedule, workflow.timezone)
     } else {

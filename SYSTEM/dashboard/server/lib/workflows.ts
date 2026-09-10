@@ -2,7 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
 import cronstrue from 'cronstrue'
-import { execFileSync, spawn } from 'child_process'
+import { execFile, execFileSync, spawn } from 'child_process'
+import { promisify } from 'util'
 import { safeEnv, workflowExecutionEnv } from './safe-env'
 import { createHash, randomUUID } from 'crypto'
 import { getWorkspacePath, listAgents, parseGroups } from './workspace'
@@ -87,6 +88,7 @@ export function setWorkflowPipelinePaused(paused: boolean, updatedBy?: string): 
 }
 
 const WORKFLOW_RUNNER_BOOT_ID = randomUUID()
+const execFileAsync = promisify(execFile)
 const activeWorkflowExecutions = new Map<string, string>()
 // Cancellers rather than raw process handles. An operator Stop that killed the handle directly
 // bypassed the step's own settle path, leaving its promise waiting on a 'close' that a grandchild
@@ -1245,6 +1247,52 @@ function runCronCmd(args: string[]): { ok: boolean; output: string; error?: stri
   }
 }
 
+function isTransientCronGatewayError(error: string): boolean {
+  return /gateway|ECONN|timed?\s*out|timeout|closed|unavailable|refused|socket/i.test(error)
+}
+
+async function runCronCmdAsync(
+  args: string[],
+  options: { attempts?: number; timeoutMs?: number; retryDelayMs?: number } = {},
+): Promise<{ ok: boolean; output: string; error?: string; attempts: number }> {
+  const attempts = Math.max(1, Math.min(3, options.attempts ?? 3))
+  const timeoutMs = Math.max(1000, options.timeoutMs ?? 5000)
+  const retryDelayMs = Math.max(0, options.retryDelayMs ?? 500)
+  let lastError = 'OpenClaw cron command failed'
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const { stdout } = await execFileAsync('openclaw', ['cron', ...args], {
+        encoding: 'utf-8',
+        timeout: timeoutMs,
+        env: safeEnv(),
+      })
+      return { ok: true, output: String(stdout || '').trim(), attempts: attempt }
+    } catch (err: any) {
+      lastError = String(err?.stderr || err?.message || err || '').trim() || 'OpenClaw cron command failed'
+      if (attempt >= attempts || !isTransientCronGatewayError(lastError)) break
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt))
+    }
+  }
+
+  console.error('[Cron] OpenClaw async command failed', lastError)
+  return { ok: false, output: '', error: lastError, attempts }
+}
+
+function buildCronAddArgs(workflow: Workflow, agentId: string, jobName: string, agentModel: string): string[] {
+  return [
+    'add',
+    '--name', jobName,
+    '--agent', agentId,
+    '--cron', workflow.schedule,
+    '--tz', workflow.timezone || 'UTC',
+    '--message', JSON.stringify(workflow.content).slice(0, 2000),
+    ...(agentModel ? ['--model', agentModel] : []),
+    '--no-deliver',
+    '--json',
+  ]
+}
+
 /**
  * Sync a workflow to OpenClaw cron. Creates or updates the cron job.
  * Returns the cron job ID if successful.
@@ -1295,17 +1343,7 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
       if (identity?.model) agentModel = identity.model
     } catch {}
 
-    const args = [
-      'add',
-      '--name', jobName,
-      '--agent', agentId,
-      '--cron', workflow.schedule,
-      '--tz', workflow.timezone || 'UTC',
-      '--message', JSON.stringify(workflow.content).slice(0, 2000),
-      ...(agentModel ? ['--model', agentModel] : []),
-      '--no-deliver',
-      '--json'
-    ]
+    const args = buildCronAddArgs(workflow, agentId, jobName, agentModel)
 
     const result = runCronCmd(args)
     if (result.ok) {
@@ -1326,6 +1364,80 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
   return {
     ok: attemptedOpenClawRegistration ? results.length > 0 : true,
     cronJobId: results.length > 0 ? results.join(',') : undefined,
+  }
+}
+
+async function listCronJobsAsync(): Promise<Array<{ id: string; name: string; enabled: boolean }>> {
+  const result = await runCronCmdAsync(['list', '--json', '--all'])
+  if (!result.ok) return []
+  try {
+    const data = JSON.parse(result.output)
+    return data.jobs || []
+  } catch {
+    return []
+  }
+}
+
+/** Non-blocking startup variant used so optional Gateway cron work cannot starve core APIs. */
+export async function syncWorkflowToCronAsync(workflow: Workflow, participants: string[]): Promise<{ ok: boolean; cronJobId?: string; error?: string }> {
+  if (getWorkflowPipelineState().paused || !workflow.enabled || workflow.schedule === 'manual') {
+    if (workflow.cronJobId) {
+      for (const id of workflow.cronJobId.split(',')) {
+        await runCronCmdAsync(['rm', id.trim()])
+      }
+    }
+    return { ok: true }
+  }
+
+  if (participants.length === 0) return { ok: false, error: 'No participants resolved for workflow' }
+
+  const existingJobs = await listCronJobsAsync()
+  const results: string[] = []
+  let skippedNonOpenClaw = 0
+  const failures: string[] = []
+
+  for (const agentId of participants) {
+    const jobName = `clawmax-${workflow.id}-${agentId}`
+    const existing = existingJobs.find((job) => job.name === jobName)
+    if (existing) {
+      const removed = await runCronCmdAsync(['rm', existing.id])
+      if (!removed.ok) {
+        failures.push(`${agentId}: ${removed.error || 'failed to remove stale cron job'}`)
+        continue
+      }
+    }
+
+    const agentRuntime = resolveAgentExecutionConfig(agentId).runtime
+    if (agentRuntime !== 'openclaw') {
+      skippedNonOpenClaw++
+      continue
+    }
+
+    let agentModel = ''
+    try {
+      const { parseIdentity } = require('./workspace')
+      const identity = parseIdentity(agentId)
+      if (identity?.model) agentModel = identity.model
+    } catch {}
+
+    const added = await runCronCmdAsync(buildCronAddArgs(workflow, agentId, jobName, agentModel))
+    if (!added.ok) {
+      failures.push(`${agentId}: ${added.error || 'failed to add cron job'}`)
+      continue
+    }
+    try {
+      const parsed = JSON.parse(added.output)
+      results.push(parsed.id || parsed.jobId || jobName)
+    } catch {
+      results.push(jobName)
+    }
+  }
+
+  const attemptedOpenClawRegistration = participants.length > skippedNonOpenClaw
+  return {
+    ok: failures.length === 0 && (attemptedOpenClawRegistration ? results.length > 0 : true),
+    cronJobId: results.length > 0 ? results.join(',') : undefined,
+    ...(failures.length > 0 ? { error: failures.join('; ') } : {}),
   }
 }
 

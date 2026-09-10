@@ -26,11 +26,13 @@ function loadScheduler(overrides: {
   cron?: Partial<typeof import('node-cron')>
   workflows?: Partial<typeof import('./workflows')>
   workspace?: Partial<typeof import('./workspace')>
+  gateway?: Partial<typeof import('./gateway-rpc')>
 } = {}) {
   const moduleOverrides: Array<[string, Record<string, any> | undefined]> = [
     ['node-cron', overrides.cron as any],
     ['./workflows', overrides.workflows as any],
     ['./workspace', overrides.workspace as any],
+    ['./gateway-rpc', overrides.gateway as any],
   ]
 
   for (const [modulePath, patch] of moduleOverrides) {
@@ -153,6 +155,7 @@ async function run() {
 
   await test('syncAllWorkflows skips invalid cron schedules', async () => {
     let scheduleCalls = 0
+    let gatewaySyncCalls = 0
     const scheduler = loadScheduler({
       cron: {
         validate: () => false,
@@ -164,7 +167,10 @@ async function run() {
       workflows: {
         listWorkflows: () => [{ id: 'wf-invalid', enabled: true, schedule: 'bad cron', timezone: 'UTC' }],
         resolveParticipants: () => [],
-        syncWorkflowToCron: () => ({ ok: true, cronJobId: null }),
+        syncWorkflowToCron: () => {
+          gatewaySyncCalls += 1
+          return { ok: true, cronJobId: null }
+        },
         updateWorkflow: () => undefined,
       } as any,
       workspace: {
@@ -174,7 +180,45 @@ async function run() {
 
     scheduler.syncAllWorkflows()
     assert.strictEqual(scheduleCalls, 0, 'Expected invalid cron schedules to be skipped')
+    scheduler.syncAllWorkflows({ syncCronRegistrations: true })
+    assert.strictEqual(gatewaySyncCalls, 0, 'Expected invalid schedules never to reach OpenClaw cron synchronization')
     scheduler.stopScheduler()
+  })
+
+  await test('async gateway cron sync isolates invalid schedules and records diagnostics', async () => {
+    const syncCalls: string[] = []
+    const scheduler = loadScheduler({
+      cron: {
+        validate: (value: string) => value !== 'not a cron',
+        schedule: () => ({ stop() {} }),
+      } as any,
+      workflows: {
+        listWorkflows: () => [
+          { id: 'wf-valid-a', enabled: true, schedule: '30 9 * * *', timezone: 'UTC' },
+          { id: 'wf-invalid', enabled: true, schedule: 'not a cron', timezone: 'UTC' },
+          { id: 'wf-valid-b', enabled: true, schedule: '0 */2 * * *', timezone: 'UTC' },
+        ],
+        resolveParticipants: () => [{ agentId: 'agent-1' }],
+        syncWorkflowToCronAsync: async (workflow: any) => {
+          syncCalls.push(workflow.id)
+          return { ok: true, cronJobId: `${workflow.id}-cron` }
+        },
+        updateWorkflow: () => ({ success: true }),
+      } as any,
+      workspace: {
+        listAgents: () => [{ id: 'agent-1' }],
+      } as any,
+      gateway: {
+        waitForGatewayResponsive: async () => ({ running: true, port: 18789 }),
+      },
+    })
+
+    const diagnostics = await scheduler.syncGatewayCronRegistrations()
+    assert.deepStrictEqual(syncCalls, ['wf-valid-a', 'wf-valid-b'], 'Expected valid schedules on both sides of an invalid entry to synchronize')
+    assert.strictEqual(diagnostics.status, 'degraded', 'Expected invalid schedule to be visible in diagnostics')
+    assert.strictEqual(diagnostics.failures.length, 1, 'Expected one isolated invalid-schedule diagnostic')
+    assert.strictEqual(diagnostics.failures[0].workflowId, 'wf-invalid')
+    assert(diagnostics.completedAt, 'Expected synchronization completion time')
   })
 
   await test('scheduled workflow trigger unschedules max-run failures', async () => {
@@ -229,7 +273,7 @@ async function run() {
       } as any,
     })
 
-    scheduler.startScheduler()
+    scheduler.startScheduler({ syncGatewayCron: false })
     assert.strictEqual(scheduleCalls, 1, 'Expected startup scheduler sync to schedule enabled workflows')
     scheduler.stopScheduler()
   })

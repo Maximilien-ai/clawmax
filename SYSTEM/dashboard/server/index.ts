@@ -31,7 +31,7 @@ import activityExportRouter from './routes/activity-export'
 import { startActivityExportWorker, stopActivityExportWorker } from './lib/activity-export-worker'
 import { isTemplateRegistryWriteEnabled } from './lib/template-registry'
 import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity, isManagedAgentWorkspaceDir } from './lib/workspace'
-import { startScheduler, stopScheduler } from './lib/scheduler'
+import { getSchedulerDiagnostics, startScheduler, stopScheduler } from './lib/scheduler'
 import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
 import notificationsRouter from './routes/notifications'
 import { initOpikTracing, shutdownOpik, isOpikEnabled, getRequestDashboardInstanceId, getRuntimeInstanceIdentity } from './lib/opik'
@@ -389,7 +389,8 @@ app.get('/api/system', protect, async (req, res) => {
   const maintenanceBanner = await getResolvedMaintenanceBanner(rawEnv, requestHost)
   const hostAgentStatus = getHostAgentStatus(requestHost)
   const runtimeIdentity = getRuntimeInstanceIdentity()
-  res.json(buildSystemInfoPayload({
+  res.json({
+    ...buildSystemInfoPayload({
     workspace: workspacePath,
     hostname: os.hostname(),
     platform: process.platform,
@@ -405,8 +406,10 @@ app.get('/api/system', protect, async (req, res) => {
     maintenanceBanner,
     hostAgentStatus,
     runtimeIdentity,
-    orgName: getOrgName() ?? null,
-  }))
+      orgName: getOrgName() ?? null,
+    }),
+    scheduler: getSchedulerDiagnostics(),
+  })
 })
 
 // Active workspace activity feed
