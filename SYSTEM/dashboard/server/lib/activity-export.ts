@@ -304,7 +304,7 @@ export async function flushActivityExportOutbox(
   const maxEvents = Math.max(1, Math.min(options.maxEvents || ACTIVITY_EXPORT_BATCH_LIMIT, ACTIVITY_EXPORT_BATCH_LIMIT))
   const candidates = state.outbox.filter((entry) =>
     !entry.deliveredAt &&
-    (!options.userId || !options.workspaceId || entry.userId === getOpaqueActivityUserId(options.userId, options.workspaceId, entry.destinationId)) &&
+    (!options.userId || (!!options.workspaceId && entry.userId === getOpaqueActivityUserId(options.userId, options.workspaceId, entry.destinationId))) &&
     (!options.workspaceId || entry.workspaceId === getOpaqueActivityWorkspaceId(options.workspaceId)) &&
     (!options.destinationId || entry.destinationId === options.destinationId),
   ).slice(0, maxEvents)
