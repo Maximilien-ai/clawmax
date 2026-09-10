@@ -262,6 +262,48 @@ test('A browser-supplied endpoint does not inherit the workspace endpoint\'s mod
   })
 })
 
+test('A workspace endpoint with no key or default model uses the protected key configured for the same server', async () => {
+  await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
+    const protectedEnv = {
+      SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1/',
+      SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',
+    }
+    const authorizations: string[] = []
+    global.fetch = (async (_url: string, init?: any) => {
+      authorizations.push(String(init?.headers?.Authorization || ''))
+      if (init?.headers?.Authorization !== 'Bearer system-secret') return { ok: false, status: 401, json: async () => ({}) } as any
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'authenticated-model' }] }) } as any
+    }) as any
+    await warmOpenAiCompatibleGenerationModel(undefined, protectedEnv)
+    const resolved = resolveOpenAiCompatibleGenerationDefaults(undefined, protectedEnv)
+    assert.strictEqual(resolved.baseUrl, 'http://172.16.1.70:8000/v1')
+    assert.strictEqual(resolved.apiKey, 'system-secret')
+    assert.strictEqual(resolved.defaultModel, 'authenticated-model')
+    assert.deepStrictEqual(authorizations, ['Bearer system-secret'])
+  })
+})
+
+test('A protected key configured for a different server is not sent to the workspace endpoint', async () => {
+  await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
+    const protectedEnv = {
+      SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://other-endpoint:8000/v1',
+      SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'other-secret',
+      SYSTEM_OPENAI_COMPATIBLE_DEFAULT_MODEL: 'other-model',
+    }
+    const authorizations: string[] = []
+    global.fetch = (async (_url: string, init?: any) => {
+      authorizations.push(String(init?.headers?.Authorization || ''))
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'open-model' }] }) } as any
+    }) as any
+    await warmOpenAiCompatibleGenerationModel(undefined, protectedEnv)
+    const resolved = resolveOpenAiCompatibleGenerationDefaults(undefined, protectedEnv)
+    assert.strictEqual(resolved.baseUrl, 'http://172.16.1.70:8000/v1')
+    assert.strictEqual(resolved.apiKey, undefined)
+    assert.strictEqual(resolved.defaultModel, 'open-model')
+    assert.deepStrictEqual(authorizations, [''])
+  })
+})
+
 test('An OpenAI-compatible endpoint that advertises no chat model still reports the missing default', async () => {
   await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
     global.fetch = (async () => ({
