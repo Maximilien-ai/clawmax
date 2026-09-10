@@ -122,6 +122,75 @@ assert_gateway_chat() {
   fi
 }
 
+assert_instance_cli_api() {
+  local discovery identity before_active created replay listed unknown after_active
+  discovery="$(curl -fsS "$base_url/api/cli/v1/discovery")" || fail 'instance CLI discovery failed'
+  printf '%s' "$discovery" | jq -e \
+    '.apiVersion == "clawmax.instance/v1"
+      and .kind == "InstanceDiscovery"
+      and (.instance.id | length) > 0
+      and (.instance.dashboardVersion | length) > 0
+      and .auth.modes == ["authorization_code_pkce"]' >/dev/null \
+    || fail "instance CLI discovery contract was invalid: $discovery"
+
+  identity="$(curl -fsS "$base_url/api/cli/v1/identity")" || fail 'instance CLI identity failed'
+  printf '%s' "$identity" | jq -e \
+    '.apiVersion == "clawmax.instance/v1"
+      and .kind == "Identity"
+      and (.actorId | length) > 0
+      and (.memberships | length) == 1' >/dev/null \
+    || fail "instance CLI identity contract was invalid: $identity"
+
+  before_active="$(curl -fsS "$base_url/api/workspaces/active" | jq -r '.workspace.id')" \
+    || fail 'active workspace could not be read before CLI creation'
+  created="$(curl -fsS -X POST \
+    -H 'Content-Type: application/json' \
+    -H 'Idempotency-Key: rc65-image-workspace-create' \
+    -d '{"apiVersion":"clawmax.instance/v1","kind":"WorkspaceCreateRequest","name":"RC65 CLI Persistence","idempotencyKey":"rc65-image-workspace-create"}' \
+    "$base_url/api/cli/v1/workspaces")" || fail 'instance CLI workspace creation failed'
+  printf '%s' "$created" | jq -e \
+    '.apiVersion == "clawmax.instance/v1"
+      and .kind == "WorkspaceCreateResult"
+      and .created == true
+      and .workspace.id == "rc65-cli-persistence"' >/dev/null \
+    || fail "instance CLI workspace creation contract was invalid: $created"
+
+  replay="$(curl -fsS -X POST \
+    -H 'Content-Type: application/json' \
+    -H 'Idempotency-Key: rc65-image-workspace-create' \
+    -d '{"apiVersion":"clawmax.instance/v1","kind":"WorkspaceCreateRequest","name":"RC65 CLI Persistence","idempotencyKey":"rc65-image-workspace-create"}' \
+    "$base_url/api/cli/v1/workspaces")" || fail 'instance CLI workspace replay failed'
+  printf '%s' "$replay" | jq -e \
+    '.created == false and .workspace.id == "rc65-cli-persistence"' >/dev/null \
+    || fail "instance CLI workspace replay was not exact: $replay"
+
+  listed="$(curl -fsS "$base_url/api/cli/v1/workspaces")" || fail 'instance CLI workspace list failed'
+  printf '%s' "$listed" | jq -e \
+    '[.items[] | select(.id == "rc65-cli-persistence")] | length == 1' >/dev/null \
+    || fail "instance CLI workspace was not authorized in list: $listed"
+  after_active="$(curl -fsS "$base_url/api/workspaces/active" | jq -r '.workspace.id')" \
+    || fail 'active workspace could not be read after CLI creation'
+  [ "$before_active" = "$after_active" ] || fail 'CLI workspace creation silently changed the active workspace'
+
+  unknown="$(curl -sS -w '\n%{http_code}\n%{content_type}' "$base_url/api/cli/v1/not-a-route")" \
+    || fail 'unknown instance CLI route request failed'
+  printf '%s' "$unknown" | head -n 1 | jq -e \
+    '.apiVersion == "clawmax.instance/v1" and .kind == "Error" and .error.code == "route_not_found"' >/dev/null \
+    || fail "unknown instance CLI route did not return versioned JSON: $unknown"
+  [ "$(printf '%s' "$unknown" | tail -n 2 | head -n 1)" = '404' ] \
+    || fail "unknown instance CLI route did not return HTTP 404: $unknown"
+  printf '%s' "$unknown" | tail -n 1 | grep -F 'application/json' >/dev/null \
+    || fail "unknown instance CLI route fell through to HTML: $unknown"
+}
+
+assert_instance_cli_persistence() {
+  curl -fsS "$base_url/api/cli/v1/workspaces" | jq -e \
+    '[.items[] | select(.id == "rc65-cli-persistence" and .name == "RC65 CLI Persistence")] | length == 1' >/dev/null \
+    || fail 'instance CLI workspace authorization did not survive restart'
+  "$container_cli" exec "$container_name" test -s /app/DATA/.home/.openclaw/clawmax-cli-api.json \
+    || fail 'instance CLI idempotency and audit state did not survive restart'
+}
+
 assert_populated_fixture() {
   curl -fsS "$base_url/api/health" | jq -e \
     '.ok == true and .readiness.ready == true
@@ -187,6 +256,7 @@ curl -fsS "http://127.0.0.1:${mock_ollama_port}/api/tags" >/dev/null \
   || fail 'mock Ollama server did not become ready'
 start_dashboard
 
+assert_instance_cli_api
 provision_agent
 assert_one_ordered_agent
 assert_gateway_chat
@@ -258,6 +328,7 @@ curl -fsS "$base_url/api/templates/organizations/rc-image-organization-persisten
   || fail 'custom organization template did not survive image replacement'
 assert_one_ordered_agent
 assert_populated_fixture
+assert_instance_cli_persistence
 assert_gateway_chat
 
-echo "container-agent-lifecycle-smoke.sh: lifecycle, populated persistence, restart, cron, gateway, and <=40s health checks passed for ${platform}"
+echo "container-agent-lifecycle-smoke.sh: lifecycle, instance CLI, populated persistence, restart, cron, gateway, and <=40s health checks passed for ${platform}"
