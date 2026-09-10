@@ -2,7 +2,8 @@ import assert from 'assert'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { resolveDefaultAgentModel } from './agent-default-model'
+import { resolveDefaultAgentModel, warmDefaultAgentModelEndpoint } from './agent-default-model'
+import { clearModelCache } from './model-discovery'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -87,6 +88,36 @@ async function main() {
       assert.equal(resolved, 'openai-compatible/lmstudio-community')
     })
 
+    await test('workspace endpoint with its credential in protected configuration falls back to the model it advertises', async () => {
+      const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
+      fs.mkdirSync(systemDir, { recursive: true })
+      fs.writeFileSync(path.join(systemDir, 'integrations.json'), JSON.stringify({
+        openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1',
+      }, null, 2))
+      const originalFetch = global.fetch
+      clearModelCache()
+      try {
+        global.fetch = (async (_url: string, init?: any) => {
+          if (init?.headers?.Authorization !== 'Bearer system-secret') return { ok: false, status: 401, json: async () => ({}) } as any
+          return { ok: true, status: 200, json: async () => ({ data: [{ id: 'authenticated-model' }] }) } as any
+        }) as any
+        const protectedEnv = {
+          SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1/',
+          SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',
+        }
+        const cold = resolveDefaultAgentModel({ rawEnv: protectedEnv })
+        assert.notEqual(cold, 'openai-compatible/authenticated-model', 'a cold cache cannot know the endpoint model yet')
+        // What the provision route does at its request boundary before resolving.
+        await warmDefaultAgentModelEndpoint(protectedEnv)
+        const resolved = resolveDefaultAgentModel({ rawEnv: protectedEnv })
+        assert.equal(resolved, 'openai-compatible/authenticated-model')
+        const withoutCredential = resolveDefaultAgentModel({ rawEnv: { DASHBOARD_PORT: '3001' } })
+        assert.notEqual(withoutCredential, 'openai-compatible/authenticated-model', 'a credential-less read must not see the credentialed catalog')
+      } finally {
+        global.fetch = originalFetch
+        clearModelCache()
+      }
+    })
     await test('workspace ollama default resolves even without cached hosted models', () => {
       const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
       fs.mkdirSync(systemDir, { recursive: true })
