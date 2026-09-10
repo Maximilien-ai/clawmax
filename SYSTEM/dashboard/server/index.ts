@@ -54,12 +54,16 @@ import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypa
 import { getTenantResourceLimitConfig, getTenantResourceLimits } from './lib/tenant-resource-limits'
 import { reconcileInterruptedWorkflowExecutions } from './lib/workflows'
 import { startPluginUsageMonitor, stopPluginUsageMonitor } from './lib/plugin-usage-monitor'
+import { listTemplates } from './lib/templates'
+import { listWorkflows } from './lib/workflows'
+import { verifyCorePersistentStateReadable, type StartupReadiness } from './lib/startup-readiness'
 
 // ============================================================================
 // Crash Protection & Error Logging
 // ============================================================================
 
 const CRASH_LOG = path.join(__dirname, 'logs', 'crash.log')
+let startupReadiness: StartupReadiness | null = null
 
 function logToFile(message: string) {
   const timestamp = new Date().toISOString()
@@ -293,9 +297,14 @@ app.use('/api', auditLog)
 
 // Health (public)
 app.get('/api/health', (_req, res) => {
+  if (!startupReadiness) {
+    res.status(503).json({ ok: false, error: 'Required persistent stores are not ready.' })
+    return
+  }
   res.json({
     ok: true,
     workspace: WORKSPACE,
+    readiness: startupReadiness,
     time: new Date().toISOString(),
   })
 })
@@ -793,6 +802,26 @@ if (earlyClientDist) {
   app.get('/', (_req, res) => {
     res.redirect(primaryAppOrigin)
   })
+}
+
+try {
+  const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
+  startupReadiness = verifyCorePersistentStateReadable([
+    { name: 'agents', read: () => listAgents() },
+    { name: 'templates', read: () => listTemplates() },
+    {
+      name: 'groups',
+      read: () => fs.existsSync(groupsPath)
+        ? parseGroups(fs.readFileSync(groupsPath, 'utf-8')).groups
+        : [],
+    },
+    { name: 'workflows', read: () => listWorkflows() },
+  ])
+  console.log(`[Startup] Required persistent stores ready: ${JSON.stringify(startupReadiness.stores)}`)
+} catch (error) {
+  const detail = error instanceof Error ? error.stack || error.message : String(error)
+  console.error(`[Startup] ERROR: ${detail}`)
+  process.exit(1)
 }
 
 app.listen(PORT, HOST, () => {
