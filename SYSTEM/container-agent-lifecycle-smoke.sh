@@ -189,6 +189,11 @@ assert_instance_cli_persistence() {
     || fail 'instance CLI workspace authorization did not survive restart'
   "$container_cli" exec "$container_name" test -s /app/DATA/.home/.openclaw/clawmax-cli-api.json \
     || fail 'instance CLI idempotency and audit state did not survive restart'
+  curl -fsS "$base_url/api/cli/v1/workspaces/default/workflows" | jq -e \
+    '.apiVersion == "clawmax.instance/v1"
+      and .kind == "WorkflowList"
+      and ([.items[] | select(.id == "rc65-morning")] | length) == 1' >/dev/null \
+    || fail 'authenticated contextual CLI workflow read failed after restart'
 }
 
 assert_populated_fixture() {

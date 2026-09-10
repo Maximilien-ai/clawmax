@@ -10,6 +10,7 @@ import { isDashboardAuthBypassAllowed } from '../lib/http-security'
 import { getRuntimeInstanceIdentity } from '../lib/opik'
 import { getWorkspaceManager, Workspace } from '../lib/workspace-manager'
 import { getDashboardVersion, listAgents } from '../lib/workspace'
+import { listWorkflows } from '../lib/workflows'
 
 const API_VERSION = 'clawmax.instance/v1'
 const WORKSPACE_SCOPES = ['agents.read', 'agents.chat', 'workflows.run']
@@ -488,6 +489,32 @@ export function createInstanceCliRouter() {
       })
     } catch (error) {
       console.error('[Instance CLI] Failed to list workspace agents:', error)
+      return sendError(res, req, 503, 'workspace_store_unavailable', 'workspace storage is unavailable', true)
+    }
+  })
+
+  router.get('/workspaces/:workspaceId/workflows', requireCliAuth, async (req, res) => {
+    try {
+      const actor = req.clawmaxCliActor!
+      const state = loadState()
+      const workspace = manager.getWorkspace(req.params.workspaceId)
+      if (!workspace || !authorizationFor(workspace, actor, state)) {
+        return sendError(res, req, 403, 'workspace_forbidden', 'workspace access denied')
+      }
+      const workflows = await manager.withWorkspace(workspace.id, () => listWorkflows())
+      return res.json({
+        apiVersion: API_VERSION,
+        kind: 'WorkflowList',
+        items: workflows.map((workflow) => ({
+          id: workflow.id,
+          name: workflow.name,
+          description: workflow.description,
+          status: workflow.status || (workflow.enabled ? 'idle' : 'disabled'),
+          updatedAt: workflow.modified || undefined,
+        })),
+      })
+    } catch (error) {
+      console.error('[Instance CLI] Failed to list workspace workflows:', error)
       return sendError(res, req, 503, 'workspace_store_unavailable', 'workspace storage is unavailable', true)
     }
   })

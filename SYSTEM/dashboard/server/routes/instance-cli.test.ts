@@ -241,6 +241,14 @@ async function run() {
     assert.strictEqual(missing.response.status, 403)
   })
 
+  await test('workflow listing is workspace contextual and strictly versioned', async () => {
+    const result = await request('/api/cli/v1/workspaces/operations/workflows', { headers: auth })
+    assert.strictEqual(result.response.status, 200)
+    assert.strictEqual(result.json.apiVersion, 'clawmax.instance/v1')
+    assert.strictEqual(result.json.kind, 'WorkflowList')
+    assert.deepStrictEqual(result.json.items, [])
+  })
+
   await test('unknown CLI paths return versioned JSON 404 and never SPA HTML', async () => {
     const result = await request('/api/cli/v1/not-a-route')
     assert.strictEqual(result.response.status, 404)

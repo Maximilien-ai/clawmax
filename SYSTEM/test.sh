@@ -3166,7 +3166,7 @@ fi
 
 echo -e "${YELLOW}→ Running Instance CLI API contract tests...${NC}"
 if npx ts-node --transpileOnly server/routes/instance-cli.test.ts; then
-  pass "Instance CLI API contract tests (12 tests)"
+  pass "Instance CLI API contract tests (13 tests)"
 else
   fail "Instance CLI API contract tests"
 fi
