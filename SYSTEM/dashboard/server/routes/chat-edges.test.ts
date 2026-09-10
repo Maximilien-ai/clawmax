@@ -9,10 +9,12 @@ import {
   buildManagedSecretStatelessChatMessage,
   deriveChatError,
   resolveByokChatFallbackModel,
+  resolveChatOpenAiCompatibleEndpoint,
   retryAssistantTextLookup,
   shouldUseLocalChatExecution,
 } from './chat'
 import { clearModelCache, resolveOpenAiCompatibleDefaultModel } from '../lib/model-discovery'
+import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -102,6 +104,98 @@ test('one endpoint seen through two credentials does not share a model catalog',
     assert(asB === undefined, `Expected the second credential to see no cached catalog, got ${asB}`)
     const asA = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://shared-gateway:8000/v1', openaiCompatibleApiKey: 'key-a' })
     assert(asA === 'openai-compatible/tenant-a-model', `Expected the first credential's own model, got ${asA}`)
+  } finally {
+    global.fetch = originalFetch
+    clearModelCache()
+  }
+})
+
+/**
+ * Runs fn against a throwaway workspace whose URL-only integrations point at the vLLM endpoint.
+ * HOME moves to a temp dir too: the workspace manager persists the active workspace under
+ * $HOME/.openclaw, and this test must never rewrite the real registry.
+ */
+async function withKeylessWorkspaceEndpoint(fn: () => void | Promise<void>) {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-chat-edge-home-'))
+  const workspaceRoot = path.join(tmpHome, 'workspace')
+  fs.mkdirSync(path.join(workspaceRoot, 'SYSTEM'), { recursive: true })
+  fs.writeFileSync(path.join(workspaceRoot, 'SYSTEM', 'integrations.json'), JSON.stringify({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' }))
+  const originalHome = process.env.HOME
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  process.env.HOME = tmpHome
+  process.env.OPENCLAW_WORKSPACE = workspaceRoot
+  resetWorkspaceManagerForTests()
+  try {
+    await fn()
+  } finally {
+    if (originalHome === undefined) delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (originalWorkspace === undefined) delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tmpHome, { recursive: true, force: true })
+  }
+}
+
+test('a workspace endpoint is paired only with the protected credential the user-execution policy allows', async () => {
+  await withKeylessWorkspaceEndpoint(() => {
+    const userKey = resolveChatOpenAiCompatibleEndpoint({}, {
+      USER_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1/',
+      USER_OPENAI_COMPATIBLE_API_KEY: 'user-secret',
+    })
+    assert(userKey.baseUrl === 'http://172.16.1.70:8000/v1' && userKey.apiKey === 'user-secret', `Expected the workspace URL paired with the user's protected key, got ${JSON.stringify(userKey)}`)
+    const systemKeyDenied = resolveChatOpenAiCompatibleEndpoint({}, {
+      SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',
+      ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false',
+    })
+    assert(systemKeyDenied.baseUrl === 'http://172.16.1.70:8000/v1' && systemKeyDenied.apiKey === undefined, `Expected no system key while user execution may not use system keys, got ${JSON.stringify(systemKeyDenied)}`)
+    const systemKeyAllowed = resolveChatOpenAiCompatibleEndpoint({}, {
+      SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',
+      ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true',
+    })
+    assert(systemKeyAllowed.apiKey === 'system-secret', `Expected the system key once policy allows it, got ${JSON.stringify(systemKeyAllowed)}`)
+    const browserOwn = resolveChatOpenAiCompatibleEndpoint({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1', openaiCompatibleApiKey: 'browser-secret' }, {
+      USER_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      USER_OPENAI_COMPATIBLE_API_KEY: 'user-secret',
+    })
+    assert(browserOwn.apiKey === 'browser-secret', `Expected browser BYOK to keep its own credential, got ${JSON.stringify(browserOwn)}`)
+    // The browser stores and sends back the workspace URL it verified; a bare URL is not a
+    // credential and must not suppress the protected key for that same server.
+    const browserUrlOnly = resolveChatOpenAiCompatibleEndpoint({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1/' }, {
+      USER_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      USER_OPENAI_COMPATIBLE_API_KEY: 'user-secret',
+    })
+    assert(browserUrlOnly.apiKey === 'user-secret', `Expected a URL-only browser payload to still pair with the protected key, got ${JSON.stringify(browserUrlOnly)}`)
+    const browserOtherKey = resolveChatOpenAiCompatibleEndpoint({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1', openai: 'sk-browser-openai' }, {
+      USER_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      USER_OPENAI_COMPATIBLE_API_KEY: 'user-secret',
+    })
+    assert(browserOtherKey.apiKey === undefined, `Expected a browser that brought its own keys to get no protected credential, got ${JSON.stringify(browserOtherKey)}`)
+  })
+})
+
+test('chat readiness finds the endpoint model through the paired protected credential', async () => {
+  clearModelCache()
+  const originalFetch = global.fetch
+  try {
+    await withKeylessWorkspaceEndpoint(async () => {
+    global.fetch = (async (_url: string, init?: any) => {
+      if (init?.headers?.Authorization !== 'Bearer user-secret') return { ok: false, status: 401, json: async () => ({}) } as any
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'authenticated-chat-model' }] }) } as any
+    }) as any
+    const endpoint = resolveChatOpenAiCompatibleEndpoint({}, {
+      USER_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      USER_OPENAI_COMPATIBLE_API_KEY: 'user-secret',
+    })
+    // What the chat route does before readiness: warm through the paired credential.
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: endpoint.baseUrl, apiKey: endpoint.apiKey })
+    const paired = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: endpoint.baseUrl, openaiCompatibleApiKey: endpoint.apiKey })
+    assert(paired === 'openai-compatible/authenticated-chat-model', `Expected the model discovered through the protected key, got ${paired}`)
+    const unpaired = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: endpoint.baseUrl })
+    assert(unpaired === undefined, `Expected a credential-less read to miss the credentialed catalog, got ${unpaired}`)
+    })
   } finally {
     global.fetch = originalFetch
     clearModelCache()

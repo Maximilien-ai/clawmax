@@ -46,7 +46,7 @@ import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } fr
 import { hasReadyOpenClawNativeAgentStore, runExclusiveAgentExecution } from '../lib/agent-execution'
 import { withRegisteredTurn } from '../lib/agent-turns'
 import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
-import { resolveDefaultAgentModel } from '../lib/agent-default-model'
+import { resolveDefaultAgentModel, warmDefaultAgentModelEndpoint } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
@@ -923,6 +923,9 @@ router.post('/provision', async (req, res) => {
     throw error
   }
 
+  // A direct call with no model on a cold cache: let the workspace endpoint's own model be known
+  // before the synchronous resolver below asks for it.
+  await warmDefaultAgentModelEndpoint()
   const resolvedModel = resolveDefaultAgentModel({
     explicitModel: model,
     builtIn: Array.isArray(tags) && tags.includes('built-in'),

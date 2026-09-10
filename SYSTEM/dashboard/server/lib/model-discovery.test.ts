@@ -1,4 +1,4 @@
-import { __test, clearModelCache, discoverModels, getCachedOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleDefaultModel } from './model-discovery'
+import { __test, clearModelCache, discoverModels, getCachedOpenAiCompatibleDefaultModel, normalizeOpenAiCompatibleBaseUrl, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint } from './model-discovery'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -265,6 +265,95 @@ test('concurrent cold lookups issue one request and preserve endpoint order', as
     resolved.every(model => model === 'zeta-chat-model'),
     `Expected the endpoint's own first chat model, got ${JSON.stringify(resolved.slice(0, 3))}`,
   )
+})
+
+test('a workspace URL is paired with the protected credential and model configured for the same server', () => {
+  const endpoint = resolveOpenAiCompatibleEndpoint([
+    { baseUrl: 'http://172.16.1.70:8000/v1' },
+    { baseUrl: 'HTTP://172.16.1.70:8000/v1/', apiKey: 'protected-secret', defaultModel: 'operator-model' },
+  ])
+  assert(endpoint?.baseUrl === 'http://172.16.1.70:8000/v1', `Expected the workspace URL to be selected, got ${endpoint?.baseUrl}`)
+  assert(endpoint?.apiKey === 'protected-secret', `Expected the protected credential for the same server, got ${endpoint?.apiKey}`)
+  assert(endpoint?.defaultModel === 'operator-model', `Expected the model configured with that credential, got ${endpoint?.defaultModel}`)
+})
+
+test('a credential configured for a different server is never sent to the selected endpoint', () => {
+  const endpoint = resolveOpenAiCompatibleEndpoint([
+    { baseUrl: 'http://workspace-endpoint:8000/v1' },
+    { baseUrl: 'http://other-endpoint:8000/v1', apiKey: 'other-secret', defaultModel: 'other-model' },
+  ])
+  assert(endpoint?.baseUrl === 'http://workspace-endpoint:8000/v1', `Expected the workspace endpoint, got ${endpoint?.baseUrl}`)
+  assert(endpoint?.apiKey === undefined, `Expected no borrowed credential, got ${endpoint?.apiKey}`)
+  assert(endpoint?.defaultModel === undefined, `Expected no borrowed model, got ${endpoint?.defaultModel}`)
+})
+
+test('a browser endpoint keeps its own credential and takes no model seen through a different one', () => {
+  const endpoint = resolveOpenAiCompatibleEndpoint([
+    { baseUrl: 'http://shared-gateway:8000/v1', apiKey: 'browser-secret' },
+    { baseUrl: 'http://shared-gateway:8000/v1', defaultModel: 'workspace-model' },
+    { baseUrl: 'http://shared-gateway:8000/v1', apiKey: 'protected-secret', defaultModel: 'protected-model' },
+  ])
+  assert(endpoint?.apiKey === 'browser-secret', `Expected the browser's own credential, got ${endpoint?.apiKey}`)
+  assert(endpoint?.defaultModel === 'workspace-model', `Expected the credential-neutral workspace model, got ${endpoint?.defaultModel}`)
+  assert(resolveOpenAiCompatibleEndpoint([{ baseUrl: '  ' }, undefined]) === undefined, 'Expected no endpoint without a URL')
+  assert(normalizeOpenAiCompatibleBaseUrl('HTTP://Host:8000/v1/') === 'http://host:8000/v1', 'Expected scheme and host to be case-insensitive and the trailing slash dropped')
+  assert(
+    normalizeOpenAiCompatibleBaseUrl('http://gateway:8000/v1?tenant=a') !== normalizeOpenAiCompatibleBaseUrl('http://gateway:8000/v1?tenant=b'),
+    'Expected two tenants of one host to be two endpoints',
+  )
+  const tenantA = resolveOpenAiCompatibleEndpoint([
+    { baseUrl: 'http://gateway:8000/v1?tenant=a' },
+    { baseUrl: 'http://gateway:8000/v1?tenant=b', apiKey: 'tenant-b-secret' },
+  ])
+  assert(tenantA?.apiKey === undefined, `Expected tenant b's credential to stay with tenant b, got ${tenantA?.apiKey}`)
+})
+
+test('cache keys carry a credential fingerprint, never the credential itself', () => {
+  const withSecret = __test.openAiCompatibleCacheKey('http://shared-gateway:8000/v1', 'sk-live-very-secret-value')
+  const withOther = __test.openAiCompatibleCacheKey('http://shared-gateway:8000/v1/', 'sk-live-other-value')
+  const withoutKey = __test.openAiCompatibleCacheKey('http://shared-gateway:8000/v1')
+  assert(!withSecret.includes('sk-live'), `Expected no raw credential in the cache key, got ${withSecret}`)
+  assert(withSecret !== withOther, 'Expected two credentials to map to two cache entries')
+  assert(withSecret !== withoutKey, 'Expected a credential-less read to miss a credentialed entry')
+  assert(
+    __test.openAiCompatibleCacheKey('http://shared-gateway:8000/v1', 'sk-live-very-secret-value') === withSecret,
+    'Expected the fingerprint to be stable for the same credential',
+  )
+})
+
+test('the endpoint cache keeps only the newest entries', async () => {
+  clearModelCache()
+  global.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ data: [{ id: 'chat-model' }] }),
+  }) as any) as any
+  for (let i = 0; i < 40; i++) {
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://endpoint-${i}:8000/v1` })
+  }
+  const count = __test.openAiCompatibleCacheEntryCount()
+  assert(count === 32, `Expected the cache bounded at 32 endpoint entries, got ${count}`)
+  assert(getCachedOpenAiCompatibleDefaultModel('http://endpoint-0:8000/v1') === undefined, 'Expected the oldest entry to have been evicted')
+  assert(getCachedOpenAiCompatibleDefaultModel('http://endpoint-39:8000/v1') === 'chat-model', 'Expected the newest entry to be retained')
+  clearModelCache()
+})
+
+test('a burst of distinct endpoints does not retain a promise per endpoint', async () => {
+  clearModelCache()
+  let release: () => void = () => {}
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  global.fetch = (async () => {
+    await gate
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: 'chat-model' }] }) } as any
+  }) as any
+  const lookups = Array.from({ length: 40 }, (_, i) => resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://burst-${i}:8000/v1` }))
+  const retained = __test.inFlightOpenAiCompatibleFetchCount()
+  assert(retained === 32, `Expected at most 32 in-flight lookups retained during a burst, got ${retained}`)
+  release()
+  const resolved = await Promise.all(lookups)
+  assert(resolved.every((model) => model === 'chat-model'), 'Expected every caller in the burst to still get its answer')
+  assert(__test.inFlightOpenAiCompatibleFetchCount() === 0, 'Expected the in-flight map to drain after the burst')
+  clearModelCache()
 })
 
 testChain.then(() => {

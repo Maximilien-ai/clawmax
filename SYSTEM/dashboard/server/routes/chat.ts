@@ -6,7 +6,8 @@ import path from 'path'
 import { getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
 import { isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
-import { getCachedOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleDefaultModel } from '../lib/model-discovery'
+import { getCachedOpenAiCompatibleDefaultModel, openAiCompatibleCandidateFromKeys, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint } from '../lib/model-discovery'
+import { resolveUserExecutionProviderKeys } from '../lib/dashboard-env'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
@@ -510,18 +511,26 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
  * no model of its own is told "no model configured" on a cold cache — even though the endpoint
  * advertises one. Warm calls cost nothing; a failed lookup leaves the previous behaviour intact.
  */
-function resolveChatOpenAiCompatibleEndpoint(byok?: ChatByokPayload): { baseUrl?: string; apiKey?: string; defaultModel?: string } {
+export function resolveChatOpenAiCompatibleEndpoint(
+  byok?: ChatByokPayload,
+  rawEnv?: Record<string, string>,
+): { baseUrl?: string; apiKey?: string; defaultModel?: string } {
   const integrationConfig = readWorkspaceIntegrationConfig()
-  const browserBaseUrl = byok?.openaiCompatibleBaseUrl?.trim()
-  const workspaceBaseUrl = integrationConfig.openaiCompatibleBaseUrl?.trim()
-  const baseUrl = browserBaseUrl || workspaceBaseUrl
-  if (!baseUrl) return {}
-  // The workspace's default model belongs to the workspace's endpoint. Applying it to a different
-  // browser-supplied endpoint runs a model id that endpoint never advertised.
-  const normalize = (value?: string) => (value || '').replace(/\/+$/, '')
-  const defaultModel = byok?.openaiCompatibleDefaultModel?.trim()
-    || (normalize(baseUrl) === normalize(workspaceBaseUrl) ? integrationConfig.openaiCompatibleDefaultModel?.trim() : undefined)
-  return { baseUrl, apiKey: byok?.openaiCompatibleApiKey, defaultModel }
+  // The workspace's default model belongs to the workspace's endpoint, and its credential may live
+  // in protected USER/SYSTEM configuration. Which protected keys chat may use is the user-execution
+  // policy's call (browser BYOK only when the browser supplied any; system keys only when allowed),
+  // so that resolver runs first and the endpoint is paired only with what it returns. A bare
+  // endpoint URL is not a credential: the browser stores the workspace URL it verified, and
+  // sending that back must not read as "the user brought their own keys".
+  const browserKeyless = !byok?.openaiCompatibleApiKey?.trim()
+  const policyKeys = resolveUserExecutionProviderKeys(rawEnv, browserKeyless
+    ? { ...byok, openaiCompatibleBaseUrl: undefined, openaiCompatibleDefaultModel: undefined }
+    : byok)
+  return resolveOpenAiCompatibleEndpoint([
+    openAiCompatibleCandidateFromKeys(byok),
+    { baseUrl: integrationConfig.openaiCompatibleBaseUrl, defaultModel: integrationConfig.openaiCompatibleDefaultModel },
+    openAiCompatibleCandidateFromKeys(policyKeys),
+  ]) || {}
 }
 
 async function warmChatOpenAiCompatibleModel(byok?: ChatByokPayload): Promise<void> {
@@ -544,6 +553,7 @@ function evaluateChatExecutionReadiness(
   const fallbackModel = resolveByokChatFallbackModel({
     ...byok,
     openaiCompatibleBaseUrl: chatCompatibleEndpoint.baseUrl,
+    openaiCompatibleApiKey: chatCompatibleEndpoint.apiKey,
     openaiCompatibleDefaultModel: chatCompatibleEndpoint.defaultModel,
   })
   const resolvedAgent = !baseResolvedAgent.model && fallbackModel
@@ -562,9 +572,11 @@ function evaluateChatExecutionReadiness(
     openrouter: byok?.openrouter,
     xai: byok?.xai,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
-    openaiCompatibleApiKey: useOpenAiCompatible ? byok?.openaiCompatibleApiKey : undefined,
-    openaiCompatibleBaseUrl: useOpenAiCompatible ? (byok?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
-    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
+    // The endpoint together with the credential and model that belong to it: the browser's own,
+    // or the workspace URL paired with the protected key the user-execution policy allows.
+    openaiCompatibleApiKey: useOpenAiCompatible ? chatCompatibleEndpoint.apiKey : undefined,
+    openaiCompatibleBaseUrl: useOpenAiCompatible ? chatCompatibleEndpoint.baseUrl : undefined,
+    openaiCompatibleDefaultModel: useOpenAiCompatible ? chatCompatibleEndpoint.defaultModel : undefined,
   })
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   if (isNonOpenclawChatRuntime(resolvedAgent.runtime)) {
@@ -819,6 +831,7 @@ router.post('/:id/chat', async (req, res) => {
   const resolvedAgent = readiness.resolvedAgent
   const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
   const integrationConfig = readWorkspaceIntegrationConfig()
+  const chatCompatibleEndpoint = resolveChatOpenAiCompatibleEndpoint(byok)
   const effectiveWorkspaceRoot = deriveWorkspaceRootFromAgentWorkspace(resolvedAgent.workspace) || getWorkspacePath()
   const executionEnv = userExecutionEnv({
     openai: useOpenAiCompatible ? undefined : byok?.openai,
@@ -827,9 +840,11 @@ router.post('/:id/chat', async (req, res) => {
     openrouter: byok?.openrouter,
     xai: byok?.xai,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
-    openaiCompatibleApiKey: useOpenAiCompatible ? byok?.openaiCompatibleApiKey : undefined,
-    openaiCompatibleBaseUrl: useOpenAiCompatible ? (byok?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
-    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
+    // The endpoint together with the credential and model that belong to it: the browser's own,
+    // or the workspace URL paired with the protected key the user-execution policy allows.
+    openaiCompatibleApiKey: useOpenAiCompatible ? chatCompatibleEndpoint.apiKey : undefined,
+    openaiCompatibleBaseUrl: useOpenAiCompatible ? chatCompatibleEndpoint.baseUrl : undefined,
+    openaiCompatibleDefaultModel: useOpenAiCompatible ? chatCompatibleEndpoint.defaultModel : undefined,
   })
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   executionEnv.CLAWMAX_AGENT_ID = id
