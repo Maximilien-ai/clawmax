@@ -3,10 +3,13 @@ set -euo pipefail
 
 image="${1:?Usage: container-agent-lifecycle-smoke.sh <image> [platform]}"
 platform="${2:-linux/amd64}"
+container_cli="${CONTAINER_CLI:-docker}"
 run_key="${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$$"
 container_name="clawmax-agent-lifecycle-${run_key}"
 volume_name="clawmax-agent-lifecycle-${run_key}"
 base_url=''
+dashboard_health_elapsed=''
+gateway_ready_elapsed=''
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mock_ollama_port="$((19000 + ($$ % 1000)))"
 mock_ollama_pid=''
@@ -15,19 +18,23 @@ cleanup() {
   if [ -n "$mock_ollama_pid" ]; then
     kill "$mock_ollama_pid" >/dev/null 2>&1 || true
   fi
-  docker rm -f "$container_name" >/dev/null 2>&1 || true
-  docker volume rm "$volume_name" >/dev/null 2>&1 || true
+  "$container_cli" rm -f "$container_name" >/dev/null 2>&1 || true
+  "$container_cli" volume rm "$volume_name" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
 fail() {
   echo "container agent lifecycle smoke failed: $*" >&2
-  docker logs "$container_name" 2>&1 | tail -n 160 >&2 || true
+  "$container_cli" logs "$container_name" 2>&1 | tail -n 160 >&2 || true
   exit 1
 }
 
 start_dashboard() {
-  docker run -d \
+  local started_at now elapsed
+  started_at="$(date +%s)"
+  dashboard_health_elapsed=''
+  gateway_ready_elapsed=''
+  "$container_cli" run -d \
     --platform "$platform" \
     --name "$container_name" \
     --add-host host.docker.internal:host-gateway \
@@ -45,24 +52,35 @@ start_dashboard() {
 
   local binding=''
   for _ in $(seq 1 30); do
-    binding="$(docker port "$container_name" 3001/tcp 2>/dev/null | head -n 1 || true)"
+    binding="$("$container_cli" port "$container_name" 3001/tcp 2>/dev/null | head -n 1 || true)"
     [ -n "$binding" ] && break
     sleep 1
   done
   [ -n "$binding" ] || fail 'dashboard port was not published'
   base_url="http://127.0.0.1:${binding##*:}"
 
-  for _ in $(seq 1 90); do
-    if curl -fsS --connect-timeout 2 --max-time 5 "$base_url/api/health" >/dev/null 2>&1; then
+  while [ "$(( $(date +%s) - started_at ))" -le 40 ]; do
+    now="$(date +%s)"
+    elapsed="$((now - started_at))"
+    if [ -z "$gateway_ready_elapsed" ] && "$container_cli" logs "$container_name" 2>&1 | grep -F 'gateway authenticated readiness verified' >/dev/null; then
+      gateway_ready_elapsed="$elapsed"
+    fi
+    if curl -fsS --connect-timeout 1 --max-time 2 "$base_url/api/health" >/dev/null 2>&1; then
+      dashboard_health_elapsed="$elapsed"
+      [ -n "$gateway_ready_elapsed" ] || gateway_ready_elapsed="$elapsed"
+      if [ "$dashboard_health_elapsed" -gt 40 ]; then
+        fail "dashboard health exceeded 40 seconds (${dashboard_health_elapsed}s)"
+      fi
+      echo "RC startup timing platform=${platform} dashboard_health=${dashboard_health_elapsed}s gateway_ready=${gateway_ready_elapsed}s"
       return 0
     fi
-    sleep 2
+    sleep 1
   done
-  fail 'dashboard health endpoint did not become ready'
+  fail 'dashboard health endpoint did not become ready within 40 seconds'
 }
 
 stop_dashboard() {
-  docker rm -f "$container_name" >/dev/null
+  "$container_cli" rm -f "$container_name" >/dev/null
 }
 
 provision_agent() {
@@ -96,7 +114,7 @@ assert_gateway_chat() {
   printf '%s' "$response" | grep -F '"type":"complete"' >/dev/null \
     || fail "Dashboard gateway chat did not complete: $response"
 
-  logs="$(docker logs "$container_name" 2>&1)"
+  logs="$("$container_cli" logs "$container_name" 2>&1)"
   spawn_line="$(printf '%s\n' "$logs" | grep -F '[Chat Route] Spawning:' | tail -n 1 || true)"
   [ -n "$spawn_line" ] || fail 'Dashboard did not log the OpenClaw chat invocation'
   if printf '%s\n' "$spawn_line" | grep -F -- ' --local' >/dev/null; then
@@ -104,7 +122,61 @@ assert_gateway_chat() {
   fi
 }
 
-docker volume create "$volume_name" >/dev/null
+assert_populated_fixture() {
+  curl -fsS "$base_url/api/health" | jq -e \
+    '.ok == true and .readiness.ready == true
+      and (.readiness.stores.agents >= 1)
+      and (.readiness.stores.templates >= 2)
+      and (.readiness.stores.groups >= 1)
+      and (.readiness.stores.workflows >= 3)' >/dev/null \
+    || fail 'health did not prove populated persistent stores readable'
+
+  curl -fsS "$base_url/api/groups" | jq -e \
+    '.groups | any(.name == "RC65 Persistence Group" and .members == ["rc-image-reuse-probe"])' >/dev/null \
+    || fail 'persistent group did not survive restart'
+
+  workflows="$(curl -fsS "$base_url/api/workflows")" || fail 'workflow list request failed'
+  printf '%s' "$workflows" | jq -e \
+    '[.workflows[] | select(.id == "rc65-morning" and .schedule == "30 9 * * *")] | length == 1' >/dev/null \
+    || fail '30 9 * * * workflow did not survive restart'
+  printf '%s' "$workflows" | jq -e \
+    '[.workflows[] | select(.id == "rc65-two-hour" and .schedule == "0 */2 * * *")] | length == 1' >/dev/null \
+    || fail '0 */2 * * * workflow did not survive restart'
+  printf '%s' "$workflows" | jq -e \
+    '[.workflows[] | select(.id == "rc65-invalid-canary" and .schedule == "invalid cron")] | length == 1' >/dev/null \
+    || fail 'invalid schedule canary did not remain readable'
+
+  scheduler=''
+  for _ in $(seq 1 45); do
+    scheduler="$(curl -fsS "$base_url/api/system" | jq -c '.scheduler')" || true
+    status="$(printf '%s' "$scheduler" | jq -r '.status // empty' 2>/dev/null || true)"
+    [ "$status" != 'running' ] && [ "$status" != 'idle' ] && break
+    sleep 1
+  done
+  printf '%s' "$scheduler" | jq -e \
+    '.status == "degraded"
+      and ([.failures[] | select(.workflowId == "rc65-invalid-canary")] | length == 1)
+      and ([.failures[] | select(.workflowId == "rc65-morning" or .workflowId == "rc65-two-hour")] | length == 0)' >/dev/null \
+    || fail "scheduler diagnostics did not isolate the invalid schedule: $scheduler"
+
+  cron_jobs="$("$container_cli" exec "$container_name" openclaw cron list --json --all)" \
+    || fail 'OpenClaw cron list failed after populated restart'
+  printf '%s' "$cron_jobs" | jq -e \
+    '[(.jobs // .)[] | select(.name == "clawmax-rc65-morning-rc-image-reuse-probe")] | length == 1' >/dev/null \
+    || fail 'morning cron registration missing or duplicated'
+  printf '%s' "$cron_jobs" | jq -e \
+    '[(.jobs // .)[] | select(.name == "clawmax-rc65-two-hour-rc-image-reuse-probe")] | length == 1' >/dev/null \
+    || fail 'two-hour cron registration missing or duplicated'
+
+  "$container_cli" exec "$container_name" test -s /app/DATA/.home/.openclaw/openclaw.json \
+    || fail 'OpenClaw state did not survive restart'
+  "$container_cli" exec "$container_name" test -s /app/DATA/.home/.openclaw/state/openclaw.sqlite \
+    || fail 'OpenClaw SQLite state did not survive restart'
+  "$container_cli" exec "$container_name" sh -c 'find /app/DATA/.home/.openclaw/agents/rc-image-reuse-probe -type f -path "*/sessions/*" -size +0c | grep -q .' \
+    || fail 'agent session state did not survive restart'
+}
+
+"$container_cli" volume create "$volume_name" >/dev/null
 node "$script_dir/mock-ollama-server.mjs" "$mock_ollama_port" >/tmp/clawmax-mock-ollama.log 2>&1 &
 mock_ollama_pid=$!
 for _ in $(seq 1 20); do
@@ -143,6 +215,37 @@ curl -fsS -X PUT -H 'Content-Type: application/json' -d "$org_template" \
   "$base_url/api/templates/organizations/rc-image-organization-persistence" \
   | jq -e '.ok == true' >/dev/null || fail 'custom organization template was not saved'
 
+curl -fsS -X POST -H 'Content-Type: application/json' \
+  -d '{"name":"RC65 Persistence Group","description":"RC65 populated-state fixture","tags":["acceptance"],"members":["rc-image-reuse-probe"],"channels":[]}' \
+  "$base_url/api/groups" | jq -e '.ok == true' >/dev/null \
+  || fail 'persistent group was not created'
+
+for workflow_payload in \
+  '{"id":"rc65-morning","name":"RC65 Morning","description":"RC65 cron fixture","schedule":"30 9 * * *","timezone":"UTC","enabled":true,"executionMode":"automated","targeting":{"agents":["rc-image-reuse-probe"],"groups":[],"communities":[],"tags":[]},"content":"Reply with the acceptance status."}' \
+  '{"id":"rc65-two-hour","name":"RC65 Two Hour","description":"RC65 cron fixture","schedule":"0 */2 * * *","timezone":"UTC","enabled":true,"executionMode":"automated","targeting":{"agents":["rc-image-reuse-probe"],"groups":[],"communities":[],"tags":[]},"content":"Reply with the acceptance status."}' \
+  '{"id":"rc65-invalid-canary","name":"RC65 Invalid Canary","description":"RC65 invalid schedule fixture","schedule":"15 3 * * *","timezone":"UTC","enabled":true,"executionMode":"automated","targeting":{"agents":["rc-image-reuse-probe"],"groups":[],"communities":[],"tags":[]},"content":"This schedule must not block startup."}'
+do
+  curl -fsS -X POST -H 'Content-Type: application/json' -d "$workflow_payload" \
+    "$base_url/api/workflows" | jq -e '.id' >/dev/null \
+    || fail "persistent workflow was not created: $workflow_payload"
+done
+
+"$container_cli" exec "$container_name" node -e \
+  'const fs=require("fs");const p="/app/DATA/.home/.openclaw/workspaces/acceptance/WORKFLOWS/rc65-invalid-canary.md";const s=fs.readFileSync(p,"utf8");fs.writeFileSync(p,s.replace(/^schedule:.*$/m,"schedule: invalid cron"));' \
+  || fail 'invalid schedule canary could not be staged'
+
+execution_id="$(curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' \
+  "$base_url/api/workflows/rc65-morning/trigger" | jq -r '.executionId // empty')"
+[ -n "$execution_id" ] || fail 'workflow execution did not start'
+execution_status=''
+for _ in $(seq 1 120); do
+  execution_status="$(curl -fsS "$base_url/api/workflows/rc65-morning/executions/$execution_id" | jq -r '.status // empty')" || true
+  [ "$execution_status" = 'completed' ] && break
+  [ "$execution_status" = 'failed' ] && fail 'workflow execution failed'
+  sleep 1
+done
+[ "$execution_status" = 'completed' ] || fail "workflow execution did not complete (status=${execution_status:-unknown})"
+
 # Replace the runtime container while retaining only its mounted data volume.
 stop_dashboard
 start_dashboard
@@ -154,5 +257,7 @@ curl -fsS "$base_url/api/templates/organizations/rc-image-organization-persisten
   | jq -e '.type == "organization" and .name == "RC Image Organization Persistence"' >/dev/null \
   || fail 'custom organization template did not survive image replacement'
 assert_one_ordered_agent
+assert_populated_fixture
+assert_gateway_chat
 
-echo 'container-agent-lifecycle-smoke.sh: lifecycle and persistence checks passed'
+echo "container-agent-lifecycle-smoke.sh: lifecycle, populated persistence, restart, cron, gateway, and <=40s health checks passed for ${platform}"

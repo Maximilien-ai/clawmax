@@ -344,9 +344,11 @@ jobs:
           verify_image "${image}:${semver}-test-${test_tag}-arm64" "linux/arm64" "${semver}" "${expected_env}"
           verify_image "${image}:${semver}-test-${test_tag}-amd64" "linux/amd64" "${semver}" "${expected_env}"
 
-      - name: Verify exact-ID reuse and workspace persistence
+      - name: Verify populated persistence and startup acceptance on AMD64 and ARM64
         shell: bash
         run: |
           set -euo pipefail
-          image="${IMAGE_NAME}:${{ needs.build.outputs.semver }}-test-${{ needs.build.outputs.test_tag }}-amd64"
-          bash SYSTEM/container-agent-lifecycle-smoke.sh "$image" linux/amd64
+          for arch in amd64 arm64; do
+            image="${IMAGE_NAME}:${{ needs.build.outputs.semver }}-test-${{ needs.build.outputs.test_tag }}-${arch}"
+            bash SYSTEM/container-agent-lifecycle-smoke.sh "$image" "linux/${arch}"
+          done
