@@ -4207,7 +4207,7 @@ if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1; then
   # Try to update using skills advertised by the active runtime catalog.
   test_skills=$(apicurl "$API_BASE/api/skills" | jq -c '[.skills[0:2][] | .name]')
   first_test_skill=$(echo "$test_skills" | jq -r '.[0]')
-  response=$(apicurl -X PUT "$API_BASE/api/skills/agent/$first_agent" \
+  response=$(apicurl_long -X PUT "$API_BASE/api/skills/agent/$first_agent" \
     -H 'Content-Type: application/json' \
     -d "{\"skills\":$test_skills}")
 
@@ -5212,7 +5212,7 @@ existing_agents=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/
 test_agent_cleanup_ids=$(printf '%s\n' test-lead test-agent1 test-agent2 $existing_agents | sort -u)
 for agent_id in $test_agent_cleanup_ids; do
   apicurl_long -X DELETE "$API_BASE/api/agents/$agent_id" \
-    -H 'Content-Type: application/json' -d '{"confirm":true}' > /dev/null 2>&1
+    -H 'Content-Type: application/json' -d '{"removeStateDir":true}' > /dev/null 2>&1
 done
 
 # Delete existing test workflows
@@ -5564,7 +5564,7 @@ cleanup_agents=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/n
 test_agent_cleanup_ids=$(printf '%s\n' test-lead test-agent1 test-agent2 $cleanup_agents | sort -u)
 for agent_id in $test_agent_cleanup_ids; do
   apicurl_long -X DELETE "$API_BASE/api/agents/$agent_id" \
-    -H 'Content-Type: application/json' -d '{"confirm":true}' > /dev/null 2>&1
+    -H 'Content-Type: application/json' -d '{"removeStateDir":true}' > /dev/null 2>&1
 done
 # Dismiss all test notifications
 apicurl -X POST "$API_BASE/api/notifications/dismiss-all" > /dev/null 2>&1
