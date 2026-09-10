@@ -44,6 +44,14 @@ let testsPassed = 0
 let testsFailed = 0
 let testChain: Promise<void> = Promise.resolve()
 
+// Template unit fixtures replace HOME and seed their own OpenClaw config.
+// Do not let an outer integration run redirect those fixtures to its live
+// Gateway, where native lifecycle writes would invalidate fixture assertions.
+delete process.env.OPENCLAW_CONFIG_PATH
+delete process.env.OPENCLAW_STATE_DIR
+delete process.env.OPENCLAW_GATEWAY_URL
+delete process.env.OPENCLAW_GATEWAY_TOKEN
+
 function readMaterializedConfig(configPath: string): any {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
   materializeDashboardAgentList(config)
