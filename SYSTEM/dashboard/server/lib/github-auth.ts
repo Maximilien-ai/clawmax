@@ -88,6 +88,12 @@ interface SessionPayload {
   }
 }
 
+export interface CliSessionIdentity {
+  actorId: string
+  email: string
+  displayName: string
+}
+
 const SESSION_BOOTSTRAP_REPLAY_PATH = path.join(__dirname, '..', 'data', 'auth', 'session-bootstrap-replays.json')
 const sessionBootstrapReplayStore = new SessionBootstrapReplayStore(SESSION_BOOTSTRAP_REPLAY_PATH)
 
@@ -232,6 +238,19 @@ function createEnterpriseSessionPayload(claims: SessionBootstrapClaims): Session
 
 function createEnterpriseSessionToken(claims: SessionBootstrapClaims, ttlSeconds: number): string {
   const payload = createEnterpriseSessionPayload(claims)
+  return jwt.sign(payload, JWT_SECRET(), { expiresIn: ttlSeconds })
+}
+
+/** Issue a short-lived bearer used only after the CLI PKCE flow authenticates a browser session. */
+export function createCliSessionToken(identity: CliSessionIdentity, ttlSeconds = 900): string {
+  const payload: SessionPayload = {
+    userId: identity.actorId,
+    login: identity.email,
+    name: identity.displayName,
+    avatar: '',
+    email: identity.email,
+    authType: 'otp',
+  }
   return jwt.sign(payload, JWT_SECRET(), { expiresIn: ttlSeconds })
 }
 

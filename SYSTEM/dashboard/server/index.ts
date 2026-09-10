@@ -28,6 +28,7 @@ import aiRouter from './routes/ai'
 import aiBuilderRouter from './routes/ai-builder'
 import templateRegistryRouter from './routes/template-registry'
 import activityExportRouter from './routes/activity-export'
+import instanceCliRouter from './routes/instance-cli'
 import { startActivityExportWorker, stopActivityExportWorker } from './lib/activity-export-worker'
 import { isTemplateRegistryWriteEnabled } from './lib/template-registry'
 import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity, isManagedAgentWorkspaceDir } from './lib/workspace'
@@ -308,6 +309,10 @@ app.get('/api/health', (_req, res) => {
     time: new Date().toISOString(),
   })
 })
+
+// Public, versioned CLI API. This router owns authentication and its JSON 404
+// boundary so requests can never fall through to the browser SPA shell.
+app.use('/api/cli/v1', instanceCliRouter)
 
 // Auth verification (public, legacy)
 app.post('/api/auth/verify', verifyToken)

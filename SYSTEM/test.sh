@@ -3164,6 +3164,13 @@ else
   fail "Startup readiness unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Instance CLI API contract tests...${NC}"
+if npx ts-node --transpileOnly server/routes/instance-cli.test.ts; then
+  pass "Instance CLI API contract tests (12 tests)"
+else
+  fail "Instance CLI API contract tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Safe env / BYOK unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/safe-env.test.ts > /tmp/clawmax-safe-env.out 2>&1 || true
