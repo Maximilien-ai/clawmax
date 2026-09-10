@@ -286,6 +286,11 @@ test('safeEnv forwards workspace-managed partner secrets to child processes', ()
       cognee: {
         apiKey: 'cognee_workspace_key',
       },
+      custom: {
+        CUSTOM_TOKEN: 'custom-token',
+        contextLabel: 'secret-context',
+        emptyValue: '',
+      },
     },
   }, null, 2))
   fs.writeFileSync(path.join(systemDir, 'integrations.json'), JSON.stringify({
@@ -294,6 +299,10 @@ test('safeEnv forwards workspace-managed partner secrets to child processes', ()
         baseUrl: 'https://cognee.example.test',
         datasetName: 'clawmax-memory',
         searchType: 'GRAPH_COMPLETION',
+      },
+      custom: {
+        contextLabel: 'runtime-context',
+        numericValue: 42,
       },
     },
   }, null, 2))
@@ -308,6 +317,10 @@ test('safeEnv forwards workspace-managed partner secrets to child processes', ()
   assert(env.COGNEE_BASE_URL === 'https://cognee.example.test', 'Expected Cognee base URL to reach child env')
   assert(env.COGNEE_DATASET_NAME === 'clawmax-memory', 'Expected Cognee dataset to reach child env')
   assert(env.COGNEE_SEARCH_TYPE === 'GRAPH_COMPLETION', 'Expected Cognee search type to reach child env')
+  assert(env.CUSTOM_TOKEN === 'custom-token', 'Expected an explicit uppercase partner key to remain stable')
+  assert(env.CUSTOM_CONTEXT_LABEL === 'secret-context', 'Expected contextLabel to use its canonical env key')
+  assert(typeof env.CUSTOM_EMPTY_VALUE === 'undefined', 'Expected empty partner values to be omitted')
+  assert(typeof env.CUSTOM_NUMERIC_VALUE === 'undefined', 'Expected non-string partner values to be omitted')
   assert(typeof env.apiKey === 'undefined', 'Expected raw partner field key not to leak into child env')
 })
 
