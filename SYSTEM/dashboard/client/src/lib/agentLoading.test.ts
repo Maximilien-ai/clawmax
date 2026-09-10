@@ -54,6 +54,23 @@ test('allows agent refresh after cooldown expires for the same workspace', () =>
   }), 'Expected same workspace to refresh after cooldown')
 })
 
+test('uses the default cooldown when no override is provided', () => {
+  assert(!shouldFetchAgentsForWorkspace({
+    isActive: true,
+    workspaceKey: 'workspace-a',
+    lastLoadedWorkspaceKey: 'workspace-a',
+    lastFetchStartedAtMs: 100,
+    nowMs: 5099,
+  }), 'Expected same workspace to remain cached during the default cooldown')
+  assert(shouldFetchAgentsForWorkspace({
+    isActive: true,
+    workspaceKey: 'workspace-a',
+    lastLoadedWorkspaceKey: 'workspace-a',
+    lastFetchStartedAtMs: 100,
+    nowMs: 5100,
+  }), 'Expected same workspace to refresh when the default cooldown expires')
+})
+
 test('does not fetch agents while inactive', () => {
   assert(!shouldFetchAgentsForWorkspace({
     isActive: false,
