@@ -11,7 +11,7 @@ import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
 import { execFile, execFileSync, spawn } from 'child_process'
-import { resolveOpenClawCliPath } from './openclaw-cli'
+import { resolveOpenClawCliInvocation, resolveOpenClawCliPath } from './openclaw-cli'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { safeEnv } from './safe-env'
 import { clearRuntimeSession, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
@@ -127,7 +127,11 @@ export function detectRuntimeStatuses(active: AgentRuntimeId): RuntimeStatus[] {
 
     if (cliPath) {
       try {
-        const raw = String(execFileSync(cliPath, ['--version'], {
+        const invocation = id === 'openclaw'
+          ? resolveOpenClawCliInvocation(['--version'])
+          : { command: cliPath, args: ['--version'] }
+        if (!invocation) throw new Error('CLI unavailable')
+        const raw = String(execFileSync(invocation.command, invocation.args, {
           encoding: 'utf-8',
           stdio: ['ignore', 'pipe', 'ignore'],
           timeout: 5000,
@@ -410,7 +414,13 @@ export function buildRuntimePlan(o: {
   if (o.runtime === 'openclaw') {
     const args = ['agent', '--agent', o.agentId, '--session-id', o.scopedSessionId, '--message', o.message]
     if (o.mode === 'json') args.push('--json')
-    return { cliPath, args, missingCliError, streamsDeltas: o.mode === 'chat' }
+    const invocation = resolveOpenClawCliInvocation(args)
+    return {
+      cliPath: invocation?.command || null,
+      args: invocation?.args || args,
+      missingCliError,
+      streamsDeltas: o.mode === 'chat',
+    }
   }
 
   if (o.runtime === 'claude') {
