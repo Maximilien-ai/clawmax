@@ -26,8 +26,9 @@ function assert(condition: boolean, message: string) {
 
 console.log(`\n${YELLOW}=== Gateway RPC Edge Test Suite ===${RESET}\n`)
 
-test('parseGatewayConfig returns null when port or token is missing', () => {
-  assert(__test.parseGatewayConfig({ gateway: { auth: { token: 'abc' } } }) === null, 'Expected missing port to return null')
+test('parseGatewayConfig defaults an omitted port and requires a token', () => {
+  const defaultPort = __test.parseGatewayConfig({ gateway: { auth: { token: 'abc' } } })
+  assert(defaultPort?.port === 18789, `Expected omitted port to default to 18789, got ${defaultPort?.port}`)
   assert(__test.parseGatewayConfig({ gateway: { port: 18789 } }) === null, 'Expected missing token to return null')
 })
 
