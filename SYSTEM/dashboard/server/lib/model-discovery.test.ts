@@ -361,6 +361,10 @@ test('the endpoint cache keeps only the newest entries', async () => {
   __test.ageOpenAiCompatibleCache(61_000)
   await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://after-grace:8000/v1' })
   assert(__test.openAiCompatibleCacheEntryCount() === 256, `Expected the bound to apply once the grace window lapsed, got ${__test.openAiCompatibleCacheEntryCount()}`)
+  // The grace window is not a loophole: beyond four times the bound the oldest go regardless of age.
+  clearModelCache()
+  await Promise.all(Array.from({ length: 1100 }, (_, i) => resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://flood-${i}:8000/v1` })))
+  assert(__test.openAiCompatibleCacheEntryCount() === 1024, `Expected a hard cap of 1024 fresh entries, got ${__test.openAiCompatibleCacheEntryCount()}`)
   clearModelCache()
 })
 

@@ -32,6 +32,9 @@ const MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES = 256
 // Entries younger than this are never evicted for size: a request that just warmed an endpoint
 // must still find it when its synchronous readers run, however large the concurrent burst.
 const OPENAI_COMPATIBLE_CACHE_EVICTION_GRACE_MS = 60 * 1000
+// The grace window must not become an unbounded loophole: beyond this many entries the oldest go
+// regardless of age.
+const HARD_MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES = MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES * 4
 const OPENAI_COMPATIBLE_CACHE_PREFIX = 'openai-compatible:'
 
 interface CacheEntry {
@@ -66,12 +69,18 @@ function setCache(provider: string, models: string[]) {
     if (now - entry.fetchedAt > CACHE_TTL_MS) delete cache[key]
   }
   cache[provider] = { models, fetchedAt: now }
-  const endpointKeys = Object.keys(cache)
-    .filter((key) => key.startsWith(OPENAI_COMPATIBLE_CACHE_PREFIX))
-    .sort((a, b) => cache[a].fetchedAt - cache[b].fetchedAt)
-  for (const key of endpointKeys.slice(0, Math.max(0, endpointKeys.length - MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES))) {
-    if (now - cache[key].fetchedAt < OPENAI_COMPATIBLE_CACHE_EVICTION_GRACE_MS) break
+  const endpointKeys = Object.keys(cache).filter((key) => key.startsWith(OPENAI_COMPATIBLE_CACHE_PREFIX))
+  if (endpointKeys.length <= MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES) return
+  endpointKeys.sort((a, b) => cache[a].fetchedAt - cache[b].fetchedAt)
+  let excess = endpointKeys.length - MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES
+  let hardExcess = endpointKeys.length - HARD_MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES
+  for (const key of endpointKeys) {
+    if (excess <= 0) break
+    const fresh = now - cache[key].fetchedAt < OPENAI_COMPATIBLE_CACHE_EVICTION_GRACE_MS
+    if (fresh && hardExcess <= 0) break
     delete cache[key]
+    excess--
+    hardExcess--
   }
 }
 

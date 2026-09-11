@@ -8,7 +8,7 @@ import { REPO_ROOT } from './paths'
 import { syncAssignedSkillGuidanceForAgent } from './skills'
 import { normalizeAgentModelInput, readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
 import { resetAgentSessionsForModelChange } from './agent-model'
-import { resolveDefaultAgentModel } from './agent-default-model'
+import { resolveDefaultAgentModel, policyScopedEnv } from './agent-default-model'
 import { getAvailableModelsCached } from './model-discovery'
 import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
@@ -326,7 +326,7 @@ export function resolveAgentExecutionConfig(agentId: string, options: { executio
   if (model && !isSupportedHostedModel(model)) {
     model = resolveDefaultAgentModel({
       ...defaultModelOptions,
-      availableModels: getAvailableModelsCached(process.env as Record<string, string>),
+      availableModels: getAvailableModelsCached(policyScopedEnv(process.env as Record<string, string>, options.executionPolicy)),
     }) || model
   }
   const backupModel = (() => {

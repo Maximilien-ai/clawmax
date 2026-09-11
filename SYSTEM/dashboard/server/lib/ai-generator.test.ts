@@ -28,6 +28,8 @@ import {
   resolveSystemGenerationModelForProvider,
   resolveOpenAiCompatibleGenerationDefaults,
   setRequestByokKeys,
+  getRequestByokKeys,
+  withRequestByokScope,
   warmOpenAiCompatibleGenerationModel,
   shouldUseMaxCompletionTokens,
   shouldGenerateCompanyTemplate,
@@ -319,6 +321,29 @@ test('Generation sends the protected credential and the discovered model to the 
     assert.strictEqual(completionCall!.auth, 'Bearer system-secret')
     assert.strictEqual(completionCall!.model, 'authenticated-model')
   })
+})
+
+test('Concurrent requests keep their own BYOK keys', async () => {
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+  const seen: Record<string, string | undefined> = {}
+  await Promise.all([
+    withRequestByokScope(async () => {
+      setRequestByokKeys({ openaiCompatibleApiKey: 'first-secret' } as any)
+      await wait(30)
+      seen.first = getRequestByokKeys()?.openaiCompatibleApiKey
+      setRequestByokKeys(undefined)
+    }),
+    withRequestByokScope(async () => {
+      await wait(5)
+      setRequestByokKeys({ openaiCompatibleApiKey: 'second-secret' } as any)
+      await wait(10)
+      seen.second = getRequestByokKeys()?.openaiCompatibleApiKey
+      setRequestByokKeys(undefined)
+    }),
+  ])
+  assert.strictEqual(seen.first, 'first-secret')
+  assert.strictEqual(seen.second, 'second-secret')
+  assert.strictEqual(getRequestByokKeys(), undefined, 'nothing set inside a request scope leaks outside it')
 })
 
 test('A protected key configured for a different server is not sent to the workspace endpoint', async () => {
