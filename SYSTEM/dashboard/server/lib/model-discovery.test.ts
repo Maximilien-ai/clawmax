@@ -1,4 +1,4 @@
-import { __test, clearModelCache, discoverModels, getCachedOpenAiCompatibleDefaultModel, normalizeOpenAiCompatibleBaseUrl, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint } from './model-discovery'
+import { __test, clearModelCache, discoverModels, getCachedOpenAiCompatibleDefaultModel, normalizeOpenAiCompatibleBaseUrl, openAiCompatibleEndpointUrl, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint } from './model-discovery'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -353,6 +353,41 @@ test('a burst of distinct endpoints does not retain a promise per endpoint', asy
   const resolved = await Promise.all(lookups)
   assert(resolved.every((model) => model === 'chat-model'), 'Expected every caller in the burst to still get its answer')
   assert(__test.inFlightOpenAiCompatibleFetchCount() === 0, 'Expected the in-flight map to drain after the burst')
+  clearModelCache()
+})
+
+test('discovery keeps a tenant query string on the base URL when it asks for /models', async () => {
+  clearModelCache()
+  assert(openAiCompatibleEndpointUrl('http://gateway:8000/v1?tenant=a', '/models') === 'http://gateway:8000/v1/models?tenant=a', 'Expected the suffix on the path, not the query')
+  assert(openAiCompatibleEndpointUrl('http://gateway:8000/v1/', '/chat/completions') === 'http://gateway:8000/v1/chat/completions', 'Expected a trailing slash to be absorbed')
+  let requested = ''
+  global.fetch = (async (url: string) => {
+    requested = String(url)
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: 'tenant-a-model' }] }) } as any
+  }) as any
+  const model = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://gateway:8000/v1?tenant=a' })
+  assert(requested === 'http://gateway:8000/v1/models?tenant=a', `Expected the tenant's own /models URL, got ${requested}`)
+  assert(model === 'tenant-a-model', `Expected the tenant's model, got ${model}`)
+  clearModelCache()
+})
+
+test('a refresh asked for while a lookup is in flight is not undone by that lookup', async () => {
+  clearModelCache()
+  let release: () => void = () => {}
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  let calls = 0
+  global.fetch = (async () => {
+    calls++
+    if (calls === 1) await gate
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: calls === 1 ? 'stale-model' : 'fresh-model' }] }) } as any
+  }) as any
+  const stale = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://refresh-endpoint:8000/v1' })
+  clearModelCache()
+  const fresh = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://refresh-endpoint:8000/v1' })
+  release()
+  await Promise.all([stale, fresh])
+  assert(calls === 2, `Expected the refresh to issue its own /models request, got ${calls}`)
+  assert(getCachedOpenAiCompatibleDefaultModel('http://refresh-endpoint:8000/v1') === 'fresh-model', 'Expected the post-refresh answer to be the one cached')
   clearModelCache()
 })
 

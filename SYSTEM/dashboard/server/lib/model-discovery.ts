@@ -34,6 +34,12 @@ interface CacheEntry {
 }
 
 const cache: Record<string, CacheEntry> = {}
+// Bumped by clearModelCache so a lookup that was already in flight when a refresh was asked for
+// cannot repopulate the cache with its pre-refresh answer.
+let cacheGeneration = 0
+// One /models request per endpoint at a time. Without this, N concurrent cold generations each
+// issue their own 5s request to the same endpoint before any of them populates the cache.
+const inFlightOpenAICompatibleFetches = new Map<string, Promise<string[]>>()
 
 function getCached(provider: string): string[] | null {
   const entry = cache[provider]
@@ -65,6 +71,20 @@ function setCache(provider: string, models: string[]) {
 /** Force-clear cache (useful for manual refresh) */
 export function clearModelCache() {
   for (const key of Object.keys(cache)) delete cache[key]
+  cacheGeneration++
+  inFlightOpenAICompatibleFetches.clear()
+}
+
+/** `${baseUrl}${suffix}` for a base URL that may itself carry a query string. */
+export function openAiCompatibleEndpointUrl(baseUrl: string, suffix: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '')
+  try {
+    const url = new URL(trimmed)
+    url.pathname = `${url.pathname.replace(/\/+$/, '')}${suffix}`
+    return url.toString()
+  } catch {
+    return `${trimmed}${suffix}`
+  }
 }
 
 export function getPreferredAnthropicModel(): string {
@@ -446,10 +466,6 @@ function openAiCompatibleCacheKey(baseUrl: string, apiKey?: string): string {
   return `${OPENAI_COMPATIBLE_CACHE_PREFIX}${normalizeOpenAiCompatibleBaseUrl(baseUrl)}::${credentialFingerprint(apiKey)}`
 }
 
-// One /models request per endpoint at a time. Without this, N concurrent cold generations each
-// issue their own 5s request to the same endpoint before any of them populates the cache.
-const inFlightOpenAICompatibleFetches = new Map<string, Promise<string[]>>()
-
 async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Promise<string[]> {
   const normalizedBaseUrl = (baseUrl.trim() || '').replace(/\/+$/, '')
   if (!normalizedBaseUrl) return []
@@ -461,6 +477,7 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
   // A burst of distinct endpoints must not retain a promise per endpoint: beyond the same bound
   // as the cache, a lookup still runs for its caller but is not held for later callers to join.
   const coalesce = inFlightOpenAICompatibleFetches.size < MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES
+  const generation = cacheGeneration
 
   const request = (async () => {
     try {
@@ -468,7 +485,7 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
       if (apiKey?.trim()) {
         headers.Authorization = `Bearer ${apiKey.trim()}`
       }
-      const res = await fetch(`${normalizedBaseUrl}/models`, {
+      const res = await fetch(openAiCompatibleEndpointUrl(normalizedBaseUrl, '/models'), {
         headers,
         signal: AbortSignal.timeout(5000),
       })
@@ -485,7 +502,7 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
         .filter(Boolean)
         .map((id) => `openai-compatible/${id}`)
 
-      setCache(cacheKey, models)
+      if (generation === cacheGeneration) setCache(cacheKey, models)
       return models
     } catch (err) {
       console.warn('Failed to fetch OpenAI-compatible models:', (err as Error).message)
