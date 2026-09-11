@@ -31,6 +31,7 @@ interface Props {
   agentId: string
   agentName: string
   agentStatus?: 'online' | 'offline' | 'unknown'
+  agentGeneration?: string
   onClose: () => void
   onSuccess?: () => void
   onNavigateToDoc?: (path: string) => void
@@ -187,7 +188,7 @@ function cleanMessageContent(content: string): string {
   return cleaned || '(processing...)'
 }
 
-export default function AgentChatPanel({ agentId, agentName, agentStatus, onClose, onSuccess, onNavigateToDoc }: Props) {
+export default function AgentChatPanel({ agentId, agentName, agentStatus, agentGeneration, onClose, onSuccess, onNavigateToDoc }: Props) {
   const { config } = useAuth()
   const browserChatEnabled = hasChatExecutionAccess(config)
   const [messages, setMessages] = useState<Message[]>([])
@@ -239,6 +240,22 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   // ~2s while the server waits out SIGTERM before SIGKILL, and without this the status poll below
   // would see it as still running and flip the Cancel button straight back on.
   const suppressTurnAdoptionRef = useRef(false)
+  const generationHeaders = agentGeneration
+    ? { 'X-ClawMax-Agent-Generation': agentGeneration }
+    : {}
+
+  useEffect(() => {
+    const handleDeleted = (event: Event) => {
+      const deletedId = (event as CustomEvent<{ agentId?: string }>).detail?.agentId
+      if (deletedId !== agentId) return
+      abortControllerRef.current?.abort()
+      setMessages([])
+      setError(null)
+      onClose()
+    }
+    window.addEventListener('agent-deleted', handleDeleted)
+    return () => window.removeEventListener('agent-deleted', handleDeleted)
+  }, [agentId, onClose])
 
   const resolveDocPath = useCallback((target: string) => (
     resolveAgentChatDocPath(target, agentId, docEntries)
@@ -259,7 +276,12 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       // Don't poll while actively streaming
       if (streaming) return
       try {
-        const r = await fetch(`/api/agents/${agentId}/chat/messages`)
+        const r = await fetch(`/api/agents/${agentId}/chat/messages`, { headers: generationHeaders })
+        if (r.status === 404 || r.status === 410) {
+          setMessages([])
+          onClose()
+          return
+        }
         const data = await r.json()
         const serverMessages: Message[] = (data.messages || []).map((m: any, i: number) => ({
           role: m.role,
@@ -280,7 +302,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     pollMessages() // Fetch immediately on mount
     const interval = setInterval(pollMessages, 3000)
     return () => clearInterval(interval)
-  }, [agentId, messages.length, streaming])
+  }, [agentId, agentGeneration, messages.length, onClose, streaming])
 
   // Poll the server's view of what's actually running. This is the only way a turn already in
   // flight ever becomes visible in this tab: `streaming` is local state that a page refresh
@@ -502,7 +524,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     const hasByokKeys = !!(byokKeys.openai || byokKeys.anthropic || byokKeys.geminiApiKey || byokKeys.openrouter || byokKeys.xai || byokKeys.openaiCompatibleBaseUrl)
 
     try {
-      const r = await fetch(`/api/agents/${agentId}/gateway`)
+      const r = await fetch(`/api/agents/${agentId}/gateway`, { headers: generationHeaders })
       const data = await r.json()
       if (data.available === true) {
         setGatewayAvailable(true)
@@ -539,7 +561,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     try {
       const r = await fetch(`/api/agents/${agentId}/chat/readiness`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...generationHeaders },
         body: JSON.stringify({ byok: byokForRequest() }),
       })
       const data = await r.json().catch(() => ({}))
@@ -560,7 +582,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     try {
       setResettingSession(true)
       setError(null)
-      const resp = await fetch(`/api/agents/${agentId}/reset-session`, { method: 'POST' })
+      const resp = await fetch(`/api/agents/${agentId}/reset-session`, { method: 'POST', headers: generationHeaders })
       const data = await resp.json().catch(() => ({}))
       if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`)
       setMessages([])
@@ -659,7 +681,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
       const response = await fetch(`/api/agents/${agentId}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...generationHeaders },
         body: JSON.stringify({
           message: executionMessage,
           sessionId,
@@ -669,6 +691,11 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         signal: abortControllerRef.current.signal
       })
 
+      if (response.status === 404 || response.status === 410) {
+        setMessages([])
+        onClose()
+        return
+      }
       if (!response.ok || !response.body) {
         throw new Error(`HTTP ${response.status}`)
       }
@@ -795,7 +822,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     try {
       const response = await fetch(`/api/agents/${agentId}/chat/cancel`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...generationHeaders },
         // Scope the stop to this panel's own turn. Omitting it falls back to stopping every turn
         // for the agent, which would reach turns this user never started.
         body: JSON.stringify({ turnId: activeTurnIdRef.current || undefined }),
@@ -871,7 +898,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
   async function clearMessages() {
     try {
-      const r = await fetch(`/api/agents/${agentId}/chat/messages`, { method: 'DELETE' })
+      const r = await fetch(`/api/agents/${agentId}/chat/messages`, { method: 'DELETE', headers: generationHeaders })
       const data = await r.json()
       if (data.ok) {
         setMessages([])
@@ -887,7 +914,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
   async function fetchArchives() {
     try {
-      const r = await fetch(`/api/agents/${agentId}/chat/archives`)
+      const r = await fetch(`/api/agents/${agentId}/chat/archives`, { headers: generationHeaders })
       const data = await r.json()
       setArchives(data.archives || [])
     } catch (e) {
@@ -897,7 +924,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
   async function fetchArchivesList() {
     try {
-      const r = await fetch(`/api/agents/${agentId}/chat/archives`)
+      const r = await fetch(`/api/agents/${agentId}/chat/archives`, { headers: generationHeaders })
       const data = await r.json()
       setArchives(data.archives || [])
     } catch (err) {
@@ -907,7 +934,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
   async function viewArchive(filename: string) {
     try {
-      const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}`)
+      const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}`, { headers: generationHeaders })
       const data = await r.json()
       const archiveMeta = archives.find((archive) => archive.filename === filename)
       setViewingArchive({ filename, messages: data.messages || [], active: archiveMeta?.active })
@@ -919,7 +946,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
   async function restoreArchive(filename: string) {
     try {
-      const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}/restore`, { method: 'POST' })
+      const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}/restore`, { method: 'POST', headers: generationHeaders })
       const data = await r.json()
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`)
       setMessages(data.messages || [])
@@ -935,7 +962,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
   async function deleteArchive(filename: string) {
     try {
-      await fetch(`/api/agents/${agentId}/chat/archives/${filename}`, { method: 'DELETE' })
+      await fetch(`/api/agents/${agentId}/chat/archives/${filename}`, { method: 'DELETE', headers: generationHeaders })
       setArchives(archives.filter(a => a.filename !== filename))
       setDeleteConfirm(null)
       if (viewingArchive?.filename === filename) {

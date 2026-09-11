@@ -4,7 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import archiver from 'archiver'
-import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
+import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, getAgentLifecycleGeneration, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
 import { generateAgentFiles, generateAgentMeta, generateArchiveTitle, withGenerationAttribution, withGenerationRuntimePin } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning, probeGatewayResponsive } from '../lib/gateway-rpc'
@@ -44,7 +44,7 @@ import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleD
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
 import { hasReadyOpenClawNativeAgentStore, runExclusiveAgentExecution } from '../lib/agent-execution'
-import { withRegisteredTurn } from '../lib/agent-turns'
+import { cancelTurnsForAgent, listActiveTurns, withRegisteredTurn } from '../lib/agent-turns'
 import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
 import { resolveDefaultAgentModel } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
@@ -55,6 +55,7 @@ import { REPO_ROOT } from '../lib/paths'
 import { buildNamedExportFilename } from '../lib/export-filename'
 import { recordAgentLifecycleAuditEvent } from '../lib/agent-lifecycle-audit'
 import { clearPinnedOpenClawWorkspaceState } from '../lib/openclaw-workspace-state'
+import { beginAgentDeletion, finishAgentDeletion, isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 import { listAvailableSkills, setAgentSkills } from '../lib/skills'
 import {
@@ -306,6 +307,38 @@ async function registerAgentInConfig(agentId: string, profile: boolean): Promise
 }
 
 const router = Router()
+const AGENT_GENERATION_HEADER = 'x-clawmax-agent-generation'
+
+function rejectStaleAgentRoute(req: express.Request, res: express.Response, agentId: string): boolean {
+  const agentDir = path.join(getAgentsDir(), agentId)
+  let generation: string | null = null
+  try {
+    if (!isAgentDeletionInProgress(agentId) && fs.statSync(agentDir).isDirectory()) {
+      generation = getAgentLifecycleGeneration(agentDir)
+    }
+  } catch {}
+  const requested = String(
+    (typeof req.get === 'function' ? req.get(AGENT_GENERATION_HEADER) : req.headers?.[AGENT_GENERATION_HEADER]) || '',
+  ).trim()
+  if (!generation || (requested && requested !== generation)) {
+    res.status(410).json({
+      error: 'Agent was deleted or replaced. Close this chat and refresh Agents.',
+      code: requested && generation ? 'STALE_AGENT_GENERATION' : 'AGENT_GONE',
+    })
+    return true
+  }
+  return false
+}
+
+async function quiesceAgentForDeletion(agentId: string): Promise<boolean> {
+  cancelTurnsForAgent(agentId)
+  const deadline = Date.now() + 4_000
+  while (listActiveTurns().some((turn) => turn.agentId === agentId)) {
+    if (Date.now() >= deadline) return false
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  return true
+}
 
 type ProvisionGeneratedFiles = {
   identity: string
@@ -1815,42 +1848,54 @@ router.delete('/:id', async (req, res) => {
     res.status(400).json({ ok: false, error: 'Invalid agent id' })
     return
   }
-  const agentWorkspaceDir = path.join(getAgentsDir(), id)
-  const lifecycleSteps: string[] = []
-  if (removeStateDir === true) {
-    try {
-      // OpenClaw 2026.8.2 removes the config entry before moving workspace
-      // files to Trash. On persistent container volumes that move can fail,
-      // leaving the agent only partly removed. Clear and verify the attestation
-      // first, then keep all filesystem deletion under Dashboard control.
-      await clearPinnedOpenClawWorkspaceState(agentWorkspaceDir)
-      lifecycleSteps.push(`Cleared OpenClaw workspace state for ${id}`)
-    } catch (err: any) {
-      res.status(503).json({
-        ok: false,
-        steps: [],
-        errors: [String(err?.message || err || 'Failed to clear OpenClaw workspace state')],
-      })
+  if (!beginAgentDeletion(id)) {
+    res.status(409).json({ ok: false, error: 'Agent deletion is already in progress' })
+    return
+  }
+  try {
+    if (!await quiesceAgentForDeletion(id)) {
+      res.status(409).json({ ok: false, error: 'Agent is still stopping; retry deletion shortly' })
       return
     }
-  }
-  if (isGatewayRunning().running) {
-    try {
-      // Registration-only deletion avoids OpenClaw's non-atomic Trash move.
-      // deleteAgent below owns the persistent-volume filesystem lifecycle.
-      await getGatewayClient().deleteAgentNative(id, false)
-    } catch (err: any) {
-      res.status(503).json({
-        ok: false,
-        steps: [],
-        errors: [`Failed to remove agent from OpenClaw lifecycle: ${String(err?.message || err || 'unknown error')}`],
-      })
-      return
+    const agentWorkspaceDir = path.join(getAgentsDir(), id)
+    const lifecycleSteps: string[] = []
+    if (removeStateDir === true) {
+      try {
+        // OpenClaw 2026.8.2 removes the config entry before moving workspace
+        // files to Trash. On persistent container volumes that move can fail,
+        // leaving the agent only partly removed. Clear and verify the attestation
+        // first, then keep all filesystem deletion under Dashboard control.
+        await clearPinnedOpenClawWorkspaceState(agentWorkspaceDir)
+        lifecycleSteps.push(`Cleared OpenClaw workspace state for ${id}`)
+      } catch (err: any) {
+        res.status(503).json({
+          ok: false,
+          steps: [],
+          errors: [String(err?.message || err || 'Failed to clear OpenClaw workspace state')],
+        })
+        return
+      }
     }
+    if (isGatewayRunning().running) {
+      try {
+        // Registration-only deletion avoids OpenClaw's non-atomic Trash move.
+        // deleteAgent below owns the persistent-volume filesystem lifecycle.
+        await getGatewayClient().deleteAgentNative(id, false)
+      } catch (err: any) {
+        res.status(503).json({
+          ok: false,
+          steps: [],
+          errors: [`Failed to remove agent from OpenClaw lifecycle: ${String(err?.message || err || 'unknown error')}`],
+        })
+        return
+      }
+    }
+    const result = deleteAgent(id, removeStateDir === true)
+    result.steps.unshift(...lifecycleSteps)
+    res.json({ ok: result.errors.length === 0, ...result })
+  } finally {
+    finishAgentDeletion(id)
   }
-  const result = deleteAgent(id, removeStateDir === true)
-  result.steps.unshift(...lifecycleSteps)
-  res.json({ ok: result.errors.length === 0, ...result })
 })
 
 // GET /api/agents/:id/impact — impact summary for delete confirmation
@@ -2777,6 +2822,7 @@ router.post('/:id/chat/messages', async (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  if (rejectStaleAgentRoute(req, res, id)) return
 
   const { message } = req.body as { message?: string }
   if (!message || typeof message !== 'string') {
@@ -2964,6 +3010,7 @@ router.post('/:id/reset-session', (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  if (rejectStaleAgentRoute(req, res, id)) return
 
   try {
     resetAgentRuntimeSessions(id)
@@ -3396,6 +3443,7 @@ router.get('/:id/chat/messages', async (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  if (rejectStaleAgentRoute(req, res, id)) return
 
   try {
     const HOME = process.env.HOME || ''
@@ -3427,6 +3475,7 @@ router.delete('/:id/chat/messages', async (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  if (rejectStaleAgentRoute(req, res, id)) return
 
   try {
     const HOME = process.env.HOME || ''
@@ -3519,6 +3568,7 @@ router.get('/:id/chat/archives', async (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  if (rejectStaleAgentRoute(req, res, id)) return
 
   try {
     const HOME = process.env.HOME || ''
@@ -3655,6 +3705,7 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  if (rejectStaleAgentRoute(req, res, id)) return
 
   try {
     const HOME = process.env.HOME || ''
@@ -3689,6 +3740,7 @@ router.post('/:id/chat/archives/:filename/restore', async (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  if (rejectStaleAgentRoute(req, res, id)) return
 
   if (filename.startsWith('current:')) {
     return res.status(400).json({ error: 'Current conversation is already active' })
@@ -3755,6 +3807,7 @@ router.delete('/:id/chat/archives/:filename', async (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  if (rejectStaleAgentRoute(req, res, id)) return
 
   try {
     if (filename.startsWith('current:')) {

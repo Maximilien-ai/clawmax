@@ -104,9 +104,13 @@ assert_one_ordered_agent() {
 }
 
 assert_gateway_chat() {
-  local response logs spawn_line
+  local response logs spawn_line generation
+  generation="$(curl -fsS "$base_url/api/agents" | jq -r '.agents[] | select(.id == "rc-image-reuse-probe") | .generation')" \
+    || fail 'could not resolve the current agent generation for chat'
+  [ -n "$generation" ] && [ "$generation" != 'null' ] || fail 'agent generation is missing'
   response="$(curl -fsS --no-buffer --max-time 240 \
     -H 'Content-Type: application/json' \
+    -H "X-ClawMax-Agent-Generation: $generation" \
     -d '{"message":"Reply with the acceptance status.","sessionId":"rc-image-gateway-chat"}' \
     "$base_url/api/agents/rc-image-reuse-probe/chat")" || fail 'Dashboard gateway chat request failed'
   printf '%s' "$response" | grep -F 'RC image gateway chat completed through Ollama.' >/dev/null \
@@ -269,6 +273,7 @@ start_dashboard
 assert_instance_cli_api
 provision_agent
 assert_one_ordered_agent
+initial_generation="$(curl -fsS "$base_url/api/agents" | jq -r '.agents[] | select(.id == "rc-image-reuse-probe") | .generation')"
 assert_gateway_chat
 
 delete_response="$(curl -fsS -X DELETE \
@@ -282,8 +287,27 @@ absent_response="$(curl -fsS "$base_url/api/agents")" || fail 'post-removal agen
 printf '%s' "$absent_response" | jq -e '[.agents[] | select(.id == "rc-image-reuse-probe")] | length == 0' >/dev/null \
   || fail "removed agent remained visible: $absent_response"
 
+stale_status="$(curl -sS -o /tmp/clawmax-stale-agent-chat.json -w '%{http_code}' \
+  -H 'Content-Type: application/json' \
+  -H "X-ClawMax-Agent-Generation: $initial_generation" \
+  -d '{"message":"This deleted agent must not execute."}' \
+  "$base_url/api/agents/rc-image-reuse-probe/chat")"
+[ "$stale_status" = '410' ] || fail "deleted agent chat returned HTTP $stale_status instead of 410"
+jq -e '.code == "AGENT_GONE"' /tmp/clawmax-stale-agent-chat.json >/dev/null \
+  || fail 'deleted agent chat did not return the bounded AGENT_GONE result'
+
 provision_agent
 assert_one_ordered_agent
+recreated_generation="$(curl -fsS "$base_url/api/agents" | jq -r '.agents[] | select(.id == "rc-image-reuse-probe") | .generation')"
+[ "$recreated_generation" != "$initial_generation" ] || fail 'same-ID recreation reused the deleted agent generation'
+stale_generation_status="$(curl -sS -o /tmp/clawmax-stale-generation-chat.json -w '%{http_code}' \
+  -H 'Content-Type: application/json' \
+  -H "X-ClawMax-Agent-Generation: $initial_generation" \
+  -d '{"message":"This stale chat panel must not execute."}' \
+  "$base_url/api/agents/rc-image-reuse-probe/chat")"
+[ "$stale_generation_status" = '410' ] || fail "stale generation chat returned HTTP $stale_generation_status instead of 410"
+jq -e '.code == "STALE_AGENT_GENERATION"' /tmp/clawmax-stale-generation-chat.json >/dev/null \
+  || fail 'stale generation chat did not return the bounded generation-mismatch result'
 # The first chat session belonged to the agent state intentionally removed
 # above. Generate fresh session state for the recreated agent so the restart
 # assertion proves persistence instead of expecting deleted state to return.

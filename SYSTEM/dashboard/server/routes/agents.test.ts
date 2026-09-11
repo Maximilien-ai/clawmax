@@ -10,6 +10,7 @@ import path from 'path'
 import assert from 'assert'
 import { EventEmitter } from 'events'
 import { listActiveTurns, cancelTurn } from '../lib/agent-turns'
+import { getAgentLifecycleGeneration } from '../lib/workspace'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -802,6 +803,10 @@ async function run() {
     const calls: Array<{ agentId: string; deleteFiles: boolean }> = []
     const clearedWorkspaces: string[] = []
     const lifecycleOrder: string[] = []
+    const originalGeneration = getAgentLifecycleGeneration(agentWorkspace)
+    const originalSessionsDir = path.join(tmpHome, '.openclaw', 'agents', agentId, 'sessions')
+    fs.mkdirSync(originalSessionsDir, { recursive: true })
+    fs.writeFileSync(path.join(originalSessionsDir, 'before-delete.jsonl'), '{"type":"message"}\n')
 
     try {
       await withOpenClawWorkspaceStateStubs({
@@ -830,6 +835,36 @@ async function run() {
           assert.deepStrictEqual(clearedWorkspaces, [agentWorkspace])
           assert.deepStrictEqual(lifecycleOrder, ['clear-attestation', 'delete-registration'])
           assert(res.jsonBody.steps.includes(`Cleared OpenClaw workspace state for ${agentId}`))
+
+          const historyHandler = getRouteHandler('get', '/:id/chat/messages')
+          const deletedHistoryRes = makeRes()
+          await historyHandler(makeReq({
+            params: { id: agentId },
+            headers: { 'x-clawmax-agent-generation': originalGeneration },
+          }), deletedHistoryRes)
+          assert.strictEqual(deletedHistoryRes.statusCode, 410, 'Expected stale chat route to be bounded after deletion')
+          assert.strictEqual(deletedHistoryRes.jsonBody?.code, 'AGENT_GONE')
+          assert(!fs.existsSync(path.join(tmpHome, '.openclaw', 'agents', agentId)), 'Expected cached session state to be removed')
+
+          writeAgent(workspacePath, agentId, '# IDENTITY.md\n\n- **Name:** Recreated Agent\n')
+          const recreatedGeneration = getAgentLifecycleGeneration(agentWorkspace)
+          assert.notStrictEqual(recreatedGeneration, originalGeneration, 'Expected same-ID recreation to have a new generation')
+
+          const staleGenerationRes = makeRes()
+          await historyHandler(makeReq({
+            params: { id: agentId },
+            headers: { 'x-clawmax-agent-generation': originalGeneration },
+          }), staleGenerationRes)
+          assert.strictEqual(staleGenerationRes.statusCode, 410, 'Expected an old chat panel to reject the recreated generation')
+          assert.strictEqual(staleGenerationRes.jsonBody?.code, 'STALE_AGENT_GENERATION')
+
+          const recreatedHistoryRes = makeRes()
+          await historyHandler(makeReq({
+            params: { id: agentId },
+            headers: { 'x-clawmax-agent-generation': recreatedGeneration },
+          }), recreatedHistoryRes)
+          assert.strictEqual(recreatedHistoryRes.statusCode, 200, 'Expected the recreated agent to start a fresh chat')
+          assert.deepStrictEqual(recreatedHistoryRes.jsonBody?.messages, [])
         })
       })
     } finally {

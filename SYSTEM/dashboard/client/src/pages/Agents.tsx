@@ -27,7 +27,7 @@ import {
   headerSecondaryButtonIdleClass,
 } from '../lib/headerControls'
 import { ProductIconCell } from '../lib/productIcons'
-import { formatAgentGroupCount, getAgentBudgetPresentation, getVisibleAgentTags, mergeAgentToFront } from '../lib/agentList'
+import { formatAgentGroupCount, getAgentBudgetPresentation, getVisibleAgentTags, isAgentChatTargetCurrent, mergeAgentToFront } from '../lib/agentList'
 import { getAgentWorkspaceLoadKey, shouldFetchAgentsForWorkspace } from '../lib/agentLoading'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
@@ -85,6 +85,7 @@ interface Agent {
   archived?: boolean
   archiveMetadata?: { reason?: string; timestamp?: string }
   paused?: boolean
+  generation: string
 }
 
 interface ImportableOpenClawAgent {
@@ -362,6 +363,13 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       window.removeEventListener('agents-updated', handleAgentsUpdated)
     }
   }, [fetchAgents])
+
+  useEffect(() => {
+    if (!chatTarget) return
+    if (!isAgentChatTargetCurrent(chatTarget, agents)) {
+      setChatTarget(null)
+    }
+  }, [agents, chatTarget])
 
   // Refetch when page becomes active (e.g., navigating back from Skills page)
   useEffect(() => {
@@ -2115,7 +2123,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         <DeleteAgentPanel
           agentId={deleteTarget}
           onClose={() => setDeleteTarget(null)}
-          onDeleted={() => { fetchAgents(); setSelectedAgent(null) }}
+          onDeleted={() => {
+            const deletedId = deleteTarget
+            setAgents((current) => current.filter((agent) => agent.id !== deletedId))
+            setChatTarget((current) => current?.id === deletedId ? null : current)
+            setSelectedAgent(null)
+            window.dispatchEvent(new CustomEvent('agent-deleted', { detail: { agentId: deletedId } }))
+            fetchAgents(true, true)
+          }}
         />
       )}
 
@@ -2225,6 +2240,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             agentId={chatTarget.id}
             agentName={chatTarget.name}
             agentStatus={chatTarget.status}
+            agentGeneration={chatTarget.generation}
             onClose={() => setChatTarget(null)}
             onNavigateToDoc={onNavigateToDoc}
             onSuccess={() => {

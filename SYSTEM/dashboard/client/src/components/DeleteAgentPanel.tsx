@@ -48,7 +48,8 @@ export default function DeleteAgentPanel({ agentId, onClose, onDeleted }: Delete
       const data = await resp.json()
       if (data.ok) {
         setSteps(data.steps ?? [])
-        setTimeout(() => { onDeleted(); onClose() }, 1500)
+        onDeleted()
+        setTimeout(onClose, 1500)
       } else {
         setDeleteError(data.error ?? 'Delete failed')
         setSteps(data.steps ?? [])

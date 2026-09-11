@@ -1237,6 +1237,15 @@ export interface AgentInfo {
   archived?: boolean // Derived from tags (true if 'archived' tag present)
   archiveMetadata?: { reason?: string; timestamp?: string } // From IDENTITY.md Archive section
   paused?: boolean
+  generation: string
+}
+
+export function getAgentLifecycleGeneration(agentDir: string): string {
+  const stat = fs.statSync(agentDir)
+  return createHash('sha256')
+    .update(`${path.resolve(agentDir)}\0${stat.birthtimeMs}\0${stat.ino}`)
+    .digest('hex')
+    .slice(0, 24)
 }
 
 /** Parse GROUPS.md into communities + groups arrays with optional descriptions, tags, community links, and channel indicators.
@@ -2324,6 +2333,7 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     validationWarnings: warnings.length > 0 ? warnings : undefined,
     archived: isArchived,
     archiveMetadata: isArchived ? archiveMetadata : undefined,
+    generation: getAgentLifecycleGeneration(agentDir),
   }
 }
 

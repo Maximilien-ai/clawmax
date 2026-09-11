@@ -1,5 +1,11 @@
 export interface AgentListEntry {
   id: string
+  generation?: string
+}
+
+export function isAgentChatTargetCurrent<T extends AgentListEntry>(target: T, agents: T[]): boolean {
+  const current = agents.find((agent) => agent.id === target.id)
+  return !!current && !!target.generation && current.generation === target.generation
 }
 
 export function mergeAgentToFront<T extends AgentListEntry>(existing: T[], created: T): T[] {

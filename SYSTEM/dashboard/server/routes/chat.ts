@@ -1,9 +1,9 @@
-import { Router } from 'express'
+import { Router, type Request, type Response } from 'express'
 import WebSocket from 'ws'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
+import { getAgentGatewayConfig, getAgentLifecycleGeneration, getAgentsDir, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
 import { isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
@@ -37,11 +37,13 @@ import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 import { appendBoundedOutput } from '../lib/stream-bounds'
 import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '../lib/process-tree'
+import { isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
 
 const router = Router()
 const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
 const MAX_RETAINED_CHAT_STDERR = 64 * 1024
 const MAX_TOTAL_CHAT_OUTPUT = 64 * 1024 * 1024
+const AGENT_GENERATION_HEADER = 'x-clawmax-agent-generation'
 type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | null | undefined
 type ChatByokPayload = {
   openai?: string
@@ -61,6 +63,40 @@ type ChatContextMessage = {
 type AssignedChatSkill = {
   id: string
   filePath?: string
+}
+
+export function resolveCurrentChatAgentGeneration(agentId: string): string | null {
+  if (isAgentDeletionInProgress(agentId)) return null
+  const agentDir = path.join(getAgentsDir(), agentId)
+  try {
+    if (!fs.statSync(agentDir).isDirectory()) return null
+    return getAgentLifecycleGeneration(agentDir)
+  } catch {
+    return null
+  }
+}
+
+function isRequestedChatAgentCurrent(req: Request, agentId: string): boolean {
+  const currentGeneration = resolveCurrentChatAgentGeneration(agentId)
+  const requestedGeneration = String(
+    (typeof req.get === 'function' ? req.get(AGENT_GENERATION_HEADER) : req.headers?.[AGENT_GENERATION_HEADER]) || '',
+  ).trim()
+  return !!currentGeneration && (!requestedGeneration || requestedGeneration === currentGeneration)
+}
+
+function rejectStaleChatAgent(req: Request, res: Response, agentId: string): boolean {
+  const currentGeneration = resolveCurrentChatAgentGeneration(agentId)
+  const requestedGeneration = String(
+    (typeof req.get === 'function' ? req.get(AGENT_GENERATION_HEADER) : req.headers?.[AGENT_GENERATION_HEADER]) || '',
+  ).trim()
+  if (!currentGeneration || (requestedGeneration && requestedGeneration !== currentGeneration)) {
+    res.status(410).json({
+      error: 'Agent was deleted or replaced. Close this chat and refresh Agents.',
+      code: requestedGeneration && currentGeneration ? 'STALE_AGENT_GENERATION' : 'AGENT_GONE',
+    })
+    return true
+  }
+  return false
 }
 
 const DIRECT_AGENT_ATTACHMENT_FILES = [
@@ -691,6 +727,7 @@ router.get('/:id/gateway', (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  if (rejectStaleChatAgent(req, res, id)) return
 
   const gatewayConfig = getAgentGatewayConfig(id)
 
@@ -745,6 +782,7 @@ router.post('/:id/chat/readiness', (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  if (rejectStaleChatAgent(req, res, id)) return
 
   const readiness = evaluateChatExecutionReadiness(id, byok)
   if (!readiness.available) {
@@ -774,6 +812,7 @@ router.post('/:id/chat', async (req, res) => {
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message is required' })
   }
+  if (rejectStaleChatAgent(req, res, id)) return
 
   // Check workspace budget
   const budgetBlock = checkBudgetBlock({ operation: 'agent' })
@@ -958,6 +997,9 @@ router.post('/:id/chat', async (req, res) => {
       const executionSessionId = currentSessionId
 
       await runExclusiveAgentExecution(id, async () => {
+        if (!isRequestedChatAgentCurrent(req, id)) {
+          throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
+        }
         const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
           runtime,
           agentId: id,
@@ -1284,6 +1326,9 @@ router.post('/:id/chat', async (req, res) => {
       }
 
       await runExclusiveAgentExecution(id, async () => {
+        if (!isRequestedChatAgentCurrent(req, id)) {
+          throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
+        }
         let primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
         if (shouldRetryViaGatewayAfterLocalCollision({
           useLocal,
@@ -1427,6 +1472,7 @@ router.post('/:id/chat/cancel', (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  if (rejectStaleChatAgent(req, res, id)) return
   const { turnId } = (req.body || {}) as { turnId?: string }
   if (typeof turnId === 'string' && turnId.trim()) {
     // Guard against one agent's Stop reaching another agent's turn: turn ids are namespaced by

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mergeAgentToFront } from './agentList'
+import { isAgentChatTargetCurrent, mergeAgentToFront } from './agentList'
 
 {
   const merged = mergeAgentToFront(
@@ -8,6 +8,17 @@ import { mergeAgentToFront } from './agentList'
   )
 
   assert.deepEqual(merged.map(agent => agent.id), ['delta', 'alpha', 'bravo', 'charlie'])
+}
+
+{
+  const openChat = { id: 'collector', generation: 'generation-1' }
+  assert.equal(isAgentChatTargetCurrent(openChat, [{ id: 'collector', generation: 'generation-1' }]), true)
+  assert.equal(isAgentChatTargetCurrent(openChat, []), false, 'deleted agents must close an open chat')
+  assert.equal(
+    isAgentChatTargetCurrent(openChat, [{ id: 'collector', generation: 'generation-2' }]),
+    false,
+    'same-ID recreation must not retain the old chat panel',
+  )
 }
 
 {
