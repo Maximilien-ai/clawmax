@@ -44,7 +44,8 @@ case "$1 ${2:-} ${3:-}" in
     if [ "${DOCTOR_EXIT_CODE:-0}" -ne 0 ]; then
       exit "$DOCTOR_EXIT_CODE"
     fi
-    rm -f "${LEGACY_AUTH_PROFILE_FILE:?}"
+    [ -z "${LEGACY_AUTH_PROFILE_FILE:-}" ] || rm -f "$LEGACY_AUTH_PROFILE_FILE"
+    [ -z "${LEGACY_SESSION_FILE:-}" ] || rm -f "$LEGACY_SESSION_FILE"
     exit 0
     ;;
   "gateway run --port")
@@ -375,6 +376,18 @@ assert_contains "doctor --fix --non-interactive --yes" "$LOG_FILE"
 : > "$LOG_FILE"
 migrate_openclaw_2_state
 assert_not_contains "doctor --fix --non-interactive --yes" "$LOG_FILE"
+
+LEGACY_SESSION_FILE="$HOME/.openclaw/agents/beta/sessions/sessions.json"
+export LEGACY_SESSION_FILE
+mkdir -p "$(dirname "$LEGACY_SESSION_FILE")"
+printf '%s\n' '{}' > "$LEGACY_SESSION_FILE"
+: > "$LOG_FILE"
+migrate_openclaw_2_state
+assert_contains "doctor --fix --non-interactive --yes" "$LOG_FILE"
+[ ! -f "$LEGACY_SESSION_FILE" ] || {
+  echo "Expected successful migration to archive the legacy session index" >&2
+  exit 1
+}
 
 printf '%s\n' '{}' > "$LEGACY_AUTH_PROFILE_FILE"
 if DOCTOR_EXIT_CODE=1 migrate_openclaw_2_state >/dev/null 2>&1; then

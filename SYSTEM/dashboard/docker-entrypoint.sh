@@ -172,21 +172,21 @@ ensure_openclaw_cli() {
 }
 
 migrate_openclaw_2_state() {
-  legacy_auth="$(find "$HOME/.openclaw/agents" -type f -name auth-profiles.json -print -quit 2>/dev/null || true)"
-  [ -n "$legacy_auth" ] || return 0
+  legacy_state="$(find "$HOME/.openclaw/agents" -type f \( -name auth-profiles.json -o -path '*/sessions/sessions.json' \) -print -quit 2>/dev/null || true)"
+  [ -n "$legacy_state" ] || return 0
 
-  echo "[entrypoint] migrating legacy OpenClaw auth profiles to SQLite"
+  echo "[entrypoint] migrating legacy OpenClaw auth/session state to SQLite"
   if ! openclaw doctor --fix --non-interactive --yes; then
-    echo "[entrypoint] ERROR: OpenClaw state migration failed; legacy auth profiles were preserved for recovery" >&2
+    echo "[entrypoint] ERROR: OpenClaw state migration failed; legacy state was preserved for recovery" >&2
     return 1
   fi
 
-  legacy_auth="$(find "$HOME/.openclaw/agents" -type f -name auth-profiles.json -print -quit 2>/dev/null || true)"
-  if [ -n "$legacy_auth" ]; then
-    echo "[entrypoint] ERROR: OpenClaw reported success but legacy auth profiles remain" >&2
+  legacy_state="$(find "$HOME/.openclaw/agents" -type f \( -name auth-profiles.json -o -path '*/sessions/sessions.json' \) -print -quit 2>/dev/null || true)"
+  if [ -n "$legacy_state" ]; then
+    echo "[entrypoint] ERROR: OpenClaw reported success but legacy state remains at ${legacy_state}" >&2
     return 1
   fi
-  echo "[entrypoint] OpenClaw auth profile migration complete"
+  echo "[entrypoint] OpenClaw auth/session migration complete"
 }
 
 get_gateway_auth_token() {
