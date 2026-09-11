@@ -32,6 +32,63 @@ interface GatewayAgentRegistration {
   skills?: string[]
 }
 
+function isRecord(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+export function buildGatewayAgentSupplementalPatch(
+  configData: any,
+  agents: GatewayAgentRegistration[],
+): any {
+  const configViews = [
+    configData?.sourceConfig,
+    configData?.parsed,
+    configData?.resolved,
+    configData?.config,
+  ]
+  const config = configViews.find((candidate) => isRecord(candidate?.agents))
+  const roster = config?.agents
+
+  if (isRecord(roster?.entries)) {
+    const entries: Record<string, any> = {}
+    for (const agent of agents) {
+      const existing = roster.entries[agent.id]
+      if (!isRecord(existing)) {
+        throw new Error(`OpenClaw config.get did not return the native roster entry for ${agent.id}`)
+      }
+      entries[agent.id] = {
+        ...existing,
+        agentDir: agent.agentDir,
+        ...(agent.skills ? { skills: Array.from(new Set(agent.skills)) } : {}),
+      }
+    }
+    return { agents: { entries } }
+  }
+
+  if (Array.isArray(roster?.list)) {
+    const requested = new Map(agents.map((agent) => [agent.id, agent]))
+    const found = new Set<string>()
+    const list = roster.list.map((entry: any) => {
+      if (!isRecord(entry) || typeof entry.id !== 'string') return entry
+      const agent = requested.get(entry.id)
+      if (!agent) return entry
+      found.add(entry.id)
+      return {
+        ...entry,
+        agentDir: agent.agentDir,
+        ...(agent.skills ? { skills: Array.from(new Set(agent.skills)) } : {}),
+      }
+    })
+    const missing = agents.find((agent) => !found.has(agent.id))
+    if (missing) {
+      throw new Error(`OpenClaw config.get did not return the native roster entry for ${missing.id}`)
+    }
+    return { agents: { list } }
+  }
+
+  throw new Error('OpenClaw config.get returned an unsupported agent roster representation')
+}
+
 function getGatewayOrigin(config: GatewayConfig): string {
   return config.httpUrl || `http://localhost:${config.port}`
 }
@@ -640,15 +697,9 @@ export class GatewayRPCClient {
 
       const configData = await this.getConfig()
       const baseHash = configData.hash
-      const supplementalEntries: Record<string, any> = {}
-      for (const agent of agents) {
-        supplementalEntries[agent.id] = {
-          agentDir: agent.agentDir,
-          ...(agent.skills ? { skills: Array.from(new Set(agent.skills)) } : {}),
-        }
-      }
+      const supplementalPatch = buildGatewayAgentSupplementalPatch(configData, agents)
       await this.callConfig('config.patch', {
-        raw: JSON.stringify({ agents: { entries: supplementalEntries } }),
+        raw: JSON.stringify(supplementalPatch),
         baseHash,
       })
     } catch (err: any) {

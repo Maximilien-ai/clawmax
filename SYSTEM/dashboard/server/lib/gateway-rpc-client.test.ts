@@ -3,6 +3,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import {
+  buildGatewayAgentSupplementalPatch,
   GatewayRPCClient,
   getConfiguredGatewayPort,
   getGatewayClient,
@@ -62,6 +63,77 @@ async function expectFailure(fn: () => Promise<unknown>, expected: string) {
 }
 
 async function run() {
+  await test('supplemental agent patches detect and preserve keyed native roster entries', async () => {
+    const patch = buildGatewayAgentSupplementalPatch({
+      sourceConfig: {
+        agents: {
+          entries: {
+            collector: { name: 'Collector', workspace: '/workspace', model: 'openai/gpt-5.4', runtime: 'openclaw' },
+            specialist: { name: 'Specialist', workspace: '/workspace', model: 'openai/gpt-5.4' },
+          },
+        },
+      },
+    }, [{
+      id: 'collector',
+      name: 'Collector',
+      workspace: '/workspace',
+      agentDir: '/agents/collector',
+      skills: ['maximilien', 'maximilien'],
+    }])
+
+    assert.deepStrictEqual(patch, {
+      agents: {
+        entries: {
+          collector: {
+            name: 'Collector',
+            workspace: '/workspace',
+            model: 'openai/gpt-5.4',
+            runtime: 'openclaw',
+            agentDir: '/agents/collector',
+            skills: ['maximilien'],
+          },
+        },
+      },
+    })
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(patch.agents.entries, 'specialist'), false)
+  })
+
+  await test('supplemental agent patches detect and preserve list native rosters', async () => {
+    const patch = buildGatewayAgentSupplementalPatch({
+      parsed: {
+        agents: {
+          list: [
+            { id: 'collector', name: 'Collector', workspace: '/workspace' },
+            { id: 'specialist', name: 'Specialist', workspace: '/workspace', credentialMode: 'none' },
+          ],
+        },
+      },
+    }, [{
+      id: 'collector',
+      name: 'Collector',
+      workspace: '/workspace',
+      agentDir: '/agents/collector',
+      skills: ['maximilien'],
+    }])
+
+    assert.deepStrictEqual(patch.agents.list, [
+      { id: 'collector', name: 'Collector', workspace: '/workspace', agentDir: '/agents/collector', skills: ['maximilien'] },
+      { id: 'specialist', name: 'Specialist', workspace: '/workspace', credentialMode: 'none' },
+    ])
+  })
+
+  await test('supplemental agent patches fail closed for missing or unknown rosters', async () => {
+    const agent = { id: 'missing', name: 'Missing', workspace: '/workspace', agentDir: '/agents/missing' }
+    assert.throws(
+      () => buildGatewayAgentSupplementalPatch({ sourceConfig: { agents: { entries: {} } } }, [agent]),
+      /did not return the native roster entry/,
+    )
+    assert.throws(
+      () => buildGatewayAgentSupplementalPatch({ sourceConfig: { agents: { roster: [] } } }, [agent]),
+      /unsupported agent roster representation/,
+    )
+  })
+
   await test('updateAgentSkills reads the hash and submits a scoped config patch', async () => {
     await withGatewayConfig(async (client) => {
       const calls: Array<{ method: string; params?: any }> = []
@@ -278,7 +350,17 @@ async function run() {
         configReads++
         return configReads === 1
           ? { hash: 'initial-hash', resolved: { agents: { entries: { existing: { workspace: '/old' } } } } }
-          : { hash: 'native-hash', resolved: { agents: { entries: {} } } }
+          : {
+              hash: 'native-hash',
+              sourceConfig: {
+                agents: {
+                  entries: {
+                    existing: { name: 'Existing', workspace: '/new', model: 'openai/gpt-5.4' },
+                    'new-agent': { name: 'new-agent', workspace: '/new-agent' },
+                  },
+                },
+              },
+            }
       }
       ;(client as any).callAgentLifecycle = async (method: string, params: any) => {
         lifecycleCalls.push({ method, params })
@@ -302,8 +384,8 @@ async function run() {
       assert.strictEqual(patchCall.method, 'config.patch')
       assert.strictEqual(patchCall.params.baseHash, 'native-hash')
       assert.deepStrictEqual(JSON.parse(patchCall.params.raw).agents.entries, {
-        existing: { agentDir: '/agents/existing' },
-        'new-agent': { agentDir: '/agents/new', skills: ['github'] },
+        existing: { name: 'Existing', workspace: '/new', model: 'openai/gpt-5.4', agentDir: '/agents/existing' },
+        'new-agent': { name: 'new-agent', workspace: '/new-agent', agentDir: '/agents/new', skills: ['github'] },
       })
     })
   })
