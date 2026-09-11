@@ -2146,8 +2146,8 @@ export async function importAgentFromTemplate(
       ? ((sourceAgent as any).model?.trim() || (template as any)?.metadata?.model?.trim?.() || '')
       : ''
     // The workspace endpoint's own model may be unknown on a cold cache; warm it through its
-    // paired credential before the synchronous resolver asks for it.
-    await warmDefaultAgentModelEndpoint()
+    // paired credential before the synchronous resolver asks for it. An explicit model needs none.
+    if (!String(options.model || '').trim()) await warmDefaultAgentModelEndpoint()
     const effectiveModel = resolveDefaultAgentModel({
       explicitModel: options.model,
       templateModel,
@@ -2803,7 +2803,7 @@ export async function importOrganizationTemplate(
 
     try {
       // Step 1: Create all agents with their files
-      await warmDefaultAgentModelEndpoint()
+      if (!String(options?.modelOverride || '').trim()) await warmDefaultAgentModelEndpoint()
       for (const templateAgent of agentsToCreate) {
         const sourceAgentId = (templateAgent as any)._sourceAgentId || templateAgent.id
         const targetAgentId = `${prefix}${templateAgent.id}${suffix}`

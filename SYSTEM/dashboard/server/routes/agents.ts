@@ -924,8 +924,8 @@ router.post('/provision', async (req, res) => {
   }
 
   // A direct call with no model on a cold cache: let the workspace endpoint's own model be known
-  // before the synchronous resolver below asks for it.
-  await warmDefaultAgentModelEndpoint()
+  // before the synchronous resolver below asks for it. An explicit model needs no lookup.
+  if (!String(model || '').trim()) await warmDefaultAgentModelEndpoint()
   const resolvedModel = resolveDefaultAgentModel({
     explicitModel: model,
     builtIn: Array.isArray(tags) && tags.includes('built-in'),

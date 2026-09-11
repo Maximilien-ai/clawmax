@@ -294,7 +294,18 @@ test('a browser endpoint keeps its own credential and takes no model seen throug
     { baseUrl: 'http://shared-gateway:8000/v1', apiKey: 'protected-secret', defaultModel: 'protected-model' },
   ])
   assert(endpoint?.apiKey === 'browser-secret', `Expected the browser's own credential, got ${endpoint?.apiKey}`)
-  assert(endpoint?.defaultModel === 'workspace-model', `Expected the credential-neutral workspace model, got ${endpoint?.defaultModel}`)
+  assert(endpoint?.defaultModel === undefined, `Expected no model from another credential's configuration, got ${endpoint?.defaultModel}`)
+  const urlOnly = resolveOpenAiCompatibleEndpoint([
+    { baseUrl: 'http://shared-gateway:8000/v1' },
+    { baseUrl: 'http://shared-gateway:8000/v1', defaultModel: 'workspace-model' },
+    { baseUrl: 'http://shared-gateway:8000/v1', apiKey: 'protected-secret' },
+  ])
+  assert(urlOnly?.apiKey === 'protected-secret' && urlOnly?.defaultModel === 'workspace-model', `Expected the workspace model alongside the protected credential it was configured with, got ${JSON.stringify(urlOnly)}`)
+  const noCredential = resolveOpenAiCompatibleEndpoint([
+    { baseUrl: 'http://shared-gateway:8000/v1' },
+    { baseUrl: 'http://shared-gateway:8000/v1', defaultModel: 'workspace-model' },
+  ])
+  assert(noCredential?.apiKey === undefined && noCredential?.defaultModel === 'workspace-model', `Expected the workspace model with no credential in play, got ${JSON.stringify(noCredential)}`)
   assert(resolveOpenAiCompatibleEndpoint([{ baseUrl: '  ' }, undefined]) === undefined, 'Expected no endpoint without a URL')
   assert(normalizeOpenAiCompatibleBaseUrl('HTTP://Host:8000/v1/') === 'http://host:8000/v1', 'Expected scheme and host to be case-insensitive and the trailing slash dropped')
   assert(
@@ -388,6 +399,29 @@ test('a refresh asked for while a lookup is in flight is not undone by that look
   await Promise.all([stale, fresh])
   assert(calls === 2, `Expected the refresh to issue its own /models request, got ${calls}`)
   assert(getCachedOpenAiCompatibleDefaultModel('http://refresh-endpoint:8000/v1') === 'fresh-model', 'Expected the post-refresh answer to be the one cached')
+  clearModelCache()
+})
+
+test('a lookup finishing after a refresh does not evict the replacement lookup', async () => {
+  clearModelCache()
+  const gates: Array<() => void> = []
+  let calls = 0
+  global.fetch = (async () => {
+    calls++
+    await new Promise<void>((resolve) => gates.push(resolve))
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: `model-${calls}` }] }) } as any
+  }) as any
+  const stale = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://evict-endpoint:8000/v1' })
+  clearModelCache()
+  const fresh = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://evict-endpoint:8000/v1' })
+  gates[0]()
+  await stale
+  assert(__test.inFlightOpenAiCompatibleFetchCount() === 1, 'Expected the replacement lookup to stay registered after the stale one finished')
+  const joined = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://evict-endpoint:8000/v1' })
+  assert(calls === 2, `Expected a third caller to join the replacement lookup, got ${calls} requests`)
+  gates[1]()
+  await Promise.all([fresh, joined])
+  assert(__test.inFlightOpenAiCompatibleFetchCount() === 0, 'Expected the map to drain once the replacement finished')
   clearModelCache()
 })
 

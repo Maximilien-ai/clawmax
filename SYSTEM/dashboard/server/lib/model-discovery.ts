@@ -423,7 +423,10 @@ export function openAiCompatibleCandidateFromKeys(keys?: ProviderKeys): OpenAiCo
  * endpoint identity is decided here. The first candidate with a URL is the endpoint; if it names
  * no credential it borrows the first one configured for the same server, and a default model is
  * taken only from the same server seen through that same credential (a gateway can serve a
- * different catalog per key).
+ * different catalog per key). A credential-less model — the workspace's — belongs with the
+ * protected credential configured for that server, so it applies when no credential is in play
+ * or when the credential came from a later, protected candidate; never to a credential the
+ * browser brought itself.
  */
 export function resolveOpenAiCompatibleEndpoint(
   candidates: Array<OpenAiCompatibleEndpointCandidate | undefined>,
@@ -441,10 +444,13 @@ export function resolveOpenAiCompatibleEndpoint(
   const selected = named[0]
   if (!selected) return undefined
   const sameServer = named.filter((candidate) => candidate.identity === selected.identity)
-  const apiKey = selected.apiKey || sameServer.find((candidate) => candidate.apiKey)?.apiKey
-  const defaultModel = sameServer.find((candidate) => (
-    candidate.defaultModel && (!candidate.apiKey || candidate.apiKey === apiKey)
-  ))?.defaultModel
+  const credentialSource = sameServer.findIndex((candidate) => candidate.apiKey)
+  const apiKey = credentialSource === -1 ? undefined : sameServer[credentialSource].apiKey
+  const defaultModel = sameServer.find((candidate, index) => {
+    if (!candidate.defaultModel) return false
+    if (candidate.apiKey) return candidate.apiKey === apiKey
+    return credentialSource === -1 || credentialSource > index
+  })?.defaultModel
   return { baseUrl: selected.baseUrl, apiKey, defaultModel }
 }
 
@@ -479,7 +485,9 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
   const coalesce = inFlightOpenAICompatibleFetches.size < MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES
   const generation = cacheGeneration
 
-  const request = (async () => {
+  // Assigned below; the closure only reads it in its finally block, after the assignment ran.
+  let request!: Promise<string[]>
+  request = (async () => {
     try {
       const headers: Record<string, string> = {}
       if (apiKey?.trim()) {
@@ -508,7 +516,8 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
       console.warn('Failed to fetch OpenAI-compatible models:', (err as Error).message)
       return []
     } finally {
-      if (coalesce) inFlightOpenAICompatibleFetches.delete(cacheKey)
+      // A refresh may have replaced this entry with a newer lookup; only remove our own.
+      if (coalesce && inFlightOpenAICompatibleFetches.get(cacheKey) === request) inFlightOpenAICompatibleFetches.delete(cacheKey)
     }
   })()
   if (coalesce) inFlightOpenAICompatibleFetches.set(cacheKey, request)
