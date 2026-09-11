@@ -56,11 +56,13 @@ function makeRes() {
     statusCode: 200,
     jsonBody: undefined as any,
     headersSent: false,
+    jsonCalls: 0,
     status(code: number) {
       this.statusCode = code
       return this
     },
     json(body: any) {
+      this.jsonCalls++
       this.jsonBody = body
       this.headersSent = true
       return this
@@ -151,7 +153,7 @@ async function withModuleOverrides<T>(modulePath: string, overrides: Record<stri
   }
 }
 
-async function withFakeWebSocket<T>(mode: 'open' | 'error', fn: () => Promise<T> | T): Promise<T> {
+async function withFakeWebSocket<T>(mode: 'open' | 'error' | 'open-then-error', fn: () => Promise<T> | T): Promise<T> {
   delete require.cache[wsModulePath]
   const originalModule = require(wsModulePath)
 
@@ -159,8 +161,11 @@ async function withFakeWebSocket<T>(mode: 'open' | 'error', fn: () => Promise<T>
     handlers: Record<string, Function[]> = {}
     constructor(_url: string, _options: any) {
       setImmediate(() => {
-        const event = mode === 'open' ? 'open' : 'error'
-        for (const handler of this.handlers[event] || []) handler(new Error('simulated connection issue'))
+        const firstEvent = mode === 'error' ? 'error' : 'open'
+        for (const handler of this.handlers[firstEvent] || []) handler(new Error('simulated connection issue'))
+        if (mode === 'open-then-error') {
+          for (const handler of this.handlers.error || []) handler(new Error('simulated close race'))
+        }
       })
     }
     on(event: string, handler: Function) {
@@ -239,6 +244,21 @@ async function run() {
         assert.strictEqual(res.statusCode, 200)
         assert.strictEqual(res.jsonBody?.available, false)
         assert.strictEqual(res.jsonBody?.hasToken, false)
+      })
+    })
+  })
+
+  await test('gateway route responds once when websocket open and error events race', async () => {
+    await withModuleOverrides(workspaceModulePath, {
+      getAgentGatewayConfig: () => ({ port: 18789, token: 'secret', wsUrl: 'ws://127.0.0.1:18789', httpUrl: 'http://127.0.0.1:18789' }),
+    }, async () => {
+      await withFakeWebSocket('open-then-error', async () => {
+        const handler = getRouteHandler('get', '/:id/gateway')
+        const res = makeRes()
+        await handler(makeReq({ params: { id: 'valid-agent' } }), res)
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        assert.strictEqual(res.jsonCalls, 1)
+        assert.strictEqual(res.jsonBody?.available, true)
       })
     })
   })

@@ -730,32 +730,28 @@ router.get('/:id/gateway', (req, res) => {
       'Origin': gatewayConfig.httpUrl || `http://localhost:${gatewayConfig.port}`
     }
   })
-  const timeout = setTimeout(() => {
+  let settled = false
+  const finishProbe = (available: boolean) => {
+    if (settled || res.headersSent || res.writableEnded) return
+    settled = true
+    clearTimeout(timeout)
     ws.close()
     res.json({
       port: gatewayConfig.port,
       hasToken: !!gatewayConfig.token,
-      available: false
+      available,
     })
+  }
+  const timeout = setTimeout(() => {
+    finishProbe(false)
   }, 2000)
 
   ws.on('open', () => {
-    clearTimeout(timeout)
-    ws.close()
-    res.json({
-      port: gatewayConfig.port,
-      hasToken: !!gatewayConfig.token,
-      available: true
-    })
+    finishProbe(true)
   })
 
   ws.on('error', () => {
-    clearTimeout(timeout)
-    res.json({
-      port: gatewayConfig.port,
-      hasToken: !!gatewayConfig.token,
-      available: false
-    })
+    finishProbe(false)
   })
 })
 
