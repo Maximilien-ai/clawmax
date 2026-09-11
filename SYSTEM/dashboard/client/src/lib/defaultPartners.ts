@@ -29,7 +29,7 @@ export type DefaultPartnerDefinition = {
   }
 }
 
-export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365', 'digo'] as const
+export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365', 'digo', 'agentforge'] as const
 
 export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
@@ -241,6 +241,17 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
       label: 'Connection status',
       helperText: 'Digo activity export is available when the operator configures an HTTPS ingestion URL and server-managed API key. User consent is still required before any activity is sent.',
     },
+  },
+  {
+    slug: 'agentforge',
+    name: 'NYU - AgentForge',
+    logoUrl: 'https://agentforge-hackathon-os.yr2110.chatgpt.site/favicon.svg',
+    website: 'https://agentforge-hackathon-os.yr2110.chatgpt.site/',
+    docsUrl: 'https://github.com/Maximilien-ai/clawmax/blob/main/PARTNERS/agentforge/PARTNER.md',
+    description: 'Planned opt-in learning support, Prompt evidence, and progress tracking for personal-agent hackathons.',
+    category: 'monitoring',
+    categories: ['monitoring', 'context'],
+    enabledByDefault: true,
   },
 ]
 

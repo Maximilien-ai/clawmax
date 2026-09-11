@@ -1,0 +1,11 @@
+{
+  "slug": "agentforge",
+  "name": "NYU - AgentForge",
+  "logoUrl": "https://agentforge-hackathon-os.yr2110.chatgpt.site/favicon.svg",
+  "website": "https://agentforge-hackathon-os.yr2110.chatgpt.site/",
+  "docsUrl": "https://github.com/Maximilien-ai/clawmax/blob/main/PARTNERS/agentforge/PARTNER.md",
+  "description": "Planned opt-in learning support, Prompt evidence, and progress tracking for personal-agent hackathons.",
+  "category": "monitoring",
+  "categories": ["monitoring", "context"],
+  "enabledByDefault": true
+}
