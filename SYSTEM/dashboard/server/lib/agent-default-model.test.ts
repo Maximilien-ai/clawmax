@@ -130,6 +130,15 @@ async function main() {
           availableModels: getAvailableModelsCached(policyScopedEnv(deniedEnv, 'user')),
         })
         assert.notEqual(preferredDenied, 'openai-compatible/authenticated-model', 'a preferred model must not be matched through a system-only catalog under a denied user policy')
+        // The same rule covers the hosted-provider fallback: a SYSTEM OpenAI key the user may not
+        // use must not name a default model, while the user's own key still does.
+        fs.writeFileSync(path.join(systemDir, 'integrations.json'), JSON.stringify({}, null, 2))
+        const hostedDenied = resolveDefaultAgentModel({ rawEnv: { SYSTEM_OPENAI_API_KEY: 'system-openai', ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }, executionPolicy: 'user' })
+        assert.equal(hostedDenied, undefined, `a denied user policy must not surface a SYSTEM-only hosted model, got ${hostedDenied}`)
+        const hostedSystem = resolveDefaultAgentModel({ rawEnv: { SYSTEM_OPENAI_API_KEY: 'system-openai', ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }, executionPolicy: 'system' })
+        assert.ok(typeof hostedSystem === 'string' && hostedSystem.startsWith('openai/'), `the system policy still names the hosted default, got ${hostedSystem}`)
+        const hostedUserOwn = resolveDefaultAgentModel({ rawEnv: { SYSTEM_OPENAI_API_KEY: 'system-openai', USER_ANTHROPIC_API_KEY: 'user-anthropic', ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }, executionPolicy: 'user' })
+        assert.ok(typeof hostedUserOwn === 'string' && hostedUserOwn.startsWith('anthropic/'), `the user's own key names the default under the user policy, got ${hostedUserOwn}`)
       } finally {
         global.fetch = originalFetch
         clearModelCache()
