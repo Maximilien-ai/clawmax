@@ -39,15 +39,33 @@ function isLocalRuntimeModel(model: string | undefined): boolean {
  * The workspace's OpenAI-compatible endpoint as default-agent selection sees it: the non-secret
  * workspace URL and model, paired with the protected USER/SYSTEM credential for that same server.
  */
+const SYSTEM_OPENAI_COMPATIBLE_ENV_KEYS = [
+  'SYSTEM_OPENAI_COMPATIBLE_BASE_URL', 'SYSTEM_OPENAI_COMPATIBLE_API_KEY', 'SYSTEM_OPENAI_COMPATIBLE_DEFAULT_MODEL',
+  'OPENAI_COMPATIBLE_BASE_URL', 'OPENAI_COMPATIBLE_API_KEY', 'OPENAI_COMPATIBLE_DEFAULT_MODEL',
+]
+
+/**
+ * The environment a default-model decision may read under an execution policy. User execution
+ * that may not use SYSTEM keys sees no SYSTEM OpenAI-compatible configuration at all, so neither
+ * the paired endpoint nor the available-model list can surface a model only that credential
+ * can reach.
+ */
+export function policyScopedEnv(rawEnv: Record<string, string>, executionPolicy: DefaultModelExecutionPolicy = 'system'): Record<string, string> {
+  if (executionPolicy === 'system' || allowSystemKeysForUserExecution(rawEnv)) return rawEnv
+  const scoped = { ...rawEnv }
+  for (const key of SYSTEM_OPENAI_COMPATIBLE_ENV_KEYS) delete scoped[key]
+  return scoped
+}
+
 function resolveWorkspaceCompatibleEndpoint(rawEnv: Record<string, string>, executionPolicy: DefaultModelExecutionPolicy = 'system'): OpenAiCompatibleEndpoint | undefined {
   const integrations = readWorkspaceIntegrationConfig()
   const workspaceCompatibleBaseUrl = normalizeCandidate(integrations.openaiCompatibleBaseUrl)
   if (!workspaceCompatibleBaseUrl) return undefined
-  const systemKeysAllowed = executionPolicy === 'system' || allowSystemKeysForUserExecution(rawEnv)
+  const scopedEnv = policyScopedEnv(rawEnv, executionPolicy)
   return resolveOpenAiCompatibleEndpoint([
     { baseUrl: workspaceCompatibleBaseUrl, defaultModel: integrations.openaiCompatibleDefaultModel },
-    openAiCompatibleCandidateFromKeys(getUserDefaultProviderKeys(rawEnv)),
-    systemKeysAllowed ? openAiCompatibleCandidateFromKeys(getSystemProviderKeys(rawEnv)) : undefined,
+    openAiCompatibleCandidateFromKeys(getUserDefaultProviderKeys(scopedEnv)),
+    openAiCompatibleCandidateFromKeys(getSystemProviderKeys(scopedEnv)),
   ])
 }
 
@@ -74,7 +92,7 @@ export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOption
   const explicitAvailableModels = Array.isArray(options.availableModels)
   const availableModels = Array.isArray(options.availableModels)
     ? options.availableModels.filter(Boolean)
-    : getAvailableModelsCached(rawEnv)
+    : getAvailableModelsCached(policyScopedEnv(rawEnv, options.executionPolicy))
 
   const explicitModel = normalizeCandidate(options.explicitModel)
   if (explicitModel) return explicitModel
