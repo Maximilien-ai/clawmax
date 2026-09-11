@@ -58,6 +58,7 @@ export function buildGatewayAgentSupplementalPatch(
       }
       entries[agent.id] = {
         ...existing,
+        name: agent.name,
         agentDir: agent.agentDir,
         ...(agent.skills ? { skills: Array.from(new Set(agent.skills)) } : {}),
       }
@@ -75,6 +76,7 @@ export function buildGatewayAgentSupplementalPatch(
       found.add(entry.id)
       return {
         ...entry,
+        name: agent.name,
         agentDir: agent.agentDir,
         ...(agent.skills ? { skills: Array.from(new Set(agent.skills)) } : {}),
       }
@@ -692,6 +694,14 @@ export class GatewayRPCClient {
             throw new Error(`OpenClaw created agent ${created.agentId || 'unknown'} instead of ${agent.id}`)
           }
           configuredIds.add(agent.id)
+          if (agent.name !== agent.id) {
+            await this.callAgentLifecycle('agents.update', {
+              agentId: agent.id,
+              name: agent.name,
+              workspace: agent.workspace,
+              ...(model ? { model } : {}),
+            })
+          }
         }
       }
 

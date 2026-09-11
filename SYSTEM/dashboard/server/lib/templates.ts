@@ -242,18 +242,20 @@ function ensureTemplateCreatedAgentRuntimeArtifacts(args: {
 
 async function finalizeTemplateCreatedAgentRegistration(args: {
   agentId: string
+  displayName?: string
   workspacePath: string
   model?: string
   skills?: string[]
   gatewayAlreadySynchronized?: boolean
 }) {
-  const { agentId, workspacePath, model, skills, gatewayAlreadySynchronized = false } = args
+  const { agentId, displayName, workspacePath, model, skills, gatewayAlreadySynchronized = false } = args
+  const intendedDisplayName = displayName?.trim() || agentId
   const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
   const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
   if (gatewayAlreadySynchronized) {
     console.log(`Agent ${agentId} was synchronized through the native OpenClaw lifecycle`)
   } else {
-    const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg)
+    const registration = ensureOpenClawAgentRegisteredForWorkspace(agentId, workspaceArg, agentDirArg, intendedDisplayName)
     if (registration.status === 'created') {
       console.log(`Registered agent ${agentId} in openclaw.json`)
     } else if (registration.status === 'updated-existing') {
@@ -270,6 +272,10 @@ async function finalizeTemplateCreatedAgentRegistration(args: {
   )
   if (!registeredAgent) {
     throw new Error(`Agent ${agentId} registration did not persist for active workspace`)
+  }
+  if (!gatewayAlreadySynchronized && registeredAgent.name !== intendedDisplayName) {
+    registeredAgent.name = intendedDisplayName
+    writeDashboardManagedOpenClawConfig(configPath, config, `finalizeTemplateCreatedAgentDisplayName(${agentId})`)
   }
 
   if (!gatewayAlreadySynchronized && skills && Array.isArray(skills)) {
@@ -783,12 +789,13 @@ function createOpenClawAgentRegistration(
   configPath: string,
   agentId: string,
   workspaceArg: string,
-  agentDirArg: string
+  agentDirArg: string,
+  displayName = agentId
 ): OpenClawAgentRegistrationResult {
   const config = readOpenClawConfig(configPath)
   materializeDashboardAgentList(config).push({
     id: agentId,
-    name: agentId,
+    name: displayName,
     workspace: workspaceArg,
     agentDir: agentDirArg,
   })
@@ -799,17 +806,18 @@ function createOpenClawAgentRegistration(
 function ensureOpenClawAgentRegisteredForWorkspace(
   agentId: string,
   workspaceArg: string,
-  agentDirArg: string
+  agentDirArg: string,
+  displayName = agentId
 ): OpenClawAgentRegistrationResult {
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   const existing = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
   if (existing) return existing
-  return createOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
+  return createOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg, displayName)
 }
 
 async function runOrganizationPostImportSetup(args: {
   createdAgents: string[]
-  agentsToCreate: Array<{ id: string; skills?: string[] }>
+  agentsToCreate: Array<{ id: string; name?: string; skills?: string[] }>
   appliedModelsByAgentId?: Record<string, string | undefined>
   template: OrganizationTemplate
   prefix: string
@@ -830,7 +838,7 @@ async function runOrganizationPostImportSetup(args: {
       const templateAgent = agentsToCreate.find((entry) => `${prefix}${entry.id}${suffix}` === agentId)
       return {
         id: agentId,
-        name: agentId,
+        name: templateAgent?.name?.trim() || agentId,
         workspace: path.join(workspacePath, 'AGENTS', agentId),
         agentDir: path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent'),
         model: appliedModelsByAgentId?.[agentId],
@@ -845,6 +853,7 @@ async function runOrganizationPostImportSetup(args: {
       const templateAgent = agentsToCreate.find((entry) => `${prefix}${entry.id}${suffix}` === agentId)
       await finalizeTemplateCreatedAgentRegistration({
         agentId,
+        displayName: templateAgent?.name,
         workspacePath,
         model: appliedModelsByAgentId?.[agentId],
         skills: templateAgent?.skills,
@@ -2185,12 +2194,17 @@ export async function importAgentFromTemplate(
     const identityPath = path.join(targetAgentDir, 'IDENTITY.md')
     if (fs.existsSync(identityPath)) {
       let identity = fs.readFileSync(identityPath, 'utf-8')
+      const intendedDisplayName = sourceAgent.name?.trim() || targetAgentId
 
       // Replace agent ID in identity content
       identity = identity.replace(
         new RegExp(`\\b${sourceAgent.id}\\b`, 'g'),
         targetAgentId
       )
+      identity = identity.replace(/^#\s+.+$/m, `# ${intendedDisplayName}`)
+      if (/^-\s+\*\*Name:\*\*/m.test(identity)) {
+        identity = identity.replace(/^-\s+\*\*Name:\*\*\s+.*$/m, `- **Name:** ${intendedDisplayName}`)
+      }
 
       // Update model if provided
       if (effectiveModel) {
@@ -2225,7 +2239,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
     if (gatewayAlreadySynchronized) {
       await getGatewayClient().upsertAgentsNative([{
         id: targetAgentId,
-        name: targetAgentId,
+        name: sourceAgent.name?.trim() || targetAgentId,
         workspace: path.join(getWorkspacePath(), 'AGENTS', targetAgentId),
         agentDir: path.join(process.env.HOME || '', '.openclaw', 'agents', targetAgentId, 'agent'),
         model: effectiveModel,
@@ -2235,6 +2249,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
 
     await finalizeTemplateCreatedAgentRegistration({
       agentId: targetAgentId,
+      displayName: sourceAgent.name,
       workspacePath: getWorkspacePath(),
       model: effectiveModel,
       skills: sourceAgent.skills,
@@ -2865,6 +2880,20 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
             /^-\s+\*\*Name:\*\*\s+.+$/m,
             `- **Name:** ${templateAgent.name || targetAgentId}`
           )
+          fs.writeFileSync(identityPath, content, 'utf-8')
+        }
+
+        // Template metadata is authoritative for the mutable display name.
+        // Keep the directory/config key as the immutable agent ID.
+        if (fs.existsSync(identityPath)) {
+          const intendedDisplayName = templateAgent.name?.trim() || targetAgentId
+          let content = fs.readFileSync(identityPath, 'utf-8')
+          content = content.replace(/^#\s+.+$/m, `# ${intendedDisplayName}`)
+          if (/^-\s+\*\*Name:\*\*/m.test(content)) {
+            content = content.replace(/^-\s+\*\*Name:\*\*\s+.*$/m, `- **Name:** ${intendedDisplayName}`)
+          } else {
+            content = content.replace(/^(#\s+[^\n]+\n)/, `$1\n- **Name:** ${intendedDisplayName}\n`)
+          }
           fs.writeFileSync(identityPath, content, 'utf-8')
         }
 

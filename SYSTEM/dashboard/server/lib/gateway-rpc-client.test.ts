@@ -373,7 +373,7 @@ async function run() {
         { id: 'new-agent', name: 'New Agent', workspace: '/new-agent', agentDir: '/agents/new', skills: ['github', 'github'] },
       ])
 
-      assert.deepStrictEqual(lifecycleCalls.map((call) => call.method), ['agents.update', 'agents.create'])
+      assert.deepStrictEqual(lifecycleCalls.map((call) => call.method), ['agents.update', 'agents.create', 'agents.update'])
       assert.deepStrictEqual(lifecycleCalls[0].params, {
         agentId: 'existing',
         name: 'Existing',
@@ -381,11 +381,16 @@ async function run() {
         model: 'openai/gpt-5.4',
       })
       assert.strictEqual(lifecycleCalls[1].params.name, 'new-agent')
+      assert.deepStrictEqual(lifecycleCalls[2].params, {
+        agentId: 'new-agent',
+        name: 'New Agent',
+        workspace: '/new-agent',
+      })
       assert.strictEqual(patchCall.method, 'config.patch')
       assert.strictEqual(patchCall.params.baseHash, 'native-hash')
       assert.deepStrictEqual(JSON.parse(patchCall.params.raw).agents.entries, {
         existing: { name: 'Existing', workspace: '/new', model: 'openai/gpt-5.4', agentDir: '/agents/existing' },
-        'new-agent': { name: 'new-agent', workspace: '/new-agent', agentDir: '/agents/new', skills: ['github'] },
+        'new-agent': { name: 'New Agent', workspace: '/new-agent', agentDir: '/agents/new', skills: ['github'] },
       })
     })
   })
