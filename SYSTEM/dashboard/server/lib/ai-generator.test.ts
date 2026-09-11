@@ -283,6 +283,44 @@ test('A workspace endpoint with no key or default model uses the protected key c
   })
 })
 
+test('Generation sends the protected credential and the discovered model to the workspace endpoint', async () => {
+  await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
+    const protectedEnv = {
+      SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',
+    }
+    const seen: Array<{ url: string; auth: string; model?: string }> = []
+    const readAuth = (init?: any) => {
+      const h = init?.headers
+      if (!h) return ''
+      if (typeof h.get === 'function') return h.get('authorization') || ''
+      return h.Authorization || h.authorization || ''
+    }
+    global.fetch = (async (input: any, init?: any) => {
+      const url = String(input)
+      const auth = readAuth(init)
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined
+      seen.push({ url, auth, model: body?.model })
+      if (auth !== 'Bearer system-secret') return new Response(JSON.stringify({ error: { message: 'unauthorized' } }), { status: 401, headers: { 'content-type': 'application/json' } })
+      if (url.endsWith('/v1/models')) return new Response(JSON.stringify({ data: [{ id: 'authenticated-model' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      if (url.endsWith('/v1/chat/completions')) {
+        return new Response(JSON.stringify({ id: 'cmpl-1', object: 'chat.completion', created: 0, model: body?.model, choices: [{ index: 0, message: { role: 'assistant', content: 'PONG' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response('not found', { status: 404 })
+    }) as any
+    await warmOpenAiCompatibleGenerationModel(undefined, protectedEnv)
+    const { client, model } = createAiGenerationClient(undefined, protectedEnv)
+    assert.strictEqual(model, 'authenticated-model')
+    const completion = await client.chat.completions.create({ model, messages: [{ role: 'user', content: 'ping' }] })
+    assert.strictEqual(completion.choices[0]?.message?.content, 'PONG')
+    const completionCall = seen.find((call) => call.url.endsWith('/v1/chat/completions'))
+    assert.ok(completionCall, `Expected a completion request, saw ${JSON.stringify(seen)}`)
+    assert.strictEqual(completionCall!.url, 'http://172.16.1.70:8000/v1/chat/completions')
+    assert.strictEqual(completionCall!.auth, 'Bearer system-secret')
+    assert.strictEqual(completionCall!.model, 'authenticated-model')
+  })
+})
+
 test('A protected key configured for a different server is not sent to the workspace endpoint', async () => {
   await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
     const protectedEnv = {
