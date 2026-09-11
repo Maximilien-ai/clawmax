@@ -122,6 +122,12 @@ assert_gateway_chat() {
   fi
 }
 
+assert_agent_session_state() {
+  "$container_cli" exec "$container_name" sh -c \
+    'find /app/DATA/.home/.openclaw/agents/rc-image-reuse-probe -type f -path "*/sessions/*" -size +0c | grep -q .' \
+    || fail 'recreated agent session state is missing'
+}
+
 assert_instance_cli_api() {
   local discovery identity before_active created replay listed unknown after_active
   discovery="$(curl -fsS "$base_url/api/cli/v1/discovery")" || fail 'instance CLI discovery failed'
@@ -246,8 +252,7 @@ assert_populated_fixture() {
     || fail 'OpenClaw state did not survive restart'
   "$container_cli" exec "$container_name" test -s /app/DATA/.home/.openclaw/state/openclaw.sqlite \
     || fail 'OpenClaw SQLite state did not survive restart'
-  "$container_cli" exec "$container_name" sh -c 'find /app/DATA/.home/.openclaw/agents/rc-image-reuse-probe -type f -path "*/sessions/*" -size +0c | grep -q .' \
-    || fail 'agent session state did not survive restart'
+  assert_agent_session_state
 }
 
 "$container_cli" volume create "$volume_name" >/dev/null
@@ -279,6 +284,11 @@ printf '%s' "$absent_response" | jq -e '[.agents[] | select(.id == "rc-image-reu
 
 provision_agent
 assert_one_ordered_agent
+# The first chat session belonged to the agent state intentionally removed
+# above. Generate fresh session state for the recreated agent so the restart
+# assertion proves persistence instead of expecting deleted state to return.
+assert_gateway_chat
+assert_agent_session_state
 
 agent_template='{"name":"RC Image Agent Persistence","type":"agent","version":"1.0.0","agents":[{"id":"persistent-agent-template","role":"image persistence probe"}]}'
 org_template='{"name":"RC Image Organization Persistence","type":"organization","version":"1.0.0","agents":[{"id":"persistent-org-agent","role":"image persistence probe"}]}'
