@@ -190,7 +190,15 @@ migrate_openclaw_2_state() {
 }
 
 get_gateway_auth_token() {
-  openclaw config get gateway.auth.token 2>/dev/null | tr -d '[:space:]' || true
+  OPENCLAW_CONFIG_FILE="$HOME/.openclaw/openclaw.json" node <<'NODE'
+const fs = require('fs')
+
+try {
+  const config = JSON.parse(fs.readFileSync(process.env.OPENCLAW_CONFIG_FILE, 'utf8'))
+  const token = config?.gateway?.auth?.token || config?.gateway?.remote?.token || ''
+  if (typeof token === 'string') process.stdout.write(token.trim())
+} catch {}
+NODE
 }
 
 generate_gateway_auth_token() {
@@ -217,7 +225,15 @@ ensure_gateway_auth_token() {
   fi
 
   echo "[entrypoint] generating gateway auth token"
-  openclaw config set gateway.auth.token "$gateway_token" >/dev/null 2>&1 || true
+  if ! openclaw config set gateway.auth.token "$gateway_token" >/dev/null 2>&1; then
+    echo "[entrypoint] ERROR: unable to persist gateway auth token" >&2
+    exit 1
+  fi
+  persisted_gateway_token="$(get_gateway_auth_token)"
+  if [ "$persisted_gateway_token" != "$gateway_token" ]; then
+    echo "[entrypoint] ERROR: persisted gateway auth token could not be resolved" >&2
+    exit 1
+  fi
 }
 
 normalize_version() {

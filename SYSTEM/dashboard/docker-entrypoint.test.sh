@@ -29,15 +29,15 @@ case "$1 ${2:-} ${3:-}" in
     echo "local"
     ;;
   "config get gateway.auth.token")
-    if [ -f "${GATEWAY_AUTH_TOKEN_FILE:-}" ]; then
-      cat "${GATEWAY_AUTH_TOKEN_FILE}"
-    fi
+    echo "__OPENCLAW_REDACTED__"
     ;;
   "config set gateway.mode")
     exit 0
     ;;
   "config set gateway.auth.token")
     printf '%s' "${4:-}" > "${GATEWAY_AUTH_TOKEN_FILE:?}"
+    mkdir -p "$HOME/.openclaw"
+    printf '{"gateway":{"auth":{"token":"%s"}}}\n' "${4:-}" > "$HOME/.openclaw/openclaw.json"
     exit 0
     ;;
   "doctor --fix --non-interactive")
@@ -154,6 +154,17 @@ ensure_gateway_auth_token
   echo "Expected existing gateway auth token to be preserved" >&2
   exit 1
 }
+
+# OpenClaw redacts secret-bearing `config get` output. Readiness must use the
+# real on-disk token without printing it, or the watchdog will kill a healthy
+# gateway after repeated token-mismatch responses.
+printf '%s\n' '{"gateway":{"auth":{"token":"real-gateway-token"}}}' > "$HOME/.openclaw/openclaw.json"
+[ "$(get_gateway_auth_token)" = "real-gateway-token" ] || {
+  echo "Expected the raw gateway token to be read from config" >&2
+  exit 1
+}
+printf '%s\n' "$generated_gateway_token" > "$GATEWAY_AUTH_TOKEN_FILE"
+printf '{"gateway":{"auth":{"token":"%s"}}}\n' "$generated_gateway_token" > "$HOME/.openclaw/openclaw.json"
 
 : > "$LOG_FILE"
 export SS_OUTPUT=""
