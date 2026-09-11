@@ -4,7 +4,9 @@
  * Run with: npx ts-node --transpileOnly server/routes/chat-edges.test.ts
  */
 
-import {
+import express from 'express'
+import http from 'node:http'
+import chatRouter, {
   buildManagedResendDispatch,
   buildManagedSecretStatelessChatMessage,
   deriveChatError,
@@ -237,6 +239,45 @@ test('chat readiness for a model-less agent resolves and authenticates through t
         ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false',
       }) as any
       assert(denied.executionEnv?.OPENAI_API_KEY !== 'system-secret' && denied.resolvedAgent?.model !== 'openai-compatible/authenticated-chat-model', `Expected a denied system key to reach neither execution nor the credentialed catalog, got ${JSON.stringify({ key: denied.executionEnv?.OPENAI_API_KEY, model: denied.resolvedAgent?.model })}`)
+    })
+  } finally {
+    global.fetch = originalFetch
+    clearModelCache()
+  }
+})
+
+test('the readiness route itself sends the browser only the public fields', async () => {
+  clearModelCache()
+  const originalFetch = global.fetch
+  try {
+    await withKeylessWorkspaceEndpoint(async () => {
+      const workspaceRoot = process.env.OPENCLAW_WORKSPACE as string
+      fs.mkdirSync(path.join(workspaceRoot, 'AGENTS', 'harness'), { recursive: true })
+      fs.writeFileSync(path.join(workspaceRoot, 'AGENTS', 'harness', 'IDENTITY.md'), '# IDENTITY.md - Who Am I?\n\n- **Name:** harness\n')
+      // Discovery is stubbed; the route itself is called over a real socket.
+      global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'route-model' }] }) }) as any) as any
+      const app = express()
+      app.use(express.json())
+      app.use('/api/agents', chatRouter)
+      const server = http.createServer(app)
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      try {
+        const port = (server.address() as { port: number }).port
+        const raw = await new Promise<string>((resolve, reject) => {
+          const req = http.request({ host: '127.0.0.1', port, path: '/api/agents/harness/chat/readiness', method: 'POST', headers: { 'content-type': 'application/json' } }, (res) => {
+            let data = ''
+            res.on('data', (chunk) => { data += chunk })
+            res.on('end', () => resolve(data))
+          })
+          req.on('error', reject)
+          req.end(JSON.stringify({ byok: { openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1', openaiCompatibleApiKey: 'browser-secret' } }))
+        })
+        assert(!raw.includes('executionEnv') && !raw.includes('browser-secret'), `Expected the route's response to carry no execution environment or credential, got ${raw.slice(0, 200)}`)
+        const body = JSON.parse(raw)
+        assert(body.available === true && body.resolvedAgent?.model === 'openai-compatible/route-model', `Expected the public readiness fields, got ${raw.slice(0, 200)}`)
+      } finally {
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
     })
   } finally {
     global.fetch = originalFetch
