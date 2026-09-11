@@ -731,6 +731,14 @@ export function isGatewayConfigured(): boolean {
   return !!loadGatewayConfigFromDisk()
 }
 
+export function configuredAutoStartGatewayOwnsState(input: {
+  configured: boolean
+  autoStartSetting?: string
+}): boolean {
+  if (input.autoStartSetting === 'false') return false
+  return input.configured || input.autoStartSetting === 'true'
+}
+
 export function getConfiguredGatewayPort(): number | null {
   return loadGatewayConfigFromDisk()?.port ?? null
 }

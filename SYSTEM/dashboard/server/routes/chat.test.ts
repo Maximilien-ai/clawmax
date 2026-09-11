@@ -15,11 +15,11 @@ import {
   shouldUseManagedSecretStatelessChatSession,
   shouldRecoverPersistedAssistant,
   shouldAttemptManagedResendDispatch,
-  configuredAutoStartGatewayOwnsState,
   shouldUseLocalChatExecution,
   shouldRetryViaGatewayAfterLocalCollision,
   throwIfChatAttemptNeedsSessionRetry,
 } from './chat'
+import { configuredAutoStartGatewayOwnsState } from '../lib/gateway-rpc'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'

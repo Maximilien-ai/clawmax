@@ -10,7 +10,7 @@ import { getWorkspacePath, listAgents, parseGroups } from './workspace'
 import { listTeams, type Team } from './teams'
 import { addMessage } from './messages'
 import { getConfiguredDashboardInstanceId, traceAgentChat, traceWorkflowExecution } from './opik'
-import { isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from './gateway-rpc'
+import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from './gateway-rpc'
 import { checkBudgetBlock } from './budget'
 import { validateWorkflow } from './validator'
 import {
@@ -22,7 +22,6 @@ import {
   withTemporaryAgentAuthProfiles,
 } from './agent-execution'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
-import { hasWorkspaceManagedPartnerSecrets } from './workspace-integrations'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 import { createBrokerCapabilityToken } from './skill-secret-broker'
 import { executeAgentRuntimeTurn, isRuntimeCancelledError } from './agent-runtime'
@@ -2385,13 +2384,14 @@ export function triggerWorkflow(workflowId: string, options?: {
               if (attemptProvider === 'ollama' && !hasOllamaPath) {
                 throw new Error(`Agent ${participant.agentId} is configured for ${attemptModel || 'ollama'}, but no Ollama runtime is configured`)
               }
-              const gatewayRunning = attemptProvider === 'ollama'
-                ? false
-                : shouldTreatGatewayAsRunning(
-                    (await waitForGatewayResponsive()).running,
-                    isGatewayRunning().running,
-                  )
-              const useLocal = attemptProvider === 'ollama' || attemptProvider === 'openai-compatible' || !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
+              const gatewayRunning = shouldTreatGatewayAsRunning(
+                (await waitForGatewayResponsive()).running,
+                isGatewayRunning().running || configuredAutoStartGatewayOwnsState({
+                  configured: isGatewayConfigured(),
+                  autoStartSetting: process.env.CLAWMAX_AUTO_START_GATEWAY,
+                }),
+              )
+              const useLocal = !gatewayRunning
               const sessionId = buildWorkflowRetrySessionId(executionId, participant.agentId, workflowSessionRetryAttempt)
               const executionModelOverride = toExecutionModelOverride(attemptModel, attemptProvider)
               repairWorkflowSessionEntryForRun(participant.agentId, sessionId)

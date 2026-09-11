@@ -8,7 +8,7 @@ import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessage
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { listWorkflows, resolveParticipants, deleteWorkflow } from '../lib/workflows'
 import { getConfiguredDashboardInstanceId, traceAgentChat } from '../lib/opik'
-import { isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
+import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { deleteTeams, listTeams } from '../lib/teams'
 import { findImpactedTopLevelTeamsForCommunityDelete } from '../lib/organization-delete'
 import {
@@ -19,7 +19,6 @@ import {
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
-import { hasWorkspaceManagedPartnerSecrets } from '../lib/workspace-integrations'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { executeAgentRuntimeTurn, isRuntimeCancelledError } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
@@ -414,15 +413,14 @@ export async function callAgent(
       })
     }
 
-    const gatewayRunning = (
-      resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'
+    const gatewayRunning = shouldTreatGatewayAsRunning(
+      (await waitForGatewayResponsive()).running,
+      isGatewayRunning().running || configuredAutoStartGatewayOwnsState({
+        configured: isGatewayConfigured(),
+        autoStartSetting: process.env.CLAWMAX_AUTO_START_GATEWAY,
+      }),
     )
-      ? false
-      : shouldTreatGatewayAsRunning(
-          (await waitForGatewayResponsive()).running,
-          isGatewayRunning().running,
-        )
-    const useLocal = !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
+    const useLocal = !gatewayRunning
     const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
     const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)
     if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {

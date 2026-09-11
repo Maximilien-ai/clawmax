@@ -4,7 +4,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { getActiveAgentLifecycleGeneration, getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
-import { isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
+import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
@@ -271,14 +271,6 @@ export function shouldUseLocalChatExecution(input: {
   // immediately; direct execution still receives managed secrets when no
   // Gateway is available.
   return !input.gatewayRunning
-}
-
-export function configuredAutoStartGatewayOwnsState(input: {
-  configured: boolean
-  autoStartSetting?: string
-}): boolean {
-  if (input.autoStartSetting === 'false') return false
-  return input.configured || input.autoStartSetting === 'true'
 }
 
 export function shouldUseManagedSecretStatelessChatSession(_input: {
