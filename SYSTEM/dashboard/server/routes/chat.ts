@@ -602,13 +602,14 @@ async function warmChatOpenAiCompatibleModel(byok?: ChatByokPayload): Promise<vo
   }
 }
 
-function evaluateChatExecutionReadiness(
+export function evaluateChatExecutionReadiness(
   agentId: string,
-  byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+  byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
+  rawEnv?: Record<string, string>,
 ) {
   const integrationConfig = readWorkspaceIntegrationConfig()
   const baseResolvedAgent = resolveAgentExecutionConfig(agentId)
-  const chatCompatibleEndpoint = resolveChatOpenAiCompatibleEndpoint(byok)
+  const chatCompatibleEndpoint = resolveChatOpenAiCompatibleEndpoint(byok, rawEnv)
   const fallbackModel = resolveByokChatFallbackModel({
     ...byok,
     openaiCompatibleBaseUrl: chatCompatibleEndpoint.baseUrl,
@@ -738,6 +739,7 @@ function evaluateChatExecutionReadiness(
 
   return {
     available: true,
+    executionEnv,
     resolvedAgent,
   }
 }
