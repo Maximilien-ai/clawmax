@@ -265,14 +265,16 @@ export function ByokWizard({
   const [selectedPartners, setSelectedPartners] = useState<string[]>([])
   const [partnerCategoryTab, setPartnerCategoryTab] = useState<string>('all')
   const [activityConsents, setActivityConsents] = useState<Array<{ destinationId: string; scopes: string[] }>>([])
-  const [activityDestination, setActivityDestination] = useState<'clawmax-ai' | 'digo'>('clawmax-ai')
+  const [activityDestination, setActivityDestination] = useState<'clawmax-ai' | 'digo' | 'agentforge'>('clawmax-ai')
   const [activityScopes, setActivityScopes] = useState<string[]>(['agent-chat', 'workflow'])
   const [activityConfirmOpen, setActivityConfirmOpen] = useState(false)
   const [activityDelivery, setActivityDelivery] = useState<{
     queuedEvents: number
-    worker?: { running?: boolean; lastAttemptAt?: string; lastError?: string; configured?: { clawmaxAi?: boolean; digo?: boolean } }
+    worker?: { running?: boolean; lastAttemptAt?: string; lastError?: string; configured?: { clawmaxAi?: boolean; digo?: boolean; agentforge?: boolean }; purge?: { attempted?: number; completed?: number; remaining?: number; error?: string } }
     retry?: { attempts?: number; lastError?: string }
   } | null>(null)
+  const [agentForgeStatus, setAgentForgeStatus] = useState<{ configured: boolean; connected: boolean; purpose?: string; privacyUrl?: string; retentionDays?: number; supportedScopes?: string[] } | null>(null)
+  const [agentForgeConnecting, setAgentForgeConnecting] = useState(false)
   const [validating, setValidating] = useState(false)
   const [resendTestSending, setResendTestSending] = useState(false)
   const [resendTestTo, setResendTestTo] = useState('')
@@ -329,10 +331,11 @@ export function ByokWizard({
       .then((payload) => {
         if (cancelled) return
         const destinations = Array.isArray(payload?.destinations) ? payload.destinations : (payload?.sharing ? [payload.sharing] : [])
-        const normalized = destinations.map((entry: any) => ({ destinationId: String(entry.destinationId) === 'digo' ? 'digo' : 'clawmax-ai', scopes: Array.isArray(entry.scopes) ? entry.scopes : [] }))
+        const normalized = destinations.map((entry: any) => ({ destinationId: ['digo', 'agentforge'].includes(String(entry.destinationId)) ? String(entry.destinationId) : 'clawmax-ai', scopes: Array.isArray(entry.scopes) ? entry.scopes : [] }))
         setActivityConsents(normalized)
         if (normalized.length > 0) setActivityDestination(normalized[0].destinationId)
         setActivityDelivery({ queuedEvents: Number(payload?.queuedEvents) || 0, worker: payload?.delivery?.worker, retry: payload?.delivery?.retry })
+        setAgentForgeStatus(payload?.agentforge || null)
       })
       .catch(() => undefined)
     refreshActivityStatus()
@@ -348,6 +351,10 @@ export function ByokWizard({
       return
     }
     if (!activityConfirmOpen) {
+      if (activityDestination === 'agentforge' && !agentForgeStatus?.connected) {
+        showWarning('Connect your AgentForge event account before reviewing sharing.')
+        return
+      }
       setActivityConfirmOpen(true)
       return
     }
@@ -357,7 +364,7 @@ export function ByokWizard({
     setActivityConsents((current) => [...current.filter((entry) => entry.destinationId !== activityDestination), { destinationId: activityDestination, scopes: activityScopes }])
     setActivityConfirmOpen(false)
     window.dispatchEvent(new CustomEvent('activity-export-updated'))
-    showSuccess(`Activity sharing enabled for ${activityDestination === 'digo' ? 'Digo' : 'ClawMax.ai'}`)
+    showSuccess(`Activity sharing enabled for ${activityDestination === 'digo' ? 'Digo' : activityDestination === 'agentforge' ? 'NYU - AgentForge' : 'ClawMax.ai'}`)
   }
   async function revokeActivityDestination(destinationId: string) {
     const response = await fetch('/api/activity-export/consent', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ destinationId }) })
@@ -367,8 +374,38 @@ export function ByokWizard({
     }
     setActivityConsents((current) => current.filter((entry) => entry.destinationId !== destinationId))
     window.dispatchEvent(new CustomEvent('activity-export-updated'))
-    showSuccess(`Activity sharing revoked for ${destinationId === 'digo' ? 'Digo' : 'ClawMax.ai'}`)
+    showSuccess(`Activity sharing revoked for ${destinationId === 'digo' ? 'Digo' : destinationId === 'agentforge' ? 'NYU - AgentForge' : 'ClawMax.ai'}`)
   }
+  async function connectAgentForge(enrollmentToken: string) {
+    if (!enrollmentToken.trim()) { showWarning('Open ClawMax from AgentForge to connect your event account.'); return }
+    setAgentForgeConnecting(true)
+    try {
+      const response = await fetch('/api/activity-export/agentforge/enrollment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ connectionCode: enrollmentToken.trim() }) })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) { showWarning(payload?.error || 'Unable to connect AgentForge'); return }
+      setAgentForgeStatus((current) => ({ configured: true, connected: true, purpose: current?.purpose, privacyUrl: current?.privacyUrl, retentionDays: current?.retentionDays, supportedScopes: current?.supportedScopes }))
+      setSelectedPartners((current) => current.includes('agentforge') ? current : [...current, 'agentforge'])
+      setActivityDestination('agentforge')
+      setActivityScopes(['agent-chat', 'workflow', 'builder'])
+      setActivityConfirmOpen(true)
+      setStep('partners')
+      setOpen(true)
+      showSuccess('AgentForge connected. Review the purpose and scopes before enabling sharing.')
+    } catch (problem) {
+      showWarning(problem instanceof Error ? problem.message : 'Unable to connect AgentForge')
+    } finally {
+      setAgentForgeConnecting(false)
+    }
+  }
+
+  useEffect(() => {
+    if (initialStep !== 'partners') return
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const enrollmentToken = fragment.get('agentforge_enrollment')?.trim() || ''
+    if (!enrollmentToken) return
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+    void connectAgentForge(enrollmentToken)
+  }, [initialStep])
   const ollamaEnabled = isOllamaUiAvailable(config)
   const managedRuntime = config?.managedRuntime === true || deploymentKind !== 'local'
   const defaultOllamaBaseUrl = config?.defaultOllamaBaseUrl || localDevOllamaBaseUrl
@@ -2883,37 +2920,40 @@ export function ByokWizard({
                       <div className="mt-1 text-xs opacity-80">Share selected activity through ClawMax Activity Export. This is opt-in and can be revoked immediately. Choose a configured destination below.</div>
                     </div>
                     <button type="button" onClick={() => void toggleActivitySharing()} className={`rounded-md px-3 py-2 text-xs font-medium ${activeActivityConsent ? 'border border-amber-300 bg-transparent' : 'bg-amber-600 text-white hover:bg-amber-700'}`}>
-                      {activeActivityConsent ? `Revoke ${activityDestination === 'digo' ? 'Digo' : 'ClawMax.ai'}` : activityConfirmOpen ? 'Confirm sharing' : 'Review and enable'}
+                      {activeActivityConsent ? `Revoke ${activityDestination === 'digo' ? 'Digo' : activityDestination === 'agentforge' ? 'NYU - AgentForge' : 'ClawMax.ai'}` : activityConfirmOpen ? 'Confirm sharing' : 'Review and enable'}
                     </button>
                   </div>
                   {!activeActivityConsent && <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                     <label htmlFor="activity-export-destination" className="font-medium">Destination</label>
-                    <select id="activity-export-destination" value={activityDestination} onChange={(event) => setActivityDestination(event.target.value === 'digo' ? 'digo' : 'clawmax-ai')} className="rounded border border-amber-300 bg-white px-2 py-1 text-xs dark:bg-gray-900">
+                    <select id="activity-export-destination" value={activityDestination} onChange={(event) => setActivityDestination(event.target.value === 'digo' ? 'digo' : event.target.value === 'agentforge' ? 'agentforge' : 'clawmax-ai')} className="rounded border border-amber-300 bg-white px-2 py-1 text-xs dark:bg-gray-900">
                       <option value="clawmax-ai">ClawMax.ai reference receiver</option>
+                      {agentForgeStatus?.connected && <option value="agentforge">NYU - AgentForge</option>}
                     </select>
                   </div>}
                   {!activeActivityConsent && <div className="mt-3 flex flex-wrap gap-3 text-xs">
-                    {['agent-chat', 'workflow', 'group-chat', 'community-chat', 'builder'].map((scope) => (
+                    {(activityDestination === 'agentforge' ? ['agent-chat', 'workflow', 'builder'] : ['agent-chat', 'workflow', 'group-chat', 'community-chat', 'builder']).map((scope) => (
                       <label key={scope} className="inline-flex items-center gap-1.5"><input type="checkbox" checked={activityScopes.includes(scope)} onChange={(event) => setActivityScopes((current) => event.target.checked ? [...new Set([...current, scope])] : current.filter((entry) => entry !== scope))} />{scope.replaceAll('-', ' ')}</label>
                     ))}
                   </div>}
                   {activityConfirmOpen && !activeActivityConsent && <div className="mt-3 rounded-lg border border-amber-300 bg-white/70 p-3 text-xs dark:border-amber-700 dark:bg-black/20">
-                    <div className="font-medium">Confirm activity sharing with {activityDestination === 'digo' ? 'Digo' : 'ClawMax.ai'}</div>
+                    <div className="font-medium">Confirm activity sharing with {activityDestination === 'digo' ? 'Digo' : activityDestination === 'agentforge' ? 'NYU - AgentForge' : 'ClawMax.ai'}</div>
+                    {activityDestination === 'agentforge' && <p className="mt-1"><strong>Purpose:</strong> {agentForgeStatus?.purpose} Identity is pseudonymous. Data is retained for the event window plus up to {agentForgeStatus?.retentionDays || 30} days. <a className="underline" href={agentForgeStatus?.privacyUrl} target="_blank" rel="noreferrer">Read the privacy notice</a>.</p>}
                     <p className="mt-1">ClawMax removes direct PII (such as email addresses and phone numbers) and known secrets, credentials, tokens, and private keys before queueing selected activity. Delivery is asynchronous; revoke sharing at any time.</p>
                     <div className="mt-2 flex gap-2"><button type="button" onClick={() => setActivityConfirmOpen(false)} className="rounded border border-gray-300 px-2 py-1">Cancel</button><button type="button" onClick={() => void toggleActivitySharing()} className="rounded bg-amber-600 px-2 py-1 font-medium text-white">I consent</button></div>
                   </div>}
-                  {activityConsents.length > 0 && <div className="mt-2 space-y-1 text-xs">{activityConsents.map((entry) => <div key={entry.destinationId} className="flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200/70 px-2 py-1.5 dark:border-amber-800/50"><span>Sharing with {entry.destinationId === 'digo' ? 'Digo' : 'ClawMax.ai'} · {entry.scopes.join(', ')}</span><button type="button" onClick={() => void revokeActivityDestination(entry.destinationId)} className="font-medium text-red-700 hover:underline dark:text-red-300">Revoke</button></div>)}</div>}
+                  {activityConsents.length > 0 && <div className="mt-2 space-y-1 text-xs">{activityConsents.map((entry) => <div key={entry.destinationId} className="flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200/70 px-2 py-1.5 dark:border-amber-800/50"><span>Sharing with {entry.destinationId === 'digo' ? 'Digo' : entry.destinationId === 'agentforge' ? 'NYU - AgentForge' : 'ClawMax.ai'} · {entry.scopes.join(', ')}</span><button type="button" onClick={() => void revokeActivityDestination(entry.destinationId)} className="font-medium text-red-700 hover:underline dark:text-red-300">Revoke</button></div>)}</div>}
                   {activityConsents.length > 0 && activityDelivery && (
                     <div className={`mt-3 rounded-md border px-3 py-2 text-xs ${activityDelivery.queuedEvents > 0 || activityDelivery.worker?.lastError || activityDelivery.retry?.lastError ? 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100' : 'border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-100'}`}>
                       <div className="font-medium">Activity delivery: {activityDelivery.queuedEvents === 0 ? 'up to date' : `${activityDelivery.queuedEvents} queued`}</div>
                       <div className="mt-1 opacity-80">
                         {activityDelivery.queuedEvents === 0
                           ? 'No pending activity is waiting in this runtime.'
-                          : activityDelivery.worker?.configured?.clawmaxAi || activityDelivery.worker?.configured?.digo
+                          : activityDelivery.worker?.configured?.clawmaxAi || activityDelivery.worker?.configured?.digo || activityDelivery.worker?.configured?.agentforge
                             ? 'The runtime will retry delivery automatically.'
                             : 'Delivery credentials are not configured in this dashboard runtime.'}
                       </div>
                       {(activityDelivery.worker?.lastError || activityDelivery.retry?.lastError) && <div className="mt-1 break-words">Latest delivery error: {activityDelivery.worker.lastError || activityDelivery.retry?.lastError}</div>}
+                      {Boolean(activityDelivery.worker?.purge?.remaining) && <div className="mt-1 break-words">Deletion request pending: {activityDelivery.worker?.purge?.remaining}. The runtime will retry without resuming activity capture.</div>}
                     </div>
                   )}
                 </div>
@@ -3462,6 +3502,16 @@ export function ByokWizard({
                       >
                         {activeActivityConsent?.destinationId === 'digo' ? 'Digo sharing enabled' : 'Review Digo sharing'}
                       </button>
+                    </div>
+                  )}
+                  {currentPartner.slug === 'agentforge' && (
+                    <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-950 dark:border-violet-800 dark:bg-violet-950/20 dark:text-violet-100">
+                      <div className="font-medium">Connect your AgentForge event account</div>
+                      <div className="mt-1">Operator configuration makes the destination available, but does not authorize sharing. Participants open ClawMax from AgentForge; the signed enrollment is exchanged automatically, with no code or API key to copy.</div>
+                      {agentForgeConnecting && <div className="mt-3 font-medium text-violet-700 dark:text-violet-300">Connecting your AgentForge event account…</div>}
+                      {!agentForgeStatus?.connected && !agentForgeConnecting && <a href="https://agentforge-hackathon-os.yr2110.chatgpt.site/#/settings" className="mt-3 inline-flex rounded-md bg-violet-700 px-3 py-2 font-medium text-white hover:bg-violet-800">Open AgentForge to connect</a>}
+                      {agentForgeStatus?.connected && <button type="button" onClick={() => { setActivityDestination('agentforge'); setActivityScopes(['agent-chat', 'workflow', 'builder']); setActivityConfirmOpen(true) }} className="mt-3 rounded-md border border-violet-400 px-3 py-1.5 font-medium hover:bg-violet-100 dark:border-violet-700 dark:hover:bg-violet-900/30">Review AgentForge sharing</button>}
+                      {!agentForgeStatus?.configured && <div className="mt-2 text-amber-700 dark:text-amber-300">Save the AgentForge API URL, privacy URL, and Partner API key before connecting.</div>}
                     </div>
                   )}
                   {currentPartner.slug === 'resend' && renderResendTestEmailPanel()}

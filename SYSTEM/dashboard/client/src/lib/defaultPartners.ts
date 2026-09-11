@@ -19,7 +19,12 @@ export type DefaultPartnerDefinition = {
   enabledByDefault?: boolean
   fields?: DefaultPartnerFieldDefinition[]
   skills?: {
-    mode: 'planned'
+    mode: 'shipables' | 'curated-installer' | 'planned' | 'catalog'
+    items?: string[]
+    matchNames?: string[]
+    matchPrefixes?: string[]
+    sourceUrl?: string
+    commandId?: string
     label: string
   }
   validation?: {
@@ -29,7 +34,7 @@ export type DefaultPartnerDefinition = {
   }
 }
 
-export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365', 'digo'] as const
+export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365', 'digo', 'agentforge'] as const
 
 export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
@@ -240,6 +245,27 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
       mode: 'status',
       label: 'Connection status',
       helperText: 'Digo activity export is available when the operator configures an HTTPS ingestion URL and server-managed API key. User consent is still required before any activity is sent.',
+    },
+  },
+  {
+    slug: 'agentforge',
+    name: 'NYU - AgentForge',
+    logoUrl: 'https://agentforge-hackathon-os.yr2110.chatgpt.site/favicon.svg',
+    website: 'https://agentforge-hackathon-os.yr2110.chatgpt.site/',
+    docsUrl: 'https://github.com/Maximilien-ai/clawmax/blob/main/PARTNERS/agentforge/PARTNER.md',
+    description: 'Opt-in learning support, prompt evidence, and progress tracking for personal-agent hackathons.',
+    category: 'monitoring',
+    categories: ['monitoring', 'context'],
+    enabledByDefault: true,
+    fields: [
+      { key: 'apiKey', label: 'Partner API key', type: 'password', required: false, secret: true, storage: 'server' },
+      { key: 'apiUrl', label: 'AgentForge API base URL', type: 'text', required: false, secret: false, storage: 'server' },
+      { key: 'privacyUrl', label: 'AgentForge privacy URL', type: 'text', required: false, secret: false, storage: 'server' },
+    ],
+    validation: {
+      mode: 'status',
+      label: 'Activity Export status',
+      helperText: 'The operator configures the AgentForge API and server-managed credential. Each participant must still connect their AgentForge enrollment and explicitly consent before activity is exported.',
     },
   },
 ]

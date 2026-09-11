@@ -10,7 +10,7 @@ import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } fro
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
 import { createStreamingWarningFilter, normalizeChatMessage, stripBenignChatRuntimeWarnings } from '../lib/chat-normalization'
-import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
+import { resolveOpenClawCliInvocation, resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import { getAgentSkills, getAssignedSkillPromptNotes, getSkillById } from '../lib/skills'
 import { executeClawmaxResendSend } from '../lib/clawmax-resend-command'
 import {
@@ -1057,7 +1057,8 @@ router.post('/:id/chat', async (req, res) => {
           ...(attemptExecutionModel ? ['--model', attemptExecutionModel] : []),
           ...(forceGateway || !useLocal ? [] : ['--local']),
         ]
-        console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
+        const openclawInvocation = resolveOpenClawCliInvocation(args)
+        console.log(`[Chat Route] Spawning: ${openclawInvocation?.command || openclawCli || 'openclaw'} ${(openclawInvocation?.args || args).join(' ')}`)
 
         type ChatAttemptResult = {
           completionText: string
@@ -1099,7 +1100,7 @@ router.post('/:id/chat', async (req, res) => {
             // child leaves those grandchildren alive holding the stdout pipe open (see
             // killAttemptTree below -- the same reason runOnce in agent-runtime.ts detaches).
             const attemptDeltaFilter = createStreamingWarningFilter()
-            const spawned = spawn(openclawCli, args, {
+            const spawned = spawn(openclawInvocation?.command || openclawCli, openclawInvocation?.args || args, {
               env: executionEnv,
               stdio: ['pipe', 'pipe', 'pipe'],
               detached: process.platform !== 'win32',

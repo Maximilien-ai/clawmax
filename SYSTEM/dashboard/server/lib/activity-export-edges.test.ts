@@ -11,6 +11,7 @@ import {
   deliverActivityExportBatch,
   flushActivityExportOutbox,
   getActivityExportConsent,
+  getOpaqueActivityUserId,
   getOpaqueActivityWorkspaceId,
   listActivityExportConsents,
   listActivityExportOutbox,
@@ -63,7 +64,7 @@ const event = (overrides: Partial<ActivityExportEvent> = {}): ActivityExportEven
   source: 'agent-chat',
   occurredAt: '2026-08-28T00:00:00.000Z',
   workspaceId: getOpaqueActivityWorkspaceId('workspace-a'),
-  userId: 'user-a',
+  userId: getOpaqueActivityUserId('user-a', 'workspace-a', 'destination-a'),
   ...overrides,
 })
 
