@@ -56,6 +56,9 @@ case "$1 ${2:-} ${3:-}" in
     fi
     ;;
   "gateway call health")
+    if [ -n "${GATEWAY_HEALTH_DELAY_SEC:-}" ]; then
+      sleep "$GATEWAY_HEALTH_DELAY_SEC"
+    fi
     if [ "${GATEWAY_HEALTH_EXIT_CODE:-0}" -ne 0 ]; then
       exit "$GATEWAY_HEALTH_EXIT_CODE"
     fi
@@ -170,6 +173,24 @@ if GATEWAY_HEALTH_EXIT_CODE=1 ensure_gateway_running "18789" >/dev/null 2>&1; th
   exit 1
 fi
 unset GATEWAY_HEALTH_EXIT_CODE
+
+# A slow authenticated OpenClaw RPC probe must not block the process that
+# launches the Dashboard API. The gateway process itself is started first and
+# its readiness/recovery work continues in the background supervisor.
+: > "$LOG_FILE"
+export SS_OUTPUT=""
+rm -f "$GATEWAY_RUNNING_FILE"
+export GATEWAY_HEALTH_DELAY_SEC=5
+started_at="$(date +%s)"
+start_gateway_run "18789"
+start_gateway_readiness_probe "18789"
+startup_elapsed="$(( $(date +%s) - started_at ))"
+[ "$startup_elapsed" -lt 5 ] || {
+  echo "Expected background gateway readiness not to delay Dashboard startup (${startup_elapsed}s)" >&2
+  exit 1
+}
+assert_contains "gateway run --port 18789" "$LOG_FILE"
+unset GATEWAY_HEALTH_DELAY_SEC
 
 : > "$LOG_FILE"
 export SS_OUTPUT=""

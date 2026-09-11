@@ -390,6 +390,21 @@ gateway_watchdog_tick() {
   wait_for_gateway_ready "$port"
 }
 
+start_gateway_readiness_probe() {
+  port="$1"
+  (
+    # OpenClaw CLI startup can be comparatively slow under emulation and on
+    # small customer nodes. Authenticate the gateway in this supervisor so a
+    # slow CLI probe cannot delay the Dashboard API and its health endpoint.
+    # Gateway-dependent Dashboard work has its own bounded readiness/retry
+    # path, while this process continues to provide lifecycle diagnostics and
+    # recovery after the core API is available.
+    if ! wait_for_gateway_ready "$port"; then
+      echo "[entrypoint] WARNING: initial gateway readiness is deferred to watchdog recovery" >&2
+    fi
+  ) &
+}
+
 start_gateway_watchdog() {
   port="$1"
   (
@@ -412,7 +427,15 @@ main() {
   gateway_port="$(get_gateway_port)"
 
   if [ "$CLAWMAX_AUTO_START_GATEWAY" = "true" ]; then
-    ensure_gateway_running "$gateway_port"
+    # Starting the process is bounded (and detects an immediate exit), but the
+    # authenticated OpenClaw RPC probe deliberately runs in the background.
+    # Required storage setup above still fails closed before Dashboard starts.
+    if gateway_port_listening "$gateway_port"; then
+      echo "[entrypoint] gateway port ${gateway_port} is already listening; verifying asynchronously"
+    else
+      start_gateway_run "$gateway_port"
+    fi
+    start_gateway_readiness_probe "$gateway_port"
   fi
 
   if [ "$CLAWMAX_GATEWAY_WATCHDOG" = "true" ]; then
