@@ -339,13 +339,20 @@ test('the endpoint cache keeps only the newest entries', async () => {
     status: 200,
     json: async () => ({ data: [{ id: 'chat-model' }] }),
   }) as any) as any
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 300; i++) {
     await resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://endpoint-${i}:8000/v1` })
   }
   const count = __test.openAiCompatibleCacheEntryCount()
-  assert(count === 32, `Expected the cache bounded at 32 endpoint entries, got ${count}`)
+  assert(count === 256, `Expected the cache bounded at 256 endpoint entries, got ${count}`)
   assert(getCachedOpenAiCompatibleDefaultModel('http://endpoint-0:8000/v1') === undefined, 'Expected the oldest entry to have been evicted')
-  assert(getCachedOpenAiCompatibleDefaultModel('http://endpoint-39:8000/v1') === 'chat-model', 'Expected the newest entry to be retained')
+  assert(getCachedOpenAiCompatibleDefaultModel('http://endpoint-299:8000/v1') === 'chat-model', 'Expected the newest entry to be retained')
+  // A burst well beyond any realistic working set still leaves every member readable afterwards.
+  clearModelCache()
+  await Promise.all(Array.from({ length: 100 }, (_, i) => resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://concurrent-${i}:8000/v1` })))
+  assert(
+    Array.from({ length: 100 }, (_, i) => getCachedOpenAiCompatibleDefaultModel(`http://concurrent-${i}:8000/v1`)).every((model) => model === 'chat-model'),
+    'Expected every endpoint of a concurrent burst to remain readable once the burst settles',
+  )
   clearModelCache()
 })
 

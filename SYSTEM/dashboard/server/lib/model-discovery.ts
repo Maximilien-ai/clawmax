@@ -25,7 +25,10 @@ type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ol
 const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
 // Endpoint entries are keyed per endpoint and per credential, so an unbounded cache would grow with
 // every credential a long-lived process ever sees. Beyond this many, the oldest entries go first.
-const MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES = 32
+// The bound is memory hygiene, not a working-set limit: a warmed entry must still be there when
+// the synchronous readers of the same request consume it, so it sits far above the number of
+// distinct endpoint/credential pairs one process resolves within a cache lifetime.
+const MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES = 256
 const OPENAI_COMPATIBLE_CACHE_PREFIX = 'openai-compatible:'
 
 interface CacheEntry {
