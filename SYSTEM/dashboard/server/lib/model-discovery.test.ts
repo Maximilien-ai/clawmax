@@ -342,17 +342,25 @@ test('the endpoint cache keeps only the newest entries', async () => {
   for (let i = 0; i < 300; i++) {
     await resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://endpoint-${i}:8000/v1` })
   }
+  assert(__test.openAiCompatibleCacheEntryCount() === 300, `Expected fresh entries to stay beyond the bound, got ${__test.openAiCompatibleCacheEntryCount()}`)
+  __test.ageOpenAiCompatibleCache(61_000)
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://endpoint-300:8000/v1' })
   const count = __test.openAiCompatibleCacheEntryCount()
-  assert(count === 256, `Expected the cache bounded at 256 endpoint entries, got ${count}`)
+  assert(count === 256, `Expected the cache bounded at 256 endpoint entries once entries aged past the grace window, got ${count}`)
   assert(getCachedOpenAiCompatibleDefaultModel('http://endpoint-0:8000/v1') === undefined, 'Expected the oldest entry to have been evicted')
-  assert(getCachedOpenAiCompatibleDefaultModel('http://endpoint-299:8000/v1') === 'chat-model', 'Expected the newest entry to be retained')
-  // A burst well beyond any realistic working set still leaves every member readable afterwards.
+  assert(getCachedOpenAiCompatibleDefaultModel('http://endpoint-299:8000/v1') === 'chat-model', 'Expected a newer entry to be retained')
+  // A burst larger than the bound still leaves every member readable while it is fresh: size
+  // eviction never touches entries inside the grace window, only older ones once it lapses.
   clearModelCache()
-  await Promise.all(Array.from({ length: 100 }, (_, i) => resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://concurrent-${i}:8000/v1` })))
+  await Promise.all(Array.from({ length: 300 }, (_, i) => resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://concurrent-${i}:8000/v1` })))
   assert(
-    Array.from({ length: 100 }, (_, i) => getCachedOpenAiCompatibleDefaultModel(`http://concurrent-${i}:8000/v1`)).every((model) => model === 'chat-model'),
-    'Expected every endpoint of a concurrent burst to remain readable once the burst settles',
+    Array.from({ length: 300 }, (_, i) => getCachedOpenAiCompatibleDefaultModel(`http://concurrent-${i}:8000/v1`)).every((model) => model === 'chat-model'),
+    'Expected every endpoint of a burst beyond the bound to remain readable while fresh',
   )
+  assert(__test.openAiCompatibleCacheEntryCount() === 300, `Expected fresh entries to be kept beyond the bound, got ${__test.openAiCompatibleCacheEntryCount()}`)
+  __test.ageOpenAiCompatibleCache(61_000)
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://after-grace:8000/v1' })
+  assert(__test.openAiCompatibleCacheEntryCount() === 256, `Expected the bound to apply once the grace window lapsed, got ${__test.openAiCompatibleCacheEntryCount()}`)
   clearModelCache()
 })
 
@@ -395,6 +403,9 @@ test('discovery keeps a tenant query string on the base URL when it asks for /mo
   const model = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://gateway:8000/v1?tenant=a' })
   assert(requested === 'http://gateway:8000/v1/models?tenant=a', `Expected the tenant's own /models URL, got ${requested}`)
   assert(model === 'tenant-a-model', `Expected the tenant's model, got ${model}`)
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://gateway:8000/v1?tenant=a/' })
+  assert(requested === 'http://gateway:8000/v1/models?tenant=a/', `Expected a slash inside the query value to reach the endpoint, got ${requested}`)
+  assert(getCachedOpenAiCompatibleDefaultModel('http://gateway:8000/v1?tenant=a/') === 'tenant-a-model', 'Expected the slash-terminated tenant to be readable under its own identity')
   clearModelCache()
 })
 

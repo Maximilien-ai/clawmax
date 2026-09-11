@@ -233,12 +233,36 @@ test('chat readiness for a model-less agent resolves and authenticates through t
       const wire = JSON.stringify(toChatReadinessResponse(readiness))
       assert(!wire.includes('user-secret') && !wire.includes('executionEnv'), `Expected the readiness response sent to the browser to carry no execution environment or credential, got ${wire.slice(0, 200)}`)
       assert(JSON.parse(wire).available === true && JSON.parse(wire).resolvedAgent.model === 'openai-compatible/authenticated-chat-model', 'Expected the public readiness fields to survive')
-      const denied = evaluateChatExecutionReadiness('harness', {}, {
+      // Warm the endpoint through the SYSTEM credential (as provisioning would), then ask on
+      // behalf of a user who may not use system keys: the system-discovered model must not be
+      // offered, and the credential must not reach execution.
+      global.fetch = (async (_url: string, init?: any) => {
+        if (init?.headers?.Authorization !== 'Bearer system-secret') return { ok: false, status: 401, json: async () => ({}) } as any
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: 'system-only-model' }] }) } as any
+      }) as any
+      await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1', apiKey: 'system-secret' })
+      const deniedEnv = {
         SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
         SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',
         ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false',
-      }) as any
-      assert(denied.executionEnv?.OPENAI_API_KEY !== 'system-secret' && denied.resolvedAgent?.model !== 'openai-compatible/authenticated-chat-model', `Expected a denied system key to reach neither execution nor the credentialed catalog, got ${JSON.stringify({ key: denied.executionEnv?.OPENAI_API_KEY, model: denied.resolvedAgent?.model })}`)
+      }
+      const originalSystemEnv = { url: process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL, key: process.env.SYSTEM_OPENAI_COMPATIBLE_API_KEY, allow: process.env.ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION }
+      process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL = deniedEnv.SYSTEM_OPENAI_COMPATIBLE_BASE_URL
+      process.env.SYSTEM_OPENAI_COMPATIBLE_API_KEY = deniedEnv.SYSTEM_OPENAI_COMPATIBLE_API_KEY
+      process.env.ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION = 'false'
+      try {
+        const denied = evaluateChatExecutionReadiness('harness', {}, deniedEnv) as any
+        assert(denied.available === false, `Expected no readiness through a system key user execution may not use, got ${JSON.stringify({ available: denied.available, model: denied.resolvedAgent?.model })}`)
+        assert(denied.executionEnv?.OPENAI_API_KEY !== 'system-secret' && denied.resolvedAgent?.model !== 'openai-compatible/system-only-model', `Expected a denied system key to reach neither execution nor the offered model, got ${JSON.stringify({ key: denied.executionEnv?.OPENAI_API_KEY, model: denied.resolvedAgent?.model })}`)
+        process.env.ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION = 'true'
+        const allowed = evaluateChatExecutionReadiness('harness', {}, { ...deniedEnv, ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true' }) as any
+        assert(allowed.available === true && allowed.resolvedAgent?.model === 'openai-compatible/system-only-model' && allowed.executionEnv?.OPENAI_API_KEY === 'system-secret', `Expected readiness through the system key once policy allows it, got ${JSON.stringify({ available: allowed.available, model: allowed.resolvedAgent?.model, key: allowed.executionEnv?.OPENAI_API_KEY })}`)
+      } finally {
+        for (const [name, value] of [['SYSTEM_OPENAI_COMPATIBLE_BASE_URL', originalSystemEnv.url], ['SYSTEM_OPENAI_COMPATIBLE_API_KEY', originalSystemEnv.key], ['ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION', originalSystemEnv.allow]] as const) {
+          if (value === undefined) delete process.env[name]
+          else process.env[name] = value
+        }
+      }
     })
   } finally {
     global.fetch = originalFetch

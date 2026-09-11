@@ -29,6 +29,9 @@ const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
 // the synchronous readers of the same request consume it, so it sits far above the number of
 // distinct endpoint/credential pairs one process resolves within a cache lifetime.
 const MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES = 256
+// Entries younger than this are never evicted for size: a request that just warmed an endpoint
+// must still find it when its synchronous readers run, however large the concurrent burst.
+const OPENAI_COMPATIBLE_CACHE_EVICTION_GRACE_MS = 60 * 1000
 const OPENAI_COMPATIBLE_CACHE_PREFIX = 'openai-compatible:'
 
 interface CacheEntry {
@@ -67,6 +70,7 @@ function setCache(provider: string, models: string[]) {
     .filter((key) => key.startsWith(OPENAI_COMPATIBLE_CACHE_PREFIX))
     .sort((a, b) => cache[a].fetchedAt - cache[b].fetchedAt)
   for (const key of endpointKeys.slice(0, Math.max(0, endpointKeys.length - MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES))) {
+    if (now - cache[key].fetchedAt < OPENAI_COMPATIBLE_CACHE_EVICTION_GRACE_MS) break
     delete cache[key]
   }
 }
@@ -476,7 +480,9 @@ function openAiCompatibleCacheKey(baseUrl: string, apiKey?: string): string {
 }
 
 async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Promise<string[]> {
-  const normalizedBaseUrl = (baseUrl.trim() || '').replace(/\/+$/, '')
+  // Kept verbatim: the cache key and the request URL each normalize it themselves, and stripping a
+  // trailing slash here would alter a query value that ends in one.
+  const normalizedBaseUrl = baseUrl.trim()
   if (!normalizedBaseUrl) return []
   const cacheKey = openAiCompatibleCacheKey(normalizedBaseUrl, apiKey)
   const cached = getCached(cacheKey)
@@ -553,7 +559,7 @@ export async function resolveOpenAiCompatibleDefaultModel(input: {
  * cache at their request boundary and read it here.
  */
 export function getCachedOpenAiCompatibleDefaultModel(baseUrl?: string, apiKey?: string): string | undefined {
-  const normalizedBaseUrl = (baseUrl?.trim() || '').replace(/\/+$/, '')
+  const normalizedBaseUrl = baseUrl?.trim() || ''
   if (!normalizedBaseUrl) return undefined
   return firstChatModel(getCached(openAiCompatibleCacheKey(normalizedBaseUrl, apiKey)) || [])
 }
@@ -733,6 +739,9 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
 export const __test = {
   openAiCompatibleCacheKey,
   inFlightOpenAiCompatibleFetchCount: () => inFlightOpenAICompatibleFetches.size,
+  ageOpenAiCompatibleCache: (ms: number) => {
+    for (const key of Object.keys(cache)) if (key.startsWith(OPENAI_COMPATIBLE_CACHE_PREFIX)) cache[key].fetchedAt -= ms
+  },
   openAiCompatibleCacheEntryCount: () => Object.keys(cache).filter((key) => key.startsWith(OPENAI_COMPATIBLE_CACHE_PREFIX)).length,
   filterCompatibleDiscoveredModels,
   isGeminiApiTextModel,

@@ -113,6 +113,11 @@ async function main() {
         assert.equal(resolved, 'openai-compatible/authenticated-model')
         const withoutCredential = resolveDefaultAgentModel({ rawEnv: { DASHBOARD_PORT: '3001' } })
         assert.notEqual(withoutCredential, 'openai-compatible/authenticated-model', 'a credential-less read must not see the credentialed catalog')
+        // User execution may pair the system credential only when the policy flag allows it.
+        const userDenied = resolveDefaultAgentModel({ rawEnv: { ...protectedEnv, ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }, executionPolicy: 'user' })
+        assert.notEqual(userDenied, 'openai-compatible/authenticated-model', 'user execution must not select a model discovered through a system key it may not use')
+        const userAllowed = resolveDefaultAgentModel({ rawEnv: { ...protectedEnv, ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true' }, executionPolicy: 'user' })
+        assert.equal(userAllowed, 'openai-compatible/authenticated-model')
       } finally {
         global.fetch = originalFetch
         clearModelCache()

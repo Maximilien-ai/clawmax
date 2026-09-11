@@ -558,7 +558,9 @@ export function evaluateChatExecutionReadiness(
   rawEnv?: Record<string, string>,
 ) {
   const integrationConfig = readWorkspaceIntegrationConfig()
-  const baseResolvedAgent = resolveAgentExecutionConfig(agentId)
+  // Chat runs on behalf of a user: a default model discovered through the system credential may
+  // only be offered when user execution is allowed to use that credential.
+  const baseResolvedAgent = resolveAgentExecutionConfig(agentId, { executionPolicy: 'user' })
   const chatCompatibleEndpoint = resolveChatOpenAiCompatibleEndpoint(byok, rawEnv)
   const fallbackModel = resolveByokChatFallbackModel({
     ...byok,
