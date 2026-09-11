@@ -1,4 +1,4 @@
-import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
+import { allowSystemKeysForUserExecution, getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
 import { getAvailableModelsCached, getCachedOpenAiCompatibleDefaultModel, openAiCompatibleCandidateFromKeys, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint, type OpenAiCompatibleEndpoint } from './model-discovery'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 
@@ -10,7 +10,15 @@ type ResolveDefaultAgentModelOptions = {
   systemPreferredModel?: string
   availableModels?: string[]
   rawEnv?: Record<string, string>
+  /**
+   * Which protected credentials may pair with the workspace endpoint. 'system' (provisioning,
+   * template imports) may use SYSTEM keys; 'user' (chat on behalf of a user) may use them only
+   * when ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION permits — the same rule user execution follows.
+   */
+  executionPolicy?: 'system' | 'user'
 }
+
+export type DefaultModelExecutionPolicy = 'system' | 'user'
 
 function normalizeCandidate(value?: string): string | undefined {
   const trimmed = value?.trim()
@@ -31,14 +39,15 @@ function isLocalRuntimeModel(model: string | undefined): boolean {
  * The workspace's OpenAI-compatible endpoint as default-agent selection sees it: the non-secret
  * workspace URL and model, paired with the protected USER/SYSTEM credential for that same server.
  */
-function resolveWorkspaceCompatibleEndpoint(rawEnv: Record<string, string>): OpenAiCompatibleEndpoint | undefined {
+function resolveWorkspaceCompatibleEndpoint(rawEnv: Record<string, string>, executionPolicy: DefaultModelExecutionPolicy = 'system'): OpenAiCompatibleEndpoint | undefined {
   const integrations = readWorkspaceIntegrationConfig()
   const workspaceCompatibleBaseUrl = normalizeCandidate(integrations.openaiCompatibleBaseUrl)
   if (!workspaceCompatibleBaseUrl) return undefined
+  const systemKeysAllowed = executionPolicy === 'system' || allowSystemKeysForUserExecution(rawEnv)
   return resolveOpenAiCompatibleEndpoint([
     { baseUrl: workspaceCompatibleBaseUrl, defaultModel: integrations.openaiCompatibleDefaultModel },
     openAiCompatibleCandidateFromKeys(getUserDefaultProviderKeys(rawEnv)),
-    openAiCompatibleCandidateFromKeys(getSystemProviderKeys(rawEnv)),
+    systemKeysAllowed ? openAiCompatibleCandidateFromKeys(getSystemProviderKeys(rawEnv)) : undefined,
   ])
 }
 
@@ -49,8 +58,8 @@ function resolveWorkspaceCompatibleEndpoint(rawEnv: Record<string, string>): Ope
  * so here, at their request boundary, so an endpoint with no typed model is not reported modelless
  * on a cold cache. Warm calls cost nothing; a failed lookup leaves the previous behaviour intact.
  */
-export async function warmDefaultAgentModelEndpoint(rawEnv: Record<string, string> = getDashboardEnvRaw()): Promise<void> {
-  const endpoint = resolveWorkspaceCompatibleEndpoint(rawEnv)
+export async function warmDefaultAgentModelEndpoint(rawEnv: Record<string, string> = getDashboardEnvRaw(), executionPolicy: DefaultModelExecutionPolicy = 'system'): Promise<void> {
+  const endpoint = resolveWorkspaceCompatibleEndpoint(rawEnv, executionPolicy)
   if (!endpoint || endpoint.defaultModel) return
   try {
     await resolveOpenAiCompatibleDefaultModel({ baseUrl: endpoint.baseUrl, apiKey: endpoint.apiKey })
@@ -94,7 +103,7 @@ export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOption
 
   // The workspace holds the non-secret URL; its credential may sit in protected USER/SYSTEM
   // configuration for the same server, and the discovery cache is keyed by that pairing.
-  const workspaceCompatible = resolveWorkspaceCompatibleEndpoint(rawEnv)
+  const workspaceCompatible = resolveWorkspaceCompatibleEndpoint(rawEnv, options.executionPolicy)
   const workspaceCompatibleBaseUrl = workspaceCompatible?.baseUrl
   // Naming a default model in BYOK is optional, so fall back to whichever chat model the endpoint
   // itself advertises rather than leaving the agent with no model at all.
