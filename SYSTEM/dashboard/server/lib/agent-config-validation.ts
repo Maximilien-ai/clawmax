@@ -116,12 +116,20 @@ function validateIdentityMarkdown(content: string, _expectedId?: string): AgentC
 function validateMarkdownSection(
   fileName: 'SOUL.md' | 'TOOLS.md',
   content: string,
-  validator: (content: string) => { valid: boolean; errors: Array<{ message: string }> }
+  validator: (content: string) => { valid: boolean; errors: Array<{ message: string }> },
+  options: { allowEmpty?: boolean } = {},
 ): AgentConfigValidationResult {
   const errors: string[] = []
   const warnings: string[] = []
 
   if (!content.trim()) {
+    if (options.allowEmpty) {
+      return {
+        valid: true,
+        errors,
+        warnings: [`${fileName} is empty; this agent will use runtime-provided tools only`],
+      }
+    }
     return {
       valid: false,
       errors: [`${fileName} cannot be empty`],
@@ -160,7 +168,7 @@ export function validateAgentConfigSections(config: {
 }, expectedId?: string): AgentConfigValidationResult {
   const identity = validateIdentityMarkdown(config.identity || '', expectedId)
   const soul = validateMarkdownSection('SOUL.md', config.soul || '', validateSoul)
-  const tools = validateMarkdownSection('TOOLS.md', config.tools || '', validateTools)
+  const tools = validateMarkdownSection('TOOLS.md', config.tools || '', validateTools, { allowEmpty: true })
 
   const errors = [...identity.errors, ...soul.errors, ...tools.errors]
   const warnings = [...identity.warnings, ...soul.warnings, ...tools.warnings]

@@ -133,6 +133,18 @@ test('validateAgentConfigSections warns on weak SOUL.md and TOOLS.md structure',
   assert(result.warnings.length >= 2, 'Expected warnings for short sections')
 })
 
+test('validateAgentConfigSections allows an empty optional TOOLS.md', () => {
+  const result = validateAgentConfigSections({
+    identity: validIdentity,
+    soul: validSoul,
+    tools: '',
+  }, 'engineer1')
+
+  assert(result.valid, `Expected empty TOOLS.md to remain editable: ${result.errors.join(', ')}`)
+  assert(result.errors.length === 0, 'Expected no blocking validation errors')
+  assertIncludes(result.warnings, 'runtime-provided tools only')
+})
+
 test('validateProvisionInput rejects invalid provisioning payload', () => {
   const result = validateProvisionInput({
     name: 'Engineer One',
