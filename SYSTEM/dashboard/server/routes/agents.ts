@@ -4,7 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import archiver from 'archiver'
-import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, getAgentLifecycleGeneration, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
+import { listAgents, getActiveAgentLifecycleGeneration, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
 import { generateAgentFiles, generateAgentMeta, generateArchiveTitle, withGenerationAttribution, withGenerationRuntimePin } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning, probeGatewayResponsive } from '../lib/gateway-rpc'
@@ -310,13 +310,7 @@ const router = Router()
 const AGENT_GENERATION_HEADER = 'x-clawmax-agent-generation'
 
 function rejectStaleAgentRoute(req: express.Request, res: express.Response, agentId: string): boolean {
-  const agentDir = path.join(getAgentsDir(), agentId)
-  let generation: string | null = null
-  try {
-    if (!isAgentDeletionInProgress(agentId) && fs.statSync(agentDir).isDirectory()) {
-      generation = getAgentLifecycleGeneration(agentDir)
-    }
-  } catch {}
+  const generation = isAgentDeletionInProgress(agentId) ? null : getActiveAgentLifecycleGeneration(agentId)
   const requested = String(
     (typeof req.get === 'function' ? req.get(AGENT_GENERATION_HEADER) : req.headers?.[AGENT_GENERATION_HEADER]) || '',
   ).trim()

@@ -3,7 +3,7 @@ import WebSocket from 'ws'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { getAgentGatewayConfig, getAgentLifecycleGeneration, getAgentsDir, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
+import { getActiveAgentLifecycleGeneration, getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
 import { isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
@@ -67,13 +67,7 @@ type AssignedChatSkill = {
 
 export function resolveCurrentChatAgentGeneration(agentId: string): string | null {
   if (isAgentDeletionInProgress(agentId)) return null
-  const agentDir = path.join(getAgentsDir(), agentId)
-  try {
-    if (!fs.statSync(agentDir).isDirectory()) return null
-    return getAgentLifecycleGeneration(agentDir)
-  } catch {
-    return null
-  }
+  return getActiveAgentLifecycleGeneration(agentId)
 }
 
 function isRequestedChatAgentCurrent(req: Request, agentId: string): boolean {

@@ -1248,6 +1248,16 @@ export function getAgentLifecycleGeneration(agentDir: string): string {
     .slice(0, 24)
 }
 
+export function getActiveAgentLifecycleGeneration(agentId: string): string | null {
+  if (!/^[a-z][a-z0-9_-]*$/.test(agentId)) return null
+  const agentDir = path.join(getAgentsDir(), agentId)
+  try {
+    return fs.statSync(agentDir).isDirectory() ? getAgentLifecycleGeneration(agentDir) : null
+  } catch {
+    return null
+  }
+}
+
 /** Parse GROUPS.md into communities + groups arrays with optional descriptions, tags, community links, and channel indicators.
  *  Supports two formats:
  *  1. Compact: `- Name: Description [tag1, tag2] @CommunityName 📱 💬`

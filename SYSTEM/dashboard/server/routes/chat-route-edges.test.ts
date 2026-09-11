@@ -22,6 +22,11 @@ const skillsModulePath = require.resolve('../lib/skills')
 const safeEnvModulePath = require.resolve('../lib/safe-env')
 const wsModulePath = require.resolve('ws')
 
+// These route tests isolate gateway/readiness/stream behavior with synthetic resolved agents;
+// they do not build workspace directories. Keep the lifecycle prerequisite explicitly current
+// unless a test overrides it to exercise a stale generation.
+require(workspaceModulePath).getActiveAgentLifecycleGeneration = () => 'test-generation'
+
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
     .then(fn)
@@ -127,6 +132,9 @@ function getRouteHandler(method: 'get' | 'post', routePath: string) {
 }
 
 async function withModuleOverrides<T>(modulePath: string, overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
+  if (modulePath === workspaceModulePath && !Object.prototype.hasOwnProperty.call(overrides, 'getActiveAgentLifecycleGeneration')) {
+    overrides = { getActiveAgentLifecycleGeneration: () => 'test-generation', ...overrides }
+  }
   delete require.cache[modulePath]
   const mod = require(modulePath)
   const originals = Object.fromEntries(Object.keys(overrides).map((key) => [key, mod[key]]))
@@ -136,6 +144,9 @@ async function withModuleOverrides<T>(modulePath: string, overrides: Record<stri
     return await fn()
   } finally {
     Object.assign(mod, originals)
+    if (modulePath === workspaceModulePath) {
+      mod.getActiveAgentLifecycleGeneration = () => 'test-generation'
+    }
     delete require.cache[require.resolve('./chat')]
   }
 }
@@ -229,6 +240,34 @@ async function run() {
         assert.strictEqual(res.jsonBody?.available, false)
         assert.strictEqual(res.jsonBody?.hasToken, false)
       })
+    })
+  })
+
+  await test('chat rejects a deleted agent before runtime readiness or execution', async () => {
+    await withModuleOverrides(workspaceModulePath, {
+      getActiveAgentLifecycleGeneration: () => null,
+    }, async () => {
+      const handler = getRouteHandler('post', '/:id/chat')
+      const res = makeRes()
+      await handler(makeReq({ params: { id: 'deleted-agent' }, body: { message: 'must not execute' } }), res)
+      assert.strictEqual(res.statusCode, 410)
+      assert.strictEqual(res.jsonBody?.code, 'AGENT_GONE')
+    })
+  })
+
+  await test('chat rejects a stale panel after same-ID recreation', async () => {
+    await withModuleOverrides(workspaceModulePath, {
+      getActiveAgentLifecycleGeneration: () => 'new-generation',
+    }, async () => {
+      const handler = getRouteHandler('post', '/:id/chat')
+      const res = makeRes()
+      await handler(makeReq({
+        params: { id: 'recreated-agent' },
+        body: { message: 'must not execute' },
+        headers: { 'x-clawmax-agent-generation': 'old-generation' },
+      }), res)
+      assert.strictEqual(res.statusCode, 410)
+      assert.strictEqual(res.jsonBody?.code, 'STALE_AGENT_GENERATION')
     })
   })
 
