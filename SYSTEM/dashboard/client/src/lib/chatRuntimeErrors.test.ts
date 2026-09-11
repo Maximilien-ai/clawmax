@@ -52,6 +52,13 @@ test('summarizeAgentChatFailure explains state initialization failures', () => {
   assert(/storage capacity and permissions/i.test(message), `Expected operator guidance: ${message}`)
 })
 
+test('summarizeAgentChatFailure explains deleted OpenClaw agent state', () => {
+  const message = summarizeAgentChatFailure('Error: OpenClaw agent database is unavailable while agent read-only-collector is deleted.')
+  assert(/deleted from OpenClaw/i.test(message), `Unexpected message: ${message}`)
+  assert(/refresh Agents/i.test(message), `Expected refresh guidance: ${message}`)
+  assert(!/database is unavailable/i.test(message), `Expected native database details to be hidden: ${message}`)
+})
+
 test('summarizeAgentChatFailure normalizes missing execution path guidance', () => {
   const message = summarizeAgentChatFailure('No execution path configured. Add hosted provider keys, configure Ollama, or add an OpenAI-compatible endpoint in BYOK / workspace integrations.')
   assert(/No model execution path is configured for this chat/i.test(message), `Unexpected message: ${message}`)

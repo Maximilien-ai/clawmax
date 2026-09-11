@@ -4,6 +4,7 @@ export function summarizeAgentChatFailure(message: string, options?: { agentId?:
   if (/\[Edit agent model\]\(\/agents\?agent=/i.test(text)) return text
   if (/ENOSPC|no space left on device|database or disk is full|ERR_SQLITE_(?:FULL|ERROR)/i.test(text)) return 'This instance is out of storage space, so the agent cannot save the chat state needed to reply. Free or expand the instance storage, then retry. No model change is needed.'
   if (/failed to initialize (?:sqlite )?state runtime/i.test(text)) return 'The agent could not initialize its local chat state. Check the instance storage capacity and permissions, then retry. If the instance has free space, restart the runtime before trying again.'
+  if (/OpenClaw agent database is unavailable while agent .* is deleted/i.test(text)) return 'This agent was deleted from OpenClaw and can no longer chat. Close this chat and refresh Agents; recreate the agent if you still need it.'
   const unsupportedWebSearch = text.match(/Tool ['"]web_search_preview['"] is not supported with ([a-z0-9._-]+)/i)
   if (unsupportedWebSearch) {
     const rawModel = unsupportedWebSearch[1].replace(/[.,;:]+$/, '')

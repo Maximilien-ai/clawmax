@@ -419,6 +419,9 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
   const runtimeLabel = context?.runtimeLabel
   const text = raw.trim()
   if (!text) return 'No reply from agent.'
+  if (/OpenClaw agent database is unavailable while agent .* is deleted/i.test(text)) {
+    return 'This agent was deleted from OpenClaw and can no longer chat. Close this chat and refresh Agents; recreate the agent if you still need it.'
+  }
   // "Log the CLI in" is impossible in a container: that flow needs a browser and a loopback OAuth
   // callback. Point at the credential an operator can actually set instead. A bad or expired token
   // reports differently from a missing one (an authentication_error rather than "not logged in"),

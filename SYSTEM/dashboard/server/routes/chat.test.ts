@@ -249,6 +249,16 @@ test('deriveChatError explains incomplete tool turns without implying no work oc
   assert(/verify the requested results/i.test(message), `Expected verification guidance: ${message}`)
 })
 
+test('deriveChatError explains deleted OpenClaw agent state', () => {
+  const message = deriveChatError(
+    'Error: OpenClaw agent database is unavailable while agent read-only-collector is deleted.',
+    'openai',
+  )
+  assert(/deleted from OpenClaw/i.test(message), `Unexpected message: ${message}`)
+  assert(/refresh Agents/i.test(message), `Expected refresh guidance: ${message}`)
+  assert(!/database is unavailable/i.test(message), `Expected native database details to be hidden: ${message}`)
+})
+
 test('deriveChatError surfaces provider cooldowns as transient retryable failures', () => {
   const message = deriveChatError(
     'FallbackSummaryError: All models failed (1): openai/gpt-5: Provider openai is in cooldown (suspending lanes) (timeout)',
