@@ -2740,6 +2740,7 @@ export async function importOrganizationTemplate(
     }
 
     const createdAgents: string[] = []
+    const newlyCreatedAgents: string[] = []
     const appliedModelsByAgentId: Record<string, string | undefined> = {}
     const teamNameById = new Map((adjustedTemplate.teams || []).map((team) => [team.id, team.name]))
 
@@ -2836,20 +2837,21 @@ export async function importOrganizationTemplate(
         }
 
         const targetAgentDir = path.join(getAgentsDir(), targetAgentId)
-        if (fs.existsSync(targetAgentDir)) {
-          throw new Error(`Agent already exists: ${targetAgentId}`)
-        }
+        const agentAlreadyExists = fs.existsSync(targetAgentDir)
 
-        // Copy agent files from template (isOrgTemplate = true)
-        const copyResult = copyAgentFilesFromTemplate(
-          templateDir,
-          sourceAgentId,
-          targetAgentId,
-          true
-        )
+        if (!agentAlreadyExists) {
+          // Copy agent files from template (isOrgTemplate = true).
+          const copyResult = copyAgentFilesFromTemplate(
+            templateDir,
+            sourceAgentId,
+            targetAgentId,
+            true
+          )
 
-        if (!copyResult.ok) {
-          throw new Error(`Failed to copy agent files: ${copyResult.error}`)
+          if (!copyResult.ok) {
+            throw new Error(`Failed to copy agent files: ${copyResult.error}`)
+          }
+          newlyCreatedAgents.push(targetAgentId)
         }
 
         // Generate IDENTITY.md from template data if none exists
@@ -2984,7 +2986,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         }
 
         createdAgents.push(targetAgentId)
-        initializeTemplateCreatedAgent(targetAgentId)
+        if (!agentAlreadyExists) initializeTemplateCreatedAgent(targetAgentId)
       }
 
       // Step 2: Create COMMUNITIES.md for agents with community memberships
@@ -3408,6 +3410,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
             const scheduleChanged = existing.schedule !== wf.schedule
             const executionModeChanged = existing.executionMode !== (wf.executionMode || 'automated')
             const ownerChanged = `${existing.owner || ''}` !== `${owner || ''}`
+            const enabledChanged = existing.enabled !== (wf.enabled !== false)
             const targetingChanged = JSON.stringify(existing.targeting || {}) !== JSON.stringify(updatedTargeting)
 
             const needsUpdate =
@@ -3416,7 +3419,8 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               typeChanged ||
               scheduleChanged ||
               executionModeChanged ||
-              ownerChanged
+              ownerChanged ||
+              enabledChanged
 
             if (needsUpdate) {
               const { updateWorkflow } = require('./workflows')
@@ -3424,6 +3428,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
                 name: importedWorkflowName,
                 executionMode: wf.executionMode || 'automated',
                 owner,
+                enabled: wf.enabled !== false,
                 targeting: updatedTargeting,
                 ...((typeof wf.schedule === 'string' && wf.schedule.trim().length > 0) ? { schedule: wf.schedule } : {}),
                 ...(mappedDependsOn !== undefined ? { dependsOn: mappedDependsOn } : {}),
@@ -3446,6 +3451,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
                 if (scheduleChanged) changes.push('schedule')
                 if (executionModeChanged) changes.push('execution mode')
                 if (ownerChanged) changes.push('owner')
+                if (enabledChanged) changes.push('enabled state')
                 console.log(`Updated workflow "${wf.name}" with ${changes.join(', ')}`)
               } else {
                 console.warn(`Failed to update workflow ${wf.name}: ${result.error}`)
@@ -3499,7 +3505,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
       return { ok: true, agentIds: createdAgents }
     } catch (err) {
       // Rollback: delete all created agents
-      for (const agentId of createdAgents) {
+      for (const agentId of newlyCreatedAgents) {
         try {
           const agentDir = path.join(getAgentsDir(), agentId)
           if (fs.existsSync(agentDir)) {

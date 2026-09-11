@@ -33,6 +33,7 @@ import os from 'os'
 import path from 'path'
 import { REPO_ROOT } from './paths'
 import { materializeDashboardAgentList } from './openclaw-config'
+import { parseGroupsWithMembers } from './workspace'
 
 // ANSI color codes
 const GREEN = '\x1b[32m'
@@ -2240,6 +2241,112 @@ test('system organization templates do not reuse explicit artifact filenames acr
   }
 
   assertEqual(JSON.stringify(duplicateHits), JSON.stringify([]), `Expected no duplicate explicit artifact filenames, got ${duplicateHits.join(', ')}`)
+})
+
+test('organization import materializes and reapplies the complete community graph', async () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-community-reapply-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+  const templateSlug = 'operations-community-regression'
+  const agentSpecs = [
+    ['operations-collector', 'Operations Collector', 'Daily Account Operations', ['maximilien']],
+    ['account-analyst', 'Account Analyst', 'Daily Account Operations', []],
+    ['site-analyst', 'Site Analyst', 'Daily Site Health', []],
+    ['newsletter-editor', 'Newsletter Editor', 'Weekly Newsletter Planning', []],
+    ['relationship-analyst', 'Relationship Analyst', 'Weekday Relationship Follow-up', []],
+  ] as const
+  const groupNames = Array.from(new Set(agentSpecs.map((agent) => agent[2])))
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
+  resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
+
+  try {
+    const templateDir = path.join(tempWorkspace, 'TEMPLATES', 'organizations', templateSlug)
+    fs.mkdirSync(templateDir, { recursive: true })
+    fs.writeFileSync(path.join(templateDir, 'template.json'), JSON.stringify({
+      name: 'Operations Community Regression',
+      type: 'organization',
+      version: '0.1.0',
+      agents: agentSpecs.map(([id, name, group, skills]) => ({
+        id,
+        name,
+        role: `${name} role`,
+        skills,
+        communities: ['Maximilien.ai'],
+        groups: [group],
+      })),
+      communities: [{ name: 'Maximilien.ai', description: 'Complete Operations team' }],
+      groups: groupNames.map((name) => ({ name, description: `${name} group`, community: 'Maximilien.ai' })),
+      workflows: groupNames.map((name, index) => ({
+        id: `operations-workflow-${index + 1}`,
+        name,
+        description: `${name} workflow`,
+        schedule: '0 8 * * *',
+        enabled: false,
+        executionMode: 'automated',
+        type: 'recurring',
+        targeting: {
+          communities: [],
+          groups: [name],
+          tags: [],
+          agents: agentSpecs.filter((agent) => agent[2] === name).map((agent) => agent[0]),
+        },
+        content: 'Produce a bounded read-only briefing.',
+      })),
+    }, null, 2), 'utf-8')
+
+    const first = await importOrganizationTemplate(templateSlug, { modelOverride: 'openai/gpt-4o-mini' })
+    assert(first.ok === true, `Expected first organization import to succeed, got ${first.error || 'unknown error'}`)
+    assertEqual(first.agentIds?.length, 5, 'Expected five imported Agents')
+
+    const communitiesPath = path.join(tempWorkspace, 'ORG', 'COMMUNITIES.md')
+    const groupsPath = path.join(tempWorkspace, 'ORG', 'GROUPS.md')
+    let parsedCommunities = parseGroupsWithMembers(fs.readFileSync(communitiesPath, 'utf-8')).communities
+    let parsedGroups = parseGroupsWithMembers(fs.readFileSync(groupsPath, 'utf-8')).groups
+    assertEqual(parsedCommunities.length, 1, 'Expected one materialized Community')
+    assertEqual(parsedCommunities[0].members.length, 5, 'Expected every Agent in the shared Community')
+    assertEqual(parsedGroups.length, 4, 'Expected four materialized Groups')
+    assert(parsedGroups.every((group) => group.community === 'Maximilien.ai'), 'Expected every Group assigned to the shared Community')
+    assert(groupNames.every((_, index) => getWorkflow(`operations-workflow-${index + 1}`)?.enabled === false), 'Expected every imported Workflow disabled')
+
+    const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
+    let config = readMaterializedConfig(configPath)
+    const collector = config.agents.list.find((agent: any) => agent.id === 'operations-collector')
+    assertEqual(collector.name, 'Operations Collector', 'Expected display name to differ from immutable Agent ID')
+    assertEqual(JSON.stringify(collector.skills), JSON.stringify(['maximilien']), 'Expected only the Collector skill allowlist')
+    assertEqual(config.agents.list.filter((agent: any) => (agent.skills || []).includes('maximilien')).length, 1, 'Expected only one Agent with the maximilien Skill')
+
+    collector.name = 'operations-collector'
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+    const { updateWorkflow } = require('./workflows')
+    updateWorkflow('operations-workflow-1', { enabled: true })
+
+    const reapplied = await importOrganizationTemplate(templateSlug, { modelOverride: 'openai/gpt-4o-mini' })
+    assert(reapplied.ok === true, `Expected in-place reapply to succeed, got ${reapplied.error || 'unknown error'}`)
+    assertEqual(reapplied.agentIds?.length, 5, 'Expected reapply to update five Agents without duplicates')
+    config = readMaterializedConfig(configPath)
+    assertEqual(config.agents.list.filter((agent: any) => agent.id === 'operations-collector').length, 1, 'Expected one Collector registration after reapply')
+    assertEqual(config.agents.list.find((agent: any) => agent.id === 'operations-collector')?.name, 'Operations Collector', 'Expected reapply to repair the display name')
+    assertEqual(getWorkflow('operations-workflow-1')?.enabled, false, 'Expected reapply to restore the declared disabled Workflow state')
+    parsedCommunities = parseGroupsWithMembers(fs.readFileSync(communitiesPath, 'utf-8')).communities
+    parsedGroups = parseGroupsWithMembers(fs.readFileSync(groupsPath, 'utf-8')).groups
+    assertEqual(parsedCommunities[0].members.length, 5, 'Expected Community membership to remain deduplicated after reapply')
+    assertEqual(parsedGroups.length, 4, 'Expected Group graph to remain deduplicated after reapply')
+  } finally {
+    if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+    else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
 })
 
 // Summary
