@@ -10,6 +10,7 @@ import {
   deriveChatError,
   evaluateChatExecutionReadiness,
   resolveByokChatFallbackModel,
+  toChatReadinessResponse,
   resolveChatOpenAiCompatibleEndpoint,
   retryAssistantTextLookup,
   shouldUseLocalChatExecution,
@@ -227,6 +228,9 @@ test('chat readiness for a model-less agent resolves and authenticates through t
       assert(readiness.resolvedAgent.model === 'openai-compatible/authenticated-chat-model', `Expected the endpoint's model, got ${readiness.resolvedAgent.model}`)
       assert(readiness.executionEnv.OPENAI_API_KEY === 'user-secret', `Expected the protected credential in the execution environment, got ${readiness.executionEnv.OPENAI_API_KEY}`)
       assert(String(readiness.executionEnv.OPENAI_BASE_URL).includes('172.16.1.70:8000/v1'), `Expected the workspace endpoint in the execution environment, got ${readiness.executionEnv.OPENAI_BASE_URL}`)
+      const wire = JSON.stringify(toChatReadinessResponse(readiness))
+      assert(!wire.includes('user-secret') && !wire.includes('executionEnv'), `Expected the readiness response sent to the browser to carry no execution environment or credential, got ${wire.slice(0, 200)}`)
+      assert(JSON.parse(wire).available === true && JSON.parse(wire).resolvedAgent.model === 'openai-compatible/authenticated-chat-model', 'Expected the public readiness fields to survive')
       const denied = evaluateChatExecutionReadiness('harness', {}, {
         SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
         SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',

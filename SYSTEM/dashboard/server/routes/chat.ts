@@ -543,6 +543,15 @@ async function warmChatOpenAiCompatibleModel(byok?: ChatByokPayload): Promise<vo
   }
 }
 
+/**
+ * The part of a readiness result the browser may see. The execution environment readiness
+ * built carries the credential the chat will run with and never leaves the server.
+ */
+export function toChatReadinessResponse(readiness: { available: boolean; error?: string; resolvedAgent: unknown; executionEnv?: unknown }) {
+  const { executionEnv: _executionEnv, ...publicFields } = readiness
+  return publicFields
+}
+
 export function evaluateChatExecutionReadiness(
   agentId: string,
   byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
@@ -790,10 +799,7 @@ router.post('/:id/chat/readiness', async (req, res) => {
 
   await warmChatOpenAiCompatibleModel(byok)
   const readiness = evaluateChatExecutionReadiness(id, byok)
-  if (!readiness.available) {
-    return res.status(200).json(readiness)
-  }
-  return res.json(readiness)
+  return res.status(200).json(toChatReadinessResponse(readiness))
 })
 
 /**
