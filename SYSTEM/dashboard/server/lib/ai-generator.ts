@@ -464,9 +464,9 @@ export function resolveOpenAiCompatibleGenerationDefaults(
 
 function getAvailableProvider(
   byokKeys?: ProviderKeys,
-  options: { skipCliRuntime?: boolean } = {},
+  options: { skipCliRuntime?: boolean; rawEnv?: Record<string, string> } = {},
 ): { provider: AIProvider; key: string; baseUrl?: string; defaultModel?: string } {
-  const compatibleDefaults = resolveOpenAiCompatibleGenerationDefaults(byokKeys)
+  const compatibleDefaults = resolveOpenAiCompatibleGenerationDefaults(byokKeys, options.rawEnv)
   const cliCandidate = () => (options.skipCliRuntime ? undefined : pickGenerationRuntime())
   // A runtime the caller explicitly chose outranks even the enabled-runtime search below: that
   // search ranks by workspace order and by which CLI can supply its own model, neither of which
@@ -507,7 +507,7 @@ function getAvailableProvider(
   if (byokKeys?.anthropic) return { provider: 'anthropic', key: byokKeys.anthropic }
   if (byokKeys?.gemini) return { provider: 'gemini', key: byokKeys.gemini }
   // Then system/user-default keys
-  const keys = resolveSystemExecutionProviderKeys()
+  const keys = resolveSystemExecutionProviderKeys(options.rawEnv)
   if (keys.openai) return { provider: 'openai', key: keys.openai }
   if (compatibleDefaults.baseUrl) {
     const cliInstead = String(compatibleDefaults.defaultModel || '').trim() ? undefined : cliCandidate()
@@ -846,8 +846,8 @@ export function buildClientForSelection(
   }
 }
 
-export function createAiGenerationClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string } {
-  return buildClientForSelection(getAvailableProvider(byokKeys), byokKeys)
+export function createAiGenerationClient(byokKeys?: ProviderKeys, rawEnv?: Record<string, string>): { client: OpenAI; model: string } {
+  return buildClientForSelection(getAvailableProvider(byokKeys, { rawEnv }), byokKeys)
 }
 
 export function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string } {

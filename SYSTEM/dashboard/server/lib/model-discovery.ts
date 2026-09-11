@@ -77,13 +77,13 @@ export function clearModelCache() {
 
 /** `${baseUrl}${suffix}` for a base URL that may itself carry a query string. */
 export function openAiCompatibleEndpointUrl(baseUrl: string, suffix: string): string {
-  const trimmed = baseUrl.trim().replace(/\/+$/, '')
+  const trimmed = baseUrl.trim()
   try {
     const url = new URL(trimmed)
     url.pathname = `${url.pathname.replace(/\/+$/, '')}${suffix}`
     return url.toString()
   } catch {
-    return `${trimmed}${suffix}`
+    return `${trimmed.replace(/\/+$/, '')}${suffix}`
   }
 }
 
@@ -389,7 +389,7 @@ async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
  * trailing slash changes nothing. Returned empty when there is no URL at all.
  */
 export function normalizeOpenAiCompatibleBaseUrl(value?: string): string {
-  const trimmed = (value || '').trim().replace(/\/+$/, '')
+  const trimmed = (value || '').trim()
   if (!trimmed) return ''
   try {
     const url = new URL(trimmed)
@@ -397,7 +397,7 @@ export function normalizeOpenAiCompatibleBaseUrl(value?: string): string {
     // host are two endpoints with two credentials.
     return `${url.protocol.toLowerCase()}//${url.host.toLowerCase()}${url.pathname.replace(/\/+$/, '')}${url.search}`
   } catch {
-    return trimmed
+    return trimmed.replace(/\/+$/, '')
   }
 }
 
@@ -480,9 +480,8 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
   if (cached) return cached
   const inFlight = inFlightOpenAICompatibleFetches.get(cacheKey)
   if (inFlight) return inFlight
-  // A burst of distinct endpoints must not retain a promise per endpoint: beyond the same bound
-  // as the cache, a lookup still runs for its caller but is not held for later callers to join.
-  const coalesce = inFlightOpenAICompatibleFetches.size < MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES
+  // Entries live only until their request settles (bounded by the 5s fetch timeout), so the map
+  // is bounded by concurrency, not by history; every identical lookup joins the one in flight.
   const generation = cacheGeneration
 
   // Assigned below; the closure only reads it in its finally block, after the assignment ran.
@@ -517,10 +516,10 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
       return []
     } finally {
       // A refresh may have replaced this entry with a newer lookup; only remove our own.
-      if (coalesce && inFlightOpenAICompatibleFetches.get(cacheKey) === request) inFlightOpenAICompatibleFetches.delete(cacheKey)
+      if (inFlightOpenAICompatibleFetches.get(cacheKey) === request) inFlightOpenAICompatibleFetches.delete(cacheKey)
     }
   })()
-  if (coalesce) inFlightOpenAICompatibleFetches.set(cacheKey, request)
+  inFlightOpenAICompatibleFetches.set(cacheKey, request)
   return request
 }
 

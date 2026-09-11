@@ -349,20 +349,24 @@ test('the endpoint cache keeps only the newest entries', async () => {
   clearModelCache()
 })
 
-test('a burst of distinct endpoints does not retain a promise per endpoint', async () => {
+test('identical lookups coalesce even during a burst of distinct endpoints, and the map drains', async () => {
   clearModelCache()
   let release: () => void = () => {}
   const gate = new Promise<void>((resolve) => { release = resolve })
+  let requests = 0
   global.fetch = (async () => {
+    requests++
     await gate
     return { ok: true, status: 200, json: async () => ({ data: [{ id: 'chat-model' }] }) } as any
   }) as any
   const lookups = Array.from({ length: 40 }, (_, i) => resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://burst-${i}:8000/v1` }))
-  const retained = __test.inFlightOpenAiCompatibleFetchCount()
-  assert(retained === 32, `Expected at most 32 in-flight lookups retained during a burst, got ${retained}`)
+  lookups.push(resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://burst-39:8000/v1' }))
+  lookups.push(resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://burst-39:8000/v1/' }))
+  assert(requests === 40, `Expected one request per distinct endpoint during the burst, got ${requests}`)
+  assert(__test.inFlightOpenAiCompatibleFetchCount() === 40, 'Expected one in-flight entry per distinct endpoint')
   release()
   const resolved = await Promise.all(lookups)
-  assert(resolved.every((model) => model === 'chat-model'), 'Expected every caller in the burst to still get its answer')
+  assert(resolved.every((model) => model === 'chat-model'), 'Expected every caller in the burst to get its answer')
   assert(__test.inFlightOpenAiCompatibleFetchCount() === 0, 'Expected the in-flight map to drain after the burst')
   clearModelCache()
 })
@@ -371,6 +375,11 @@ test('discovery keeps a tenant query string on the base URL when it asks for /mo
   clearModelCache()
   assert(openAiCompatibleEndpointUrl('http://gateway:8000/v1?tenant=a', '/models') === 'http://gateway:8000/v1/models?tenant=a', 'Expected the suffix on the path, not the query')
   assert(openAiCompatibleEndpointUrl('http://gateway:8000/v1/', '/chat/completions') === 'http://gateway:8000/v1/chat/completions', 'Expected a trailing slash to be absorbed')
+  assert(openAiCompatibleEndpointUrl('http://gateway:8000/v1?tenant=a/', '/models') === 'http://gateway:8000/v1/models?tenant=a/', 'Expected a slash inside a query value to survive')
+  assert(
+    normalizeOpenAiCompatibleBaseUrl('http://gateway:8000/v1?tenant=a/') !== normalizeOpenAiCompatibleBaseUrl('http://gateway:8000/v1?tenant=a'),
+    'Expected a query value ending in a slash to remain its own endpoint',
+  )
   let requested = ''
   global.fetch = (async (url: string) => {
     requested = String(url)
