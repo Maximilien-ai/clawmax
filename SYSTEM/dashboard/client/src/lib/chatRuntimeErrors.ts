@@ -25,7 +25,12 @@ export function summarizeAgentChatFailure(message: string, options?: { agentId?:
   if (/insufficient_quota|quota exceeded|rate limit|too many requests|429\b/i.test(text)) return 'The model provider rejected this request because the account hit a quota or rate limit. Wait a moment and retry, or update the provider billing/usage limits for this runtime.'
   if (/is in cooldown \(suspending lanes\)/i.test(text)) return 'The model provider is temporarily cooling down after a timeout. Wait a moment and retry, or switch this agent to a faster fallback model.'
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
-  if (/timeout/i.test(text)) return 'Agent chat timed out before a reply was produced. Retry once, or switch this agent to a faster model if the issue persists.'
+  if (/timeout/i.test(text)) {
+    const editLink = options?.agentId
+      ? `/agents?agent=${encodeURIComponent(options.agentId)}&action=edit`
+      : '/agents'
+    return `The selected model did not reply before the runtime deadline. Retry once. If this repeats, choose a faster suggested model or configure a backup model. [Edit agent model](${editLink})`
+  }
   if (/No API keys available|No execution path configured/i.test(text)) return 'No model execution path is configured for this chat. Add hosted provider keys or configure a local runtime in BYOK / workspace integrations.'
   return text
 }

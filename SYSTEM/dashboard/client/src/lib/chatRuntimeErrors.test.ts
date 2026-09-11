@@ -59,6 +59,14 @@ test('summarizeAgentChatFailure explains deleted OpenClaw agent state', () => {
   assert(!/database is unavailable/i.test(message), `Expected native database details to be hidden: ${message}`)
 })
 
+test('summarizeAgentChatFailure explains runtime model timeouts with a direct remedy', () => {
+  const message = summarizeAgentChatFailure('request timeout while waiting for provider', { agentId: 'quickbooks-guy' })
+  assert(/selected model did not reply before the runtime deadline/i.test(message), `Unexpected message: ${message}`)
+  assert(/faster suggested model or configure a backup model/i.test(message), `Expected model guidance: ${message}`)
+  assert(message.includes('/agents?agent=quickbooks-guy&action=edit'), `Expected agent edit link: ${message}`)
+  assert(!/Agent chat timed out/i.test(message), `Expected ownership-neutral timeout wording: ${message}`)
+})
+
 test('summarizeAgentChatFailure normalizes missing execution path guidance', () => {
   const message = summarizeAgentChatFailure('No execution path configured. Add hosted provider keys, configure Ollama, or add an OpenAI-compatible endpoint in BYOK / workspace integrations.')
   assert(/No model execution path is configured for this chat/i.test(message), `Unexpected message: ${message}`)

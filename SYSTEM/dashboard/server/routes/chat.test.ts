@@ -259,6 +259,18 @@ test('deriveChatError explains deleted OpenClaw agent state', () => {
   assert(!/database is unavailable/i.test(message), `Expected native database details to be hidden: ${message}`)
 })
 
+test('deriveChatError attributes timeouts to the runtime model and links its configuration', () => {
+  const message = deriveChatError(
+    'request timeout while waiting for provider',
+    'openai',
+    { agentId: 'quickbooks-guy', model: 'openai/gpt-5.3-chat-latest' },
+  )
+  assert(message.includes('`openai/gpt-5.3-chat-latest` did not reply before the runtime deadline'), `Unexpected message: ${message}`)
+  assert(/faster suggested model or configure a backup model/i.test(message), `Expected model guidance: ${message}`)
+  assert(message.includes('/agents?agent=quickbooks-guy&action=edit'), `Expected agent edit link: ${message}`)
+  assert(!/Agent chat timed out/i.test(message), `Expected ownership-neutral timeout wording: ${message}`)
+})
+
 test('deriveChatError surfaces provider cooldowns as transient retryable failures', () => {
   const message = deriveChatError(
     'FallbackSummaryError: All models failed (1): openai/gpt-5: Provider openai is in cooldown (suspending lanes) (timeout)',

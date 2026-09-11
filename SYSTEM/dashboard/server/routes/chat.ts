@@ -494,7 +494,13 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
     return 'OpenClaw refused local execution because the healthy Gateway owns this state directory. ClawMax could not complete its Gateway retry; verify Gateway readiness and retry.'
   }
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
-  if (/timeout/i.test(text)) return 'Agent chat timed out before a reply was produced. Retry once, or switch this agent to a faster model if the issue persists.'
+  if (/timeout/i.test(text)) {
+    const modelDetail = context?.model ? ` \`${context.model}\`` : 'The selected model'
+    const editLink = context?.agentId
+      ? ` [Edit agent model](/agents?agent=${encodeURIComponent(context.agentId)}&action=edit)`
+      : ''
+    return `${modelDetail} did not reply before the runtime deadline. Retry once. If this repeats, choose a faster suggested model or configure a backup model.${editLink}`
+  }
   if (/No API keys available|No execution path configured/i.test(text)) {
     return 'No model execution path is configured for this chat. Add hosted provider keys or configure a local runtime in BYOK / workspace integrations.'
   }
