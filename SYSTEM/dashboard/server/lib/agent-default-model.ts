@@ -39,21 +39,29 @@ function isLocalRuntimeModel(model: string | undefined): boolean {
  * The workspace's OpenAI-compatible endpoint as default-agent selection sees it: the non-secret
  * workspace URL and model, paired with the protected USER/SYSTEM credential for that same server.
  */
-const SYSTEM_OPENAI_COMPATIBLE_ENV_KEYS = [
+// Every SYSTEM-level provider credential, with the unprefixed names getSystemProviderKeys also
+// honours. USER_* values are the user's own and are never removed.
+const SYSTEM_PROVIDER_ENV_KEYS = [
+  'SYSTEM_OPENAI_API_KEY', 'OPENAI_API_KEY',
+  'SYSTEM_ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY',
+  'SYSTEM_GEMINI_API_KEY', 'GEMINI_API_KEY',
+  'SYSTEM_OPENROUTER_API_KEY', 'OPENROUTER_API_KEY',
+  'SYSTEM_XAI_API_KEY', 'XAI_API_KEY',
   'SYSTEM_OPENAI_COMPATIBLE_BASE_URL', 'SYSTEM_OPENAI_COMPATIBLE_API_KEY', 'SYSTEM_OPENAI_COMPATIBLE_DEFAULT_MODEL',
   'OPENAI_COMPATIBLE_BASE_URL', 'OPENAI_COMPATIBLE_API_KEY', 'OPENAI_COMPATIBLE_DEFAULT_MODEL',
 ]
 
 /**
  * The environment a default-model decision may read under an execution policy. User execution
- * that may not use SYSTEM keys sees no SYSTEM OpenAI-compatible configuration at all, so neither
- * the paired endpoint nor the available-model list can surface a model only that credential
- * can reach.
+ * that may not use SYSTEM keys sees no SYSTEM provider configuration at all — hosted keys and
+ * the OpenAI-compatible endpoint alike — so neither the paired endpoint, the available-model
+ * list, nor the hosted-provider fallback can surface a model only a SYSTEM credential can reach.
+ * The user's own USER_* keys stay, exactly as user execution itself would resolve them.
  */
 export function policyScopedEnv(rawEnv: Record<string, string>, executionPolicy: DefaultModelExecutionPolicy = 'system'): Record<string, string> {
   if (executionPolicy === 'system' || allowSystemKeysForUserExecution(rawEnv)) return rawEnv
   const scoped = { ...rawEnv }
-  for (const key of SYSTEM_OPENAI_COMPATIBLE_ENV_KEYS) delete scoped[key]
+  for (const key of SYSTEM_PROVIDER_ENV_KEYS) delete scoped[key]
   return scoped
 }
 
@@ -88,11 +96,13 @@ export async function warmDefaultAgentModelEndpoint(rawEnv: Record<string, strin
 
 export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOptions = {}): string | undefined {
   const rawEnv = options.rawEnv || getDashboardEnvRaw()
+  // Every credential-derived decision below reads through the execution policy.
+  const scopedEnv = policyScopedEnv(rawEnv, options.executionPolicy)
   const integrations = readWorkspaceIntegrationConfig()
   const explicitAvailableModels = Array.isArray(options.availableModels)
   const availableModels = Array.isArray(options.availableModels)
     ? options.availableModels.filter(Boolean)
-    : getAvailableModelsCached(policyScopedEnv(rawEnv, options.executionPolicy))
+    : getAvailableModelsCached(scopedEnv)
 
   const explicitModel = normalizeCandidate(options.explicitModel)
   if (explicitModel) return explicitModel
@@ -135,9 +145,9 @@ export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOption
     if (firstCompatible) return firstCompatible
   }
 
-  const recommendedHostedModel = getBestAvailableModel(rawEnv)
-  const systemKeys = getSystemProviderKeys(rawEnv)
-  const userKeys = getUserDefaultProviderKeys(rawEnv)
+  const recommendedHostedModel = getBestAvailableModel(scopedEnv)
+  const systemKeys = getSystemProviderKeys(scopedEnv)
+  const userKeys = getUserDefaultProviderKeys(scopedEnv)
   const hasHostedProviderPath = !!(systemKeys.openai || systemKeys.anthropic || systemKeys.gemini || userKeys.openai || userKeys.anthropic || userKeys.gemini)
   if (hasHostedProviderPath) {
     if (matchesAvailable(recommendedHostedModel, availableModels)) return recommendedHostedModel
