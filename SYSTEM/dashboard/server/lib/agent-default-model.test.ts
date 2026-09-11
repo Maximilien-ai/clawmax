@@ -2,8 +2,8 @@ import assert from 'assert'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { resolveDefaultAgentModel, warmDefaultAgentModelEndpoint } from './agent-default-model'
-import { clearModelCache } from './model-discovery'
+import { policyScopedEnv, resolveDefaultAgentModel, warmDefaultAgentModelEndpoint } from './agent-default-model'
+import { clearModelCache, getAvailableModelsCached } from './model-discovery'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -118,6 +118,18 @@ async function main() {
         assert.notEqual(userDenied, 'openai-compatible/authenticated-model', 'user execution must not select a model discovered through a system key it may not use')
         const userAllowed = resolveDefaultAgentModel({ rawEnv: { ...protectedEnv, ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true' }, executionPolicy: 'user' })
         assert.equal(userAllowed, 'openai-compatible/authenticated-model')
+        // Nor may a preferred model be matched against a list that only the system credential
+        // could produce: the available-model list itself follows the policy.
+        const deniedEnv = { ...protectedEnv, ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }
+        assert.ok(getAvailableModelsCached(protectedEnv).includes('openai-compatible/authenticated-model'), 'the system policy sees the discovered model')
+        assert.ok(!getAvailableModelsCached(policyScopedEnv(deniedEnv, 'user')).includes('openai-compatible/authenticated-model'), 'the denied user policy does not')
+        const preferredDenied = resolveDefaultAgentModel({
+          rawEnv: deniedEnv,
+          executionPolicy: 'user',
+          preferredModel: 'openai-compatible/authenticated-model',
+          availableModels: getAvailableModelsCached(policyScopedEnv(deniedEnv, 'user')),
+        })
+        assert.notEqual(preferredDenied, 'openai-compatible/authenticated-model', 'a preferred model must not be matched through a system-only catalog under a denied user policy')
       } finally {
         global.fetch = originalFetch
         clearModelCache()

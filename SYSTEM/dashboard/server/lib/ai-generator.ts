@@ -941,11 +941,32 @@ export function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: s
   return { client: wrapped as unknown as OpenAI, model: built.model }
 }
 
-// Module-level BYOK override — set per-request by routes
+// BYOK keys for the request being served. Each HTTP request runs inside its own async scope
+// (requestByokScopeMiddleware), so a route's setRequestByokKeys is visible only to the work that
+// request awaits — two concurrent generations can never read each other's credentials. Outside a
+// request scope (tests, scripts) the setter falls back to a process-wide slot as before.
+const requestByokStore = new AsyncLocalStorage<{ keys: ProviderKeys | undefined }>()
 let _requestByokKeys: ProviderKeys | undefined
 
 export function setRequestByokKeys(keys: ProviderKeys | undefined) {
-  _requestByokKeys = keys
+  const scope = requestByokStore.getStore()
+  if (scope) scope.keys = keys
+  else _requestByokKeys = keys
+}
+
+export function getRequestByokKeys(): ProviderKeys | undefined {
+  const scope = requestByokStore.getStore()
+  return scope ? scope.keys : _requestByokKeys
+}
+
+/** Runs fn inside its own BYOK scope; setRequestByokKeys within it cannot leak to other callers. */
+export function withRequestByokScope<T>(fn: () => T): T {
+  return requestByokStore.run({ keys: undefined }, fn)
+}
+
+/** Express middleware: every request gets its own BYOK scope. */
+export function requestByokScopeMiddleware(_req: unknown, _res: unknown, next: () => void) {
+  requestByokStore.run({ keys: undefined }, () => next())
 }
 
 /**
@@ -975,7 +996,7 @@ export async function warmOpenAiCompatibleGenerationModel(keys?: ProviderKeys, r
 }
 
 function currentClient(): { client: OpenAI; model: string } {
-  return getAIClient(_requestByokKeys)
+  return getAIClient(getRequestByokKeys())
 }
 
 export async function answerBuilderQuestionWithAI(input: {
@@ -1052,8 +1073,8 @@ export function resolveSystemGenerationModelForProvider(
  * the model is validated); a working key fails on an unknown model.
  */
 function resolveModel(requestedModel: string, providerOverride?: AIProvider, byokKeysOverride?: ProviderKeys): string {
-  const provider = providerOverride || getAvailableProvider(_requestByokKeys).provider
-  const effectiveByokKeys = byokKeysOverride || _requestByokKeys
+  const provider = providerOverride || getAvailableProvider(getRequestByokKeys()).provider
+  const effectiveByokKeys = byokKeysOverride || getRequestByokKeys()
   const systemPreferredModel = readWorkspaceIntegrationConfig().systemPreferredModel?.trim()
   // A CLI-backed client ignores this value — it drives the runtime's own model — but every caller
   // still asks for one, so answer without reaching the provider branches below.
@@ -1084,7 +1105,7 @@ function stripProviderPrefix(model: string): string {
 
 export function shouldUseMaxCompletionTokens(model: string): boolean {
   if (model === CLI_RUNTIME_MODEL_SENTINEL) return false
-  const { provider } = getAvailableProvider(_requestByokKeys)
+  const { provider } = getAvailableProvider(getRequestByokKeys())
   return provider === 'openai' && /^gpt-5(?:-|$)/i.test(stripProviderPrefix(model))
 }
 
@@ -2176,7 +2197,7 @@ export async function generateAgentFiles(input: GenerateAgentFilesInput): Promis
 }
 
 export async function generateSkillFromNL(description: string, currentDraft?: Partial<GeneratedSkillScaffold>): Promise<GeneratedSkillScaffold> {
-  getAvailableProvider(_requestByokKeys)
+  getAvailableProvider(getRequestByokKeys())
 
   const isRefinement = !!currentDraft
   const model = resolveModel('gpt-4o-mini')
@@ -2285,7 +2306,7 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
  * Generate a workflow definition from natural language description.
  */
 export async function generateWorkflowFromNL(description: string, availableAgents: string[], availableTags: string[]): Promise<any> {
-  getAvailableProvider(_requestByokKeys)
+  getAvailableProvider(getRequestByokKeys())
 
   const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model: resolveModel('gpt-4o'),
@@ -2339,7 +2360,7 @@ export async function generateTemplateFromNL(
   generationTarget: TemplateGenerationTarget = 'team',
   preferredAuthor: string = 'ClawMax AI',
 ): Promise<any> {
-  getAvailableProvider(_requestByokKeys)
+  getAvailableProvider(getRequestByokKeys())
   const promptContext = buildExampleAwarePromptContext(description)
   const shouldScaleMiddleWork = promptImpliesScaling(description)
   const normalizedTarget = normalizeTemplateGenerationTarget(generationTarget)
