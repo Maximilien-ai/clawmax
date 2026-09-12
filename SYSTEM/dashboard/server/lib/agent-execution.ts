@@ -1244,6 +1244,26 @@ export async function withTemporaryAgentAuthProfiles<T>(
     return true
   }
 
+  const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const nativeAuthStorePath = path.join(agentDir, 'openclaw-agent.sqlite')
+  fs.mkdirSync(agentDir, { recursive: true })
+
+  if (fs.existsSync(nativeAuthStorePath) && !hasReadyOpenClawNativeAgentStore(nativeAuthStorePath)) {
+    // A newly recreated OpenClaw 2 agent can have an empty SQLite file before
+    // its first turn. Initialize it through OpenClaw's own persistence API
+    // before any provider-specific fast path reaches session execution.
+    const hadLegacyAuthStore = fs.existsSync(authProfilePath)
+    const initializedNativeStore = persistPinnedOpenClawAuthStore(agentDir, {
+      version: 1,
+      profiles: {},
+      usageStats: {},
+    })
+    if (!initializedNativeStore && !hadLegacyAuthStore && fs.existsSync(authProfilePath)) {
+      fs.unlinkSync(authProfilePath)
+    }
+  }
+
   if (preferredProvider === 'ollama') {
     const previousOllamaProvider = readCurrentOllamaProviderConfig()
     const normalizedOllamaBaseUrl = providerKeys.ollamaBaseUrl?.trim().replace(/\/+$/, '')
@@ -1350,11 +1370,6 @@ export async function withTemporaryAgentAuthProfiles<T>(
 
     return await fn()
   }
-
-  const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
-  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
-  const nativeAuthStorePath = path.join(agentDir, 'openclaw-agent.sqlite')
-  fs.mkdirSync(agentDir, { recursive: true })
 
   // OpenClaw 2 executes turns in the Gateway process, so child-process env
   // credentials do not reach the model runtime. Publish request-scoped keys to

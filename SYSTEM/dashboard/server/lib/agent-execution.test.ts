@@ -1784,6 +1784,71 @@ test('withTemporaryAgentAuthProfiles leaves OpenClaw 2 SQLite auth stores free o
   assert(!!contractTable, 'Expected the ready native auth store to remain unchanged')
 })
 
+test('withTemporaryAgentAuthProfiles initializes an incomplete recreated-agent SQLite store before Ollama execution', async () => {
+  const { DatabaseSync } = require('node:sqlite')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-recreated-openclaw2-home-'))
+  const packageRoot = path.join(home, 'openclaw-package')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'recreated-agent', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const nativeAuthStorePath = path.join(agentDir, 'openclaw-agent.sqlite')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(path.join(packageRoot, 'dist'), { recursive: true })
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({ type: 'module' }))
+  fs.writeFileSync(path.join(packageRoot, 'dist', 'store-fixture.js'), `
+    import { DatabaseSync } from 'node:sqlite'
+    // Bundle marker: saveAuthProfileStore as s
+    export function s(store, targetDir) {
+      const database = new DatabaseSync(targetDir + '/openclaw-agent.sqlite')
+      database.exec('CREATE TABLE IF NOT EXISTS session_key_contract (id INTEGER PRIMARY KEY)')
+      database.close()
+    }
+  `)
+  fs.writeFileSync(path.join(packageRoot, 'dist', 'persisted-fixture.js'), `
+    // Bundle marker: loadPersistedAuthProfileStore as l
+    export function l() { return { version: 1, profiles: {} } }
+  `)
+  const incompleteStore = new DatabaseSync(nativeAuthStorePath)
+  incompleteStore.close()
+  assert(!hasReadyOpenClawNativeAgentStore(nativeAuthStorePath), 'Expected recreated agent store to begin incomplete')
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        {
+          id: 'recreated-agent',
+          workspace: path.join(home, 'workspace', 'AGENTS', 'recreated-agent'),
+          agentDir,
+          model: 'ollama/qwen2.5:latest',
+        },
+      ],
+    },
+  }, null, 2))
+
+  const originalPackageRoot = process.env.OPENCLAW_PACKAGE_ROOT
+  process.env.HOME = home
+  process.env.OPENCLAW_PACKAGE_ROOT = packageRoot
+  resetWorkspaceManagerForTests()
+
+  try {
+    await withTemporaryAgentAuthProfiles(
+      'recreated-agent',
+      {},
+      'ollama/qwen2.5:latest',
+      'ollama',
+      async () => {
+        assert(hasReadyOpenClawNativeAgentStore(nativeAuthStorePath), 'Expected native agent schema before execution')
+        assert(!fs.existsSync(authProfilePath), 'Expected no legacy auth JSON for credential-free Ollama execution')
+      },
+      { runtime: 'openclaw' }
+    )
+    assert(hasReadyOpenClawNativeAgentStore(nativeAuthStorePath), 'Expected native agent schema to remain initialized')
+    assert(!fs.existsSync(authProfilePath), 'Expected legacy auth JSON to remain absent')
+  } finally {
+    if (typeof originalPackageRoot === 'undefined') delete process.env.OPENCLAW_PACKAGE_ROOT
+    else process.env.OPENCLAW_PACKAGE_ROOT = originalPackageRoot
+  }
+})
+
 test('withTemporaryAgentAuthProfiles falls back when the selected OpenClaw lacks persisted auth support', async () => {
   const { DatabaseSync } = require('node:sqlite')
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-openclaw1-fallback-home-'))
