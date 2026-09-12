@@ -2751,8 +2751,8 @@ fi
 
 echo -e "${YELLOW}→ Running container lifecycle readiness contract tests...${NC}"
 bash "$SYSTEM_DIR/container-agent-lifecycle-smoke.test.sh" > /tmp/clawmax-container-lifecycle-readiness.out 2>&1 || true
-if grep -q "container-agent-lifecycle-smoke.test.sh: 4 assertions passed" /tmp/clawmax-container-lifecycle-readiness.out; then
-  pass "Container lifecycle readiness contract tests (4 assertions)"
+if grep -q "container-agent-lifecycle-smoke.test.sh: 6 assertions passed" /tmp/clawmax-container-lifecycle-readiness.out; then
+  pass "Container lifecycle readiness contract tests (6 assertions)"
 else
   cat /tmp/clawmax-container-lifecycle-readiness.out
   fail "Container lifecycle readiness contract tests"
