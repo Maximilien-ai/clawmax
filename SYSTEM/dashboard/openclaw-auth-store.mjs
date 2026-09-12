@@ -5,7 +5,8 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const agentDir = path.resolve(process.argv[2] || '')
-const mode = process.argv[3] === 'read' ? 'read' : 'write'
+const requestedMode = process.argv[3]
+const mode = requestedMode === 'read' || requestedMode === 'support' ? requestedMode : 'write'
 if (!agentDir || agentDir === path.parse(agentDir).root) {
   throw new Error('Usage: openclaw-auth-store.mjs <agent-dir> [read]')
 }
@@ -54,6 +55,14 @@ for (const root of roots) {
     if (persistedMatch) persistedModulePath = path.join(distDir, persistedMatch)
     break
   }
+}
+
+if (mode === 'support') {
+  process.stdout.write(JSON.stringify({
+    native: Boolean(storeModulePath && persistedModulePath),
+    supported: Boolean(storeModulePath && persistedModulePath),
+  }))
+  process.exit(0)
 }
 
 if (!storeModulePath) {

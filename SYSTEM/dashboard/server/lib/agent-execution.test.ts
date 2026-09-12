@@ -1784,8 +1784,7 @@ test('withTemporaryAgentAuthProfiles leaves OpenClaw 2 SQLite auth stores free o
   assert(!!contractTable, 'Expected the ready native auth store to remain unchanged')
 })
 
-test('withTemporaryAgentAuthProfiles initializes an incomplete recreated-agent SQLite store before Ollama execution', async () => {
-  const { DatabaseSync } = require('node:sqlite')
+test('withTemporaryAgentAuthProfiles initializes a missing recreated-agent SQLite store before Ollama execution', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-recreated-openclaw2-home-'))
   const packageRoot = path.join(home, 'openclaw-package')
   const agentDir = path.join(home, '.openclaw', 'agents', 'recreated-agent', 'agent')
@@ -1808,9 +1807,7 @@ test('withTemporaryAgentAuthProfiles initializes an incomplete recreated-agent S
     // Bundle marker: loadPersistedAuthProfileStore as l
     export function l() { return { version: 1, profiles: {} } }
   `)
-  const incompleteStore = new DatabaseSync(nativeAuthStorePath)
-  incompleteStore.close()
-  assert(!hasReadyOpenClawNativeAgentStore(nativeAuthStorePath), 'Expected recreated agent store to begin incomplete')
+  assert(!fs.existsSync(nativeAuthStorePath), 'Expected recreated agent store to begin absent')
   fs.writeFileSync(configPath, JSON.stringify({
     agents: {
       list: [

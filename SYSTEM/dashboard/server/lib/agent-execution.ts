@@ -947,6 +947,24 @@ function persistPinnedOpenClawAuthStore(agentDir: string, store: AuthProfileFile
   }
 }
 
+function pinnedOpenClawSupportsNativeAuthStore(): boolean {
+  const bridge = resolvePinnedOpenClawAuthBridge()
+  if (!bridge) return false
+  const result = spawnSync(process.execPath, [bridge.helperPath, '.', 'support'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      OPENCLAW_PACKAGE_ROOT: bridge.packageRoot,
+    },
+  })
+  if (result.status !== 0) return false
+  try {
+    return JSON.parse(String(result.stdout || '')).supported === true
+  } catch {
+    return false
+  }
+}
+
 function readPinnedOpenClawAuthStore(agentDir: string): AuthProfileFile | null {
   const bridge = resolvePinnedOpenClawAuthBridge()
   if (!bridge) return null
@@ -1249,19 +1267,18 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const nativeAuthStorePath = path.join(agentDir, 'openclaw-agent.sqlite')
   fs.mkdirSync(agentDir, { recursive: true })
 
-  if (fs.existsSync(nativeAuthStorePath) && !hasReadyOpenClawNativeAgentStore(nativeAuthStorePath)) {
-    // A newly recreated OpenClaw 2 agent can have an empty SQLite file before
-    // its first turn. Initialize it through OpenClaw's own persistence API
-    // before any provider-specific fast path reaches session execution.
-    const hadLegacyAuthStore = fs.existsSync(authProfilePath)
-    const initializedNativeStore = persistPinnedOpenClawAuthStore(agentDir, {
+  if (
+    !hasReadyOpenClawNativeAgentStore(nativeAuthStorePath) &&
+    pinnedOpenClawSupportsNativeAuthStore()
+  ) {
+    // A newly recreated OpenClaw 2 agent can have no SQLite file (or an empty
+    // one) before its first turn. Initialize it through OpenClaw's own
+    // persistence API before a provider-specific fast path reaches sessions.
+    persistPinnedOpenClawAuthStore(agentDir, {
       version: 1,
       profiles: {},
       usageStats: {},
     })
-    if (!initializedNativeStore && !hadLegacyAuthStore && fs.existsSync(authProfilePath)) {
-      fs.unlinkSync(authProfilePath)
-    }
   }
 
   if (preferredProvider === 'ollama') {
