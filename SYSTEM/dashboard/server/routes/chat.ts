@@ -273,6 +273,12 @@ export function shouldUseLocalChatExecution(input: {
   return !input.gatewayRunning
 }
 
+export function resolveGatewayChatReadinessWait(gatewayOwnsState: boolean): { timeoutMs: number; pollMs: number } {
+  return gatewayOwnsState
+    ? { timeoutMs: 120_000, pollMs: 1_000 }
+    : { timeoutMs: 8_000, pollMs: 500 }
+}
+
 export function shouldUseManagedSecretStatelessChatSession(_input: {
   useLocal: boolean
   hasWorkspaceManagedSecrets: boolean
@@ -860,14 +866,21 @@ router.post('/:id/chat', async (req, res) => {
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.
   // Gateway + --local are openclaw-only concepts; non-openclaw runtimes spawn their own CLI directly.
+  const gatewayOwnsState = !isNonOpenclawChatRuntime(resolvedAgent.runtime) && (
+    isGatewayRunning().running || configuredAutoStartGatewayOwnsState({
+      configured: isGatewayConfigured(),
+      autoStartSetting: process.env.CLAWMAX_AUTO_START_GATEWAY,
+    })
+  )
+  const gatewayReadinessWait = resolveGatewayChatReadinessWait(gatewayOwnsState)
   const gatewayRunning = isNonOpenclawChatRuntime(resolvedAgent.runtime)
     ? false
     : shouldTreatGatewayAsRunning(
-        (await waitForGatewayResponsive()).running,
-        isGatewayRunning().running || configuredAutoStartGatewayOwnsState({
-          configured: isGatewayConfigured(),
-          autoStartSetting: process.env.CLAWMAX_AUTO_START_GATEWAY,
-        }),
+        (await waitForGatewayResponsive(
+          gatewayReadinessWait.timeoutMs,
+          gatewayReadinessWait.pollMs,
+        )).running,
+        gatewayOwnsState,
       )
 
   const useLocal = isNonOpenclawChatRuntime(resolvedAgent.runtime)

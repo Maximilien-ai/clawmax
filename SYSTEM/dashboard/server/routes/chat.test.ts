@@ -12,6 +12,7 @@ import {
   hasByokExecutionPathForProvider,
   retryAssistantTextLookup,
   resolveByokChatFallbackModel,
+  resolveGatewayChatReadinessWait,
   shouldUseManagedSecretStatelessChatSession,
   shouldRecoverPersistedAssistant,
   shouldAttemptManagedResendDispatch,
@@ -90,6 +91,16 @@ test('configured auto-start gateway owns state across transient readiness probe 
   assert(configuredAutoStartGatewayOwnsState({ configured: false, autoStartSetting: 'true' }), 'Expected entrypoint auto-start to own state before generated config becomes readable')
   assert(!configuredAutoStartGatewayOwnsState({ configured: true, autoStartSetting: 'false' }), 'Expected explicitly disabled auto-start to allow local execution')
   assert(!configuredAutoStartGatewayOwnsState({ configured: false }), 'Expected missing gateway config not to claim state ownership')
+})
+
+test('gateway-owned chat waits through bounded cold startup before execution', () => {
+  const owned = resolveGatewayChatReadinessWait(true)
+  assert(owned.timeoutMs === 120_000, 'Expected an auto-started Gateway to receive the full cold-start readiness window')
+  assert(owned.pollMs === 1_000, 'Expected cold-start readiness polling to remain bounded')
+
+  const unowned = resolveGatewayChatReadinessWait(false)
+  assert(unowned.timeoutMs === 8_000, 'Expected an unowned Gateway probe to retain the short local-fallback window')
+  assert(unowned.pollMs === 500, 'Expected the normal readiness poll interval to remain unchanged')
 })
 
 test('shouldUseLocalChatExecution still falls back to direct mode for hosted BYOK when gateway is down', () => {
