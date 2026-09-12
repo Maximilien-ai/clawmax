@@ -30,7 +30,7 @@ fail() {
 }
 
 start_dashboard() {
-  local started_at now elapsed
+  local started_at now elapsed gateway_timeout
   started_at="$(date +%s)"
   dashboard_health_elapsed=''
   gateway_ready_elapsed=''
@@ -67,16 +67,32 @@ start_dashboard() {
     fi
     if curl -fsS --connect-timeout 1 --max-time 2 "$base_url/api/health" >/dev/null 2>&1; then
       dashboard_health_elapsed="$elapsed"
-      [ -n "$gateway_ready_elapsed" ] || gateway_ready_elapsed="$elapsed"
       if [ "$dashboard_health_elapsed" -gt 40 ]; then
         fail "dashboard health exceeded 40 seconds (${dashboard_health_elapsed}s)"
       fi
-      echo "RC startup timing platform=${platform} dashboard_health=${dashboard_health_elapsed}s gateway_ready=${gateway_ready_elapsed}s"
-      return 0
+      break
     fi
     sleep 1
   done
-  fail 'dashboard health endpoint did not become ready within 40 seconds'
+  [ -n "$dashboard_health_elapsed" ] || fail 'dashboard health endpoint did not become ready within 40 seconds'
+
+  gateway_timeout="${CLAWMAX_GATEWAY_ACCEPTANCE_TIMEOUT_SEC:-120}"
+  case "$gateway_timeout" in
+    ''|*[!0-9]*) fail "invalid gateway acceptance timeout: ${gateway_timeout}" ;;
+  esac
+  while [ "$(( $(date +%s) - started_at ))" -le "$gateway_timeout" ]; do
+    now="$(date +%s)"
+    elapsed="$((now - started_at))"
+    if "$container_cli" logs "$container_name" 2>&1 | grep -F 'gateway authenticated readiness verified' >/dev/null; then
+      gateway_ready_elapsed="$elapsed"
+      break
+    fi
+    sleep 1
+  done
+  [ -n "$gateway_ready_elapsed" ] \
+    || fail "gateway did not pass authenticated readiness within ${gateway_timeout} seconds"
+
+  echo "RC startup timing platform=${platform} dashboard_health=${dashboard_health_elapsed}s gateway_ready=${gateway_ready_elapsed}s"
 }
 
 stop_dashboard() {
