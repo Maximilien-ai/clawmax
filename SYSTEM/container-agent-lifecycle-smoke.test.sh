@@ -21,4 +21,11 @@ if grep -Fq '[ -n "$gateway_ready_elapsed" ] || gateway_ready_elapsed="$elapsed"
 fi
 assertions=$((assertions + 1))
 
+grep -Fq 'SELECT 1 FROM session_nodes LIMIT 1' "$smoke"
+grep -Fq 'recreated agent native session state is missing' "$smoke"
+assertions=$((assertions + 1))
+
+grep -Fq 'recreated agent legacy session state is missing' "$smoke"
+assertions=$((assertions + 1))
+
 echo "container-agent-lifecycle-smoke.test.sh: ${assertions} assertions passed"

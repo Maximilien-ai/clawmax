@@ -143,9 +143,18 @@ assert_gateway_chat() {
 }
 
 assert_agent_session_state() {
+  local native_store='/app/DATA/.home/.openclaw/agents/rc-image-reuse-probe/agent/openclaw-agent.sqlite'
+  if "$container_cli" exec "$container_name" test -f "$native_store"; then
+    "$container_cli" exec "$container_name" node -e \
+      'const { DatabaseSync } = require("node:sqlite"); const db = new DatabaseSync(process.argv[1], { readOnly: true }); try { if (!db.prepare("SELECT 1 FROM session_nodes LIMIT 1").get()) process.exitCode = 1; } finally { db.close(); }' \
+      "$native_store" \
+      || fail 'recreated agent native session state is missing'
+    return
+  fi
+
   "$container_cli" exec "$container_name" sh -c \
     'find /app/DATA/.home/.openclaw/agents/rc-image-reuse-probe -type f -path "*/sessions/*" -size +0c | grep -q .' \
-    || fail 'recreated agent session state is missing'
+    || fail 'recreated agent legacy session state is missing'
 }
 
 assert_instance_cli_api() {
