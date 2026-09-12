@@ -1,5 +1,5 @@
-import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
-import { getAvailableModelsCached } from './model-discovery'
+import { allowSystemKeysForUserExecution, getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
+import { getAvailableModelsCached, getCachedOpenAiCompatibleDefaultModel, openAiCompatibleCandidateFromKeys, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint, type OpenAiCompatibleEndpoint } from './model-discovery'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 
 type ResolveDefaultAgentModelOptions = {
@@ -10,7 +10,15 @@ type ResolveDefaultAgentModelOptions = {
   systemPreferredModel?: string
   availableModels?: string[]
   rawEnv?: Record<string, string>
+  /**
+   * Which protected credentials may pair with the workspace endpoint. 'system' (provisioning,
+   * template imports) may use SYSTEM keys; 'user' (chat on behalf of a user) may use them only
+   * when ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION permits — the same rule user execution follows.
+   */
+  executionPolicy?: 'system' | 'user'
 }
+
+export type DefaultModelExecutionPolicy = 'system' | 'user'
 
 function normalizeCandidate(value?: string): string | undefined {
   const trimmed = value?.trim()
@@ -27,13 +35,74 @@ function isLocalRuntimeModel(model: string | undefined): boolean {
   return !!model && (model.startsWith('ollama/') || model.startsWith('openai-compatible/'))
 }
 
+/**
+ * The workspace's OpenAI-compatible endpoint as default-agent selection sees it: the non-secret
+ * workspace URL and model, paired with the protected USER/SYSTEM credential for that same server.
+ */
+// Every SYSTEM-level provider credential, with the unprefixed names getSystemProviderKeys also
+// honours. USER_* values are the user's own and are never removed.
+const SYSTEM_PROVIDER_ENV_KEYS = [
+  'SYSTEM_OPENAI_API_KEY', 'OPENAI_API_KEY',
+  'SYSTEM_ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY',
+  'SYSTEM_GEMINI_API_KEY', 'GEMINI_API_KEY',
+  'SYSTEM_OPENROUTER_API_KEY', 'OPENROUTER_API_KEY',
+  'SYSTEM_XAI_API_KEY', 'XAI_API_KEY',
+  'SYSTEM_OPENAI_COMPATIBLE_BASE_URL', 'SYSTEM_OPENAI_COMPATIBLE_API_KEY', 'SYSTEM_OPENAI_COMPATIBLE_DEFAULT_MODEL',
+  'OPENAI_COMPATIBLE_BASE_URL', 'OPENAI_COMPATIBLE_API_KEY', 'OPENAI_COMPATIBLE_DEFAULT_MODEL',
+]
+
+/**
+ * The environment a default-model decision may read under an execution policy. User execution
+ * that may not use SYSTEM keys sees no SYSTEM provider configuration at all — hosted keys and
+ * the OpenAI-compatible endpoint alike — so neither the paired endpoint, the available-model
+ * list, nor the hosted-provider fallback can surface a model only a SYSTEM credential can reach.
+ * The user's own USER_* keys stay, exactly as user execution itself would resolve them.
+ */
+export function policyScopedEnv(rawEnv: Record<string, string>, executionPolicy: DefaultModelExecutionPolicy = 'system'): Record<string, string> {
+  if (executionPolicy === 'system' || allowSystemKeysForUserExecution(rawEnv)) return rawEnv
+  const scoped = { ...rawEnv }
+  for (const key of SYSTEM_PROVIDER_ENV_KEYS) delete scoped[key]
+  return scoped
+}
+
+function resolveWorkspaceCompatibleEndpoint(rawEnv: Record<string, string>, executionPolicy: DefaultModelExecutionPolicy = 'system'): OpenAiCompatibleEndpoint | undefined {
+  const integrations = readWorkspaceIntegrationConfig()
+  const workspaceCompatibleBaseUrl = normalizeCandidate(integrations.openaiCompatibleBaseUrl)
+  if (!workspaceCompatibleBaseUrl) return undefined
+  const scopedEnv = policyScopedEnv(rawEnv, executionPolicy)
+  return resolveOpenAiCompatibleEndpoint([
+    { baseUrl: workspaceCompatibleBaseUrl, defaultModel: integrations.openaiCompatibleDefaultModel },
+    openAiCompatibleCandidateFromKeys(getUserDefaultProviderKeys(scopedEnv)),
+    openAiCompatibleCandidateFromKeys(getSystemProviderKeys(scopedEnv)),
+  ])
+}
+
+/**
+ * Fill the discovery cache resolveDefaultAgentModel reads, through the credential it will read with.
+ *
+ * resolveDefaultAgentModel is synchronous and sits inside provisioning; callers that can await do
+ * so here, at their request boundary, so an endpoint with no typed model is not reported modelless
+ * on a cold cache. Warm calls cost nothing; a failed lookup leaves the previous behaviour intact.
+ */
+export async function warmDefaultAgentModelEndpoint(rawEnv: Record<string, string> = getDashboardEnvRaw(), executionPolicy: DefaultModelExecutionPolicy = 'system'): Promise<void> {
+  const endpoint = resolveWorkspaceCompatibleEndpoint(rawEnv, executionPolicy)
+  if (!endpoint || endpoint.defaultModel) return
+  try {
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: endpoint.baseUrl, apiKey: endpoint.apiKey })
+  } catch {
+    // Provisioning reports an unusable endpoint in its own words; this lookup must not throw here.
+  }
+}
+
 export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOptions = {}): string | undefined {
   const rawEnv = options.rawEnv || getDashboardEnvRaw()
+  // Every credential-derived decision below reads through the execution policy.
+  const scopedEnv = policyScopedEnv(rawEnv, options.executionPolicy)
   const integrations = readWorkspaceIntegrationConfig()
   const explicitAvailableModels = Array.isArray(options.availableModels)
   const availableModels = Array.isArray(options.availableModels)
     ? options.availableModels.filter(Boolean)
-    : getAvailableModelsCached(rawEnv)
+    : getAvailableModelsCached(scopedEnv)
 
   const explicitModel = normalizeCandidate(options.explicitModel)
   if (explicitModel) return explicitModel
@@ -60,8 +129,14 @@ export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOption
     if (firstOllama) return firstOllama
   }
 
-  const workspaceCompatibleBaseUrl = normalizeCandidate(integrations.openaiCompatibleBaseUrl)
-  const workspaceCompatibleModel = normalizeCandidate(integrations.openaiCompatibleDefaultModel)
+  // The workspace holds the non-secret URL; its credential may sit in protected USER/SYSTEM
+  // configuration for the same server, and the discovery cache is keyed by that pairing.
+  const workspaceCompatible = resolveWorkspaceCompatibleEndpoint(rawEnv, options.executionPolicy)
+  const workspaceCompatibleBaseUrl = workspaceCompatible?.baseUrl
+  // Naming a default model in BYOK is optional, so fall back to whichever chat model the endpoint
+  // itself advertises rather than leaving the agent with no model at all.
+  const workspaceCompatibleModel = workspaceCompatible?.defaultModel
+    || getCachedOpenAiCompatibleDefaultModel(workspaceCompatible?.baseUrl, workspaceCompatible?.apiKey)
   if (workspaceCompatibleBaseUrl && workspaceCompatibleModel) {
     const qualifiedCompatible = `openai-compatible/${workspaceCompatibleModel}`
     if (matchesAvailable(qualifiedCompatible, availableModels)) return qualifiedCompatible
@@ -70,9 +145,9 @@ export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOption
     if (firstCompatible) return firstCompatible
   }
 
-  const recommendedHostedModel = getBestAvailableModel(rawEnv)
-  const systemKeys = getSystemProviderKeys(rawEnv)
-  const userKeys = getUserDefaultProviderKeys(rawEnv)
+  const recommendedHostedModel = getBestAvailableModel(scopedEnv)
+  const systemKeys = getSystemProviderKeys(scopedEnv)
+  const userKeys = getUserDefaultProviderKeys(scopedEnv)
   const hasHostedProviderPath = !!(systemKeys.openai || systemKeys.anthropic || systemKeys.gemini || userKeys.openai || userKeys.anthropic || userKeys.gemini)
   if (hasHostedProviderPath) {
     if (matchesAvailable(recommendedHostedModel, availableModels)) return recommendedHostedModel

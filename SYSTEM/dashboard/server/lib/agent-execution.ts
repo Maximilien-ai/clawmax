@@ -8,7 +8,7 @@ import { REPO_ROOT } from './paths'
 import { syncAssignedSkillGuidanceForAgent } from './skills'
 import { normalizeAgentModelInput, readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
 import { resetAgentSessionsForModelChange } from './agent-model'
-import { resolveDefaultAgentModel } from './agent-default-model'
+import { resolveDefaultAgentModel, policyScopedEnv } from './agent-default-model'
 import { getAvailableModelsCached } from './model-discovery'
 import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
@@ -278,7 +278,7 @@ function isSupportedHostedModel(model: string | undefined): boolean {
   return availableModels.includes(model)
 }
 
-export function resolveAgentExecutionConfig(agentId: string): {
+export function resolveAgentExecutionConfig(agentId: string, options: { executionPolicy?: 'system' | 'user' } = {}): {
   model?: string
   backupModel?: string
   workspace?: string
@@ -319,14 +319,14 @@ export function resolveAgentExecutionConfig(agentId: string): {
   // If the active workspace contains this agent, trust its local identity first.
   // A stale global openclaw.json entry may point at a different workspace with the same agent id.
   const recordModel = normalizeMissingModel(record?.model)
+  const defaultModelOptions = { rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in'), executionPolicy: options.executionPolicy }
   let model = hasActiveWorkspaceAgent
-    ? (identityModel || recordModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in') }))
-    : (recordModel || identityModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in') }))
+    ? (identityModel || recordModel || resolveDefaultAgentModel(defaultModelOptions))
+    : (recordModel || identityModel || resolveDefaultAgentModel(defaultModelOptions))
   if (model && !isSupportedHostedModel(model)) {
     model = resolveDefaultAgentModel({
-      builtIn: identityTags.includes('built-in'),
-      rawEnv: process.env as Record<string, string>,
-      availableModels: getAvailableModelsCached(process.env as Record<string, string>),
+      ...defaultModelOptions,
+      availableModels: getAvailableModelsCached(policyScopedEnv(process.env as Record<string, string>, options.executionPolicy)),
     }) || model
   }
   const backupModel = (() => {

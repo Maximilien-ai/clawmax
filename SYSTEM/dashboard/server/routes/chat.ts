@@ -6,6 +6,8 @@ import path from 'path'
 import { getActiveAgentLifecycleGeneration, getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
 import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
+import { getCachedOpenAiCompatibleDefaultModel, openAiCompatibleCandidateFromKeys, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint } from '../lib/model-discovery'
+import { resolveUserExecutionProviderKeys } from '../lib/dashboard-env'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
@@ -252,7 +254,10 @@ export function resolveByokChatFallbackModel(byok?: ChatByokPayload): string | u
   if (hasText(byok.openrouter)) return 'openrouter/auto'
   if (hasText(byok.xai)) return 'xai/grok-3'
   if (hasText(byok.openaiCompatibleBaseUrl)) {
+    // BYOK's "Default model" box is optional; when it is empty the endpoint's own advertised chat
+    // model stands in, the same model endpoint validation completes its test prompt on.
     const configuredModel = byok.openaiCompatibleDefaultModel?.trim().replace(/^openai-compatible\//, '')
+      || getCachedOpenAiCompatibleDefaultModel(byok.openaiCompatibleBaseUrl, byok.openaiCompatibleApiKey)
     return configuredModel ? `openai-compatible/${configuredModel}` : undefined
   }
   return undefined
@@ -530,15 +535,69 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
   return text
 }
 
-function evaluateChatExecutionReadiness(
+/**
+ * Fill the discovery cache for the chat BYOK endpoint before readiness reads it.
+ *
+ * resolveByokChatFallbackModel is synchronous and reads that cache, so without this an agent with
+ * no model of its own is told "no model configured" on a cold cache — even though the endpoint
+ * advertises one. Warm calls cost nothing; a failed lookup leaves the previous behaviour intact.
+ */
+export function resolveChatOpenAiCompatibleEndpoint(
+  byok?: ChatByokPayload,
+  rawEnv?: Record<string, string>,
+): { baseUrl?: string; apiKey?: string; defaultModel?: string } {
+  const integrationConfig = readWorkspaceIntegrationConfig()
+  // The workspace's default model belongs to the workspace's endpoint, and its credential may live
+  // in protected USER/SYSTEM configuration. Which protected keys chat may use is the user-execution
+  // policy's call (browser BYOK only when the browser supplied any; system keys only when allowed),
+  // so that resolver runs first and the endpoint is paired only with what it returns. A bare
+  // endpoint URL is not a credential: the browser stores the workspace URL it verified, and
+  // sending that back must not read as "the user brought their own keys".
+  const browserKeyless = !byok?.openaiCompatibleApiKey?.trim()
+  const policyKeys = resolveUserExecutionProviderKeys(rawEnv, browserKeyless
+    ? { ...byok, openaiCompatibleBaseUrl: undefined, openaiCompatibleDefaultModel: undefined }
+    : byok)
+  return resolveOpenAiCompatibleEndpoint([
+    openAiCompatibleCandidateFromKeys(byok),
+    { baseUrl: integrationConfig.openaiCompatibleBaseUrl, defaultModel: integrationConfig.openaiCompatibleDefaultModel },
+    openAiCompatibleCandidateFromKeys(policyKeys),
+  ]) || {}
+}
+
+async function warmChatOpenAiCompatibleModel(byok?: ChatByokPayload): Promise<void> {
+  const { baseUrl, apiKey, defaultModel } = resolveChatOpenAiCompatibleEndpoint(byok)
+  if (!baseUrl || defaultModel) return
+  try {
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl, apiKey })
+  } catch {
+    // Readiness reports an unreachable endpoint in its own words; this lookup must not throw here.
+  }
+}
+
+/**
+ * The part of a readiness result the browser may see. The execution environment readiness
+ * built carries the credential the chat will run with and never leaves the server.
+ */
+export function toChatReadinessResponse(readiness: { available: boolean; error?: string; resolvedAgent: unknown; executionEnv?: unknown }) {
+  const { executionEnv: _executionEnv, ...publicFields } = readiness
+  return publicFields
+}
+
+export function evaluateChatExecutionReadiness(
   agentId: string,
-  byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+  byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
+  rawEnv?: Record<string, string>,
 ) {
   const integrationConfig = readWorkspaceIntegrationConfig()
-  const baseResolvedAgent = resolveAgentExecutionConfig(agentId)
+  // Chat runs on behalf of a user: a default model discovered through the system credential may
+  // only be offered when user execution is allowed to use that credential.
+  const baseResolvedAgent = resolveAgentExecutionConfig(agentId, { executionPolicy: 'user' })
+  const chatCompatibleEndpoint = resolveChatOpenAiCompatibleEndpoint(byok, rawEnv)
   const fallbackModel = resolveByokChatFallbackModel({
     ...byok,
-    openaiCompatibleDefaultModel: byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel,
+    openaiCompatibleBaseUrl: chatCompatibleEndpoint.baseUrl,
+    openaiCompatibleApiKey: chatCompatibleEndpoint.apiKey,
+    openaiCompatibleDefaultModel: chatCompatibleEndpoint.defaultModel,
   })
   const resolvedAgent = !baseResolvedAgent.model && fallbackModel
     ? {
@@ -556,9 +615,11 @@ function evaluateChatExecutionReadiness(
     openrouter: byok?.openrouter,
     xai: byok?.xai,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
-    openaiCompatibleApiKey: useOpenAiCompatible ? byok?.openaiCompatibleApiKey : undefined,
-    openaiCompatibleBaseUrl: useOpenAiCompatible ? (byok?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
-    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
+    // The endpoint together with the credential and model that belong to it: the browser's own,
+    // or the workspace URL paired with the protected key the user-execution policy allows.
+    openaiCompatibleApiKey: useOpenAiCompatible ? chatCompatibleEndpoint.apiKey : undefined,
+    openaiCompatibleBaseUrl: useOpenAiCompatible ? chatCompatibleEndpoint.baseUrl : undefined,
+    openaiCompatibleDefaultModel: useOpenAiCompatible ? chatCompatibleEndpoint.defaultModel : undefined,
   })
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   if (isNonOpenclawChatRuntime(resolvedAgent.runtime)) {
@@ -661,6 +722,7 @@ function evaluateChatExecutionReadiness(
 
   return {
     available: true,
+    executionEnv,
     resolvedAgent,
   }
 }
@@ -755,7 +817,7 @@ router.get('/:id/gateway', (req, res) => {
   })
 })
 
-router.post('/:id/chat/readiness', (req, res) => {
+router.post('/:id/chat/readiness', async (req, res) => {
   const { id } = req.params
   const { byok } = req.body as {
     byok?: ChatByokPayload
@@ -766,11 +828,9 @@ router.post('/:id/chat/readiness', (req, res) => {
   }
   if (rejectStaleChatAgent(req, res, id)) return
 
+  await warmChatOpenAiCompatibleModel(byok)
   const readiness = evaluateChatExecutionReadiness(id, byok)
-  if (!readiness.available) {
-    return res.status(200).json(readiness)
-  }
-  return res.json(readiness)
+  return res.status(200).json(toChatReadinessResponse(readiness))
 })
 
 /**
@@ -803,6 +863,7 @@ router.post('/:id/chat', async (req, res) => {
   }
 
   const session = getAuthenticatedSession(req)
+  await warmChatOpenAiCompatibleModel(byok)
   const readiness = evaluateChatExecutionReadiness(id, byok)
   if (!readiness.available) {
     return res.status(400).json({ error: readiness.error })
@@ -810,6 +871,7 @@ router.post('/:id/chat', async (req, res) => {
   const resolvedAgent = readiness.resolvedAgent
   const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
   const integrationConfig = readWorkspaceIntegrationConfig()
+  const chatCompatibleEndpoint = resolveChatOpenAiCompatibleEndpoint(byok)
   const effectiveWorkspaceRoot = deriveWorkspaceRootFromAgentWorkspace(resolvedAgent.workspace) || getWorkspacePath()
   const executionEnv = userExecutionEnv({
     openai: useOpenAiCompatible ? undefined : byok?.openai,
@@ -818,9 +880,11 @@ router.post('/:id/chat', async (req, res) => {
     openrouter: byok?.openrouter,
     xai: byok?.xai,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
-    openaiCompatibleApiKey: useOpenAiCompatible ? byok?.openaiCompatibleApiKey : undefined,
-    openaiCompatibleBaseUrl: useOpenAiCompatible ? (byok?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
-    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
+    // The endpoint together with the credential and model that belong to it: the browser's own,
+    // or the workspace URL paired with the protected key the user-execution policy allows.
+    openaiCompatibleApiKey: useOpenAiCompatible ? chatCompatibleEndpoint.apiKey : undefined,
+    openaiCompatibleBaseUrl: useOpenAiCompatible ? chatCompatibleEndpoint.baseUrl : undefined,
+    openaiCompatibleDefaultModel: useOpenAiCompatible ? chatCompatibleEndpoint.defaultModel : undefined,
   })
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   executionEnv.CLAWMAX_AGENT_ID = id

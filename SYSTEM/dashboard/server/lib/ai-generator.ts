@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import { AsyncLocalStorage } from 'async_hooks'
 import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, ProviderKeys } from './dashboard-env'
-import { getPreferredAnthropicModel } from './model-discovery'
+import { getCachedOpenAiCompatibleDefaultModel, getPreferredAnthropicModel, openAiCompatibleCandidateFromKeys, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint } from './model-discovery'
 import { getBestAvailableModel } from './dashboard-env'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { CLAUDE_MODEL_ALIASES, executeAgentRuntimeTurn, resolveEnabledRuntimes, resolveRuntimeCliPath, type AgentRuntimeId, isRuntimeCancelledError } from './agent-runtime'
@@ -427,26 +427,46 @@ function getPreferredAnthropicGenerationModel(): string {
   return getPreferredAnthropicModel().replace(/^anthropic\//, '')
 }
 
-export function resolveOpenAiCompatibleGenerationDefaults(byokKeys?: ProviderKeys): { baseUrl?: string; defaultModel?: string } {
+/**
+ * The OpenAI-compatible endpoint generation will use, with the key and model that belong to it.
+ *
+ * Resolved as whole endpoints rather than field by field: a workspace-configured default model and
+ * a system API key belong to the workspace's own base URL, and merging them into a base URL the
+ * browser supplied would send one endpoint's credential — and one endpoint's model id — to a
+ * different server. The workspace stores only the non-secret URL and model; when the credential
+ * for that same server lives in protected SYSTEM/USER configuration (the keys generation may use
+ * anyway), the endpoint is paired with it.
+ */
+export function resolveOpenAiCompatibleGenerationDefaults(
+  byokKeys?: ProviderKeys,
+  rawEnv?: Record<string, string>,
+): { baseUrl?: string; defaultModel?: string; apiKey?: string } {
   const integrationConfig = readWorkspaceIntegrationConfig()
-  const systemKeys = resolveSystemExecutionProviderKeys()
+  const selected = resolveOpenAiCompatibleEndpoint([
+    openAiCompatibleCandidateFromKeys(byokKeys),
+    { baseUrl: integrationConfig.openaiCompatibleBaseUrl, defaultModel: integrationConfig.openaiCompatibleDefaultModel },
+    openAiCompatibleCandidateFromKeys(resolveSystemExecutionProviderKeys(rawEnv)),
+  ])
+  if (!selected) return {}
   return {
-    baseUrl: byokKeys?.openaiCompatibleBaseUrl?.trim()
-      || integrationConfig.openaiCompatibleBaseUrl?.trim()
-      || systemKeys.openaiCompatibleBaseUrl?.trim()
-      || undefined,
-    defaultModel: byokKeys?.openaiCompatibleDefaultModel?.trim()
-      || integrationConfig.openaiCompatibleDefaultModel?.trim()
-      || systemKeys.openaiCompatibleDefaultModel?.trim()
+    baseUrl: selected.baseUrl,
+    apiKey: selected.apiKey,
+    defaultModel: selected.defaultModel
+      // Nothing was typed into BYOK's optional "Default model" box. The endpoint still names its
+      // own models, and validation already proves a prompt completes on the first chat-capable
+      // one, so generation runs on that rather than refusing a verified endpoint. This resolver is
+      // sync and reached from deep in the generation call chain, so it reads the discovery cache
+      // that warmOpenAiCompatibleGenerationModel fills at the request boundary.
+      || getCachedOpenAiCompatibleDefaultModel(selected.baseUrl, selected.apiKey)
       || undefined,
   }
 }
 
 function getAvailableProvider(
   byokKeys?: ProviderKeys,
-  options: { skipCliRuntime?: boolean } = {},
+  options: { skipCliRuntime?: boolean; rawEnv?: Record<string, string> } = {},
 ): { provider: AIProvider; key: string; baseUrl?: string; defaultModel?: string } {
-  const compatibleDefaults = resolveOpenAiCompatibleGenerationDefaults(byokKeys)
+  const compatibleDefaults = resolveOpenAiCompatibleGenerationDefaults(byokKeys, options.rawEnv)
   const cliCandidate = () => (options.skipCliRuntime ? undefined : pickGenerationRuntime())
   // A runtime the caller explicitly chose outranks even the enabled-runtime search below: that
   // search ranks by workspace order and by which CLI can supply its own model, neither of which
@@ -468,29 +488,35 @@ function getAvailableProvider(
   // Try BYOK keys first (passed from client request)
   if (byokKeys?.openai) return { provider: 'openai', key: byokKeys.openai }
   if (byokKeys?.openaiCompatibleBaseUrl) {
-    // A base URL without a default model cannot generate. Prefer an enabled CLI runtime over
-    // dead-ending, rather than letting the unusable endpoint win just because it is configured.
-    const compatibleModel = String(byokKeys.openaiCompatibleDefaultModel || '').trim()
+    // A base URL with no model at all — none typed, and none discovered at the endpoint — cannot
+    // generate. Prefer an enabled CLI runtime over dead-ending, rather than letting the unusable
+    // endpoint win just because it is configured.
+    // compatibleDefaults already resolved this endpoint together with its own key and model.
+    const compatibleModel = String(compatibleDefaults.defaultModel || '').trim()
     const cliInstead = compatibleModel ? undefined : cliCandidate()
     if (cliInstead) return { provider: 'cli-runtime', key: cliInstead }
     return {
       provider: 'openai-compatible',
-      key: byokKeys.openaiCompatibleApiKey || 'openai-compatible',
-      baseUrl: byokKeys.openaiCompatibleBaseUrl,
-      defaultModel: byokKeys.openaiCompatibleDefaultModel,
+      // compatibleDefaults selected the browser's endpoint and paired it with the credential that
+      // belongs to that server — the browser's own key, or the protected one configured for it.
+      key: compatibleDefaults.apiKey || 'openai-compatible',
+      baseUrl: compatibleDefaults.baseUrl || byokKeys.openaiCompatibleBaseUrl,
+      defaultModel: compatibleModel || undefined,
     }
   }
   if (byokKeys?.anthropic) return { provider: 'anthropic', key: byokKeys.anthropic }
   if (byokKeys?.gemini) return { provider: 'gemini', key: byokKeys.gemini }
   // Then system/user-default keys
-  const keys = resolveSystemExecutionProviderKeys()
+  const keys = resolveSystemExecutionProviderKeys(options.rawEnv)
   if (keys.openai) return { provider: 'openai', key: keys.openai }
   if (compatibleDefaults.baseUrl) {
     const cliInstead = String(compatibleDefaults.defaultModel || '').trim() ? undefined : cliCandidate()
     if (cliInstead) return { provider: 'cli-runtime', key: cliInstead }
     return {
       provider: 'openai-compatible',
-      key: keys.openaiCompatibleApiKey || 'openai-compatible',
+      // compatibleDefaults carries the key belonging to the endpoint it selected. Reaching for the
+      // system key here sent one endpoint's secret to a different endpoint's URL.
+      key: compatibleDefaults.apiKey || 'openai-compatible',
       baseUrl: compatibleDefaults.baseUrl,
       defaultModel: compatibleDefaults.defaultModel,
     }
@@ -820,8 +846,8 @@ export function buildClientForSelection(
   }
 }
 
-export function createAiGenerationClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string } {
-  return buildClientForSelection(getAvailableProvider(byokKeys), byokKeys)
+export function createAiGenerationClient(byokKeys?: ProviderKeys, rawEnv?: Record<string, string>): { client: OpenAI; model: string } {
+  return buildClientForSelection(getAvailableProvider(byokKeys, { rawEnv }), byokKeys)
 }
 
 export function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string } {
@@ -915,15 +941,62 @@ export function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: s
   return { client: wrapped as unknown as OpenAI, model: built.model }
 }
 
-// Module-level BYOK override — set per-request by routes
+// BYOK keys for the request being served. Each HTTP request runs inside its own async scope
+// (requestByokScopeMiddleware), so a route's setRequestByokKeys is visible only to the work that
+// request awaits — two concurrent generations can never read each other's credentials. Outside a
+// request scope (tests, scripts) the setter falls back to a process-wide slot as before.
+const requestByokStore = new AsyncLocalStorage<{ keys: ProviderKeys | undefined }>()
 let _requestByokKeys: ProviderKeys | undefined
 
 export function setRequestByokKeys(keys: ProviderKeys | undefined) {
-  _requestByokKeys = keys
+  const scope = requestByokStore.getStore()
+  if (scope) scope.keys = keys
+  else _requestByokKeys = keys
+}
+
+export function getRequestByokKeys(): ProviderKeys | undefined {
+  const scope = requestByokStore.getStore()
+  return scope ? scope.keys : _requestByokKeys
+}
+
+/** Runs fn inside its own BYOK scope; setRequestByokKeys within it cannot leak to other callers. */
+export function withRequestByokScope<T>(fn: () => T): T {
+  return requestByokStore.run({ keys: undefined }, fn)
+}
+
+/** Express middleware: every request gets its own BYOK scope. */
+export function requestByokScopeMiddleware(_req: unknown, _res: unknown, next: () => void) {
+  requestByokStore.run({ keys: undefined }, () => next())
+}
+
+/**
+ * Ask the OpenAI-compatible endpoint what it runs, before generation starts.
+ *
+ * The resolvers that need this answer are synchronous and sit several frames down the generation
+ * call chain, so the one asynchronous step happens here, at the request boundary. Deliberately
+ * separate from setRequestByokKeys: that setter writes module-level request state, and awaiting
+ * inside it would widen the window in which a concurrent request can overwrite it.
+ *
+ * Warm calls return from the discovery cache without touching the network.
+ */
+export async function warmOpenAiCompatibleGenerationModel(keys?: ProviderKeys, rawEnv?: Record<string, string>): Promise<void> {
+  try {
+    const { baseUrl, apiKey, defaultModel } = resolveOpenAiCompatibleGenerationDefaults(keys, rawEnv)
+    if (!baseUrl || defaultModel) return
+    // Warmed unconditionally rather than only when this endpoint looks like the winner. Provider
+    // precedence is not knowable here — a browser-supplied endpoint outranks a system OpenAI key,
+    // and an enabled CLI that fails re-resolves onto this path — and guessing wrong leaves the
+    // endpoint cold at the point generation needs it. Discovery is cached for an hour and
+    // coalesced, so the cost is one /models call per endpoint per hour.
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl, apiKey })
+  } catch {
+    // An unreachable endpoint is reported by the generation attempt itself, in the provider's own
+    // words — failing here would replace that with a vaguer missing-model message.
+  }
 }
 
 function currentClient(): { client: OpenAI; model: string } {
-  return getAIClient(_requestByokKeys)
+  return getAIClient(getRequestByokKeys())
 }
 
 export async function answerBuilderQuestionWithAI(input: {
@@ -1000,8 +1073,8 @@ export function resolveSystemGenerationModelForProvider(
  * the model is validated); a working key fails on an unknown model.
  */
 function resolveModel(requestedModel: string, providerOverride?: AIProvider, byokKeysOverride?: ProviderKeys): string {
-  const provider = providerOverride || getAvailableProvider(_requestByokKeys).provider
-  const effectiveByokKeys = byokKeysOverride || _requestByokKeys
+  const provider = providerOverride || getAvailableProvider(getRequestByokKeys()).provider
+  const effectiveByokKeys = byokKeysOverride || getRequestByokKeys()
   const systemPreferredModel = readWorkspaceIntegrationConfig().systemPreferredModel?.trim()
   // A CLI-backed client ignores this value — it drives the runtime's own model — but every caller
   // still asks for one, so answer without reaching the provider branches below.
@@ -1032,7 +1105,7 @@ function stripProviderPrefix(model: string): string {
 
 export function shouldUseMaxCompletionTokens(model: string): boolean {
   if (model === CLI_RUNTIME_MODEL_SENTINEL) return false
-  const { provider } = getAvailableProvider(_requestByokKeys)
+  const { provider } = getAvailableProvider(getRequestByokKeys())
   return provider === 'openai' && /^gpt-5(?:-|$)/i.test(stripProviderPrefix(model))
 }
 
@@ -2124,7 +2197,7 @@ export async function generateAgentFiles(input: GenerateAgentFilesInput): Promis
 }
 
 export async function generateSkillFromNL(description: string, currentDraft?: Partial<GeneratedSkillScaffold>): Promise<GeneratedSkillScaffold> {
-  getAvailableProvider(_requestByokKeys)
+  getAvailableProvider(getRequestByokKeys())
 
   const isRefinement = !!currentDraft
   const model = resolveModel('gpt-4o-mini')
@@ -2233,7 +2306,7 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
  * Generate a workflow definition from natural language description.
  */
 export async function generateWorkflowFromNL(description: string, availableAgents: string[], availableTags: string[]): Promise<any> {
-  getAvailableProvider(_requestByokKeys)
+  getAvailableProvider(getRequestByokKeys())
 
   const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model: resolveModel('gpt-4o'),
@@ -2287,7 +2360,7 @@ export async function generateTemplateFromNL(
   generationTarget: TemplateGenerationTarget = 'team',
   preferredAuthor: string = 'ClawMax AI',
 ): Promise<any> {
-  getAvailableProvider(_requestByokKeys)
+  getAvailableProvider(getRequestByokKeys())
   const promptContext = buildExampleAwarePromptContext(description)
   const shouldScaleMiddleWork = promptImpliesScaling(description)
   const normalizedTarget = normalizeTemplateGenerationTarget(generationTarget)
