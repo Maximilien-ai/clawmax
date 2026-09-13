@@ -64,6 +64,17 @@ const LMSTUDIO_DEFAULT_CONTEXT_TOKENS = 64_000
 // (see providerKeysToEnv); discovery was warmed with no credential, so these must map back to it.
 const OPENAI_COMPATIBLE_PLACEHOLDER_KEYS = new Set(['openai-compatible', 'lmstudio-local'])
 /** The credential discovery was warmed with: a placeholder for a keyless endpoint means none. */
+// True when the provider entry for `modelId` would be resized by `contextFor`: it carries the fixed
+// default, or a value below what the endpoint advertises. A larger operator-set value stands.
+function providerContextWindowIsStale(providerConfig: any, modelId: string | undefined, advertisedContextWindow: number | undefined): boolean {
+  if (!advertisedContextWindow || !modelId || !Array.isArray(providerConfig?.models)) return false
+  return providerConfig.models.some((entry: any) => {
+    if (typeof entry !== 'object' || entry === null || String(entry.id || '').trim() !== modelId) return false
+    const current = typeof entry.contextWindow === 'number' && entry.contextWindow > 0 ? entry.contextWindow : undefined
+    return current !== advertisedContextWindow && !(current && current !== LMSTUDIO_DEFAULT_CONTEXT_TOKENS && current > advertisedContextWindow)
+  })
+}
+
 function discoveryCredentialFor(apiKey?: string): string | undefined {
   const trimmed = apiKey?.trim()
   return trimmed && !OPENAI_COMPATIBLE_PLACEHOLDER_KEYS.has(trimmed) ? trimmed : undefined
@@ -1347,9 +1358,13 @@ export async function withTemporaryAgentAuthProfiles<T>(
       executionModelOverride &&
       Object.prototype.hasOwnProperty.call(currentOpenClawConfig?.agents?.defaults?.models || {}, executionModelOverride)
     )
+    // An entry written before the endpoint's advertised context length was known (or with the
+    // fixed default) is stale once discovery knows better, even when everything else matches.
+    const advertisedContextWindow = getCachedOpenAiCompatibleContextWindow(normalizedOpenAiCompatibleBaseUrl, discoveryCredentialFor(providerKeys.openaiCompatibleApiKey), executionLmstudioModelId)
     const shouldInjectOpenAiCompatibleProvider = Boolean(
       hadConfig &&
       (
+        providerContextWindowIsStale(previousOpenAiCompatibleProvider.config, executionLmstudioModelId, advertisedContextWindow) ||
         (normalizedOpenAiCompatibleBaseUrl && !previousOpenAiCompatibleProvider.exists) ||
         (normalizedOpenAiCompatibleBaseUrl && previousOpenAiCompatibleProvider.config?.baseUrl !== normalizedOpenAiCompatibleBaseUrl) ||
         (previousOpenAiCompatibleProvider.exists && !previousOpenAiCompatibleProvider.config?.api) ||
@@ -1380,18 +1395,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
           executionModelOverride &&
           Object.prototype.hasOwnProperty.call(latestOpenClawConfig.agents?.defaults?.models || {}, executionModelOverride)
         )
-        // An entry written before the endpoint's advertised context length was known (or with the
-        // fixed default) is stale once discovery knows better; a larger operator-set value stands.
-        const advertisedContextWindow = getCachedOpenAiCompatibleContextWindow(normalizedOpenAiCompatibleBaseUrl, discoveryCredentialFor(providerKeys.openaiCompatibleApiKey), executionLmstudioModelId)
-        const latestContextWindowStale = Boolean(
-          advertisedContextWindow &&
-          Array.isArray(latestOpenAiCompatibleProvider.config?.models) &&
-          latestOpenAiCompatibleProvider.config?.models.some((entry: any) => {
-            if (typeof entry !== 'object' || entry === null || String(entry.id || '').trim() !== executionLmstudioModelId) return false
-            const current = typeof entry.contextWindow === 'number' && entry.contextWindow > 0 ? entry.contextWindow : undefined
-            return current !== advertisedContextWindow && !(current && current !== LMSTUDIO_DEFAULT_CONTEXT_TOKENS && current > advertisedContextWindow)
-          })
-        )
+        const latestContextWindowStale = providerContextWindowIsStale(latestOpenAiCompatibleProvider.config, executionLmstudioModelId, advertisedContextWindow)
         let changed = false
         if (
           (normalizedOpenAiCompatibleBaseUrl && !latestOpenAiCompatibleProvider.exists) ||
