@@ -721,6 +721,61 @@ test('resolvePersistedAgentSessionId recovers a dashboard-chat session recorded 
   assert(resolved === 'dashboard-seed-prefix-agent-oldstamp-chat', `Expected the seed-prefixed session id to be recovered over the more recent unrelated one, got ${resolved}`)
 })
 
+test('resolvePersistedAgentSessionId recovers an earlier dashboard-chat session by session key, for an agent id long enough that scopeSessionIdToModel truncates its session ids', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-long-id-key-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  // 36 characters — past the ~28-character threshold where scopeSessionIdToModel's hash
+  // truncation lands inside "dashboard-<agentId>-" itself, not just the stamp after it. Agent
+  // names generated from a description routinely run this long or longer.
+  const agentId = 'release-captain-generated-agent-slug'
+  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+
+  const oldSessionId = scopeSessionIdToModel(`dashboard-${agentId}-oldstamp-chat`, 'openai/gpt-4o-mini')
+  const newSessionId = scopeSessionIdToModel(`dashboard-${agentId}-newstamp-chat`, 'openai/gpt-4o-mini')
+  assert(oldSessionId.length === 48 && oldSessionId !== newSessionId, 'test setup: expected this agent id to actually trigger scopeSessionIdToModel\'s hash truncation')
+
+  insertSession.run(`agent:${agentId}:dashboard-chat`, oldSessionId, JSON.stringify({ sessionId: oldSessionId, updatedAt: 1000 }), 1000)
+  insertSession.run('unrelated-cli-run-key', 'newer-unrelated-session', JSON.stringify({ sessionId: 'newer-unrelated-session', updatedAt: 5000 }), 5000)
+  database.close()
+
+  const resolved = resolvePersistedAgentSessionId(agentId, `agent:${agentId}:dashboard-chat`, newSessionId, home)
+
+  assert(resolved === oldSessionId, `Expected the earlier truncated session id (matched by session_key) to be recovered, got ${resolved}`)
+})
+
+test('resolvePersistedAgentSessionId recovers a dashboard-chat session by its truncated seed prefix, for an agent id long enough that scopeSessionIdToModel truncates its session ids', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-long-id-prefix-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentId = 'release-captain-generated-agent-slug'
+  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+
+  const oldSessionId = scopeSessionIdToModel(`dashboard-${agentId}-oldstamp-chat`, 'openai/gpt-4o-mini')
+  const newSessionId = scopeSessionIdToModel(`dashboard-${agentId}-newstamp-chat`, 'openai/gpt-4o-mini')
+  assert(oldSessionId.length === 48, 'test setup: expected this agent id to actually trigger scopeSessionIdToModel\'s hash truncation')
+  // This is the exact regression: the naive, untruncated "dashboard-<agentId>-" never appears in
+  // the real (truncated) session id, so a prefix check that didn't account for the truncation
+  // would fail to recover this session at all.
+  assert(!oldSessionId.startsWith(`dashboard-${agentId}-`), 'test setup: expected the untruncated prefix not to appear verbatim in the truncated session id')
+
+  // Recorded under an "explicit:" bookkeeping key, so only the seed-prefix match — not the
+  // session_key match — can recover it.
+  insertSession.run(`agent:${agentId}:explicit:some-older-seed`, oldSessionId, JSON.stringify({ sessionId: oldSessionId, updatedAt: 1000 }), 1000)
+  insertSession.run('unrelated-cli-run-key', 'newer-unrelated-session', JSON.stringify({ sessionId: 'newer-unrelated-session', updatedAt: 5000 }), 5000)
+  database.close()
+
+  const resolved = resolvePersistedAgentSessionId(agentId, `agent:${agentId}:dashboard-chat`, newSessionId, home)
+
+  assert(resolved === oldSessionId, `Expected the truncated seed-prefixed session id to be recovered over the more recent unrelated one, got ${resolved}`)
+})
+
 test('openclaw native transcript helpers degrade to empty results for a missing or unreadable database', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-missing-home-'))
 

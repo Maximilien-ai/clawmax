@@ -417,20 +417,35 @@ export function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: stri
   return `dashboard-${agentId}-${stamp}-chat`
 }
 
+const SESSION_ID_MAX_LENGTH = 48
+const SESSION_ID_HASH_LENGTH = 8
+
+/**
+ * The longest prefix of a `scopeSessionIdToModel` base argument that function is guaranteed to
+ * preserve verbatim in its output, regardless of which model or identity-file stamp is appended —
+ * i.e. how much of `base` survives once `base` (plus the model token) is long enough to trigger
+ * scopeSessionIdToModel's hash-truncation. Exported so a caller that needs to recognize "one of
+ * this agent's own dashboard-chat session ids, from any past stamp" by prefix (see
+ * resolvePersistedAgentSessionId) truncates its comparison prefix by the exact same rule instead
+ * of duplicating the length math and silently drifting out of sync with it.
+ */
+export function stableSessionIdBasePrefix(base: string): string {
+  return base.slice(0, Math.max(8, SESSION_ID_MAX_LENGTH - SESSION_ID_HASH_LENGTH - 1))
+}
+
 export function scopeSessionIdToModel(sessionId: string, model?: string): string {
-  const MAX_SESSION_KEY_LENGTH = 48
   const safeBase = sessionId.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
   const modelToken = (model || '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24)
   const base = safeBase || 'chat'
   const combined = modelToken ? `${base}-${modelToken}` : base
 
-  if (combined.length <= MAX_SESSION_KEY_LENGTH) {
+  if (combined.length <= SESSION_ID_MAX_LENGTH) {
     return combined
   }
 
-  const hash = createHash('sha1').update(combined).digest('hex').slice(0, 8)
-  const trimmedBase = base.slice(0, Math.max(8, MAX_SESSION_KEY_LENGTH - hash.length - 1))
-  return `${trimmedBase}-${hash}`.slice(0, MAX_SESSION_KEY_LENGTH)
+  const hash = createHash('sha1').update(combined).digest('hex').slice(0, SESSION_ID_HASH_LENGTH)
+  const trimmedBase = stableSessionIdBasePrefix(base)
+  return `${trimmedBase}-${hash}`.slice(0, SESSION_ID_MAX_LENGTH)
 }
 
 export function resolvePersistedAgentSessionId(
@@ -499,7 +514,12 @@ export function resolvePersistedAgentSessionId(
   // switch — is a stranger's conversation and must never be offered as the user's current chat,
   // no matter how recently it was touched. If nothing matches, the right answer is empty, not
   // "closest thing available" (the final legacy-jsonl fallback below still applies for OpenClaw 1).
-  const dashboardSeedPrefix = `dashboard-${agentId}-`
+  //
+  // The prefix itself must be run through stableSessionIdBasePrefix: for a long agent id,
+  // scopeSessionIdToModel's hash-truncation can land inside "dashboard-<agentId>-" itself (past
+  // roughly 28 characters of agentId), so the untruncated prefix would never match a real,
+  // truncated session id at all and a genuine earlier conversation would read as empty.
+  const dashboardSeedPrefix = stableSessionIdBasePrefix(`dashboard-${agentId}-`)
   const ownDashboardSession = nativeSessions.find((session) =>
     session.sessionKey === sessionKey
     || session.sessionKey.startsWith(`${sessionKey}:`)
