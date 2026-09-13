@@ -1539,7 +1539,7 @@ test('withTemporaryAgentAuthProfiles sizes the LM Studio model entry from the co
   const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
   assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"google/gemma-4-31b-qat"')), 'Expected undersized LM Studio instance to be unloaded before execution')
   const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
-  assert(!!(loadCall && loadCall.body?.includes('"context_length":64000')), 'Expected LM Studio load request to target the larger execution context window')
+  assert(!!(loadCall && loadCall.body?.includes('"context_length":131072')), 'Expected LM Studio load request to target the larger execution context window')
 })
 
 test('withTemporaryAgentAuthProfiles sizes a keyless endpoint model entry from the advertised context length despite the placeholder key', async () => {
@@ -1654,7 +1654,7 @@ test('withTemporaryAgentAuthProfiles sizes a keyless endpoint model entry from t
   const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
   assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"google/gemma-4-31b-qat"')), 'Expected undersized LM Studio instance to be unloaded before execution')
   const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
-  assert(!!(loadCall && loadCall.body?.includes('"context_length":64000')), 'Expected LM Studio load request to target the larger execution context window')
+  assert(!!(loadCall && loadCall.body?.includes('"context_length":131072')), 'Expected LM Studio load request to target the larger execution context window')
 })
 
 test('withTemporaryAgentAuthProfiles upgrades an already-authorized, already-matching entry from the default to the advertised context length', async () => {
@@ -1770,7 +1770,123 @@ test('withTemporaryAgentAuthProfiles upgrades an already-authorized, already-mat
   const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
   assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"google/gemma-4-31b-qat"')), 'Expected undersized LM Studio instance to be unloaded before execution')
   const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
-  assert(!!(loadCall && loadCall.body?.includes('"context_length":64000')), 'Expected LM Studio load request to target the larger execution context window')
+  assert(!!(loadCall && loadCall.body?.includes('"context_length":131072')), 'Expected LM Studio load request to target the larger execution context window')
+})
+
+test('withTemporaryAgentAuthProfiles shrinks a default-sized entry to a smaller advertised context length and clamps its max tokens', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-ctx-shrink-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-compatible')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-compatible', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/google/gemma-4-31b-qat\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    models: {
+      providers: {
+        lmstudio: {
+          baseUrl: 'http://127.0.0.1:1234/v1',
+          api: 'openai-completions',
+          apiKey: 'openai-compatible',
+          models: [{
+            id: 'google/gemma-4-31b-qat',
+            name: 'google/gemma-4-31b-qat',
+            contextWindow: 64000,
+            contextTokens: 64000,
+            maxTokens: 8192,
+          }],
+        },
+      },
+    },
+    agents: {
+      defaults: { models: { 'lmstudio/google/gemma-4-31b-qat': {} } },
+      list: [
+        { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/google/gemma-4-31b-qat' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+  const originalFetch = global.fetch
+  clearModelCache()
+  global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'google/gemma-4-31b-qat', max_model_len: 4096 }] }) }) as any) as any
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://127.0.0.1:1234/v1' })
+  const fetchCalls: Array<{ url: string; method: string; body?: string }> = []
+  global.fetch = (async (input: any, init?: any) => {
+    const url = String(input)
+    const method = String(init?.method || 'GET').toUpperCase()
+    const body = typeof init?.body === 'string' ? init.body : undefined
+    fetchCalls.push({ url, method, body })
+    if (url.endsWith('/api/v1/models') && method === 'GET') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          models: [{
+            key: 'google/gemma-4-31b-qat',
+            loaded_instances: [
+              { id: 'google/gemma-4-31b-qat', config: { context_length: 4096 } },
+              { id: 'google/gemma-4-31b-qat:2', config: { context_length: 200000 } },
+            ],
+          }],
+        }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/unload') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'unloaded' }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/load') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'loaded' }),
+      } as any
+    }
+    throw new Error(`Unexpected fetch call: ${method} ${url}`)
+  }) as any
+
+  try {
+    await withTemporaryAgentAuthProfiles(
+      'test-compatible',
+      { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'openai-compatible' },
+      'openai-compatible/google/gemma-4-31b-qat',
+      'openai-compatible',
+      async () => {
+        const currentConfig = readMaterializedConfig(configPath)
+        assert(currentConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
+        assert(currentConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected exact LM Studio execution ref to be authorized for OpenClaw overrides')
+        assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected stable LM Studio base URL persisted')
+        assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected stable LM Studio api marker persisted')
+        assert(['openai-compatible', 'lmstudio-local'].includes(String(currentConfig.models.providers.lmstudio.apiKey)), `Expected a keyless placeholder api key to be persisted, got ${currentConfig.models.providers.lmstudio.apiKey}`)
+        assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected stable LM Studio provider models array persisted')
+        const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'google/gemma-4-31b-qat')
+        assert(activeEntry, 'Expected stable LM Studio catalog entry for the active model')
+        assert(activeEntry.contextWindow === 4096 && activeEntry.contextTokens === 4096, `Expected the advertised 4096-token context to replace the 64000 default, got ${activeEntry.contextWindow}/${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 4096, `Expected maxTokens to be clamped to the 4096-token window, got ${activeEntry.maxTokens}`)
+        assert(activeEntry.contextTokens === 4096, `Expected contextTokens to follow the advertised length, got ${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens <= activeEntry.contextWindow, 'Expected the max token output limit never to exceed the context window')
+      }
+    )
+  } finally {
+    global.fetch = originalFetch
+  }
+
+  const persistedConfig = readMaterializedConfig(configPath)
+  assert(persistedConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', 'Expected saved dashboard model to stay unchanged after execution')
+  assert(persistedConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected LM Studio execution allowlist entry to remain stable after execution')
+  assert(persistedConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected LM Studio provider config to remain stable after execution')
+  const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
+  assert(!unloadCall, 'Expected no LM Studio instance to be unloaded: the loaded 4096-token instance already covers the window')
+  const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
+  assert(!loadCall, 'Expected no LM Studio load request when a loaded instance already covers the 4096-token window')
 })
 
 test('withTemporaryAgentAuthProfiles preserves existing Ollama provider config fields while applying a stable base URL', async () => {
