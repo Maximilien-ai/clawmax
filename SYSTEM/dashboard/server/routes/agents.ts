@@ -3564,7 +3564,25 @@ router.delete('/:id/chat/messages', async (req, res) => {
         // Runtime-only (claude/droid): render the transcript as archive-format lines.
         archiveContent = readRuntimeTranscriptAsArchiveLines(id, actualSessionId)
       }
-      fs.writeFileSync(archiveFile, archiveContent)
+      // Archiving (a file write) and marking-cleared (a separate dashboard-owned watermark write
+      // for native content — see markNativeTranscriptCleared) have no shared transaction. If the
+      // process is killed in between, nothing that fed archiveContent has been cleared yet, so a
+      // retried Clear recomputes byte-identical content and — without this check — would write it
+      // out again as a second archive file before re-attempting the steps that didn't finish.
+      // Treat an existing archive for this session with identical content as already done and skip
+      // re-writing it, so a retry only completes what's still outstanding instead of duplicating
+      // the archive.
+      const alreadyArchived = fs.readdirSync(archiveDir).some((name) => {
+        if (!name.startsWith(`${actualSessionId}_`) || !name.endsWith('.jsonl')) return false
+        try {
+          return fs.readFileSync(path.join(archiveDir, name), 'utf-8') === archiveContent
+        } catch {
+          return false
+        }
+      })
+      if (!alreadyArchived) {
+        fs.writeFileSync(archiveFile, archiveContent)
+      }
 
       if (openclawExists) fs.unlinkSync(jsonlPath)
       clearRuntimeTranscript(id, actualSessionId)

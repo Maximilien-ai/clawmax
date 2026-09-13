@@ -287,6 +287,13 @@ export function markNativeTranscriptCleared(agentId: string, sessionId: string, 
   }
   if (maxSeq === null) return
 
+  // Read-modify-write with no file lock: two concurrent clears (even for different sessions,
+  // since they share one sidecar) could race and one's entry could clobber the other's. Safe
+  // today only because this whole function runs synchronously with no `await` between the read
+  // and the write, and the dashboard server is single-process — there is no other turn this
+  // event-loop tick could interleave in. Revisit (real file locking, or a per-session file) if
+  // either assumption stops holding — e.g. clustering the server, or this function ever gains an
+  // await before the write.
   const watermarksPath = getNativeClearWatermarksPath(agentId, homeDir)
   const watermarks = readNativeClearWatermarksFile(watermarksPath)
   watermarks[sessionId] = { seq: maxSeq, clearedAt: Date.now(), ...(generation ? { generation } : {}) }
