@@ -11,6 +11,7 @@ import assert from 'assert'
 import { EventEmitter } from 'events'
 import { listActiveTurns, cancelTurn } from '../lib/agent-turns'
 import { getAgentLifecycleGeneration } from '../lib/workspace'
+import { hasNativeTranscript } from '../lib/openclaw-native-transcripts'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -2309,6 +2310,59 @@ async function run() {
     )
   })
 
+  await test('clearing a native-only chat is safe to retry after a crash between archiving and marking the watermark', async () => {
+    writeAgent(workspacePath, 'native-clear-retry-agent', [
+      '# IDENTITY.md',
+      '**Name:** native-clear-retry-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'native-clear-retry-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'native-clear-retry-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const { buildDashboardChatSeed, scopeSessionIdToModel } = require('../lib/agent-execution')
+    const agentWorkspaceDir = path.join(workspacePath, 'AGENTS', 'native-clear-retry-agent')
+    const sessionId = scopeSessionIdToModel(buildDashboardChatSeed('native-clear-retry-agent', agentWorkspaceDir), 'openai/gpt-4o-mini')
+    const turnOne = JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'Retry test turn' }], timestamp: 1 } })
+    const turnTwo = JSON.stringify({ type: 'message', timestamp: 2, message: { role: 'assistant', content: [{ type: 'text', text: 'Retry test reply' }], timestamp: 2 } })
+    writeNativeAgentStore(tmpHome, 'native-clear-retry-agent', {
+      sessions: [{ sessionKey: 'agent:native-clear-retry-agent:dashboard-chat', sessionId }],
+      transcripts: { [sessionId]: [turnOne, turnTwo] },
+    })
+
+    // Simulate a process crash that completed the archive write but never reached
+    // markNativeTranscriptCleared: pre-create the exact archive file a first Clear attempt would
+    // have produced, while the native store is still unwatermarked (still reads as live).
+    const archiveDir = path.join(tmpHome, '.openclaw', 'agents', 'native-clear-retry-agent', 'sessions', 'archive')
+    fs.mkdirSync(archiveDir, { recursive: true })
+    fs.writeFileSync(path.join(archiveDir, `${sessionId}_2026-01-01_1735689600000.jsonl`), `${turnOne}\n${turnTwo}\n`)
+    assert(hasNativeTranscript('native-clear-retry-agent', sessionId, tmpHome), 'Expected the transcript to still read as live before the retried Clear — the crash never reached the watermark')
+
+    const clearHandler = getRouteHandler('delete', '/:id/chat/messages')
+    const clearRes = makeRes()
+    await clearHandler(makeReq({ params: { id: 'native-clear-retry-agent' } }), clearRes)
+    assert.strictEqual(clearRes.jsonBody?.archived, true, 'Expected the retried Clear to report the chat as archived')
+
+    const archiveFilesAfterRetry = fs.readdirSync(archiveDir).filter((name) => name.endsWith('.jsonl'))
+    assert.strictEqual(archiveFilesAfterRetry.length, 1, `Expected the pre-existing archive not to be duplicated, got ${archiveFilesAfterRetry.length} files`)
+
+    assert(!hasNativeTranscript('native-clear-retry-agent', sessionId, tmpHome), 'Expected the retried Clear to finish the interrupted step and finally mark the transcript cleared')
+
+    const messagesHandler = getRouteHandler('get', '/:id/chat/messages')
+    const messagesRes = makeRes()
+    await messagesHandler(makeReq({ params: { id: 'native-clear-retry-agent' } }), messagesRes)
+    assert.deepStrictEqual(messagesRes.jsonBody?.messages, [], 'Expected the current conversation to read as empty after the retry completes')
+  })
+
   await test('after Clear, the newest-native-session fallback does not present an unrelated, more recently touched native session as the current conversation', async () => {
     writeAgent(workspacePath, 'native-clear-fallback-agent', [
       '# IDENTITY.md',
@@ -2384,6 +2438,36 @@ async function run() {
     const unrelatedEntry = archives.find((entry: any) => entry.filename === `native:${unrelatedSessionId}`)
     assert(unrelatedEntry, 'Expected the unrelated native session to still be visible as ordinary history, just not as the current conversation')
     assert.strictEqual(unrelatedEntry.messageCount, 2, 'Expected the unrelated session\'s own messages to be intact')
+  })
+
+  await test('an agent re-pinned to a non-openclaw runtime with no runtime transcript yet never resolves to a session left behind in the old openclaw store', async () => {
+    writeAgent(workspacePath, 're-pinned-agent', [
+      '# IDENTITY.md',
+      '**Name:** re-pinned-agent',
+      '**Runtime:** droid',
+    ].join('\n'))
+    fs.mkdirSync(path.join(workspacePath, 'SYSTEM'), { recursive: true })
+    fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['droid'] }), 'utf-8')
+
+    // The agent used to run on openclaw; its native store still holds a session recorded under an
+    // unrelated key (e.g. a scheduled workflow run) that the re-pin to droid never touched or
+    // cleared. With no droid transcript yet (a fresh re-pin, nothing sent under the new runtime),
+    // resolveAgentChatSessionId falls back to the openclaw-side resolver — which must not offer up
+    // that leftover session just because it is the only (or newest) thing in the store.
+    writeNativeAgentStore(tmpHome, 're-pinned-agent', {
+      sessions: [{ sessionKey: 'agent:re-pinned-agent:workflow-run', sessionId: 'leftover-workflow-session', updatedAt: 9000 }],
+      transcripts: {
+        'leftover-workflow-session': [
+          JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'Unrelated workflow content' }], timestamp: 1 } }),
+        ],
+      },
+    })
+
+    const messagesHandler = getRouteHandler('get', '/:id/chat/messages')
+    const res = makeRes()
+    await messagesHandler(makeReq({ params: { id: 're-pinned-agent' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected the chat messages route to succeed for a re-pinned agent with no runtime transcript yet')
+    assert.deepStrictEqual(res.jsonBody?.messages, [], 'Expected an empty conversation, not the leftover workflow session from before the re-pin')
   })
 
   await test('chat archives route lists older native sessions from session_nodes as read-only history entries', async () => {

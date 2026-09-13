@@ -638,7 +638,7 @@ test('resolvePersistedAgentSessionId resolves the OpenClaw 2 native session reco
   assert(resolved === 'native-session-abc', `Expected native session id from session_nodes, got ${resolved}`)
 })
 
-test('resolvePersistedAgentSessionId falls back to the newest native session for the agent, key-agnostic', () => {
+test('resolvePersistedAgentSessionId never falls back to a native session that is not shaped like this agent\'s own dashboard chat', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-newest-home-'))
   const { DatabaseSync } = require('node:sqlite')
   const agentDir = path.join(home, '.openclaw', 'agents', 'native-newest', 'agent')
@@ -646,18 +646,19 @@ test('resolvePersistedAgentSessionId falls back to the newest native session for
   const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
   database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
   const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  // Neither row's session_key matches "agent:native-newest:dashboard-chat" or an "explicit:" alias
-  // of the preferred id — real OpenClaw 2 session_key shapes vary (a semantic key, an explicit:
-  // alias of some *other* seed, a CLI-run key, ...) and the dashboard has no reliable way to parse
-  // them, so resolution must be key-agnostic: whichever session was updated most recently wins,
-  // matching the legacy "newest .jsonl file" last resort. Inserted older-first so a naive
-  // first-row-without-sorting implementation would return the wrong (older) session.
-  insertSession.run('agent:native-newest:explicit:some-older-seed', 'older-session', JSON.stringify({ sessionId: 'older-session', updatedAt: 1000 }), 1000)
+  // Neither row's session_key matches "agent:native-newest:dashboard-chat" (or an "explicit:"
+  // sub-key of it), and neither session id carries this agent's "dashboard-native-newest-" seed
+  // prefix — a scheduled workflow run and an unrelated CLI invocation, both more recently touched
+  // than anything the dashboard itself ever recorded for this agent. Resolving to either would
+  // render a stranger's conversation as the user's current chat, so neither may ever be returned
+  // no matter how recent it is.
+  insertSession.run('agent:native-newest:workflow-run', 'workflow-session', JSON.stringify({ sessionId: 'workflow-session', updatedAt: 1000 }), 1000)
   insertSession.run('unrelated-cli-run-key', 'newer-session', JSON.stringify({ sessionId: 'newer-session', updatedAt: 5000 }), 5000)
   database.close()
 
-  // No sessions.json, and the preferred id matches neither native session — the only path left is
-  // the key-agnostic newest-session fallback.
+  // No sessions.json, and the preferred id matches neither native session, nor does either
+  // session look like this agent's own dashboard chat — the correct answer is "nothing found",
+  // not "closest thing available".
   const resolved = resolvePersistedAgentSessionId(
     'native-newest',
     'agent:native-newest:dashboard-chat',
@@ -665,7 +666,59 @@ test('resolvePersistedAgentSessionId falls back to the newest native session for
     home
   )
 
-  assert(resolved === 'newer-session', `Expected the most recently updated native session regardless of its key, got ${resolved}`)
+  assert(resolved === 'scoped-preferred-id-matching-neither-session', `Expected no unrelated native session to be offered as the current conversation, got ${resolved}`)
+})
+
+test('resolvePersistedAgentSessionId recovers an earlier dashboard-chat session recorded under a different identity-file stamp', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-seed-shift-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'seed-shift-agent', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  // buildDashboardChatSeed anchors its stamp to IDENTITY.md's mtime, so editing that file (e.g. a
+  // model change) changes the exact session id the dashboard asks for next — but the earlier
+  // conversation, recorded under the OLD stamp, is still this agent's own dashboard chat and must
+  // still be recovered, not treated as "never existed". Also seed an unrelated session that is
+  // touched more recently, to prove recency alone still isn't what wins.
+  insertSession.run('agent:seed-shift-agent:dashboard-chat', 'dashboard-seed-shift-agent-oldstamp-chat', JSON.stringify({ sessionId: 'dashboard-seed-shift-agent-oldstamp-chat', updatedAt: 1000 }), 1000)
+  insertSession.run('unrelated-cli-run-key', 'newer-unrelated-session', JSON.stringify({ sessionId: 'newer-unrelated-session', updatedAt: 5000 }), 5000)
+  database.close()
+
+  const resolved = resolvePersistedAgentSessionId(
+    'seed-shift-agent',
+    'agent:seed-shift-agent:dashboard-chat',
+    'dashboard-seed-shift-agent-newstamp-chat',
+    home
+  )
+
+  assert(resolved === 'dashboard-seed-shift-agent-oldstamp-chat', `Expected the earlier dashboard-chat session (matched by session_key) to be recovered, got ${resolved}`)
+})
+
+test('resolvePersistedAgentSessionId recovers a dashboard-chat session recorded only under its seed-prefixed session id, key-agnostic', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-seed-prefix-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'seed-prefix-agent', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  // Recorded under an "explicit:" bookkeeping key the dashboard has no need to parse, so the
+  // session_key alone doesn't identify it as ours — but its session id still carries the seed
+  // prefix buildDashboardChatSeed always writes for this agent, which is what recovers it.
+  insertSession.run('agent:seed-prefix-agent:explicit:some-older-seed', 'dashboard-seed-prefix-agent-oldstamp-chat', JSON.stringify({ sessionId: 'dashboard-seed-prefix-agent-oldstamp-chat', updatedAt: 1000 }), 1000)
+  insertSession.run('unrelated-cli-run-key', 'newer-unrelated-session', JSON.stringify({ sessionId: 'newer-unrelated-session', updatedAt: 5000 }), 5000)
+  database.close()
+
+  const resolved = resolvePersistedAgentSessionId(
+    'seed-prefix-agent',
+    'agent:seed-prefix-agent:dashboard-chat',
+    'dashboard-seed-prefix-agent-newstamp-chat',
+    home
+  )
+
+  assert(resolved === 'dashboard-seed-prefix-agent-oldstamp-chat', `Expected the seed-prefixed session id to be recovered over the more recent unrelated one, got ${resolved}`)
 })
 
 test('openclaw native transcript helpers degrade to empty results for a missing or unreadable database', () => {

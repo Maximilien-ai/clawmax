@@ -477,28 +477,36 @@ export function resolvePersistedAgentSessionId(
     }
   } catch {}
 
-  // OpenClaw 2's native store has no sessions.json index to consult, and no reliable session_key
-  // to match on either — it records a session started from an explicit --session-id (which is how
-  // the dashboard always starts one; see buildDashboardChatSeed) under an internal "explicit:"
-  // bookkeeping key the dashboard has no need to parse. So this is key-agnostic, exactly like the
-  // legacy "newest .jsonl file" last resort below: take the most recently updated native session
-  // for this agent, whatever its key. listNativeSessionIds is already sorted newest first.
-  //
-  // But only when this agent's own seeded session has never existed at all. listNativeSessionIds
-  // is NOT watermark-aware (unlike isPersisted/hasNativeTranscript above), so a session recorded
-  // under preferredSessionId that Clear has merely watermarked to empty still shows up here — and
-  // that is the answer we want: this agent's own conversation, now empty. Falling through to "the
-  // newest session for this agent, whatever its key" instead would present a completely unrelated
-  // session (e.g. a scheduled workflow run, or a session left behind by a model switch) as the
-  // user's current conversation right after they cleared it.
+  // OpenClaw 2's native store has no sessions.json index to consult. listNativeSessionIds is NOT
+  // watermark-aware (unlike isPersisted/hasNativeTranscript above), so a session recorded under
+  // preferredSessionId that Clear has merely watermarked to empty still shows up here — and that
+  // is the answer we want: this agent's own conversation, now empty.
   const nativeSessions = listNativeSessionIds(agentId, homeDir)
   if (preferredSessionId && nativeSessions.some((session) => session.sessionId === preferredSessionId)) {
     return preferredSessionId
   }
 
-  const newestNativeSession = nativeSessions[0]
-  if (newestNativeSession) {
-    return newestNativeSession.sessionId
+  // Nothing matched the exact seed — e.g. a changed IDENTITY.md shifted buildDashboardChatSeed's
+  // stamp, or this agent has never sent a dashboard-chat turn at all. Recover the user's own
+  // dashboard conversation by matching the *shape* the dashboard itself creates, never "whatever
+  // is newest for this agent": OpenClaw records a session started from an explicit --session-id
+  // (how the dashboard always starts one; see buildDashboardChatSeed) either under this exact
+  // session_key, under an "...:explicit:..." sub-key scopeSessionIdToModel's re-scoping creates
+  // beneath it (see the chat-archives route's own history-listing comment on this), or — when
+  // OpenClaw records neither cleanly — under a session id still carrying the seed prefix
+  // buildDashboardChatSeed always writes, independent of the per-identity-file stamp. Anything
+  // else — a scheduled workflow run, a CLI invocation, a session left behind by a runtime or model
+  // switch — is a stranger's conversation and must never be offered as the user's current chat,
+  // no matter how recently it was touched. If nothing matches, the right answer is empty, not
+  // "closest thing available" (the final legacy-jsonl fallback below still applies for OpenClaw 1).
+  const dashboardSeedPrefix = `dashboard-${agentId}-`
+  const ownDashboardSession = nativeSessions.find((session) =>
+    session.sessionKey === sessionKey
+    || session.sessionKey.startsWith(`${sessionKey}:`)
+    || session.sessionId.startsWith(dashboardSeedPrefix)
+  )
+  if (ownDashboardSession) {
+    return ownDashboardSession.sessionId
   }
 
   try {
