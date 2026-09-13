@@ -63,6 +63,11 @@ const LMSTUDIO_DEFAULT_CONTEXT_TOKENS = 64_000
 // Keys the execution environment substitutes for "no credential" on a keyless endpoint
 // (see providerKeysToEnv); discovery was warmed with no credential, so these must map back to it.
 const OPENAI_COMPATIBLE_PLACEHOLDER_KEYS = new Set(['openai-compatible', 'lmstudio-local'])
+/** The credential discovery was warmed with: a placeholder for a keyless endpoint means none. */
+function discoveryCredentialFor(apiKey?: string): string | undefined {
+  const trimmed = apiKey?.trim()
+  return trimmed && !OPENAI_COMPATIBLE_PLACEHOLDER_KEYS.has(trimmed) ? trimmed : undefined
+}
 const OPENCLAW_CONFIG_RELOAD_SETTLE_MS = 1500
 let openClawConfigMutationLock: Promise<void> = Promise.resolve()
 const agentExecutionLocks = new Map<string, Promise<void>>()
@@ -1150,8 +1155,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
     const normalizedModel = preferredModel?.trim().replace(/^lmstudio\//, '')
     // The endpoint's own advertised context length outranks the fixed default and any earlier
     // default this code wrote; an operator's explicit larger value is kept.
-    const discoveryCredential = apiKey?.trim() && !OPENAI_COMPATIBLE_PLACEHOLDER_KEYS.has(apiKey.trim()) ? apiKey.trim() : undefined
-    const advertisedContext = getCachedOpenAiCompatibleContextWindow(normalizedBaseUrl, discoveryCredential, normalizedModel)
+    const advertisedContext = getCachedOpenAiCompatibleContextWindow(normalizedBaseUrl, discoveryCredentialFor(apiKey), normalizedModel)
     const contextFor = (existing: unknown) => {
       const current = typeof existing === 'number' && existing > 0 ? existing : undefined
       if (advertisedContext) return current && current !== LMSTUDIO_DEFAULT_CONTEXT_TOKENS && current > advertisedContext ? current : advertisedContext
@@ -1376,6 +1380,18 @@ export async function withTemporaryAgentAuthProfiles<T>(
           executionModelOverride &&
           Object.prototype.hasOwnProperty.call(latestOpenClawConfig.agents?.defaults?.models || {}, executionModelOverride)
         )
+        // An entry written before the endpoint's advertised context length was known (or with the
+        // fixed default) is stale once discovery knows better; a larger operator-set value stands.
+        const advertisedContextWindow = getCachedOpenAiCompatibleContextWindow(normalizedOpenAiCompatibleBaseUrl, discoveryCredentialFor(providerKeys.openaiCompatibleApiKey), executionLmstudioModelId)
+        const latestContextWindowStale = Boolean(
+          advertisedContextWindow &&
+          Array.isArray(latestOpenAiCompatibleProvider.config?.models) &&
+          latestOpenAiCompatibleProvider.config?.models.some((entry: any) => {
+            if (typeof entry !== 'object' || entry === null || String(entry.id || '').trim() !== executionLmstudioModelId) return false
+            const current = typeof entry.contextWindow === 'number' && entry.contextWindow > 0 ? entry.contextWindow : undefined
+            return current !== advertisedContextWindow && !(current && current !== LMSTUDIO_DEFAULT_CONTEXT_TOKENS && current > advertisedContextWindow)
+          })
+        )
         let changed = false
         if (
           (normalizedOpenAiCompatibleBaseUrl && !latestOpenAiCompatibleProvider.exists) ||
@@ -1383,7 +1399,8 @@ export async function withTemporaryAgentAuthProfiles<T>(
           (latestOpenAiCompatibleProvider.exists && !latestOpenAiCompatibleProvider.config?.api) ||
           (providerKeys.openaiCompatibleApiKey?.trim() && latestOpenAiCompatibleProvider.config?.apiKey !== providerKeys.openaiCompatibleApiKey.trim()) ||
           !latestHasExecutionModel ||
-          !latestHasExecutionModelAuthorization
+          !latestHasExecutionModelAuthorization ||
+          latestContextWindowStale
         ) {
           changed = applyOpenAiCompatibleProviderConfig(
             normalizedOpenAiCompatibleBaseUrl,
