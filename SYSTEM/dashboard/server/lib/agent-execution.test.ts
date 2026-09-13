@@ -1673,7 +1673,7 @@ test('withTemporaryAgentAuthProfiles upgrades an already-authorized, already-mat
         lmstudio: {
           baseUrl: 'http://127.0.0.1:1234/v1',
           api: 'openai-completions',
-          apiKey: 'lmstudio-local',
+          apiKey: 'openai-compatible',
           models: [{
             id: 'google/gemma-4-31b-qat',
             name: 'google/gemma-4-31b-qat',
