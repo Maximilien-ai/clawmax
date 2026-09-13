@@ -450,6 +450,18 @@ function getAgentSessionsDir(agentId: string, homeDir: string = process.env.HOME
   return path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
 }
 
+/**
+ * OpenClaw 2 refuses to start its gateway when it finds a legacy sessions.json beside an agent that
+ * has migrated to the native store ("Legacy session store requires migration"). So the dashboard
+ * must never create that file for such an agent — not even an empty one — while still maintaining
+ * an index that already exists for a legacy agent.
+ */
+function shouldWriteLegacySessionsIndex(agentId: string, homeDir: string, sessionsIndexPath: string): boolean {
+  if (fs.existsSync(sessionsIndexPath)) return true
+  const nativeStorePath = path.join(homeDir, '.openclaw', 'agents', agentId, 'agent', 'openclaw-agent.sqlite')
+  return !hasReadyOpenClawNativeAgentStore(nativeStorePath)
+}
+
 function getAgentDashboardSessionKey(agentId: string): string {
   return `agent:${agentId}:dashboard-chat`
 }
@@ -3596,7 +3608,9 @@ router.delete('/:id/chat/messages', async (req, res) => {
       if (sessionsIndex[sessionKey]?.sessionId === actualSessionId) {
         delete sessionsIndex[sessionKey]
       }
-      fs.writeFileSync(sessionsIndexPath, JSON.stringify(sessionsIndex, null, 2))
+      if (shouldWriteLegacySessionsIndex(id, HOME, sessionsIndexPath)) {
+        fs.writeFileSync(sessionsIndexPath, JSON.stringify(sessionsIndex, null, 2))
+      }
 
       return res.json({ ok: true, archived: true })
     }
@@ -3888,7 +3902,9 @@ router.post('/:id/chat/archives/:filename/restore', async (req, res) => {
       sessionId,
       updatedAt: Date.now(),
     }
-    fs.writeFileSync(sessionsIndexPath, JSON.stringify(sessionsIndex, null, 2))
+    if (shouldWriteLegacySessionsIndex(id, HOME, sessionsIndexPath)) {
+      fs.writeFileSync(sessionsIndexPath, JSON.stringify(sessionsIndex, null, 2))
+    }
 
     res.json({ ok: true, sessionId, messages: restoredMessages })
   } catch (err) {

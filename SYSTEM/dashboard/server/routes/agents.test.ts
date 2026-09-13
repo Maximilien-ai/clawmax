@@ -2268,6 +2268,10 @@ async function run() {
     const archivedLines = fs.readFileSync(path.join(archiveDir, archiveFiles[0]), 'utf-8').trim().split('\n').map((line) => JSON.parse(line))
     assert.strictEqual(archivedLines.length, 2, 'Expected both native turns to be archived')
 
+    assert(
+      !fs.existsSync(path.join(tmpHome, '.openclaw', 'agents', 'native-clear-agent', 'sessions', 'sessions.json')),
+      'Expected Clear never to create a legacy sessions.json for a native-store agent: OpenClaw 2 refuses to start its gateway when it finds one'
+    )
     assert(fs.existsSync(dbPath), 'Expected native SQLite store to remain on disk after Clear')
     assert(Buffer.compare(fs.readFileSync(dbPath), dbContentBeforeClear) === 0, 'Expected Clear never to modify the native SQLite store — the runtime owns it')
 
