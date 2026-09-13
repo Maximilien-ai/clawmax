@@ -41,6 +41,8 @@ const OPENAI_COMPATIBLE_CACHE_PREFIX = 'openai-compatible:'
 interface CacheEntry {
   models: string[]
   fetchedAt: number
+  /** Context length each discovered model advertises (vLLM max_model_len, LM Studio context_length…). */
+  contextWindows?: Record<string, number>
 }
 
 const cache: Record<string, CacheEntry> = {}
@@ -61,7 +63,7 @@ function getCached(provider: string): string[] | null {
   return entry.models
 }
 
-function setCache(provider: string, models: string[]) {
+function setCache(provider: string, models: string[], contextWindows?: Record<string, number>) {
   // Entries are keyed per endpoint and per credential, so a long-lived process accumulates one
   // per credential ever seen. Expired entries are dropped on write rather than only when that
   // exact key is read again.
@@ -69,7 +71,7 @@ function setCache(provider: string, models: string[]) {
   for (const [key, entry] of Object.entries(cache)) {
     if (now - entry.fetchedAt > CACHE_TTL_MS) delete cache[key]
   }
-  cache[provider] = { models, fetchedAt: now }
+  cache[provider] = { models, fetchedAt: now, ...(contextWindows ? { contextWindows } : {}) }
   const endpointKeys = Object.keys(cache).filter((key) => key.startsWith(OPENAI_COMPATIBLE_CACHE_PREFIX))
   if (endpointKeys.length <= MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES) return
   endpointKeys.sort((a, b) => cache[a].fetchedAt - cache[b].fetchedAt)
@@ -521,7 +523,7 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
         console.warn(`OpenAI-compatible models API returned ${res.status}`)
         return []
       }
-      const body = await res.json() as { data?: Array<{ id?: string }> }
+      const body = await res.json() as { data?: Array<{ id?: string; max_model_len?: unknown; context_length?: unknown; max_context_length?: unknown; context_window?: unknown }> }
       // Kept in the endpoint's own order: endpoint validation completes its test prompt on the
       // first chat-capable model as returned, and the default-model fallback must land on that
       // same model. Callers that display the list sort it themselves.
@@ -529,8 +531,18 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
         .map((m) => (m.id || '').trim())
         .filter(Boolean)
         .map((id) => `openai-compatible/${id}`)
+      // The endpoint also says how much context each model takes; execution sizes its prompt
+      // budget from that rather than from a fixed guess.
+      const contextWindows: Record<string, number> = {}
+      for (const m of body.data || []) {
+        const id = (m.id || '').trim()
+        const advertised = [m.max_model_len, m.context_length, m.max_context_length, m.context_window]
+          .map((value) => Number(value))
+          .find((value) => Number.isFinite(value) && value > 0)
+        if (id && advertised) contextWindows[id] = Math.floor(advertised)
+      }
 
-      if (generation === cacheGeneration) setCache(cacheKey, models)
+      if (generation === cacheGeneration) setCache(cacheKey, models, contextWindows)
       return models
     } catch (err) {
       console.warn('Failed to fetch OpenAI-compatible models:', (err as Error).message)
@@ -574,6 +586,19 @@ export function getCachedOpenAiCompatibleDefaultModel(baseUrl?: string, apiKey?:
   const normalizedBaseUrl = baseUrl?.trim() || ''
   if (!normalizedBaseUrl) return undefined
   return firstChatModel(getCached(openAiCompatibleCacheKey(normalizedBaseUrl, apiKey)) || [])
+}
+
+/**
+ * The context length an endpoint advertised for one of its models, from the discovery cache.
+ * Undefined when the endpoint was not warmed through this credential or reports no length.
+ */
+export function getCachedOpenAiCompatibleContextWindow(baseUrl?: string, apiKey?: string, modelId?: string): number | undefined {
+  const normalizedBaseUrl = baseUrl?.trim() || ''
+  const id = modelId?.trim().replace(/^(openai-compatible|lmstudio)\//, '')
+  if (!normalizedBaseUrl || !id) return undefined
+  const entry = cache[openAiCompatibleCacheKey(normalizedBaseUrl, apiKey)]
+  if (!entry || Date.now() - entry.fetchedAt > CACHE_TTL_MS) return undefined
+  return entry.contextWindows?.[id]
 }
 
 function firstChatModel(discovered: string[]): string | undefined {
