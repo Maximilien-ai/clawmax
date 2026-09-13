@@ -575,7 +575,7 @@ async function warmChatOpenAiCompatibleModel(byok?: ChatByokPayload): Promise<vo
   // The workspace endpoint is warmed under the user policy as well: an agent whose saved model
   // cannot run here is replaced by the workspace endpoint's model only if that model is known,
   // and the browser's own endpoint may be a different server.
-  const workspaceWarm = warmDefaultAgentModelEndpoint(process.env as Record<string, string>, 'user')
+  const workspaceWarm = warmDefaultAgentModelEndpoint(process.env as Record<string, string>, 'user').catch(() => undefined)
   const { baseUrl, apiKey, defaultModel } = resolveChatOpenAiCompatibleEndpoint(byok)
   const browserWarm = baseUrl && !defaultModel
     // Readiness reports an unreachable endpoint in its own words; this lookup must not throw here.

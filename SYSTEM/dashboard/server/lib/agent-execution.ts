@@ -1413,7 +1413,9 @@ export async function withTemporaryAgentAuthProfiles<T>(
           executionModelOverride &&
           Object.prototype.hasOwnProperty.call(latestOpenClawConfig.agents?.defaults?.models || {}, executionModelOverride)
         )
-        const latestContextWindowStale = providerContextWindowIsStale(latestOpenAiCompatibleProvider.config, executionLmstudioModelId, advertisedContextWindow)
+        // Re-read under the lock, like the config itself, so the check and the write agree.
+        const latestAdvertisedContextWindow = getCachedOpenAiCompatibleContextWindow(normalizedOpenAiCompatibleBaseUrl, discoveryCredentialFor(providerKeys.openaiCompatibleApiKey), executionLmstudioModelId)
+        const latestContextWindowStale = providerContextWindowIsStale(latestOpenAiCompatibleProvider.config, executionLmstudioModelId, latestAdvertisedContextWindow)
         let changed = false
         if (
           (normalizedOpenAiCompatibleBaseUrl && !latestOpenAiCompatibleProvider.exists) ||
