@@ -11,7 +11,7 @@ import { syncAssignedSkillGuidanceForAgent } from './skills'
 import { normalizeAgentModelInput, readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
 import { resetAgentSessionsForModelChange } from './agent-model'
 import { resolveDefaultAgentModel, policyScopedEnv } from './agent-default-model'
-import { getAvailableModelsCached } from './model-discovery'
+import { getAvailableModelsCached, getCachedOpenAiCompatibleContextWindow } from './model-discovery'
 import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
@@ -1145,6 +1145,14 @@ export async function withTemporaryAgentAuthProfiles<T>(
       ? cloneJsonValue(previousProviderConfig)
       : {}
     const normalizedModel = preferredModel?.trim().replace(/^lmstudio\//, '')
+    // The endpoint's own advertised context length outranks the fixed default and any earlier
+    // default this code wrote; an operator's explicit larger value is kept.
+    const advertisedContext = getCachedOpenAiCompatibleContextWindow(normalizedBaseUrl, apiKey, normalizedModel)
+    const contextFor = (existing: unknown) => {
+      const current = typeof existing === 'number' && existing > 0 ? existing : undefined
+      if (advertisedContext) return current && current !== LMSTUDIO_DEFAULT_CONTEXT_TOKENS && current > advertisedContext ? current : advertisedContext
+      return current || LMSTUDIO_DEFAULT_CONTEXT_TOKENS
+    }
     if (normalizedBaseUrl) {
       nextProviderConfig.baseUrl = normalizedBaseUrl
     }
@@ -1166,21 +1174,22 @@ export async function withTemporaryAgentAuthProfiles<T>(
             if (typeof entry !== 'object' || entry === null || String(entry.id || '').trim() !== normalizedModel) {
               return entry
             }
+            const contextWindow = contextFor(entry.contextWindow)
             return {
               ...entry,
               id: normalizedModel,
               name: entry.name || normalizedModel,
-              contextWindow: typeof entry.contextWindow === 'number' && entry.contextWindow > 0 ? entry.contextWindow : LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-              contextTokens: typeof entry.contextTokens === 'number' && entry.contextTokens > 0 ? entry.contextTokens : LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-              maxTokens: typeof entry.maxTokens === 'number' && entry.maxTokens > 0 ? entry.maxTokens : Math.min(8_192, LMSTUDIO_DEFAULT_CONTEXT_TOKENS),
+              contextWindow,
+              contextTokens: contextFor(entry.contextTokens),
+              maxTokens: typeof entry.maxTokens === 'number' && entry.maxTokens > 0 ? entry.maxTokens : Math.min(8_192, contextWindow),
             }
           })
         : [...existingModels, {
             id: normalizedModel,
             name: normalizedModel,
-            contextWindow: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-            contextTokens: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-            maxTokens: 8_192,
+            contextWindow: contextFor(undefined),
+            contextTokens: contextFor(undefined),
+            maxTokens: Math.min(8_192, contextFor(undefined)),
           }]
       const executionModelRef = `lmstudio/${normalizedModel}`
       const mutableConfig = config as any

@@ -8,6 +8,7 @@ import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunn
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { getCachedOpenAiCompatibleDefaultModel, openAiCompatibleCandidateFromKeys, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint } from '../lib/model-discovery'
 import { resolveUserExecutionProviderKeys } from '../lib/dashboard-env'
+import { warmDefaultAgentModelEndpoint } from '../lib/agent-default-model'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
@@ -571,6 +572,10 @@ export function resolveChatOpenAiCompatibleEndpoint(
 }
 
 async function warmChatOpenAiCompatibleModel(byok?: ChatByokPayload): Promise<void> {
+  // The workspace endpoint is warmed under the user policy as well: an agent whose saved model
+  // cannot run here is replaced by the workspace endpoint's model only if that model is known,
+  // and the browser's own endpoint may be a different server.
+  await warmDefaultAgentModelEndpoint(process.env as Record<string, string>, 'user')
   const { baseUrl, apiKey, defaultModel } = resolveChatOpenAiCompatibleEndpoint(byok)
   if (!baseUrl || defaultModel) return
   try {

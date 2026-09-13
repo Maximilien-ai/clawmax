@@ -1,4 +1,4 @@
-import { __test, clearModelCache, discoverModels, getCachedOpenAiCompatibleDefaultModel, normalizeOpenAiCompatibleBaseUrl, openAiCompatibleEndpointUrl, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint } from './model-discovery'
+import { __test, clearModelCache, discoverModels, getCachedOpenAiCompatibleContextWindow, getCachedOpenAiCompatibleDefaultModel, normalizeOpenAiCompatibleBaseUrl, openAiCompatibleEndpointUrl, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint } from './model-discovery'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -475,6 +475,25 @@ test('a lookup finishing after a refresh does not evict the replacement lookup',
   gates[1]()
   await Promise.all([fresh, joined])
   assert(__test.inFlightOpenAiCompatibleFetchCount() === 0, 'Expected the map to drain once the replacement finished')
+  clearModelCache()
+})
+
+test('discovery remembers the context length each model advertises', async () => {
+  clearModelCache()
+  global.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ data: [
+      { id: 'deepseek-ai/DeepSeek-V4-Flash-0731', max_model_len: 131072 },
+      { id: 'lmstudio-model', context_length: '32768' },
+      { id: 'no-length-model' },
+    ] }),
+  }) as any) as any
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1', apiKey: 'k' })
+  assert(getCachedOpenAiCompatibleContextWindow('http://172.16.1.70:8000/v1/', 'k', 'openai-compatible/deepseek-ai/DeepSeek-V4-Flash-0731') === 131072, 'Expected the vLLM max_model_len, through the same credential, with or without the provider prefix')
+  assert(getCachedOpenAiCompatibleContextWindow('http://172.16.1.70:8000/v1', 'k', 'lmstudio/lmstudio-model') === 32768, 'Expected a string context_length to be read as a number')
+  assert(getCachedOpenAiCompatibleContextWindow('http://172.16.1.70:8000/v1', 'k', 'no-length-model') === undefined, 'Expected no length when the endpoint reports none')
+  assert(getCachedOpenAiCompatibleContextWindow('http://172.16.1.70:8000/v1', 'other', 'deepseek-ai/DeepSeek-V4-Flash-0731') === undefined, 'Expected another credential to see no catalog')
   clearModelCache()
 })
 
