@@ -32,6 +32,7 @@ import {
 import { REPO_ROOT } from './paths'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import { materializeDashboardAgentList } from './openclaw-config'
+import { hasNativeTranscript, listNativeSessionIds, readNativeTranscriptLines } from './openclaw-native-transcripts'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -602,6 +603,129 @@ test('resolvePersistedAgentSessionId falls back to newest session file when no m
   )
 
   assert(resolved === 'newer-session', `Expected newest session fallback, got ${resolved}`)
+})
+
+test('resolvePersistedAgentSessionId resolves the OpenClaw 2 native session recorded under the dashboard-chat key', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-session-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'native-ceo', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)').run(
+    'agent:native-ceo:dashboard-chat',
+    'native-session-abc',
+    JSON.stringify({ sessionId: 'native-session-abc', updatedAt: Date.now() }),
+    Date.now()
+  )
+  database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)').run(
+    'native-session-abc',
+    0,
+    JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'hi' }] } }),
+    Date.now()
+  )
+  database.close()
+
+  // No sessions.json, no .jsonl anywhere — the only way to resolve a session id is the native store.
+  const resolved = resolvePersistedAgentSessionId(
+    'native-ceo',
+    'agent:native-ceo:dashboard-chat',
+    'scoped-preferred-id-with-no-file-or-native-row',
+    home
+  )
+
+  assert(resolved === 'native-session-abc', `Expected native session id from session_nodes, got ${resolved}`)
+})
+
+test('resolvePersistedAgentSessionId falls back to an explicit-prefixed native session key when no exact dashboard-chat key exists', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-explicit-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'native-explicit', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  // OpenClaw 2 tags a session handed an explicit --session-id (rather than a semantic key) as
+  // "agent:<id>:explicit:<sessionId>" instead of writing the "agent:<id>:dashboard-chat" row.
+  database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)').run(
+    'agent:native-explicit:explicit:scoped-dash-chat-abcd1234',
+    'scoped-dash-chat-abcd1234',
+    JSON.stringify({ sessionId: 'scoped-dash-chat-abcd1234', updatedAt: 1000 }),
+    1000
+  )
+  database.close()
+
+  const resolved = resolvePersistedAgentSessionId(
+    'native-explicit',
+    'agent:native-explicit:dashboard-chat',
+    'scoped-dash-chat-abcd1234',
+    home
+  )
+
+  assert(resolved === 'scoped-dash-chat-abcd1234', `Expected explicit-prefixed native session id, got ${resolved}`)
+})
+
+test('openclaw native transcript helpers degrade to empty results for a missing or unreadable database', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-missing-home-'))
+
+  assert(listNativeSessionIds('missing-agent', home).length === 0, 'Expected no sessions for an agent with no native database')
+  assert(readNativeTranscriptLines('missing-agent', 'whatever-session', home).length === 0, 'Expected no transcript lines for an agent with no native database')
+  assert(hasNativeTranscript('missing-agent', 'whatever-session', home) === false, 'Expected no transcript for an agent with no native database')
+
+  const agentDir = path.join(home, '.openclaw', 'agents', 'corrupt-agent', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.writeFileSync(path.join(agentDir, 'openclaw-agent.sqlite'), 'not a sqlite database', 'utf-8')
+
+  assert(listNativeSessionIds('corrupt-agent', home).length === 0, 'Expected no sessions for a corrupt native database file')
+  assert(readNativeTranscriptLines('corrupt-agent', 'whatever-session', home).length === 0, 'Expected no transcript lines for a corrupt native database file')
+  assert(hasNativeTranscript('corrupt-agent', 'whatever-session', home) === false, 'Expected no transcript for a corrupt native database file')
+
+  // Also verify a missing/unreadable database never throws through resolvePersistedAgentSessionId.
+  const resolved = resolvePersistedAgentSessionId('corrupt-agent', 'agent:corrupt-agent:dashboard-chat', 'preferred-id', home)
+  assert(resolved === 'preferred-id', `Expected preferred id passthrough when native store is unreadable, got ${resolved}`)
+})
+
+test('readLatestAssistantUsageFromPersistedSession falls back to the OpenClaw 2 native store when no legacy jsonl exists', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-usage-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'native-usage-agent', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  insertEvent.run('native-session-usage', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'status' }] } }), Date.now())
+  insertEvent.run('native-session-usage', 1, JSON.stringify({
+    type: 'message',
+    message: {
+      role: 'assistant',
+      provider: 'anthropic',
+      model: 'claude-sonnet-4-20250514',
+      usage: { input: 200, output: 80, cacheRead: 500, cost: { total: 0.002 } },
+    },
+  }), Date.now())
+  database.close()
+
+  const usage = readLatestAssistantUsageFromPersistedSession('native-usage-agent', 'agent:native-usage-agent:dashboard-chat', 'native-session-usage', home)
+  assert(usage?.sessionId === 'native-session-usage', `Expected resolved native session id, got ${usage?.sessionId}`)
+  assert(usage?.inputTokens === 200, `Expected input tokens from native store, got ${usage?.inputTokens}`)
+  assert(usage?.provider === 'anthropic', `Expected provider from native store, got ${usage?.provider}`)
+})
+
+test('readLatestAssistantTextFromPersistedSession falls back to the OpenClaw 2 native store when no legacy jsonl exists', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-text-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'native-text-agent', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  insertEvent.run('native-session-text', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'who are you?' }] } }), Date.now())
+  insertEvent.run('native-session-text', 1, JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: "I'm reading from SQLite now." }] } }), Date.now())
+  database.close()
+
+  const latest = readLatestAssistantTextFromPersistedSession('native-text-agent', 'agent:native-text-agent:dashboard-chat', 'native-session-text', home)
+  assert(latest?.sessionId === 'native-session-text', `Expected resolved native session id, got ${latest?.sessionId}`)
+  assert(latest?.content === "I'm reading from SQLite now.", `Expected assistant text from native store, got ${latest?.content}`)
 })
 
 test('readLatestAssistantUsageFromPersistedSession extracts latest assistant usage from resolved session file', () => {

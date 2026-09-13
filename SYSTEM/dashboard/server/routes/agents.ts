@@ -4,7 +4,6 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import { streamZipExport } from '../lib/zip-export'
-import { hasNativeChatStore, readNativeChatTranscript } from '../lib/native-chat-history'
 import { listAgents, getActiveAgentLifecycleGeneration, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
 import { generateAgentFiles, generateAgentMeta, generateArchiveTitle, withGenerationAttribution, withGenerationRuntimePin } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
@@ -47,6 +46,7 @@ import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } fr
 import { hasReadyOpenClawNativeAgentStore, runExclusiveAgentExecution } from '../lib/agent-execution'
 import { cancelTurnsForAgent, listActiveTurns, withRegisteredTurn } from '../lib/agent-turns'
 import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
+import { listNativeSessionIds, readNativeTranscriptLines } from '../lib/openclaw-native-transcripts'
 import { resolveDefaultAgentModel } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
@@ -511,13 +511,17 @@ function parseVisibleChatMessages(jsonlContent: string): Array<{ role: 'user' | 
 }
 
 function readChatSessionMessages(agentId: string, sessionId: string, homeDir: string = process.env.HOME || '') {
-  const nativeTranscript = readNativeChatTranscript(agentId, sessionId, homeDir)
-  if (nativeTranscript !== undefined) return parseVisibleChatMessages(nativeTranscript)
   const jsonlPath = path.join(getAgentSessionsDir(agentId, homeDir), `${sessionId}.jsonl`)
-  if (!fs.existsSync(jsonlPath)) {
+  if (fs.existsSync(jsonlPath)) {
+    return parseVisibleChatMessages(fs.readFileSync(jsonlPath, 'utf-8'))
+  }
+  // OpenClaw 2 never writes the legacy .jsonl — read its native SQLite store instead. Rows are
+  // already legacy-format JSONL lines, so the same parser applies unchanged.
+  const nativeLines = readNativeTranscriptLines(agentId, sessionId, homeDir)
+  if (nativeLines.length === 0) {
     return []
   }
-  return parseVisibleChatMessages(fs.readFileSync(jsonlPath, 'utf-8'))
+  return parseVisibleChatMessages(nativeLines.join('\n'))
 }
 
 // Merges openclaw's own session JSONL (read above) with the runtime-transcripts store that
@@ -3447,10 +3451,14 @@ router.get('/:id/chat/messages', async (req, res) => {
     const sessionsDir = getAgentSessionsDir(id, HOME)
     const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
 
-    // Check if either store has anything for this agent — openclaw's own session index/dir, or a
-    // non-openclaw (claude/droid) runtime transcript. A claude/droid-only agent never gets an
-    // openclaw sessions dir at all, so this check must not bail out before consulting the latter.
-    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir) && !hasRuntimeTranscripts(id) && !hasNativeChatStore(id, HOME)) {
+    // Check if any store has anything for this agent — openclaw's own session index/dir, a
+    // non-openclaw (claude/droid) runtime transcript, or OpenClaw 2's native SQLite store. A
+    // claude/droid-only or OpenClaw-2-only agent never gets an openclaw sessions dir at all, so
+    // this check must not bail out before consulting those.
+    if (
+      !fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir)
+      && !hasRuntimeTranscripts(id) && listNativeSessionIds(id, HOME).length === 0
+    ) {
       return res.json({ messages: [] })
     }
 
@@ -3479,7 +3487,10 @@ router.delete('/:id/chat/messages', async (req, res) => {
     const sessionsDir = getAgentSessionsDir(id, HOME)
     const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
 
-    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir) && !hasRuntimeTranscripts(id)) {
+    if (
+      !fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir)
+      && !hasRuntimeTranscripts(id) && listNativeSessionIds(id, HOME).length === 0
+    ) {
       return res.json({ ok: true, archived: false })
     }
 
@@ -3494,9 +3505,12 @@ router.delete('/:id/chat/messages', async (req, res) => {
 
     const jsonlPath = path.join(sessionsDir, `${actualSessionId}.jsonl`)
     const openclawExists = fs.existsSync(jsonlPath)
+    // OpenClaw 2's native SQLite store rows are already legacy-format JSONL lines — the runtime
+    // owns that database, so it is only ever read here, never written or deleted.
+    const nativeLines = readNativeTranscriptLines(id, actualSessionId, HOME)
     const runtimeTurns = readRuntimeTranscript(id, actualSessionId)
 
-    if (openclawExists || runtimeTurns.length > 0) {
+    if (openclawExists || nativeLines.length > 0 || runtimeTurns.length > 0) {
       const archiveDir = path.join(sessionsDir, 'archive')
       if (!fs.existsSync(archiveDir)) {
         fs.mkdirSync(archiveDir, { recursive: true })
@@ -3506,14 +3520,19 @@ router.delete('/:id/chat/messages', async (req, res) => {
       const date = new Date(timestamp).toISOString().split('T')[0]
       const archiveFile = path.join(archiveDir, `${actualSessionId}_${date}_${timestamp}.jsonl`)
 
+      const legacyFormatSourceCount = [openclawExists, nativeLines.length > 0].filter(Boolean).length
+
       let archiveContent: string
-      if (openclawExists && runtimeTurns.length > 0) {
-        // Mixed session (chatted under openclaw, then re-pinned to claude/droid on the same scoped
-        // session id): interleave by timestamp so the archive preserves the order the user saw. Keep
-        // the OpenClaw lines VERBATIM (parsing only their timestamp for ordering) so nothing that the
-        // openclaw-only verbatim-copy path would keep — empty-content rows, non-message rows — is lost.
-        const openclawLines = fs.readFileSync(jsonlPath, 'utf-8').split('\n').filter((line) => line.trim())
-        const ordered: Array<{ ts: number; raw: string }> = openclawLines.map((raw) => {
+      if (legacyFormatSourceCount + (runtimeTurns.length > 0 ? 1 : 0) > 1) {
+        // More than one store contributed: interleave by timestamp so the archive preserves the
+        // order the user saw. Keep openclaw/native lines VERBATIM (parsing only their timestamp
+        // for ordering) so nothing the single-source verbatim-copy paths below would keep —
+        // empty-content rows, non-message rows — is lost.
+        const legacyLines = [
+          ...(openclawExists ? fs.readFileSync(jsonlPath, 'utf-8').split('\n').filter((line) => line.trim()) : []),
+          ...nativeLines,
+        ]
+        const ordered: Array<{ ts: number; raw: string }> = legacyLines.map((raw) => {
           let ts = 0
           try {
             const parsed = JSON.parse(raw)
@@ -3534,6 +3553,10 @@ router.delete('/:id/chat/messages', async (req, res) => {
       } else if (openclawExists) {
         // OpenClaw-only: preserve the raw session file verbatim (unchanged behavior).
         archiveContent = fs.readFileSync(jsonlPath, 'utf-8')
+      } else if (nativeLines.length > 0) {
+        // OpenClaw 2 native store only (no legacy .jsonl ever written): its rows are already
+        // legacy-format JSONL lines, so write them back verbatim.
+        archiveContent = nativeLines.join('\n') + '\n'
       } else {
         // Runtime-only (claude/droid): render the transcript as archive-format lines.
         archiveContent = readRuntimeTranscriptAsArchiveLines(id, actualSessionId)

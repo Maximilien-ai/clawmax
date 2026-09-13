@@ -1,6 +1,5 @@
 import fs from 'fs'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
-import { resolveNativeChatSession } from './native-chat-history'
 import path from 'path'
 import { createHash } from 'crypto'
 import { spawnSync } from 'child_process'
@@ -15,6 +14,7 @@ import { getAvailableModelsCached } from './model-discovery'
 import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
+import { hasNativeTranscript, listNativeSessionIds, readNativeTranscriptLines } from './openclaw-native-transcripts'
 
 interface OpenClawAgentRecord {
   id: string
@@ -419,16 +419,17 @@ export function resolvePersistedAgentSessionId(
 ): string | undefined {
   if (!agentId || !homeDir) return preferredSessionId
 
-  const nativeSession = resolveNativeChatSession(agentId, sessionKey, homeDir)
-  if (nativeSession) return nativeSession
-
   const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
   const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
 
   const hasSessionFile = (sessionId: string | undefined): sessionId is string =>
     !!sessionId && fs.existsSync(path.join(sessionsDir, `${sessionId}.jsonl`))
+  // OpenClaw 2 never writes the legacy .jsonl at all — its native SQLite store
+  // (openclaw-native-transcripts.ts) is the only place a fresh agent's transcript exists.
+  const isPersisted = (sessionId: string | undefined): sessionId is string =>
+    hasSessionFile(sessionId) || (!!sessionId && hasNativeTranscript(agentId, sessionId, homeDir))
 
-  if (hasSessionFile(preferredSessionId)) {
+  if (isPersisted(preferredSessionId)) {
     return preferredSessionId
   }
 
@@ -438,7 +439,7 @@ export function resolvePersistedAgentSessionId(
       const mappedSessionId = typeof sessionsIndex?.[sessionKey]?.sessionId === 'string'
         ? sessionsIndex[sessionKey].sessionId
         : undefined
-      if (hasSessionFile(mappedSessionId)) {
+      if (isPersisted(mappedSessionId)) {
         return mappedSessionId
       }
 
@@ -447,12 +448,32 @@ export function resolvePersistedAgentSessionId(
         const entrySessionId = typeof (entry as any).sessionId === 'string'
           ? (entry as any).sessionId
           : undefined
-        if (preferredSessionId && key === preferredSessionId && hasSessionFile(entrySessionId)) {
+        if (preferredSessionId && key === preferredSessionId && isPersisted(entrySessionId)) {
           return entrySessionId
         }
       }
     }
   } catch {}
+
+  // OpenClaw 2's native store has no sessions.json index to consult, so look up its own
+  // session_key -> session id mapping directly. A session recorded under the exact dashboard
+  // session key wins; otherwise fall back to an "explicit:" alias of that key whose session id
+  // starts with the preferred (scoped) session id — how OpenClaw 2 tags a session that was handed
+  // an explicit --session-id rather than a semantic key — newest first.
+  const nativeSessions = listNativeSessionIds(agentId, homeDir)
+  if (nativeSessions.length > 0) {
+    const exactKeyMatch = nativeSessions.find((session) => session.sessionKey === sessionKey)
+    if (exactKeyMatch) return exactKeyMatch.sessionId
+
+    if (preferredSessionId) {
+      const explicitKeyPrefix = `${sessionKey.split(':').slice(0, -1).join(':')}:explicit:`
+      const explicitMatch = nativeSessions
+        .filter((session) => session.sessionKey.startsWith(explicitKeyPrefix)
+          && session.sessionKey.slice(explicitKeyPrefix.length).startsWith(preferredSessionId))
+        .sort((a, b) => b.updatedAt - a.updatedAt)[0]
+      if (explicitMatch) return explicitMatch.sessionId
+    }
+  }
 
   try {
     if (!fs.existsSync(sessionsDir)) return preferredSessionId
@@ -472,6 +493,24 @@ export function resolvePersistedAgentSessionId(
   }
 }
 
+/**
+ * Transcript lines for one resolved session id, preferring the legacy `.jsonl` file when present
+ * and falling back to OpenClaw 2's native store. Returns null when neither has anything for this
+ * session — distinct from an empty array, which means a source existed but was empty.
+ */
+function resolvePersistedTranscriptLines(agentId: string, sessionId: string, homeDir: string): string[] | null {
+  const sessionFile = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions', `${sessionId}.jsonl`)
+  if (fs.existsSync(sessionFile)) {
+    try {
+      return fs.readFileSync(sessionFile, 'utf-8').split('\n').filter((line) => line.trim())
+    } catch {
+      return null
+    }
+  }
+  const nativeLines = readNativeTranscriptLines(agentId, sessionId, homeDir)
+  return nativeLines.length > 0 ? nativeLines : null
+}
+
 export function readLatestAssistantUsageFromPersistedSession(
   agentId: string,
   sessionKey: string,
@@ -489,14 +528,10 @@ export function readLatestAssistantUsageFromPersistedSession(
   const sessionId = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
   if (!sessionId || !homeDir) return null
 
-  const sessionFile = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions', `${sessionId}.jsonl`)
-  if (!fs.existsSync(sessionFile)) return null
+  const lines = resolvePersistedTranscriptLines(agentId, sessionId, homeDir)
+  if (!lines) return null
 
   try {
-    const lines = fs.readFileSync(sessionFile, 'utf-8')
-      .split('\n')
-      .filter((line) => line.trim())
-
     for (let i = lines.length - 1; i >= 0; i--) {
       const entry = JSON.parse(lines[i])
       const message = entry?.message
@@ -529,14 +564,10 @@ export function readLatestAssistantTextFromPersistedSession(
   const sessionId = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
   if (!sessionId || !homeDir) return null
 
-  const sessionFile = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions', `${sessionId}.jsonl`)
-  if (!fs.existsSync(sessionFile)) return null
+  const lines = resolvePersistedTranscriptLines(agentId, sessionId, homeDir)
+  if (!lines) return null
 
   try {
-    const lines = fs.readFileSync(sessionFile, 'utf-8')
-      .split('\n')
-      .filter((line) => line.trim())
-
     for (let i = lines.length - 1; i >= 0; i--) {
       const entry = JSON.parse(lines[i])
       const message = entry?.message
