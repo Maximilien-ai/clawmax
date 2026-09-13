@@ -187,6 +187,7 @@ async function run() {
 
   await test('async gateway cron sync isolates invalid schedules and records diagnostics', async () => {
     const syncCalls: string[] = []
+    const readinessCalls: Array<{ timeoutMs: number; pollMs: number }> = []
     const scheduler = loadScheduler({
       cron: {
         validate: (value: string) => value !== 'not a cron',
@@ -209,11 +210,19 @@ async function run() {
         listAgents: () => [{ id: 'agent-1' }],
       } as any,
       gateway: {
-        waitForGatewayResponsive: async () => ({ running: true, port: 18789 }),
+        waitForGatewayResponsive: async (timeoutMs?: number, pollMs?: number) => {
+          readinessCalls.push({ timeoutMs: timeoutMs ?? -1, pollMs: pollMs ?? -1 })
+          return { running: true, port: 18789 }
+        },
       },
     })
 
     const diagnostics = await scheduler.syncGatewayCronRegistrations()
+    assert.deepStrictEqual(readinessCalls, [{
+      timeoutMs: scheduler.GATEWAY_CRON_READY_TIMEOUT_MS,
+      pollMs: scheduler.GATEWAY_CRON_READY_POLL_MS,
+    }], 'Expected startup cron synchronization to wait through a slow Gateway convergence')
+    assert.strictEqual(scheduler.GATEWAY_CRON_READY_TIMEOUT_MS, 120000, 'Expected readiness to cover the observed 45-103 second Gateway startup range')
     assert.deepStrictEqual(syncCalls, ['wf-valid-a', 'wf-valid-b'], 'Expected valid schedules on both sides of an invalid entry to synchronize')
     assert.strictEqual(diagnostics.status, 'degraded', 'Expected invalid schedule to be visible in diagnostics')
     assert.strictEqual(diagnostics.failures.length, 1, 'Expected one isolated invalid-schedule diagnostic')

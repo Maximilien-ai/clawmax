@@ -12,6 +12,8 @@ interface ScheduledJob {
 
 const activeJobs = new Map<string, ScheduledJob>()
 export const DEFAULT_WORKFLOW_TIMEZONE = 'UTC'
+export const GATEWAY_CRON_READY_TIMEOUT_MS = 120000
+export const GATEWAY_CRON_READY_POLL_MS = 1000
 
 export type SchedulerDiagnostics = {
   status: 'idle' | 'running' | 'healthy' | 'degraded'
@@ -68,7 +70,14 @@ export async function syncGatewayCronRegistrations(): Promise<SchedulerDiagnosti
     failures: [],
   }
 
-  const gateway = await waitForGatewayResponsive(25000, 500)
+  // OpenClaw can require a watchdog restart while converging plugin migrations.
+  // Keep this optional work off the health path, but give the externally supervised
+  // gateway the same bounded readiness window used by agent chat. A shorter wait
+  // races healthy slow starts and leaves cron diagnostics permanently degraded.
+  const gateway = await waitForGatewayResponsive(
+    GATEWAY_CRON_READY_TIMEOUT_MS,
+    GATEWAY_CRON_READY_POLL_MS,
+  )
   if (!gateway.running) {
     schedulerDiagnostics = {
       ...schedulerDiagnostics,
