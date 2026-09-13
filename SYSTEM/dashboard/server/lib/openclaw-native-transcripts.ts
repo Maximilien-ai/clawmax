@@ -145,21 +145,112 @@ export function listNativeSessionIds(agentId: string, homeDir: string = process.
 // sessions.json in the same directory — dashboard bookkeeping, never touches the SQLite file.
 
 interface NativeClearWatermarks {
-  [sessionId: string]: { seq: number; clearedAt: number }
+  [sessionId: string]: { seq: number; clearedAt: number; generation?: string }
+}
+
+/**
+ * The current value of OpenClaw's own per-session transcript-rewrite watermark (table
+ * `transcript_rewrite_watermarks(session_id, generation, updated_at)`), read from an
+ * already-open database handle. OpenClaw materializes a random `generation` token the first time
+ * a session records any event, keeps it stable across ordinary turns, and rotates it to a new
+ * random value only when it destructively replaces that session's transcript (deleting every row
+ * and re-numbering `seq` from 0 — e.g. a compaction/reset). Comparing this against the value
+ * captured at clear-time is what lets `readNativeClearWatermarkSeq` tell "this session is still
+ * the same conversation, just cleared" from "this session id got reused by a new conversation
+ * after the old one's rows were wiped". Returns null (not stale-checkable) for an older OpenClaw
+ * without this table, or a session with no row yet.
+ */
+function readCurrentTranscriptGeneration(database: any, sessionId: string): string | null {
+  try {
+    if (!tableExists(database, 'transcript_rewrite_watermarks')) return null
+    const row = database.prepare(
+      'SELECT generation FROM transcript_rewrite_watermarks WHERE session_id = ?'
+    ).get(sessionId) as { generation: string | null } | undefined
+    return typeof row?.generation === 'string' ? row.generation : null
+  } catch {
+    return null
+  }
 }
 
 function getNativeClearWatermarksPath(agentId: string, homeDir: string): string {
   return path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions', 'native-clear-watermarks.json')
 }
 
-function readNativeClearWatermarkSeq(agentId: string, sessionId: string, homeDir: string): number {
+function parseWatermarksJson(raw: string): NativeClearWatermarks | null {
   try {
-    const watermarks = JSON.parse(fs.readFileSync(getNativeClearWatermarksPath(agentId, homeDir), 'utf-8')) as NativeClearWatermarks
-    const seq = watermarks?.[sessionId]?.seq
-    return typeof seq === 'number' ? seq : -1
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
   } catch {
+    return null
+  }
+}
+
+/**
+ * Reads the sidecar, preferring the primary file but falling back to its `.bak` copy (see
+ * `writeNativeClearWatermarksFile`) when the primary is missing or fails to parse. A corrupt
+ * primary — a crash mid-write on a version of this code before atomic writes, external editing,
+ * disk corruption — must not make every OTHER session's watermark look gone: that would let the
+ * very next successful Clear rewrite the file from scratch and resurrect content an earlier Clear
+ * had hidden. Falls all the way open to `{}` only when neither file is readable, matching this
+ * module's existing "degrade to empty, never throw into a caller" contract.
+ */
+function readNativeClearWatermarksFile(watermarksPath: string): NativeClearWatermarks {
+  try {
+    const primary = parseWatermarksJson(fs.readFileSync(watermarksPath, 'utf-8'))
+    if (primary) return primary
+  } catch {}
+  try {
+    const backup = parseWatermarksJson(fs.readFileSync(`${watermarksPath}.bak`, 'utf-8'))
+    if (backup) return backup
+  } catch {}
+  return {}
+}
+
+/** Writes `content` to `targetPath` via temp-file-plus-rename so a reader never observes a
+ * partially-written (truncated/corrupt) file — the rename is atomic on the same filesystem. */
+function writeFileAtomically(targetPath: string, content: string): void {
+  const tmpPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  fs.writeFileSync(tmpPath, content)
+  fs.renameSync(tmpPath, targetPath)
+}
+
+/**
+ * Atomically replaces the primary sidecar and its `.bak` recovery copy with `watermarks`. The
+ * backup is updated last and only after the primary succeeds, so a reader always has at least one
+ * fully-written, parseable copy to fall back to even if this process is killed mid-update.
+ */
+function writeNativeClearWatermarksFile(watermarksPath: string, watermarks: NativeClearWatermarks): void {
+  fs.mkdirSync(path.dirname(watermarksPath), { recursive: true })
+  const serialized = JSON.stringify(watermarks, null, 2)
+  writeFileAtomically(watermarksPath, serialized)
+  try {
+    writeFileAtomically(`${watermarksPath}.bak`, serialized)
+  } catch {
+    // best-effort — losing the backup only weakens the next corruption-recovery, not this write
+  }
+}
+
+/**
+ * The seq threshold below which this session's rows are considered already cleared, or -1 for
+ * "nothing cleared" — including when a recorded mark turns out to be stale (see
+ * `readCurrentTranscriptGeneration`). `database` must already be open on this agent's store; the
+ * two callers below share their own connection with this check rather than opening a second one.
+ */
+function readNativeClearWatermarkSeq(database: any, agentId: string, sessionId: string, homeDir: string): number {
+  const mark = readNativeClearWatermarksFile(getNativeClearWatermarksPath(agentId, homeDir))?.[sessionId]
+  if (!mark || typeof mark.seq !== 'number') return -1
+
+  if (mark.generation && mark.generation !== readCurrentTranscriptGeneration(database, sessionId)) {
+    // OpenClaw destructively replaced this session's transcript since we recorded this mark — its
+    // seq numbering restarted from 0, so applying a high watermark from the previous "generation"
+    // would hide the entire start of what is, from the runtime's perspective, a brand new
+    // conversation under a reused session id (buildDashboardChatSeed's seed is anchored to
+    // IDENTITY.md's mtime, which a workspace restore can revert to a value seen before). Treat the
+    // mark as if Clear never ran rather than resurrecting that failure mode.
     return -1
   }
+
+  return mark.seq
 }
 
 /**
@@ -175,12 +266,19 @@ export function markNativeTranscriptCleared(agentId: string, sessionId: string, 
   if (!database) return
 
   let maxSeq: number | null = null
+  let generation: string | null = null
   try {
     if (tableExists(database, 'transcript_events')) {
       const row = database.prepare(
         'SELECT MAX(seq) AS maxSeq FROM transcript_events WHERE session_id = ?'
       ).get(sessionId) as { maxSeq: number | null } | undefined
       maxSeq = typeof row?.maxSeq === 'number' ? row.maxSeq : null
+    }
+    // Captured alongside the seq so a later read can tell a genuine reuse of this session id
+    // (after OpenClaw wipes and renumbers its rows) from an ordinary cleared-then-continued
+    // conversation — see readNativeClearWatermarkSeq.
+    if (maxSeq !== null) {
+      generation = readCurrentTranscriptGeneration(database, sessionId)
     }
   } catch {
     maxSeq = null
@@ -190,16 +288,10 @@ export function markNativeTranscriptCleared(agentId: string, sessionId: string, 
   if (maxSeq === null) return
 
   const watermarksPath = getNativeClearWatermarksPath(agentId, homeDir)
-  let watermarks: NativeClearWatermarks = {}
+  const watermarks = readNativeClearWatermarksFile(watermarksPath)
+  watermarks[sessionId] = { seq: maxSeq, clearedAt: Date.now(), ...(generation ? { generation } : {}) }
   try {
-    watermarks = JSON.parse(fs.readFileSync(watermarksPath, 'utf-8'))
-  } catch {
-    // no existing sidecar (or unreadable) — start fresh
-  }
-  watermarks[sessionId] = { seq: maxSeq, clearedAt: Date.now() }
-  try {
-    fs.mkdirSync(path.dirname(watermarksPath), { recursive: true })
-    fs.writeFileSync(watermarksPath, JSON.stringify(watermarks, null, 2))
+    writeNativeClearWatermarksFile(watermarksPath, watermarks)
   } catch {
     // best-effort — a failed watermark write just means Clear didn't fully hide the old content
   }
@@ -219,7 +311,7 @@ export function readNativeTranscriptLines(agentId: string, sessionId: string, ho
 
   try {
     if (!tableExists(database, 'transcript_events')) return []
-    const watermarkSeq = readNativeClearWatermarkSeq(agentId, sessionId, homeDir)
+    const watermarkSeq = readNativeClearWatermarkSeq(database, agentId, sessionId, homeDir)
 
     // Some runtimes additionally track which transcript rows belong to the session's active
     // branch (a rewind or branch change leaves earlier rows in transcript_events but marks them
@@ -267,7 +359,7 @@ export function hasNativeTranscript(agentId: string, sessionId: string, homeDir:
 
   try {
     if (!tableExists(database, 'transcript_events')) return false
-    const watermarkSeq = readNativeClearWatermarkSeq(agentId, sessionId, homeDir)
+    const watermarkSeq = readNativeClearWatermarkSeq(database, agentId, sessionId, homeDir)
     return Boolean(database.prepare(
       'SELECT 1 FROM transcript_events WHERE session_id = ? AND seq > ? LIMIT 1'
     ).get(sessionId, watermarkSeq))

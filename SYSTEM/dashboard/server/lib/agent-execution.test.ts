@@ -728,6 +728,94 @@ test('markNativeTranscriptCleared hides archived content from readNativeTranscri
   assert(linesAfter[0].includes('after clear'), 'Expected the post-clear turn content')
 })
 
+test('markNativeTranscriptCleared writes the watermark sidecar atomically and recovers another session\'s mark from the backup copy when the primary is corrupted', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-watermark-corrupt-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'corrupt-recovery-agent', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const dbPath = path.join(agentDir, 'openclaw-agent.sqlite')
+  const database = new DatabaseSync(dbPath)
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  insertEvent.run('session-a', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'session a turn' }] } }), Date.now())
+  insertEvent.run('session-b', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'session b turn' }] } }), Date.now())
+  database.close()
+
+  // Clear session A. The sidecar (and its .bak recovery copy) must now exist and be plain,
+  // parseable JSON — proving the write went through the atomic temp-file-plus-rename path, not a
+  // partial write left behind mid-crash.
+  markNativeTranscriptCleared('corrupt-recovery-agent', 'session-a', home)
+  const watermarksPath = path.join(home, '.openclaw', 'agents', 'corrupt-recovery-agent', 'sessions', 'native-clear-watermarks.json')
+  assert(fs.existsSync(watermarksPath), 'Expected the watermark sidecar to be written after clearing session A')
+  assert(fs.existsSync(`${watermarksPath}.bak`), 'Expected a .bak recovery copy to be written alongside the primary sidecar')
+  const beforeCorruption = JSON.parse(fs.readFileSync(watermarksPath, 'utf-8'))
+  assert(typeof beforeCorruption['session-a']?.seq === 'number', 'Expected session A\'s watermark to be recorded')
+  const leftoverTempFiles = fs.readdirSync(path.dirname(watermarksPath)).filter((name) => name.includes('.tmp-'))
+  assert(leftoverTempFiles.length === 0, `Expected no leftover temp file after an atomic write, got ${leftoverTempFiles.length}`)
+
+  // Simulate external corruption of the primary sidecar only (e.g. a crash mid-write on an older
+  // version of this code, disk corruption, a bad manual edit) — the .bak copy is untouched.
+  fs.writeFileSync(watermarksPath, '{"session-a": { this is not valid json')
+
+  // Clear session B. Under the pre-fix behavior this would catch the parse failure, reset the
+  // in-memory map to {}, and overwrite the sidecar with only session B's mark — permanently
+  // discarding session A's watermark and making its archived content visible again.
+  markNativeTranscriptCleared('corrupt-recovery-agent', 'session-b', home)
+
+  assert(!hasNativeTranscript('corrupt-recovery-agent', 'session-a', home), 'Expected session A to still read as cleared — its watermark must survive the corrupted primary via the .bak recovery copy')
+  assert(!hasNativeTranscript('corrupt-recovery-agent', 'session-b', home), 'Expected session B to read as cleared too')
+
+  const afterRecovery = JSON.parse(fs.readFileSync(watermarksPath, 'utf-8'))
+  assert(typeof afterRecovery['session-a']?.seq === 'number', 'Expected session A\'s watermark to still be present in the rewritten sidecar')
+  assert(typeof afterRecovery['session-b']?.seq === 'number', 'Expected session B\'s new watermark to be present')
+})
+
+test('a clear watermark from before OpenClaw destructively rewrites a session\'s transcript is ignored once seq numbering restarts', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-watermark-stale-generation-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'stale-generation-agent', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const dbPath = path.join(agentDir, 'openclaw-agent.sqlite')
+  const database = new DatabaseSync(dbPath)
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  database.exec('CREATE TABLE transcript_rewrite_watermarks (session_id TEXT PRIMARY KEY, generation TEXT, updated_at INTEGER)')
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  insertEvent.run('reused-session', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'old conversation turn one' }] } }), Date.now())
+  insertEvent.run('reused-session', 1, JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: 'old conversation turn two' }] } }), Date.now())
+  database.prepare('INSERT INTO transcript_rewrite_watermarks (session_id, generation, updated_at) VALUES (?, ?, ?)').run('reused-session', 'generation-one', Date.now())
+  database.close()
+
+  // Clear the old conversation. The mark should capture both the seq and the generation token
+  // that was current at the time.
+  markNativeTranscriptCleared('stale-generation-agent', 'reused-session', home)
+  const watermarksPath = path.join(home, '.openclaw', 'agents', 'stale-generation-agent', 'sessions', 'native-clear-watermarks.json')
+  const watermarks = JSON.parse(fs.readFileSync(watermarksPath, 'utf-8'))
+  assert(watermarks['reused-session'].seq === 1, `Expected the mark to capture the highest seq before Clear, got ${watermarks['reused-session'].seq}`)
+  assert(watermarks['reused-session'].generation === 'generation-one', `Expected the mark to capture the transcript-rewrite generation token, got ${watermarks['reused-session'].generation}`)
+  assert(!hasNativeTranscript('stale-generation-agent', 'reused-session', home), 'Expected the old conversation to read as cleared')
+
+  // OpenClaw destructively replaces this session's transcript — e.g. buildDashboardChatSeed's
+  // seed is anchored to IDENTITY.md's mtime, which a workspace restore can revert to a value it
+  // held before, so the dashboard starts a --session-id OpenClaw has wiped and is renumbering
+  // from scratch for what is, in truth, a brand new conversation. Mirror exactly what
+  // replaceSqliteTranscriptEventsInTransaction does: delete the old rows, insert new ones
+  // starting at seq 0 again, and rotate the generation token.
+  const rewriteDb = new DatabaseSync(dbPath)
+  rewriteDb.prepare('DELETE FROM transcript_events WHERE session_id = ?').run('reused-session')
+  rewriteDb.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)').run(
+    'reused-session', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'brand new conversation turn one' }] } }), Date.now()
+  )
+  rewriteDb.prepare('UPDATE transcript_rewrite_watermarks SET generation = ? WHERE session_id = ?').run('generation-two', 'reused-session')
+  rewriteDb.close()
+
+  // The stale mark (seq 1, generation-one) must not hide seq 0 of this new, different-generation
+  // conversation.
+  assert(hasNativeTranscript('stale-generation-agent', 'reused-session', home), 'Expected the new conversation to be visible despite the stale seq-1 watermark from the previous generation')
+  const linesAfterRewrite = readNativeTranscriptLines('stale-generation-agent', 'reused-session', home)
+  assert(linesAfterRewrite.length === 1, `Expected exactly the one new turn to be readable, got ${linesAfterRewrite.length}`)
+  assert(linesAfterRewrite[0].includes('brand new conversation turn one'), 'Expected the new conversation\'s own content, not filtered out by the stale mark')
+})
+
 test('markNativeTranscriptCleared is a no-op for a session with nothing recorded, and never writes a watermark file for it', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-watermark-noop-home-'))
   const { DatabaseSync } = require('node:sqlite')
