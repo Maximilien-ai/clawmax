@@ -697,6 +697,59 @@ test('resolvePersistedAgentSessionId recovers an earlier dashboard-chat session 
   assert(resolved === 'dashboard-seed-shift-agent-oldstamp-chat', `Expected the earlier dashboard-chat session (matched by session_key) to be recovered, got ${resolved}`)
 })
 
+test('resolvePersistedAgentSessionId recovers a dashboard chat scoped straight from the session key, preferring the one with content', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-key-scoped-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentId = 'dgx-spark-researcher'
+  const sessionKey = `agent:${agentId}:dashboard-chat`
+  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  // The real shape on an installation that has been chatting since before buildDashboardChatSeed:
+  // the conversation lives under a session id scoped from the session key itself (truncated with a
+  // hash by scopeSessionIdToModel), while an empty placeholder sits under the plain key. The
+  // placeholder must not win just because it matches the key exactly.
+  const conversationId = scopeSessionIdToModel(sessionKey, 'sonnet-something-long-enough-to-truncate')
+  insertSession.run(`agent:${agentId}:explicit:${conversationId}`, conversationId, JSON.stringify({ sessionId: conversationId, updatedAt: 9000 }), 9000)
+  insertSession.run(sessionKey, `agent-${agentId}-dashboard-chat-sonnet.trajectory`, JSON.stringify({ sessionId: `agent-${agentId}-dashboard-chat-sonnet.trajectory`, updatedAt: 1000 }), 1000)
+  insertSession.run('unrelated-cli-run-key', 'newer-unrelated-session', JSON.stringify({ sessionId: 'newer-unrelated-session', updatedAt: 99000 }), 99000)
+  insertEvent.run(conversationId, 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'whats the latest' } }), 9000)
+  insertEvent.run('newer-unrelated-session', 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'scheduled run' } }), 99000)
+  database.close()
+
+  const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, `dashboard-${agentId}-newstamp-chat`, home)
+  assert(resolved === conversationId, `Expected the key-scoped conversation carrying messages, got ${resolved}`)
+  assert(resolved !== 'newer-unrelated-session', 'Expected an unrelated, more recent session never to be offered')
+})
+
+test('resolvePersistedAgentSessionId prefers this agent conversation over a newer empty placeholder under the same key', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-key-empty-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentId = 'placeholder-agent'
+  const sessionKey = `agent:${agentId}:dashboard-chat`
+  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  // An empty trajectory placeholder sits under the plain key and is touched more recently than the
+  // real conversation; picking by recency alone would show the user an empty chat.
+  const conversationId = `dashboard-${agentId}-oldstamp-chat`
+  insertSession.run(`agent:${agentId}:explicit:${conversationId}`, conversationId, JSON.stringify({ sessionId: conversationId, updatedAt: 1000 }), 1000)
+  insertSession.run(sessionKey, `agent-${agentId}-dashboard-chat-sonnet.trajectory`, JSON.stringify({ sessionId: `agent-${agentId}-dashboard-chat-sonnet.trajectory`, updatedAt: 9000 }), 9000)
+  insertEvent.run(conversationId, 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'the real conversation' } }), 1000)
+  database.close()
+
+  const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, `dashboard-${agentId}-newstamp-chat`, home)
+  assert(resolved === conversationId, `Expected the conversation carrying messages rather than the newer empty placeholder, got ${resolved}`)
+})
+
 test('resolvePersistedAgentSessionId recovers a dashboard-chat session recorded only under its seed-prefixed session id, key-agnostic', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-seed-prefix-home-'))
   const { DatabaseSync } = require('node:sqlite')

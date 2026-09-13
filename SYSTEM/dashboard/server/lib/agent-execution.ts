@@ -478,6 +478,18 @@ export function scopeSessionIdToModel(sessionId: string, model?: string): string
  * silently diverge from what scopeSessionIdToModel actually produces — which is exactly how this
  * predicate broke twice before (once on the length cap, once on hyphen-collapsing).
  */
+/**
+ * The stable prefix of a session id scoped from a fixed seed that carries no varying stamp — the
+ * semantic session key itself, `agent:<id>:dashboard-chat`. OpenClaw records a dashboard chat this
+ * way whenever the session was started from the key rather than from a stamped seed, which is how
+ * every conversation predating buildDashboardChatSeed was recorded; those ids look like
+ * `agent-<id>-dashboard-ch-<hash>` once scopeSessionIdToModel truncates them. Same two shared
+ * helpers, so this cannot diverge from what that function produces either.
+ */
+export function stableSessionKeyPrefix(sessionKey: string): string {
+  return stableSessionIdBasePrefix(sanitizeSessionIdComponent(sessionKey))
+}
+
 export function stableDashboardSeedPrefix(agentId: string): string {
   const sanitizedA = sanitizeSessionIdComponent(buildDashboardChatSeedFromStamp(agentId, '0'))
   const sanitizedB = sanitizeSessionIdComponent(buildDashboardChatSeedFromStamp(agentId, 'z'))
@@ -563,11 +575,19 @@ export function resolvePersistedAgentSessionId(
   // "dashboard-<agentId>-" text: scopeSessionIdToModel's sanitization and hash-truncation can both
   // change what a real session id actually starts with, and this must match that exactly.
   const dashboardSeedPrefix = stableDashboardSeedPrefix(agentId)
-  const ownDashboardSession = nativeSessions.find((session) =>
+  const sessionKeyPrefix = stableSessionKeyPrefix(sessionKey)
+  const isOwnDashboardSession = (session: { sessionKey: string; sessionId: string }) =>
     session.sessionKey === sessionKey
     || session.sessionKey.startsWith(`${sessionKey}:`)
     || session.sessionId.startsWith(dashboardSeedPrefix)
-  )
+    // A session scoped straight from the semantic key, the shape every conversation older than
+    // buildDashboardChatSeed carries; still this agent's own dashboard chat, never a stranger's.
+    || session.sessionId.startsWith(sessionKeyPrefix)
+  // Sessions arrive newest-first, and a conversation the user actually had outranks an empty
+  // placeholder an earlier runtime left under the same key, so prefer one that still has content.
+  const ownDashboardSession = nativeSessions.find((session) =>
+    isOwnDashboardSession(session) && hasNativeTranscript(agentId, session.sessionId, homeDir)
+  ) || nativeSessions.find(isOwnDashboardSession)
   if (ownDashboardSession) {
     return ownDashboardSession.sessionId
   }
