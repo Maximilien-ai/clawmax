@@ -2309,6 +2309,83 @@ async function run() {
     )
   })
 
+  await test('after Clear, the newest-native-session fallback does not present an unrelated, more recently touched native session as the current conversation', async () => {
+    writeAgent(workspacePath, 'native-clear-fallback-agent', [
+      '# IDENTITY.md',
+      '**Name:** native-clear-fallback-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'native-clear-fallback-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'native-clear-fallback-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const { buildDashboardChatSeed, scopeSessionIdToModel } = require('../lib/agent-execution')
+    const agentWorkspaceDir = path.join(workspacePath, 'AGENTS', 'native-clear-fallback-agent')
+    const seedSessionId = scopeSessionIdToModel(buildDashboardChatSeed('native-clear-fallback-agent', agentWorkspaceDir), 'openai/gpt-4o-mini')
+    // A second native session recorded under a completely different key (e.g. a scheduled
+    // workflow ping, or a session left behind by an earlier model switch) that happens to be
+    // touched more recently than this agent's own dashboard-chat session.
+    const unrelatedSessionId = 'unrelated-post-clear-session'
+
+    writeNativeAgentStore(tmpHome, 'native-clear-fallback-agent', {
+      sessions: [
+        { sessionKey: 'agent:native-clear-fallback-agent:dashboard-chat', sessionId: seedSessionId, updatedAt: 1000 },
+        { sessionKey: 'agent:native-clear-fallback-agent:workflow-run', sessionId: unrelatedSessionId, updatedAt: 9000 },
+      ],
+      transcripts: {
+        [seedSessionId]: [
+          JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'My own conversation' }], timestamp: 1 } }),
+          JSON.stringify({ type: 'message', timestamp: 2, message: { role: 'assistant', content: [{ type: 'text', text: 'My own conversation reply' }], timestamp: 2 } }),
+        ],
+        [unrelatedSessionId]: [
+          JSON.stringify({ type: 'message', timestamp: 3, message: { role: 'user', content: [{ type: 'text', text: 'Unrelated session content' }], timestamp: 3 } }),
+          JSON.stringify({ type: 'message', timestamp: 4, message: { role: 'assistant', content: [{ type: 'text', text: 'Unrelated session reply' }], timestamp: 4 } }),
+        ],
+      },
+    })
+
+    const messagesHandler = getRouteHandler('get', '/:id/chat/messages')
+    const beforeClearRes = makeRes()
+    await messagesHandler(makeReq({ params: { id: 'native-clear-fallback-agent' } }), beforeClearRes)
+    assert.deepStrictEqual(
+      beforeClearRes.jsonBody?.messages?.map((message: any) => message.content),
+      ['My own conversation', 'My own conversation reply'],
+      'Expected the seeded dashboard-chat session to be current before Clear, not the more recently touched unrelated one'
+    )
+
+    const clearHandler = getRouteHandler('delete', '/:id/chat/messages')
+    const clearRes = makeRes()
+    await clearHandler(makeReq({ params: { id: 'native-clear-fallback-agent' } }), clearRes)
+    assert.strictEqual(clearRes.jsonBody?.archived, true, 'Expected the seeded session to be archived by Clear')
+
+    // The bug: resolvePersistedAgentSessionId's newest-native-session fallback isn't
+    // watermark-aware, so once the seed session reads as empty it would fall through to "the
+    // newest native session for this agent, whatever its key" and hand back the unrelated
+    // session's own messages here instead of an empty conversation.
+    const afterClearRes = makeRes()
+    await messagesHandler(makeReq({ params: { id: 'native-clear-fallback-agent' } }), afterClearRes)
+    assert.deepStrictEqual(afterClearRes.jsonBody?.messages, [], 'Expected the current conversation to read as empty right after Clear, not the unrelated session\'s messages')
+
+    const listHandler = getRouteHandler('get', '/:id/chat/archives')
+    const listRes = makeRes()
+    await listHandler(makeReq({ params: { id: 'native-clear-fallback-agent' } }), listRes)
+    const archives = listRes.jsonBody?.archives || []
+    assert.strictEqual(archives.some((entry: any) => entry.active), false, 'Expected no active/current entry right after Clear — the unrelated session must not be named as current')
+
+    const unrelatedEntry = archives.find((entry: any) => entry.filename === `native:${unrelatedSessionId}`)
+    assert(unrelatedEntry, 'Expected the unrelated native session to still be visible as ordinary history, just not as the current conversation')
+    assert.strictEqual(unrelatedEntry.messageCount, 2, 'Expected the unrelated session\'s own messages to be intact')
+  })
+
   await test('chat archives route lists older native sessions from session_nodes as read-only history entries', async () => {
     writeAgent(workspacePath, 'native-history-agent', [
       '# IDENTITY.md',

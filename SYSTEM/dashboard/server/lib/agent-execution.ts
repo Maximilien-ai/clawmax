@@ -483,7 +483,20 @@ export function resolvePersistedAgentSessionId(
   // bookkeeping key the dashboard has no need to parse. So this is key-agnostic, exactly like the
   // legacy "newest .jsonl file" last resort below: take the most recently updated native session
   // for this agent, whatever its key. listNativeSessionIds is already sorted newest first.
-  const newestNativeSession = listNativeSessionIds(agentId, homeDir)[0]
+  //
+  // But only when this agent's own seeded session has never existed at all. listNativeSessionIds
+  // is NOT watermark-aware (unlike isPersisted/hasNativeTranscript above), so a session recorded
+  // under preferredSessionId that Clear has merely watermarked to empty still shows up here — and
+  // that is the answer we want: this agent's own conversation, now empty. Falling through to "the
+  // newest session for this agent, whatever its key" instead would present a completely unrelated
+  // session (e.g. a scheduled workflow run, or a session left behind by a model switch) as the
+  // user's current conversation right after they cleared it.
+  const nativeSessions = listNativeSessionIds(agentId, homeDir)
+  if (preferredSessionId && nativeSessions.some((session) => session.sessionId === preferredSessionId)) {
+    return preferredSessionId
+  }
+
+  const newestNativeSession = nativeSessions[0]
   if (newestNativeSession) {
     return newestNativeSession.sessionId
   }
