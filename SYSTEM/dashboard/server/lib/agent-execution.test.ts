@@ -23,6 +23,7 @@ import {
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
+  stableDashboardSeedPrefix,
   shouldUpdateNativeAuthStore,
   shouldUseExplicitBackupModelRetry,
   shouldRetryWithBackupModel,
@@ -721,7 +722,7 @@ test('resolvePersistedAgentSessionId recovers a dashboard-chat session recorded 
   assert(resolved === 'dashboard-seed-prefix-agent-oldstamp-chat', `Expected the seed-prefixed session id to be recovered over the more recent unrelated one, got ${resolved}`)
 })
 
-test('resolvePersistedAgentSessionId recovers an earlier dashboard-chat session by session key, for an agent id long enough that scopeSessionIdToModel truncates its session ids', () => {
+test('resolvePersistedAgentSessionId recovers an earlier dashboard-chat session by session key for a long agent id (session-key matching was already correct; kept as coverage alongside the seed-prefix case below)', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-long-id-key-home-'))
   const { DatabaseSync } = require('node:sqlite')
   // 36 characters — past the ~28-character threshold where scopeSessionIdToModel's hash
@@ -774,6 +775,51 @@ test('resolvePersistedAgentSessionId recovers a dashboard-chat session by its tr
   const resolved = resolvePersistedAgentSessionId(agentId, `agent:${agentId}:dashboard-chat`, newSessionId, home)
 
   assert(resolved === oldSessionId, `Expected the truncated seed-prefixed session id to be recovered over the more recent unrelated one, got ${resolved}`)
+})
+
+test('stableDashboardSeedPrefix agrees with the real scopeSessionIdToModel for every session id it could ever actually produce', () => {
+  // Every real session id for this agent's dashboard chat is scopeSessionIdToModel(seed, model)
+  // for SOME stamp (IDENTITY.md mtime, changes over the agent's life) and SOME model (changes over
+  // the agent's life too). stableDashboardSeedPrefix must be a prefix of every single one of them,
+  // for every agent id shape the routes actually accept (^[a-z][a-z0-9_-]*$) plus a couple of
+  // adversarial shapes past that, to prove the property rather than a handful of examples — this
+  // predicate has broken twice already (the truncation length, then hyphen-collapsing) on shapes
+  // no single example caught.
+  const agentIds = [
+    'a', // single character
+    'ab',
+    'my-agent',
+    'my--agent', // doubled hyphen
+    'my---agent', // tripled hyphen
+    'trailing-hyphen-agent-', // trailing hyphen (the exact shape that broke the previous fix)
+    '-leading-hyphen-agent', // leading hyphen — not a real routed agent id, but sanitizeSessionIdComponent must still handle it the same way for both sides
+    'agent_with_underscores_123', // underscores and digits
+    'x'.repeat(28), // just under the ~28-char threshold where truncation starts eating into "dashboard-<agentId>-" itself
+    'x'.repeat(29), // just over it
+    'x'.repeat(80), // far past it
+  ]
+  const stamps = ['1', 'zzzzz9', 'abc123']
+  const models = [undefined, 'openai/gpt-4o-mini', 'y'.repeat(40)]
+
+  let casesChecked = 0
+  let sawATruncatedCase = false
+  for (const agentId of agentIds) {
+    const prefix = stableDashboardSeedPrefix(agentId)
+    for (const stamp of stamps) {
+      for (const model of models) {
+        const realSessionId = scopeSessionIdToModel(`dashboard-${agentId}-${stamp}-chat`, model)
+        casesChecked++
+        if (realSessionId.length === 48) sawATruncatedCase = true
+        assert(
+          realSessionId.startsWith(prefix),
+          `Expected scopeSessionIdToModel('dashboard-${agentId}-${stamp}-chat', ${JSON.stringify(model)}) = ${JSON.stringify(realSessionId)} to start with stableDashboardSeedPrefix(${JSON.stringify(agentId)}) = ${JSON.stringify(prefix)}`
+        )
+      }
+    }
+  }
+
+  assert(casesChecked === agentIds.length * stamps.length * models.length, 'test setup: expected every combination to have actually run')
+  assert(sawATruncatedCase, 'test setup: expected at least one agent id/stamp/model combination to actually trigger scopeSessionIdToModel\'s hash truncation')
 })
 
 test('openclaw native transcript helpers degrade to empty results for a missing or unreadable database', () => {

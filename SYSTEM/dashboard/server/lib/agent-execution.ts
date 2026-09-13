@@ -406,6 +406,10 @@ export function deriveWorkspaceRootFromAgentWorkspace(agentWorkspace?: string): 
  * clear, archive-restore) must derive its preferred session id from this same seed — not from the
  * semantic session key (`agent:<id>:dashboard-chat`) alone — or it will look for the wrong session.
  */
+function buildDashboardChatSeedFromStamp(agentId: string, stamp: string): string {
+  return `dashboard-${agentId}-${stamp}-chat`
+}
+
 export function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: string): string {
   let stamp = 'chat'
   const identityPath = agentWorkspaceDir ? path.join(agentWorkspaceDir, 'IDENTITY.md') : ''
@@ -414,28 +418,38 @@ export function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: stri
       stamp = Math.floor(fs.statSync(identityPath).mtimeMs).toString(36)
     } catch {}
   }
-  return `dashboard-${agentId}-${stamp}-chat`
+  return buildDashboardChatSeedFromStamp(agentId, stamp)
 }
 
 const SESSION_ID_MAX_LENGTH = 48
 const SESSION_ID_HASH_LENGTH = 8
 
 /**
- * The longest prefix of a `scopeSessionIdToModel` base argument that function is guaranteed to
- * preserve verbatim in its output, regardless of which model or identity-file stamp is appended —
- * i.e. how much of `base` survives once `base` (plus the model token) is long enough to trigger
- * scopeSessionIdToModel's hash-truncation. Exported so a caller that needs to recognize "one of
- * this agent's own dashboard-chat session ids, from any past stamp" by prefix (see
- * resolvePersistedAgentSessionId) truncates its comparison prefix by the exact same rule instead
- * of duplicating the length math and silently drifting out of sync with it.
+ * The ONE place a session-id component (scopeSessionIdToModel's `sessionId` base, or its `model`
+ * token) gets sanitized: replace anything outside [a-zA-Z0-9_-] with a hyphen, collapse repeated
+ * hyphens into one, and trim leading/trailing hyphens. Nothing outside scopeSessionIdToModel
+ * (directly, or via stableDashboardSeedPrefix calling it below on synthetic input) may re-derive
+ * this pipeline — that duplication is exactly what let a hyphen-collapsing agent id desync the
+ * prefix match in resolvePersistedAgentSessionId from what scopeSessionIdToModel actually produced.
  */
-export function stableSessionIdBasePrefix(base: string): string {
-  return base.slice(0, Math.max(8, SESSION_ID_MAX_LENGTH - SESSION_ID_HASH_LENGTH - 1))
+function sanitizeSessionIdComponent(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+}
+
+/**
+ * The longest prefix of a sanitized `scopeSessionIdToModel` base that function is guaranteed to
+ * preserve verbatim in its output, regardless of what follows it — i.e. how much of the base
+ * survives once it (plus a model token) is long enough to trigger scopeSessionIdToModel's
+ * hash-truncation. The only other caller is stableDashboardSeedPrefix below, applying the exact
+ * same length rule to its own derived prefix so it can never fall out of sync with this one.
+ */
+function stableSessionIdBasePrefix(sanitizedBase: string): string {
+  return sanitizedBase.slice(0, Math.max(8, SESSION_ID_MAX_LENGTH - SESSION_ID_HASH_LENGTH - 1))
 }
 
 export function scopeSessionIdToModel(sessionId: string, model?: string): string {
-  const safeBase = sessionId.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-  const modelToken = (model || '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24)
+  const safeBase = sanitizeSessionIdComponent(sessionId)
+  const modelToken = sanitizeSessionIdComponent(model || '').slice(0, 24)
   const base = safeBase || 'chat'
   const combined = modelToken ? `${base}-${modelToken}` : base
 
@@ -446,6 +460,36 @@ export function scopeSessionIdToModel(sessionId: string, model?: string): string
   const hash = createHash('sha1').update(combined).digest('hex').slice(0, SESSION_ID_HASH_LENGTH)
   const trimmedBase = stableSessionIdBasePrefix(base)
   return `${trimmedBase}-${hash}`.slice(0, SESSION_ID_MAX_LENGTH)
+}
+
+/**
+ * The stable, stamp-and-model-independent prefix that `scopeSessionIdToModel(buildDashboardChatSeed(
+ * agentId, ...), model)` is guaranteed to start with, no matter which IDENTITY.md-mtime stamp or
+ * model produced the exact id — used by resolvePersistedAgentSessionId to recognize a session
+ * recorded under an earlier stamp, or under an unrelated session_key, as still this agent's own
+ * dashboard conversation (never "whatever is newest for this agent").
+ *
+ * Derived by actually running two complete dashboard-chat seeds that are identical except for
+ * their stamp through sanitizeSessionIdComponent — the exact same function scopeSessionIdToModel
+ * calls on its `sessionId` argument — and keeping only what they still agree on, then applying
+ * stableSessionIdBasePrefix, the exact same truncation-length rule scopeSessionIdToModel applies
+ * in its own hash-truncated branch. Neither the sanitize regex nor the length math is
+ * re-implemented here, so a future change to either is picked up automatically and this can never
+ * silently diverge from what scopeSessionIdToModel actually produces — which is exactly how this
+ * predicate broke twice before (once on the length cap, once on hyphen-collapsing).
+ */
+export function stableDashboardSeedPrefix(agentId: string): string {
+  const sanitizedA = sanitizeSessionIdComponent(buildDashboardChatSeedFromStamp(agentId, '0'))
+  const sanitizedB = sanitizeSessionIdComponent(buildDashboardChatSeedFromStamp(agentId, 'z'))
+  let agreementLength = 0
+  while (
+    agreementLength < sanitizedA.length
+    && agreementLength < sanitizedB.length
+    && sanitizedA[agreementLength] === sanitizedB[agreementLength]
+  ) {
+    agreementLength++
+  }
+  return stableSessionIdBasePrefix(sanitizedA.slice(0, agreementLength))
 }
 
 export function resolvePersistedAgentSessionId(
@@ -515,11 +559,10 @@ export function resolvePersistedAgentSessionId(
   // no matter how recently it was touched. If nothing matches, the right answer is empty, not
   // "closest thing available" (the final legacy-jsonl fallback below still applies for OpenClaw 1).
   //
-  // The prefix itself must be run through stableSessionIdBasePrefix: for a long agent id,
-  // scopeSessionIdToModel's hash-truncation can land inside "dashboard-<agentId>-" itself (past
-  // roughly 28 characters of agentId), so the untruncated prefix would never match a real,
-  // truncated session id at all and a genuine earlier conversation would read as empty.
-  const dashboardSeedPrefix = stableSessionIdBasePrefix(`dashboard-${agentId}-`)
+  // See stableDashboardSeedPrefix's own doc comment for why the prefix can't just be the literal
+  // "dashboard-<agentId>-" text: scopeSessionIdToModel's sanitization and hash-truncation can both
+  // change what a real session id actually starts with, and this must match that exactly.
+  const dashboardSeedPrefix = stableDashboardSeedPrefix(agentId)
   const ownDashboardSession = nativeSessions.find((session) =>
     session.sessionKey === sessionKey
     || session.sessionKey.startsWith(`${sessionKey}:`)
