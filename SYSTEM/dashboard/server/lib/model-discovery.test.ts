@@ -288,6 +288,37 @@ test('An endpoint that just failed is not asked again within the discovery timeo
   assert(recovered === 'deepseek-ai/DeepSeek-V4-Flash-0731', `Expected discovery to recover after the cache is cleared, got ${recovered}`)
 })
 
+test('A lookup that outlived a refresh cannot hide the fresh attempt in flight', async () => {
+  clearModelCache()
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+  global.fetch = (async () => {
+    await wait(100)
+    throw new Error('connect ETIMEDOUT 172.16.1.70:8000')
+  }) as any
+  const stale = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  await wait(10)
+  clearModelCache() // the operator's refresh, while the stale lookup is still waiting
+  global.fetch = (async () => {
+    await wait(300)
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: 'deepseek-ai/DeepSeek-V4-Flash-0731' }] }) } as any
+  }) as any
+  const fresh = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  await wait(200) // the stale lookup has failed by now; the fresh one is still in flight
+  const joined = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  assert(joined === 'deepseek-ai/DeepSeek-V4-Flash-0731', `Expected the caller to join the fresh attempt rather than replay the stale failure, got ${joined}`)
+  assert((await stale) === undefined && (await fresh) === 'deepseek-ai/DeepSeek-V4-Flash-0731', 'Expected the stale lookup to fail and the fresh one to succeed')
+  assert(__test.openAiCompatibleFailureCount() === 0, `Expected no failure recorded for the refreshed generation, got ${__test.openAiCompatibleFailureCount()}`)
+})
+
+test('The failure window holds no more entries than the endpoint cache', async () => {
+  clearModelCache()
+  global.fetch = (async () => { throw new Error('connect ECONNREFUSED') }) as any
+  for (let i = 0; i < 300; i++) {
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://10.0.0.${i % 250}:${8000 + Math.floor(i / 250)}/v1` })
+  }
+  assert(__test.openAiCompatibleFailureCount() <= 256, `Expected the failure window to stay bounded, got ${__test.openAiCompatibleFailureCount()}`)
+})
+
 test('A cold discovery cache answers undefined rather than guessing', () => {
   clearModelCache()
   assert(
