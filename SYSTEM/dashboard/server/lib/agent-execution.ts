@@ -11,7 +11,7 @@ import { syncAssignedSkillGuidanceForAgent } from './skills'
 import { normalizeAgentModelInput, readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
 import { resetAgentSessionsForModelChange } from './agent-model'
 import { resolveDefaultAgentModel, policyScopedEnv } from './agent-default-model'
-import { getAvailableModelsCached, getCachedOpenAiCompatibleContextWindow } from './model-discovery'
+import { getAvailableModelsCached, getCachedOpenAiCompatibleContextWindow, resolveOpenAiCompatibleDefaultModel } from './model-discovery'
 import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
@@ -74,12 +74,11 @@ function providerEntryContextWindow(providerConfig: any, modelId: string | undef
   return typeof value === 'number' && value > 0 ? value : undefined
 }
 
-// True when the provider entry for `modelId` would be resized by `contextFor`: it carries the fixed
-// default, or a value below what the endpoint advertises. A larger operator-set value stands.
+// True when the provider entry for `modelId` would be resized by `contextFor`: the endpoint
+// advertises a context length and the entry carries a different one.
 function providerContextWindowIsStale(providerConfig: any, modelId: string | undefined, advertisedContextWindow: number | undefined): boolean {
   if (!advertisedContextWindow || !providerEntryFor(providerConfig, modelId)) return false
-  const current = providerEntryContextWindow(providerConfig, modelId)
-  return current !== advertisedContextWindow && !(current && current !== LMSTUDIO_DEFAULT_CONTEXT_TOKENS && current > advertisedContextWindow)
+  return providerEntryContextWindow(providerConfig, modelId) !== advertisedContextWindow
 }
 
 function discoveryCredentialFor(apiKey?: string): string | undefined {
@@ -1171,13 +1170,12 @@ export async function withTemporaryAgentAuthProfiles<T>(
       ? cloneJsonValue(previousProviderConfig)
       : {}
     const normalizedModel = preferredModel?.trim().replace(/^lmstudio\//, '')
-    // The endpoint's own advertised context length outranks the fixed default and any earlier
-    // default this code wrote; an operator's explicit larger value is kept.
+    // The context length the endpoint advertises is what it can serve, so it outranks whatever the
+    // entry carries; without an advertised length the stored value, then the fixed default, stand.
     const advertisedContext = getCachedOpenAiCompatibleContextWindow(normalizedBaseUrl, discoveryCredentialFor(apiKey), normalizedModel)
     const contextFor = (existing: unknown) => {
       const current = typeof existing === 'number' && existing > 0 ? existing : undefined
-      if (advertisedContext) return current && current !== LMSTUDIO_DEFAULT_CONTEXT_TOKENS && current > advertisedContext ? current : advertisedContext
-      return current || LMSTUDIO_DEFAULT_CONTEXT_TOKENS
+      return advertisedContext || current || LMSTUDIO_DEFAULT_CONTEXT_TOKENS
     }
     if (normalizedBaseUrl) {
       nextProviderConfig.baseUrl = normalizedBaseUrl
@@ -1200,6 +1198,8 @@ export async function withTemporaryAgentAuthProfiles<T>(
             if (typeof entry !== 'object' || entry === null || String(entry.id || '').trim() !== normalizedModel) {
               return entry
             }
+            const previousWindow = typeof entry.contextWindow === 'number' && entry.contextWindow > 0 ? entry.contextWindow : undefined
+            const previousMaxTokens = typeof entry.maxTokens === 'number' && entry.maxTokens > 0 ? entry.maxTokens : undefined
             const contextWindow = contextFor(entry.contextWindow)
             return {
               ...entry,
@@ -1207,7 +1207,9 @@ export async function withTemporaryAgentAuthProfiles<T>(
               name: entry.name || normalizedModel,
               contextWindow,
               contextTokens: contextFor(entry.contextTokens),
-              maxTokens: Math.min(typeof entry.maxTokens === 'number' && entry.maxTokens > 0 ? entry.maxTokens : 8_192, contextWindow),
+              // A max-tokens value equal to the previous window was this code's own clamp, so it
+              // follows the window; any other value is kept, bounded by the window.
+              maxTokens: Math.min(previousMaxTokens && previousMaxTokens !== previousWindow ? previousMaxTokens : 8_192, contextWindow),
             }
           })
         : [...existingModels, {
@@ -1365,6 +1367,15 @@ export async function withTemporaryAgentAuthProfiles<T>(
       executionModelOverride &&
       Object.prototype.hasOwnProperty.call(currentOpenClawConfig?.agents?.defaults?.models || {}, executionModelOverride)
     )
+    // Every execution surface passes here, so the endpoint's catalog is fetched (once per cache
+    // lifetime) before the provider entry is sized, even when no route warmed it first.
+    if (normalizedOpenAiCompatibleBaseUrl) {
+      try {
+        await resolveOpenAiCompatibleDefaultModel({ baseUrl: normalizedOpenAiCompatibleBaseUrl, apiKey: discoveryCredentialFor(providerKeys.openaiCompatibleApiKey) })
+      } catch {
+        // An unreachable endpoint fails the execution itself in its own words.
+      }
+    }
     // An entry written before the endpoint's advertised context length was known (or with the
     // fixed default) is stale once discovery knows better, even when everything else matches.
     const advertisedContextWindow = getCachedOpenAiCompatibleContextWindow(normalizedOpenAiCompatibleBaseUrl, discoveryCredentialFor(providerKeys.openaiCompatibleApiKey), executionLmstudioModelId)
