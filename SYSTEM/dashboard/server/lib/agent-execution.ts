@@ -60,6 +60,9 @@ interface AgentAuthProfileOptions {
   skipModelConfigMutation?: boolean
 }
 const LMSTUDIO_DEFAULT_CONTEXT_TOKENS = 64_000
+// Keys the execution environment substitutes for "no credential" on a keyless endpoint
+// (see providerKeysToEnv); discovery was warmed with no credential, so these must map back to it.
+const OPENAI_COMPATIBLE_PLACEHOLDER_KEYS = new Set(['openai-compatible', 'lmstudio-local'])
 const OPENCLAW_CONFIG_RELOAD_SETTLE_MS = 1500
 let openClawConfigMutationLock: Promise<void> = Promise.resolve()
 const agentExecutionLocks = new Map<string, Promise<void>>()
@@ -1147,7 +1150,8 @@ export async function withTemporaryAgentAuthProfiles<T>(
     const normalizedModel = preferredModel?.trim().replace(/^lmstudio\//, '')
     // The endpoint's own advertised context length outranks the fixed default and any earlier
     // default this code wrote; an operator's explicit larger value is kept.
-    const advertisedContext = getCachedOpenAiCompatibleContextWindow(normalizedBaseUrl, apiKey, normalizedModel)
+    const discoveryCredential = apiKey?.trim() && !OPENAI_COMPATIBLE_PLACEHOLDER_KEYS.has(apiKey.trim()) ? apiKey.trim() : undefined
+    const advertisedContext = getCachedOpenAiCompatibleContextWindow(normalizedBaseUrl, discoveryCredential, normalizedModel)
     const contextFor = (existing: unknown) => {
       const current = typeof existing === 'number' && existing > 0 ? existing : undefined
       if (advertisedContext) return current && current !== LMSTUDIO_DEFAULT_CONTEXT_TOKENS && current > advertisedContext ? current : advertisedContext
