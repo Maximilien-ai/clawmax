@@ -259,6 +259,35 @@ test('An endpoint advertising only non-chat models resolves to no default', asyn
   assert(resolved === undefined, `Expected no chat-capable default, got ${resolved}`)
 })
 
+test('An endpoint that just failed is not asked again within the discovery timeout', async () => {
+  clearModelCache()
+  let attempts = 0
+  global.fetch = (async () => {
+    attempts++
+    throw new Error('connect ECONNREFUSED 172.16.1.70:8000')
+  }) as any
+
+  const first = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  const second = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  assert(first === undefined && second === undefined, `Expected no default from an unreachable endpoint, got ${first}/${second}`)
+  assert(attempts === 1, `Expected the warm-up and the execution that follows it to share one failed attempt, got ${attempts}`)
+
+  // A different credential for the same server is its own lookup.
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1', apiKey: 'other-key' })
+  assert(attempts === 2, `Expected a separate attempt for a different credential, got ${attempts}`)
+
+  // Once the window has passed the endpoint is asked again.
+  __test.ageOpenAiCompatibleCache(6_000)
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  assert(attempts === 3, `Expected a fresh attempt after the replay window, got ${attempts}`)
+
+  // A failure never shadows a later success or an emptied cache.
+  clearModelCache()
+  global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'deepseek-ai/DeepSeek-V4-Flash-0731' }] }) }) as any) as any
+  const recovered = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  assert(recovered === 'deepseek-ai/DeepSeek-V4-Flash-0731', `Expected discovery to recover after the cache is cleared, got ${recovered}`)
+})
+
 test('A cold discovery cache answers undefined rather than guessing', () => {
   clearModelCache()
   assert(
