@@ -97,7 +97,8 @@ export function clearModelCache() {
 
 // A lookup that just failed is not repeated within the discovery timeout: the route that warmed an
 // endpoint and the execution that follows it would otherwise each wait out the timeout on an
-// unreachable server. The map holds only failures inside the window (swept on every write).
+// unreachable server. The map holds only failures inside the window (swept on every write) and
+// never more than the success cache's bound (the oldest go first).
 const OPENAI_COMPATIBLE_FAILURE_REPLAY_MS = 5000
 const recentOpenAiCompatibleFailures = new Map<string, number>()
 
@@ -114,7 +115,11 @@ function recordOpenAiCompatibleLookupFailure(cacheKey: string): void {
   for (const [key, failedAt] of recentOpenAiCompatibleFailures) {
     if (now - failedAt > OPENAI_COMPATIBLE_FAILURE_REPLAY_MS) recentOpenAiCompatibleFailures.delete(key)
   }
+  recentOpenAiCompatibleFailures.delete(cacheKey)
   recentOpenAiCompatibleFailures.set(cacheKey, now)
+  while (recentOpenAiCompatibleFailures.size > MAX_OPENAI_COMPATIBLE_CACHE_ENTRIES) {
+    recentOpenAiCompatibleFailures.delete(recentOpenAiCompatibleFailures.keys().next().value as string)
+  }
 }
 
 /** `${baseUrl}${suffix}` for a base URL that may itself carry a query string. */
@@ -545,7 +550,8 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
       })
       if (!res.ok) {
         console.warn(`OpenAI-compatible models API returned ${res.status}`)
-        recordOpenAiCompatibleLookupFailure(cacheKey)
+        // A lookup that outlived a refresh says nothing about the fresh attempt in flight.
+        if (generation === cacheGeneration) recordOpenAiCompatibleLookupFailure(cacheKey)
         return []
       }
       const body = await res.json() as { data?: Array<{ id?: string; max_model_len?: unknown; context_length?: unknown; max_context_length?: unknown; context_window?: unknown }> }
@@ -571,7 +577,7 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
       return models
     } catch (err) {
       console.warn('Failed to fetch OpenAI-compatible models:', (err as Error).message)
-      recordOpenAiCompatibleLookupFailure(cacheKey)
+      if (generation === cacheGeneration) recordOpenAiCompatibleLookupFailure(cacheKey)
       return []
     } finally {
       // A refresh may have replaced this entry with a newer lookup; only remove our own.
@@ -807,6 +813,7 @@ export const __test = {
     for (const [key, failedAt] of recentOpenAiCompatibleFailures) recentOpenAiCompatibleFailures.set(key, failedAt - ms)
   },
   openAiCompatibleCacheEntryCount: () => Object.keys(cache).filter((key) => key.startsWith(OPENAI_COMPATIBLE_CACHE_PREFIX)).length,
+  openAiCompatibleFailureCount: () => recentOpenAiCompatibleFailures.size,
   filterCompatibleDiscoveredModels,
   isGeminiApiTextModel,
   isOpenAICompatibleChatModel,
