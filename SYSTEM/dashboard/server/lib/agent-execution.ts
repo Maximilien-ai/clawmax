@@ -395,6 +395,28 @@ export function deriveWorkspaceRootFromAgentWorkspace(agentWorkspace?: string): 
   return normalized
 }
 
+/**
+ * The seed the live dashboard chat route (routes/chat.ts POST /:id/chat) passes OpenClaw as
+ * --session-id on the first turn of a conversation (a client-supplied `sessionId` from a later
+ * turn in the same panel session overrides this). Anchored to the agent's IDENTITY.md mtime so a
+ * page reload recomputes the exact same seed without the client having to persist anything — it
+ * only changes when the identity file itself is rewritten (e.g. a model change).
+ *
+ * Any code that needs to resolve "the session this agent's dashboard chat is/was using" (history,
+ * clear, archive-restore) must derive its preferred session id from this same seed — not from the
+ * semantic session key (`agent:<id>:dashboard-chat`) alone — or it will look for the wrong session.
+ */
+export function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: string): string {
+  let stamp = 'chat'
+  const identityPath = agentWorkspaceDir ? path.join(agentWorkspaceDir, 'IDENTITY.md') : ''
+  if (identityPath && fs.existsSync(identityPath)) {
+    try {
+      stamp = Math.floor(fs.statSync(identityPath).mtimeMs).toString(36)
+    } catch {}
+  }
+  return `dashboard-${agentId}-${stamp}-chat`
+}
+
 export function scopeSessionIdToModel(sessionId: string, model?: string): string {
   const MAX_SESSION_KEY_LENGTH = 48
   const safeBase = sessionId.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
@@ -455,24 +477,15 @@ export function resolvePersistedAgentSessionId(
     }
   } catch {}
 
-  // OpenClaw 2's native store has no sessions.json index to consult, so look up its own
-  // session_key -> session id mapping directly. A session recorded under the exact dashboard
-  // session key wins; otherwise fall back to an "explicit:" alias of that key whose session id
-  // starts with the preferred (scoped) session id — how OpenClaw 2 tags a session that was handed
-  // an explicit --session-id rather than a semantic key — newest first.
-  const nativeSessions = listNativeSessionIds(agentId, homeDir)
-  if (nativeSessions.length > 0) {
-    const exactKeyMatch = nativeSessions.find((session) => session.sessionKey === sessionKey)
-    if (exactKeyMatch) return exactKeyMatch.sessionId
-
-    if (preferredSessionId) {
-      const explicitKeyPrefix = `${sessionKey.split(':').slice(0, -1).join(':')}:explicit:`
-      const explicitMatch = nativeSessions
-        .filter((session) => session.sessionKey.startsWith(explicitKeyPrefix)
-          && session.sessionKey.slice(explicitKeyPrefix.length).startsWith(preferredSessionId))
-        .sort((a, b) => b.updatedAt - a.updatedAt)[0]
-      if (explicitMatch) return explicitMatch.sessionId
-    }
+  // OpenClaw 2's native store has no sessions.json index to consult, and no reliable session_key
+  // to match on either — it records a session started from an explicit --session-id (which is how
+  // the dashboard always starts one; see buildDashboardChatSeed) under an internal "explicit:"
+  // bookkeeping key the dashboard has no need to parse. So this is key-agnostic, exactly like the
+  // legacy "newest .jsonl file" last resort below: take the most recently updated native session
+  // for this agent, whatever its key. listNativeSessionIds is already sorted newest first.
+  const newestNativeSession = listNativeSessionIds(agentId, homeDir)[0]
+  if (newestNativeSession) {
+    return newestNativeSession.sessionId
   }
 
   try {

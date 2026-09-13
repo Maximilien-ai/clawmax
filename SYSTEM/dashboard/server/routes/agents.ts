@@ -45,8 +45,8 @@ import { normalizeChatMessage } from '../lib/chat-normalization'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
 import { hasReadyOpenClawNativeAgentStore, runExclusiveAgentExecution } from '../lib/agent-execution'
 import { cancelTurnsForAgent, listActiveTurns, withRegisteredTurn } from '../lib/agent-turns'
-import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
-import { listNativeSessionIds, readNativeTranscriptLines } from '../lib/openclaw-native-transcripts'
+import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId, buildDashboardChatSeed } from '../lib/agent-execution'
+import { listNativeSessionIds, markNativeTranscriptCleared, readNativeTranscriptLines } from '../lib/openclaw-native-transcripts'
 import { resolveDefaultAgentModel } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
@@ -457,7 +457,10 @@ function getAgentDashboardSessionKey(agentId: string): string {
 function resolveAgentChatSessionId(agentId: string, homeDir: string = process.env.HOME || ''): string | null {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const sessionKey = getAgentDashboardSessionKey(agentId)
-  const preferredSessionId = scopeSessionIdToModel(sessionKey, resolvedAgent.model)
+  // Must match the seed the live chat route (routes/chat.ts POST /:id/chat) actually passes
+  // OpenClaw as --session-id on the first turn — not the semantic key alone. See
+  // buildDashboardChatSeed's doc comment for why these differ.
+  const preferredSessionId = scopeSessionIdToModel(buildDashboardChatSeed(agentId, resolvedAgent.workspace), resolvedAgent.model)
   const persisted = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
   // claude/droid chats never write openclaw's sessions.json index, so their "current session"
   // pointer is the newest runtime transcript. Prefer the store that matches the agent's runtime
@@ -540,7 +543,7 @@ function readMergedChatSessionMessages(agentId: string, sessionId: string, homeD
 function getArchiveRestoreSessionId(agentId: string, homeDir: string = process.env.HOME || ''): string {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const sessionKey = getAgentDashboardSessionKey(agentId)
-  const preferredSessionId = scopeSessionIdToModel(sessionKey, resolvedAgent.model)
+  const preferredSessionId = scopeSessionIdToModel(buildDashboardChatSeed(agentId, resolvedAgent.workspace), resolvedAgent.model)
   return resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir) || preferredSessionId
 }
 
@@ -3565,6 +3568,10 @@ router.delete('/:id/chat/messages', async (req, res) => {
 
       if (openclawExists) fs.unlinkSync(jsonlPath)
       clearRuntimeTranscript(id, actualSessionId)
+      // Never touches the SQLite file — advances a dashboard-owned watermark so later reads of
+      // this session skip everything archived just now (see markNativeTranscriptCleared). A no-op
+      // when nativeLines was empty (nothing to watermark).
+      markNativeTranscriptCleared(id, actualSessionId, HOME)
 
       // Remove session from index
       const sessionKey = getAgentDashboardSessionKey(id)
@@ -3611,8 +3618,34 @@ router.get('/:id/chat/archives', async (req, res) => {
           messageCount: activeSessionMessages.length,
           messages: activeSessionMessages.map((message) => ({ role: message.role, content: message.content })),
           active: true,
+          removable: false,
         }]
       : []
+
+    // OpenClaw 2's native SQLite store can hold more than one session for this agent — e.g. an
+    // older session left behind after a model switch re-scopes the dashboard-chat session key
+    // (scopeSessionIdToModel), or a session recorded under an entirely different key (a CLI run,
+    // an "explicit:" alias). Clear can never delete rows from that database (the runtime owns it —
+    // see readChatSessionMessages), so without this those sessions would be invisible from History
+    // forever even though the conversation is sitting right there. Surface every native session
+    // except the one already shown as the active entry above, read-only (see removable below).
+    const nativeEntries = listNativeSessionIds(id, HOME)
+      .filter((session) => session.sessionId !== activeSessionId)
+      .map((session) => {
+        const messages = parseVisibleChatMessages(readNativeTranscriptLines(id, session.sessionId, HOME).join('\n'))
+          .map((message) => ({ role: message.role, content: message.content }))
+        return {
+          filename: `native:${session.sessionId}`,
+          timestamp: session.updatedAt || Date.now(),
+          messageCount: messages.length,
+          messages,
+          active: false,
+          // The dashboard never writes to the OpenClaw 2 native store (the runtime owns it), so
+          // these entries can be viewed but not deleted or restored from here.
+          removable: false,
+        }
+      })
+      .filter((entry) => entry.messageCount > 0)
 
     const archivedEntries = fs.existsSync(archiveDir)
       ? fs.readdirSync(archiveDir)
@@ -3661,13 +3694,16 @@ router.get('/:id/chat/archives', async (req, res) => {
           // ignore
         }
 
-        return { filename, timestamp, messageCount, messages, active: false }
+        return { filename, timestamp, messageCount, messages, active: false, removable: true }
       })
       .filter((entry) => entry.messageCount > 0)
       .sort((a, b) => b.timestamp - a.timestamp)
       : []
 
-    const fileInfos = [...activeEntry, ...archivedEntries]
+    // Active entry first (unchanged position), then every historical entry — native sessions and
+    // file-based archives alike — newest first, so the two sources blend by recency rather than
+    // native sessions always trailing the file-based ones.
+    const fileInfos = [...activeEntry, ...[...nativeEntries, ...archivedEntries].sort((a, b) => b.timestamp - a.timestamp)]
 
     // Check for cached titles
     const titlesPath = path.join(archiveDir, '.titles.json')
@@ -3700,13 +3736,17 @@ router.get('/:id/chat/archives', async (req, res) => {
           messageCount: info.messageCount,
           title,
           active: info.active,
+          removable: info.removable,
         }
       })
     )
 
-    // Save updated cache
-    if (fs.existsSync(archiveDir) || archivedEntries.length > 0) {
+    // Save updated cache. A native-only agent (no file-based archive ever written) has no
+    // archiveDir yet — create it so its generated titles are cached too, not just the ones for
+    // file-based archives.
+    if (fs.existsSync(archiveDir) || archivedEntries.length > 0 || nativeEntries.length > 0) {
       try {
+        fs.mkdirSync(archiveDir, { recursive: true })
         fs.writeFileSync(titlesPath, JSON.stringify(cachedTitles, null, 2))
       } catch (err) {
         console.error('Failed to save title cache:', err)
@@ -3742,6 +3782,15 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
       return res.json({ messages: readMergedChatSessionMessages(id, sessionId, HOME) })
     }
 
+    if (filename.startsWith('native:')) {
+      const sessionId = filename.slice('native:'.length)
+      if (!sessionId) {
+        return res.status(400).json({ error: 'Invalid native session id' })
+      }
+      // Same reader the archives-list entry used to count these messages (see above).
+      return res.json({ messages: readMergedChatSessionMessages(id, sessionId, HOME) })
+    }
+
     const filePath = path.join(archiveDir, filename)
 
     if (!fs.existsSync(filePath)) {
@@ -3764,6 +3813,14 @@ router.post('/:id/chat/archives/:filename/restore', async (req, res) => {
 
   if (filename.startsWith('current:')) {
     return res.status(400).json({ error: 'Current conversation is already active' })
+  }
+
+  if (filename.startsWith('native:')) {
+    // The dashboard never writes to OpenClaw 2's native SQLite store (the runtime owns it), so
+    // there is no file to copy into place and no session-index entry we can safely repoint without
+    // risking the runtime's own bookkeeping for that session. Viewing is fully supported (see the
+    // GET route above); restoring as the active conversation is not.
+    return res.status(400).json({ error: 'This conversation lives in the agent runtime\'s own session store and can\'t be restored as the active chat from here.' })
   }
 
   if (filename.includes('..') || filename.includes('/')) {
@@ -3832,6 +3889,9 @@ router.delete('/:id/chat/archives/:filename', async (req, res) => {
   try {
     if (filename.startsWith('current:')) {
       return res.status(400).json({ error: 'Current conversation cannot be deleted from history. Clear the active chat instead.' })
+    }
+    if (filename.startsWith('native:')) {
+      return res.status(400).json({ error: 'This conversation lives in the agent runtime\'s own session store and can\'t be deleted from here.' })
     }
     const HOME = process.env.HOME || ''
     const archiveDir = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'archive')

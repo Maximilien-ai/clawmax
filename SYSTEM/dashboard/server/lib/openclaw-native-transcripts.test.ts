@@ -2,7 +2,7 @@ import assert from 'assert'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { hasNativeTranscript, listNativeSessionIds, nativeAgentStorePath, readNativeTranscriptLines } from './openclaw-native-transcripts'
+import { hasNativeTranscript, listNativeSessionIds, markNativeTranscriptCleared, nativeAgentStorePath, readNativeTranscriptLines } from './openclaw-native-transcripts'
 
 const { DatabaseSync } = require('node:sqlite')
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-native-transcripts-test-'))
@@ -62,7 +62,14 @@ try {
   otherSessionInsert.close()
   assert.deepEqual(readNativeTranscriptLines('alpha', 'other-window', home), [message('unfiltered')])
 
-  console.log('PASS: native transcript active-branch filtering, graceful degrade without it, read-only isolation')
+  // Clearing a session with active-branch tracking must empty it, not fall back to the full
+  // history — the active-events table having rows for this session at all means "applicable",
+  // even once every one of those rows is behind the watermark.
+  markNativeTranscriptCleared('alpha', 'chat-window', home)
+  assert.deepEqual(readNativeTranscriptLines('alpha', 'chat-window', home), [], 'Expected a cleared active-branch session to read empty, not fall back to full history')
+  assert.equal(hasNativeTranscript('alpha', 'chat-window', home), false)
+
+  console.log('PASS: native transcript active-branch filtering, graceful degrade without it, watermark-vs-active-branch interaction, read-only isolation')
 } finally {
   fs.rmSync(home, { recursive: true, force: true })
 }

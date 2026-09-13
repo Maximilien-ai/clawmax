@@ -638,31 +638,34 @@ test('resolvePersistedAgentSessionId resolves the OpenClaw 2 native session reco
   assert(resolved === 'native-session-abc', `Expected native session id from session_nodes, got ${resolved}`)
 })
 
-test('resolvePersistedAgentSessionId falls back to an explicit-prefixed native session key when no exact dashboard-chat key exists', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-explicit-home-'))
+test('resolvePersistedAgentSessionId falls back to the newest native session for the agent, key-agnostic', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-newest-home-'))
   const { DatabaseSync } = require('node:sqlite')
-  const agentDir = path.join(home, '.openclaw', 'agents', 'native-explicit', 'agent')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'native-newest', 'agent')
   fs.mkdirSync(agentDir, { recursive: true })
   const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
   database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  // OpenClaw 2 tags a session handed an explicit --session-id (rather than a semantic key) as
-  // "agent:<id>:explicit:<sessionId>" instead of writing the "agent:<id>:dashboard-chat" row.
-  database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)').run(
-    'agent:native-explicit:explicit:scoped-dash-chat-abcd1234',
-    'scoped-dash-chat-abcd1234',
-    JSON.stringify({ sessionId: 'scoped-dash-chat-abcd1234', updatedAt: 1000 }),
-    1000
-  )
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  // Neither row's session_key matches "agent:native-newest:dashboard-chat" or an "explicit:" alias
+  // of the preferred id — real OpenClaw 2 session_key shapes vary (a semantic key, an explicit:
+  // alias of some *other* seed, a CLI-run key, ...) and the dashboard has no reliable way to parse
+  // them, so resolution must be key-agnostic: whichever session was updated most recently wins,
+  // matching the legacy "newest .jsonl file" last resort. Inserted older-first so a naive
+  // first-row-without-sorting implementation would return the wrong (older) session.
+  insertSession.run('agent:native-newest:explicit:some-older-seed', 'older-session', JSON.stringify({ sessionId: 'older-session', updatedAt: 1000 }), 1000)
+  insertSession.run('unrelated-cli-run-key', 'newer-session', JSON.stringify({ sessionId: 'newer-session', updatedAt: 5000 }), 5000)
   database.close()
 
+  // No sessions.json, and the preferred id matches neither native session — the only path left is
+  // the key-agnostic newest-session fallback.
   const resolved = resolvePersistedAgentSessionId(
-    'native-explicit',
-    'agent:native-explicit:dashboard-chat',
-    'scoped-dash-chat-abcd1234',
+    'native-newest',
+    'agent:native-newest:dashboard-chat',
+    'scoped-preferred-id-matching-neither-session',
     home
   )
 
-  assert(resolved === 'scoped-dash-chat-abcd1234', `Expected explicit-prefixed native session id, got ${resolved}`)
+  assert(resolved === 'newer-session', `Expected the most recently updated native session regardless of its key, got ${resolved}`)
 })
 
 test('openclaw native transcript helpers degrade to empty results for a missing or unreadable database', () => {
