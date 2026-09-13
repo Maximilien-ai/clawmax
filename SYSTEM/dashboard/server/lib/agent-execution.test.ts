@@ -32,7 +32,7 @@ import {
 import { REPO_ROOT } from './paths'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import { materializeDashboardAgentList } from './openclaw-config'
-import { hasNativeTranscript, listNativeSessionIds, readNativeTranscriptLines } from './openclaw-native-transcripts'
+import { hasNativeTranscript, listNativeSessionIds, markNativeTranscriptCleared, readNativeTranscriptLines } from './openclaw-native-transcripts'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -686,6 +686,61 @@ test('openclaw native transcript helpers degrade to empty results for a missing 
   // Also verify a missing/unreadable database never throws through resolvePersistedAgentSessionId.
   const resolved = resolvePersistedAgentSessionId('corrupt-agent', 'agent:corrupt-agent:dashboard-chat', 'preferred-id', home)
   assert(resolved === 'preferred-id', `Expected preferred id passthrough when native store is unreadable, got ${resolved}`)
+})
+
+test('markNativeTranscriptCleared hides archived content from readNativeTranscriptLines/hasNativeTranscript for any caller, and a later turn reappears', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-watermark-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'watermark-agent', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const dbPath = path.join(agentDir, 'openclaw-agent.sqlite')
+  const database = new DatabaseSync(dbPath)
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  insertEvent.run('watermark-session', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'before clear' }] } }), Date.now())
+  insertEvent.run('watermark-session', 1, JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: 'before clear reply' }] } }), Date.now())
+  database.close()
+
+  assert(hasNativeTranscript('watermark-agent', 'watermark-session', home), 'Expected a transcript to exist before Clear')
+  assert(readNativeTranscriptLines('watermark-agent', 'watermark-session', home).length === 2, 'Expected both turns readable before Clear')
+
+  markNativeTranscriptCleared('watermark-agent', 'watermark-session', home)
+
+  // These are the exact calls ANY reader makes — the chat history route, or a history-list
+  // builder enumerating listNativeSessionIds and counting each one's messages. The watermark
+  // lives inside these two shared functions, not in one call site, so every caller gets it for
+  // free: a history list computing messageCount from readNativeTranscriptLines would get 0 here
+  // and correctly not resurrect this cleared conversation, with no filtering of its own.
+  assert(!hasNativeTranscript('watermark-agent', 'watermark-session', home), 'Expected the transcript to read as absent immediately after Clear')
+  assert(readNativeTranscriptLines('watermark-agent', 'watermark-session', home).length === 0, 'Expected no lines to be readable immediately after Clear')
+
+  // A later turn (the runtime appending a higher-seq row, exactly as it would on the next real
+  // chat message) must reappear — the watermark filters by position, not by hiding the session.
+  const liveDb = new DatabaseSync(dbPath)
+  liveDb.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)').run(
+    'watermark-session', 2, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'after clear' }] } }), Date.now()
+  )
+  liveDb.close()
+
+  assert(hasNativeTranscript('watermark-agent', 'watermark-session', home), 'Expected a later turn to make the transcript exist again')
+  const linesAfter = readNativeTranscriptLines('watermark-agent', 'watermark-session', home)
+  assert(linesAfter.length === 1, `Expected only the turn after Clear to be readable, got ${linesAfter.length}`)
+  assert(linesAfter[0].includes('after clear'), 'Expected the post-clear turn content')
+})
+
+test('markNativeTranscriptCleared is a no-op for a session with nothing recorded, and never writes a watermark file for it', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-watermark-noop-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'watermark-noop-agent', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  database.close()
+
+  markNativeTranscriptCleared('watermark-noop-agent', 'never-existed-session', home)
+
+  const watermarksPath = path.join(home, '.openclaw', 'agents', 'watermark-noop-agent', 'sessions', 'native-clear-watermarks.json')
+  assert(!fs.existsSync(watermarksPath), 'Expected no watermark file to be written for a session with nothing to clear')
 })
 
 test('readLatestAssistantUsageFromPersistedSession falls back to the OpenClaw 2 native store when no legacy jsonl exists', () => {
