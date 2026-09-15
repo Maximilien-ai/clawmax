@@ -92,15 +92,18 @@ refused another gateway because that PID still owned the state directory.
 The authenticated probe returned connection refused while HTTP health passed.
 
 After verifying no live agent subprocess remained, a clean container restart
-cleared the zombie and restored authenticated gateway readiness. This recovery
+cleared the zombie and restored authenticated gateway readiness. The same
+Dashboard chat/session probe then returned `RC75_OK` in 27 seconds with no
+error events, confirming the Ollama auth setup survived restart. This recovery
 does not make the full VM/service restart gate pass. Image entrypoints and
 deployment wrappers need to ensure orphaned children are reaped and gateway
 ownership can recover without manual container replacement.
 
 ## Remaining engineering gates
 
-- Finish post-chat restart/session verification on mbp14, including zombie
-  reaping and watchdog recovery after a gateway exits with scheduled work.
+- Fix and repeat full VM/service recovery on mbp14, including zombie reaping
+  and watchdog recovery after a gateway exits with scheduled work. The manual
+  container recovery and repeated chat passed; unattended recovery did not.
 - Publish and install a CLI release containing the recovery fixes; the
   temporary one-shot binary does not upgrade the installed service.
 - Prove cloud deployment actions preserve the captured instance image/env,
