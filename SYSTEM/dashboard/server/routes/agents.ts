@@ -3,7 +3,7 @@ import { execFileSync, execSync, spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
-import archiver from 'archiver'
+import { streamZipExport } from '../lib/zip-export'
 import { listAgents, getActiveAgentLifecycleGeneration, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
 import { generateAgentFiles, generateAgentMeta, generateArchiveTitle, withGenerationAttribution, withGenerationRuntimePin } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
@@ -4320,26 +4320,20 @@ router.get('/:id/export', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${buildNamedExportFilename(agentName, 'agent', 'zip')}"`)
 
     console.log('[Export API] Creating archive...')
-    const archive = archiver('zip', { zlib: { level: 9 } })
-
-    archive.on('error', (err) => {
-      console.error('[Export API] Archive error:', err)
-      throw err
+    const metadata = getAgentTransferMetadata(id)
+    await streamZipExport(res, archive => {
+      archive.directory(agentDir, id)
+      archive.append(JSON.stringify(metadata, null, 2), { name: `${id}/clawmax-export.json` })
     })
-
-    archive.on('end', () => {
-      console.log('[Export API] Archive finalized successfully')
-    })
-
-    console.log('[Export API] Piping archive to response...')
-    archive.pipe(res)
-    archive.directory(agentDir, id)
-    archive.append(JSON.stringify(getAgentTransferMetadata(id), null, 2), { name: `${id}/clawmax-export.json` })
-    await archive.finalize()
     console.log('[Export API] Finalize called')
   } catch (err: any) {
     console.error('[Export API] Error:', err)
-    res.status(500).json({ error: err.message })
+    if (!res.headersSent && !res.destroyed) {
+      res.removeHeader('Content-Disposition')
+      res.status(500).json({ error: err.message })
+    } else if (!res.destroyed) {
+      res.destroy(err)
+    }
   }
 })
 

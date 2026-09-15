@@ -2970,6 +2970,12 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Workspace export unit tests...${NC}"
+if npx ts-node --transpileOnly server/lib/zip-export.test.ts > /tmp/clawmax-zip-export.out 2>&1; then
+  pass "ZIP export runtime and failure-path tests"
+else
+  cat /tmp/clawmax-zip-export.out
+  fail "ZIP export runtime and failure-path tests"
+fi
 npx ts-node --transpileOnly server/lib/workspace-export.test.ts > /tmp/clawmax-workspace-export.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-export.out; then
   workspace_export_count=$(grep "Tests passed:" /tmp/clawmax-workspace-export.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')

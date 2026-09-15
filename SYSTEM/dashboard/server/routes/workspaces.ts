@@ -1,7 +1,7 @@
 import express from 'express'
 import { getWorkspaceManager } from '../lib/workspace-manager'
 import path from 'path'
-import archiver from 'archiver'
+import { streamZipExport } from '../lib/zip-export'
 import { syncAllWorkflows } from '../lib/scheduler'
 import {
   createWorkspaceDashboard,
@@ -156,22 +156,21 @@ router.get('/:id/export', async (req, res) => {
     res.setHeader('Content-Type', 'application/zip')
     res.setHeader('Content-Disposition', `attachment; filename="${archiveName}"`)
 
-    const archive = archiver('zip', { zlib: { level: 9 } })
-    archive.on('error', (err) => {
-      throw err
+    await streamZipExport(res, archive => {
+      archive.glob('**/*', {
+        cwd: workspace.path,
+        dot: true,
+        ignore: [...WORKSPACE_EXPORT_SECRET_GLOBS],
+      }, { prefix: rootName })
+      archive.append(JSON.stringify(manifest, null, 2), { name: `${rootName}/SYSTEM/export-manifest.json` })
     })
-    archive.pipe(res)
-    archive.glob('**/*', {
-      cwd: workspace.path,
-      dot: true,
-      ignore: [...WORKSPACE_EXPORT_SECRET_GLOBS],
-    }, { prefix: rootName })
-    archive.append(JSON.stringify(manifest, null, 2), { name: `${rootName}/SYSTEM/export-manifest.json` })
-    await archive.finalize()
   } catch (err: any) {
     console.error('Error exporting workspace:', err)
-    if (!res.headersSent) {
+    if (!res.headersSent && !res.destroyed) {
+      res.removeHeader('Content-Disposition')
       res.status(500).json({ error: err.message || 'Failed to export workspace' })
+    } else if (!res.destroyed) {
+      res.destroy(err)
     }
   }
 })
