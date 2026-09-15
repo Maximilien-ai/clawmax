@@ -432,6 +432,13 @@ start_gateway_watchdog() {
 }
 
 main() {
+  # The dashboard replaces this shell while gateway/watchdog children outlive
+  # it. Node does not reap adopted children: a dead gateway can then retain its
+  # PID and block OpenClaw's state-directory ownership check forever. Re-exec
+  # here so downstream images that wrap this entrypoint also get an init.
+  if [ "$$" -eq 1 ]; then
+    exec /usr/bin/tini -g -- "$0" "$@"
+  fi
   ensure_runtime_dirs
   log_runtime_version_diagnostics
   verify_runtime_version_matches_image

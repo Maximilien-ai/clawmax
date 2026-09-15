@@ -55,6 +55,9 @@ assert_contains "FROM --platform=\$BUILDPLATFORM node:22.22.3-bookworm-slim AS o
 assert_contains "FROM --platform=\$BUILDPLATFORM node:22.22.3-bookworm-slim AS builder"
 assert_contains "FROM --platform=\$TARGETPLATFORM node:22.22.3-bookworm-slim AS runtime"
 assert_contains "ARG TARGETARCH"
+assert_contains '    tini \'
+grep -Fq 'exec /usr/bin/tini -g -- "$0" "$@"' "$ROOT_DIR/SYSTEM/dashboard/docker-entrypoint.sh" \
+  || { echo "Expected wrapped container entrypoints to install a child-reaping init" >&2; exit 1; }
 assert_contains "ARG OPENCLAW_CODEX_APP_SERVER_VERSION=0.151.0"
 assert_contains 'npm install -g --include=optional "@openai/codex@${OPENCLAW_CODEX_APP_SERVER_VERSION}"'
 assert_contains "require('/usr/local/lib/node_modules/@openai/codex/package.json').version"

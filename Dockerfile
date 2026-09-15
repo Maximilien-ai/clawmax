@@ -113,6 +113,7 @@ RUN apt-get update \
     jq \
     python3 \
     ripgrep \
+    tini \
   && rm -rf /var/lib/apt/lists/*
 
 RUN case "${TARGETARCH}" in \
