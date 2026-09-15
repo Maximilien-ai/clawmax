@@ -4,6 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import { streamZipExport } from '../lib/zip-export'
+import { hasNativeChatStore, readNativeChatTranscript } from '../lib/native-chat-history'
 import { listAgents, getActiveAgentLifecycleGeneration, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
 import { generateAgentFiles, generateAgentMeta, generateArchiveTitle, withGenerationAttribution, withGenerationRuntimePin } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
@@ -510,6 +511,8 @@ function parseVisibleChatMessages(jsonlContent: string): Array<{ role: 'user' | 
 }
 
 function readChatSessionMessages(agentId: string, sessionId: string, homeDir: string = process.env.HOME || '') {
+  const nativeTranscript = readNativeChatTranscript(agentId, sessionId, homeDir)
+  if (nativeTranscript !== undefined) return parseVisibleChatMessages(nativeTranscript)
   const jsonlPath = path.join(getAgentSessionsDir(agentId, homeDir), `${sessionId}.jsonl`)
   if (!fs.existsSync(jsonlPath)) {
     return []
@@ -3447,7 +3450,7 @@ router.get('/:id/chat/messages', async (req, res) => {
     // Check if either store has anything for this agent — openclaw's own session index/dir, or a
     // non-openclaw (claude/droid) runtime transcript. A claude/droid-only agent never gets an
     // openclaw sessions dir at all, so this check must not bail out before consulting the latter.
-    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir) && !hasRuntimeTranscripts(id)) {
+    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir) && !hasRuntimeTranscripts(id) && !hasNativeChatStore(id, HOME)) {
       return res.json({ messages: [] })
     }
 

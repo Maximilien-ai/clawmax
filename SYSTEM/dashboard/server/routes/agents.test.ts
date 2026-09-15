@@ -2020,6 +2020,38 @@ async function run() {
     )
   })
 
+  await test('chat history reopens a native SQLite conversation without a legacy sessions directory', async () => {
+    const id = 'native-history-agent'
+    writeAgent(workspacePath, id, '**Name:** Native history\n**Model:** openai/gpt-4o-mini\n')
+    const nativeDir = path.join(tmpHome, '.openclaw', 'agents', id, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(path.join(nativeDir, 'openclaw-agent.sqlite'))
+    db.exec(`
+      CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT);
+      CREATE TABLE session_windows (session_id TEXT);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT);
+      CREATE TABLE session_transcript_index_state (session_id TEXT, needs_rebuild INTEGER);
+      CREATE TABLE session_transcript_active_events (session_id TEXT, event_seq INTEGER, active_position INTEGER);
+      INSERT INTO session_nodes VALUES ('agent:native-history-agent:dashboard-chat', 'native-window');
+      INSERT INTO session_windows VALUES ('native-window');
+      INSERT INTO session_transcript_index_state VALUES ('native-window', 0);
+      INSERT INTO session_transcript_active_events VALUES ('native-window', 1, 0), ('native-window', 2, 1);
+    `)
+    const insert = db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?)')
+    insert.run('native-window', 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'Synthetic question', timestamp: 1 } }))
+    insert.run('native-window', 2, JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: 'Synthetic answer' }], timestamp: 2 } }))
+    db.close()
+    const handler = getRouteHandler('get', '/:id/chat/messages')
+    for (let reopen = 0; reopen < 2; reopen++) {
+      const res = makeRes()
+      await handler(makeReq({ params: { id } }), res)
+      assert.strictEqual(res.statusCode, 200)
+      assert.deepStrictEqual(res.jsonBody.messages.map((message: any) => message.content), ['Synthetic question', 'Synthetic answer'])
+    }
+    assert(!fs.existsSync(path.join(nativeDir, '..', 'sessions')), 'History read must not create legacy state')
+  })
+
   await test('chat archives route includes the current explicit conversation when no archived sessions exist yet', async () => {
     writeAgent(workspacePath, 'current-history-agent', [
       '# IDENTITY.md',

@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { resolveNativeChatSession } from './native-chat-history'
 import path from 'path'
 import { createHash } from 'crypto'
 import { spawnSync } from 'child_process'
@@ -415,6 +416,9 @@ export function resolvePersistedAgentSessionId(
   homeDir: string = process.env.HOME || ''
 ): string | undefined {
   if (!agentId || !homeDir) return preferredSessionId
+
+  const nativeSession = resolveNativeChatSession(agentId, sessionKey, homeDir)
+  if (nativeSession) return nativeSession
 
   const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
   const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
