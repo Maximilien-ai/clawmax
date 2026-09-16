@@ -1,4 +1,6 @@
 import { strict as assert } from 'assert'
+import fs from 'fs'
+import path from 'path'
 import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, getAgentChatLinkClassName } from './agentChatMarkdown'
 
 console.log('\n=== Agent Chat Markdown Helper Test Suite ===\n')
@@ -21,5 +23,13 @@ assert(assistantLink.includes('!text-sky-700'), 'Expected assistant links to for
 
 const userLink = getAgentChatLinkClassName('user')
 assert(userLink.includes('!text-white'), 'Expected user links to stay readable on blue bubbles')
+
+const css = fs.readFileSync(path.join(__dirname, '../index.css'), 'utf8')
+const panel = fs.readFileSync(path.join(__dirname, '../components/AgentChatPanel.tsx'), 'utf8')
+assert(css.includes('.prose.agent-chat-user-markdown :is(p, h1, h2, h3, h4, h5, h6, ul, ol, li, strong, em, blockquote, th, td)'))
+assert(css.includes('color: inherit !important;'), 'User prose must override generic paragraph colors')
+assert(panel.includes('prose-invert agent-chat-user-markdown'), 'Apply scoped colors to user Markdown')
+assert(panel.includes("'bg-sky-700 text-white'"), 'White text needs a sufficiently dark blue bubble')
+assert(panel.includes('text-xs text-sky-100 mt-1'), 'User timestamps must not lose contrast through opacity')
 
 console.log('✓ Agent chat markdown helper tests passed')

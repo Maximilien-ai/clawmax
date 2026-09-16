@@ -35,3 +35,10 @@
 .prose th { @apply border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-left font-semibold; }
 .prose td { @apply border border-gray-300 dark:border-gray-600 px-3 py-2; }
 .prose hr { @apply border-gray-200 dark:border-gray-700 my-6; }
+
+/* User bubbles have a dark background in both themes. Generic prose colors
+   must not turn their paragraphs/headings dark in light mode. */
+.prose.agent-chat-user-markdown :is(p, h1, h2, h3, h4, h5, h6, ul, ol, li, strong, em, blockquote, th, td) {
+  color: inherit !important;
+}
+.prose.agent-chat-user-markdown th { @apply bg-sky-800; }

@@ -488,7 +488,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               <button
                 type="button"
                 onClick={() => onNavigateToDoc(resolvedPath)}
-                className="text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 underline"
+                className={getAgentChatLinkClassName(role)}
               >
                 {children}
               </button>
@@ -1202,7 +1202,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                   msgIsError
                     ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
                     : msg.role === 'user'
-                      ? 'bg-sky-600 text-white'
+                      ? 'bg-sky-700 text-white'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
                 }`}
               >
@@ -1245,18 +1245,18 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                   </>
                 ) : (
                   <>
-                    <div className="text-sm prose prose-sm prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                    <div className="text-sm prose prose-sm prose-invert agent-chat-user-markdown max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                       {renderMarkdown(msg.content || '', false, 'user')}
                     </div>
                     {onNavigateToDoc && getResolvedFileMentions(msg.content || '').length > 0 && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="text-[11px] opacity-70">Files:</span>
+                        <span className="text-[11px] text-sky-100">Files:</span>
                         {getResolvedFileMentions(msg.content || '').map(({ file, path }) => (
                           <button
                             key={path}
                             type="button"
                             onClick={() => onNavigateToDoc(path)}
-                            className="cursor-pointer text-[11px] px-2 py-1 rounded-full bg-white/20 hover:bg-white/30 underline underline-offset-2"
+                            className="cursor-pointer text-[11px] px-2 py-1 rounded-full bg-sky-800 hover:bg-sky-900 text-white underline underline-offset-2"
                             title="Open in Documents"
                           >
                             {file}
@@ -1265,7 +1265,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                         ))}
                       </div>
                     )}
-                    <div className="text-xs opacity-60 mt-1">
+                    <div className="text-xs text-sky-100 mt-1">
                       {formatChatTime(msg.timestamp, row.showDate)}
                     </div>
                   </>
@@ -1630,11 +1630,11 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                           <div
                             className={`max-w-[75%] rounded-lg px-4 py-2.5 ${
                               msg.role === 'user'
-                                ? 'bg-sky-600 text-white'
+                                ? 'bg-sky-700 text-white'
                                 : 'bg-gray-100 text-gray-800'
                             }`}
                           >
-                            <p className="text-xs text-gray-500 mb-1">
+                            <p className={`text-xs mb-1 ${msg.role === 'user' ? 'text-sky-100' : 'text-gray-600'}`}>
                               {formatChatTime(msg.timestamp, shouldShowCalendarDate(msg.timestamp))}
                             </p>
                             <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
