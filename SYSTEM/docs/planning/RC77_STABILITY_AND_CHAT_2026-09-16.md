@@ -1,7 +1,8 @@
 # RC77 stability and chat — 2026-09-16
 
-Status: source changes committed and pushed; final release gate running. Images
-are not yet published. MBP14 and test10 remain on RC76 pending RC77 validation.
+Status: full local release gate passed; public image build running. Combined build
+dispatch waits for public success. Images are not yet validated for deployment.
+MBP14 and test10 remain on RC76 pending RC77 image validation.
 
 ## Candidate boundary
 
@@ -24,6 +25,9 @@ are not yet published. MBP14 and test10 remain on RC76 pending RC77 validation.
 
 - Server TypeScript passes. Production Vite frontend build passes (existing
   large-chunk warning remains).
+- Final `SYSTEM/test-with-server.sh integration --with-validation --coverage`:
+  exit 0, 484 passed, 0 failed, including disposable-workspace cleanup.
+  Coverage: statements/lines 82.61%, branches 72.14%, functions 92.00%.
 - Focused CLI API tests: 16 passed. Assignment helper tests: 7 passed plus edge
   cases. Markdown export tests: 7 passed. Chat Markdown and icon tests passed.
 - Isolated Chrome checks at 1440px and 390px: assignment success, persisted count
@@ -40,8 +44,7 @@ are not yet published. MBP14 and test10 remain on RC76 pending RC77 validation.
   offsets and union-member ordering. This baseline remains engineering debt,
   not a claim of a clean client typecheck.
 - An earlier release run was invalidated by changing the test script during
-  execution. It is not release evidence. The final full gate must finish before
-  image dispatch.
+  execution. It is not release evidence; the replacement gate above passed.
 
 Local evidence:
 
@@ -54,11 +57,19 @@ Local evidence:
 
 ## Publication and rollout gate
 
-Publish `v2.0.0-test-rc77` from the candidate commit without overwriting RC76.
-Dispatch public `Test Container Image` first, then private
-`Private ClawMax Plugins Image` with matching `base_tag` and `image_tag`
-`2.0.0-test-rc77`. Record both workflow links, source SHAs, immutable digests,
-architecture results, and packaged version/plugin/runtime checks.
+- [RC77 prerelease](https://github.com/Maximilien-ai/clawmax/releases/tag/v2.0.0-test-rc77)
+  created from the exact candidate SHA above; remote tag target verified.
+- [Public image CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35155042434)
+  started 2026-09-16 21:55:57 UTC. Inputs:
+  `source_ref=refs/tags/v2.0.0-test-rc77`, `test_tag=rc77`.
+- A local watcher dispatches private `Private ClawMax Plugins Image` only after
+  public success, with matching `base_tag` and `image_tag` `2.0.0-test-rc77`.
+  Watcher log: `/tmp/clawmax-rc77-image-chain.log`. It depends on the local process
+  remaining alive; if interrupted, inspect workflow history before redispatching.
+- Private source at handoff: `ce2516d8a07ef96796ca138b748e6bd501672547`. Record
+  the actual dispatched source, private workflow URL, both immutable digests,
+  architecture results, and packaged version/plugin/runtime checks before calling
+  the combined candidate ready. Neither RC75 nor RC76 was overwritten.
 
 Observed previous image durations: public about 32 minutes; combined about
 23 minutes. Private registry smoke now uses native architecture runners.
