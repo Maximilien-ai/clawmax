@@ -11,7 +11,7 @@ import { useToast } from '../components/Toast'
 import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../types'
 import { BROWSER_VAULT_UPDATED_EVENT, readLocalSecrets, readSharedSecrets, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { getAiGenerationReadiness, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
-import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
+import { getSkillAssignmentBuckets, toggleSkillAssignment } from '../lib/skillAssignments'
 import { summarizeSkillDeleteImpact } from '../lib/skillsDeletion'
 import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
 import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardInteractiveSkillSetup, supportsDashboardSkillSetup } from '../lib/skillSetup'
@@ -875,20 +875,15 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }
 
   async function toggleSkill(skillId: string) {
-    console.log('Toggle skill:', skillId, 'for agent:', agentId)
-
+    if (saving) return
     const currentSkills = agentSkillMap.get(agentId) || Array.from(assignedSkills)
-    const nextSkills = currentSkills.includes(skillId)
-      ? currentSkills.filter((skill) => skill !== skillId)
-      : [...currentSkills, skillId]
 
     setError(null)
     setSaving(true)
 
     try {
-      console.log('Sending PUT request:', nextSkills)
-      await persistAgentSkills(agentId, nextSkills)
-      if (!currentSkills.includes(skillId)) {
+      const added = await toggleSkillAssignment(agentId, skillId, currentSkills, persistAgentSkills, showSuccess)
+      if (added) {
         const addedSkill = allSkills.find((skill) => skill.name === skillId)
         maybeWarnSkillSetup(showWarning, addedSkill ? [addedSkill] : [skillId])
       }
@@ -896,6 +891,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     } catch (error: any) {
       console.error('Failed to update skills:', error)
       setError(error.message || 'Failed to update skills')
+      showToastError(error.message || 'Failed to update skills')
     } finally {
       setSaving(false)
     }
@@ -3347,7 +3343,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                     const currentSkills = agentSkillMap.get(targetAgentId) || []
                                     const nextSkills = Array.from(new Set([...currentSkills, viewingSkill.name])).sort((a, b) => a.localeCompare(b))
                                     await persistAgentSkills(targetAgentId, nextSkills)
-                                    showSuccess(`Added ${viewingSkill.name} to ${targetAgentId}`)
+                                    showSuccess(`Assigned ${viewingSkill.name} to ${targetAgentId}.`)
                                   } catch (err: any) {
                                     setError(err.message || 'Failed to add skill to agent')
                                   } finally {
@@ -3499,7 +3495,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       if (warnings.length > 0) {
                         showWarning(Array.from(new Set(warnings)).join(' '))
                       }
-                      showSuccess(`Added ${selectedSkillIds.size} skill${selectedSkillIds.size !== 1 ? 's' : ''} to ${selectedBulkAgentIds.size} agent${selectedBulkAgentIds.size !== 1 ? 's' : ''}`)
+                      showSuccess(`Assigned ${selectedSkillIds.size} skill${selectedSkillIds.size !== 1 ? 's' : ''} to ${selectedBulkAgentIds.size} agent${selectedBulkAgentIds.size !== 1 ? 's' : ''}.`)
                       await loadAgents()
                       if (agentId) {
                         await loadSkills()
