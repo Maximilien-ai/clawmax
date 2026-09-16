@@ -18,6 +18,7 @@
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
 | [planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md](planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) | Accepted RC46 evidence and remaining `2.0.0` promotion gates |
 | [planning/RC75_RUNTIME_ACCEPTANCE_2026-09-14.md](planning/RC75_RUNTIME_ACCEPTANCE_2026-09-14.md) | RC75 cloud/on-prem runtime evidence and remaining deployment and lifecycle gates |
+| [planning/RC76_STABILITY_IMAGES_2026-09-15.md](planning/RC76_STABILITY_IMAGES_2026-09-15.md) | RC76 stability candidate, passed release gate, image build handoff, and remaining acceptance |
 | [planning/RC70_TEST10_RUNTIME_HANDOFF_2026-09-11.md](planning/RC70_TEST10_RUNTIME_HANDOFF_2026-09-11.md) | RC69 test10 evidence and RC70 gateway, lifecycle, storage, identity, and Operations API gates |
 | [planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md) | Active two-day target with separate AI Builder, Telegram, Discord, and Slack candidates plus 71.2% branch coverage |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
