@@ -114,6 +114,17 @@ cloud test clients only after both canaries pass. No other test clients have bee
 upgraded. Test10 CLI workspace listing succeeds; its workspace capabilities route
 still returns `404 route_not_found`, confirming the outstanding Operations contract.
 
+### Blocking local sign-in regression
+
+MBP14 discovery advertises `https://127.0.0.1:3201` although the dashboard serves
+HTTP. User encountered `ERR_SSL_PROTOCOL_ERROR` during browser sign-in; HTTP root
+and health probes succeed. Source fix `27449b03` derives HTTP only for direct
+loopback requests, retaining HTTPS for cloud/proxy origins and respecting explicit
+issuer configuration. Server TypeScript and all 16 focused CLI API tests pass.
+The fix is pushed for CI but is **not in the immutable RC76 image**. Hold fleet
+expansion until a corrected candidate is built and both canaries pass sign-in,
+chat persistence, and download checks. Do not overwrite the published RC76 tag.
+
 ## Still required
 
 Complete both instances' browser chat close/reopen and download
