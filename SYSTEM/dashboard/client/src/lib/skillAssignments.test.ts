@@ -29,7 +29,7 @@ async function run() {
     await new Promise<void>(resolve => { finishSave = resolve })
     stored = skills
   }, message => notices.push(message))
-  assert.deepStrictEqual(notices, [])
+  assert.strictEqual(notices.length, 0)
   assert.deepStrictEqual(stored, ['github'])
   finishSave()
   assert.strictEqual(await pending, true)
