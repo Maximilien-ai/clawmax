@@ -2,7 +2,8 @@
 
 Status (2026-09-16): both immutable images published; native amd64 and arm64
 acceptance passed. Test10 is running RC76 and passed controlled restart checks.
-MBP14 remains on RC75. This is not Operations deployment-readiness certification.
+MBP14 has also upgraded through installed CLI RC3 and passed initial runtime checks.
+Browser acceptance remains pending. This is not Operations deployment-readiness certification.
 
 ## Immutable candidate
 
@@ -83,27 +84,43 @@ MBP14 remains on RC75. This is not Operations deployment-readiness certification
 
 ### MBP14 on-prem
 
-- Left healthy RC75 container `clawmax-dashboard-240e10` unchanged.
-- Podman management SSH returned EOF, but the dedicated VM's local API socket works.
-  VM filesystem has approximately 5 GiB free (88% used); safe pull headroom is not
-  established. No images, volumes, or workspace data were pruned.
-- Installed CLI is still 1.9.34. Official RC3 installer and native archive downloaded
-  with matching published SHA256 checksums; installer signature and notarization
-  accepted. Installation stopped at `sudo: a password is required`; no installation
-  or raw-binary replacement was performed.
-- User action: run the staged official installer with local administrator approval:
-  `sudo /usr/sbin/installer -pkg /tmp/clawmax-cli-rc3.yblH6x/ClawMax-2.0.0-test-rc3.pkg -target /`.
-  If the temporary file is gone, download it again from the
-  [official RC3 release](https://github.com/Maximilien-ai/clawmax-cli-releases/releases/tag/v2.0.0-test-rc3).
-  Then verify installed CLI identity, disk headroom, and the supported upgrade path
-  before replacing the on-prem container.
+- Official signed/notarized CLI RC3 installer completed with local user approval;
+  installed CLI and installed skill both report `2.0.0-test-rc3`.
+- Before the upgrade, the VM reported 13 GiB free. No images, volumes, or workspace
+  data were pruned. The dedicated VM's local Podman API socket remains available.
+- Installed `clawmax agent worker --action-file ... --result-file ...` executed
+  exact-target action `mbp14-rc76-canary-20260916` for `onp-mbp14-mojahds1`.
+  Action supplied the combined RC76 index digest and exact dashboard version through
+  supported deployment fields; no saved worker state was manually edited.
+- Action completed successfully in 80 seconds (20:46:18–20:47:38 UTC). Evidence:
+  `/tmp/clawmax-mbp14-rc76-action.json`, `/tmp/clawmax-mbp14-rc76-result.json`.
+  This validates local worker action execution, not the web control-plane queue.
+- Container `clawmax-dashboard-240e10` runs the pinned RC76 image. Discovery reports
+  `2.0.0-test-rc76`, PID 1 is `tini`, and subsequent worker reconciliation reports
+  healthy dashboard and gateway with the RC76 target retained.
+- Health reports 14 agents, 83 templates, 4 groups, and 5 workflows, unchanged from
+  the pre-upgrade health check. Host-mounted workspace remains preserved. VM free
+  space after pull is 9.4 GiB; the RC75 image remains available for recovery.
+- User observed a connection-closed error during replacement. Subsequent direct
+  health/discovery checks succeeded; browser confirmation is still required.
+- MBP14 CLI profile was not authenticated. Browser login initiated; authenticated
+  chat/export checks remain pending until that flow completes. Do not substitute
+  direct credential extraction for user sign-in.
+
+## Fleet expansion gate
+
+User authorized test10 and MBP14 first, then remaining on-prem test clients, then
+cloud test clients only after both canaries pass. No other test clients have been
+upgraded. Test10 CLI workspace listing succeeds; its workspace capabilities route
+still returns `404 route_not_found`, confirming the outstanding Operations contract.
 
 ## Still required
 
-Complete mbp14 deployment and both instances' browser chat close/reopen and download
+Complete both instances' browser chat close/reopen and download
 checks, including cloud BYOK chat. Native history reading is fixed, but native
 clear/reset/archive-write lifecycle is not fully repaired. GTM's stored identity
-still names it `gtm-agent`; the intended guide text field remains unidentified.
+still names it `gtm-agent`; the user requested display name `GMT`, not yet applied.
+The intended guide text field remains unidentified and is deferred.
 Finish Operations API contracts and acceptance separately; keep recurring Operations
 schedules disabled. Image publication does not establish Operations deployment
 readiness, normal CLI/worker upgrade reliability, or complete all export-path auditing.
