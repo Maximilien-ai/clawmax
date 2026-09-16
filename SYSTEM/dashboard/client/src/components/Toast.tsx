@@ -94,7 +94,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast, showSuccess, showError, showWarning, showInfo }}>
       {children}
-      <div className="fixed top-4 right-4 z-[9999] space-y-2 max-w-md">
+      <div className="fixed top-4 left-4 right-4 sm:left-auto z-[9999] space-y-2 max-w-md">
         {toasts.map(toast => (
           <ToastNotification
             key={toast.id}
@@ -131,11 +131,13 @@ function ToastNotification({ toast, onClose }: { toast: Toast; onClose: () => vo
 
   return (
     <div
+      role={toast.type === 'error' ? 'alert' : 'status'}
       className={`${bgColors[toast.type]} ${textColors[toast.type]} border rounded-lg px-4 py-3 shadow-lg flex items-start gap-3 animate-slide-in`}
     >
       <span className="text-lg font-bold">{icons[toast.type]}</span>
-      <p className="flex-1 text-sm font-medium">{toast.message}</p>
+      <p className="min-w-0 flex-1 break-words text-sm font-medium">{toast.message}</p>
       <button
+        aria-label="Dismiss notification"
         onClick={onClose}
         className={`${textColors[toast.type]} hover:opacity-70 transition-opacity text-lg leading-none`}
       >
