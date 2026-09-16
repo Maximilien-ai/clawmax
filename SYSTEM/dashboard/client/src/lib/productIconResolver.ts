@@ -10,6 +10,7 @@ export type ProductIconName =
   | 'docs'
   | 'save'
   | 'export'
+  | 'download'
   | 'restart'
   | 'doctor'
   | 'rename'
@@ -62,6 +63,7 @@ export type ProductVisual = {
 }
 
 const ICON_KEY_ALIASES: Record<string, ProductIconName> = {
+  download: 'download',
   default: 'default',
   skill: 'skill',
   skills: 'skill',

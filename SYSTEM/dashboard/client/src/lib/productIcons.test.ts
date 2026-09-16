@@ -18,6 +18,10 @@ test('resolveSkillVisual prefers explicit icon key', () => {
   assert.equal(visual.emoji, null)
 })
 
+test('download has an explicit icon mapping instead of falling back', () => {
+  assert.equal(resolveSkillVisual({ name: 'conversation', iconKey: 'download' }).iconName, 'download')
+})
+
 test('resolveSkillVisual falls back to category or tag mapping before emoji', () => {
   const visual = resolveSkillVisual({ name: 'mail-helper', tags: ['science'], emoji: '📫' })
   assert.equal(visual.iconName, 'science')

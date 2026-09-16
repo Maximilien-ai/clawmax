@@ -82,6 +82,14 @@ function IconSvg({ iconName, className }: { iconName: ProductIconName; className
           <path d="M7 3v5h8" />
         </svg>
       )
+    case 'download':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
+          <path d="M12 3v12" />
+          <path d="m7 10 5 5 5-5" />
+          <path d="M5 16v5h14v-5" />
+        </svg>
+      )
     case 'export':
       return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
