@@ -199,6 +199,11 @@ function originFor(req: Request): string {
   const configured = (process.env.CLAWMAX_CLI_AUTH_ISSUER || process.env.DASHBOARD_PUBLIC_URL || '').trim().replace(/\/$/, '')
   if (configured) return configured
   const host = (req.get('x-forwarded-host') || req.get('host') || 'localhost').split(',')[0].trim()
+  // Direct local installs serve HTTP. Keep HTTPS for proxy/cloud origins;
+  // forwarded headers must never opt an advertised issuer into HTTP.
+  const directLoopback = /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(host)
+    && !req.get('x-forwarded-host') && !req.get('x-forwarded-proto')
+  if (directLoopback && req.protocol === 'http') return `http://${host}`
   return `https://${host}`
 }
 

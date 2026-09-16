@@ -86,6 +86,55 @@ async function run() {
     process.env.DASHBOARD_PUBLIC_URL = 'https://mbp14.example.test'
   })
 
+  await test('direct loopback discovery preserves HTTP without downgrading cloud or proxy origins', async () => {
+    const publicUrl = process.env.DASHBOARD_PUBLIC_URL
+    const explicitIssuer = process.env.CLAWMAX_CLI_AUTH_ISSUER
+    delete process.env.DASHBOARD_PUBLIC_URL
+    delete process.env.CLAWMAX_CLI_AUTH_ISSUER
+    try {
+      // Node fetch may replace Host with the URL authority; use HTTP directly
+      // so each deployment-host variant reaches Express unchanged.
+      const discover = (headers: Record<string, string>) => new Promise<any>((resolve, reject) => {
+        http.get(`${base}/api/cli/v1/discovery`, { headers }, response => {
+          let body = ''
+          response.setEncoding('utf8')
+          response.on('data', chunk => { body += chunk })
+          response.on('error', reject)
+          response.on('end', () => {
+            try {
+              assert.strictEqual(response.statusCode, 200)
+              resolve(JSON.parse(body))
+            } catch (error) { reject(error) }
+          })
+        }).on('error', reject)
+      })
+      for (const host of ['127.0.0.1:3201', 'localhost:3201', '[::1]:3201']) {
+        const result = await discover({ host })
+        assert.strictEqual(result.auth.issuer, `http://${host}`)
+        assert.strictEqual(result.auth.authorizationEndpoint, `http://${host}/api/cli/v1/auth/authorize`)
+        assert.strictEqual(result.auth.tokenEndpoint, `http://${host}/api/cli/v1/auth/token`)
+      }
+      const secureOrigins: Record<string, string>[] = [
+        { host: 'cloud.example.test' },
+        { host: 'localhost.attacker.test' },
+        { host: '127.0.0.1:3201', 'x-forwarded-proto': 'https' },
+        { host: 'cloud.example.test', 'x-forwarded-host': '127.0.0.1:3201', 'x-forwarded-proto': 'http' },
+      ]
+      for (const headers of secureOrigins) {
+        const result = await discover(headers)
+        assert.strictEqual(new URL(result.auth.issuer).protocol, 'https:')
+      }
+      process.env.CLAWMAX_CLI_AUTH_ISSUER = 'https://configured.example.test/'
+      const configured = await request('/api/cli/v1/discovery')
+      assert.strictEqual(configured.json.auth.issuer, 'https://configured.example.test')
+    } finally {
+      if (publicUrl === undefined) delete process.env.DASHBOARD_PUBLIC_URL
+      else process.env.DASHBOARD_PUBLIC_URL = publicUrl
+      if (explicitIssuer === undefined) delete process.env.CLAWMAX_CLI_AUTH_ISSUER
+      else process.env.CLAWMAX_CLI_AUTH_ISSUER = explicitIssuer
+    }
+  })
+
   await test('PKCE login issues a one-time access session and rotating refresh credential', async () => {
     process.env.BYPASS_OAUTH = 'true'
     const verifier = crypto.randomBytes(48).toString('base64url')
