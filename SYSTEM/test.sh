@@ -2396,6 +2396,14 @@ else
   fail "Agent chat markdown helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent chat export unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentChatExport.test.ts > /tmp/clawmax-agent-chat-export.out 2>&1; then
+  pass "Agent chat export unit tests (7 tests)"
+else
+  cat /tmp/clawmax-agent-chat-export.out
+  fail "Agent chat export unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Markdown link helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/markdownLinks.test.ts > /tmp/clawmax-markdown-links.out 2>&1 || true
 if grep -q "markdownLinks.test.ts:" /tmp/clawmax-markdown-links.out; then

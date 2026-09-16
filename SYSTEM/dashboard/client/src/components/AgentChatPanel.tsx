@@ -14,6 +14,8 @@ import { createPromptAttachment } from '../lib/promptAttachments'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import { formatAgentWorkStatus, summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
 import { INCOMPLETE_AGENT_CHAT_MESSAGE, markIncompleteAgentReply } from '../lib/agentChatStream'
+import { buildAgentChatMarkdown } from '../lib/agentChatExport'
+import { useToast } from './Toast'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -190,6 +192,7 @@ function cleanMessageContent(content: string): string {
 
 export default function AgentChatPanel({ agentId, agentName, agentStatus, agentGeneration, onClose, onSuccess, onNavigateToDoc }: Props) {
   const { config } = useAuth()
+  const { showSuccess, showError } = useToast()
   const browserChatEnabled = hasChatExecutionAccess(config)
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
@@ -982,6 +985,29 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
     setTimeout(() => setCopyFeedback(false), 2000)
   }
 
+  function downloadConversation() {
+    try {
+      const exported = buildAgentChatMarkdown(agentName, messages.map(message => ({
+        ...message,
+        content: message.role === 'assistant' ? cleanMessageContent(message.content) : message.content,
+      })))
+      const url = URL.createObjectURL(new Blob([exported.markdown], { type: 'text/markdown;charset=utf-8' }))
+      const anchor = document.createElement('a')
+      try {
+        anchor.href = url
+        anchor.download = exported.filename
+        document.body.appendChild(anchor)
+        anchor.click()
+        showSuccess('Conversation download started. Review the file before sharing.')
+      } finally {
+        anchor.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+      }
+    } catch {
+      showError('Could not download the conversation. Please try again.')
+    }
+  }
+
   function downloadArchive(msgs: any[], filename: string) {
     const text = msgs
       .map(m => `[${m.timestamp ? new Date(m.timestamp).toLocaleString() : ''}] ${m.role === 'user' ? 'You' : agentName}: ${m.content}`)
@@ -1078,6 +1104,16 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
             <p className="min-w-0 text-xs text-gray-400">Real-time streaming from the active runtime</p>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+              <button
+                type="button"
+                onClick={downloadConversation}
+                disabled={loadingHistory || streaming || !messages.some(message => message.content.trim())}
+                aria-label="Download conversation as Markdown"
+                title="Download the loaded conversation as Markdown to your device"
+                className="shrink-0 rounded px-2 py-1 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ProductIconCell iconName="download" label="Download conversation" size="sm" className="border-transparent bg-transparent text-current" />
+              </button>
               <button
                 onClick={resetAgentSession}
                 disabled={resettingSession}
