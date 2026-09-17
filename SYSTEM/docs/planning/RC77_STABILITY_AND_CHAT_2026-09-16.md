@@ -120,6 +120,18 @@ credentials, query/fragment, and cross-origin endpoints. Prove browser PKCE logi
 against MBP14 RC77 and unchanged HTTPS login against test10. No token extraction,
 private API fallback, or local credential-store edits were used to bypass failure.
 
+CLI source fix pushed as `7a2d72ca0df3891774c20cbe9e3923c8a622904a`:
+HTTP auth requires client-held configured-loopback-origin evidence, and all four
+auth URLs must match. Browser launch accepts validated literal-loopback HTTP;
+remote HTTPS requirements and issuer pinning remain intact. Focused tests,
+`go vet`, race tests for instanceclient/instanceauth/instanceprofile, and full
+unit coverage passed (1,082 tests; statement/line coverage 74.04% to 74.06%,
+function coverage 94.03% unchanged). [CLI CI](https://github.com/Maximilien-ai/clawmax-cli/actions/runs/35225713693)
+was still running at handoff. This is not yet an installed-release fix: publish
+and install the next signed CLI test package, explicitly re-register MBP14's
+obsolete issuer binding, then prove live PKCE login. Installed RC3 and existing
+profiles were left unchanged.
+
 Observed previous image durations: public about 32 minutes; combined about
 23 minutes. Private registry smoke now uses native architecture runners.
 
