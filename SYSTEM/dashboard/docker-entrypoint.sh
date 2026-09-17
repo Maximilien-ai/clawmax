@@ -386,7 +386,7 @@ ensure_gateway_running() {
     echo "[entrypoint] ERROR: port ${port} is listening but the gateway failed authenticated readiness" >&2
     return 1
   fi
-  start_gateway_run "$port"
+  start_gateway_run "$port" || return 1
   wait_for_gateway_ready "$port"
 }
 
@@ -402,23 +402,8 @@ gateway_watchdog_tick() {
     echo "[entrypoint] ERROR: unhealthy gateway on port ${port} is not managed by this container" >&2
     return 1
   fi
-  start_gateway_run "$port"
+  start_gateway_run "$port" || return 1
   wait_for_gateway_ready "$port"
-}
-
-start_gateway_readiness_probe() {
-  port="$1"
-  (
-    # OpenClaw CLI startup can be comparatively slow under emulation and on
-    # small customer nodes. Authenticate the gateway in this supervisor so a
-    # slow CLI probe cannot delay the Dashboard API and its health endpoint.
-    # Gateway-dependent Dashboard work has its own bounded readiness/retry
-    # path, while this process continues to provide lifecycle diagnostics and
-    # recovery after the core API is available.
-    if ! wait_for_gateway_ready "$port"; then
-      echo "[entrypoint] WARNING: initial gateway readiness is deferred to watchdog recovery" >&2
-    fi
-  ) &
 }
 
 start_gateway_watchdog() {
@@ -426,7 +411,11 @@ start_gateway_watchdog() {
   (
     while true; do
       sleep "$CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC"
-      gateway_watchdog_tick "$port"
+      # A failed recovery must not terminate this supervisor under set -e.
+      # Keep retrying on subsequent ticks, without overlapping attempts.
+      if ! gateway_watchdog_tick "$port"; then
+        echo "[entrypoint] WARNING: gateway recovery failed; retrying next watchdog interval" >&2
+      fi
     done
   ) &
 }
@@ -450,15 +439,11 @@ main() {
   gateway_port="$(get_gateway_port)"
 
   if [ "$CLAWMAX_AUTO_START_GATEWAY" = "true" ]; then
-    # Starting the process is bounded (and detects an immediate exit), but the
-    # authenticated OpenClaw RPC probe deliberately runs in the background.
-    # Required storage setup above still fails closed before Dashboard starts.
-    if gateway_port_listening "$gateway_port"; then
-      echo "[entrypoint] gateway port ${gateway_port} is already listening; verifying asynchronously"
-    else
-      start_gateway_run "$gateway_port"
-    fi
-    start_gateway_readiness_probe "$gateway_port"
+    # Dashboard startup healing/agent registration can write openclaw.json.
+    # Do not launch those writers while the gateway is validating/migrating
+    # that file: OpenClaw aborts startup if its selected config changes.
+    # Fail closed instead of serving green storage health with no gateway.
+    ensure_gateway_running "$gateway_port"
   fi
 
   if [ "$CLAWMAX_GATEWAY_WATCHDOG" = "true" ]; then

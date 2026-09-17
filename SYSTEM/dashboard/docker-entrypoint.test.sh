@@ -186,23 +186,60 @@ if GATEWAY_HEALTH_EXIT_CODE=1 ensure_gateway_running "18789" >/dev/null 2>&1; th
 fi
 unset GATEWAY_HEALTH_EXIT_CODE
 
-# A slow authenticated OpenClaw RPC probe must not block the process that
-# launches the Dashboard API. The gateway process itself is started first and
-# its readiness/recovery work continues in the background supervisor.
+# The real main path must not start Dashboard config writers before gateway
+# migration/authenticated readiness, and must fail closed on readiness errors.
 : > "$LOG_FILE"
-export SS_OUTPUT=""
-rm -f "$GATEWAY_RUNNING_FILE"
-export GATEWAY_HEALTH_DELAY_SEC=5
-started_at="$(date +%s)"
-start_gateway_run "18789"
-start_gateway_readiness_probe "18789"
-startup_elapsed="$(( $(date +%s) - started_at ))"
-[ "$startup_elapsed" -lt 5 ] || {
-  echo "Expected background gateway readiness not to delay Dashboard startup (${startup_elapsed}s)" >&2
-  exit 1
-}
-assert_contains "gateway run --port 18789" "$LOG_FILE"
-unset GATEWAY_HEALTH_DELAY_SEC
+for readiness_exit in 0 1; do
+  : > "$LOG_FILE"
+  if READINESS_EXIT="$readiness_exit" sh -c '
+    . "$1"
+    ensure_runtime_dirs() { :; }
+    log_runtime_version_diagnostics() { :; }
+    verify_runtime_version_matches_image() { :; }
+    ensure_openclaw_cli() { :; }
+    sync_gateway_config() { :; }
+    migrate_openclaw_2_state() { :; }
+    ensure_gateway_auth_token() { :; }
+    get_gateway_port() { echo 18789; }
+    gateway_authenticated_ready() { return 1; }
+    gateway_port_listening() { return 1; }
+    start_gateway_run() { echo gateway-start >> "$OPENCLAW_LOG"; }
+    wait_for_gateway_ready() {
+      sleep 1
+      if grep -q dashboard-start "$OPENCLAW_LOG"; then exit 9; fi
+      [ "$READINESS_EXIT" = 0 ] || return 1
+      echo gateway-ready >> "$OPENCLAW_LOG"
+    }
+    start_gateway_watchdog() { echo watchdog-start >> "$OPENCLAW_LOG"; }
+    main sh -c '\''echo dashboard-start >> "$OPENCLAW_LOG"'\''
+  ' _ "$SCRIPT"; then
+    [ "$readiness_exit" = 0 ] || { echo "Dashboard started after failed gateway readiness" >&2; exit 1; }
+    [ "$(cat "$LOG_FILE")" = "$(printf 'gateway-start\ngateway-ready\nwatchdog-start\ndashboard-start')" ]
+  else
+    [ "$readiness_exit" = 1 ] || { echo "Dashboard did not start after gateway readiness" >&2; exit 1; }
+    assert_not_contains "dashboard-start" "$LOG_FILE"
+    assert_not_contains "watchdog-start" "$LOG_FILE"
+  fi
+done
+
+# Failed recovery ticks must not kill the watchdog under errexit. Run in a
+# separate shell so the enclosing assertion cannot suppress errexit itself.
+: > "$LOG_FILE"
+sh -c '
+  . "$1"
+  sleep() { :; }
+  gateway_watchdog_tick() {
+    if [ ! -s "$OPENCLAW_LOG" ]; then
+      echo failed-tick >> "$OPENCLAW_LOG"
+      return 1
+    fi
+    echo recovered-tick >> "$OPENCLAW_LOG"
+    exit 0
+  }
+  start_gateway_watchdog 18789
+  wait
+' _ "$SCRIPT"
+assert_contains "recovered-tick" "$LOG_FILE"
 
 : > "$LOG_FILE"
 export SS_OUTPUT=""
