@@ -24,7 +24,6 @@ BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
 API_BASE="http://localhost:${BACKEND_PORT}"
 FRONTEND_URL="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
-CURL_OPTS="--connect-timeout 5 --max-time 10"
 PERF_DIR="$SYSTEM_DIR/dashboard/perf"
 PERF_SUMMARY_FILE="$PERF_DIR/perf-summary.json"
 PERF_HISTORY_FILE="$PERF_DIR/perf-history.json"
@@ -53,14 +52,8 @@ else
   DASHBOARD_AUTH=""
 fi
 
-# Wrapper for curl that adds auth header and timeouts
-apicurl() {
-  if [ -n "$DASHBOARD_AUTH" ]; then
-    curl -s $CURL_OPTS -H "Authorization: Bearer $DASHBOARD_AUTH" "$@"
-  else
-    curl -s $CURL_OPTS "$@"
-  fi
-}
+# Local gateway probes can exceed ten seconds even when requests succeed.
+. "$SYSTEM_DIR/test-http.sh"
 
 # Some integration actions legitimately take longer than the default API timeout.
 apicurl_long() {
@@ -4426,7 +4419,7 @@ else
 fi
 
 # Test create workflow
-test_workflow_payload='{"name":"Test Workflow","description":"Test workflow for testing","schedule":"0 9 * * *","enabled":true,"targeting":{"communities":[],"groups":[],"tags":[],"agents":[]},"author":"test-suite","executionMode":"automated","content":"# Test Workflow\\n\\nThis is a test."}'
+test_workflow_payload='{"name":"Test Workflow","description":"Test workflow for testing","schedule":"manual","enabled":false,"targeting":{"communities":[],"groups":[],"tags":[],"agents":[]},"author":"test-suite","executionMode":"automated","content":"# Test Workflow\\n\\nThis is a test."}'
 
 response=$(apicurl -X POST "$API_BASE/api/workflows" \
   -H 'Content-Type: application/json' \

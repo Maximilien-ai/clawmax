@@ -8,6 +8,36 @@ const { ESLint } = require('eslint')
 
 const repo = path.resolve(__dirname, '../../..')
 
+test('release API requests use bounded configurable timeouts and never retry writes', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-http-contract-'))
+  try {
+    const trace = path.join(temp, 'trace')
+    fs.writeFileSync(path.join(temp, 'curl'), '#!/bin/bash\nprintf "%s\\n" "$@" >> "$HTTP_TRACE"\nexit "${HTTP_EXIT:-0}"\n', { mode: 0o755 })
+    const run = (extra = {}) => spawnSync('/bin/bash', ['-c', 'source "$1"; apicurl -X POST http://localhost/fixture', 'test', path.join(repo, 'SYSTEM/test-http.sh')], {
+      encoding: 'utf8', env: { ...process.env, PATH: `${temp}:${process.env.PATH}`, HTTP_TRACE: trace, CLAWMAX_TEST_API_TIMEOUT_SECONDS: '', DASHBOARD_AUTH: '', ...extra },
+    })
+    assert.equal(run().status, 0)
+    assert.match(fs.readFileSync(trace, 'utf8'), /--show-error\n--connect-timeout\n5\n--max-time\n60\n-X\nPOST/)
+    fs.writeFileSync(trace, '')
+    assert.equal(run({ CLAWMAX_TEST_API_TIMEOUT_SECONDS: '90', DASHBOARD_AUTH: 'synthetic-token', HTTP_EXIT: '28' }).status, 28)
+    const args = fs.readFileSync(trace, 'utf8')
+    assert.match(args, /--max-time\n90\n-H\nAuthorization: Bearer synthetic-token/)
+    assert.equal(args.match(/POST/g).length, 1, 'a timeout must not retry a potentially committed write')
+    for (const value of ['0', '-1', '1.5', 'abc', '601', '99999999999999999999']) {
+      assert.equal(run({ CLAWMAX_TEST_API_TIMEOUT_SECONDS: value }).status, 2)
+      assert.equal(fs.readFileSync(trace, 'utf8'), args, 'invalid timeout must not send requests')
+    }
+    const suite = fs.readFileSync(path.join(repo, 'SYSTEM/test.sh'), 'utf8')
+    assert.match(suite, /\. "\$SYSTEM_DIR\/test-http.sh"/)
+    const payload = suite.match(/^test_workflow_payload='(.*)'$/m)
+    assert(payload)
+    assert.equal(JSON.parse(payload[1]).enabled, false)
+    assert.equal(JSON.parse(payload[1]).schedule, 'manual')
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true })
+  }
+})
+
 test('root commands forward arguments, environment, working directory, and failures', () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-command-contract-'))
   try {
