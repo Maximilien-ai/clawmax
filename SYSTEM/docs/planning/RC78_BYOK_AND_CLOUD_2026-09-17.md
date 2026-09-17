@@ -1,6 +1,8 @@
 # RC78 BYOK and cloud execution — 2026-09-17
 
-Status: release validation in progress; no RC78 image or client rollout yet.
+Status: public RC78 image build running; local acceptance is not yet passing.
+The user approved building in parallel with validation while holding rollout.
+The combined image is queued to follow only after public image CI succeeds.
 RC77 remains unchanged on MBP14 and test10. Operations deployment remains
 outside this stability candidate; recurring Operations schedules stay disabled.
 
@@ -55,10 +57,30 @@ The timeout fix passed all three developer-command contracts, shell syntax,
 root lint, and server TypeScript before commit. It changes test behavior only,
 not production request limits or validation assertions.
 
+### Replacement local gate and retry
+
+- `/tmp/clawmax-rc78-final-release-gate.log`: exit 1, 481 passed, 1 failed.
+  All four original failures passed, including skill persistence and exact
+  workflow deletion. Live agent chat failed with OpenClaw's
+  `Opening handshake has timed out`; this remains unresolved, not a passing gate.
+- Coverage: statements/lines 82.65%, branches 72.32%, functions 92.01%.
+  Disposable integration-workspace cleanup and absence of test artifacts in
+  the default workspace passed.
+- One complete retry is running with `CLAWMAX_TEST_API_TIMEOUT_SECONDS=180`
+  so slow setup requests have a bounded opportunity to finish. No production
+  timeout was changed and no automatic request retries were added.
+  Log: `/tmp/clawmax-rc78-retry-release-gate.log`.
+- [Candidate CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35243395539)
+  passed for `f421634ce864bc5371bb8ec05fd1547ed0d4320a`.
+
 ## Publication and acceptance gates
 
-1. Pass the complete replacement integration/validation/coverage run and CI.
-2. Tag the exact candidate and dispatch public `Test Container Image` with
+1. Pass the complete integration/validation/coverage gate before approving
+   installation. Candidate CI passed; live local acceptance remains pending.
+2. Immutable tag `v2.0.0-test-rc78` pins
+   `f421634ce864bc5371bb8ec05fd1547ed0d4320a`.
+   [Public image CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35245572021)
+   started 2026-09-17 16:16:37 UTC with
    `source_ref=refs/tags/v2.0.0-test-rc78`, `test_tag=rc78`.
 3. After public success, dispatch the private combined image with both
    `base_tag` and `image_tag` set to `2.0.0-test-rc78`.
@@ -71,3 +93,7 @@ not production request limits or validation assertions.
 Recent image durations: public approximately 32 minutes; combined 23 minutes.
 Check near halfway and expected completion plus one minute, then sparsely if
 overdue. Do not call the public/combined candidate ready until both pass.
+The temporary coordinator `/tmp/clawmax-rc78-images.cjs` records progress in
+`/tmp/clawmax-rc78-images.log`; it checks the expected public source, verifies
+private main still matches the source above, dispatches matching tags exactly
+once, and stops on a failed pipeline. It performs no client deployments.
