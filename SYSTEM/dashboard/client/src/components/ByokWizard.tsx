@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { MobileSafeDialog } from './MobileSafeDialog'
 import { useAuth } from '../contexts/AuthContext'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { useToast } from './Toast'
@@ -2289,14 +2291,16 @@ export function ByokWizard({
         {triggerLabel}
       </button>
 
-      {!open ? null : (
-        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-2 sm:p-4">
-          <div className="w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-4 sm:p-5 max-h-[96dvh] overflow-y-auto">
+      {!open ? null : createPortal(
+        <MobileSafeDialog
+          ariaLabelledBy={`integrations-title-${initialStep}`}
+          panelClassName="max-w-3xl"
+          header={
             <div className="flex items-start justify-between gap-3 sm:gap-4">
               <div className="min-w-0">
-                <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                <h2 id={`integrations-title-${initialStep}`} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   {initialStep === 'partners' ? 'Partner Integrations' : 'Models & Partner Integrations'}
-                </div>
+                </h2>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {initialStep === 'partners'
                     ? 'Choose and configure independent, optional integrations for this workspace.'
@@ -2311,6 +2315,30 @@ export function ByokWizard({
                 ✕
               </button>
             </div>
+          }
+          footer={
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {step === 'models' ? (
+                <button onClick={handleSkip} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">Skip for now</button>
+              ) : (step !== 'partners' || initialStep !== 'partners') ? (
+                <button onClick={goToPreviousStep} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">&larr; Back</button>
+              ) : null}
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                {currentPartner?.validation && currentPartner.slug !== 'github' && !isMailOAuthProvider(currentPartner.slug) && (
+                  <button onClick={() => runValidation('current-partner')} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-60">
+                    {validating ? 'Checking…' : currentPartner.validation.label || 'Check Keys'}
+                  </button>
+                )}
+                <button onClick={handleSave} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60">Save &amp; Close</button>
+                {!(step === 'models' && initialStep === 'models') && (
+                  <button onClick={goToNextStep} disabled={validating} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60">
+                    {currentStepIndex < stepOrder.length - 1 ? 'Next →' : 'Save Integrations'}
+                  </button>
+                )}
+              </div>
+            </div>
+          }
+        >
 
             {initialStep !== 'models' && (
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -2862,15 +2890,6 @@ export function ByokWizard({
                   </div>
                 </div>
 
-                <div className="mt-6 flex items-center justify-between gap-3">
-                  <button onClick={handleSkip} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">Skip for now</button>
-                  <div className="flex items-center gap-2">
-                    <button onClick={handleSave} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60">Save &amp; Close</button>
-                    {initialStep !== 'models' && (
-                      <button onClick={() => setStep('partners')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
-                    )}
-                  </div>
-                </div>
               </>
             )}
 
@@ -3043,19 +3062,6 @@ export function ByokWizard({
                   )}
                 </div>
 
-                <div className="mt-6 flex items-center justify-between gap-3">
-                  <div>
-                    {initialStep !== 'partners' && (
-                      <button onClick={() => setStep('models')} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Save &amp; Close</button>
-                    <button onClick={goToNextStep} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">
-                      {currentStepIndex < stepOrder.length - 1 ? 'Next →' : 'Save Integrations'}
-                    </button>
-                  </div>
-                </div>
               </>
             )}
 
@@ -3121,17 +3127,6 @@ export function ByokWizard({
                   </div>
                 </div>
 
-                <div className="mt-6 flex items-center justify-between gap-3">
-                  <button onClick={goToPreviousStep} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
-                  <div className="flex items-center gap-2">
-                    <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Save &amp; Close</button>
-                    {currentStepIndex < stepOrder.length - 1 ? (
-                      <button onClick={goToNextStep} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
-                    ) : (
-                      <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Save Integrations</button>
-                    )}
-                  </div>
-                </div>
               </>
             )}
 
@@ -3478,28 +3473,12 @@ export function ByokWizard({
                   )}
                 </div>
 
-                <div className="mt-6 flex items-center justify-between gap-3">
-                  <button onClick={goToPreviousStep} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
-                  <div className="flex items-center gap-2">
-                    {currentPartner.validation && currentPartner.slug !== 'github' && !isMailOAuthProvider(currentPartner.slug) && (
-                      <button onClick={() => runValidation('current-partner')} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-60">
-                        {validating ? 'Checking…' : currentPartner.validation.label || 'Check Keys'}
-                      </button>
-                    )}
-                    <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Save &amp; Close</button>
-                    {currentStepIndex < stepOrder.length - 1 ? (
-                      <button onClick={goToNextStep} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
-                    ) : (
-                      <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Save Integrations</button>
-                    )}
-                  </div>
-                </div>
               </>
             )}
-          </div>
-        </div>
+        </MobileSafeDialog>,
+        document.body
       )}
-      {partnerPluginRun && (
+      {partnerPluginRun && createPortal(
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl dark:bg-gray-800">
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
@@ -3569,7 +3548,8 @@ export function ByokWizard({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

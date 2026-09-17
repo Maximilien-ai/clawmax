@@ -8,7 +8,6 @@ const legacyWholePanelScroll = new Set([
   'components/AgentTemplateWizard.tsx::bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto',
   'components/ApplyAgentTemplateModal.tsx::bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-4 sm:p-6 max-h-[92dvh] overflow-y-auto',
   'components/ApplyOrgTemplateModal.tsx::w-full max-w-2xl max-h-[94vh] overflow-y-auto rounded-lg bg-white p-4 shadow-xl dark:bg-gray-800 sm:max-h-[90vh] sm:p-6',
-  'components/ByokWizard.tsx::w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-4 sm:p-5 max-h-[96dvh] overflow-y-auto',
   'components/OnboardingWizard.tsx::w-full max-w-5xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-6 max-h-[90vh] overflow-y-auto',
   'components/TemplateWizard.tsx::bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto',
   'components/WorkflowEditorDialog.tsx::bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto',
@@ -52,4 +51,10 @@ assert(unexpected.length === 0, `new full-panel viewport scrolling dialogs must 
 assert(!wholePanelScroll.some((entry) => entry.startsWith('pages/Workflows.tsx::')), 'workflow dialogs must keep actions outside the scroll region')
 assert(wholePanelScroll.length <= 13, `legacy mobile dialog debt increased from 13 to ${wholePanelScroll.length}`)
 
-console.log(`mobileDialogAudit.test.ts: 4 assertions passed (${dialogFiles.length} dialog/pop-up files audited, ${wholePanelScroll.length} legacy exceptions)`)
+const byok = fs.readFileSync(path.join(sourceRoot, 'components/ByokWizard.tsx'), 'utf8')
+assert(byok.includes('<MobileSafeDialog'), 'BYOK must keep its header and actions outside the scrolling settings')
+assert(byok.includes('!open ? null : createPortal(') && byok.includes('document.body'), 'BYOK must escape header clipping and containing blocks')
+assert.strictEqual((byok.match(/Save &amp; Close/g) || []).length, 1, 'every integration step should share one fixed Save action')
+assert(byok.includes('ml-auto flex flex-wrap items-center justify-end gap-2'), 'integration actions must wrap on narrow screens')
+
+console.log(`mobileDialogAudit.test.ts: 8 assertions passed (${dialogFiles.length} dialog/pop-up files audited, ${wholePanelScroll.length} legacy exceptions)`)
