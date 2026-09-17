@@ -100,9 +100,20 @@ Local evidence:
 - RC76 rollback index retained:
   `ghcr.io/maximilien-ai/clawmax-plugins@sha256:f1cd72a8e8932ed057a555c8e1716ecfa70111967e23400762c9840b67587304`.
   No image pruning or wider rollout was performed.
-- Live close/reopen, Markdown download, agent ZIP export, skill-assignment feedback,
-  and visual checks on the deployed canaries remain pending. Earlier synthetic
-  browser checks above do not substitute for these live acceptance checks.
+- MBP14 live isolated-Chrome checks passed at 1440px and 390px: uppercase GTM
+  card/chat header; 12 rendered Markdown message blocks preserved exactly across
+  close/reopen; Markdown download (7,750 bytes); user text white on
+  `rgb(3, 105, 161)` bubbles. Mobile download control fits the viewport.
+  Agent ZIP export downloaded successfully (24,742 bytes, 33 central-directory
+  entries, ZIP header/end-record verified). No new messages, skill assignments,
+  resets, or deletes were performed. Download contents were not printed.
+- The first close/reopen comparison ran before reopened history had loaded;
+  waiting for panel teardown and download readiness resolved the harness race.
+  This was not a reproduced product history-loss defect.
+- test10 live browser checks require interactive email-code authentication;
+  isolated Chrome reaches the login page. No credentials/cookies were copied
+  from another browser. Cloud chat/export and live assignment-feedback checks
+  remain pending; earlier synthetic checks are not a substitute.
 
 ### CLI handoff: loopback discovery blocks on-prem acceptance
 
@@ -127,10 +138,24 @@ remote HTTPS requirements and issuer pinning remain intact. Focused tests,
 `go vet`, race tests for instanceclient/instanceauth/instanceprofile, and full
 unit coverage passed (1,082 tests; statement/line coverage 74.04% to 74.06%,
 function coverage 94.03% unchanged). [CLI CI](https://github.com/Maximilien-ai/clawmax-cli/actions/runs/35225713693)
-was still running at handoff. This is not yet an installed-release fix: publish
+passed. This is not yet an installed-release fix: publish
 and install the next signed CLI test package, explicitly re-register MBP14's
 obsolete issuer binding, then prove live PKCE login. Installed RC3 and existing
 profiles were left unchanged.
+
+CLI packaging/install ownership was handed back to the CLI team at the user's
+request. Version-preparation commit `edfef3299b4aa58da115fdf3aed92ed22d071462`
+sets CLI RC4; [its CI](https://github.com/Maximilien-ai/clawmax-cli/actions/runs/35226362042)
+passed. Local lint/build, 7 stack tests, 14 integration tests, and 1,082 unit
+tests passed (74.07% statement/line coverage, 94.03% functions). The integration
+lane finished and restored the installed agent; MBP14 recovered on RC77 with
+unchanged store counts. No further VM/lifecycle operations are planned while
+other persistence checks are coordinated. Preserve any RC75 evidence as
+historical; current MBP14 is RC77.
+
+[CLI handoff](https://github.com/Maximilien-ai/clawmax-cli/blob/main/docs/operations/RC4_LOOPBACK_HANDOFF_2026-09-17.md)
+was pushed in `3e473b6`. RC4 has not been tagged, published, or installed by this
+work. Stable Homebrew and other instances remain untouched.
 
 Observed previous image durations: public about 32 minutes; combined about
 23 minutes. Private registry smoke now uses native architecture runners.
