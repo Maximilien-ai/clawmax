@@ -1,9 +1,11 @@
 # RC77 stability and chat — 2026-09-16
 
 Status (2026-09-17): public and combined image CI passed. MBP14 and test10 are
-running pinned RC77 and passed startup/restart checks. Wider rollout is held:
-installed CLI RC3 rejects HTTP loopback discovery, and live chat/export acceptance
-is still pending. Image-build success is not full deployment acceptance.
+running pinned RC77 and passed startup/restart checks. CLI RC4 is installed and
+authenticated on both canaries; the loopback-login blocker is resolved. MBP14
+live chat/export checks passed. Wider rollout remains held for cloud live UI
+acceptance and live skill-assignment feedback. Operations deployment remains
+excluded from this stability candidate, not a stability-release prerequisite.
 
 ## Candidate boundary
 
@@ -115,7 +117,34 @@ Local evidence:
   from another browser. Cloud chat/export and live assignment-feedback checks
   remain pending; earlier synthetic checks are not a substitute.
 
-### CLI handoff: loopback discovery blocks on-prem acceptance
+### CLI handoff: loopback discovery blocker resolved by installed RC4
+
+Completion evidence from CLI commit `f2fa389`, independently checked locally:
+
+- Installed `/usr/local/bin/clawmax` and installed Skill `VERSION` both report
+  `2.0.0-test-rc4`.
+- MBP14 CLI status reports Dashboard RC77, URL and issuer
+  `http://127.0.0.1:3201`. Supported `whoami` returns authenticated owner identity;
+  authenticated workspace listing returns four workspaces.
+- test10 supported `whoami` returns authenticated owner identity over its
+  unchanged HTTPS profile.
+- CLI records successful browser PKCE, explicit supported replacement of the
+  obsolete MBP14 issuer binding, and post-install resource preservation.
+- [Published RC4](https://github.com/Maximilien-ai/clawmax-cli-releases/releases/tag/v2.0.0-test-rc4),
+  signed/notarized PKG SHA-256:
+  `3d8b5a1e47e3c1757880b1dc97019fd8b533de6cbe0c8b687ac7968d98cefadf`.
+  Signing/publication evidence is owned by the linked CLI handoff; this
+  Dashboard follow-up independently checked installed identity/authentication,
+  not every packaging check.
+- Optional Desktop-shortcut installation was denied by macOS; installation
+  succeeded with that component disabled. CLI owns the follow-up. Do not claim
+  the default all-components installer path passed or replace published bytes.
+- No Dashboard image/cloud-worker rollout or schedule activation was performed
+  for this authentication verification. Stable Homebrew remains unchanged per
+  CLI's release evidence.
+
+The following records preserve the original failure and handoff chronology;
+references to installed RC3 or unpublished RC4 below are historical.
 
 Installed RC3 `instance status --instance mbp14 --json` and
 `instance login --instance mbp14 --json` both fail with:
