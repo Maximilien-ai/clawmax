@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import dotenv from 'dotenv'
+import { cloudModelEndpointError } from './cloud-execution-policy'
 
 const inheritedProcessEnv = { ...process.env }
 
@@ -311,6 +312,7 @@ export function isOllamaUiEnabled(rawEnv: Record<string, string> = dashboardEnv)
 }
 
 export function getDefaultOllamaBaseUrl(rawEnv: Record<string, string> = dashboardEnv): string {
+  if (getDashboardDeploymentKind(rawEnv) === 'cloud') return ''
   const explicit = firstNonEmpty(rawEnv, 'OLLAMA_BASE_URL')
     || (rawEnv === dashboardEnv ? process.env.OLLAMA_BASE_URL?.trim() : undefined)
   if (explicit) {
@@ -325,7 +327,10 @@ export function getDefaultOpenAICompatibleBaseUrl(rawEnv: Record<string, string>
   const explicit = firstNonEmpty(rawEnv, 'OPENAI_COMPATIBLE_BASE_URL', 'SYSTEM_OPENAI_COMPATIBLE_BASE_URL')
     || (rawEnv === dashboardEnv ? process.env.OPENAI_COMPATIBLE_BASE_URL?.trim() : undefined)
     || (rawEnv === dashboardEnv ? process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL?.trim() : undefined)
-  if (explicit) return explicit.replace(/\/+$/, '')
+  if (explicit) {
+    if (getDashboardDeploymentKind(rawEnv) === 'cloud' && cloudModelEndpointError(explicit)) return ''
+    return explicit.replace(/\/+$/, '')
+  }
   const deploymentKind = getDashboardDeploymentKind(rawEnv)
   if (deploymentKind === 'onprem') return 'http://host.containers.internal:1234/v1'
   if (deploymentKind === 'local') return 'http://127.0.0.1:1234/v1'
@@ -361,6 +366,10 @@ export function resolveRuntimeBaseUrl(input: {
 }): string {
   const configuredBaseUrl = normalizeBaseUrlCandidate(input.configuredBaseUrl)
   const runtimeDefaultBaseUrl = normalizeBaseUrlCandidate(input.runtimeDefaultBaseUrl)
+  if (getDashboardDeploymentKind() === 'cloud') {
+    const error = cloudModelEndpointError(configuredBaseUrl || runtimeDefaultBaseUrl)
+    if (error) throw new Error(error)
+  }
   if (!input.managedRuntime || !runtimeDefaultBaseUrl) {
     return configuredBaseUrl || runtimeDefaultBaseUrl
   }
@@ -372,12 +381,18 @@ export function resolveRuntimeBaseUrl(input: {
   return configuredBaseUrl
 }
 
+export function usableProviderKeys(keys: ProviderKeys, rawEnv: Record<string, string> = dashboardEnv): ProviderKeys {
+  if (getDashboardDeploymentKind(rawEnv) !== 'cloud' || !cloudModelEndpointError(keys.openaiCompatibleBaseUrl)) return keys
+  // Stale local endpoints must not mask otherwise valid hosted credentials.
+  return { ...keys, openaiCompatibleBaseUrl: undefined, openaiCompatibleApiKey: undefined, openaiCompatibleDefaultModel: undefined }
+}
+
 export function getSystemProviderKeys(rawEnv: Record<string, string> = dashboardEnv): ProviderKeys {
   const allowProcessFallback = rawEnv === dashboardEnv && isContainerMode
   const lookup = allowProcessFallback
     ? (key: string) => firstNonEmpty(rawEnv, key) || (process.env[key]?.trim() || undefined)
     : (key: string) => firstNonEmpty(rawEnv, key)
-  return {
+  return usableProviderKeys({
     openai: lookup('SYSTEM_OPENAI_API_KEY') || lookup('OPENAI_API_KEY'),
     anthropic: lookup('SYSTEM_ANTHROPIC_API_KEY') || lookup('ANTHROPIC_API_KEY'),
     gemini: lookup('SYSTEM_GEMINI_API_KEY') || lookup('GEMINI_API_KEY'),
@@ -386,11 +401,11 @@ export function getSystemProviderKeys(rawEnv: Record<string, string> = dashboard
     openaiCompatibleApiKey: lookup('SYSTEM_OPENAI_COMPATIBLE_API_KEY') || lookup('OPENAI_COMPATIBLE_API_KEY'),
     openaiCompatibleBaseUrl: lookup('SYSTEM_OPENAI_COMPATIBLE_BASE_URL') || lookup('OPENAI_COMPATIBLE_BASE_URL'),
     openaiCompatibleDefaultModel: lookup('SYSTEM_OPENAI_COMPATIBLE_DEFAULT_MODEL') || lookup('OPENAI_COMPATIBLE_DEFAULT_MODEL'),
-  }
+  }, rawEnv)
 }
 
 export function getUserDefaultProviderKeys(rawEnv: Record<string, string> = dashboardEnv): ProviderKeys {
-  return {
+  return usableProviderKeys({
     openai: firstNonEmpty(rawEnv, 'USER_OPENAI_API_KEY'),
     anthropic: firstNonEmpty(rawEnv, 'USER_ANTHROPIC_API_KEY'),
     gemini: firstNonEmpty(rawEnv, 'USER_GEMINI_API_KEY'),
@@ -399,7 +414,7 @@ export function getUserDefaultProviderKeys(rawEnv: Record<string, string> = dash
     openaiCompatibleApiKey: firstNonEmpty(rawEnv, 'USER_OPENAI_COMPATIBLE_API_KEY'),
     openaiCompatibleBaseUrl: firstNonEmpty(rawEnv, 'USER_OPENAI_COMPATIBLE_BASE_URL'),
     openaiCompatibleDefaultModel: firstNonEmpty(rawEnv, 'USER_OPENAI_COMPATIBLE_DEFAULT_MODEL'),
-  }
+  }, rawEnv)
 }
 
 export function allowSystemKeysForUserExecution(rawEnv: Record<string, string> = dashboardEnv): boolean {
@@ -417,6 +432,7 @@ export function resolveUserExecutionProviderKeys(
   rawEnv: Record<string, string> = dashboardEnv,
   byokOverrides?: ProviderKeys
 ): ProviderKeys {
+  if (byokOverrides) byokOverrides = usableProviderKeys(byokOverrides, rawEnv)
   if (hasAnyProviderKey(byokOverrides || {})) {
     return {
       openai: byokOverrides?.openai?.trim() || undefined,

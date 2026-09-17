@@ -766,18 +766,18 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                 <p className="mt-1 text-xs text-gray-400">Lowercase letters, numbers, hyphens. Suggested: <strong>{suggested?.id ?? '…'}</strong></p>
               </div>
               <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-3">
-                <label className="block text-xs font-semibold text-sky-900 dark:text-sky-100 mb-1">Runtime — which CLI runs this agent</label>
+                <label className="block text-xs font-semibold text-sky-900 dark:text-sky-100 mb-1">{config?.deploymentKind === 'cloud' ? 'Cloud execution' : 'Runtime — which CLI runs this agent'}</label>
                 <select
                   value={runtime}
                   onChange={e => selectRuntime(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-sky-300 dark:border-sky-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-900"
                 >
                   <option value="default">OpenClaw (model-provider keys) — default</option>
-                  {runtimeCatalog.filter((rt) => rt.enabled)
+                  {runtimeCatalog.filter((rt) => config?.deploymentKind !== 'cloud' && rt.enabled)
                     .map((rt) => <option key={rt.id} value={rt.id}>{rt.label} (its own login)</option>)}
                 </select>
                 <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
-                  {enabledRuntimes.length > 0
+                  {config?.deploymentKind === 'cloud' ? 'Cloud agents use model-provider API keys. Local models and CLI tools on your computer are unavailable.' : enabledRuntimes.length > 0
                     ? 'A CLI runtime uses its own login, so it needs no provider key — and the model list below becomes that CLI\u2019s own.'
                     : 'Enable a CLI runtime in BYOK \u2192 \u201cRun via CLI\u201d to run agents without provider keys.'}
                 </p>

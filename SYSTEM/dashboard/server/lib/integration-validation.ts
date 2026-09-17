@@ -1,3 +1,6 @@
+import { getDashboardDeploymentKind } from './dashboard-env'
+import { cloudModelEndpointError } from './cloud-execution-policy'
+
 export interface IntegrationValidationResult {
   ok: boolean
   status: 'valid' | 'invalid' | 'error' | 'skipped'
@@ -165,6 +168,10 @@ export async function validateOpenAICompatibleConfig(
   fetchImpl: FetchLike = fetch
 ): Promise<IntegrationValidationResult> {
   const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '')
+  if (getDashboardDeploymentKind() === 'cloud') {
+    const error = cloudModelEndpointError(normalizedBaseUrl)
+    if (error) return invalid(error)
+  }
   const normalizedModel = defaultModel.trim()
   if (!normalizedBaseUrl && !normalizedModel && !apiKey.trim()) {
     return skipped('No OpenAI-compatible endpoint configured')

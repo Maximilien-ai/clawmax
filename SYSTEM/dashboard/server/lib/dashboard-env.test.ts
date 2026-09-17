@@ -17,6 +17,7 @@ import {
   isManagedRuntime,
   isOllamaUiEnabled,
   resolveRuntimeBaseUrl,
+  usableProviderKeys,
 } from './dashboard-env'
 
 const GREEN = '\x1b[32m'
@@ -309,6 +310,15 @@ test('maintenance banner fallback maps in_progress to critical severity', () => 
     MAINTENANCE_MESSAGE: 'Maintenance is underway',
   })
   assert(banner?.level === 'critical', 'Expected in_progress fallback to map to critical severity')
+})
+
+test('cloud does not inherit stale machine-local model defaults', () => {
+  const cloud = { DASHBOARD_DEPLOYMENT_KIND: 'cloud', OLLAMA_BASE_URL: 'http://localhost:11434', OPENAI_COMPATIBLE_BASE_URL: 'http://host.containers.internal:1234/v1' }
+  assert(getDefaultOllamaBaseUrl(cloud) === '', 'Cloud must not inherit an Ollama endpoint')
+  assert(getDefaultOpenAICompatibleBaseUrl(cloud) === '', 'Cloud must not advertise a machine-local compatible default')
+  assert(getDefaultOpenAICompatibleBaseUrl({ ...cloud, OPENAI_COMPATIBLE_BASE_URL: 'https://models.example.com/v1' }) === 'https://models.example.com/v1', 'Cloud should retain remote-compatible defaults')
+  const hosted = usableProviderKeys({ openai: 'fixture-key', openaiCompatibleBaseUrl: 'http://localhost:1234/v1', openaiCompatibleApiKey: 'local-fixture' }, cloud)
+  assert(hosted.openai === 'fixture-key' && !hosted.openaiCompatibleBaseUrl && !hosted.openaiCompatibleApiKey, 'Stale local endpoints must not shadow hosted keys')
 })
 
 console.log('\n========================================')

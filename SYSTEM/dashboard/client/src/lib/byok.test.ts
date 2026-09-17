@@ -5,6 +5,7 @@
  */
 
 import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, hasCogneeConfiguration, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
+import { cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -202,6 +203,28 @@ async function main() {
       isOllamaUiAvailable({ deploymentKind: 'cloud', ollamaEnabled: true, defaultOllamaBaseUrl: 'http://host.containers.internal:11434' }) === false,
       'Expected cloud deployment to hide Ollama UI'
     )
+  })
+
+  await test('cloud ignores stale local model and CLI readiness without changing browser storage', () => {
+    writeStoredByokKeys({ ollamaBaseUrl: 'http://localhost:11434', openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleDefaultModel: 'local-model' })
+    const cloud = { deploymentKind: 'cloud' as const, enabledRuntimes: ['claude', 'droid'] }
+    assert(!hasAiGenerationAccess(cloud), 'Cloud must not count unavailable local execution paths')
+    assert(!hasChatExecutionAccess(cloud), 'Cloud chat must not be enabled by stale local settings')
+    assert(getAiGenerationReadiness(cloud).warning?.includes('unavailable on cloud') === true, 'Cloud warning must explain the limitation')
+    assert(hasChatExecutionAccess({ deploymentKind: 'onprem' }), 'On-prem must retain the same local settings')
+    writeStoredByokKeys({ openaiCompatibleBaseUrl: 'https://models.example.com/v1', openaiCompatibleDefaultModel: 'remote-model' })
+    assert(hasAiGenerationAccess(cloud) && hasChatExecutionAccess(cloud), 'Cloud-reachable model services remain available')
+    writeStoredByokKeys({})
+  })
+
+  await test('cloud endpoint policy removes loopback defaults and preserves remote services', () => {
+    for (const value of ['http://localhost:1234/v1', 'http://127.2.3.4/v1', 'http://127.1/v1', 'http://[::1]:1234/v1', 'http://host.containers.internal:1234/v1', 'http://host.docker.internal:1234/v1', 'http://laptop.local/v1', 'file:///models', 'not a URL', 'https://user:secret@models.example.com/v1']) {
+      assert(!!cloudModelEndpointError(value), `Expected rejection for ${value}`)
+      assert(resolveOpenAiCompatibleBaseUrlForRuntime({ deploymentKind: 'cloud', configuredBaseUrl: value }) === '', 'Cloud must not hydrate a local/invalid endpoint')
+    }
+    assert(resolveOpenAiCompatibleBaseUrlForRuntime({ deploymentKind: 'cloud', runtimeDefaultBaseUrl: 'http://127.0.0.1:1234/v1' }) === '', 'No implicit localhost cloud default')
+    assert(!cloudModelEndpointError('https://models.example.com/v1'), 'Remote HTTPS endpoint allowed')
+    assert(resolveOpenAiCompatibleBaseUrlForRuntime({ deploymentKind: 'onprem', configuredBaseUrl: 'http://127.0.0.1:1234/v1' }) === 'http://127.0.0.1:1234/v1', 'On-prem local endpoints unchanged')
   })
 
   await test('managed on-prem Ollama prefers runtime-provided host bridge over stale localhost', () => {

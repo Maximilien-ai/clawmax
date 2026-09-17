@@ -193,6 +193,28 @@ test('xAI discovery only exposes models supported by the pinned OpenClaw runtime
   assert(!models.includes('xai/v1'), 'Did not expect non-Grok endpoint id')
 })
 
+test('cloud discovery never probes local model endpoints but retains remote-compatible models', async () => {
+  const previousKind = process.env.DASHBOARD_DEPLOYMENT_KIND
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'cloud'
+  try {
+    clearModelCache()
+    const requests: string[] = []
+    global.fetch = (async (url: string) => {
+      requests.push(String(url))
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'remote-model' }] }) } as any
+    }) as any
+    await discoverModels({ ollamaBaseUrl: 'http://localhost:11434', openaiCompatibleBaseUrl: 'http://host.containers.internal:1234/v1' })
+    assert(!requests.some(url => url.includes('localhost') || url.includes('host.containers.internal')), 'Cloud must not probe machine-local model endpoints')
+    requests.length = 0
+    await discoverModels({ openaiCompatibleBaseUrl: 'https://models.example.com/v1' })
+    assert(requests.includes('https://models.example.com/v1/models'), 'Cloud must still discover remote-compatible models')
+  } finally {
+    if (previousKind === undefined) delete process.env.DASHBOARD_DEPLOYMENT_KIND
+    else process.env.DASHBOARD_DEPLOYMENT_KIND = previousKind
+    clearModelCache()
+  }
+})
+
 testChain.then(() => {
   global.fetch = originalFetch
   console.log(`\nTests passed: ${testsPassed}`)

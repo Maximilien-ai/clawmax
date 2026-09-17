@@ -17,6 +17,8 @@ import { safeEnv } from './safe-env'
 import { clearRuntimeSession, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
 import { appendBoundedOutput } from './stream-bounds'
 import { cancelProcessTree, detachProcessStreams, signalProcessTree } from './process-tree'
+import { getDashboardDeploymentKind } from './dashboard-env'
+import { CLOUD_CLI_NOTICE } from './cloud-execution-policy'
 
 export type AgentRuntimeId = 'openclaw' | 'claude' | 'droid'
 
@@ -65,6 +67,7 @@ const cliPathCache = new Map<string, { path: string | null; expiresAt: number }>
 
 export function resolveRuntimeCliPath(rt: AgentRuntimeId): string | null {
   if (rt === 'openclaw') return resolveOpenClawCliPath()
+  if (getDashboardDeploymentKind() === 'cloud') return null
   // Keyed on every input the lookup reads, so changing an override, PATH or HOME resolves afresh
   // rather than serving a stale hit.
   const key = [rt, process.env[RUNTIME_BIN_ENV[rt]] || '', process.env.PATH || '', process.env.HOME || ''].join('\u0000')
@@ -158,6 +161,7 @@ export function detectRuntimeStatuses(active: AgentRuntimeId): RuntimeStatus[] {
 // ── Workspace / per-agent resolution ──
 
 export function resolveWorkspaceRuntime(): AgentRuntimeId {
+  if (getDashboardDeploymentKind() === 'cloud') return 'openclaw'
   return normalizeAgentRuntime(readWorkspaceIntegrationConfig().agentRuntime) || 'openclaw'
 }
 
@@ -172,6 +176,7 @@ function parseRuntimeEnvList(raw: string | undefined): string[] {
  * deployment-default shape partners use with WORKSPACES_INTEGRATIONS_THIRD_PARTIES.
  */
 export function resolveEnabledRuntimes(): AgentRuntimeId[] {
+  if (getDashboardDeploymentKind() === 'cloud') return []
   const config = readWorkspaceIntegrationConfig().enabledRuntimes
   const raw = Array.isArray(config) ? config : parseRuntimeEnvList(process.env.WORKSPACES_INTEGRATIONS_RUNTIMES)
   return raw
@@ -815,6 +820,9 @@ export async function runRuntimeCli(o: {
   onDelta?: (text: string) => void
   onActivity?: () => void
 }): Promise<{ text: string; errorText?: string }> {
+  if (getDashboardDeploymentKind() === 'cloud' && o.runtime !== 'openclaw') {
+    throw new Error(CLOUD_CLI_NOTICE)
+  }
   // Claude Code refuses --dangerously-skip-permissions when running as root (e.g. inside the
   // container image, which runs as root) unless IS_SANDBOX marks a controlled environment. The
   // dashboard always runs claude non-interactively with that flag, so opt in when we are root.

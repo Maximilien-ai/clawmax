@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { MobileSafeDialog } from './MobileSafeDialog'
+import { CLOUD_LOCAL_EXECUTION_NOTICE, cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
 import { useAuth } from '../contexts/AuthContext'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { useToast } from './Toast'
@@ -322,6 +323,7 @@ export function ByokWizard({
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
   const deploymentKind = config?.deploymentKind || 'local'
+  const isCloud = deploymentKind === 'cloud'
 
   useEffect(() => {
     if (!open || step !== 'partners') return
@@ -375,7 +377,7 @@ export function ByokWizard({
   const managedRuntime = config?.managedRuntime === true || deploymentKind !== 'local'
   const defaultOllamaBaseUrl = config?.defaultOllamaBaseUrl || localDevOllamaBaseUrl
   const defaultOpenAiCompatibleBaseUrl = config?.defaultOpenAiCompatibleBaseUrl
-    || (deploymentKind === 'onprem' ? managedRuntimeOpenAiCompatibleBaseUrl : localDevOpenAiCompatibleBaseUrl)
+    || (isCloud ? '' : deploymentKind === 'onprem' ? managedRuntimeOpenAiCompatibleBaseUrl : localDevOpenAiCompatibleBaseUrl)
   const effectiveOllamaBaseUrl = resolveOllamaBaseUrlForRuntime({
     configuredBaseUrl: ollamaBaseUrl,
     managedRuntime,
@@ -401,6 +403,7 @@ export function ByokWizard({
     setOllamaDefaultModel(stored.ollamaDefaultModel || '')
     setOpenaiCompatibleApiKey(stored.openaiCompatibleApiKey || '')
     setOpenaiCompatibleBaseUrl(resolveOpenAiCompatibleBaseUrlForRuntime({
+      deploymentKind,
       configuredBaseUrl: stored.openaiCompatibleBaseUrl || '',
       managedRuntime,
       runtimeDefaultBaseUrl: defaultOpenAiCompatibleBaseUrl,
@@ -561,11 +564,13 @@ export function ByokWizard({
         setOllamaDefaultModel((current) => current || workspaceConfig.ollamaDefaultModel || '')
         setOpenaiCompatibleBaseUrl((current) => {
           const nextDefault = resolveOpenAiCompatibleBaseUrlForRuntime({
+            deploymentKind,
             configuredBaseUrl: workspaceConfig.openaiCompatibleBaseUrl || '',
             managedRuntime,
             runtimeDefaultBaseUrl: defaultOpenAiCompatibleBaseUrl,
           })
           const normalizedCurrent = resolveOpenAiCompatibleBaseUrlForRuntime({
+            deploymentKind,
             configuredBaseUrl: current,
             managedRuntime,
             runtimeDefaultBaseUrl: defaultOpenAiCompatibleBaseUrl,
@@ -854,13 +859,16 @@ export function ByokWizard({
   )
 
   useEffect(() => {
+    // Only the model-key wizard may auto-open. Empty cloud configuration must
+    // not open the Partners and Runtime wizard instances on top of it.
+    if (initialStep !== 'models') return
     if (!hydrated) return
     if (!user && !config?.authDisabled) return
     if (suppressAutoOpen) return
     if (onboardingOpen) return
     if (hasDefaultUserKeys || hasStoredKeys || dismissed) return
     setOpen(true)
-  }, [config?.authDisabled, dismissed, hasDefaultUserKeys, hasStoredKeys, hydrated, onboardingOpen, suppressAutoOpen, user])
+  }, [initialStep, config?.authDisabled, dismissed, hasDefaultUserKeys, hasStoredKeys, hydrated, onboardingOpen, suppressAutoOpen, user])
 
   useEffect(() => {
     // Only the BYOK (models) instance should respond to the legacy 'open-byok-wizard' event.
@@ -977,6 +985,13 @@ export function ByokWizard({
   }, [])
 
   const loadRuntimeStatuses = React.useCallback(async () => {
+    if (isCloud) {
+      setRuntimeStatuses([])
+      setEnabledRuntimes([])
+      setRuntimeStatusesError(null)
+      setRuntimeStatusesLoading(false)
+      return
+    }
     setRuntimeStatusesLoading(true)
     setRuntimeStatusesError(null)
     try {
@@ -1002,7 +1017,7 @@ export function ByokWizard({
     } finally {
       setRuntimeStatusesLoading(false)
     }
-  }, [])
+  }, [isCloud])
 
   useEffect(() => {
     if (!open) return
@@ -1281,6 +1296,11 @@ export function ByokWizard({
   if (!user && !config?.authDisabled) return null
 
   const runValidation = async (scope: ScopedValidationTarget = 'all') => {
+    const endpointError = isCloud && (scope === 'all' || scope === 'openaiCompatible') ? cloudModelEndpointError(openaiCompatibleBaseUrl) : undefined
+    if (endpointError) {
+      setValidation(current => ({ ...current, openaiCompatible: { status: 'invalid', message: endpointError } }))
+      return false
+    }
     const currentPartnerSlug = step.startsWith('partner:') ? step.replace('partner:', '') : null
     const providerScope = scope === 'openai' || scope === 'openaiCompatible' || scope === 'anthropic' || scope === 'gemini' || scope === 'openrouter' || scope === 'xai' || scope === 'ollama' ? scope : null
     const scopedPayload = {
@@ -1531,6 +1551,13 @@ export function ByokWizard({
   }
 
   const handleSave = async () => {
+    const endpointError = isCloud ? cloudModelEndpointError(openaiCompatibleBaseUrl) : undefined
+    if (endpointError) {
+      setModelTab('openaiCompatible')
+      setStep('models')
+      showWarning(endpointError)
+      return
+    }
     const providerMismatches = [
       detectProviderKeyMismatch('openai', openaiKey),
       detectProviderKeyMismatch('anthropic', anthropicKey),
@@ -1587,7 +1614,7 @@ export function ByokWizard({
       gemini: geminiApiKey.trim(),
       openrouter: openrouterKey.trim(),
       xai: xaiKey.trim(),
-      ollamaBaseUrl: effectiveOllamaBaseUrl.trim(),
+      ollamaBaseUrl: ollamaEnabled ? effectiveOllamaBaseUrl.trim() : '',
     }
     const currentStoredKeys = readStoredByokKeys()
 
@@ -1642,7 +1669,7 @@ export function ByokWizard({
     // sends the effective value instead of clobbering it with a blind [] — critically, this
     // preserves a WORKSPACES_INTEGRATIONS_RUNTIMES default that was never written to config.
     let enabledRuntimesToSave = enabledRuntimes
-    if (!enabledRuntimesDirtyRef.current) {
+    if (!isCloud && !enabledRuntimesDirtyRef.current) {
       try {
         const latest = await fetch('/api/integrations/runtimes').then((r) => (r.ok ? r.json() : null))
         const serverList = latest?.enabledRuntimes
@@ -1658,8 +1685,8 @@ export function ByokWizard({
       body: JSON.stringify({
         preferredModel: preferredModel || undefined,
         systemPreferredModel: systemPreferredModel || undefined,
-        agentRuntime: agentRuntime || undefined,
-        enabledRuntimes: enabledRuntimesToSave,
+        agentRuntime: isCloud ? 'openclaw' : agentRuntime || undefined,
+        enabledRuntimes: isCloud ? [] : enabledRuntimesToSave,
         githubDefaultRepo: githubDefaultRepo.trim() || undefined,
         sensoContextLabel: sensoContextLabel.trim() || undefined,
         ollamaBaseUrl: ollamaEnabled ? (effectiveOllamaBaseUrl.trim() || undefined) : undefined,
@@ -2406,6 +2433,7 @@ export function ByokWizard({
 
             {step === 'models' && (
               <>
+                {isCloud && <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">{CLOUD_LOCAL_EXECUTION_NOTICE}</div>}
                 <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
@@ -2466,7 +2494,7 @@ export function ByokWizard({
 
                     <div>
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
-                        Local / Self-Hosted
+                        {isCloud ? 'Cloud-reachable services' : 'Local / Self-Hosted'}
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {localProviderChecks.map((provider) => (
@@ -2609,7 +2637,7 @@ export function ByokWizard({
                         <div className="font-medium text-gray-900 dark:text-gray-100">OpenAI-Compatible</div>
                         <button onClick={() => runValidation('openaiCompatible')} disabled={validating} className="px-3 py-1.5 text-xs rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Connection'}</button>
                       </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Use this for LM Studio and other OpenAI-style APIs that expose <span className="font-mono">/v1/models</span> and <span className="font-mono">/v1/chat/completions</span>.</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{isCloud ? 'Connect an OpenAI-compatible service reachable from this cloud instance, preferably over HTTPS.' : 'Use this for LM Studio and other OpenAI-style APIs that expose /v1/models and /v1/chat/completions.'}</p>
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <label htmlFor="byok-openai-compatible-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Base URL</label>
                         {(openaiCompatibleBaseUrl || openaiCompatibleApiKey || openaiCompatibleDefaultModel) && (
@@ -2618,9 +2646,10 @@ export function ByokWizard({
                           </button>
                         )}
                       </div>
-                      <input id="byok-openai-compatible-url" type="text" value={openaiCompatibleBaseUrl} onChange={(e) => { setOpenaiCompatibleBaseUrl(e.target.value); setValidation((current) => ({ ...current, openaiCompatible: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openaiCompatible; return next }) }} placeholder={defaultOpenAiCompatibleBaseUrl} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <input id="byok-openai-compatible-url" type="text" value={openaiCompatibleBaseUrl} onChange={(e) => { setOpenaiCompatibleBaseUrl(e.target.value); setValidation((current) => ({ ...current, openaiCompatible: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openaiCompatible; return next }) }} placeholder={isCloud ? 'https://models.example.com/v1' : defaultOpenAiCompatibleBaseUrl} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      {isCloud && cloudModelEndpointError(openaiCompatibleBaseUrl) && <p role="alert" className="mt-2 text-xs text-red-700 dark:text-red-300">{cloudModelEndpointError(openaiCompatibleBaseUrl)}</p>}
                       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        {deploymentKind === 'onprem'
+                        {isCloud ? 'localhost, LAN-only services, and models on your computer are not reachable from this cloud instance. Use Check Connection to verify a remote endpoint.' : deploymentKind === 'onprem'
                           ? 'If LM Studio runs on the same Mac as this containerized runtime, use host.containers.internal instead of 127.0.0.1.'
                           : 'If LM Studio runs locally on this machine, 127.0.0.1 usually works. For a separate host, use that machine’s reachable LAN address.'}
                       </div>
@@ -2836,7 +2865,7 @@ export function ByokWizard({
                   )}
                 </div>
 
-                <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                {!isCloud && <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
                     Run via CLI — enable the CLIs you want (no API key needed)
                   </div>
@@ -2888,7 +2917,7 @@ export function ByokWizard({
                       ? <>Enabled: {enabledRuntimes.map((rt) => runtimeStatuses.find((status) => status.id === rt)?.label || rt).join(', ')}. Now pick a runtime for each agent in the agent editor — agents you don’t assign keep using the model-provider keys above.</>
                       : <>No CLI enabled — all agents use the model-provider keys above. Enable a CLI to make it available, then assign it per agent.</>}
                   </div>
-                </div>
+                </div>}
 
               </>
             )}
@@ -3065,7 +3094,8 @@ export function ByokWizard({
               </>
             )}
 
-            {step === 'runtime' && (
+            {step === 'runtime' && isCloud && <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">{CLOUD_LOCAL_EXECUTION_NOTICE}</div>}
+            {step === 'runtime' && !isCloud && (
               <>
                 <div className="mt-4 rounded-xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 p-4 text-sm text-cyan-900 dark:text-cyan-100">
                   <div className="font-medium">Agent runtimes</div>

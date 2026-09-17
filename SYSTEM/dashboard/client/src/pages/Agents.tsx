@@ -2740,6 +2740,7 @@ function ImportOpenClawAgentModal({
 }
 
 function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClose: () => void; onSaved: () => void }) {
+  const { config } = useAuth()
   const manualModelRef = React.useRef('')
   const [identity, setIdentity] = React.useState('')
   const [soul, setSoul] = React.useState('')
@@ -3222,7 +3223,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 onAutoApplyChange={setAutomaticModelSelection}
               />
               <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-3">
-                <label className="block text-sm font-semibold text-sky-900 dark:text-sky-100 mb-1">Runtime — which CLI runs this agent</label>
+                <label className="block text-sm font-semibold text-sky-900 dark:text-sky-100 mb-1">{config?.deploymentKind === 'cloud' ? 'Cloud execution' : 'Runtime — which CLI runs this agent'}</label>
                 <select
                   value={runtime}
                   onChange={e => selectAgentRuntime(e.target.value)}
@@ -3230,7 +3231,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 >
                   <option value="default">OpenClaw (model-provider keys) — default</option>
                   <option value="openclaw">OpenClaw (model-provider keys)</option>
-                  {runtimeCatalog.filter((rt) => rt.enabled)
+                  {runtimeCatalog.filter((rt) => config?.deploymentKind !== 'cloud' && rt.enabled)
                     .map((rt) => <option key={rt.id} value={rt.id}>{rt.label} (its own login)</option>)}
                   {runtime !== 'default' && runtime !== 'openclaw' && !enabledRuntimes.includes(runtime) && (
                     <option value={runtime}>
@@ -3239,7 +3240,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                   )}
                 </select>
                 <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
-                  {enabledRuntimes.length > 0
+                  {config?.deploymentKind === 'cloud' ? 'Local CLI runtimes are unavailable on cloud. Choose OpenClaw with model-provider keys.' : enabledRuntimes.length > 0
                     ? <>Run this agent on {runtimeCatalog.filter((rt) => enabledRuntimes.includes(rt.id)).map((rt) => rt.label).join(' or ')} using the CLI’s own login. Default keeps it on the model-provider keys.</>
                     : <>Enable a CLI runtime first in BYOK &rarr; “Run via CLI” to make it selectable here.</>}
                 </p>

@@ -1,3 +1,5 @@
+import { cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
+
 const STORAGE_KEY = 'clawmax-byok-preview'
 const DISMISS_KEY = 'clawmax-byok-preview-dismissed'
 const BROWSER_VAULT_UPDATED_EVENT = 'clawmax-browser-vault-updated'
@@ -120,9 +122,13 @@ export function resolveOpenAiCompatibleBaseUrlForRuntime(input: {
   configuredBaseUrl?: string | null
   managedRuntime?: boolean
   runtimeDefaultBaseUrl?: string | null
+  deploymentKind?: 'local' | 'onprem' | 'cloud'
 }): string {
   const configuredBaseUrl = normalizeOllamaBaseUrlCandidate(input.configuredBaseUrl)
   const runtimeDefaultBaseUrl = normalizeOllamaBaseUrlCandidate(input.runtimeDefaultBaseUrl)
+  if (input.deploymentKind === 'cloud') {
+    return [configuredBaseUrl, runtimeDefaultBaseUrl].find(value => value && !cloudModelEndpointError(value)) || ''
+  }
   if (!input.managedRuntime || !runtimeDefaultBaseUrl) {
     return configuredBaseUrl || runtimeDefaultBaseUrl
   }
@@ -285,9 +291,17 @@ export function byokForRequest(): ByokRequestPayload {
   }
 }
 
-/** Check if any LLM API keys are available (BYOK, system, or user defaults) */
-export function hasAnyLLMKeys(config?: Pick<AiExecutionConfig, 'systemKeyDefaults' | 'userKeyDefaults'>): boolean {
-  const byok = readStoredByokKeys()
+/** Ignore unavailable local paths on cloud without erasing browser settings. */
+function usableBrowserKeys(config?: Pick<AiExecutionConfig, 'deploymentKind'> | null): StoredByokKeys {
+  const keys = readStoredByokKeys()
+  if (config?.deploymentKind !== 'cloud') return keys
+  const compatibleUrl = keys.openaiCompatibleBaseUrl && !cloudModelEndpointError(keys.openaiCompatibleBaseUrl) ? keys.openaiCompatibleBaseUrl : ''
+  return { ...keys, ollamaBaseUrl: '', ollamaDefaultModel: '', openaiCompatibleBaseUrl: compatibleUrl, openaiCompatibleDefaultModel: compatibleUrl ? keys.openaiCompatibleDefaultModel : '' }
+}
+
+/** Check if any LLM API keys are available (BYOK, system, or user defaults). */
+export function hasAnyLLMKeys(config?: Pick<AiExecutionConfig, 'systemKeyDefaults' | 'userKeyDefaults' | 'deploymentKind'> | null): boolean {
+  const byok = usableBrowserKeys(config)
   if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.openrouter || byok.xai || byok.ollamaBaseUrl || byok.ollamaDefaultModel || byok.openaiCompatibleBaseUrl || byok.openaiCompatibleDefaultModel) return true
   if (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.gemini || config?.systemKeyDefaults?.openrouter || config?.systemKeyDefaults?.xai || config?.systemKeyDefaults?.openaiCompatible) return true
   if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini || config?.userKeyDefaults?.openrouter || config?.userKeyDefaults?.xai || config?.userKeyDefaults?.openaiCompatible) return true
@@ -296,12 +310,12 @@ export function hasAnyLLMKeys(config?: Pick<AiExecutionConfig, 'systemKeyDefault
 
 /** Check whether the current browser/user execution path can actually run AI generation */
 export function hasAiGenerationAccess(config?: AiExecutionConfig | null): boolean {
-  const byok = readStoredByokKeys()
+  const byok = usableBrowserKeys(config)
   if (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl) return true
   // A CLI runtime enabled in BYOK ("Run via CLI") signs in with its own login and can drive
   // generation without any provider key. Without this the Generate button stayed disabled as
   // "set up keys first" even though the server could service the request.
-  if (Array.isArray(config?.enabledRuntimes) && config.enabledRuntimes.length > 0) return true
+  if (config?.deploymentKind !== 'cloud' && Array.isArray(config?.enabledRuntimes) && config.enabledRuntimes.length > 0) return true
   if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || (config as any)?.userKeyDefaults?.openaiCompatible) return true
   if (
     config?.allowSystemKeysForUserExecution &&
@@ -317,7 +331,9 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
   if (!enabled) {
     return {
       enabled: false,
-      warning: 'AI generation will fail until you add and verify an OpenAI, Anthropic, or OpenAI-compatible setup, enable a CLI runtime in BYOK, or use a usable shared hosted execution path.',
+      warning: config?.deploymentKind === 'cloud'
+        ? 'Add and verify a hosted provider or a cloud-reachable OpenAI-compatible service in BYOK. Local models and CLI runtimes are unavailable on cloud instances.'
+        : 'AI generation will fail until you add and verify an OpenAI, Anthropic, or OpenAI-compatible setup, enable a CLI runtime in BYOK, or use a usable shared hosted execution path.',
     }
   }
 
@@ -325,11 +341,11 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
   // hosted keys entirely. Without this check the wizards warned "no verified hosted execution
   // path" while generation was in fact succeeding through Claude Code or Factory Droid, telling
   // the operator to go configure a key the request would never use.
-  if (Array.isArray(config?.enabledRuntimes) && config.enabledRuntimes.length > 0) {
+  if (config?.deploymentKind !== 'cloud' && Array.isArray(config?.enabledRuntimes) && config.enabledRuntimes.length > 0) {
     return { enabled: true }
   }
 
-  const byok = readStoredByokKeys()
+  const byok = usableBrowserKeys(config)
   const verifiedProviders = byok.verifiedProviders || {}
   const hasSharedHostedExecution = !!(
     config?.userKeyDefaults?.openai
@@ -381,8 +397,8 @@ export function hasChatExecutionAccess(config?: AiExecutionConfig | null): boole
   // Without this the chat panel refused to open with "no AI execution path is configured" on a
   // workspace whose agents were happily executing on Claude Code or Factory Droid — the same
   // omission that affected generation readiness, in the sibling helper.
-  if (Array.isArray(config?.enabledRuntimes) && config.enabledRuntimes.length > 0) return true
-  const byok = readStoredByokKeys()
+  if (config?.deploymentKind !== 'cloud' && Array.isArray(config?.enabledRuntimes) && config.enabledRuntimes.length > 0) return true
+  const byok = usableBrowserKeys(config)
   if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.openrouter || byok.xai || byok.ollamaBaseUrl || byok.ollamaDefaultModel || byok.openaiCompatibleBaseUrl || byok.openaiCompatibleDefaultModel) return true
   if (isOllamaUiAvailable(config)) return true
   if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini || config?.userKeyDefaults?.openrouter || config?.userKeyDefaults?.xai || (config as any)?.userKeyDefaults?.openaiCompatible) return true

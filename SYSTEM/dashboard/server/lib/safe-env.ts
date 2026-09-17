@@ -3,6 +3,8 @@
  */
 import {
   type ProviderKeys,
+  getDashboardDeploymentKind,
+  usableProviderKeys,
   getDefaultOllamaBaseUrl,
   getDefaultOpenAICompatibleBaseUrl,
   isManagedRuntime,
@@ -119,6 +121,7 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
 }
 
 function providerKeysToEnv(providerKeys: ExecutionEnvOverrides): Record<string, string> | undefined {
+  providerKeys = { ...providerKeys, ...usableProviderKeys(providerKeys) }
   const useOpenAiCompatible = !!providerKeys.openaiCompatibleBaseUrl
   const runtimeDefaultOllamaBaseUrl = getDefaultOllamaBaseUrl()
   const runtimeDefaultOpenAiCompatibleBaseUrl = getDefaultOpenAICompatibleBaseUrl()
@@ -138,7 +141,7 @@ function providerKeysToEnv(providerKeys: ExecutionEnvOverrides): Record<string, 
     GEMINI_API_KEY: providerKeys.gemini || '',
     OPENROUTER_API_KEY: providerKeys.openrouter || '',
     XAI_API_KEY: providerKeys.xai || '',
-    OLLAMA_BASE_URL: resolveRuntimeBaseUrl({
+    OLLAMA_BASE_URL: getDashboardDeploymentKind() === 'cloud' ? '' : resolveRuntimeBaseUrl({
       configuredBaseUrl: providerKeys.ollamaBaseUrl || '',
       managedRuntime,
       runtimeDefaultBaseUrl: runtimeDefaultOllamaBaseUrl,

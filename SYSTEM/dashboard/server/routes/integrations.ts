@@ -17,6 +17,7 @@ import { getDashboardDeploymentKind, getDashboardEnvRaw, isOllamaUiEnabled } fro
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getWorkspaceResendApiKey, resolveResendTestRecipient, sendResendTestEmail } from '../lib/resend-partner'
 import { detectRuntimeStatuses, listRuntimeModels, normalizeAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime } from '../lib/agent-runtime'
+import { CLOUD_CLI_NOTICE, cloudModelEndpointError } from '../lib/cloud-execution-policy'
 
 const router = Router()
 
@@ -52,6 +53,10 @@ router.get('/github-status', (_req, res) => {
 })
 
 router.get('/runtimes', async (_req, res) => {
+  if (getDashboardDeploymentKind(getDashboardEnvRaw()) === 'cloud') {
+    res.json({ runtimes: [], workspaceDefault: 'openclaw', enabledRuntimes: [], unavailableReason: CLOUD_CLI_NOTICE })
+    return
+  }
   const workspaceDefault = resolveWorkspaceRuntime()
   const statuses = detectRuntimeStatuses(workspaceDefault)
   res.json({
@@ -71,6 +76,18 @@ router.get('/runtimes', async (_req, res) => {
 
 router.put('/config', (req, res) => {
   const body = (req.body || {}) as Record<string, unknown>
+  if (getDashboardDeploymentKind(getDashboardEnvRaw()) === 'cloud') {
+    const runtime = normalizeAgentRuntime(body.agentRuntime)
+    if ((runtime && runtime !== 'openclaw') || (Array.isArray(body.enabledRuntimes) && body.enabledRuntimes.length > 0)) {
+      res.status(400).json({ error: CLOUD_CLI_NOTICE })
+      return
+    }
+    const endpointError = cloudModelEndpointError(typeof body.openaiCompatibleBaseUrl === 'string' ? body.openaiCompatibleBaseUrl : '')
+    if (endpointError) {
+      res.status(400).json({ error: endpointError })
+      return
+    }
+  }
   const ollamaEnabled = isOllamaUiEnabled(getDashboardEnvRaw())
   const partnerDefinitions = listPartnerDefinitions()
   const config = writeWorkspaceIntegrationConfig({
@@ -125,6 +142,13 @@ router.put('/config', (req, res) => {
 router.post('/validate', async (req, res) => {
   try {
     const body = { ...(req.body || {}) } as Record<string, unknown>
+    if (getDashboardDeploymentKind(getDashboardEnvRaw()) === 'cloud') {
+      const endpointError = cloudModelEndpointError(typeof body.openaiCompatibleBaseUrl === 'string' ? body.openaiCompatibleBaseUrl : '')
+      if (endpointError) {
+        res.status(400).json({ error: endpointError })
+        return
+      }
+    }
     if (!isOllamaUiEnabled(getDashboardEnvRaw())) {
       body.ollamaBaseUrl = ''
       body.ollamaDefaultModel = ''

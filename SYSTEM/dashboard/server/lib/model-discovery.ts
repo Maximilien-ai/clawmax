@@ -2,7 +2,8 @@
  * Dynamic model discovery for configured hosted and local model providers.
  * Results are cached for 1 hour. Falls back to hardcoded lists on API failure.
  */
-import { getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
+import { getDashboardDeploymentKind, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
+import { cloudModelEndpointError } from './cloud-execution-policy'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -317,6 +318,7 @@ async function fetchXaiModels(apiKey: string): Promise<string[]> {
 }
 
 async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
+  if (getDashboardDeploymentKind() === 'cloud') return []
   const normalizedBaseUrl = (baseUrl.trim() || getDefaultOllamaBaseUrl()).replace(/\/+$/, '')
   if (!normalizedBaseUrl) return []
   const cacheKey = `ollama:${normalizedBaseUrl}`
@@ -347,6 +349,7 @@ async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
 }
 
 async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Promise<string[]> {
+  if (getDashboardDeploymentKind() === 'cloud' && cloudModelEndpointError(baseUrl)) return []
   const normalizedBaseUrl = (baseUrl.trim() || '').replace(/\/+$/, '')
   if (!normalizedBaseUrl) return []
   const cacheKey = `openai-compatible:${normalizedBaseUrl}`

@@ -134,6 +134,34 @@ async function run() {
     assert(Array.isArray(res.jsonBody?.visiblePartners) && res.jsonBody.visiblePartners.includes('resend'), 'Expected resend partner visibility')
   })
 
+  await test('cloud excludes installed CLIs and rejects local runtime/model configuration', async () => {
+    process.env.DASHBOARD_DEPLOYMENT_KIND = 'cloud'
+    const runtime = require('../lib/agent-runtime')
+    assert.deepStrictEqual(runtime.resolveEnabledRuntimes(), [])
+    assert.strictEqual(runtime.resolveRuntimeCliPath('claude'), null)
+    assert.strictEqual(runtime.resolveWorkspaceRuntime(), 'openclaw')
+    assert.strictEqual(runtime.isPinnedRuntimeDisabled('droid'), 'droid')
+    await assert.rejects(runtime.runRuntimeCli({ runtime: 'claude' }), /unavailable on cloud/)
+    const catalog = makeRes()
+    await getRouteHandler('get', '/runtimes')(makeReq(), catalog)
+    assert.deepStrictEqual(catalog.jsonBody.runtimes, [])
+    assert.deepStrictEqual(catalog.jsonBody.enabledRuntimes, [])
+    assert.match(catalog.jsonBody.unavailableReason, /cloud/)
+    for (const body of [{ agentRuntime: 'claude' }, { enabledRuntimes: ['droid'] }, { openaiCompatibleBaseUrl: 'http://localhost:1234/v1' }, { openaiCompatibleBaseUrl: 'http://host.containers.internal:1234/v1' }]) {
+      const res = makeRes()
+      await getRouteHandler('put', '/config')(makeReq({ body }), res)
+      assert.strictEqual(res.statusCode, 400)
+      assert.match(res.jsonBody.error, /cloud|Cloud/)
+    }
+    const validation = makeRes()
+    await getRouteHandler('post', '/validate')(makeReq({ body: { openaiCompatibleBaseUrl: 'http://[::1]:1234/v1' } }), validation)
+    assert.strictEqual(validation.statusCode, 400, 'local validation must fail before a network request')
+    const remote = makeRes()
+    await getRouteHandler('put', '/config')(makeReq({ body: { openaiCompatibleBaseUrl: 'https://models.example.com/v1', enabledRuntimes: [] } }), remote)
+    assert.strictEqual(remote.statusCode, 200)
+    assert.strictEqual(remote.jsonBody.config.openaiCompatibleBaseUrl, 'https://models.example.com/v1')
+  })
+
   await test('config round-trip persists workspace defaults and secret presence', async () => {
     process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
     process.env.DASHBOARD_ENABLE_OLLAMA = 'true'
