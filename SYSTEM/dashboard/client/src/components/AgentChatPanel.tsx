@@ -14,7 +14,7 @@ import { createPromptAttachment } from '../lib/promptAttachments'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import { formatAgentWorkStatus, summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
 import { INCOMPLETE_AGENT_CHAT_MESSAGE, markIncompleteAgentReply } from '../lib/agentChatStream'
-import { buildAgentChatMarkdown } from '../lib/agentChatExport'
+import { buildAgentChatMarkdown, getAgentChatDownloadState } from '../lib/agentChatExport'
 import { useToast } from './Toast'
 
 interface Message {
@@ -990,7 +990,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       const exported = buildAgentChatMarkdown(agentName, messages.map(message => ({
         ...message,
         content: message.role === 'assistant' ? cleanMessageContent(message.content) : message.content,
-      })))
+      })), new Date(), streaming)
       const url = URL.createObjectURL(new Blob([exported.markdown], { type: 'text/markdown;charset=utf-8' }))
       const anchor = document.createElement('a')
       try {
@@ -1074,6 +1074,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
     )
   }
 
+  const downloadState = getAgentChatDownloadState(messages, loadingHistory, streaming)
+
   return (
     <div
       className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`}
@@ -1095,6 +1097,17 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               <h2 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 truncate">Agent Chat: {agentName}</h2>
             </div>
             <button
+              type="button"
+              onClick={downloadConversation}
+              disabled={downloadState.disabled}
+              aria-label="Download conversation as Markdown"
+              title={downloadState.title}
+              className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ProductIconCell iconName="download" label={downloadState.title} size="sm" className="border-transparent bg-transparent text-current" />
+              <span>Download</span>
+            </button>
+            <button
               onClick={onClose}
               className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
             >
@@ -1104,16 +1117,6 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
             <p className="min-w-0 text-xs text-gray-400">Real-time streaming from the active runtime</p>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
-              <button
-                type="button"
-                onClick={downloadConversation}
-                disabled={loadingHistory || streaming || !messages.some(message => message.content.trim())}
-                aria-label="Download conversation as Markdown"
-                title="Download the loaded conversation as Markdown to your device"
-                className="shrink-0 rounded px-2 py-1 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ProductIconCell iconName="download" label="Download conversation" size="sm" className="border-transparent bg-transparent text-current" />
-              </button>
               <button
                 onClick={resetAgentSession}
                 disabled={resettingSession}
@@ -1480,7 +1483,9 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                   }
                 }
               }}
-              placeholder={isListening ? "Listening..." : "Type, speak, or attach files... (Enter to send, Shift+Enter for a new line)"}
+              placeholder={isListening ? "Listening…" : "Message…"}
+              aria-label="Message agent"
+              title="Type, speak, or attach files. Enter to send; Shift+Enter for a new line."
               disabled={sending || streaming || !gatewayAvailable || isListening || !chatEnabled}
               className="min-h-11 max-h-32 min-w-0 flex-1 resize-y px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
             />

@@ -2391,7 +2391,7 @@ fi
 
 echo -e "${YELLOW}→ Running Agent chat export unit tests...${NC}"
 if npx ts-node --transpileOnly client/src/lib/agentChatExport.test.ts > /tmp/clawmax-agent-chat-export.out 2>&1; then
-  pass "Agent chat export unit tests (7 tests)"
+  pass "Agent chat export unit tests (15 tests)"
 else
   cat /tmp/clawmax-agent-chat-export.out
   fail "Agent chat export unit tests"

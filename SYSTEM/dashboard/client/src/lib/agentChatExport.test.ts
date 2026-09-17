@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { buildAgentChatMarkdown } from './agentChatExport'
+import { buildAgentChatMarkdown, getAgentChatDownloadState } from './agentChatExport'
 
 const now = new Date('2026-09-16T21:00:00Z')
 const input = [
@@ -24,4 +24,12 @@ assert(!unsafe.filename.includes('\n'))
 assert(unsafe.markdown.startsWith('# Conversation with ../GTM \\# heading'))
 assert.throws(() => buildAgentChatMarkdown('GTM', [], now), /no messages/)
 assert.throws(() => buildAgentChatMarkdown('GTM', [{ role: 'user', content: '  ' }], now), /no messages/)
-console.log('agentChatExport.test.ts: 7 tests passed')
+assert.strictEqual(getAgentChatDownloadState(input, true, false).disabled, true)
+assert.strictEqual(getAgentChatDownloadState([], false, false).disabled, true)
+assert.strictEqual(getAgentChatDownloadState([{ role: 'user', content: '  ' }], false, true).disabled, true)
+assert.strictEqual(getAgentChatDownloadState(input, false, false).disabled, false)
+assert.strictEqual(getAgentChatDownloadState(input, false, true).disabled, false)
+assert(getAgentChatDownloadState(input, false, true).title.includes('incomplete'))
+assert(buildAgentChatMarkdown('GTM', input, now, true).markdown.includes('reply may be incomplete'))
+assert(!result.markdown.includes('reply may be incomplete'))
+console.log('agentChatExport.test.ts: 15 tests passed')
