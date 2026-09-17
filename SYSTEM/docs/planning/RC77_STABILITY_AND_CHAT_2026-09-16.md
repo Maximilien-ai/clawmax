@@ -222,4 +222,35 @@ stable or upgrade non-test customer instances.
 
 Operations capability/catalog and plan/apply/revision contracts remain incomplete.
 Keep recurring Operations schedules disabled. Native chat clear/reset/archive-write
-lifecycle remains incomplete. The unidentified guide-copy request is deferred.
+lifecycle remains incomplete. The user confirmed the guide-copy request is fixed.
+
+### Post-RC77 follow-up: viewport-safe BYOK dialog
+
+User screenshot feedback on September 17 showed Save at the bottom of the long
+BYOK form. Source fix `d41d3a88` reuses `MobileSafeDialog`: fixed header/footer,
+independently scrolling settings, wrapping actions, dynamic viewport height, and
+mobile safe-area padding. The dialog is portaled to the document body to escape
+header containing blocks/clipping; the nested plugin confirmation retains its
+higher stacking order. Existing provider selection and save behavior are retained.
+Partners and Runtime use the same action footer. No new tabs were necessary to
+keep Save accessible.
+
+Engineering validation:
+
+- Server TypeScript and production Vite build passed; existing chunk-size warning
+  remains. Client TypeScript still reports 291 baseline diagnostics, with no new
+  normalized diagnostics against the RC77 baseline.
+- BYOK helpers: 27 passed; shared dialog: 8 assertions; dialog audit: 8 assertions.
+- Reproducible isolated-browser test: `SYSTEM/dashboard/scripts/test-byok-dialog.cjs`.
+  Supply `PLAYWRIGHT_MODULE` and `CHROME_PATH` if using an existing external
+  Playwright/Chrome installation; defaults to frontend `http://127.0.0.1:5176`.
+  All API calls are fulfilled with synthetic responses and only a fake key is
+  used. No live instance configuration or provider credentials are accessed.
+- 1440×900, 1280×600, 390×844, and 320×568 passed: Save visible/clickable without
+  zoom changes, invariant footer position while scrolling, validation-in-progress
+  disabled state, validation-error recovery, save/reload persistence, and
+  Partners/Runtime footer bounds. Desktop/mobile light/dark screenshots inspected.
+
+This is a source follow-up for the next image, not a change to the immutable RC77
+images already installed on MBP14/test10. It does not close the outstanding fresh
+cloud model-response acceptance check or authorize wider rollout.
