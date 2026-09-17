@@ -1,8 +1,9 @@
 # RC77 stability and chat — 2026-09-16
 
-Status: full local release gate passed; public image build running. Combined build
-dispatch waits for public success. Images are not yet validated for deployment.
-MBP14 and test10 remain on RC76 pending RC77 image validation.
+Status (2026-09-17): public and combined image CI passed. MBP14 and test10 are
+running pinned RC77 and passed startup/restart checks. Wider rollout is held:
+installed CLI RC3 rejects HTTP loopback discovery, and live chat/export acceptance
+is still pending. Image-build success is not full deployment acceptance.
 
 ## Candidate boundary
 
@@ -62,14 +63,62 @@ Local evidence:
 - [Public image CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35155042434)
   started 2026-09-16 21:55:57 UTC. Inputs:
   `source_ref=refs/tags/v2.0.0-test-rc77`, `test_tag=rc77`.
-- A local watcher dispatches private `Private ClawMax Plugins Image` only after
-  public success, with matching `base_tag` and `image_tag` `2.0.0-test-rc77`.
-  Watcher log: `/tmp/clawmax-rc77-image-chain.log`. It depends on the local process
-  remaining alive; if interrupted, inspect workflow history before redispatching.
-- Private source at handoff: `ce2516d8a07ef96796ca138b748e6bd501672547`. Record
-  the actual dispatched source, private workflow URL, both immutable digests,
-  architecture results, and packaged version/plugin/runtime checks before calling
-  the combined candidate ready. Neither RC75 nor RC76 was overwritten.
+- Public CI passed both architecture builds, registry smoke, and both architecture
+  lifecycle acceptance jobs. Published public index:
+  `ghcr.io/maximilien-ai/clawmax-dashboard@sha256:476de8b4b0c241e36d8f11767b993c05b644737320232486d19fc52caa8c8fe0`.
+- [Combined image CI](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/35158723609)
+  was dispatched after public success with matching `base_tag` and `image_tag`
+  `2.0.0-test-rc77`, at private source
+  `ce2516d8a07ef96796ca138b748e6bd501672547`. Validation, runtime acceptance,
+  build, and native amd64/arm64 registry smoke all passed.
+- Published combined index, used by both canaries:
+  `ghcr.io/maximilien-ai/clawmax-plugins@sha256:1db1e5aeb4000f92601c0ac6e998635bd4d99f086a4a35d3d4f46fa295923477`.
+  Registry architecture pins: amd64
+  `sha256:c0e19f1b42997da7f29c20c88f3abf697051f5e47a743f17a5fa29c4918902c4`;
+  arm64 `sha256:355a1a2130fe643a2555b445acacf68ac17573ddbd0c128d50e7f9b770b543b2`.
+  Neither RC75 nor RC76 was overwritten.
+
+## Canary checks — 2026-09-17
+
+- MBP14 (`onp-mbp14-mojahds1`, container `clawmax-dashboard-240e10`): installed
+  CLI `2.0.0-test-rc3` worker action `mbp14-rc77-canary-20260917` completed.
+  After an additional controlled restart, health reports ready with 14 agents,
+  83 templates, 4 groups, and 5 workflows, matching the previous baseline.
+  Public discovery reports RC77 and issuer `http://127.0.0.1:3201`.
+  Read-only gateway probe reports running on port 18789.
+- test10 (`cld-test10-molljk0d`): pinned Kubernetes image update and a subsequent
+  controlled restart both rolled out successfully. Authenticated CLI discovery
+  reports RC77. Gateway probe reports running on port 18789. Temporary 404/502
+  responses occurred during replacement; settled API checks succeeded.
+- Cloud agents/workflows counts after restart match the pre-upgrade baseline:
+  `default` 13/9, `demo` 9/9, `biopharma-hack` 5/4, `clawcamp` 13/8,
+  `maximilien-ai-operations` 0/0, `maximilien-ai-operations-0-1-0` 5/4.
+  All four workflows in the populated Operations workspace report `disabled`.
+  The CLI list omits schedule fields; absent fields are not evidence of disabled
+  schedules. No schedules were enabled by this work.
+- Cloud PVC UID remains `8025e55b-12fb-451c-a6ba-238235bb5c45`.
+- RC76 rollback index retained:
+  `ghcr.io/maximilien-ai/clawmax-plugins@sha256:f1cd72a8e8932ed057a555c8e1716ecfa70111967e23400762c9840b67587304`.
+  No image pruning or wider rollout was performed.
+- Live close/reopen, Markdown download, agent ZIP export, skill-assignment feedback,
+  and visual checks on the deployed canaries remain pending. Earlier synthetic
+  browser checks above do not substitute for these live acceptance checks.
+
+### CLI handoff: loopback discovery blocks on-prem acceptance
+
+Installed RC3 `instance status --instance mbp14 --json` and
+`instance login --instance mbp14 --json` both fail with:
+`validate discovery response: issuer must be an absolute HTTPS URL without credentials, query, or fragment`.
+
+The Dashboard now correctly advertises direct-loopback HTTP, but CLI
+`src/pkg/instanceclient/client.go` calls `validateHTTPSURL` for issuer,
+authorization, token, and revocation endpoints. Coordinate a released CLI fix
+allowing HTTP only for explicitly registered loopback instances, with appropriate
+origin matching. Preserve HTTPS requirements for remote instances. Test localhost,
+127.0.0.1, IPv6 loopback, all four discovery URLs, and rejection of remote HTTP,
+credentials, query/fragment, and cross-origin endpoints. Prove browser PKCE login
+against MBP14 RC77 and unchanged HTTPS login against test10. No token extraction,
+private API fallback, or local credential-store edits were used to bypass failure.
 
 Observed previous image durations: public about 32 minutes; combined about
 23 minutes. Private registry smoke now uses native architecture runners.
