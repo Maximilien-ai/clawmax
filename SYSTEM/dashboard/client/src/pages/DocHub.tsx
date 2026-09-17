@@ -6,6 +6,7 @@ import { buildAgentInboxTargetPath } from '../lib/agentInbox'
 import { getDocHubAssetLabel } from '../lib/docHubAssetPresentation'
 import { DocHubSelectionActionBar } from '../components/DocHubSelectionActionBar'
 import { DocHubTreePaneLayout } from '../components/DocHubTreePaneLayout'
+import { MarkdownDocumentViewer } from '../components/MarkdownDocumentViewer'
 
 type DocSection = 'ORG' | 'AGENTS' | 'WORKFLOWS' | 'SYSTEM'
 
@@ -1195,20 +1196,20 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
         {!loading && !error && selected && (
           <>
             {/* Toolbar */}
-            <div className="flex items-center justify-between px-8 py-3 border-b border-gray-100 shrink-0">
-              <span className="text-xs text-gray-400 font-mono">{selected}</span>
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-8 py-3 border-b border-gray-100 shrink-0">
+              <span className="min-w-0 break-all text-xs text-gray-500 dark:text-gray-400 font-mono">{selected}</span>
+              <div className="flex flex-wrap items-center gap-2">
                 {selectedIsCodePreview && codeLanguage && (
                   <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-medium text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300">
                     {codeLanguage}
                   </span>
                 )}
-                {(previewKind !== 'asset') && (
+                {(previewKind !== 'asset' && (previewKind !== 'markdown' || editMode)) && (
                   <button
                     onClick={downloadSelectedFile}
                     className="text-xs px-3 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                   >
-                    Download
+                    {previewKind === 'markdown' ? 'Download saved Markdown' : 'Download'}
                   </button>
                 )}
                 {saveSuccess && (
@@ -1289,7 +1290,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             {/* View or Edit */}
             {selectedIsAgentAsset && previewKind === 'asset' ? (
               <div className="flex-1 overflow-y-auto">
-                <div className="max-w-3xl mx-auto px-8 py-8">
+                <div className="max-w-3xl mx-auto px-4 sm:px-8 py-8">
                   <div className={`rounded-xl p-5 text-sm ${
                     selectedAgentAssetSource === 'generated'
                       ? 'border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200'
@@ -1395,6 +1396,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                     </div>
                   ) : selectedIsTextPreview ? (
                     <pre className="whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">{content}</pre>
+                  ) : previewKind === 'markdown' ? (
+                    <MarkdownDocumentViewer key={`${selected}\u0000${content}`} source={content} path={selected} onDownloadMarkdown={downloadSelectedFile} />
                   ) : (
                     <div className="prose">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(content)}</ReactMarkdown>
