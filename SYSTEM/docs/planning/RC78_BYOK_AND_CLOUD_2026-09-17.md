@@ -6,6 +6,9 @@ combined image. Broader rollout remains held: MBP14's live GTM probe exceeded
 three minutes, and test10 encountered a gateway startup configuration race
 that required a controlled restart. Fresh cloud chat acceptance passed after
 that restart; all four Operations workflows were verified disabled in the UI.
+Follow-up diagnosis and fixes are recorded in the
+[RC79 runtime ledger](RC79_RUNTIME_2026-09-17.md); MBP14's longer-window retry
+subsequently completed without changing its model or history.
 Operations deployment remains
 outside this stability candidate; recurring Operations schedules stay disabled.
 
