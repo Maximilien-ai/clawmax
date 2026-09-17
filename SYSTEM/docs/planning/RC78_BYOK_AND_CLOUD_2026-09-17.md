@@ -4,7 +4,8 @@ Status: public and combined image CI passed; full local retry passed. The user
 approved RC78 installation on MBP14 and test10, and both now run the pinned
 combined image. Broader rollout remains held: MBP14's live GTM probe exceeded
 three minutes, and test10 encountered a gateway startup configuration race
-that required a controlled restart. Fresh cloud chat acceptance remains pending.
+that required a controlled restart. Fresh cloud chat acceptance passed after
+that restart; all four Operations workflows were verified disabled in the UI.
 Operations deployment remains
 outside this stability candidate; recurring Operations schedules stay disabled.
 
@@ -95,8 +96,8 @@ not production request limits or validation assertions.
    Public index: `sha256:add211d14d05140618af516527acdfb2b3376b3ef9ccfaa31e9451daa0c67b46`.
    Combined index: `sha256:b499b785ebf05b75e1220e58241e9d4667b2496d9fe40ab6f2f29a4aabd510b4`.
 5. Validate MBP14 and test10 before any broader test-client rollout. A fresh
-   cloud model response remains required; existing-history checks are not a
-   substitute. Only the two explicitly approved canaries were upgraded.
+   cloud model response passed, but MBP14 chat and cloud startup reliability
+   remain unresolved. Only the two explicitly approved canaries were upgraded.
 
 Recent image durations: public approximately 32 minutes; combined 23 minutes.
 Check near halfway and expected completion plus one minute, then sparsely if
@@ -134,7 +135,10 @@ once, and stops on a failed pipeline. It performs no client deployments.
 - MBP14's fresh synthetic no-tools chat did not complete within 180 seconds.
   The exact probe was cancelled; its child process was confirmed gone. Existing
   GTM configuration manually selects `openai-compatible/qwen/qwen3.6-27b`.
-  Its configured local compatible endpoint passes live connection validation.
+  Its configured local compatible endpoint passes live connection validation,
+  including the UI's direct prompt-completion check using `qwen/qwen3.6-27b`.
+  This narrows the failure beyond basic endpoint reachability but does not
+  establish that the full agent execution path works.
   This does not yet establish whether the response delay is an image regression,
   local model performance, or another runtime issue. Existing history is intact.
 - test10 initially had a refused connection on gateway port 18789 while
@@ -143,16 +147,21 @@ once, and stops on a failed pipeline. It performs no client deployments.
   One controlled deployment restart recovered the gateway connectivity probe.
   The concurrent writer is not identified yet; this is an unresolved startup
   reliability issue, not a fully passing cold-start acceptance claim.
-- The restart expired the cloud browser session. The user completed the first
-  login; a second login is requested after the controlled restart before fresh
-  cloud chat acceptance. Existing cloud GTM selects hosted `openai/gpt-5.4-pro`
-  with `openai/gpt-5.4` backup. No user credentials were copied or logged.
+- After the user signed in again following the controlled restart, one fresh
+  synthetic no-tools cloud GTM chat returned exactly `RC78_OK`. The response
+  was present and no request remained active at the check 116 seconds after
+  submission; this is an observation bound, not measured response latency.
+  A subsequent gateway connectivity probe remained healthy. Existing cloud GTM
+  selects hosted `openai/gpt-5.4-pro` with `openai/gpt-5.4` backup. No model
+  settings were changed and no user credentials were copied or logged.
 - CLI RC4 compatibility gaps observed: Groups and Templates listing returned
   route-not-found on RC77 before upgrade; agent health on both RC78 instances and
   cloud workflow detail also return route-not-found. Do not substitute a private
   API for these missing CLI contracts. Operations deployment is still unavailable.
-- No workflow was run or enabled by these canary checks. Explicit post-upgrade
-  disabled-state verification for the Operations workflows is still pending;
-  unchanged IDs/counts alone do not prove schedule state.
+- No workflow was run or enabled by these canary checks. Post-restart UI checks
+  in the Operations 0.1.0 workspace confirmed all four workflows display
+  `Disabled` and `No upcoming run`: daily account operations, daily site health,
+  weekday relationship follow-up, and weekly newsletter planning. This is
+  explicit schedule-state evidence, separate from unchanged ID/count checks.
 - RC77 rollback image retained:
   `ghcr.io/maximilien-ai/clawmax-plugins@sha256:1db1e5aeb4000f92601c0ac6e998635bd4d99f086a4a35d3d4f46fa295923477`.
