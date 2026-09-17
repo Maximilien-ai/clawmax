@@ -2,9 +2,12 @@
 
 Status (2026-09-17): public and combined image CI passed. MBP14 and test10 are
 running pinned RC77 and passed startup/restart checks. CLI RC4 is installed and
-authenticated on both canaries; the loopback-login blocker is resolved. MBP14
-live chat/export checks passed. Wider rollout remains held for cloud live UI
-acceptance and live skill-assignment feedback. Operations deployment remains
+authenticated on both canaries; the loopback-login blocker is resolved. Both
+canaries passed live existing-history/export checks, and test10 passed live
+skill-assignment feedback/persistence with exact fixture cleanup. A new cloud
+model-response check remains unproven because the isolated browser has no
+configured AI execution path. Wider rollout remains held pending that check.
+Operations deployment remains
 excluded from this stability candidate, not a stability-release prerequisite.
 
 ## Candidate boundary
@@ -112,10 +115,33 @@ Local evidence:
 - The first close/reopen comparison ran before reopened history had loaded;
   waiting for panel teardown and download readiness resolved the harness race.
   This was not a reproduced product history-loss defect.
-- test10 live browser checks require interactive email-code authentication;
-  isolated Chrome reaches the login page. No credentials/cookies were copied
-  from another browser. Cloud chat/export and live assignment-feedback checks
-  remain pending; earlier synthetic checks are not a substitute.
+- test10 live browser login was completed directly by the user in isolated
+  Chrome. No credentials/cookies were copied from another browser. Existing
+  `gtm-agent` history contained seven rendered Markdown blocks, all preserved
+  exactly across close/reopen. Markdown download passed (2,111 bytes), and agent
+  ZIP download passed (22,242 bytes, 33 central-directory entries, ZIP header/end
+  record verified). No conversation contents were printed during these checks.
+- With explicit user approval, created disposable test10 agent
+  `rc77-skill-toast-20260917` in `default` through the creation wizard, with
+  `openai/gpt-5.4`, tag `rc77-acceptance`, no AI generation, and no external
+  channels/groups/workflows. Assigned built-in `summarize` through Skills.
+  Exact success toast appeared; the assigned badge/count persisted after reload
+  and explicit re-entry into that agent's Skills view. Removal and re-add notices
+  also passed at 390px. The settled removal toast fit at x=16, width=358;
+  screenshot `/tmp/rc77-live-skill-toast-mobile.png` was visually inspected.
+- Cleaned up only that exact fixture through the typed-ID delete confirmation.
+  UI returned to 13 active agents and zero matches for the fixture; its temporary
+  assignment and workspace were removed. No existing agent was modified.
+- New cloud chat sends remain disabled with the explicit no-AI-execution-path
+  message in this isolated browser. Existing history/export passes do not prove
+  a new model response. Do not transfer provider credentials or bypass this gate;
+  configure BYOK interactively or obtain acceptance in an already configured
+  browser. MBP14's creation wizard likewise reported no available models; no
+  on-prem fixture was created.
+- Usability follow-up: a full Skills-page reload lost the agent selection and
+  selected `agent0`. No mutation was performed on that default agent; re-entry
+  through the fixture's agent menu proved its assignment was retained. Selection
+  persistence and assignment persistence are distinct claims.
 
 ### CLI handoff: loopback discovery blocker resolved by installed RC4
 
