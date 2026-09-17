@@ -11,6 +11,7 @@
     "dev:server": "ts-node server/index.ts",
     "dev:client": "vite",
     "build": "tsc -p tsconfig.server.json && vite build",
+    "lint": "eslint client/src server scripts --max-warnings=0",
     "security:audit": "node scripts/security-audit.js",
     "start": "node dist/server/index.js",
     "typecheck": "tsc --noEmit"
@@ -45,6 +46,7 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@typescript-eslint/parser": "8.70.0",
     "@types/archiver": "^7.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.17",
@@ -57,6 +59,7 @@
     "autoprefixer": "^10.4.17",
     "c8": "^11.0.0",
     "concurrently": "^8.2.2",
+    "eslint": "10.10.0",
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",
     "ts-node": "^10.9.2",

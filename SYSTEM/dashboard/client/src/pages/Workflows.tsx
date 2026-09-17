@@ -887,7 +887,6 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       : WORKFLOW_POLL_INTERVAL_MS
     const interval = setInterval(pollWorkflows, intervalMs)
     return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWorkspace?.id, isActive, rateLimitedUntil, markRateLimited, viewMode, runningWorkflows.size, fetchPipelineState])
 
   // Handle initial workflow / execution deep links
