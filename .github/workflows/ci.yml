@@ -58,6 +58,12 @@ jobs:
         working-directory: SYSTEM/dashboard
         run: npm run security:audit
 
+      - name: Lint and validate developer commands
+        run: ./lint.sh
+
+      - name: Build dashboard
+        run: ./build.sh
+
       - name: Prepare dashboard env
         run: |
           cat > SYSTEM/dashboard/.env <<EOF
@@ -88,4 +94,4 @@ jobs:
           }
 
       - name: Run tests
-        run: ./SYSTEM/test.sh
+        run: ./test.sh --coverage
