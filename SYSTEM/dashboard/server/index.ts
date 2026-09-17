@@ -57,7 +57,8 @@ import { reconcileInterruptedWorkflowExecutions } from './lib/workflows'
 import { startPluginUsageMonitor, stopPluginUsageMonitor } from './lib/plugin-usage-monitor'
 import { listTemplates } from './lib/templates'
 import { listWorkflows } from './lib/workflows'
-import { verifyCorePersistentStateReadable, type StartupReadiness } from './lib/startup-readiness'
+import { createGatewayReadinessCheck, createHealthHandler, verifyCorePersistentStateReadable, type StartupReadiness } from './lib/startup-readiness'
+import { probeGatewayResponsive } from './lib/gateway-rpc'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -297,18 +298,12 @@ app.use('/api/auth', authLimiter)
 app.use('/api', auditLog)
 
 // Health (public)
-app.get('/api/health', (_req, res) => {
-  if (!startupReadiness) {
-    res.status(503).json({ ok: false, error: 'Required persistent stores are not ready.' })
-    return
-  }
-  res.json({
-    ok: true,
-    workspace: WORKSPACE,
-    readiness: startupReadiness,
-    time: new Date().toISOString(),
-  })
-})
+app.get('/api/health', createHealthHandler({
+  getStartupReadiness: () => startupReadiness,
+  workspace: WORKSPACE,
+  gatewayRequired: () => process.env.CLAWMAX_AUTO_START_GATEWAY === 'true',
+  gatewayReady: createGatewayReadinessCheck(() => probeGatewayResponsive(1500)),
+}))
 
 // Public, versioned CLI API. This router owns authentication and its JSON 404
 // boundary so requests can never fall through to the browser SPA shell.
