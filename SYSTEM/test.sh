@@ -2470,6 +2470,15 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Named export filename unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/markdownPdf.test.ts > /tmp/clawmax-markdown-pdf.out 2>&1 || true
+npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/MarkdownDocumentViewer.test.tsx > /tmp/clawmax-markdown-viewer.out 2>&1 || true
+if grep -q "markdownPdf.test.ts: passed" /tmp/clawmax-markdown-pdf.out && grep -q "MarkdownDocumentViewer.test.tsx: passed" /tmp/clawmax-markdown-viewer.out; then
+  pass "Markdown PDF rendering, artifact lifecycle, and viewer tests"
+else
+  cat /tmp/clawmax-markdown-pdf.out /tmp/clawmax-markdown-viewer.out
+  fail "Markdown PDF rendering, artifact lifecycle, and viewer tests"
+fi
+
 npx ts-node --transpileOnly server/lib/export-filename.test.ts > /tmp/clawmax-export-filename.out 2>&1 || true
 npx ts-node --transpileOnly client/src/lib/downloadFilename.test.ts > /tmp/clawmax-download-filename.out 2>&1 || true
 if grep -q "export-filename.test.ts: 4 tests passed" /tmp/clawmax-export-filename.out && grep -q "downloadFilename.test.ts: 3 tests passed" /tmp/clawmax-download-filename.out; then
