@@ -4,6 +4,51 @@
 
 ## Quick Start
 
+### Shared root commands
+
+From this repository, use the same entry points as the CLI repository:
+
+```bash
+npm --prefix SYSTEM/dashboard ci
+./lint.sh && ./build.sh && ./test.sh --coverage
+```
+
+- `lint.sh`: a bounded ESLint correctness rule set for client, server, and scripts;
+  server TypeScript; root-command contract tests; root shell syntax. The setup
+  uses the [TypeScript-aware ESLint parser](https://typescript-eslint.io/getting-started/).
+  This is not the full recommended/style rule set and does not suppress or fix the
+  existing full-client TypeScript baseline (291 diagnostics on September 17).
+- `build.sh`: the existing `npm run build`, failing on either server or client
+  build errors. It does not implicitly install or upgrade dependencies.
+- `test.sh`: delegates to `SYSTEM/test-with-server.sh`, preserving coverage,
+  integration, validation, environment, and exit status. No model calls or
+  opt-in validation lane is silently added by `--coverage`.
+
+All three commands support `--help` and reject unknown options. They resolve
+paths relative to the scripts, so invoking them by absolute path also works.
+CI uses these same entry points. The lower-level `SYSTEM/` commands remain
+available for existing scripts and advanced workflows.
+
+Full release gate (development/test workspace only):
+
+```bash
+DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 \
+  ./test.sh integration --with-validation --coverage
+```
+
+This explicitly enables paid live-model calls and local-data modification. Do
+not point it at customer/client instances. Default local unit/API checks can
+still create and clean up test fixtures; they are not read-only diagnostics.
+
+September 17 engineering evidence: root lint and production build passed;
+isolated command tests cover paths with spaces, alternate current directories,
+environment/argument forwarding, failure propagation, missing dependencies, and
+help/invalid flags. Synthetic lint fixtures prove TypeScript/TSX syntax and
+correctness errors are rejected. The existing dependency audit gate passed with
+zero High/Critical advisories; this is not a complete security audit.
+
+### Existing setup workflow
+
 ```bash
 # 1. Setup
 ./setup.sh

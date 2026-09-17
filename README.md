@@ -659,11 +659,15 @@ ClawMax includes hundreds of checks across unit, contract, API, validation, and
 live integration suites. The wrapper prints the exact current total:
 
 ```bash
+# Common validation commands (from the repository root)
+npm --prefix SYSTEM/dashboard ci  # once after checkout or lockfile changes
+./lint.sh && ./build.sh && ./test.sh --coverage
+
 # Unit + API tests (no LLM cost)
-./SYSTEM/test.sh
+./test.sh
 
 # + Integration tests with live agents (~$0.03, requires keys)
-./SYSTEM/test.sh integration
+./test.sh integration
 
 # Check dashboard status
 ./SYSTEM/status.sh
@@ -672,6 +676,18 @@ live integration suites. The wrapper prints the exact current total:
 The suite covers server and client units, public plugin contracts, API and
 security boundaries, validation, shell/package behavior, and the ClawMax System
 Test template's live agent DAG execution.
+
+The root test command starts/reuses the local dashboard and forwards the existing
+port environment variables. Coverage alone does not enable live-model or
+validation lanes. For the full RC gate, explicitly run
+`./test.sh integration --with-validation --coverage`; live model calls may cost
+money, and validation modifies local data. Use a development/test workspace,
+not a client instance.
+
+`lint.sh` runs correctness-focused ESLint checks on dashboard client/server/scripts,
+the server TypeScript check, command contract tests, and root shell syntax checks.
+It does not auto-format files or claim a clean full-client type-check; that
+separate check currently has known baseline errors.
 
 See **[TESTING_GUIDE.md](SYSTEM/docs/TESTING_GUIDE.md)** for full details.
 
@@ -726,11 +742,11 @@ clawmax/                        # ClawMax repo root
 ./SYSTEM/status.sh
 
 # Run tests
-./SYSTEM/test.sh
+./test.sh --coverage
 
-# Build the dashboard bundle
-cd SYSTEM/dashboard
-npm run build
+# Lint and build the dashboard
+./lint.sh
+./build.sh
 ```
 
 ### Tech Stack
