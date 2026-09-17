@@ -254,3 +254,39 @@ Engineering validation:
 This is a source follow-up for the next image, not a change to the immutable RC77
 images already installed on MBP14/test10. It does not close the outstanding fresh
 cloud model-response acceptance check or authorize wider rollout.
+
+### Post-RC77 follow-up: cloud versus on-prem execution options
+
+Source fix: `494eddab`. Cloud BYOK now explains that it cannot access models or CLI tools on the user's
+computer. Ollama stays hidden; OpenAI-compatible services are labeled
+cloud-reachable and no longer receive a localhost default. Machine-local endpoint
+values are rejected on validation/save. Hosted providers and remote-compatible
+services remain available; endpoint reachability still requires Check Connection.
+
+Cloud no longer advertises Claude Code/Droid agent runtimes merely because an
+executable is present in the image. Its runtime catalog is empty, enablement is
+rejected, and direct agent-runtime CLI execution is guarded. OpenClaw remains the
+cloud execution engine. This does not remove unrelated server-side CLI tools.
+On-prem keeps its local model defaults and agent CLI choices. Agent creation and
+editing explain the relevant deployment's execution options.
+
+Stale browser-local model/CLI settings do not establish cloud readiness, and
+stale machine-local compatible endpoints cannot mask otherwise valid hosted
+credentials. No existing agent files are rewritten. Only the model wizard can
+auto-open for missing credentials, avoiding stacked dialogs on empty cloud setup.
+
+Validation: root lint/server TypeScript and production build passed. Focused suites
+passed: BYOK 29, integrations routes 14, deployment environment 31, model discovery
+12, integration validation 23, agent runtime 91, and execution environment 22.
+Full client TypeScript has 290 existing diagnostics versus the 291 baseline, with
+no new diagnostics (the touched key-availability helper now accepts null config).
+No full release/integration gate was rerun for this source-only follow-up.
+
+The synthetic browser script supports `BYOK_TEST_DEPLOYMENT_KIND=cloud` or
+`onprem`. Both passed at 1440×900, 1280×600, 390×844, and 320×568: available/hidden
+controls, local endpoint rejection, remote endpoint saving, browser-key save/reload, validation error
+and progress, fixed Save bounds, Runtime/Partners, and agent creation/edit copy.
+Desktop/mobile screenshots were inspected; BYOK was checked in light/dark mode.
+No real keys, agents, schedules, VM lifecycle, or live instance configuration were
+changed. This still requires a new image and canary acceptance; immutable RC77
+images are unchanged.
