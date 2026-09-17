@@ -22,6 +22,7 @@
 | [planning/RC77_STABILITY_AND_CHAT_2026-09-16.md](planning/RC77_STABILITY_AND_CHAT_2026-09-16.md) | RC77 sign-in, skill feedback, chat download/contrast, validation evidence, and rollout gates |
 | [planning/RC78_BYOK_AND_CLOUD_2026-09-17.md](planning/RC78_BYOK_AND_CLOUD_2026-09-17.md) | RC78 BYOK sizing, cloud execution availability, release validation, and image gates |
 | [planning/RC79_RUNTIME_2026-09-17.md](planning/RC79_RUNTIME_2026-09-17.md) | RC79 gateway startup/health fixes, local model diagnosis, and remaining release gates |
+| [planning/RC80_DOCUMENT_PDF_2026-09-17.md](planning/RC80_DOCUMENT_PDF_2026-09-17.md) | RC80 source-only document PDF feature, validation evidence, limits, and pending release gates |
 | [planning/RC70_TEST10_RUNTIME_HANDOFF_2026-09-11.md](planning/RC70_TEST10_RUNTIME_HANDOFF_2026-09-11.md) | RC69 test10 evidence and RC70 gateway, lifecycle, storage, identity, and Operations API gates |
 | [planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md) | Active two-day target with separate AI Builder, Telegram, Discord, and Slack candidates plus 71.2% branch coverage |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
