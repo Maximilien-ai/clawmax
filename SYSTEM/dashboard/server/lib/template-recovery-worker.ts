@@ -6,7 +6,7 @@ export interface RecoveryClock {
   now(): number
   schedule(task: () => Promise<void>, delayMs: number): () => void
 }
-const clock: RecoveryClock = {
+const systemClock: RecoveryClock = {
   now: Date.now,
   schedule(task, delayMs) {
     const timer = setTimeout(() => { void task() }, delayMs)
@@ -30,7 +30,7 @@ export class TemplateRecoveryWorker {
   private nextRetryAt: string | null = null
   private lastCompletedAt: string | null = null
 
-  constructor(workspaces: ReadonlyArray<Workspace>, private recover: (workspace: Workspace) => Promise<void>, private clock: RecoveryClock = clock) {
+  constructor(workspaces: ReadonlyArray<Workspace>, private recover: (workspace: Workspace) => Promise<void>, private clock: RecoveryClock = systemClock) {
     for (const workspace of workspaces) this.pending.set(path.resolve(workspace.path), { ...workspace })
   }
   diagnostics() {

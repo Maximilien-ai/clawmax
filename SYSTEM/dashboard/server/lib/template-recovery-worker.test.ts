@@ -29,6 +29,25 @@ function fakeClock() {
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-recovery-worker-'))
   try {
+    // Production omits the injected clock, including when startup has no quarantine.
+    const defaultEmpty = new TemplateRecoveryWorker([], async () => { throw new Error('Unexpected recovery') })
+    defaultEmpty.start()
+    assert.equal(defaultEmpty.diagnostics().status, 'complete')
+    defaultEmpty.stop()
+    let defaultCalls = 0
+    const defaultPending = new TemplateRecoveryWorker([{ id: 'default', path: root }], async () => { defaultCalls++ })
+    const beforeStart = Date.now()
+    try {
+      defaultPending.start()
+      const diagnostics = defaultPending.diagnostics()
+      assert.equal(diagnostics.status, 'waiting')
+      const nextRetry = Date.parse(diagnostics.nextRetryAt!)
+      assert(nextRetry >= beforeStart + 30_000 && nextRetry <= Date.now() + 30_000)
+    } finally { defaultPending.stop() }
+    assert.equal(defaultPending.diagnostics().status, 'stopped')
+    assert.equal(defaultPending.diagnostics().nextRetryAt, null)
+    assert.equal(defaultCalls, 0, 'Default timer must not run recovery immediately')
+
     const workspace = { id: 'recover', path: path.join(root, 'recover') }
     const id = 'tr-0123456789abcdef-agent-0123456789ab'
     let available = true
