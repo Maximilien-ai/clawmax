@@ -80,7 +80,12 @@ async function main() {
     assert.equal(await reopened.recover(digest => digest === planDigest), 'committed')
     assert.deepEqual((await transport.snapshot()).entries[agentId], entry(root))
     await assert.rejects(transaction.register(planDigest, { [agentId]: entry(root) }), /already exists/)
-    await transport.patch({ [agentId]: null }, (await transport.snapshot()).hash)
+    await reopened.prepareCleanup(planDigest)
+    assert.deepEqual((await transport.snapshot()).entries[agentId], entry(root), 'Preparing cleanup must not mutate the gateway')
+    assert.equal(await reopened.recover(() => true), 'committed', 'Uncommitted cleanup retains registrations')
+    await reopened.prepareCleanup(planDigest)
+    assert.equal(await reopened.recover(() => false), 'rolled-back')
+    assert(!fs.existsSync(path.join(root, '.clawmax/template-gateway-revisions', `${planDigest}.json`)))
 
     // Actual process exit after the synthetic server durably commits its patch.
     const child = spawnSync(process.execPath, ['-r', 'ts-node/register/transpile-only', __filename, '--crash', root], { encoding: 'utf8', timeout: 15000 })

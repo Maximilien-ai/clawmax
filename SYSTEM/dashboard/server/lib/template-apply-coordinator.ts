@@ -1,7 +1,7 @@
 import path from 'path'
 import { InstanceTemplateCatalog } from './instance-template-catalog'
 import { PortableTemplateError } from './portable-template-zip'
-import { TemplateRevisionRequest, TemplateRevisionStore } from './template-revisions'
+import { TemplateResourceOwnership, TemplateRevisionRequest, TemplateRevisionStore } from './template-revisions'
 import { TemplateGatewayEntry, TemplateGatewayTransaction } from './template-gateway-transaction'
 import { recoverWorkspaceFileTransaction } from './workspace-file-transaction'
 
@@ -18,7 +18,7 @@ export class TemplateApplyCoordinator {
     private store: TemplateRevisionStore,
     private gateway: TemplateGatewayTransaction,
     private agentStateRoot: string,
-    private checkpoint?: (phase: 'gateway-registered' | 'resources-committed') => void,
+    private checkpoint?: (phase: 'gateway-registered' | 'resources-committed' | 'cleanup-prepared' | 'cleanup-committed') => void,
   ) {
     this.root = path.resolve(store.workspacePath)
     if (gateway.workspacePath !== this.root) throw new PortableTemplateError('invalid_plan', 'Gateway and resource transactions must target the same workspace')
@@ -34,6 +34,32 @@ export class TemplateApplyCoordinator {
     return this.gateway.recover(digest => this.store.history().some(revision => revision.planDigest === digest && !revision.cleanedAt))
   }
   recover() { return this.exclusive(() => this.reconcile()) }
+
+  async cleanup(actorId: string, revisionId: string, expectedRevision: string | null, planDigest: string, assertStopped: (resources: TemplateResourceOwnership) => void) {
+    return this.exclusive(async () => {
+      // Authorize before recovery so an unrelated actor cannot trigger cleanup.
+      const revision = this.store.history().find(item => item.id === revisionId)
+      if (!revision || revision.actorId !== actorId) throw new PortableTemplateError('revision_forbidden', 'Revision cleanup is not authorized', 403)
+      await this.reconcile()
+      if (revision.cleanedAt) return this.store.cleanup(actorId, revisionId, expectedRevision, assertStopped)
+      const plan = this.store.planCleanup(actorId, revisionId, expectedRevision, assertStopped)
+      if (plan.planDigest !== planDigest) throw new PortableTemplateError('stale_plan', 'Cleanup plan changed; plan again', 409)
+      try {
+        await this.gateway.prepareCleanup(revision.planDigest)
+        this.checkpoint?.('cleanup-prepared')
+        // Recheck resource contents and stopped state after gateway awaits.
+        const fresh = this.store.planCleanup(actorId, revisionId, expectedRevision, assertStopped)
+        if (fresh.planDigest !== planDigest) throw new PortableTemplateError('stale_plan', 'Cleanup plan changed; plan again', 409)
+        const result = this.store.cleanup(actorId, revisionId, expectedRevision, assertStopped)
+        this.checkpoint?.('cleanup-committed')
+        await this.reconcile()
+        return result
+      } catch (error) {
+        await this.reconcile()
+        throw error
+      }
+    })
+  }
 
   async apply(actorId: string, request: TemplateRevisionRequest, planDigest: string) {
     return this.exclusive(async () => {

@@ -140,13 +140,37 @@ export class TemplateRevisionStore {
   }
   history() { return this.read().state.revisions.map(publicRevision) }
   currentRevision() { return this.read().state.current }
+  planCleanup(actorId: string, revisionId: string, expectedRevision: string | null, assertStopped: (resources: TemplateResourceOwnership) => void) {
+    const { state } = this.read()
+    const revision = state.revisions.find(entry => entry.id === revisionId)
+    if (!revision || revision.actorId !== actorId) throw new PortableTemplateError('revision_forbidden', 'Revision cleanup is not authorized', 403)
+    if (revision.cleanedAt) throw new PortableTemplateError('revision_cleaned', 'Revision was already cleaned', 409)
+    if (state.current !== expectedRevision) throw new PortableTemplateError('stale_revision', 'Workspace revision changed; plan cleanup again', 409)
+    assertStopped(structuredClone(revision.resources))
+    for (const item of revision.undo) {
+      const file = templateStoragePath(this.workspacePath, item.path)
+      if (fs.existsSync(file)) {
+        const stat = fs.statSync(file)
+        if (!stat.isFile() || stat.size > 2 * 1024 * 1024) throw new PortableTemplateError('resource_conflict', 'Revision-owned resource is not a bounded regular file', 409)
+      }
+      const digest = fs.existsSync(file) ? sha256(fs.readFileSync(file)) : null
+      if (digest !== item.expectedSha256) throw new PortableTemplateError('resource_conflict', 'Revision-owned resources changed; cleanup requires inspection', 409)
+    }
+    const payload = {
+      apiVersion: 'clawmax.instance/v1' as const, kind: 'TemplateCleanupPlan' as const,
+      workspaceId: this.workspaceId, actorId, revisionId, expectedRevision,
+      resources: structuredClone(revision.resources),
+      changes: revision.undo.map(item => ({ path: item.path, before: item.expectedSha256, after: item.content === null ? null : sha256(item.content) })),
+    }
+    return { ...payload, planDigest: sha256(canonical(payload)) }
+  }
   cleanup(actorId: string, revisionId: string, expectedRevision: string | null, assertStopped: (resources: TemplateResourceOwnership) => void) {
     const { state, bytes } = this.read()
     const revision = state.revisions.find(entry => entry.id === revisionId)
     if (!revision || revision.actorId !== actorId) throw new PortableTemplateError('revision_forbidden', 'Revision cleanup is not authorized', 403)
     if (revision.cleanedAt) return { removed: false, currentRevision: state.current, revision: publicRevision(revision) }
     if (state.current !== expectedRevision) throw new PortableTemplateError('stale_revision', 'Workspace revision changed; plan cleanup again', 409)
-    assertStopped(revision.resources)
+    assertStopped(structuredClone(revision.resources))
     revision.cleanedAt = new Date().toISOString()
     state.current = `cleanup_${sha256(`${revision.id}:${revision.cleanedAt}`).slice(0, 32)}`
     commitWorkspaceFiles(this.workspacePath, [...revision.undo, { path: stateRelativePath, expectedSha256: sha256(bytes!), content: JSON.stringify(state) }])

@@ -13,10 +13,10 @@ import { TemplateGatewayTransaction, TemplateGatewayTransport } from './template
 import { TemplateApplyCoordinator } from './template-apply-coordinator'
 import { recoverTemplatesBeforeStartup } from './template-startup-recovery'
 
-function components(root: string, options: { checkpoint?: (phase: string) => void; afterPatch?: () => void } = {}) {
+function components(root: string, options: { checkpoint?: (phase: string) => void; afterPatch?: () => void; beforeSnapshot?: () => void } = {}) {
   const file = path.join(root, 'synthetic-gateway.json')
   const transport: TemplateGatewayTransport = {
-    async snapshot() { return JSON.parse(fs.readFileSync(file, 'utf8')) },
+    async snapshot() { options.beforeSnapshot?.(); return JSON.parse(fs.readFileSync(file, 'utf8')) },
     async patch(entries, hash) {
       const state = JSON.parse(fs.readFileSync(file, 'utf8'))
       assert.equal(hash, state.hash)
@@ -60,6 +60,13 @@ async function main() {
     const plan = await store.plan('actor', request)
     await coordinator.apply('actor', request, plan.planDigest)
     throw new Error('Expected crash checkpoint')
+  }
+  if (process.argv[2] === '--cleanup-crash') {
+    const { coordinator, store } = components(process.argv[3], { checkpoint: phase => { if (phase === process.argv[4]) process.exit(77) } })
+    const revision = store.history()[0]
+    const plan = store.planCleanup('actor', revision.id, store.currentRevision(), () => {})
+    await coordinator.cleanup('actor', revision.id, plan.expectedRevision, plan.planDigest, () => {})
+    throw new Error('Expected cleanup process loss')
   }
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-apply-coordinator-'))
   try {
@@ -105,6 +112,70 @@ async function main() {
       assert.equal(store.history().length, 1)
       await assert.rejects(coordinator.apply('actor', { ...request, bindings: { ...request.bindings, producer: 'changed' } }, plan.planDigest), /Apply key/)
     }
+    for (const phase of ['cleanup-prepared', 'cleanup-committed', 'cleanup-response-lost', 'cleanup-normal']) {
+      const workspace = path.join(root, phase)
+      await setup(workspace)
+      let loseResponse = false
+      let recoveryUnavailable = false
+      const { coordinator, store, request, transport } = components(workspace, { afterPatch: () => {
+        if (loseResponse) { recoveryUnavailable = true; throw new Error('Synthetic cleanup response loss') }
+      }, beforeSnapshot: () => { if (recoveryUnavailable) throw new Error('Synthetic gateway unavailable after response loss') } })
+      const applyPlan = await store.plan('actor', request)
+      const applied = await coordinator.apply('actor', request, applyPlan.planDigest)
+      const revisionId = applied.revision.id
+      const revisionBefore = store.currentRevision()
+      const ledgerFile = path.join(workspace, 'SYSTEM/.clawmax/template-revisions.json')
+      const ledgerBefore = fs.readFileSync(ledgerFile)
+      const rosterBefore = await transport.snapshot()
+      const cleanupPlan = store.planCleanup('actor', revisionId, revisionBefore, () => {})
+      assert.deepEqual(fs.readFileSync(ledgerFile), ledgerBefore, 'Cleanup planning cannot write the ledger')
+      assert.deepEqual(await transport.snapshot(), rosterBefore, 'Cleanup planning cannot change the gateway')
+      assert(!JSON.stringify(cleanupPlan).includes(workspace), 'Cleanup plans must not expose absolute runtime paths')
+      assert(!JSON.stringify(applied.revision).includes('agentDir'), 'Private registration receipts must not leak through revisions')
+      await assert.rejects(coordinator.cleanup('other', revisionId, revisionBefore, cleanupPlan.planDigest, () => {}), /not authorized/)
+      await assert.rejects(coordinator.cleanup('actor', revisionId, revisionBefore, 'wrong-plan', () => {}), /plan changed/)
+      await assert.rejects(coordinator.cleanup('actor', revisionId, revisionBefore, cleanupPlan.planDigest, () => { throw new Error('Still running') }), /Still running/)
+      assert(!fs.existsSync(path.join(workspace, '.clawmax/template-gateway-transaction.json')))
+      const agentId = applied.revision.resources.agents.producer
+      const identityFile = path.join(workspace, 'AGENTS', agentId, 'IDENTITY.md')
+      const identityBefore = fs.readFileSync(identityFile)
+      fs.writeFileSync(identityFile, 'Operator edit')
+      assert.throws(() => store.planCleanup('actor', revisionId, revisionBefore, () => {}), /resources changed/)
+      fs.writeFileSync(identityFile, identityBefore)
+      const originalEntry = rosterBefore.entries[agentId] as any
+      await transport.patch({ [agentId]: { ...originalEntry, name: 'Operator edit' } }, (await transport.snapshot()).hash)
+      await assert.rejects(coordinator.cleanup('actor', revisionId, revisionBefore, cleanupPlan.planDigest, () => {}), /changed outside/)
+      assert.deepEqual(fs.readFileSync(ledgerFile), ledgerBefore)
+      await transport.patch({ [agentId]: originalEntry }, (await transport.snapshot()).hash)
+
+      if (phase === 'cleanup-prepared' || phase === 'cleanup-committed') {
+        const child = spawnSync(process.execPath, ['-r', 'ts-node/register/transpile-only', __filename, '--cleanup-crash', workspace, phase], { encoding: 'utf8', timeout: 15000 })
+        assert.equal(child.status, 77, child.stderr)
+        assert(fs.existsSync(path.join(workspace, '.clawmax/template-gateway-transaction.json')))
+        await recoverTemplatesBeforeStartup([{ id: 'workspace', path: workspace }], transport, path.join(workspace, 'runtime'))
+        assert.equal(Boolean(store.history()[0].cleanedAt), phase === 'cleanup-committed')
+        assert.equal(Object.keys((await transport.snapshot()).entries).length, phase === 'cleanup-committed' ? 1 : 3)
+      }
+      // Catalog removal never cascades; retained ownership receipts must suffice.
+      new InstanceTemplateCatalog(workspace, 'workspace').remove(request.templateId)
+      if (phase === 'cleanup-response-lost') {
+        loseResponse = true
+        await assert.rejects(coordinator.cleanup('actor', revisionId, revisionBefore, cleanupPlan.planDigest, () => {}), /gateway unavailable/)
+        assert(store.history()[0].cleanedAt, 'Resource commit remains authoritative after response loss')
+        assert(fs.existsSync(path.join(workspace, '.clawmax/template-gateway-transaction.json')))
+        loseResponse = false
+        recoveryUnavailable = false
+      }
+      await coordinator.cleanup('actor', revisionId, revisionBefore, cleanupPlan.planDigest, () => {})
+      const replay = await coordinator.cleanup('actor', revisionId, revisionBefore, cleanupPlan.planDigest, () => { throw new Error('Cleaned retry cannot stop unrelated resources') })
+      assert(!replay.removed)
+      assert(store.history()[0].cleanedAt, 'Preserve cleaned revision history')
+      assert.deepEqual((await transport.snapshot()).entries, { unrelated: { name: 'Preserve' } })
+      assert(!fs.existsSync(identityFile))
+      assert(!fs.existsSync(path.join(workspace, '.clawmax/template-gateway-transaction.json')))
+      assert(!fs.existsSync(path.join(workspace, '.clawmax/template-gateway-revisions', `${applyPlan.planDigest}.json`)))
+    }
+
     const revoked = path.join(root, 'revoked')
     await setup(revoked)
     let changed = false
