@@ -136,16 +136,33 @@ async function main() {
 
     const orphanWorkspace = path.join(root, 'uncommitted-workspace')
     const orphanId = 'tr-bbbbbbbbbbbbbbbb-agent-bbbbbbbbbbbb'
-    await new TemplateGatewayTransaction(orphanWorkspace, transport).register('b'.repeat(64), { [orphanId]: {
-      name: 'Uncommitted recovery fixture', workspace: path.join(orphanWorkspace, 'AGENTS', orphanId),
-      agentDir: path.join(state, 'agents', orphanId, 'agent'), model: 'openai/gpt-4.1-mini',
+    const secondOrphanId = 'tr-bbbbbbbbbbbbbbbb-agent-cccccccccccc'
+    const orphanEntry = (id: string) => ({
+      name: 'Uncommitted recovery fixture', workspace: path.join(orphanWorkspace, 'AGENTS', id),
+      agentDir: path.join(state, 'agents', id, 'agent'), model: 'openai/gpt-4.1-mini',
       skills: [], tools: { deny: ['*'] }, heartbeat: { every: '0m' },
-    } })
+    })
+    const beforeOrphans = await transport.snapshot()
+    await new TemplateGatewayTransaction(orphanWorkspace, transport).register('b'.repeat(64), {
+      [orphanId]: orphanEntry(orphanId), [secondOrphanId]: orphanEntry(secondOrphanId),
+    })
     assert(Object.hasOwn((await transport.snapshot()).entries, orphanId))
+    await assert.rejects(transport.patch({ [orphanId]: null, [secondOrphanId]: null }, beforeOrphans.hash), 'Stale revisions must not delete Agents')
+    assert(Object.hasOwn((await transport.snapshot()).entries, secondOrphanId))
+    const lostResponseTransport = {
+      snapshot: transport.snapshot,
+      async patch(entries: Parameters<typeof transport.patch>[0], hash: string) {
+        await transport.patch(entries, hash)
+        throw new Error('Synthetic lost rollback response after native commit')
+      },
+    }
+    await assert.rejects(recoverTemplatesBeforeStartup([{ id: 'uncommitted', path: orphanWorkspace }], lostResponseTransport, path.join(state, 'agents')), /rollback requires recovery/)
+    assert(fs.existsSync(path.join(orphanWorkspace, '.clawmax/template-gateway-transaction.json')))
+    assert.deepEqual((await transport.snapshot()).entries, after.entries, 'Native batch rollback must preserve all unrelated registrations')
     await recoverTemplatesBeforeStartup([{ id: 'uncommitted', path: orphanWorkspace }], transport, path.join(state, 'agents'))
     assert.deepEqual((await transport.snapshot()).entries, after.entries, 'Rollback must remove only the uncommitted native registration')
     assert(!fs.existsSync(path.join(orphanWorkspace, '.clawmax/template-gateway-transaction.json')))
-    console.log('Isolated real OpenClaw gateway: staging, replay, committed journal recovery, uncommitted rollback, and unrelated roster preservation passed; no model calls; no process-crash claim')
+    console.log('Isolated real OpenClaw gateway: staging, replay, committed journal recovery, two-Agent rollback, stale-revision rejection, lost-response retry, and unrelated roster preservation passed; no model calls; no process-crash claim')
   } catch (error: any) {
     const safe = `${error.message}\n${logs}`.split(token).join('[test-token-redacted]')
     throw new Error(safe)
