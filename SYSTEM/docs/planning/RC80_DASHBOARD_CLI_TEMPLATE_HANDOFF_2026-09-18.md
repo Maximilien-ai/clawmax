@@ -133,10 +133,32 @@ with preserved Group entry/routing edges, Workflow success/failure branches,
 handoffs, managed ownership, schedules, limits, and inter-workflow dependencies.
 Ambiguous digest references are rejected. Compiled Agents remain
 `pending-authority`, Groups `stopped`, and Workflows disabled. Focused tests,
-server TypeScript, and ESLint passed. This stage does not persist canonical
-resources or register gateway agents; those adapters and execution-time
-enforcement remain required before advertising plan/apply. The complex graph
+server TypeScript, and ESLint passed. This pure stage does not itself persist
+resources or register gateway agents. The complex graph
 tests exercise lowering directly, not additional ZIP admission or real execution.
+
+Checkpoint `de8ea24b` adds an internal canonical file adapter, exercised through
+the revision store in a disposable workspace. Native readers recognize Agent
+identity/instruction files, Group membership, and disabled/blocked Workflow
+Markdown; adjacent JSON retains the complete graph. Agent model selections
+remain requests, not runtime bindings. Skills, credential requirements, and
+nonempty bindings are rejected until authority admission exists. Reserved
+compiled resource IDs are blocked at Agent turn and Workflow trigger boundaries,
+including manual triggers; removing metadata does not bypass that guard.
+
+Tests cover no-write planning, interrupted-write rollback, idempotent apply,
+reopened revision state, native discovery, blocked execution without run-state
+creation, exact cleanup/reapply, and preservation of unrelated Groups. Cleanup
+currently fails safely if the shared Group registry changed after apply; it does
+not yet merge removal around later edits. Empty resource directories can remain
+after rollback/cleanup, but native Agent discovery excludes them. Legacy Agent
+execution, Workflow, and communication-target suites also passed, along with
+server TypeScript and ESLint.
+
+This is not production deployment acceptance: gateway registration/recovery,
+server-owned authority bindings, full graph execution, safe merge-aware cleanup,
+public revision APIs, and UI presentation remain outstanding. No apply endpoint
+or execution capability was enabled, and neither canary was changed.
 
 Afterward, run the Template-first acceptance twice in an isolated development
 workspace, proving real Agent replies, Group communication, correlated
