@@ -452,5 +452,32 @@ or release acceptance.
 
 Dashboard [CI run 35375477872](https://github.com/Maximilien-ai/clawmax/actions/runs/35375477872)
 at `d24e837f` failed in the test job's **Start dashboard server** step; diagnosis
-is still required. RC80 is not approved. Public Operations apply remains disabled;
+was pending at this checkpoint (resolved below). RC80 is not approved. Public Operations apply remains disabled;
 no images, schedules, or canary installations changed in this checkpoint.
+
+### Startup fix and repeated local foundation acceptance
+
+`162e8bde` fixes the recovery worker's self-referencing default clock parameter,
+which threw before the server listener started. The regression test reproduced
+the exact startup error before the fix and now exercises the production default
+clock with both empty and pending recovery queues, scheduling and cancellation.
+Worker, admission, serving-gate and real loopback HTTP tests, server TypeScript,
+and lint passed. [Full CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35380667836)
+and [CodeQL](https://github.com/Maximilien-ai/clawmax/actions/runs/35380665531)
+both passed at that commit.
+
+The patched prepared native gateway harness then passed **twice consecutively**
+on this source, each with its own disposable state and Gateway process. Both
+proved staging, replay, committed-journal recovery, two-Agent rollback,
+stale-revision rejection, lost-response retry, and unrelated roster preservation.
+The CLI catalog interoperability runner also passed against CLI source
+`8fdb63983ea1180f174cd29296c8c1e6aff589aa`, reporting `darwin/arm64` and correctly
+omitting unsupported execution capabilities. No installed profiles or canaries
+were changed; test-owned temporary resources were cleaned up.
+
+These are **foundation passes, not the two end-to-end acceptance passes**:
+no model calls, Group conversations, Workflow executions, or native process-crash
+acceptance were performed. Template runtime admission remains closed; public
+plan/apply/revision cleanup and execution authority still need implementation.
+Complete those Dashboard-owned contracts and CLI integration before the required
+real-response acceptance. No RC80 images were dispatched; RC79 remains installed.
