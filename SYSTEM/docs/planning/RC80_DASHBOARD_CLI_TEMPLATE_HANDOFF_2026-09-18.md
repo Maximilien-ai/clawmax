@@ -82,8 +82,9 @@ file transaction/crash, and revision suites passed during implementation.
 Server TypeScript and ESLint passed. The focused suites are included in
 `SYSTEM/test.sh`; final full-suite CI remains a separate gate.
 
-Real cross-repository acceptance passed against CLI checkout
-`4e3f140a72a1908961bb18b321e17684af70f12d`:
+Initial catalog acceptance passed against CLI checkout `4e3f140a`.
+The updated capability and catalog contract passed against CLI checkout
+`ad5a32f9d8684e5bd3d91224f36144fd9e2440c7`, including capability fix `7a7839b`:
 
 ```sh
 cd SYSTEM/dashboard
@@ -97,17 +98,20 @@ including repeated removal. It deletes its test directory on exit, does not
 edit the CLI checkout, and never uses installed profiles or either canary.
 Go 1.26 is required by the tested CLI checkout.
 
-The runner deliberately reports the known native macOS capability rejection;
-catalog HTTP clients pass independently. This is not a claim that the full
-installed CLI command succeeds on a native macOS Dashboard.
+The runner now requires successful capability discovery matching the actual
+host OS and architecture; the observed result was `darwin/arm64`. It also
+asserts the exact catalog operation set and absence of unsupported workspace
+package, Skill/platform, Community, Group, and Workflow capabilities. Native
+catalog support does not imply Linux Skill execution or remote plan/apply.
+This verifies the source Go client, not publication or installation of RC5.
 
 ## CLI-owned follow-up
 
 1. Run the interoperability command against the current CLI source; retain the
    strict schemas and capability gating.
-2. Agree a capability representation that permits native development without
-   pretending the worker is Linux. CLI currently requires runtime OS `linux`.
-   Linux-only Skill compatibility must remain a separate check.
+2. Resolved: CLI `7a7839b` accepts native macOS catalog capability identity.
+   Preserve the separation between actual host identity and supported Linux
+   Skill execution platforms; the Dashboard contract test now enforces it.
 3. Keep remote plan/apply unavailable until Dashboard publishes and passes the
    production binding/revision/runtime contract. Never forward local policy
    paths or broker executable paths to Dashboard.

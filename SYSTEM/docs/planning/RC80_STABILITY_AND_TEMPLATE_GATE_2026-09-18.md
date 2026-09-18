@@ -122,9 +122,10 @@ for a non-mutating plan, atomic apply, revision inspection, and exact cleanup:
   be implemented before claiming end-to-end acceptance; current server router
   primarily exposes discovery/auth, workspace creation/listing and agent/
   workflow listing;
-- CLI capability runtime validation currently accepts only Linux. Native macOS
-  development must either use a real contained Linux runtime or gain an agreed
-  host/runtime distinction; never advertise a fictitious Linux runtime.
+- Native macOS catalog discovery is now supported by CLI `7a7839b` and verified
+  by the Dashboard interoperability runner against CLI `ad5a32f` (`darwin/arm64`).
+  Continue reporting actual host identity without implying Linux Skill execution;
+  unsupported execution and plan/apply capabilities remain absent.
 
 CLI owns typed clients, commands, help/JSON compatibility tests, and packaging
 after the server fixtures pass. Dashboard owns authorization, persistence,
