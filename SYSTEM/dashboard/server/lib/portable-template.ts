@@ -37,6 +37,14 @@ function parse(bytes: Buffer | undefined, schema: keyof typeof schemas): any {
   let data: any
   try { data = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) } catch { requirePortable(false, 'Invalid UTF-8 JSON') }
   requirePortable(validators[schema](data), `Unsupported or invalid ${schema} fields`)
+  const record = data as Record<string, any>
+  for (const field of ['name', 'objective', 'instructions']) if (field in record) requirePortable(record[field].trim(), `${field} must not be blank`)
+  if (record.createdAt) {
+    const [year, month, day] = record.createdAt.slice(0, 10).split('-').map(Number)
+    const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+    const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    requirePortable(month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1] && Number.isFinite(Date.parse(record.createdAt)), 'Invalid creation time')
+  }
   return data
 }
 function ordered(values: string[]) { requirePortable(values.every((value, i) => i === 0 || values[i - 1] < value), 'Values must be unique and canonically ordered') }
@@ -80,6 +88,7 @@ export async function validatePortableTemplate(bytes: Buffer): Promise<PortableT
   const manifest = parse(files.get('manifest.json'), 'manifest')
   requirePortable(Number.isFinite(Date.parse(manifest.createdAt)), 'Invalid creation time')
   ordered(manifest.secretRequirements.map((item: any) => item.name))
+  requirePortable(manifest.secretRequirements.every((item: any) => item.label.trim()), 'Secret requirement labels must not be blank')
   ordered(manifest.artifacts.map((item: any) => `${item.kind}\0${item.id}`))
   requirePortable(files.size === manifest.artifacts.length + 1 && manifest.artifacts.some((item: any) => item.kind === 'agent'), 'Template must declare all files and at least one agent')
   const artifacts: PortableArtifact[] = []
@@ -92,6 +101,7 @@ export async function validatePortableTemplate(bytes: Buffer): Promise<PortableT
       expandedBytes += [...agentFiles.values()].reduce((total, file) => total + file.length, 0)
       requirePortable(expandedBytes <= 256 * 1024 * 1024, 'Nested Template expansion limit exceeded')
       const identity = parse(agentFiles.get('manifest.json'), 'agentManifest')
+      requirePortable(identity.agent.name.trim(), 'Agent name must not be blank')
       requirePortable(Number.isFinite(Date.parse(identity.createdAt)) && agentFiles.size === identity.files.length + 1, 'Invalid agent file inventory')
       const paths = new Set<string>()
       for (const file of identity.files) {
@@ -110,8 +120,10 @@ export async function validatePortableTemplate(bytes: Buffer): Promise<PortableT
         const ids = new Set(definition.members.map((member: any) => member.id))
         requirePortable(definition.entryMemberIds.every((member: string) => ids.has(member)), 'Unknown Group entry member')
         for (const member of definition.members) { ordered(member.sendTo); requirePortable(member.sendTo.every((target: string) => target !== member.id && ids.has(target)), 'Unknown Group recipient') }
+        requirePortable(definition.members.every((member: any) => member.role.trim()), 'Group member roles must not be blank')
       } else {
         ordered(definition.steps.map((step: any) => step.id)); ordered(definition.runPolicy.dependsOn)
+        requirePortable(definition.steps.every((step: any) => step.objective.trim()), 'Workflow step objectives must not be blank')
         ordered(definition.edges.map((edge: any) => `${edge.from}\0${edge.to}\0${edge.condition}`))
         requirePortable(new Set(definition.edges.map((edge: any) => `${edge.from}\0${edge.to}`)).size === definition.edges.length, 'Duplicate Workflow transition')
         acyclic(definition.steps.map((step: any) => step.id), definition.edges.map((edge: any) => [edge.from, edge.to]))

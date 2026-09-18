@@ -28,6 +28,8 @@ async function main() {
   assert.equal(parsed.artifacts.length, 4)
   assert.equal(parsed.bundleSha256, sha256(valid))
   assert.equal(parsed.manifest.secretRequirements.length, 0)
+  await assert.rejects(validatePortableTemplate(await templateFixture((_files, manifest) => { manifest.name = '   ' })), /must not be blank/)
+  await assert.rejects(validatePortableTemplate(await templateFixture((_files, manifest) => { manifest.createdAt = '2026-02-30T00:00:00Z' })), /Invalid creation time/)
   await assert.rejects(validatePortableTemplate(await templateFixture((_files, manifest) => { manifest.apiKey = 'not-allowed' })), /manifest fields/)
   await assert.rejects(validatePortableTemplate(await templateFixture((_files, manifest) => { manifest.artifacts[0].sha256 = '0'.repeat(64) })), /digest mismatch/)
   await assert.rejects(validatePortableTemplate(await templateFixture((_files, manifest) => { manifest.artifacts.reverse() })), /canonically ordered/)
