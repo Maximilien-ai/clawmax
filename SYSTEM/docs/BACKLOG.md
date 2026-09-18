@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: August 31, 2026
+> Last updated: September 18, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Mini Sprint
@@ -18,6 +18,41 @@
   [MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md).
 
 ## Release Tracks
+
+- [ ] **RC81 — audit and expand ready-to-apply business templates (after stability)**
+  — begin after the [RC80 cloud/on-prem stability gate](planning/RC80_STABILITY_AND_TEMPLATE_GATE_2026-09-18.md)
+  passes; do not divert RC80 from runtime reliability.
+  - Audit the complete existing Agent, Team, and Company template catalog:
+    inventory, streamline instructions, remove stale assumptions and duplication,
+    repair dependencies/references, and verify each retained template applies
+    without editing its definition or prompts. Record fixes and application
+    evidence per template; do not silently discard existing catalog entries.
+  - Convert the existing **GTM agent** into a reusable Agent template, removing
+    instance/customer-specific state, credentials, and conversation history.
+    Identify and add a few complementary Agent templates based on audit gaps.
+  - Add **at least five Team templates**. Proposed starters: marketing/GTM,
+    sales/customer success, service operations/dispatch, finance/accounting,
+    and consulting/project delivery.
+  - Add **at least five complete small-to-medium-business Company templates**.
+    Proposed examples: Shopify-style e-commerce retailer, HVAC service company,
+    plumbing service company, solo consulting practice, and small consulting
+    agency. Each should include appropriately sized marketing/sales, operations
+    or service delivery, customer support, accounting/finance, and owner/management
+    functions, with coherent Teams, Groups, and Workflows. A solo consultant may
+    combine roles rather than inherit an oversized organization.
+  - Make every starter apply with safe defaults and sample business context,
+    without template customization. Distinguish successful application from live
+    execution: explain required model/provider configuration and optional external
+    integrations, never embed secrets, and keep recurring schedules and external
+    side effects disabled until explicitly configured and authorized.
+  - Acceptance: repeatable CLI-driven apply, inspect, smoke-test, cleanup, and
+    reapply for every retained/new template in isolated workspaces on cloud
+    (hosted LLM) and on-prem (local LLM); verify references, actual agent replies,
+    Group communication, Workflow results, and preservation of unrelated resources.
+  - Clearly label catalog entries, previews, and apply guidance as **starting
+    points to review and adapt**, not complete businesses or production-ready
+    operations merely because application succeeds. Keep optional business
+    tailoring separate from the zero-customization apply path.
 
 - [ ] **1.9.9 hotfix watch** — `v1.9.9` is promoted from RC6. Accept only reproducible release-blocking fixes on `release-1.9.9`; otherwise keep development on `main` for 2.0.
 
