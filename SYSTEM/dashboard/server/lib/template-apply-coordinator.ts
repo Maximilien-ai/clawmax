@@ -24,6 +24,8 @@ export class TemplateApplyCoordinator {
     if (gateway.workspacePath !== this.root) throw new PortableTemplateError('invalid_plan', 'Gateway and resource transactions must target the same workspace')
     if (!path.isAbsolute(agentStateRoot)) throw new PortableTemplateError('invalid_plan', 'Server agent state root must be absolute')
   }
+  get workspacePath(): string { return this.root }
+  get workspaceId(): string { return this.store.workspaceId }
   private async exclusive<T>(operation: () => Promise<T>): Promise<T> {
     if (active.has(this.root)) throw new PortableTemplateError('workspace_busy', 'Template apply or recovery is in progress', 409)
     active.add(this.root)
