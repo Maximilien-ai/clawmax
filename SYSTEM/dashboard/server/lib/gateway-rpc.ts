@@ -573,6 +573,16 @@ export class GatewayRPCClient {
     }
   }
 
+  /** Compare-and-swap a scoped Template roster patch; never retry without the
+   * original revision. The transaction coordinator reconciles ambiguous writes.
+   */
+  async patchTemplateAgentEntriesAtRevision(entries: Record<string, Record<string, unknown> | null>, baseHash: string): Promise<void> {
+    if (!baseHash || typeof baseHash !== 'string' || Object.keys(entries).length === 0 || Object.keys(entries).some(id => !/^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(id))) {
+      throw new Error('A configuration revision and scoped Template agent IDs are required')
+    }
+    await this.callConfig('config.patch', { raw: JSON.stringify({ agents: { entries } }), baseHash })
+  }
+
   /**
    * Get config via Gateway RPC
    * Returns the full response including { config, resolved, hash, valid, issues, warnings }
