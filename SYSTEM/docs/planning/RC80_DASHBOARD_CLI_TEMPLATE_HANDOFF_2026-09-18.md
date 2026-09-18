@@ -321,11 +321,45 @@ during recovery, and an empty queue. Quarantine/admission and coordinator crash
 tests, server TypeScript, and lint also passed. The new suite is in `SYSTEM/test.sh`.
 These tests use a simulated gateway, not either installed canary.
 
-**Still outstanding:** active-workspace recovery-only HTTP serving and startup
-resumption. Active-workspace failure still stops startup before the retry worker
-starts. Existing routes assume readable active-workspace data; they require a
-recovery request gate before this restriction can safely be relaxed. The worker
-does not enable Template execution, recurring schedules, or CLI plan/apply.
+At this checkpoint active-workspace failure still stopped startup before the
+retry worker. The follow-up below adds the required recovery request gate.
+The worker does not enable Template execution, recurring schedules, or CLI
+plan/apply.
+
+### Active workspace recovery serving checkpoint
+
+`a342b8e7` keeps HTTP serving in recovery-only mode after initial recovery fails
+or persistent-store readiness remains unavailable. Normal API requests, including
+authentication, CLI, runtime broker and resource routes, receive a versioned,
+retryable 503 before audit or route handlers can access workspace state. No
+workspace selection is changed. Static frontend assets can still be served;
+this checkpoint does not add a recovery-screen UI.
+
+- `GET /api/health/live`: process liveness only, **not deployment readiness**.
+- `GET /api/health`: remains 503 until store readiness and required gateway checks
+  pass.
+- `GET /api/recovery`: minimal public recovery mode and retry counters/times,
+  with no workspace identity, paths, transport errors, or credentials.
+
+The retry worker now includes the active workspace when needed. Successful
+journal recovery is insufficient: persistent-store checks must also pass before
+the request gate opens. Background services wait for both successful checks and
+the HTTP listener, start once, and cannot resume after shutdown. No blanket
+Template execution restriction is removed.
+
+Focused serving-gate tests cover the method/path allowlist, auth/runtime/CLI
+blocking, retryable error contract with request IDs, no-store responses,
+readiness failure then retry success, exactly-once service startup and shutdown.
+Recovery-worker, coordinator crash, workspace quarantine and 15 startup-readiness
+checks passed; server TypeScript and lint passed. These are local contract tests,
+not live cloud/on-prem or real native-gateway crash acceptance.
+
+**Deployment follow-up:** configure liveness separately from readiness before
+canary acceptance; a supervisor using `/api/health` as a restart trigger may
+still interrupt recovery. No probe configuration, image, CLI package, installed
+instance, or recurring schedule was changed here. Full CI, live recovery,
+execution-time authority enforcement, graph execution and exact cleanup remain
+release gates.
 
 Afterward, run the Template-first acceptance twice in an isolated development
 workspace, proving real Agent replies, Group communication, correlated
