@@ -378,7 +378,8 @@ isolated: temporary config/state and process group, no installed profiles,
 disabled cron/tools/heartbeats, no model calls. Both runs cleaned up their own
 processes and disposable state; neither canary was touched.
 
-**Native rollback acceptance FAILED, and remains a release blocker.**
+**Historical checkpoint: native rollback acceptance FAILED.** The patched-runtime
+checkpoint below supersedes this failure; the unpatched runtime is not approved.
 
 1. First run: `config.patch` rejected removal of the staged Agent's `skills`
    and `tools.deny` arrays without exact `replacePaths` acknowledgements.
@@ -423,3 +424,33 @@ workspace, proving real Agent replies, Group communication, correlated
 Workflow run/results, cancellation, restart persistence, and exact cleanup
 while preserving unrelated resources. Only then build immutable public and
 combined RC80 images and repeat on test10 (hosted LLM) and MBP14 (local Qwen).
+
+### Patched native rollback and upstream submission
+
+`cc2f775c` adds the maintained source patch that derives exact existing keyed
+Agent-removal intent for revision-checked native config patches. Docker builds
+and local prepared-runtime builds apply it; the local cache stamp includes the
+patch checksum. It preserves revision checks and destructive-array acknowledgments.
+
+`d24e837f` extends the isolated native harness. The rebuilt `v2026.8.2` target
+passed staging/replay, committed-journal recovery, two-Agent rollback, stale
+revision rejection, retry after a deliberately lost response, and unrelated
+roster preservation. The harness cleaned up its disposable state/processes and
+made no model calls. This is not a native OS-process-crash acceptance claim.
+
+Upstream-only fix submitted as
+[OpenClaw PR #152052](https://github.com/openclaw/openclaw/pull/152052), linked to
+[issue #152047](https://github.com/openclaw/openclaw/issues/152047). Candidate
+commit: `9ca97086acf19482c854c13589ba350af6642dfa`, based on upstream main
+`df84d4a2cddbc0ae2c3d422cf8f147cbe916d3a2`. Only OpenClaw source and synthetic
+regression tests were submitted; no Dashboard implementation or instance details.
+The registered-handler regression failed before the fix; afterward 58 handler
+tests passed with one pre-existing skip. Persistence-preparation and write-flow
+suites, `pnpm check:changed`, and the required independent review also passed.
+The full upstream build/test suite was not run. Submission is not upstream merge
+or release acceptance.
+
+Dashboard [CI run 35375477872](https://github.com/Maximilien-ai/clawmax/actions/runs/35375477872)
+at `d24e837f` failed in the test job's **Start dashboard server** step; diagnosis
+is still required. RC80 is not approved. Public Operations apply remains disabled;
+no images, schedules, or canary installations changed in this checkpoint.
