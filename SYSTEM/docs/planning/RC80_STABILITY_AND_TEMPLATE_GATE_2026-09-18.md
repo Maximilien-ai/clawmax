@@ -18,7 +18,23 @@
 PDF is complete source work with green CI, not the main release goal:
 [PDF evidence](RC80_DOCUMENT_PDF_2026-09-17.md),
 [passed CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35283693046).
-No RC80 image has been built or deployed for this work.
+No RC80 image is accepted or deployed for this work.
+
+### Dev-first gate reaffirmed
+
+After green CI at `162e8bde`, candidate tag `v2.0.0-test-rc80` was created at
+`6353c390897a15f7d4e71c5bab17aa0d982214a9` and public image
+[run 35389167578](https://github.com/Maximilien-ai/clawmax/actions/runs/35389167578)
+was dispatched prematurely. The user reaffirmed dev acceptance first. Normal
+then force cancellation were requested; no combined build or deployment was
+started. Treat this tag and any partial build artifacts as abandoned and
+unapproved; do not move or reuse the tag for later source. The local ignored
+version setting was restored to RC79, matching the still-running dev process.
+
+Two native recovery passes and CLI catalog interoperability are green, but do
+not satisfy the real chat/Group/Workflow gate. Dashboard must complete execution
+authority and the plan/apply/revision-cleanup contracts, integrate them with CLI,
+and prove the full repeatable run contract below before another image build.
 
 ## Repeatable run contract
 
