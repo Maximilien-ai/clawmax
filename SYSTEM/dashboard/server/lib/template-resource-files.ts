@@ -6,6 +6,7 @@ import { PortableTemplateError } from './portable-template-zip'
 import { sha256 } from './portable-template'
 import { templateStoragePath } from './template-storage-path'
 import { WorkspaceFileMutation } from './workspace-file-transaction'
+import { resolveTemplateAuthority, TemplateAuthoritySource } from './template-authority'
 
 const line = (value: string) => value.replace(/[\r\n\u2028\u2029]/g, ' ').replace(/\*\*/g, '').trim()
 
@@ -15,11 +16,16 @@ const line = (value: string) => value.replace(/[\r\n\u2028\u2029]/g, ' ').replac
  * are integrated. Full graph sidecars preserve semantics legacy Markdown
  * readers cannot represent; those readers must never execute a flattened graph.
  */
-export function createTemplateResourceFileCompiler(workspacePath: string): TemplateCompiler {
-  return (bundle, request, prefix) => {
-    if (Object.keys(request.bindings).length || bundle.manifest.secretRequirements.length || bundle.artifacts.some(item => item.kind === 'agent' && (item.definition.skills.length || [...(item.files?.keys() || [])].some(file => file.startsWith('content/skills/'))))) {
+export function createTemplateResourceFileCompiler(workspacePath: string, authoritySource?: TemplateAuthoritySource): TemplateCompiler {
+  return (bundle, request, prefix, context) => {
+    if (bundle.artifacts.some(item => [...(item.files?.keys() || [])].some(file => file.startsWith('content/skills/')))) {
+      throw new PortableTemplateError('template_authority_unavailable', 'Embedded Skill files require a verified package installer', 409)
+    }
+    if (!authoritySource && (Object.keys(request.bindings).length || bundle.manifest.secretRequirements.length || bundle.artifacts.some(item => item.kind === 'agent' && item.definition.skills.length))) {
       throw new PortableTemplateError('template_authority_unavailable', 'Skill, policy, and credential bindings require server-owned authority admission', 409)
     }
+    if (authoritySource && !context) throw new PortableTemplateError('template_authority_unavailable', 'Server actor and workspace context are required', 409)
+    const authority = authoritySource ? resolveTemplateAuthority(bundle, request.bindings, context!, authoritySource) : undefined
     const graph = compileTemplateResourceGraph(bundle, prefix)
     const mutations: WorkspaceFileMutation[] = []
     const create = (relative: string, content: string) => {
@@ -33,6 +39,7 @@ export function createTemplateResourceFileCompiler(workspacePath: string): Templ
       create(`${dir}/IDENTITY.md`, `# Identity\n\n**Name:** ${line(agent.name)}\n**Tags:** ${agent.tags.join(', ')}\n\n${line(agent.description)}\n`)
       create(`${dir}/SOUL.md`, agent.instructions)
       create(`${dir}/TEMPLATE_RESOURCE.json`, JSON.stringify(agent))
+      if (authority) create(`${dir}/TEMPLATE_AUTHORITY.json`, JSON.stringify(authority.bindings.find(binding => binding.artifactId === agent.artifactId)))
       const groups = graph.groups.filter(group => group.members.some(member => member.agentId === agent.id))
       create(`${dir}/GROUPS.md`, `# Groups\n\n${groups.map(group => `- ${group.id}`).join('\n')}\n`)
     }
@@ -65,6 +72,9 @@ export function createTemplateResourceFileCompiler(workspacePath: string): Templ
         author: 'template', templateArtifactId: workflow.artifactId,
       }))
     }
-    return { resources: graph.resources, mutations, authorityDigest: sha256('clawmax.template.authority/pending-v1') }
+    return {
+      resources: graph.resources, mutations, authorityDigest: authority?.digest || sha256('clawmax.template.authority/pending-v1'),
+      ...(authority ? { authority: { registryRevision: authority.registryRevision, workspaceId: authority.workspaceId, bindings: authority.bindings } } : {}),
+    }
   }
 }

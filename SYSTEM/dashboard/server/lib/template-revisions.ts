@@ -5,6 +5,9 @@ import { PortableTemplate, sha256 } from './portable-template'
 import { PortableTemplateError } from './portable-template-zip'
 import { commitWorkspaceFiles, WorkspaceFileMutation } from './workspace-file-transaction'
 import { templateStoragePath } from './template-storage-path'
+import type { resolveTemplateAuthority } from './template-authority'
+
+type TemplateAuthorityEvidence = Omit<ReturnType<typeof resolveTemplateAuthority>, 'digest'>
 
 export interface TemplateBindingSelection { [artifactId: string]: string }
 export interface TemplateRevisionRequest {
@@ -24,8 +27,9 @@ export interface CompiledTemplate {
   mutations: WorkspaceFileMutation[]
   // Immutable server-owned authority identities, never secret values or paths.
   authorityDigest: string
+  authority?: TemplateAuthorityEvidence
 }
-export type TemplateCompiler = (bundle: PortableTemplate, request: TemplateRevisionRequest, resourcePrefix: string) => CompiledTemplate
+export type TemplateCompiler = (bundle: PortableTemplate, request: TemplateRevisionRequest, resourcePrefix: string, context?: { workspaceId: string; actorId: string }) => CompiledTemplate
 export interface TemplateRevisionPlan {
   apiVersion: 'clawmax.instance/v1'
   kind: 'TemplatePlan'
@@ -34,6 +38,7 @@ export interface TemplateRevisionPlan {
   request: TemplateRevisionRequest
   templateDigest: string
   authorityDigest: string
+  authority?: TemplateAuthorityEvidence
   resources: TemplateResourceOwnership
   changes: Array<{ path: string; before: string | null; after: string | null }>
   planDigest: string
@@ -41,6 +46,7 @@ export interface TemplateRevisionPlan {
 interface Revision {
   id: string; actorId: string; idempotencyKey: string; requestDigest: string
   planDigest: string; templateId: string; templateDigest: string; authorityDigest: string
+  authority?: TemplateAuthorityEvidence
   resources: TemplateResourceOwnership; createdAt: string; cleanedAt?: string
   // Private rollback/cleanup data never returned through the public API.
   undo: WorkspaceFileMutation[]
@@ -79,6 +85,7 @@ export class TemplateRevisionStore {
       apiVersion: 'clawmax.instance/v1' as const, kind: 'TemplatePlan' as const,
       workspaceId: this.workspaceId, actorId, request,
       templateDigest: bundle.bundleSha256, authorityDigest: compiled.authorityDigest,
+      ...(compiled.authority ? { authority: compiled.authority } : {}),
       resources: compiled.resources,
       changes: compiled.mutations.map(item => ({ path: item.path, before: item.expectedSha256, after: item.content === null ? null : sha256(item.content) })),
     }
@@ -91,7 +98,7 @@ export class TemplateRevisionStore {
     const state = this.read()
     if (state.state.current !== request.expectedRevision) throw new PortableTemplateError('stale_revision', 'Workspace revision changed; plan again', 409)
     const prefix = `tr-${sha256(canonical({ actorId, workspaceId: this.workspaceId, request })).slice(0, 16)}`
-    const compiled = this.compiler(bundle, request, prefix)
+    const compiled = this.compiler(bundle, request, prefix, { workspaceId: this.workspaceId, actorId })
     if (compiled.mutations.some(item => item.path === stateRelativePath)) throw new PortableTemplateError('invalid_plan', 'A Template cannot overwrite the revision ledger')
     return { ...state, compiled, plan: this.buildPlan(actorId, request, bundle, compiled) }
   }
@@ -124,6 +131,7 @@ export class TemplateRevisionStore {
       id: `rev_${planDigest.slice(0, 32)}`, actorId, idempotencyKey: request.idempotencyKey,
       requestDigest, planDigest, templateId: request.templateId,
       templateDigest: prepared.plan.templateDigest, authorityDigest: prepared.plan.authorityDigest,
+      ...(prepared.plan.authority ? { authority: prepared.plan.authority } : {}),
       resources: prepared.compiled.resources, createdAt: new Date().toISOString(), undo,
     }
     const next: RevisionState = { version: 1, current: revision.id, revisions: [...prepared.state.revisions, revision] }
