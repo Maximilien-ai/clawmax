@@ -22,6 +22,8 @@ grep -q 'Node.js 22.22.3+, 24.15.0+, or 25.9.0+' "$script_file" || fail "expecte
 grep -q 'pnpm install --frozen-lockfile --ignore-scripts' "$script_file" || fail "expected pnpm install command"
 grep -q 'npm run build:docker' "$script_file" || fail "expected docker-oriented OpenClaw build path"
 grep -q 'patch-openclaw-fs-safe.mjs' "$script_file" || fail "expected OpenClaw fs-safe compatibility patch"
+grep -q 'node "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs" "$src_dir"' "$script_file" || fail "expected explicit roster-removal source patch"
+grep -q 'cksum < "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs"' "$script_file" || fail "expected patch-aware runtime cache invalidation"
 grep -q 'postinstall-bundled-plugins.mjs' "$script_file" || fail "expected bundled plugin postinstall repair step"
 for channel in whatsapp discord telegram slack; do
   grep -q "\\\"$channel\\\"" "$script_file" || fail "expected $channel startup metadata smoke check"
