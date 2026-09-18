@@ -65,6 +65,7 @@ import { createTemplateGatewayTransport } from './lib/template-gateway-transacti
 import { getGatewayClient } from './lib/gateway-rpc'
 import { getWorkspaceManager } from './lib/workspace-manager'
 import { assertWorkspaceRecovered } from './lib/workspace-recovery-admission'
+import { TemplateRecoveryWorker } from './lib/template-recovery-worker'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -72,6 +73,7 @@ import { assertWorkspaceRecovered } from './lib/workspace-recovery-admission'
 
 const CRASH_LOG = path.join(__dirname, 'logs', 'crash.log')
 let startupReadiness: StartupReadiness | null = null
+let templateRecoveryWorker: TemplateRecoveryWorker | null = null
 
 function logToFile(message: string) {
   const timestamp = new Date().toISOString()
@@ -417,6 +419,7 @@ app.get('/api/system', protect, async (req, res) => {
       orgName: getOrgName() ?? null,
     }),
     scheduler: getSchedulerDiagnostics(),
+    templateRecovery: templateRecoveryWorker?.diagnostics() ?? null,
   })
 })
 
@@ -820,6 +823,12 @@ async function startServer(): Promise<void> {
   // Never silently switch the operator to a different workspace. Failed
   // inactive workspaces stay quarantined while a healthy active one can serve.
   assertWorkspaceRecovered(activeRoot)
+  templateRecoveryWorker = new TemplateRecoveryWorker(
+    workspaces.filter(workspace => recovery.blockedWorkspaceIds.includes(workspace.id)),
+    async workspace => {
+      await recoverTemplatesBeforeStartup([workspace], recoveryTransport, path.join(os.homedir(), '.openclaw', 'agents'))
+    },
+  )
   const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
   startupReadiness = verifyCorePersistentStateReadable([
     { name: 'agents', read: () => listAgents() },
@@ -839,6 +848,7 @@ async function startServer(): Promise<void> {
     logToFile(`Server started successfully on port ${PORT}`)
     logToFile(`Workspace: ${WORKSPACE}`)
     startBackgroundServices()
+    templateRecoveryWorker?.start()
   })
 }
 
@@ -849,5 +859,5 @@ void startServer().catch(error => {
 })
 
 // Graceful shutdown
-process.on('SIGTERM', () => { stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); stopPluginUsageMonitor(); shutdownOpik() })
-process.on('SIGINT', () => { stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); stopPluginUsageMonitor(); shutdownOpik() })
+process.on('SIGTERM', () => { templateRecoveryWorker?.stop(); stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); stopPluginUsageMonitor(); shutdownOpik() })
+process.on('SIGINT', () => { templateRecoveryWorker?.stop(); stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); stopPluginUsageMonitor(); shutdownOpik() })
