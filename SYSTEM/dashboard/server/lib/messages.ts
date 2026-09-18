@@ -30,7 +30,7 @@ function getMessagesDir(): string {
 }
 
 function getStoreKey(type: 'community' | 'group' | 'direct', name: string): string {
-  return `${type}:${name}`
+  return JSON.stringify([path.resolve(getWorkspacePath()), type, name])
 }
 
 /** Generate a canonical direct message key between two agents (alphabetical order) */
