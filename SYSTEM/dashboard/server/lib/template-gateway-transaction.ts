@@ -62,6 +62,7 @@ export function createTemplateGatewayTransport(client: Pick<GatewayRPCClient, 'g
 export class TemplateGatewayTransaction {
   private root: string
   constructor(workspacePath: string, private transport: TemplateGatewayTransport) { this.root = path.resolve(workspacePath) }
+  get workspacePath(): string { return this.root }
   private file() { return templateStoragePath(this.root, '.clawmax/template-gateway-transaction.json') }
   private validate(value: unknown): Journal {
     if (!validateJournal(value)) blocked('Invalid Template gateway transaction')
