@@ -59,6 +59,7 @@ import { listTemplates } from './lib/templates'
 import { listWorkflows } from './lib/workflows'
 import { createGatewayReadinessCheck, createHealthHandler, verifyCorePersistentStateReadable, type StartupReadiness } from './lib/startup-readiness'
 import { probeGatewayResponsive } from './lib/gateway-rpc'
+import { repairWorkspaceAgentRegistrations } from './lib/workspace-agent-registration'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -104,22 +105,15 @@ async function autoRegisterWorkspaceAgents(): Promise<void> {
     }
   } catch {}
 
-  const dirs = fs.readdirSync(agentsDir, { withFileTypes: true })
-  let fixed = 0
-  for (const d of dirs) {
-    if (!d.isDirectory() || d.name.startsWith('.') || d.name === 'archive') continue
-    if (registeredIds.has(d.name)) continue
-    try {
-      const ws = path.join(agentsDir, d.name)
-      if (!isManagedAgentWorkspaceDir(ws)) continue
-      const ad = path.join(os.homedir(), '.openclaw', 'agents', d.name, 'agent')
+  const fixed = await repairWorkspaceAgentRegistrations({
+    workspacePath: getWorkspacePath(), registeredIds, isManaged: isManagedAgentWorkspaceDir,
+    register: async (id, ws) => {
+      const ad = path.join(os.homedir(), '.openclaw', 'agents', id, 'agent')
       fs.mkdirSync(ad, { recursive: true })
-      await execFileAsync(openclawCli, ['agents', 'add', d.name, '--workspace', ws, '--agent-dir', ad, '--non-interactive'], { timeout: 10000 })
-      fixed++
-    } catch (err) {
-      logToFile(`Auto-register skipped for ${d.name}: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
+      await execFileAsync(openclawCli, ['agents', 'add', id, '--workspace', ws, '--agent-dir', ad, '--non-interactive'], { timeout: 10000 })
+    },
+    skipped: (id, err) => logToFile(`Auto-register skipped for ${id}: ${err instanceof Error ? err.message : String(err)}`),
+  })
 
   if (fixed > 0) console.log(`[Doctor] Auto-registered ${fixed} unregistered agent(s)`)
 }
