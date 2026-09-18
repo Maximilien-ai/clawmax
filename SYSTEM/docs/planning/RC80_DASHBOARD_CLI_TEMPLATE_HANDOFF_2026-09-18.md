@@ -514,3 +514,58 @@ ownership. Public plan/apply/revision/cleanup schemas and routes, runtime
 authority, Group/Workflow execution, and CLI integration remain required before
 the two full dev passes. Image builds remain held under the
 [reaffirmed dev-first gate](RC80_STABILITY_AND_TEMPLATE_GATE_2026-09-18.md#dev-first-gate-reaffirmed).
+
+### Gated lifecycle HTTP contract for CLI review
+
+`77b28616` implements the following authenticated, workspace-scoped HTTP contract
+under `/api/cli/v1/workspaces/:workspaceId`. It is **default-disabled**, not a
+remote deployment capability: production has no lifecycle resolver and returns
+503 `template_lifecycle_unavailable`. Catalog capabilities are unchanged. The
+isolated HTTP tests explicitly supply a server-owned service backed by the real
+file compiler, revision store, coordinator, and a synthetic gateway.
+
+| Method / route | JSON body | Response kind |
+| --- | --- | --- |
+| `POST package-plans` | Template request below | `TemplatePlan` |
+| `POST revisions` | `{request, planDigest}` | `TemplateApplyResult` |
+| `GET revisions` | none | `TemplateRevisionList` |
+| `GET revisions/:revisionId` | none | `TemplateRevision` |
+| `POST revisions/:revisionId/cleanup-plans` | `{expectedRevision}` | `TemplateCleanupPlan` |
+| `POST revisions/:revisionId/cleanup` | `{expectedRevision, planDigest}` | `TemplateCleanupResult` |
+
+The exact Template request fields are `templateId`, `expectedRevision` (string
+or null), `idempotencyKey`, and `bindings` (artifact ID to server-owned binding
+ID). Apply sends that unchanged request plus the server's 64-character hex
+`planDigest`. No client actor/workspace override, registry path, broker path,
+policy content, or credential value is accepted. Bodies require JSON, reject
+unknown fields, and are limited to 64 KiB. Workspace authorization precedes
+parsing. Both the store and coordinator must match the authorized workspace.
+
+All result envelopes use `apiVersion: clawmax.instance/v1`. Apply returns
+`workspaceId`, `created`, and `revision`, with 201 on creation and 200 on replay.
+Revision lists return `workspaceId`, `currentRevision`, and actor-filtered
+`items`; detail returns `workspaceId` and `revision`. Cleanup returns
+`workspaceId`, `removed`, `currentRevision`, and `revision`; `removed: false`
+means a successfully reconciled already-cleaned revision, not a cleanup error.
+Cleaned history remains inspectable. Revision output excludes private undo
+contents and native registration paths.
+
+Plans are non-mutating and include workspace/actor identity, resource maps,
+relative-path change hashes and their digest; apply plans also bind Template
+and authority evidence. Cleanup plans bind revision and expected workspace
+revision. Neither plan nor staging grants execution. Cleanup consults the
+server-supplied stopped-state assertion again after awaited gateway work.
+
+Real HTTP tests passed for no-write planning, apply/replay, private-data-free
+inspection, actor/workspace denial, wrong service binding, body limits,
+malformed/unknown fields, stale plans/revisions, stopped-state rejection,
+cleanup after catalog deletion, cleanup replay and unrelated-resource retention.
+Existing catalog HTTP tests, TypeScript and lint passed; the new suite is wired
+into `SYSTEM/test.sh`.
+
+**CLI handoff:** review these exact routes/envelopes before adding typed clients.
+Do not publish or advertise apply from this checkpoint. Dashboard still owns
+production service composition, current execution-time authority and membership
+revalidation, authoritative stopped-state checks, Group/Workflow graph execution,
+canonical UI visibility, and the two real-model dev passes. Capability discovery
+must stay catalog-only until those gates and the agreed CLI schemas pass.
