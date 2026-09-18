@@ -60,6 +60,10 @@ import { listWorkflows } from './lib/workflows'
 import { createGatewayReadinessCheck, createHealthHandler, verifyCorePersistentStateReadable, type StartupReadiness } from './lib/startup-readiness'
 import { probeGatewayResponsive } from './lib/gateway-rpc'
 import { repairWorkspaceAgentRegistrations } from './lib/workspace-agent-registration'
+import { recoverTemplatesBeforeStartup } from './lib/template-startup-recovery'
+import { createTemplateGatewayTransport } from './lib/template-gateway-transaction'
+import { getGatewayClient } from './lib/gateway-rpc'
+import { getWorkspaceManager } from './lib/workspace-manager'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -798,7 +802,19 @@ if (earlyClientDist) {
   })
 }
 
-try {
+async function startServer(): Promise<void> {
+  const activeRoot = getWorkspacePath()
+  const testRoot = String(process.env.CLAWMAX_TEST_WORKSPACE || '').trim()
+  const workspaces = testRoot
+    ? [{ id: 'test', path: testRoot }]
+    : [...getWorkspaceManager().loadRegistry().workspaces, { id: 'active', path: activeRoot }]
+  // Resolve the gateway lazily: clean/fresh installations need no gateway
+  // configuration to recover an absent journal.
+  const recoveryTransport = createTemplateGatewayTransport({
+    getConfig: () => getGatewayClient().getConfig(),
+    patchTemplateAgentEntriesAtRevision: (entries, hash) => getGatewayClient().patchTemplateAgentEntriesAtRevision(entries, hash),
+  })
+  await recoverTemplatesBeforeStartup(workspaces, recoveryTransport, path.join(os.homedir(), '.openclaw', 'agents'))
   const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
   startupReadiness = verifyCorePersistentStateReadable([
     { name: 'agents', read: () => listAgents() },
@@ -812,18 +828,19 @@ try {
     { name: 'workflows', read: () => listWorkflows() },
   ])
   console.log(`[Startup] Required persistent stores ready: ${JSON.stringify(startupReadiness.stores)}`)
-} catch (error) {
+  app.listen(PORT, HOST, () => {
+    console.log(`ClawMax Dashboard server running at http://localhost:${PORT}`)
+    console.log(`Workspace: ${WORKSPACE}`)
+    logToFile(`Server started successfully on port ${PORT}`)
+    logToFile(`Workspace: ${WORKSPACE}`)
+    startBackgroundServices()
+  })
+}
+
+void startServer().catch(error => {
   const detail = error instanceof Error ? error.stack || error.message : String(error)
   console.error(`[Startup] ERROR: ${detail}`)
   process.exit(1)
-}
-
-app.listen(PORT, HOST, () => {
-  console.log(`ClawMax Dashboard server running at http://localhost:${PORT}`)
-  console.log(`Workspace: ${WORKSPACE}`)
-  logToFile(`Server started successfully on port ${PORT}`)
-  logToFile(`Workspace: ${WORKSPACE}`)
-  startBackgroundServices()
 })
 
 // Graceful shutdown

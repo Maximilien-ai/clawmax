@@ -53,8 +53,8 @@ export function createTemplateGatewayTransport(client: Pick<GatewayRPCClient, 'g
   }
 }
 
-/** Internal runtime half of Template apply, not a public or startup-integrated
- * transaction yet. A coordinator must commit resource/revision files after
+/** Internal runtime half of Template apply, not a public execution API.
+ * The coordinator must commit resource/revision files after
  * register(), then recover() with a durable revision-ledger lookup. On restart,
  * an absent revision rolls the owned registrations back; a committed revision
  * verifies them. Registration alone never enables Dashboard execution.

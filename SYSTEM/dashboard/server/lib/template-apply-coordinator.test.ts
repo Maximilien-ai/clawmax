@@ -11,6 +11,7 @@ import { createTemplateResourceFileCompiler } from './template-resource-files'
 import { TemplateRevisionStore } from './template-revisions'
 import { TemplateGatewayTransaction, TemplateGatewayTransport } from './template-gateway-transaction'
 import { TemplateApplyCoordinator } from './template-apply-coordinator'
+import { recoverTemplatesBeforeStartup } from './template-startup-recovery'
 
 function components(root: string, options: { checkpoint?: (phase: string) => void; afterPatch?: () => void } = {}) {
   const file = path.join(root, 'synthetic-gateway.json')
@@ -62,6 +63,23 @@ async function main() {
   }
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-apply-coordinator-'))
   try {
+    const unavailable: TemplateGatewayTransport = {
+      async snapshot() { throw new Error('Synthetic gateway unavailable') },
+      async patch() { throw new Error('Unexpected gateway mutation') },
+    }
+    const legacy = path.join(root, 'legacy')
+    fs.mkdirSync(legacy)
+    await recoverTemplatesBeforeStartup([{ id: 'legacy', path: legacy }], unavailable, path.join(root, 'runtime'))
+    assert.deepEqual(fs.readdirSync(legacy), [], 'Legacy startup must not create journals or contact the gateway')
+    const partial = path.join(root, 'partial-files')
+    fs.mkdirSync(path.join(partial, 'ORG'), { recursive: true })
+    fs.writeFileSync(path.join(partial, 'ORG/GROUPS.md'), 'original')
+    const fileCrash = spawnSync(process.execPath, ['-r', 'ts-node/register/transpile-only', path.join(__dirname, 'workspace-file-transaction.test.ts'), '--crash', partial], { encoding: 'utf8', timeout: 15000 })
+    assert.equal(fileCrash.status, 77, fileCrash.stderr)
+    assert(fs.existsSync(path.join(partial, 'AGENTS/fixture/IDENTITY.md')))
+    await recoverTemplatesBeforeStartup([{ id: 'partial', path: partial }], unavailable, path.join(root, 'runtime'))
+    assert(!fs.existsSync(path.join(partial, 'AGENTS/fixture/IDENTITY.md')), 'Startup must roll back partial resource files before readers run')
+    assert.equal(fs.readFileSync(path.join(partial, 'ORG/GROUPS.md'), 'utf8'), 'original')
     for (const phase of ['gateway-registered', 'resources-committed']) {
       const workspace = path.join(root, phase)
       await setup(workspace)
@@ -70,7 +88,11 @@ async function main() {
       const child = spawnSync(process.execPath, ['-r', 'ts-node/register/transpile-only', __filename, '--crash', workspace, phase], { encoding: 'utf8', timeout: 15000 })
       assert.equal(child.status, 77, child.stderr)
       assert(fs.existsSync(path.join(workspace, '.clawmax/template-gateway-transaction.json')))
-      assert.equal(await coordinator.recover(), phase === 'resources-committed' ? 'committed' : 'rolled-back')
+      const journal = fs.readFileSync(path.join(workspace, '.clawmax/template-gateway-transaction.json'))
+      await assert.rejects(recoverTemplatesBeforeStartup([{ id: 'workspace', path: workspace }], unavailable, path.join(root, 'runtime')), /gateway unavailable/)
+      assert.deepEqual(fs.readFileSync(path.join(workspace, '.clawmax/template-gateway-transaction.json')), journal, 'Failed startup must retain recovery evidence')
+      await recoverTemplatesBeforeStartup([{ id: 'workspace', path: workspace }, { id: 'duplicate', path: workspace }], transport, path.join(root, 'runtime'))
+      assert.equal(await coordinator.recover(), 'none')
       assert.equal(store.history().length, phase === 'resources-committed' ? 1 : 0)
       assert.equal(Object.keys((await transport.snapshot()).entries).length, phase === 'resources-committed' ? 3 : 1)
       const result = await coordinator.apply('actor', request, plan.planDigest)
@@ -109,6 +131,16 @@ async function main() {
     assert.deepEqual((await setupFailure.transport.snapshot()).entries, { unrelated: { name: 'Preserve' } })
     assert.equal(setupFailure.store.history().length, 0)
     assert.throws(() => new TemplateApplyCoordinator(setupFailure.store, setupRevoked.gateway, path.join(root, 'runtime')), /same workspace/)
+    const corrupt = path.join(root, 'corrupt')
+    fs.mkdirSync(path.join(corrupt, '.clawmax'), { recursive: true })
+    fs.writeFileSync(path.join(corrupt, '.clawmax/template-gateway-transaction.json'), '{broken')
+    await assert.rejects(recoverTemplatesBeforeStartup([{ id: 'corrupt', path: corrupt }], unavailable, path.join(root, 'runtime')), /requires inspection/)
+    assert.equal(fs.readFileSync(path.join(corrupt, '.clawmax/template-gateway-transaction.json'), 'utf8'), '{broken')
+    const server = fs.readFileSync(path.join(__dirname, '../index.ts'), 'utf8')
+    const startup = server.slice(server.indexOf('async function startServer()'))
+    assert(startup.indexOf('await recoverTemplatesBeforeStartup(') < startup.indexOf('startupReadiness = verifyCorePersistentStateReadable('))
+    assert(startup.indexOf('startupReadiness = verifyCorePersistentStateReadable(') < startup.indexOf('app.listen('))
+    assert(startup.indexOf('app.listen(') < startup.indexOf('startBackgroundServices()'))
     console.log('template-apply-coordinator.test.ts: passed')
   } finally { fs.rmSync(root, { recursive: true, force: true }) }
 }
