@@ -291,13 +291,41 @@ Workflow, Template and capability routes, continued workspace discovery, and
 absence of local filesystem paths in those error responses.
 
 **Remaining availability boundary:** an affected *active* workspace still stops
-startup; the server does not silently select another workspace. There is no
-automatic background retry or recovery-control UI yet. Some Dashboard routes
+startup; the server does not silently select another workspace. Background retry
+was added in the follow-up below; there is no recovery-control UI yet. Some Dashboard routes
 still wrap admission failures as generic errors. Full active-workspace recovery
 UX and retry, execution-time authority enforcement, native crash acceptance,
 graph execution, cleanup and public apply/revision APIs remain outstanding.
 No execution capabilities, schedules, images, CLI packaging or canary changes
 were enabled by this checkpoint.
+
+### Automatic quarantine retry checkpoint
+
+`6362bfcd` adds an internal retry worker for the startup quarantine snapshot.
+The first retry is after 30 seconds, doubling to a maximum five-minute delay.
+Only one awaited recovery runs at a time; an in-flight gateway operation is not
+abandoned to start a competing mutation. Healthy workspaces and newly active
+apply transactions are not scanned into the retry queue. A workspace leaves
+the queue only after recovery returns and its admission check succeeds.
+
+The authenticated `/api/system` response includes `templateRecovery` status,
+pending count, attempt count, next retry time and last completion time. It does
+not expose transport errors, filesystem paths, credentials or workspace IDs.
+Timers do not keep a shutting-down process alive; shutdown cancels future
+retries and does not start another workspace after an in-flight attempt settles.
+
+Deterministic clock tests passed for unavailable-then-recovered gateway state,
+exact rollback preserving unrelated entries, corrupt journal preservation,
+duplicate roots/start calls, capped backoff, overlapping callbacks, shutdown
+during recovery, and an empty queue. Quarantine/admission and coordinator crash
+tests, server TypeScript, and lint also passed. The new suite is in `SYSTEM/test.sh`.
+These tests use a simulated gateway, not either installed canary.
+
+**Still outstanding:** active-workspace recovery-only HTTP serving and startup
+resumption. Active-workspace failure still stops startup before the retry worker
+starts. Existing routes assume readable active-workspace data; they require a
+recovery request gate before this restriction can safely be relaxed. The worker
+does not enable Template execution, recurring schedules, or CLI plan/apply.
 
 Afterward, run the Template-first acceptance twice in an isolated development
 workspace, proving real Agent replies, Group communication, correlated
