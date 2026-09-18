@@ -155,8 +155,32 @@ after rollback/cleanup, but native Agent discovery excludes them. Legacy Agent
 execution, Workflow, and communication-target suites also passed, along with
 server TypeScript and ESLint.
 
+Checkpoint `5ad09f10` adds server-owned **planning** bindings. The file compiler
+can receive an administrator-configured authority source; its bounded strict
+registry schema is `clawmax.template-authority/v1alpha1`. There is no public
+registry write route or client-selected registry path. Each Agent selection is
+bound to its artifact ID/digest, workspace, actor allowlist, binding revision,
+model identity/revision, policy digest, runtime identity, exact requested Skills,
+and named credential references. Unknown fields, missing/substituted bindings,
+disabled bindings, platform mismatch, undeclared credentials, and unbound required
+credentials fail closed. Embedded Skill files remain unsupported.
+
+The revision store supplies actor/workspace context and re-resolves bindings
+before apply. Plans and revisions retain the projected identities/digests, not
+actor ACLs, host paths, or credential values. A changed registry, model, policy,
+binding, or credential revision changes the authority digest; stale plans cannot
+commit. Tests passed for file-backed resolution, revoked/stale apply, per-Agent
+credential-reference isolation, cleanup, persistence, and unchanged execution
+blocking. TypeScript and ESLint passed as well.
+
+These records describe intended authority; they do not verify installed Skill
+bytes, enforce governed commands, resolve broker secrets, or provision gateway
+permissions. Collector-only execution is therefore still **unproven**. The
+runtime adapter must verify and enforce these bindings again at execution time,
+including revocation and runtime changes. All compiled resources remain blocked.
+
 This is not production deployment acceptance: gateway registration/recovery,
-server-owned authority bindings, full graph execution, safe merge-aware cleanup,
+execution-time authority enforcement, full graph execution, safe merge-aware cleanup,
 public revision APIs, and UI presentation remain outstanding. No apply endpoint
 or execution capability was enabled, and neither canary was changed.
 
