@@ -127,6 +127,17 @@ participant lists. The remaining implementation must preserve those semantics,
 enforce stopped Groups/disabled schedules and per-Agent authority, and join
 gateway changes to resource commit/recovery before apply is enabled.
 
+The first production compiler stage is now implemented in
+`server/lib/template-resource-graph.ts`: pure, deterministic resource-ID mapping
+with preserved Group entry/routing edges, Workflow success/failure branches,
+handoffs, managed ownership, schedules, limits, and inter-workflow dependencies.
+Ambiguous digest references are rejected. Compiled Agents remain
+`pending-authority`, Groups `stopped`, and Workflows disabled. Focused tests,
+server TypeScript, and ESLint passed. This stage does not persist canonical
+resources or register gateway agents; those adapters and execution-time
+enforcement remain required before advertising plan/apply. The complex graph
+tests exercise lowering directly, not additional ZIP admission or real execution.
+
 Afterward, run the Template-first acceptance twice in an isolated development
 workspace, proving real Agent replies, Group communication, correlated
 Workflow run/results, cancellation, restart persistence, and exact cleanup
