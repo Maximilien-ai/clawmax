@@ -361,6 +361,63 @@ instance, or recurring schedule was changed here. Full CI, live recovery,
 execution-time authority enforcement, graph execution and exact cleanup remain
 release gates.
 
+### Live HTTP acceptance and native rollback blocker
+
+`6d6b95ac` adds a real loopback HTTP acceptance test using the production request
+gate, recovery worker, journal recovery and health handler, with a simulated
+gateway transport. It passed: liveness 200/readiness 503 throughout failure,
+blocked workflow/broker/CLI mutations, private-detail-free status, successful
+recovery followed by readiness 200, one service start, unrelated roster
+preservation and blocked mutations after shutdown. It is included in the full
+test runner. This is not a complete Dashboard-process boot test.
+
+`516da0db` extends the opt-in native harness to committed-journal replay and
+uncommitted registration rollback. Tested prepared OpenClaw target: `v2026.8.2`,
+clean source SHA `0965053fe6b9341776df147a6934b7485c60b5ca`. The harness remains
+isolated: temporary config/state and process group, no installed profiles,
+disabled cron/tools/heartbeats, no model calls. Both runs cleaned up their own
+processes and disposable state; neither canary was touched.
+
+**Native rollback acceptance FAILED, and remains a release blocker.**
+
+1. First run: `config.patch` rejected removal of the staged Agent's `skills`
+   and `tools.deny` arrays without exact `replacePaths` acknowledgements.
+2. Dashboard now generates those exact paths for null/deletion entries only,
+   retains the revision `baseHash`, and shares that production payload builder
+   with the native harness. Focused gateway/coordinator tests, TypeScript and
+   lint passed.
+3. Second run passed the array-intent check but failed in the native config
+   writer: `Config write would drop agent roster entries without an explicit
+   deletion`. The gateway journal remained pending; recovery did not report
+   success. Staging/replay and committed-journal preservation passed before this
+   failure. These manually prepared checkpoints are not native process-crash
+   acceptance.
+
+Runtime source evidence: `src/gateway/server-methods/config.ts` passes its
+existing `writeOptions` to `commitGatewayConfigWriteOrRespond` without translating
+explicit null Agent entries into roster-removal authorization.
+`src/config/io.write-prepare.ts` enforces that authorization;
+`src/gateway/server-methods/agents-config-mutations.ts` supplies
+`allowedAgentRosterRemovals` for the separate single-Agent deletion operation.
+Sequential single-Agent deletion is not a substitute for the required atomic
+revision-checked rollback.
+
+Required native-runtime handoff: support exact Agent-removal intent for
+revision-checked keyed config patches (or an equivalent atomic batch deletion
+contract). Derive permitted IDs only from explicit deletions, retain stale-hash
+rejection and unrelated-roster preservation, and test multi-Agent rollback,
+unexpected external edits and response loss. Dashboard should rerun this native
+harness after the prepared runtime contains that change. Do not publish an
+Operations-ready claim or enable public apply while this acceptance fails.
+
+CLI/deployment handoff: keep Docker/Compose health checks and rollout readiness
+on `/api/health`. For the new Dashboard candidate, separate process-restart
+decisions onto `/api/health/live`; recovery status is `/api/recovery`. Validate
+the endpoint against the pinned image before changing supervisors—RC79 images
+must not be assumed to implement it. Test that recovery-mode readiness 503 with
+liveness 200 does not cause a restart loop or mark rollout ready. No CLI source,
+packages, runtime source, supervisor configuration or image was changed here.
+
 Afterward, run the Template-first acceptance twice in an isolated development
 workspace, proving real Agent replies, Group communication, correlated
 Workflow run/results, cancellation, restart persistence, and exact cleanup
