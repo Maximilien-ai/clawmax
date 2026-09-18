@@ -138,9 +138,9 @@ async function main() {
     assert.equal(fs.readFileSync(path.join(corrupt, '.clawmax/template-gateway-transaction.json'), 'utf8'), '{broken')
     const server = fs.readFileSync(path.join(__dirname, '../index.ts'), 'utf8')
     const startup = server.slice(server.indexOf('async function startServer()'))
-    assert(startup.indexOf('await recoverTemplatesBeforeStartup(') < startup.indexOf('startupReadiness = verifyCorePersistentStateReadable('))
-    assert(startup.indexOf('startupReadiness = verifyCorePersistentStateReadable(') < startup.indexOf('app.listen('))
-    assert(startup.indexOf('app.listen(') < startup.indexOf('startBackgroundServices()'))
+    assert(startup.indexOf('await recoverTemplatesBeforeStartup(') < startup.indexOf('recoveryServingGate.resume()'))
+    assert(startup.indexOf('recoveryServingGate.resume()') < startup.indexOf('app.listen('))
+    assert(startup.indexOf('app.listen(') < startup.indexOf('recoveryServingGate.onListening()'))
     console.log('template-apply-coordinator.test.ts: passed')
   } finally { fs.rmSync(root, { recursive: true, force: true }) }
 }

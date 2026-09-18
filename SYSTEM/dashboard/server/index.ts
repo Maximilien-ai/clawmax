@@ -66,6 +66,7 @@ import { getGatewayClient } from './lib/gateway-rpc'
 import { getWorkspaceManager } from './lib/workspace-manager'
 import { assertWorkspaceRecovered } from './lib/workspace-recovery-admission'
 import { TemplateRecoveryWorker } from './lib/template-recovery-worker'
+import { RecoveryServingGate, recoveryRequestGate } from './lib/recovery-serving-gate'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -150,6 +151,7 @@ function healOpenClawConfigOnStartup(): void {
 
 function startBackgroundServices() {
   setImmediate(() => {
+    if (!recoveryServingGate.ready) return
     try {
       healOpenClawConfigOnStartup()
     } catch (err) {
@@ -296,11 +298,16 @@ const authLimiter = rateLimit({
 })
 app.use('/api', globalLimiter)
 app.use('/api/auth', authLimiter)
-app.use('/api', auditLog)
+app.use('/api', recoveryRequestGate(() => recoveryServingGate.ready))
+app.get('/api/health/live', (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json({ alive: true }) })
+app.get('/api/recovery', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.json({ ready: recoveryServingGate.ready, mode: recoveryServingGate.ready ? 'normal' : 'recovery', retry: templateRecoveryWorker?.diagnostics() ?? null })
+})
 
 // Health (public)
 app.get('/api/health', createHealthHandler({
-  getStartupReadiness: () => startupReadiness,
+  getStartupReadiness: () => recoveryServingGate.ready ? startupReadiness : null,
   workspace: WORKSPACE,
   gatewayRequired: () => process.env.CLAWMAX_AUTO_START_GATEWAY === 'true',
   gatewayReady: createGatewayReadinessCheck(() => probeGatewayResponsive(1500)),
@@ -308,6 +315,7 @@ app.get('/api/health', createHealthHandler({
 
 // Public, versioned CLI API. This router owns authentication and its JSON 404
 // boundary so requests can never fall through to the browser SPA shell.
+app.use('/api', auditLog)
 app.use('/api/cli/v1', instanceCliRouter)
 
 // Auth verification (public, legacy)
@@ -806,6 +814,18 @@ if (earlyClientDist) {
   })
 }
 
+function verifyStartupStores(): void {
+  const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
+  startupReadiness = verifyCorePersistentStateReadable([
+    { name: 'agents', read: () => listAgents() },
+    { name: 'templates', read: () => listTemplates() },
+    { name: 'groups', read: () => fs.existsSync(groupsPath) ? parseGroups(fs.readFileSync(groupsPath, 'utf-8')).groups : [] },
+    { name: 'workflows', read: () => listWorkflows() },
+  ])
+  console.log(`[Startup] Required persistent stores ready: ${JSON.stringify(startupReadiness.stores)}`)
+}
+const recoveryServingGate = new RecoveryServingGate(verifyStartupStores, startBackgroundServices)
+
 async function startServer(): Promise<void> {
   const testRoot = String(process.env.CLAWMAX_TEST_WORKSPACE || '').trim()
   const activeRoot = testRoot || getWorkspaceManager().getActiveWorkspace().path
@@ -820,34 +840,27 @@ async function startServer(): Promise<void> {
   })
   const recovery = await recoverTemplatesBeforeStartup(workspaces, recoveryTransport, path.join(os.homedir(), '.openclaw', 'agents'), { isolateFailures: true })
   if (recovery.blockedWorkspaceIds.length) console.warn(`[Startup] ${recovery.blockedWorkspaceIds.length} workspace(s) require Template recovery`)
-  // Never silently switch the operator to a different workspace. Failed
-  // inactive workspaces stay quarantined while a healthy active one can serve.
-  assertWorkspaceRecovered(activeRoot)
+  try {
+    assertWorkspaceRecovered(activeRoot)
+    recoveryServingGate.resume()
+  } catch {
+    console.warn('[Startup] Active workspace unavailable; serving recovery status only')
+  }
+  const retryWorkspaces = workspaces.filter(workspace => recovery.blockedWorkspaceIds.includes(workspace.id))
+  if (!recoveryServingGate.ready) retryWorkspaces.push({ id: 'active-recovery', path: activeRoot })
   templateRecoveryWorker = new TemplateRecoveryWorker(
-    workspaces.filter(workspace => recovery.blockedWorkspaceIds.includes(workspace.id)),
+    retryWorkspaces,
     async workspace => {
       await recoverTemplatesBeforeStartup([workspace], recoveryTransport, path.join(os.homedir(), '.openclaw', 'agents'))
+      if (path.resolve(workspace.path) === path.resolve(activeRoot)) recoveryServingGate.resume()
     },
   )
-  const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
-  startupReadiness = verifyCorePersistentStateReadable([
-    { name: 'agents', read: () => listAgents() },
-    { name: 'templates', read: () => listTemplates() },
-    {
-      name: 'groups',
-      read: () => fs.existsSync(groupsPath)
-        ? parseGroups(fs.readFileSync(groupsPath, 'utf-8')).groups
-        : [],
-    },
-    { name: 'workflows', read: () => listWorkflows() },
-  ])
-  console.log(`[Startup] Required persistent stores ready: ${JSON.stringify(startupReadiness.stores)}`)
   app.listen(PORT, HOST, () => {
     console.log(`ClawMax Dashboard server running at http://localhost:${PORT}`)
     console.log(`Workspace: ${WORKSPACE}`)
     logToFile(`Server started successfully on port ${PORT}`)
     logToFile(`Workspace: ${WORKSPACE}`)
-    startBackgroundServices()
+    recoveryServingGate.onListening()
     templateRecoveryWorker?.start()
   })
 }
@@ -859,5 +872,5 @@ void startServer().catch(error => {
 })
 
 // Graceful shutdown
-process.on('SIGTERM', () => { templateRecoveryWorker?.stop(); stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); stopPluginUsageMonitor(); shutdownOpik() })
-process.on('SIGINT', () => { templateRecoveryWorker?.stop(); stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); stopPluginUsageMonitor(); shutdownOpik() })
+process.on('SIGTERM', () => { recoveryServingGate.stop(); templateRecoveryWorker?.stop(); stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); stopPluginUsageMonitor(); shutdownOpik() })
+process.on('SIGINT', () => { recoveryServingGate.stop(); templateRecoveryWorker?.stop(); stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); stopPluginUsageMonitor(); shutdownOpik() })
