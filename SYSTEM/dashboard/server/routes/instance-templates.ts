@@ -43,7 +43,13 @@ export function createInstanceTemplatesRouter(dependencies: Dependencies) {
     if (!/^[a-z][a-z0-9-]{0,63}$/.test(req.params.key)) throw new PortableTemplateError('invalid_request', 'Invalid Template key')
     return res.json({ apiVersion, kind: 'TemplateVersionList', items: catalog(res).list(req.params.key) })
   }))
-  router.delete('/templates/:templateId', handle((req, res) => res.json({ apiVersion, kind: 'TemplateRemoval', id: req.params.templateId, workspaceId: context(res).workspaceId, removed: catalog(res).remove(req.params.templateId) })))
+  router.delete('/templates/:templateId', handle((req, res) => {
+    catalog(res).remove(req.params.templateId)
+    // The public flag describes the resulting absence, not whether this request
+    // performed the first deletion. CLI retries after response loss need the
+    // same successful result, including when a tombstone already exists.
+    return res.json({ apiVersion, kind: 'TemplateRemoval', id: req.params.templateId, workspaceId: context(res).workspaceId, removed: true })
+  }))
 
   const admitUpload = (req: Request, res: Response, next: NextFunction) => {
     if (!req.is(TEMPLATE_MEDIA_TYPE)) return error(res, req, 415, 'unsupported_media_type', 'A portable Template ZIP is required')
