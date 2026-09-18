@@ -481,3 +481,36 @@ acceptance were performed. Template runtime admission remains closed; public
 plan/apply/revision cleanup and execution authority still need implementation.
 Complete those Dashboard-owned contracts and CLI integration before the required
 real-response acceptance. No RC80 images were dispatched; RC79 remains installed.
+
+### Committed revision cleanup checkpoint
+
+`6679f829` adds internal no-write cleanup plans and coordinated file/native
+registration cleanup. Committed native registrations retain a private,
+revision-keyed ownership receipt. Cleanup journals intent before committing the
+resource ledger: recovery before that commit retains registrations; recovery
+after it removes only the exact receipt entries. Cleanup remains possible after
+separate catalog deletion, and retries preserve cleaned revision history.
+
+Focused tests passed for unauthorized/stale plans, stopped-state enforcement,
+edited files and registrations, child-process loss before/after the cleanup
+commit, response loss with temporary gateway unavailability, idempotent retries,
+and unrelated registration preservation. The process-loss cases use the
+disk-backed synthetic gateway, not a crashed native Gateway. Server TypeScript,
+lint, and the adjacent revision/resource/recovery suites passed.
+
+`41380083` extends the isolated **native** Gateway harness. It passed no-write
+cleanup planning, independent catalog removal, committed two-Agent cleanup,
+cleanup replay, retained revision evidence, and exact baseline preservation,
+in addition to the prior staging/recovery checks. The harness finished and
+cleaned up its own temporary state/processes. No models or installed canaries
+were used.
+
+Boundary: this is internal staging cleanup, not public lifecycle availability
+or execution admission. The caller supplies a stopped-state assertion; public
+routes must derive that assertion from authoritative runtime state. Changed
+shared Group files still cause a safe conflict rather than merged cleanup.
+Pre-receipt development revisions fail cleanup safely instead of inventing
+ownership. Public plan/apply/revision/cleanup schemas and routes, runtime
+authority, Group/Workflow execution, and CLI integration remain required before
+the two full dev passes. Image builds remain held under the
+[reaffirmed dev-first gate](RC80_STABILITY_AND_TEMPLATE_GATE_2026-09-18.md#dev-first-gate-reaffirmed).
