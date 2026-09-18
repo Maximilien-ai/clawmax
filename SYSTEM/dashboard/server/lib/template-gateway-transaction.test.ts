@@ -44,6 +44,7 @@ async function main() {
     await client.patchTemplateAgentEntriesAtRevision({ [agentId]: entry(root) as any }, 'revision-1')
     assert.equal(captured.method, 'config.patch')
     assert.equal(captured.params.baseHash, 'revision-1')
+    assert.equal(captured.params.replacePaths, undefined, 'Registration must not authorize destructive array replacement')
     assert.deepEqual(JSON.parse(captured.params.raw), { agents: { entries: { [agentId]: entry(root) } } })
     await assert.rejects(client.patchTemplateAgentEntriesAtRevision({ unrelated: null }, 'hash'), /scoped Template/)
     await assert.rejects(client.patchTemplateAgentEntriesAtRevision({ [agentId]: null }, ''), /revision/)
@@ -54,6 +55,8 @@ async function main() {
     assert.deepEqual(await adapter.snapshot(), { hash: 'server-hash', entries: { unrelated: { name: 'keep' } } })
     await adapter.patch({ [agentId]: null }, 'server-hash')
     assert.equal(captured.params.baseHash, 'server-hash')
+    assert.deepEqual(captured.params.replacePaths, [`agents.entries.${agentId}.skills`, `agents.entries.${agentId}.tools.deny`])
+    assert.deepEqual(JSON.parse(captured.params.raw), { agents: { entries: { [agentId]: null } } })
     const legacy = createTemplateGatewayTransport({ getConfig: async () => ({ hash: 'hash', config: { agents: { list: [] } } }), patchTemplateAgentEntriesAtRevision: async () => {} })
     await assert.rejects(legacy.snapshot(), /keyed gateway roster/)
 

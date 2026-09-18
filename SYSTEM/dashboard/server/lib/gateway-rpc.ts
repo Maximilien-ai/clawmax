@@ -302,6 +302,20 @@ interface RPCEvent {
  * - Audit logging
  * - Atomic writes with backups
  */
+/** Exact deletion acknowledgements for the restrictive staged Agent schema.
+ * The transaction verifies ownership and entry equality before calling this.
+ * Never authorize parent/wildcard array replacement or drop the revision CAS.
+ */
+export function buildTemplateAgentEntriesPatch(entries: Record<string, Record<string, unknown> | null>, baseHash: string) {
+  if (!baseHash || typeof baseHash !== 'string' || Object.keys(entries).length === 0 || Object.keys(entries).some(id => !/^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(id))) {
+    throw new Error('A configuration revision and scoped Template agent IDs are required')
+  }
+  const replacePaths = Object.entries(entries).filter(([, value]) => value === null).flatMap(([id]) => [
+    `agents.entries.${id}.skills`, `agents.entries.${id}.tools.deny`,
+  ])
+  return { raw: JSON.stringify({ agents: { entries } }), baseHash, ...(replacePaths.length ? { replacePaths } : {}) }
+}
+
 export class GatewayRPCClient {
   private gatewayUrl: string
   private authToken: string
@@ -577,10 +591,7 @@ export class GatewayRPCClient {
    * original revision. The transaction coordinator reconciles ambiguous writes.
    */
   async patchTemplateAgentEntriesAtRevision(entries: Record<string, Record<string, unknown> | null>, baseHash: string): Promise<void> {
-    if (!baseHash || typeof baseHash !== 'string' || Object.keys(entries).length === 0 || Object.keys(entries).some(id => !/^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(id))) {
-      throw new Error('A configuration revision and scoped Template agent IDs are required')
-    }
-    await this.callConfig('config.patch', { raw: JSON.stringify({ agents: { entries } }), baseHash })
+    await this.callConfig('config.patch', buildTemplateAgentEntriesPatch(entries, baseHash))
   }
 
   /**

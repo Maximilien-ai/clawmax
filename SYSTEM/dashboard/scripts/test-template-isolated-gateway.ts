@@ -18,6 +18,8 @@ import { createTemplateResourceFileCompiler } from '../server/lib/template-resou
 import { TemplateRevisionStore } from '../server/lib/template-revisions'
 import { createTemplateGatewayTransport, TemplateGatewayTransaction } from '../server/lib/template-gateway-transaction'
 import { TemplateApplyCoordinator } from '../server/lib/template-apply-coordinator'
+import { recoverTemplatesBeforeStartup } from '../server/lib/template-startup-recovery'
+import { buildTemplateAgentEntriesPatch } from '../server/lib/gateway-rpc'
 
 async function main() {
   const binary = process.argv[2]
@@ -94,7 +96,7 @@ async function main() {
         assert.equal((value.sourceConfig || value.config)?.gateway?.port, port, 'RPC must target the isolated gateway')
         return value
       },
-      patchTemplateAgentEntriesAtRevision: async (entries, baseHash) => { await rpc('config.patch', { raw: JSON.stringify({ agents: { entries } }), baseHash }) },
+      patchTemplateAgentEntriesAtRevision: async (entries, baseHash) => { await rpc('config.patch', buildTemplateAgentEntriesPatch(entries, baseHash)) },
     })
     const before = await transport.snapshot()
     assert.deepEqual(Object.keys(before.entries), ['baseline'])
@@ -124,7 +126,26 @@ async function main() {
     assert.deepEqual(after.entries.baseline, before.entries.baseline)
     assert(fs.existsSync(path.join(workspace, 'AGENTS', result.revision.resources.agents.producer, 'IDENTITY.md')))
     assert.equal(await coordinator.recover(), 'none')
-    console.log('Isolated real OpenClaw gateway: coordinated Template staging, replay, and unrelated roster preservation passed; no model calls')
+    // Recreate the durable committed checkpoint left if the process exits before
+    // removing its gateway journal. This is journal replay, not a crash test.
+    const owned = Object.fromEntries(Object.values(result.revision.resources.agents).map(id => [id, after.entries[id]]))
+    writeAtomicJson(path.join(workspace, '.clawmax/template-gateway-transaction.json'), { version: 1, planDigest: plan.planDigest, entries: owned })
+    await recoverTemplatesBeforeStartup([{ id: 'isolated', path: workspace }], transport, path.join(state, 'agents'))
+    assert.deepEqual((await transport.snapshot()).entries, after.entries, 'Committed recovery must preserve all native registrations')
+    assert(!fs.existsSync(path.join(workspace, '.clawmax/template-gateway-transaction.json')))
+
+    const orphanWorkspace = path.join(root, 'uncommitted-workspace')
+    const orphanId = 'tr-bbbbbbbbbbbbbbbb-agent-bbbbbbbbbbbb'
+    await new TemplateGatewayTransaction(orphanWorkspace, transport).register('b'.repeat(64), { [orphanId]: {
+      name: 'Uncommitted recovery fixture', workspace: path.join(orphanWorkspace, 'AGENTS', orphanId),
+      agentDir: path.join(state, 'agents', orphanId, 'agent'), model: 'openai/gpt-4.1-mini',
+      skills: [], tools: { deny: ['*'] }, heartbeat: { every: '0m' },
+    } })
+    assert(Object.hasOwn((await transport.snapshot()).entries, orphanId))
+    await recoverTemplatesBeforeStartup([{ id: 'uncommitted', path: orphanWorkspace }], transport, path.join(state, 'agents'))
+    assert.deepEqual((await transport.snapshot()).entries, after.entries, 'Rollback must remove only the uncommitted native registration')
+    assert(!fs.existsSync(path.join(orphanWorkspace, '.clawmax/template-gateway-transaction.json')))
+    console.log('Isolated real OpenClaw gateway: staging, replay, committed journal recovery, uncommitted rollback, and unrelated roster preservation passed; no model calls; no process-crash claim')
   } catch (error: any) {
     const safe = `${error.message}\n${logs}`.split(token).join('[test-token-redacted]')
     throw new Error(safe)
