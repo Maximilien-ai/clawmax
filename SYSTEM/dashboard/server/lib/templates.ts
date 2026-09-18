@@ -12,7 +12,7 @@ import { TEMPLATES_DIR, TEMPLATE_SCHEMAS_DIR } from './paths'
 import { validateAgentConfigSections } from './agent-config-validation'
 import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile } from './agent-model'
 import { recordTemplateApply, type CanonicalTemplateFeedbackSource, type CanonicalTemplateFeedbackType } from './template-feedback'
-import { resolveDefaultAgentModel } from './agent-default-model'
+import { resolveDefaultAgentModel, warmDefaultAgentModelEndpoint } from './agent-default-model'
 import { applyGeneratedWorkflowHandoffs, normalizeGeneratedWorkflowReferences } from './ai-generator'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
@@ -2154,6 +2154,9 @@ export async function importAgentFromTemplate(
     const templateModel = !applySystemTemplateLatest
       ? ((sourceAgent as any).model?.trim() || (template as any)?.metadata?.model?.trim?.() || '')
       : ''
+    // The workspace endpoint's own model may be unknown on a cold cache; warm it through its
+    // paired credential before the synchronous resolver asks for it. An explicit model needs none.
+    if (!String(options.model || '').trim()) await warmDefaultAgentModelEndpoint()
     const effectiveModel = resolveDefaultAgentModel({
       explicitModel: options.model,
       templateModel,
@@ -2816,6 +2819,7 @@ export async function importOrganizationTemplate(
 
     try {
       // Step 1: Create all agents with their files
+      if (!String(options?.modelOverride || '').trim()) await warmDefaultAgentModelEndpoint()
       for (const templateAgent of agentsToCreate) {
         const sourceAgentId = (templateAgent as any)._sourceAgentId || templateAgent.id
         const targetAgentId = `${prefix}${templateAgent.id}${suffix}`

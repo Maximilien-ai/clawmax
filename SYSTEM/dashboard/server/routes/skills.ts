@@ -18,7 +18,7 @@ import {
 } from '../lib/skills'
 import { extractZipBufferToWorkspace, resolveWorkspacePath } from '../lib/workspace'
 import { getCuratedPartnerInstaller, listCuratedPartnerInstallers } from '../lib/partner-installs'
-import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
+import { generateSkillFromNL, setRequestByokKeys, warmOpenAiCompatibleGenerationModel } from '../lib/ai-generator'
 import { safeEnv } from '../lib/safe-env'
 import {
   buildSkillRegistryInstallCommands,
@@ -481,6 +481,7 @@ router.post('/generate', async (req, res) => {
   }
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys)
     setRequestByokKeys(byokKeys)
     const skill = await generateSkillFromNL(description.trim(), currentDraft)
     const session = getAuthenticatedSession(req)

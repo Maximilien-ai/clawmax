@@ -1,4 +1,4 @@
-import { __test, clearModelCache, discoverModels } from './model-discovery'
+import { __test, clearModelCache, discoverModels, getCachedOpenAiCompatibleContextWindow, getCachedOpenAiCompatibleDefaultModel, normalizeOpenAiCompatibleBaseUrl, openAiCompatibleEndpointUrl, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint } from './model-discovery'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -213,6 +213,348 @@ test('cloud discovery never probes local model endpoints but retains remote-comp
     else process.env.DASHBOARD_DEPLOYMENT_KIND = previousKind
     clearModelCache()
   }
+})
+
+test('An OpenAI-compatible endpoint with no configured default model resolves its own first chat model', async () => {
+  clearModelCache()
+  global.fetch = (async (url: string) => {
+    assert(url === 'http://172.16.1.70:8000/v1/models', `Expected the configured endpoint, got ${url}`)
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'text-embedding-nomic-embed-text-v1.5' }, { id: 'deepseek-ai/DeepSeek-V4-Flash-0731' }] }),
+    } as any
+  }) as any
+
+  const resolved = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  assert(resolved === 'deepseek-ai/DeepSeek-V4-Flash-0731', `Expected the endpoint's own chat model, got ${resolved}`)
+  assert(
+    getCachedOpenAiCompatibleDefaultModel('http://172.16.1.70:8000/v1/') === 'deepseek-ai/DeepSeek-V4-Flash-0731',
+    'Expected the cached read to answer with the same model regardless of a trailing slash',
+  )
+})
+
+test('A configured default model outranks whatever the endpoint advertises', async () => {
+  clearModelCache()
+  global.fetch = (async () => {
+    throw new Error('Discovery must not run when the operator named a model')
+  }) as any
+
+  const resolved = await resolveOpenAiCompatibleDefaultModel({
+    baseUrl: 'http://172.16.1.70:8000/v1',
+    defaultModel: 'openai-compatible/operator-choice',
+  })
+  assert(resolved === 'operator-choice', `Expected the operator's model without its provider prefix, got ${resolved}`)
+})
+
+test('An endpoint advertising only non-chat models resolves to no default', async () => {
+  clearModelCache()
+  global.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ data: [{ id: 'text-embedding-nomic-embed-text-v1.5' }] }),
+  }) as any) as any
+
+  const resolved = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  assert(resolved === undefined, `Expected no chat-capable default, got ${resolved}`)
+})
+
+test('An endpoint that just failed is not asked again within the discovery timeout', async () => {
+  clearModelCache()
+  let attempts = 0
+  global.fetch = (async () => {
+    attempts++
+    throw new Error('connect ECONNREFUSED 172.16.1.70:8000')
+  }) as any
+
+  const first = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  const second = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  assert(first === undefined && second === undefined, `Expected no default from an unreachable endpoint, got ${first}/${second}`)
+  assert(attempts === 1, `Expected the warm-up and the execution that follows it to share one failed attempt, got ${attempts}`)
+
+  // A different credential for the same server is its own lookup.
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1', apiKey: 'other-key' })
+  assert(attempts === 2, `Expected a separate attempt for a different credential, got ${attempts}`)
+
+  // Once the window has passed the endpoint is asked again.
+  __test.ageOpenAiCompatibleCache(6_000)
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  assert(attempts === 3, `Expected a fresh attempt after the replay window, got ${attempts}`)
+
+  // A failure never shadows a later success or an emptied cache.
+  clearModelCache()
+  global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'deepseek-ai/DeepSeek-V4-Flash-0731' }] }) }) as any) as any
+  const recovered = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  assert(recovered === 'deepseek-ai/DeepSeek-V4-Flash-0731', `Expected discovery to recover after the cache is cleared, got ${recovered}`)
+})
+
+test('A lookup that outlived a refresh cannot hide the fresh attempt in flight', async () => {
+  clearModelCache()
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+  global.fetch = (async () => {
+    await wait(100)
+    throw new Error('connect ETIMEDOUT 172.16.1.70:8000')
+  }) as any
+  const stale = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  await wait(10)
+  clearModelCache() // the operator's refresh, while the stale lookup is still waiting
+  global.fetch = (async () => {
+    await wait(300)
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: 'deepseek-ai/DeepSeek-V4-Flash-0731' }] }) } as any
+  }) as any
+  const fresh = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  await wait(200) // the stale lookup has failed by now; the fresh one is still in flight
+  const joined = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1' })
+  assert(joined === 'deepseek-ai/DeepSeek-V4-Flash-0731', `Expected the caller to join the fresh attempt rather than replay the stale failure, got ${joined}`)
+  assert((await stale) === undefined && (await fresh) === 'deepseek-ai/DeepSeek-V4-Flash-0731', 'Expected the stale lookup to fail and the fresh one to succeed')
+  assert(__test.openAiCompatibleFailureCount() === 0, `Expected no failure recorded for the refreshed generation, got ${__test.openAiCompatibleFailureCount()}`)
+})
+
+test('The failure window holds no more entries than the endpoint cache', async () => {
+  clearModelCache()
+  global.fetch = (async () => { throw new Error('connect ECONNREFUSED') }) as any
+  for (let i = 0; i < 300; i++) {
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://10.0.0.${i % 250}:${8000 + Math.floor(i / 250)}/v1` })
+  }
+  assert(__test.openAiCompatibleFailureCount() <= 256, `Expected the failure window to stay bounded, got ${__test.openAiCompatibleFailureCount()}`)
+})
+
+test('A cold discovery cache answers undefined rather than guessing', () => {
+  clearModelCache()
+  assert(
+    getCachedOpenAiCompatibleDefaultModel('http://172.16.1.70:8000/v1') === undefined,
+    'Expected no answer from an unwarmed cache',
+  )
+})
+
+test('concurrent cold lookups issue one request and preserve endpoint order', async () => {
+  clearModelCache()
+  let requests = 0
+  global.fetch = (async () => {
+    requests++
+    await new Promise(r => setTimeout(r, 30))
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'zeta-chat-model' }, { id: 'alpha-chat-model' }] }),
+    } as any
+  }) as any
+
+  const resolved = await Promise.all(Array.from({ length: 8 }, () =>
+    resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://busy-endpoint:8000/v1' })))
+  assert(requests === 1, `Expected one coalesced /models request, got ${requests}`)
+  assert(
+    resolved.every(model => model === 'zeta-chat-model'),
+    `Expected the endpoint's own first chat model, got ${JSON.stringify(resolved.slice(0, 3))}`,
+  )
+})
+
+test('a workspace URL is paired with the protected credential and model configured for the same server', () => {
+  const endpoint = resolveOpenAiCompatibleEndpoint([
+    { baseUrl: 'http://172.16.1.70:8000/v1' },
+    { baseUrl: 'HTTP://172.16.1.70:8000/v1/', apiKey: 'protected-secret', defaultModel: 'operator-model' },
+  ])
+  assert(endpoint?.baseUrl === 'http://172.16.1.70:8000/v1', `Expected the workspace URL to be selected, got ${endpoint?.baseUrl}`)
+  assert(endpoint?.apiKey === 'protected-secret', `Expected the protected credential for the same server, got ${endpoint?.apiKey}`)
+  assert(endpoint?.defaultModel === 'operator-model', `Expected the model configured with that credential, got ${endpoint?.defaultModel}`)
+})
+
+test('a credential configured for a different server is never sent to the selected endpoint', () => {
+  const endpoint = resolveOpenAiCompatibleEndpoint([
+    { baseUrl: 'http://workspace-endpoint:8000/v1' },
+    { baseUrl: 'http://other-endpoint:8000/v1', apiKey: 'other-secret', defaultModel: 'other-model' },
+  ])
+  assert(endpoint?.baseUrl === 'http://workspace-endpoint:8000/v1', `Expected the workspace endpoint, got ${endpoint?.baseUrl}`)
+  assert(endpoint?.apiKey === undefined, `Expected no borrowed credential, got ${endpoint?.apiKey}`)
+  assert(endpoint?.defaultModel === undefined, `Expected no borrowed model, got ${endpoint?.defaultModel}`)
+})
+
+test('a browser endpoint keeps its own credential and takes no model seen through a different one', () => {
+  const endpoint = resolveOpenAiCompatibleEndpoint([
+    { baseUrl: 'http://shared-gateway:8000/v1', apiKey: 'browser-secret' },
+    { baseUrl: 'http://shared-gateway:8000/v1', defaultModel: 'workspace-model' },
+    { baseUrl: 'http://shared-gateway:8000/v1', apiKey: 'protected-secret', defaultModel: 'protected-model' },
+  ])
+  assert(endpoint?.apiKey === 'browser-secret', `Expected the browser's own credential, got ${endpoint?.apiKey}`)
+  assert(endpoint?.defaultModel === undefined, `Expected no model from another credential's configuration, got ${endpoint?.defaultModel}`)
+  const urlOnly = resolveOpenAiCompatibleEndpoint([
+    { baseUrl: 'http://shared-gateway:8000/v1' },
+    { baseUrl: 'http://shared-gateway:8000/v1', defaultModel: 'workspace-model' },
+    { baseUrl: 'http://shared-gateway:8000/v1', apiKey: 'protected-secret' },
+  ])
+  assert(urlOnly?.apiKey === 'protected-secret' && urlOnly?.defaultModel === 'workspace-model', `Expected the workspace model alongside the protected credential it was configured with, got ${JSON.stringify(urlOnly)}`)
+  const noCredential = resolveOpenAiCompatibleEndpoint([
+    { baseUrl: 'http://shared-gateway:8000/v1' },
+    { baseUrl: 'http://shared-gateway:8000/v1', defaultModel: 'workspace-model' },
+  ])
+  assert(noCredential?.apiKey === undefined && noCredential?.defaultModel === 'workspace-model', `Expected the workspace model with no credential in play, got ${JSON.stringify(noCredential)}`)
+  assert(resolveOpenAiCompatibleEndpoint([{ baseUrl: '  ' }, undefined]) === undefined, 'Expected no endpoint without a URL')
+  assert(normalizeOpenAiCompatibleBaseUrl('HTTP://Host:8000/v1/') === 'http://host:8000/v1', 'Expected scheme and host to be case-insensitive and the trailing slash dropped')
+  assert(
+    normalizeOpenAiCompatibleBaseUrl('http://gateway:8000/v1?tenant=a') !== normalizeOpenAiCompatibleBaseUrl('http://gateway:8000/v1?tenant=b'),
+    'Expected two tenants of one host to be two endpoints',
+  )
+  const tenantA = resolveOpenAiCompatibleEndpoint([
+    { baseUrl: 'http://gateway:8000/v1?tenant=a' },
+    { baseUrl: 'http://gateway:8000/v1?tenant=b', apiKey: 'tenant-b-secret' },
+  ])
+  assert(tenantA?.apiKey === undefined, `Expected tenant b's credential to stay with tenant b, got ${tenantA?.apiKey}`)
+})
+
+test('cache keys carry a credential fingerprint, never the credential itself', () => {
+  const withSecret = __test.openAiCompatibleCacheKey('http://shared-gateway:8000/v1', 'sk-live-very-secret-value')
+  const withOther = __test.openAiCompatibleCacheKey('http://shared-gateway:8000/v1/', 'sk-live-other-value')
+  const withoutKey = __test.openAiCompatibleCacheKey('http://shared-gateway:8000/v1')
+  assert(!withSecret.includes('sk-live'), `Expected no raw credential in the cache key, got ${withSecret}`)
+  assert(withSecret !== withOther, 'Expected two credentials to map to two cache entries')
+  assert(withSecret !== withoutKey, 'Expected a credential-less read to miss a credentialed entry')
+  assert(
+    __test.openAiCompatibleCacheKey('http://shared-gateway:8000/v1', 'sk-live-very-secret-value') === withSecret,
+    'Expected the fingerprint to be stable for the same credential',
+  )
+})
+
+test('the endpoint cache keeps only the newest entries', async () => {
+  clearModelCache()
+  global.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ data: [{ id: 'chat-model' }] }),
+  }) as any) as any
+  for (let i = 0; i < 300; i++) {
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://endpoint-${i}:8000/v1` })
+  }
+  assert(__test.openAiCompatibleCacheEntryCount() === 300, `Expected fresh entries to stay beyond the bound, got ${__test.openAiCompatibleCacheEntryCount()}`)
+  __test.ageOpenAiCompatibleCache(61_000)
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://endpoint-300:8000/v1' })
+  const count = __test.openAiCompatibleCacheEntryCount()
+  assert(count === 256, `Expected the cache bounded at 256 endpoint entries once entries aged past the grace window, got ${count}`)
+  assert(getCachedOpenAiCompatibleDefaultModel('http://endpoint-0:8000/v1') === undefined, 'Expected the oldest entry to have been evicted')
+  assert(getCachedOpenAiCompatibleDefaultModel('http://endpoint-299:8000/v1') === 'chat-model', 'Expected a newer entry to be retained')
+  // A burst larger than the bound still leaves every member readable while it is fresh: size
+  // eviction never touches entries inside the grace window, only older ones once it lapses.
+  clearModelCache()
+  await Promise.all(Array.from({ length: 300 }, (_, i) => resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://concurrent-${i}:8000/v1` })))
+  assert(
+    Array.from({ length: 300 }, (_, i) => getCachedOpenAiCompatibleDefaultModel(`http://concurrent-${i}:8000/v1`)).every((model) => model === 'chat-model'),
+    'Expected every endpoint of a burst beyond the bound to remain readable while fresh',
+  )
+  assert(__test.openAiCompatibleCacheEntryCount() === 300, `Expected fresh entries to be kept beyond the bound, got ${__test.openAiCompatibleCacheEntryCount()}`)
+  __test.ageOpenAiCompatibleCache(61_000)
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://after-grace:8000/v1' })
+  assert(__test.openAiCompatibleCacheEntryCount() === 256, `Expected the bound to apply once the grace window lapsed, got ${__test.openAiCompatibleCacheEntryCount()}`)
+  // The grace window is not a loophole: beyond four times the bound the oldest go regardless of age.
+  clearModelCache()
+  await Promise.all(Array.from({ length: 1100 }, (_, i) => resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://flood-${i}:8000/v1` })))
+  assert(__test.openAiCompatibleCacheEntryCount() === 1024, `Expected a hard cap of 1024 fresh entries, got ${__test.openAiCompatibleCacheEntryCount()}`)
+  clearModelCache()
+})
+
+test('identical lookups coalesce even during a burst of distinct endpoints, and the map drains', async () => {
+  clearModelCache()
+  let release: () => void = () => {}
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  let requests = 0
+  global.fetch = (async () => {
+    requests++
+    await gate
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: 'chat-model' }] }) } as any
+  }) as any
+  const lookups = Array.from({ length: 40 }, (_, i) => resolveOpenAiCompatibleDefaultModel({ baseUrl: `http://burst-${i}:8000/v1` }))
+  lookups.push(resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://burst-39:8000/v1' }))
+  lookups.push(resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://burst-39:8000/v1/' }))
+  assert(requests === 40, `Expected one request per distinct endpoint during the burst, got ${requests}`)
+  assert(__test.inFlightOpenAiCompatibleFetchCount() === 40, 'Expected one in-flight entry per distinct endpoint')
+  release()
+  const resolved = await Promise.all(lookups)
+  assert(resolved.every((model) => model === 'chat-model'), 'Expected every caller in the burst to get its answer')
+  assert(__test.inFlightOpenAiCompatibleFetchCount() === 0, 'Expected the in-flight map to drain after the burst')
+  clearModelCache()
+})
+
+test('discovery keeps a tenant query string on the base URL when it asks for /models', async () => {
+  clearModelCache()
+  assert(openAiCompatibleEndpointUrl('http://gateway:8000/v1?tenant=a', '/models') === 'http://gateway:8000/v1/models?tenant=a', 'Expected the suffix on the path, not the query')
+  assert(openAiCompatibleEndpointUrl('http://gateway:8000/v1/', '/chat/completions') === 'http://gateway:8000/v1/chat/completions', 'Expected a trailing slash to be absorbed')
+  assert(openAiCompatibleEndpointUrl('http://gateway:8000/v1?tenant=a/', '/models') === 'http://gateway:8000/v1/models?tenant=a/', 'Expected a slash inside a query value to survive')
+  assert(
+    normalizeOpenAiCompatibleBaseUrl('http://gateway:8000/v1?tenant=a/') !== normalizeOpenAiCompatibleBaseUrl('http://gateway:8000/v1?tenant=a'),
+    'Expected a query value ending in a slash to remain its own endpoint',
+  )
+  let requested = ''
+  global.fetch = (async (url: string) => {
+    requested = String(url)
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: 'tenant-a-model' }] }) } as any
+  }) as any
+  const model = await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://gateway:8000/v1?tenant=a' })
+  assert(requested === 'http://gateway:8000/v1/models?tenant=a', `Expected the tenant's own /models URL, got ${requested}`)
+  assert(model === 'tenant-a-model', `Expected the tenant's model, got ${model}`)
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://gateway:8000/v1?tenant=a/' })
+  assert(requested === 'http://gateway:8000/v1/models?tenant=a/', `Expected a slash inside the query value to reach the endpoint, got ${requested}`)
+  assert(getCachedOpenAiCompatibleDefaultModel('http://gateway:8000/v1?tenant=a/') === 'tenant-a-model', 'Expected the slash-terminated tenant to be readable under its own identity')
+  clearModelCache()
+})
+
+test('a refresh asked for while a lookup is in flight is not undone by that lookup', async () => {
+  clearModelCache()
+  let release: () => void = () => {}
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  let calls = 0
+  global.fetch = (async () => {
+    calls++
+    if (calls === 1) await gate
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: calls === 1 ? 'stale-model' : 'fresh-model' }] }) } as any
+  }) as any
+  const stale = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://refresh-endpoint:8000/v1' })
+  clearModelCache()
+  const fresh = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://refresh-endpoint:8000/v1' })
+  release()
+  await Promise.all([stale, fresh])
+  assert(calls === 2, `Expected the refresh to issue its own /models request, got ${calls}`)
+  assert(getCachedOpenAiCompatibleDefaultModel('http://refresh-endpoint:8000/v1') === 'fresh-model', 'Expected the post-refresh answer to be the one cached')
+  clearModelCache()
+})
+
+test('a lookup finishing after a refresh does not evict the replacement lookup', async () => {
+  clearModelCache()
+  const gates: Array<() => void> = []
+  let calls = 0
+  global.fetch = (async () => {
+    calls++
+    await new Promise<void>((resolve) => gates.push(resolve))
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: `model-${calls}` }] }) } as any
+  }) as any
+  const stale = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://evict-endpoint:8000/v1' })
+  clearModelCache()
+  const fresh = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://evict-endpoint:8000/v1' })
+  gates[0]()
+  await stale
+  assert(__test.inFlightOpenAiCompatibleFetchCount() === 1, 'Expected the replacement lookup to stay registered after the stale one finished')
+  const joined = resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://evict-endpoint:8000/v1' })
+  assert(calls === 2, `Expected a third caller to join the replacement lookup, got ${calls} requests`)
+  gates[1]()
+  await Promise.all([fresh, joined])
+  assert(__test.inFlightOpenAiCompatibleFetchCount() === 0, 'Expected the map to drain once the replacement finished')
+  clearModelCache()
+})
+
+test('discovery remembers the context length each model advertises', async () => {
+  clearModelCache()
+  global.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ data: [
+      { id: 'deepseek-ai/DeepSeek-V4-Flash-0731', max_model_len: 131072 },
+      { id: 'lmstudio-model', context_length: '32768' },
+      { id: 'no-length-model' },
+    ] }),
+  }) as any) as any
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1', apiKey: 'k' })
+  assert(getCachedOpenAiCompatibleContextWindow('http://172.16.1.70:8000/v1/', 'k', 'openai-compatible/deepseek-ai/DeepSeek-V4-Flash-0731') === 131072, 'Expected the vLLM max_model_len, through the same credential, with or without the provider prefix')
+  assert(getCachedOpenAiCompatibleContextWindow('http://172.16.1.70:8000/v1', 'k', 'lmstudio/lmstudio-model') === 32768, 'Expected a string context_length to be read as a number')
+  assert(getCachedOpenAiCompatibleContextWindow('http://172.16.1.70:8000/v1', 'k', 'no-length-model') === undefined, 'Expected no length when the endpoint reports none')
+  assert(getCachedOpenAiCompatibleContextWindow('http://172.16.1.70:8000/v1', 'other', 'deepseek-ai/DeepSeek-V4-Flash-0731') === undefined, 'Expected another credential to see no catalog')
+  clearModelCache()
 })
 
 testChain.then(() => {

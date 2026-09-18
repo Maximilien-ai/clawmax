@@ -1,4 +1,5 @@
 import './lib/dashboard-env'
+import { requestByokScopeMiddleware } from './lib/ai-generator'
 import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
@@ -271,6 +272,8 @@ app.use(cors({
   credentials: true,
 }))
 app.use(express.json())
+// Every request gets its own BYOK credential scope (see requestByokScopeMiddleware).
+app.use(requestByokScopeMiddleware)
 app.use(cookieParser())
 
 // Rate limiting — global: 1000 req/min, auth: 20 req/min
