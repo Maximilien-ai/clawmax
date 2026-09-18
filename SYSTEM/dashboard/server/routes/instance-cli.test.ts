@@ -354,6 +354,17 @@ async function run() {
   })
 
   await test('unknown CLI paths return versioned JSON 404 and never SPA HTML', async () => {
+    const catalog = await request('/api/cli/v1/workspaces/operations/templates', { headers: auth })
+    assert.strictEqual(catalog.response.status, 200)
+    assert.strictEqual(catalog.json.kind, 'TemplateList')
+    assert.deepStrictEqual(catalog.json.items, [])
+    const capabilities = await request('/api/cli/v1/workspaces/operations/capabilities', { headers: auth })
+    assert.strictEqual(capabilities.response.status, 200)
+    assert.strictEqual(capabilities.json.workspaceId, 'operations')
+    const denied = await request('/api/cli/v1/workspaces/missing/templates', { headers: auth })
+    assert.strictEqual(denied.response.status, 403)
+    const unauthenticated = await request('/api/cli/v1/workspaces/operations/templates')
+    assert.strictEqual(unauthenticated.response.status, 401)
     const result = await request('/api/cli/v1/not-a-route')
     assert.strictEqual(result.response.status, 404)
     assert.strictEqual(result.response.headers.get('content-type')?.startsWith('application/json'), true)

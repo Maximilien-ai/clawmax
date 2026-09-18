@@ -11,6 +11,7 @@ import { getRuntimeInstanceIdentity } from '../lib/opik'
 import { getWorkspaceManager, Workspace } from '../lib/workspace-manager'
 import { getDashboardVersion, listAgents } from '../lib/workspace'
 import { listWorkflows } from '../lib/workflows'
+import { createInstanceTemplatesRouter } from './instance-templates'
 
 const API_VERSION = 'clawmax.instance/v1'
 const WORKSPACE_SCOPES = ['agents.read', 'agents.chat', 'workflows.run']
@@ -524,6 +525,25 @@ export function createInstanceCliRouter() {
     }
   })
 
+  router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceTemplatesRouter({
+    authorize: (req, res) => {
+      try {
+        const actor = req.clawmaxCliActor!
+        const workspace = manager.getWorkspace(req.params.workspaceId)
+        if (!workspace || !authorizationFor(workspace, actor, loadState())) {
+          sendError(res, req, 403, 'workspace_forbidden', 'workspace access denied')
+          return null
+        }
+        return { workspaceId: workspace.id, workspacePath: workspace.path, actorId: actor.actorId }
+      } catch {
+        sendError(res, req, 503, 'workspace_store_unavailable', 'workspace storage is unavailable', true)
+        return null
+      }
+    },
+    dashboardVersion: getDashboardVersion,
+    // Do not invent a runtime version when a source checkout has no pinned one.
+    openClawVersion: () => process.env.CLAWMAX_OPENCLAW_VERSION || 'unknown',
+  }))
   router.use((req, res) => sendError(res, req, 404, 'route_not_found', 'CLI API route not found'))
   return router
 }
