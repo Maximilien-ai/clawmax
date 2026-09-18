@@ -262,15 +262,42 @@ or execution capability was enabled, and neither canary was changed.
   retains journals when the gateway is unavailable or evidence is corrupt.
   Coordinator, file-transaction, gateway-transaction, registration, and startup
   readiness suites passed, as did server TypeScript and lint.
-- **Availability limitation:** uncertain recovery currently rejects the entire
-  Dashboard startup. Per-workspace quarantine and retry are still needed to
-  avoid making unrelated workspaces unavailable. This is a conservative safety
-  checkpoint, not completion of the RC80 stability gate.
+- At this checkpoint uncertain recovery rejected the entire Dashboard startup.
+  The isolation follow-up below narrows that restriction; neither checkpoint
+  completes the RC80 stability gate.
 
 CLI: no packaging, install, capability expansion, or canary action is requested
 at this checkpoint. Execution admission and public plan/apply remain disabled.
 Live native-gateway crash recovery and real Agent/Group/Workflow execution are
 still required; the new crash evidence uses a simulated gateway transport.
+
+### Inactive workspace quarantine checkpoint
+
+`6186eb38` continues startup recovery across workspace failures. A healthy
+active workspace can start while unresolved inactive workspaces remain blocked.
+Journal presence and in-process recovery state gate workspace access; recovery
+errors cannot be swallowed into the legacy fallback workspace. Switching,
+explicit lookup, contextual execution, deletion, and overwrite of affected
+workspaces are rejected. Workspace listing avoids scanning their partial
+resources and returns `recoveryState: "blocked"` through the existing Dashboard
+workspace list (the strict CLI workspace schema is unchanged). Dashboard token
+lookup skips blocked workspaces instead of preventing unrelated lookups.
+
+Evidence: quarantine/admission tests, coordinator crash recovery, seven workspace
+manager tests, seven workspace-dashboard tests, resource-file and registration
+tests, 17 CLI HTTP tests, Template catalog HTTP tests, server TypeScript, and
+lint passed. HTTP checks prove retryable 503 responses for affected CLI Agent,
+Workflow, Template and capability routes, continued workspace discovery, and
+absence of local filesystem paths in those error responses.
+
+**Remaining availability boundary:** an affected *active* workspace still stops
+startup; the server does not silently select another workspace. There is no
+automatic background retry or recovery-control UI yet. Some Dashboard routes
+still wrap admission failures as generic errors. Full active-workspace recovery
+UX and retry, execution-time authority enforcement, native crash acceptance,
+graph execution, cleanup and public apply/revision APIs remain outstanding.
+No execution capabilities, schedules, images, CLI packaging or canary changes
+were enabled by this checkpoint.
 
 Afterward, run the Template-first acceptance twice in an isolated development
 workspace, proving real Agent replies, Group communication, correlated
