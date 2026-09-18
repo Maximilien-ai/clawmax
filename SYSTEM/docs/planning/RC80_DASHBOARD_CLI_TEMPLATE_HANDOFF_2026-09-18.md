@@ -179,7 +179,30 @@ permissions. Collector-only execution is therefore still **unproven**. The
 runtime adapter must verify and enforce these bindings again at execution time,
 including revocation and runtime changes. All compiled resources remain blocked.
 
-This is not production deployment acceptance: gateway registration/recovery,
+Checkpoint `d7776eaf` adds the internal gateway transaction half. Inspection of
+the cached target OpenClaw `v2026.8.2` configuration handler confirmed keyed
+merge patches and revision-hash checks. The Dashboard transport now sends all
+Template Agent entries in one `config.patch` with `baseHash`; legacy list rosters
+are rejected rather than rewritten. Registrations require no Skills, deny all
+tools, and disable heartbeats while the execution admission guard remains shut.
+
+A durable intent journal survives failed calls, lost responses, and process
+loss. Recovery takes a trusted durable-revision lookup: committed resource
+revisions require exact registrations; uncommitted revisions remove only exact
+owned entries with another guarded patch. Missing committed entries, outside
+edits, corrupt journals, or unverifiable results fail closed. Unrelated gateway
+configuration is neither journaled nor restored from a whole-config snapshot.
+
+The new tests use a disk-backed **simulated gateway**, including a child process
+exit immediately after its simulated commit, response-loss/retry cases,
+multi-Agent batching, stale hashes, concurrent calls, and preservation of
+unrelated/edited registrations. They do not run a real OpenClaw gateway or prove
+native SQLite/runtime teardown. Existing gateway-client tests (19), config-edge
+tests (7), server TypeScript, and lint also passed. The gateway journal is not
+yet wired into Template apply or startup recovery; the resource/runtime
+coordinator and isolated real-gateway acceptance remain required.
+
+This is not production deployment acceptance: coordinated gateway registration/recovery,
 execution-time authority enforcement, full graph execution, safe merge-aware cleanup,
 public revision APIs, and UI presentation remain outstanding. No apply endpoint
 or execution capability was enabled, and neither canary was changed.
