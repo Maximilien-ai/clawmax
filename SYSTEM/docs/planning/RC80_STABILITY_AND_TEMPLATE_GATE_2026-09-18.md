@@ -77,7 +77,9 @@ run contract. Do not release a new CLI merely to conceal missing server APIs.
 
 ### Existing agreed catalog slice (Dashboard owns implementation)
 
-Implement the exact workspace-authorized routes and strict envelopes in
+Implemented in source and verified with the real CLI Go client; see the
+[catalog checkpoint and remaining Dashboard ownership](RC80_DASHBOARD_CLI_TEMPLATE_HANDOFF_2026-09-18.md).
+The workspace-authorized routes and strict envelopes follow
 `clawmax-cli/docs/specs/INSTANCE_CLI_API.md` and the typed decoders in
 `src/pkg/instanceclient/{capabilities,templates}.go`:
 
@@ -92,7 +94,11 @@ Template authoring must produce a valid portable bundle; catalog import creates
 the retained server Template. Do not equate this with one-agent-at-a-time setup,
 or confuse Dashboard Markdown templates with portable graph bundles.
 
-### Joint schema decisions (not yet accepted or implemented)
+### Production lifecycle gate (not yet accepted or exposed)
+
+The file transaction and revision core now have focused crash, idempotency,
+and cleanup tests. These use a synthetic compiler and do not establish native
+runtime atomicity or execution authority. Keep plan/apply unadvertised.
 
 Before activating plan/apply, Dashboard and CLI must agree versioned fixtures
 for a non-mutating plan, atomic apply, revision inspection, and exact cleanup:
