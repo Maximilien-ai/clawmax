@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"runtime"
-	"strings"
 
 	"github.com/Maximilien-ai/clawmax-cli/src/pkg/instanceclient"
 	"github.com/Maximilien-ai/clawmax-cli/src/pkg/portabletemplate"
@@ -29,14 +29,18 @@ func main() {
 	check(err)
 	client, err := instanceclient.New(os.Args[1], "synthetic-contract-token", "source-contract", nil)
 	check(err)
-	_, capabilityErr := client.Capabilities(ctx, "contract")
-	if runtime.GOOS == "linux" {
-		check(capabilityErr)
-	} else {
-		require(capabilityErr != nil, "Update this test when CLI supports native non-Linux runtime discovery")
-		require(strings.Contains(capabilityErr.Error(), "runtime capability identity is invalid"), "Unexpected capability contract failure")
-		fmt.Println("Known CLI gate: native non-Linux capabilities rejected; catalog client checked independently")
-	}
+	capabilities, err := client.Capabilities(ctx, "contract")
+	check(err)
+	// The harness starts Dashboard on this host, not in a Linux worker.
+	require(capabilities.Runtime.OperatingSystem == runtime.GOOS, "Dashboard must report the actual host OS")
+	require(capabilities.Runtime.Architecture == runtime.GOARCH, "Dashboard must report the actual host architecture")
+	require(reflect.DeepEqual(capabilities.Templates.Operations, []string{"import", "list", "remove", "show", "validate", "versions"}), "Catalog must not advertise unsupported plan/apply or export")
+	require(len(capabilities.WorkspacePackage.Formats) == 0 && len(capabilities.WorkspacePackage.Operations) == 0, "Workspace package support must remain unavailable")
+	require(len(capabilities.Skills.Formats) == 0 && len(capabilities.Skills.Platforms) == 0 && len(capabilities.Skills.Operations) == 0, "Native catalog discovery must not imply Linux Skill execution")
+	require(!capabilities.Communities.Available, "Community support must remain unavailable")
+	require(!capabilities.Groups.Permanent && len(capabilities.Groups.Operations) == 0, "Group execution must remain unavailable")
+	require(!capabilities.Workflows.Scheduling && len(capabilities.Workflows.Operations) == 0, "Workflow execution must remain unavailable")
+	fmt.Printf("Catalog capabilities: %s/%s; unsupported execution capabilities absent\n", capabilities.Runtime.OperatingSystem, capabilities.Runtime.Architecture)
 	upload := instanceclient.TemplateUpload{Filename: os.Args[2], Key: bundle.Manifest.Key, Version: bundle.Manifest.Version, BundleSHA256: bundle.SHA256, IdempotencyKey: "contract-import"}
 	validated, err := client.ValidateTemplateUpload(ctx, "contract", upload)
 	check(err)
