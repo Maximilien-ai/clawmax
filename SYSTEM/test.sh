@@ -2470,6 +2470,13 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Named export filename unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/stability-foundations.test.ts > /tmp/clawmax-stability-foundations.out 2>&1 || true
+if grep -q "stability-foundations.test.ts: passed" /tmp/clawmax-stability-foundations.out; then
+  pass "Stability foundations: concurrent workspace isolation and repeated gateway health recovery"
+else
+  cat /tmp/clawmax-stability-foundations.out
+  fail "Stability foundations"
+fi
 npx ts-node --transpileOnly client/src/lib/markdownPdf.test.ts > /tmp/clawmax-markdown-pdf.out 2>&1 || true
 npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/MarkdownDocumentViewer.test.tsx > /tmp/clawmax-markdown-viewer.out 2>&1 || true
 if grep -q "markdownPdf.test.ts: passed" /tmp/clawmax-markdown-pdf.out && grep -q "MarkdownDocumentViewer.test.tsx: passed" /tmp/clawmax-markdown-viewer.out; then
