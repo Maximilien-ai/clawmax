@@ -2471,7 +2471,7 @@ fi
 
 echo -e "${YELLOW}→ Running Named export filename unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/stability-foundations.test.ts > /tmp/clawmax-stability-foundations.out 2>&1 || true
-for template_suite in server/lib/portable-template-zip.test.ts server/lib/portable-template.test.ts server/routes/instance-templates.test.ts server/lib/messages-workspace-isolation.test.ts server/lib/workspace-file-transaction.test.ts server/lib/template-revisions.test.ts server/lib/template-resource-graph.test.ts; do
+for template_suite in server/lib/portable-template-zip.test.ts server/lib/portable-template.test.ts server/routes/instance-templates.test.ts server/lib/messages-workspace-isolation.test.ts server/lib/workspace-file-transaction.test.ts server/lib/template-revisions.test.ts server/lib/template-resource-graph.test.ts server/lib/template-resource-files.test.ts; do
   if npx ts-node --transpileOnly "$template_suite" > /tmp/clawmax-portable-template-suite.out 2>&1; then
     pass "Portable Template contract: $template_suite"
   else

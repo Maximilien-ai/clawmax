@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
 import path from 'path'
 import matter from 'gray-matter'
 import cronstrue from 'cronstrue'
@@ -1956,6 +1957,7 @@ export function triggerWorkflow(workflowId: string, options?: {
 }): { success: boolean; executionId?: string; error?: string } {
   let claimedExecutionId: string | undefined
   try {
+    assertTemplateRuntimeAdmitted(workflowId)
     if (getWorkflowPipelineState().paused) {
       return { success: false, error: 'Workflow pipeline is paused. Resume the pipeline before starting new runs.' }
     }

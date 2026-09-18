@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
 import { resolveNativeChatSession } from './native-chat-history'
 import path from 'path'
 import { createHash } from 'crypto'
@@ -182,6 +183,7 @@ export async function runExclusiveAgentExecution<T>(
   fn: () => Promise<T>,
   options: ExclusiveAgentExecutionOptions = {}
 ): Promise<T> {
+  assertTemplateRuntimeAdmitted(agentId)
   const previous = agentExecutionLocks.get(agentId) || Promise.resolve()
   let release!: () => void
   const current = new Promise<void>((resolve) => {
