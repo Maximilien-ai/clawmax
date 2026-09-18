@@ -140,6 +140,7 @@ export function getWorkspaceDashboardByToken(token: string): WorkspaceDashboard 
   const workspaceManager = getWorkspaceManager()
   const workspaces = workspaceManager.listWorkspaces()
   for (const workspace of workspaces) {
+    if (workspace.recoveryState === 'blocked') continue
     const store = loadStore(workspace.id)
     const dashboard = store.dashboards.find((entry) => entry.token === token)
     if (dashboard) return dashboard

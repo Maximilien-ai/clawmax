@@ -64,6 +64,7 @@ import { recoverTemplatesBeforeStartup } from './lib/template-startup-recovery'
 import { createTemplateGatewayTransport } from './lib/template-gateway-transaction'
 import { getGatewayClient } from './lib/gateway-rpc'
 import { getWorkspaceManager } from './lib/workspace-manager'
+import { assertWorkspaceRecovered } from './lib/workspace-recovery-admission'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -803,8 +804,8 @@ if (earlyClientDist) {
 }
 
 async function startServer(): Promise<void> {
-  const activeRoot = getWorkspacePath()
   const testRoot = String(process.env.CLAWMAX_TEST_WORKSPACE || '').trim()
+  const activeRoot = testRoot || getWorkspaceManager().getActiveWorkspace().path
   const workspaces = testRoot
     ? [{ id: 'test', path: testRoot }]
     : [...getWorkspaceManager().loadRegistry().workspaces, { id: 'active', path: activeRoot }]
@@ -814,7 +815,11 @@ async function startServer(): Promise<void> {
     getConfig: () => getGatewayClient().getConfig(),
     patchTemplateAgentEntriesAtRevision: (entries, hash) => getGatewayClient().patchTemplateAgentEntriesAtRevision(entries, hash),
   })
-  await recoverTemplatesBeforeStartup(workspaces, recoveryTransport, path.join(os.homedir(), '.openclaw', 'agents'))
+  const recovery = await recoverTemplatesBeforeStartup(workspaces, recoveryTransport, path.join(os.homedir(), '.openclaw', 'agents'), { isolateFailures: true })
+  if (recovery.blockedWorkspaceIds.length) console.warn(`[Startup] ${recovery.blockedWorkspaceIds.length} workspace(s) require Template recovery`)
+  // Never silently switch the operator to a different workspace. Failed
+  // inactive workspaces stay quarantined while a healthy active one can serve.
+  assertWorkspaceRecovered(activeRoot)
   const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
   startupReadiness = verifyCorePersistentStateReadable([
     { name: 'agents', read: () => listAgents() },

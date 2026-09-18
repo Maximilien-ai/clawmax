@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { AsyncLocalStorage } from 'async_hooks'
+import { assertWorkspaceRecovered, workspaceRecoveryBlocked } from './workspace-recovery-admission'
 
 export interface Workspace {
   id: string
@@ -11,6 +12,7 @@ export interface Workspace {
   agentCount?: number
   color?: string
   tags?: string[]
+  recoveryState?: 'blocked'
 }
 
 export interface WorkspaceRegistry {
@@ -149,6 +151,7 @@ export class WorkspaceManager {
     const registry = this.loadRegistry()
     // Dynamically count agents from each workspace's AGENTS directory
     for (const workspace of registry.workspaces) {
+      if (workspaceRecoveryBlocked(workspace.path)) continue
       try {
         const agentsDir = path.join(workspace.path, 'AGENTS')
         if (fs.existsSync(agentsDir)) {
@@ -167,16 +170,21 @@ export class WorkspaceManager {
         // Keep existing count if scan fails
       }
     }
-    return registry.workspaces
+    return registry.workspaces.map(workspace => workspaceRecoveryBlocked(workspace.path)
+      ? { ...workspace, agentCount: undefined, recoveryState: 'blocked' as const }
+      : workspace)
   }
 
   /** Get workspace by ID */
   getWorkspace(id: string): Workspace | null {
     const registry = this.loadRegistry()
-    return registry.workspaces.find(w => w.id === id) || null
+    const workspace = registry.workspaces.find(w => w.id === id) || null
+    if (workspace) assertWorkspaceRecovered(workspace.path)
+    return workspace
   }
 
   getWorkspaceByPath(workspacePath: string): Workspace | null {
+    assertWorkspaceRecovered(workspacePath)
     const registry = this.loadRegistry()
     return registry.workspaces.find((w) => w.path === workspacePath) || null
   }
@@ -202,6 +210,7 @@ export class WorkspaceManager {
     workspacePath: string,
     options?: { color?: string; tags?: string[]; mode?: 'create' | 'adopt' | 'overwrite' }
   ): Workspace {
+    assertWorkspaceRecovered(workspacePath)
     const registry = this.loadRegistry()
     const mode = options?.mode || 'create'
 
@@ -278,6 +287,7 @@ export class WorkspaceManager {
       throw new Error(`Workspace not found: ${id}`)
     }
 
+    assertWorkspaceRecovered(registry.workspaces[workspaceIndex].path)
     registry.workspaces.splice(workspaceIndex, 1)
     this.saveRegistry()
 
@@ -319,6 +329,7 @@ export class WorkspaceManager {
       throw new Error(`Workspace not found: ${id}`)
     }
 
+    assertWorkspaceRecovered(workspace.path)
     registry.activeWorkspaceId = id
     workspace.lastAccessedAt = new Date().toISOString()
     this.saveRegistry()
@@ -355,11 +366,13 @@ export class WorkspaceManager {
     if (!workspace) {
       throw new Error(`Workspace not found: ${id}`)
     }
+    assertWorkspaceRecovered(workspace.path)
     return await workspaceContext.run({ workspaceId: id }, fn)
   }
 
   /** Initialize workspace directory structure (AGENTS/, ORG/, SYSTEM/) */
   initializeWorkspaceStructure(workspacePath: string): void {
+    assertWorkspaceRecovered(workspacePath)
     try {
       // Create main workspace directory
       fs.mkdirSync(workspacePath, { recursive: true })

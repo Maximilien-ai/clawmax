@@ -6,6 +6,7 @@ import { createHash, randomUUID } from 'crypto'
 import { execFileSync } from 'child_process'
 import { extractZipSecurely } from './archive-security'
 import { getWorkspaceManager } from './workspace-manager'
+import { assertWorkspaceRecovered } from './workspace-recovery-admission'
 import { getPausedAgents } from './agent-state'
 import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
 import { REPO_ROOT } from './paths'
@@ -21,17 +22,21 @@ function getTestWorkspaceOverride(): string {
 /** Get the active workspace path (dynamic, supports multi-workspace) */
 export function getWorkspacePath(): string {
   const testWorkspace = getTestWorkspaceOverride()
-  if (testWorkspace) return testWorkspace
+  if (testWorkspace) { assertWorkspaceRecovered(testWorkspace); return testWorkspace }
 
   // Always check workspace manager first — it tracks the user's active workspace
+  let workspacePath: string
   try {
     const manager = getWorkspaceManager()
     const activeWorkspace = manager.getActiveWorkspace()
-    return activeWorkspace.path
+    workspacePath = activeWorkspace.path
   } catch {
     // Fallback to env var or default
-    return process.env.OPENCLAW_WORKSPACE || WORKSPACE
+    workspacePath = process.env.OPENCLAW_WORKSPACE || WORKSPACE
   }
+  // Outside the fallback catch: quarantine must never select another workspace.
+  assertWorkspaceRecovered(workspacePath)
+  return workspacePath
 }
 
 /** Agents live under WORKSPACE/AGENTS/maxN/ */

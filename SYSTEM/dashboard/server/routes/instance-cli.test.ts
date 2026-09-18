@@ -373,6 +373,27 @@ async function run() {
     assert(!result.text.includes('<html>'))
   })
 
+  await test('quarantined workspace resources fail closed without disabling workspace discovery', async () => {
+    const journalDir = path.join(root, 'workspaces', 'operations', '.clawmax')
+    fs.mkdirSync(journalDir, { recursive: true })
+    const journal = path.join(journalDir, 'template-gateway-transaction.json')
+    fs.writeFileSync(journal, '{invalid')
+    try {
+      for (const resource of ['agents', 'workflows', 'templates', 'capabilities']) {
+        const result = await request(`/api/cli/v1/workspaces/operations/${resource}`, { headers: auth })
+        assert.strictEqual(result.response.status, 503)
+        assert.strictEqual(result.json.kind, 'Error')
+        assert.strictEqual(result.json.error.retryable, true)
+        assert(!result.text.includes(root))
+      }
+      const list = await request('/api/cli/v1/workspaces', { headers: auth })
+      assert.strictEqual(list.response.status, 200)
+      assert.equal(fs.readFileSync(journal, 'utf8'), '{invalid')
+    } finally { fs.unlinkSync(journal) }
+    const recovered = await request('/api/cli/v1/workspaces/operations/agents', { headers: auth })
+    assert.strictEqual(recovered.response.status, 200)
+  })
+
   await test('corrupt CLI authorization state fails closed with an actionable versioned error', async () => {
     const stateFile = process.env.CLAWMAX_CLI_API_STATE_PATH!
     const valid = fs.readFileSync(stateFile, 'utf8')
