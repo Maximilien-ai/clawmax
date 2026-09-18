@@ -4,6 +4,7 @@ import { InstanceTemplateCatalog, validResourceId } from './instance-template-ca
 import { PortableTemplate, sha256 } from './portable-template'
 import { PortableTemplateError } from './portable-template-zip'
 import { commitWorkspaceFiles, WorkspaceFileMutation } from './workspace-file-transaction'
+import { templateStoragePath } from './template-storage-path'
 
 export interface TemplateBindingSelection { [artifactId: string]: string }
 export interface TemplateRevisionRequest {
@@ -60,8 +61,8 @@ function publicRevision(revision: Revision) { const { undo: _undo, requestDigest
 export class TemplateRevisionStore {
   constructor(readonly workspacePath: string, readonly workspaceId: string, readonly compiler: TemplateCompiler) {}
   private read(): { state: RevisionState; bytes: Buffer | null } {
-    if (fs.existsSync(path.join(this.workspacePath, '.clawmax', 'template-transaction.json'))) throw new PortableTemplateError('workspace_recovery_required', 'Recover the workspace transaction before planning', 503)
-    const file = path.join(this.workspacePath, stateRelativePath)
+    if (fs.existsSync(templateStoragePath(this.workspacePath, '.clawmax/template-transaction.json'))) throw new PortableTemplateError('workspace_recovery_required', 'Recover the workspace transaction before planning', 503)
+    const file = templateStoragePath(this.workspacePath, stateRelativePath)
     if (!fs.existsSync(file)) return { state: { version: 1, current: null, revisions: [] }, bytes: null }
     const bytes = fs.readFileSync(file)
     try {

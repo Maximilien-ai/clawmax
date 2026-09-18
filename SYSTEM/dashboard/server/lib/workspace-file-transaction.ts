@@ -3,24 +3,19 @@ import fs from 'fs'
 import path from 'path'
 import { PortableTemplateError } from './portable-template-zip'
 import { writeAtomicJson } from './instance-template-catalog'
+import { templateStoragePath } from './template-storage-path'
 
 export interface WorkspaceFileMutation { path: string; expectedSha256: string | null; content: string | null }
 interface JournalEntry { path: string; before: string | null; after: string | null }
 interface Journal { version: 1; id: string; state: 'prepared' | 'committed'; entries: JournalEntry[] }
 const digest = (content: Buffer) => crypto.createHash('sha256').update(content).digest('hex')
-const journalPath = (root: string) => path.join(root, '.clawmax', 'template-transaction.json')
+const journalPath = (root: string) => templateStoragePath(root, '.clawmax/template-transaction.json')
 const locks = new Set<string>()
 
 function target(root: string, relative: string): string {
   // Only canonical resource directories, never runtime credentials or host config.
   if (typeof relative !== 'string' || !/^(?:AGENTS|ORG|WORKFLOWS|SYSTEM)\/[A-Za-z0-9._/-]+$/.test(relative) || relative.split('/').some(part => !part || part === '.' || part === '..')) throw new PortableTemplateError('invalid_plan', 'Unsafe resource path')
-  const resolved = path.join(root, relative)
-  let current = root
-  for (const part of relative.split('/')) {
-    current = path.join(current, part)
-    if (fs.existsSync(current) && fs.lstatSync(current).isSymbolicLink()) throw new PortableTemplateError('resource_conflict', 'Resource paths cannot traverse symbolic links', 409)
-  }
-  return resolved
+  return templateStoragePath(root, relative)
 }
 function read(file: string): Buffer | null {
   try {

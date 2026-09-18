@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { PortableTemplate, sha256, validatePortableTemplate } from './portable-template'
 import { PortableTemplateError } from './portable-template-zip'
+import { templateStoragePath } from './template-storage-path'
 
 export interface InstanceTemplate {
   id: string; workspaceId: string; key: string; name: string; version: string
@@ -36,11 +37,12 @@ export function writeAtomicJson(file: string, value: unknown): void {
 export class InstanceTemplateCatalog {
   readonly root: string
   private readonly index: string
-  constructor(workspacePath: string, readonly workspaceId: string) {
-    this.root = path.join(workspacePath, '.clawmax', 'portable-templates')
-    this.index = path.join(this.root, 'catalog.json')
+  constructor(readonly workspacePath: string, readonly workspaceId: string) {
+    this.root = templateStoragePath(workspacePath, '.clawmax/portable-templates')
+    this.index = templateStoragePath(workspacePath, '.clawmax/portable-templates/catalog.json')
   }
   private read(): CatalogState {
+    templateStoragePath(this.workspacePath, '.clawmax/portable-templates/catalog.json')
     if (!fs.existsSync(this.index)) return { version: 1, templates: [], imports: [] }
     try {
       const state = JSON.parse(fs.readFileSync(this.index, 'utf8'))
@@ -65,7 +67,7 @@ export class InstanceTemplateCatalog {
   async bundle(id: string): Promise<PortableTemplate> {
     const template = this.get(id)
     let bytes: Buffer
-    try { bytes = fs.readFileSync(path.join(this.root, `${template.id}.zip`)) }
+    try { bytes = fs.readFileSync(templateStoragePath(this.workspacePath, `.clawmax/portable-templates/${template.id}.zip`)) }
     catch { throw new PortableTemplateError('template_store_unavailable', 'Template bundle is unavailable', 503) }
     if (sha256(bytes) !== template.bundleSha256) throw new PortableTemplateError('template_store_unavailable', 'Template bundle integrity check failed', 503)
     return validatePortableTemplate(bytes)
@@ -109,11 +111,11 @@ export class InstanceTemplateCatalog {
     const state = this.read()
     const entry = state.templates.find(entry => entry.template.id === id)
     if (!entry) return false
+    const bundlePath = templateStoragePath(this.workspacePath, `.clawmax/portable-templates/${id}.zip`)
     const removed = !entry.removed
     entry.removed = true
     if (removed) writeAtomicJson(this.index, state)
     // Catalog deletion never knows or traverses applied resource paths.
-    const bundlePath = path.join(this.root, `${id}.zip`)
     if (fs.existsSync(bundlePath)) fs.unlinkSync(bundlePath)
     return removed
   }
