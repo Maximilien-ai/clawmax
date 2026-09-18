@@ -202,7 +202,44 @@ tests (7), server TypeScript, and lint also passed. The gateway journal is not
 yet wired into Template apply or startup recovery; the resource/runtime
 coordinator and isolated real-gateway acceptance remain required.
 
-This is not production deployment acceptance: coordinated gateway registration/recovery,
+Checkpoint `2c797deb` connects the gateway and resource journals through an
+internal apply coordinator. The resource revision ledger is the durable commit
+decision; resource-file recovery runs before gateway reconciliation. Tests exit
+a child process after gateway registration and after resource commit: the former
+rolls registrations back, while the latter retains the committed revision and
+supports an idempotent retry. Bindings are re-resolved after gateway awaits, so
+revocation prevents resource commit and triggers scoped rollback. Workspace
+mismatches are rejected. This remains staging behind the execution guard, not
+the public apply API or automatic startup recovery.
+
+The complete [Dashboard CI run for `2c797deb`](https://github.com/Maximilien-ai/clawmax/actions/runs/35362356678)
+passed on September 18, including lint, build, the full test step and coverage.
+The run took approximately 27 minutes; its test summary reported all tests
+passed. Earlier superseded runs were cancelled by newer pushes, not accepted as
+successful evidence.
+
+Checkpoint `74677328` adds the opt-in real-gateway harness:
+
+```sh
+cd SYSTEM/dashboard
+npx ts-node --transpileOnly scripts/test-template-isolated-gateway.ts /absolute/prepared/openclaw
+```
+
+It passed against the cached target OpenClaw `v2026.8.2`: isolated gateway
+startup, coordinated two-Agent Template staging, exact retry without another
+revision, and preservation of the unrelated baseline Agent. The harness uses
+temporary config/state, a random loopback port, no inherited provider keys,
+disabled plugins/channels/cron/tools/heartbeats, and no model calls. It verifies
+the RPC config port matches its own gateway and terminates only its own process
+group, then removes its disposable data. Server TypeScript and lint passed.
+The first attempt reached gateway readiness but failed the explicit-URL config
+RPC check; the passing harness uses the pinned local-config CLI identity.
+
+The real harness proves staging/registration, not actual Agent execution,
+native process-crash recovery, or SQLite teardown. Those remain distinct from
+the simulated transport crash tests. MBP14 and test10 were not changed.
+
+This is not production deployment acceptance: automatic startup recovery,
 execution-time authority enforcement, full graph execution, safe merge-aware cleanup,
 public revision APIs, and UI presentation remain outstanding. No apply endpoint
 or execution capability was enabled, and neither canary was changed.
