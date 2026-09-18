@@ -162,7 +162,17 @@ async function main() {
     await recoverTemplatesBeforeStartup([{ id: 'uncommitted', path: orphanWorkspace }], transport, path.join(state, 'agents'))
     assert.deepEqual((await transport.snapshot()).entries, after.entries, 'Rollback must remove only the uncommitted native registration')
     assert(!fs.existsSync(path.join(orphanWorkspace, '.clawmax/template-gateway-transaction.json')))
-    console.log('Isolated real OpenClaw gateway: staging, replay, committed journal recovery, two-Agent rollback, stale-revision rejection, lost-response retry, and unrelated roster preservation passed; no model calls; no process-crash claim')
+    const cleanupPlan = store.planCleanup('actor', result.revision.id, store.currentRevision(), () => {})
+    assert.deepEqual((await transport.snapshot()).entries, after.entries, 'Cleanup planning must not modify registrations')
+    // Catalog deletion is separate from revision cleanup and never cascades.
+    new InstanceTemplateCatalog(workspace, 'isolated').remove(template.id)
+    const cleaned = await coordinator.cleanup('actor', result.revision.id, cleanupPlan.expectedRevision, cleanupPlan.planDigest, () => {})
+    assert(cleaned.removed)
+    assert.deepEqual((await transport.snapshot()).entries, before.entries, 'Committed cleanup must preserve exactly the unrelated baseline')
+    assert(!fs.existsSync(path.join(workspace, 'AGENTS', result.revision.resources.agents.producer, 'IDENTITY.md')))
+    assert(store.history()[0].cleanedAt, 'Keep revision evidence after native cleanup')
+    assert(!(await coordinator.cleanup('actor', result.revision.id, cleanupPlan.expectedRevision, cleanupPlan.planDigest, () => { throw new Error('Unexpected stopped check on cleaned retry') })).removed)
+    console.log('Isolated real OpenClaw gateway: staging, replay, committed journal recovery, two-Agent rollback, stale-revision rejection, lost-response retry, non-mutating cleanup planning, exact committed cleanup after catalog removal, cleanup replay, and unrelated roster preservation passed; no model calls; no process-crash claim')
   } catch (error: any) {
     const safe = `${error.message}\n${logs}`.split(token).join('[test-token-redacted]')
     throw new Error(safe)
