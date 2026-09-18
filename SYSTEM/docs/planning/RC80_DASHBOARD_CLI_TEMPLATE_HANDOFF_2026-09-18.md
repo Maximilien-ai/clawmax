@@ -239,10 +239,38 @@ The real harness proves staging/registration, not actual Agent execution,
 native process-crash recovery, or SQLite teardown. Those remain distinct from
 the simulated transport crash tests. MBP14 and test10 were not changed.
 
-This is not production deployment acceptance: automatic startup recovery,
+This is not production deployment acceptance: workspace-isolated recovery,
 execution-time authority enforcement, full graph execution, safe merge-aware cleanup,
 public revision APIs, and UI presentation remain outstanding. No apply endpoint
 or execution capability was enabled, and neither canary was changed.
+
+### Startup recovery checkpoint (September 18)
+
+- `1d1393d7` prevents legacy startup auto-registration from recreating reserved
+  Template Agent IDs outside the restrictive coordinator. The identity guard
+  runs before workspace inspection or runtime writes, even without metadata.
+  Focused tests cover repeated startup, existing/unrelated Agents, failures,
+  unmanaged folders, files, and symbolic links.
+- `e57d69b5` recovers registered workspace file journals before gateway journals,
+  before persistent-store readiness, HTTP serving, and background services.
+  Recovery uses the revision ledger, never a compiler or new authority grant.
+  Test-workspace overrides remain isolated; absent journals need no gateway
+  configuration or RPC. Gateway construction is lazy.
+- Child-process crash tests cover partial resource writes and both sides of
+  the gateway/resource commit boundary. Startup recovery preserves committed
+  registrations and unrelated entries, rolls back uncommitted resources, and
+  retains journals when the gateway is unavailable or evidence is corrupt.
+  Coordinator, file-transaction, gateway-transaction, registration, and startup
+  readiness suites passed, as did server TypeScript and lint.
+- **Availability limitation:** uncertain recovery currently rejects the entire
+  Dashboard startup. Per-workspace quarantine and retry are still needed to
+  avoid making unrelated workspaces unavailable. This is a conservative safety
+  checkpoint, not completion of the RC80 stability gate.
+
+CLI: no packaging, install, capability expansion, or canary action is requested
+at this checkpoint. Execution admission and public plan/apply remain disabled.
+Live native-gateway crash recovery and real Agent/Group/Workflow execution are
+still required; the new crash evidence uses a simulated gateway transport.
 
 Afterward, run the Template-first acceptance twice in an isolated development
 workspace, proving real Agent replies, Group communication, correlated
