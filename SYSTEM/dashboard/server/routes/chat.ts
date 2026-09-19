@@ -14,6 +14,7 @@ import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import { getAgentSkills, getAssignedSkillPromptNotes, getSkillById } from '../lib/skills'
 import { executeClawmaxResendSend } from '../lib/clawmax-resend-command'
 import {
+  buildDashboardChatSeed,
   deriveWorkspaceRootFromAgentWorkspace,
   hasReadyOpenClawNativeAgentStore,
   providerFromModel,
@@ -362,17 +363,6 @@ function extractJson(text: string): string {
     return text.slice(start, end + 1)
   }
   return ''
-}
-
-function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: string): string {
-  let stamp = 'chat'
-  const identityPath = agentWorkspaceDir ? path.join(agentWorkspaceDir, 'IDENTITY.md') : ''
-  if (identityPath && fs.existsSync(identityPath)) {
-    try {
-      stamp = Math.floor(fs.statSync(identityPath).mtimeMs).toString(36)
-    } catch {}
-  }
-  return `dashboard-${agentId}-${stamp}-chat`
 }
 
 export async function retryAssistantTextLookup(

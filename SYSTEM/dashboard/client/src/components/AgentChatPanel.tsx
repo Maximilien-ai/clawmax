@@ -225,8 +225,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [isListening, setIsListening] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [showArchives, setShowArchives] = useState(false)
-  const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string; active?: boolean }>>([])
-  const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: any[]; active?: boolean } | null>(null)
+  const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string; active?: boolean; removable?: boolean }>>([])
+  const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: any[]; active?: boolean; removable?: boolean } | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [inputHistory, setInputHistory] = useState<string[]>([])
@@ -940,7 +940,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}`, { headers: generationHeaders })
       const data = await r.json()
       const archiveMeta = archives.find((archive) => archive.filename === filename)
-      setViewingArchive({ filename, messages: data.messages || [], active: archiveMeta?.active })
+      setViewingArchive({ filename, messages: data.messages || [], active: archiveMeta?.active, removable: archiveMeta?.removable })
       setShowArchives(false)
     } catch (e) {
       console.error('Failed to load archive:', e)
@@ -965,14 +965,20 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
   async function deleteArchive(filename: string) {
     try {
-      await fetch(`/api/agents/${agentId}/chat/archives/${filename}`, { method: 'DELETE', headers: generationHeaders })
-      setArchives(archives.filter(a => a.filename !== filename))
+      const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}`, { method: 'DELETE', headers: generationHeaders })
+      const data = await r.json().catch(() => null)
       setDeleteConfirm(null)
+      if (!r.ok) {
+        setError(data?.error || 'Failed to delete archive')
+        return
+      }
+      setArchives(archives.filter(a => a.filename !== filename))
       if (viewingArchive?.filename === filename) {
         setViewingArchive(null)
       }
     } catch (e) {
       console.error('Failed to delete archive:', e)
+      setError(String(e))
     }
   }
 
@@ -1122,8 +1128,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                 disabled={resettingSession}
                 className={`text-xs px-2 py-1 rounded transition-colors shrink-0 ${
                   resettingSession
-                    ? 'text-gray-300 cursor-not-allowed'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'text-gray-300 cursor-not-allowed dark:text-gray-600'
+                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                 }`}
                 title="Reset the agent runtime session for a completely fresh chat"
               >
@@ -1137,8 +1143,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                 disabled={archives.length === 0}
                 className={`text-xs px-2 py-1 rounded transition-colors shrink-0 ${
                   archives.length === 0
-                    ? 'text-gray-300 cursor-not-allowed'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'text-gray-300 cursor-not-allowed dark:text-gray-600'
+                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                 }`}
                 title={archives.length === 0 ? 'No chat history yet' : 'View chat history'}
               >
@@ -1149,7 +1155,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               </button>
               <button
                 onClick={() => setShowClearConfirm(true)}
-                className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 shrink-0"
+                className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 dark:text-gray-300 rounded transition-colors dark:hover:bg-gray-700 shrink-0"
                 title="Clear messages"
               >
                 <span className="inline-flex items-center gap-1.5 sm:gap-2">
@@ -1570,7 +1576,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                             {archive.active ? 'Current conversation' : new Date(archive.timestamp).toLocaleDateString()} • {archive.messageCount} messages
                           </div>
                         </button>
-                        {!archive.active && (
+                        {!archive.active && archive.removable !== false && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setDeleteConfirm(archive.filename); }}
                             className="p-3 text-red-400 hover:text-red-600 transition-colors"
@@ -1609,7 +1615,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                   >
                     💾 Download
                   </button>
-                  {!viewingArchive.active && (
+                  {!viewingArchive.active && viewingArchive.removable !== false && (
                     <button
                       onClick={() => restoreArchive(viewingArchive.filename)}
                       className="text-xs px-2 py-1 text-sky-600 hover:bg-sky-50 rounded transition-colors"
@@ -1618,13 +1624,15 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                       ↺ Continue
                     </button>
                   )}
-                  <button
-                    onClick={() => setDeleteConfirm(viewingArchive.filename)}
-                    className="text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                    title="Delete archive"
-                  >
-                    🗑 Delete
-                  </button>
+                  {(!viewingArchive.active && viewingArchive.removable !== false) && (
+                    <button
+                      onClick={() => setDeleteConfirm(viewingArchive.filename)}
+                      className="text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                      title="Delete archive"
+                    >
+                      🗑 Delete
+                    </button>
+                  )}
                   <button
                     onClick={() => setViewingArchive(null)}
                     className="text-gray-400 hover:text-gray-600 text-lg leading-none"
