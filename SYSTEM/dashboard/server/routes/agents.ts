@@ -2858,7 +2858,11 @@ router.post('/:id/chat/messages', async (req, res) => {
     const resolvedAgent = resolveAgentExecutionConfig(id)
     const preferredSessionId = scopeSessionIdToModel(sessionKey, resolvedAgent.model)
     const persistedSessionId = resolvePersistedAgentSessionId(id, sessionKey, preferredSessionId, HOME)
-    const sessionId = scopeSessionIdToModel(persistedSessionId || sessionKey, resolvedAgent.model)
+    // persistedSessionId, when found, is already a real, resolved session id — re-scoping it
+    // through scopeSessionIdToModel (as this line used to) hashes an already-hashed string into a
+    // brand-new one, silently sending the turn to a session nothing has ever pointed at rather
+    // than the one just recovered above.
+    const sessionId = persistedSessionId || preferredSessionId
 
     if (resolvedAgent.runtime !== 'openclaw') {
       // Claude Code / Factory Droid: spawn via the shared runtime adapter instead of the
