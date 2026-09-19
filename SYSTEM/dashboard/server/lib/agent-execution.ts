@@ -15,6 +15,7 @@ import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } fro
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
 import { hasNativeTranscript, listNativeSessionIds, readNativeTranscriptLines } from './openclaw-native-transcripts'
+import type { NativeSessionSummary } from './openclaw-native-transcripts'
 
 interface OpenClawAgentRecord {
   id: string
@@ -522,7 +523,11 @@ export function resolvePersistedAgentSessionId(
   const isPersisted = (sessionId: string | undefined): sessionId is string =>
     hasSessionFile(sessionId) || (!!sessionId && hasNativeTranscript(agentId, sessionId, homeDir))
 
-  if (isPersisted(preferredSessionId)) {
+  // A legacy .jsonl match is trusted immediately: OpenClaw 1 never forks a second session id for
+  // the same dashboard chat the way a model change scopes a new native one, so there is no richer
+  // sibling to lose to here. A native match is NOT trusted immediately below — see why at the
+  // richness comparison this falls through to.
+  if (hasSessionFile(preferredSessionId)) {
     return preferredSessionId
   }
 
@@ -551,11 +556,26 @@ export function resolvePersistedAgentSessionId(
   // OpenClaw 2's native store has no sessions.json index to consult. listNativeSessionIds is NOT
   // watermark-aware (unlike isPersisted/hasNativeTranscript above), so a session recorded under
   // preferredSessionId that Clear has merely watermarked to empty still shows up here — and that
-  // is the answer we want: this agent's own conversation, now empty.
+  // is the answer we want: this agent's own conversation, now empty. This one short-circuit is
+  // still trusted immediately, before any richness comparison: Clear's watermark is a deliberate
+  // "make this look empty" instruction, and it must stick rather than being second-guessed by a
+  // richer sibling the user cleared away on purpose.
   const nativeSessions = listNativeSessionIds(agentId, homeDir)
-  if (preferredSessionId && nativeSessions.some((session) => session.sessionId === preferredSessionId)) {
+  const preferredIsClearedNativeSession = Boolean(
+    preferredSessionId
+    && nativeSessions.some((session) => session.sessionId === preferredSessionId)
+    && !hasNativeTranscript(agentId, preferredSessionId, homeDir)
+  )
+  if (preferredIsClearedNativeSession) {
     return preferredSessionId
   }
+  // A preferredSessionId that DOES have content is deliberately NOT returned here. The chat route
+  // always recomputes it from the resolved default model, so a restart that lands after that
+  // model changes (the BYOK endpoint now serves something else, or the operator picked a
+  // different one) mints a fresh, newest, model-scoped session id that starts collecting real
+  // messages the moment the user's very next turn lands — and would win this check outright,
+  // shadowing a long-running conversation behind that sliver. It still competes fairly as one of
+  // the candidates in the richness comparison below, and wins ties (see there).
 
   // Nothing matched the exact seed — e.g. a changed IDENTITY.md shifted buildDashboardChatSeed's
   // stamp, or this agent has never sent a dashboard-chat turn at all. Recover the user's own
@@ -576,18 +596,45 @@ export function resolvePersistedAgentSessionId(
   // change what a real session id actually starts with, and this must match that exactly.
   const dashboardSeedPrefix = stableDashboardSeedPrefix(agentId)
   const sessionKeyPrefix = stableSessionKeyPrefix(sessionKey)
+  // A session id that itself starts with one of these prefixes was PROVABLY produced by scoping
+  // this exact agentId/sessionKey through scopeSessionIdToModel — the only thing that could differ
+  // between two such ids is the stamp (an IDENTITY.md edit) or the model token (a resolved default
+  // model change). Two sessions in this set are the same conversation lineage forked by one of
+  // those, never two unrelated conversations, so it's safe to compare them by how much real
+  // content each has and trust the richer one.
+  const isScopedFromThisSeed = (session: { sessionId: string }) =>
+    session.sessionId.startsWith(dashboardSeedPrefix) || session.sessionId.startsWith(sessionKeyPrefix)
   const isOwnDashboardSession = (session: { sessionKey: string; sessionId: string }) =>
     session.sessionKey === sessionKey
     || session.sessionKey.startsWith(`${sessionKey}:`)
-    || session.sessionId.startsWith(dashboardSeedPrefix)
-    // A session scoped straight from the semantic key, the shape every conversation older than
-    // buildDashboardChatSeed carries; still this agent's own dashboard chat, never a stranger's.
-    || session.sessionId.startsWith(sessionKeyPrefix)
-  // Sessions arrive newest-first, and a conversation the user actually had outranks an empty
-  // placeholder an earlier runtime left under the same key, so prefer one that still has content.
-  const ownDashboardSession = nativeSessions.find((session) =>
-    isOwnDashboardSession(session) && hasNativeTranscript(agentId, session.sessionId, homeDir)
-  ) || nativeSessions.find(isOwnDashboardSession)
+    || isScopedFromThisSeed(session)
+  // Among the sessions PROVABLY scoped from this seed, the one with the most real conversation in
+  // it wins — not the most recent. A restart that lands after the resolved default model changes
+  // (the BYOK endpoint now serves a different model, or the operator picked a different one)
+  // produces a fresh, newest-first, near-empty session under a different model-scoped id; picking
+  // "newest with any content" would shadow a long-running conversation behind that sliver the
+  // moment the user sends one more message after such a restart. Sessions with nothing since their
+  // last clear score 0 and are never picked over one with content; among ties, the newest (first
+  // in nativeSessions' order) wins, matching the old behavior when nothing distinguishes them.
+  //
+  // A session that matches only by session_key shape (an exact or ":explicit:"-prefixed key, with
+  // an id that does NOT provably derive from this seed) is a weaker signal — recorded there by
+  // some other bookkeeping convention, not proven to be a fork of this same conversation — so it
+  // is still recoverable when nothing scoped from the seed has content, but never allowed to
+  // out-rank a scoped session purely by having more messages; that would resurface an unrelated
+  // historical thread as "current" instead of leaving it in History where it belongs.
+  const ownDashboardSessions = nativeSessions.filter(isOwnDashboardSession)
+  const scopedOwnDashboardSessions = ownDashboardSessions.filter(isScopedFromThisSeed)
+  let richestScopedSession: NativeSessionSummary | undefined
+  let richestScopedSessionMessageCount = 0
+  for (const session of scopedOwnDashboardSessions) {
+    const messageCount = readNativeTranscriptLines(agentId, session.sessionId, homeDir).length
+    if (messageCount > richestScopedSessionMessageCount) {
+      richestScopedSession = session
+      richestScopedSessionMessageCount = messageCount
+    }
+  }
+  const ownDashboardSession = richestScopedSession || ownDashboardSessions[0]
   if (ownDashboardSession) {
     return ownDashboardSession.sessionId
   }

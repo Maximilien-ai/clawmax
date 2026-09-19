@@ -34,6 +34,7 @@ import { REPO_ROOT } from './paths'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import { materializeDashboardAgentList } from './openclaw-config'
 import { hasNativeTranscript, listNativeSessionIds, markNativeTranscriptCleared, readNativeTranscriptLines } from './openclaw-native-transcripts'
+import { resetAgentSessionsForModelChange } from './agent-model'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -749,6 +750,97 @@ test('resolvePersistedAgentSessionId prefers this agent conversation over a newe
   const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, `dashboard-${agentId}-newstamp-chat`, home)
   assert(resolved === conversationId, `Expected the conversation carrying messages rather than the newer empty placeholder, got ${resolved}`)
 })
+
+test('resolvePersistedAgentSessionId prefers the richer of two content-bearing sessions over the newer, thinner one', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-richest-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentId = 'richest-agent'
+  const sessionKey = `agent:${agentId}:dashboard-chat`
+  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  // Mirrors the live incident: a long-running conversation scoped to one model, then the BYOK
+  // endpoint's resolved default model changes (or the operator picks a different one) and a
+  // restart mints a second, newer, differently-model-scoped session id that already has a few
+  // real messages of its own — not an empty placeholder. Recency alone must not shadow the
+  // substantial conversation behind the sliver that happens to be newest.
+  const oldSessionId = scopeSessionIdToModel(sessionKey, 'deepseek-ai/DeepSeek-V4-Flash-0731')
+  const newSessionId = scopeSessionIdToModel(sessionKey, 'local-inference-lab/Qwen3.8-Flash-Next-NVFP4')
+  insertSession.run(`agent:${agentId}:explicit:${oldSessionId}`, oldSessionId, JSON.stringify({ sessionId: oldSessionId, updatedAt: 1000 }), 1000)
+  insertSession.run(`agent:${agentId}:explicit:${newSessionId}`, newSessionId, JSON.stringify({ sessionId: newSessionId, updatedAt: 9000 }), 9000)
+  for (let seq = 1; seq <= 20; seq++) {
+    insertEvent.run(oldSessionId, seq, JSON.stringify({ type: 'message', message: { role: seq % 2 ? 'user' : 'assistant', content: `old turn ${seq}` } }), 1000 + seq)
+  }
+  for (let seq = 1; seq <= 2; seq++) {
+    insertEvent.run(newSessionId, seq, JSON.stringify({ type: 'message', message: { role: seq % 2 ? 'user' : 'assistant', content: `new turn ${seq}` } }), 9000 + seq)
+  }
+  database.close()
+
+  const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, newSessionId, home)
+  assert(resolved === oldSessionId, `Expected the richer 20-message session over the newer 2-message one, got ${resolved}`)
+})
+
+test('resolvePersistedAgentSessionId falls back to the newest match when every own-dashboard session is equally empty', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-all-empty-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentId = 'all-empty-agent'
+  const sessionKey = `agent:${agentId}:dashboard-chat`
+  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  const olderId = scopeSessionIdToModel(sessionKey, 'older-model')
+  const newerId = scopeSessionIdToModel(sessionKey, 'newer-model')
+  insertSession.run(`agent:${agentId}:explicit:${olderId}`, olderId, JSON.stringify({ sessionId: olderId, updatedAt: 1000 }), 1000)
+  insertSession.run(`agent:${agentId}:explicit:${newerId}`, newerId, JSON.stringify({ sessionId: newerId, updatedAt: 9000 }), 9000)
+  database.close()
+
+  const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, newerId, home)
+  assert(resolved === newerId, `Expected the newest match as the fallback when nothing has content, got ${resolved}`)
+})
+
+test("Reset Session's legacy-file archiving does not disturb which native session resolvePersistedAgentSessionId then picks", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-reset-session-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentId = 'reset-session-agent'
+  const sessionKey = `agent:${agentId}:dashboard-chat`
+  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+  const sessionsDir = path.join(home, '.openclaw', 'agents', agentId, 'sessions')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  const sessionId = scopeSessionIdToModel(sessionKey, 'some-model')
+  insertSession.run(`agent:${agentId}:explicit:${sessionId}`, sessionId, JSON.stringify({ sessionId, updatedAt: 1000 }), 1000)
+  for (let seq = 1; seq <= 6; seq++) {
+    insertEvent.run(sessionId, seq, JSON.stringify({ type: 'message', message: { role: seq % 2 ? 'user' : 'assistant', content: `turn ${seq}` } }), 1000 + seq)
+  }
+  database.close()
+  // A leftover legacy sessions.json from before this agent's runtime migrated, exactly what
+  // Reset Session's own archiving step (resetAgentSessionsForModelChange) exists to clear.
+  fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({ [sessionKey]: { sessionId: 'stale-legacy-pointer', updatedAt: 500 } }))
+
+  const before = resolvePersistedAgentSessionId(agentId, sessionKey, `dashboard-${agentId}-currentstamp-chat`, home)
+  assert(before === sessionId, `Expected the real native conversation to resolve before Reset Session, got ${before}`)
+
+  const reset = resetAgentSessionsForModelChange(home, agentId)
+  assert(reset.ok, `Expected Reset Session's archiving step to succeed, got ${JSON.stringify(reset)}`)
+  assert(!fs.existsSync(path.join(sessionsDir, 'sessions.json')), 'Expected the stale legacy index to be archived away')
+
+  // Reset Session never touches the native SQLite store (the runtime owns it), so the same real
+  // conversation is the only thing left to resolve to — this fix does not change that.
+  const after = resolvePersistedAgentSessionId(agentId, sessionKey, `dashboard-${agentId}-currentstamp-chat`, home)
+  assert(after === sessionId, `Expected the same native conversation to resolve after Reset Session, got ${after}`)
+})
+
 
 test('resolvePersistedAgentSessionId recovers a dashboard-chat session recorded only under its seed-prefixed session id, key-agnostic', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-seed-prefix-home-'))
