@@ -784,6 +784,45 @@ test('resolvePersistedAgentSessionId prefers the richer of two content-bearing s
   assert(resolved === oldSessionId, `Expected the richer 20-message session over the newer 2-message one, got ${resolved}`)
 })
 
+test('resolvePersistedAgentSessionId compares sessions by real conversational turns, not raw transcript rows', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-real-turns-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentId = 'real-turns-agent'
+  const sessionKey = `agent:${agentId}:dashboard-chat`
+  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  // toolHeavySessionId has 2 real exchanges (4 messages) plus 11 toolResult rows — 15 raw rows.
+  // plainSessionId has 6 real exchanges (12 messages) and nothing else — 12 raw rows, fewer than
+  // the tool-heavy session's 15, but far more actual conversation. Raw-row counting would pick the
+  // wrong one; counting only user/assistant messages must pick plainSessionId.
+  const toolHeavySessionId = scopeSessionIdToModel(sessionKey, 'model-a')
+  const plainSessionId = scopeSessionIdToModel(sessionKey, 'model-b')
+  insertSession.run(`agent:${agentId}:explicit:${toolHeavySessionId}`, toolHeavySessionId, JSON.stringify({ sessionId: toolHeavySessionId, updatedAt: 1000 }), 1000)
+  insertSession.run(`agent:${agentId}:explicit:${plainSessionId}`, plainSessionId, JSON.stringify({ sessionId: plainSessionId, updatedAt: 2000 }), 2000)
+  let seq = 0
+  for (let turn = 0; turn < 2; turn++) {
+    insertEvent.run(toolHeavySessionId, ++seq, JSON.stringify({ type: 'message', message: { role: 'user', content: `question ${turn}` } }), seq)
+    for (let toolCall = 0; toolCall < 5; toolCall++) {
+      insertEvent.run(toolHeavySessionId, ++seq, JSON.stringify({ type: 'message', message: { role: 'toolResult', content: `tool output ${toolCall}` } }), seq)
+    }
+    insertEvent.run(toolHeavySessionId, ++seq, JSON.stringify({ type: 'message', message: { role: 'assistant', content: `answer ${turn}` } }), seq)
+  }
+  let plainSeq = 0
+  for (let turn = 0; turn < 6; turn++) {
+    insertEvent.run(plainSessionId, ++plainSeq, JSON.stringify({ type: 'message', message: { role: 'user', content: `question ${turn}` } }), plainSeq)
+    insertEvent.run(plainSessionId, ++plainSeq, JSON.stringify({ type: 'message', message: { role: 'assistant', content: `answer ${turn}` } }), plainSeq)
+  }
+  database.close()
+
+  const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, plainSessionId, home)
+  assert(resolved === plainSessionId, `Expected the session with more real conversation (6 exchanges) over the tool-heavy one (2 exchanges, more raw rows), got ${resolved}`)
+})
+
 test('resolvePersistedAgentSessionId falls back to the newest match when every own-dashboard session is equally empty', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-all-empty-home-'))
   const { DatabaseSync } = require('node:sqlite')
@@ -802,6 +841,20 @@ test('resolvePersistedAgentSessionId falls back to the newest match when every o
 
   const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, newerId, home)
   assert(resolved === newerId, `Expected the newest match as the fallback when nothing has content, got ${resolved}`)
+})
+
+test('scopeSessionIdToModel is not idempotent on its own output — callers must never re-scope a resolved session id', () => {
+  // routes/agents.ts's POST /:id/chat/messages once did exactly this: computed
+  // `resolvePersistedAgentSessionId(...)` (already a real, resolved session id) and then ran it
+  // BACK through `scopeSessionIdToModel`, hashing an already-hashed string into a third, never-
+  // before-seen id — silently sending the turn to an empty session instead of the one the resolver
+  // (correctly) found. Any future caller that re-scopes a resolved id will hit this same bug; this
+  // test exists to make that mistake fail loudly rather than silently, the way it did in production.
+  const sessionKey = 'agent:some-agent:dashboard-chat'
+  const model = 'some-model'
+  const resolved = scopeSessionIdToModel(sessionKey, model)
+  const reScoped = scopeSessionIdToModel(resolved, model)
+  assert(reScoped !== resolved, 'Expected re-scoping an already-scoped id to change it — this is the exact defect a caller must avoid by using a resolved session id as-is')
 })
 
 test("Reset Session's legacy-file archiving does not disturb which native session resolvePersistedAgentSessionId then picks", () => {

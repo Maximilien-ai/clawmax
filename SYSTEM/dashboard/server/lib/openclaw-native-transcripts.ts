@@ -359,6 +359,28 @@ export function readNativeTranscriptLines(agentId: string, sessionId: string, ho
  * like `readNativeTranscriptLines` — a fully cleared session with nothing since reports false,
  * mirroring the legacy store (Clear deletes the `.jsonl`, so `hasSessionFile` goes false too).
  */
+/**
+ * How much real conversation is in a session's transcript — lines that are a `message` event with
+ * a `user` or `assistant` role, matching exactly what `parseVisibleChatMessages` renders to the
+ * user. `readNativeTranscriptLines`'s raw line count also includes `session`/`model_change` events
+ * and `toolResult` messages, so a tool-call-heavy session can carry many more raw rows than a
+ * plainer one with more actual back-and-forth; callers comparing sessions by "how much real
+ * conversation" each has must use this, not a raw line count.
+ */
+export function countVisibleNativeTranscriptMessages(agentId: string, sessionId: string, homeDir: string = process.env.HOME || ''): number {
+  let count = 0
+  for (const line of readNativeTranscriptLines(agentId, sessionId, homeDir)) {
+    try {
+      const entry = JSON.parse(line)
+      const role = entry?.type === 'message' ? entry?.message?.role : undefined
+      if (role === 'user' || role === 'assistant') count++
+    } catch {
+      // A malformed line counts for nothing rather than throwing the comparison off.
+    }
+  }
+  return count
+}
+
 export function hasNativeTranscript(agentId: string, sessionId: string, homeDir: string = process.env.HOME || ''): boolean {
   if (!sessionId) return false
   const database = openNativeStoreReadOnly(nativeAgentStorePath(agentId, homeDir))

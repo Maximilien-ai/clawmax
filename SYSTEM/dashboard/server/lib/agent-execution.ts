@@ -14,7 +14,7 @@ import { getAvailableModelsCached } from './model-discovery'
 import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
-import { hasNativeTranscript, listNativeSessionIds, readNativeTranscriptLines } from './openclaw-native-transcripts'
+import { countVisibleNativeTranscriptMessages, hasNativeTranscript, listNativeSessionIds, readNativeTranscriptLines } from './openclaw-native-transcripts'
 import type { NativeSessionSummary } from './openclaw-native-transcripts'
 
 interface OpenClawAgentRecord {
@@ -628,7 +628,10 @@ export function resolvePersistedAgentSessionId(
   let richestScopedSession: NativeSessionSummary | undefined
   let richestScopedSessionMessageCount = 0
   for (const session of scopedOwnDashboardSessions) {
-    const messageCount = readNativeTranscriptLines(agentId, session.sessionId, homeDir).length
+    // Real conversational turns only — a tool-heavy session (many toolResult rows for a couple of
+    // real exchanges) must not out-rank one with fewer raw rows but more of the user actually
+    // talking to the agent.
+    const messageCount = countVisibleNativeTranscriptMessages(agentId, session.sessionId, homeDir)
     if (messageCount > richestScopedSessionMessageCount) {
       richestScopedSession = session
       richestScopedSessionMessageCount = messageCount
