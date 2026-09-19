@@ -190,6 +190,43 @@ function cleanMessageContent(content: string): string {
   return cleaned || '(processing...)'
 }
 
+/**
+ * OpenClaw's built-in memory-core tool, when its search index is stale, hands the model a tool
+ * result whose warning/action fields are literal second-person instructions ("Tell the user:
+ * memory search is paused...", "Tell the user to run: openclaw memory index --force."). The model
+ * follows that instruction like any other and appends it to its visible reply as ordinary prose —
+ * see https://github.com/Maximilien-ai/clawmax/issues/197. There is no structural signal
+ * distinguishing this from the model's real answer once it's written, so detection is by content:
+ * a paragraph mentioning a paused memory search alongside the operator command to fix it is
+ * reliably this notice and not something a user's own question would produce. Kept narrow (a
+ * specific, confirmed leak) rather than a general "looks like an aside" heuristic, which would
+ * risk swallowing real answers; extend this list if OpenClaw's other built-in tools are found to
+ * do the same thing.
+ */
+export function isMemoryIndexPausedNotice(paragraph: string): boolean {
+  const p = paragraph.toLowerCase()
+  return /memory (search|index)/.test(p)
+    && /paused/.test(p)
+    && (/embedding/.test(p) || /openclaw memory (index|status)/.test(p))
+}
+
+/**
+ * Pulls a recognized internal-tool notice (see isMemoryIndexPausedNotice) out of an assistant
+ * reply so it renders as a separate system note instead of inline conversational text. Returns
+ * the content unchanged when nothing matches. Paragraph-level, not line-level, since the notice is
+ * model-written prose (often a full sentence or two), unlike cleanMessageContent's raw log/tool
+ * artifact lines.
+ */
+export function splitTrailingSystemNotice(content: string): { text: string; notice?: string } {
+  if (!content) return { text: content }
+  const paragraphs = content.split(/\n{2,}/)
+  const noticeIndex = paragraphs.findIndex(isMemoryIndexPausedNotice)
+  if (noticeIndex === -1) return { text: content }
+  const notice = paragraphs[noticeIndex].trim()
+  const rest = paragraphs.filter((_, i) => i !== noticeIndex).join('\n\n').trim()
+  return { text: rest, notice }
+}
+
 export default function AgentChatPanel({ agentId, agentName, agentStatus, agentGeneration, onClose, onSuccess, onNavigateToDoc }: Props) {
   const { config } = useAuth()
   const { showSuccess, showError } = useToast()
@@ -1247,13 +1284,23 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               >
                 {msg.role === 'assistant' ? (
                   <>
+                    {(() => { const { text: bubbleText, notice: systemNotice } = splitTrailingSystemNotice(msg.content || ''); return (
+                    <>
                     {rawViewIds.has(msg.id) ? (
                       <pre className="text-xs whitespace-pre-wrap break-words font-mono overflow-auto max-h-60">{cleanMessageContent(msg.content)}</pre>
                     ) : (
                       <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                        {renderMarkdown(msg.content || (isStreamingPlaceholder ? '▌' : ''), true, 'assistant')}
+                        {renderMarkdown(bubbleText || (isStreamingPlaceholder ? '▌' : ''), true, 'assistant')}
                       </div>
                     )}
+                    {systemNotice && !rawViewIds.has(msg.id) && (
+                      <div className="mt-2 flex items-start gap-1.5 text-xs opacity-60" title="A note from the agent's tooling, not part of its answer">
+                        <span aria-hidden="true">ⓘ</span>
+                        <span className="whitespace-pre-wrap break-words">{systemNotice}</span>
+                      </div>
+                    )}
+                    </>
+                    ) })()}
                     {onNavigateToDoc && getResolvedFileMentions(msg.content || '').length > 0 && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="text-[11px] opacity-70">Files:</span>
