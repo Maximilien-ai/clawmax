@@ -33,7 +33,7 @@ import {
 import { REPO_ROOT } from './paths'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import { materializeDashboardAgentList } from './openclaw-config'
-import { hasNativeTranscript, listNativeSessionIds, markNativeTranscriptCleared, readNativeTranscriptLines } from './openclaw-native-transcripts'
+import { hasNativeTranscript, listNativeSessionIds, markNativeTranscriptCleared, readNativeTranscriptLines, getNativeClearWatermarkClearedAt, countVisibleNativeTranscriptMessages } from './openclaw-native-transcripts'
 import { resetAgentSessionsForModelChange } from './agent-model'
 
 const GREEN = '\x1b[32m'
@@ -841,6 +841,78 @@ test('resolvePersistedAgentSessionId falls back to the newest match when every o
 
   const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, newerId, home)
   assert(resolved === newerId, `Expected the newest match as the fallback when nothing has content, got ${resolved}`)
+})
+
+test('resolvePersistedAgentSessionId keeps a just-cleared session current over a scoped sibling that already had content', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-clear-vs-sibling-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentId = 'clear-vs-sibling-agent'
+  const sessionKey = `agent:${agentId}:dashboard-chat`
+  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  // Two scoped-from-seed siblings, both with real content — the shape a restart-provoked model
+  // change leaves behind once the newer session has also picked up its own messages. The user is
+  // looking at the richer one (rich) and clears it; the thinner sibling (thin) has had nothing
+  // said in it since before that Clear. Clearing rich must show empty, not silently hand "current"
+  // to thin just because thin still has messages and rich now scores 0.
+  const richSessionId = scopeSessionIdToModel(sessionKey, 'model-rich')
+  const thinSessionId = scopeSessionIdToModel(sessionKey, 'model-thin')
+  insertSession.run(`agent:${agentId}:explicit:${richSessionId}`, richSessionId, JSON.stringify({ sessionId: richSessionId, updatedAt: 5000 }), 5000)
+  insertSession.run(`agent:${agentId}:explicit:${thinSessionId}`, thinSessionId, JSON.stringify({ sessionId: thinSessionId, updatedAt: 1000 }), 1000)
+  for (let seq = 1; seq <= 10; seq++) {
+    insertEvent.run(richSessionId, seq, JSON.stringify({ type: 'message', message: { role: seq % 2 ? 'user' : 'assistant', content: `rich turn ${seq}` } }), 4000 + seq)
+  }
+  insertEvent.run(thinSessionId, 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'thin turn, said well before rich was cleared' } }), 500)
+  database.close()
+
+  const before = resolvePersistedAgentSessionId(agentId, sessionKey, richSessionId, home)
+  assert(before === richSessionId, `Expected the richer session to be current before Clear, got ${before}`)
+
+  markNativeTranscriptCleared(agentId, richSessionId, home)
+
+  const after = resolvePersistedAgentSessionId(agentId, sessionKey, richSessionId, home)
+  assert(after === richSessionId, `Expected the just-cleared session to stay current (now empty) rather than falling back to the thinner, untouched-since sibling, got ${after}`)
+  assert(countVisibleNativeTranscriptMessages(agentId, after!, home) === 0, 'Expected the resolved current session to actually read as empty after Clear')
+})
+
+test('resolvePersistedAgentSessionId lets a sibling regain current once the user actually resumes talking there after a Clear', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-clear-then-resume-home-'))
+  const { DatabaseSync } = require('node:sqlite')
+  const agentId = 'clear-then-resume-agent'
+  const sessionKey = `agent:${agentId}:dashboard-chat`
+  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  const clearedSessionId = scopeSessionIdToModel(sessionKey, 'model-cleared')
+  const resumedSessionId = scopeSessionIdToModel(sessionKey, 'model-resumed')
+  insertSession.run(`agent:${agentId}:explicit:${clearedSessionId}`, clearedSessionId, JSON.stringify({ sessionId: clearedSessionId, updatedAt: 1000 }), 1000)
+  insertSession.run(`agent:${agentId}:explicit:${resumedSessionId}`, resumedSessionId, JSON.stringify({ sessionId: resumedSessionId, updatedAt: 1000 }), 1000)
+  insertEvent.run(clearedSessionId, 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'old conversation' } }), 500)
+  database.close()
+
+  markNativeTranscriptCleared(agentId, clearedSessionId, home)
+
+  // The user then genuinely resumes chatting in the other scoped session — its own real activity
+  // lands strictly after the Clear.
+  const laterDatabase = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  const laterInsertSession = laterDatabase.prepare('INSERT OR REPLACE INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  const laterInsertEvent = laterDatabase.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  const resumedAt = Date.now() + 1000
+  laterInsertSession.run(`agent:${agentId}:explicit:${resumedSessionId}`, resumedSessionId, JSON.stringify({ sessionId: resumedSessionId, updatedAt: resumedAt }), resumedAt)
+  laterInsertEvent.run(resumedSessionId, 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'resumed conversation' } }), resumedAt)
+  laterDatabase.close()
+
+  const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, clearedSessionId, home)
+  assert(resolved === resumedSessionId, `Expected the sibling the user actually resumed talking in after the Clear to become current, got ${resolved}`)
 })
 
 test('scopeSessionIdToModel is not idempotent on its own output — callers must never re-scope a resolved session id', () => {

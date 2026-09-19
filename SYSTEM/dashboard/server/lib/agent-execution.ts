@@ -14,7 +14,7 @@ import { getAvailableModelsCached } from './model-discovery'
 import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
-import { countVisibleNativeTranscriptMessages, hasNativeTranscript, listNativeSessionIds, readNativeTranscriptLines } from './openclaw-native-transcripts'
+import { countVisibleNativeTranscriptMessages, getNativeClearWatermarkClearedAt, hasNativeTranscript, listNativeSessionIds, readNativeTranscriptLines } from './openclaw-native-transcripts'
 import type { NativeSessionSummary } from './openclaw-native-transcripts'
 
 interface OpenClawAgentRecord {
@@ -556,26 +556,15 @@ export function resolvePersistedAgentSessionId(
   // OpenClaw 2's native store has no sessions.json index to consult. listNativeSessionIds is NOT
   // watermark-aware (unlike isPersisted/hasNativeTranscript above), so a session recorded under
   // preferredSessionId that Clear has merely watermarked to empty still shows up here — and that
-  // is the answer we want: this agent's own conversation, now empty. This one short-circuit is
-  // still trusted immediately, before any richness comparison: Clear's watermark is a deliberate
-  // "make this look empty" instruction, and it must stick rather than being second-guessed by a
-  // richer sibling the user cleared away on purpose.
+  // is fine: whether a cleared session stays "current" over a content-bearing sibling is decided
+  // below (mostRecentClear), not here. A preferredSessionId that DOES have content is deliberately
+  // NOT returned immediately either: the chat route always recomputes it from the resolved default
+  // model, so a restart that lands after that model changes (the BYOK endpoint now serves
+  // something else, or the operator picked a different one) mints a fresh, newest, model-scoped
+  // session id that starts collecting real messages the moment the user's very next turn lands —
+  // and would win an unconditional check like this outright, shadowing a long-running conversation
+  // behind that sliver. It still competes fairly as one of the candidates below, and wins ties.
   const nativeSessions = listNativeSessionIds(agentId, homeDir)
-  const preferredIsClearedNativeSession = Boolean(
-    preferredSessionId
-    && nativeSessions.some((session) => session.sessionId === preferredSessionId)
-    && !hasNativeTranscript(agentId, preferredSessionId, homeDir)
-  )
-  if (preferredIsClearedNativeSession) {
-    return preferredSessionId
-  }
-  // A preferredSessionId that DOES have content is deliberately NOT returned here. The chat route
-  // always recomputes it from the resolved default model, so a restart that lands after that
-  // model changes (the BYOK endpoint now serves something else, or the operator picked a
-  // different one) mints a fresh, newest, model-scoped session id that starts collecting real
-  // messages the moment the user's very next turn lands — and would win this check outright,
-  // shadowing a long-running conversation behind that sliver. It still competes fairly as one of
-  // the candidates in the richness comparison below, and wins ties (see there).
 
   // Nothing matched the exact seed — e.g. a changed IDENTITY.md shifted buildDashboardChatSeed's
   // stamp, or this agent has never sent a dashboard-chat turn at all. Recover the user's own
@@ -625,6 +614,30 @@ export function resolvePersistedAgentSessionId(
   // historical thread as "current" instead of leaving it in History where it belongs.
   const ownDashboardSessions = nativeSessions.filter(isOwnDashboardSession)
   const scopedOwnDashboardSessions = ownDashboardSessions.filter(isScopedFromThisSeed)
+  // A session someone just cleared stays "current" (now correctly empty) over any sibling that
+  // merely has content — richness alone would otherwise hand "current" right back to whichever
+  // scoped sibling already had messages the moment the just-cleared one dropped to a score of 0,
+  // undoing the Clear the instant a second model-scoped session exists for this agent. This is
+  // deliberately scoped tighter than "any cleared session wins": only when the most recent clear
+  // among these siblings happened after every sibling's own last real activity — i.e. nothing has
+  // actually been said in a sibling since — is the cleared slot still the right "current" answer;
+  // the moment the user genuinely resumes talking in a different scoped session, its own growing
+  // richness is allowed to compete for "current" again.
+  let mostRecentClear: { session: NativeSessionSummary; clearedAt: number } | undefined
+  for (const session of scopedOwnDashboardSessions) {
+    const clearedAt = getNativeClearWatermarkClearedAt(agentId, session.sessionId, homeDir)
+    if (clearedAt !== undefined && (!mostRecentClear || clearedAt > mostRecentClear.clearedAt)) {
+      mostRecentClear = { session, clearedAt }
+    }
+  }
+  const noSiblingActiveSinceThatClear = Boolean(
+    mostRecentClear
+    && scopedOwnDashboardSessions.every((session) => session === mostRecentClear!.session || session.updatedAt <= mostRecentClear!.clearedAt)
+  )
+  if (mostRecentClear && noSiblingActiveSinceThatClear) {
+    return mostRecentClear.session.sessionId
+  }
+
   let richestScopedSession: NativeSessionSummary | undefined
   let richestScopedSessionMessageCount = 0
   for (const session of scopedOwnDashboardSessions) {

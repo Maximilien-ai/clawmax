@@ -381,6 +381,28 @@ export function countVisibleNativeTranscriptMessages(agentId: string, sessionId:
   return count
 }
 
+/**
+ * When this session was last cleared, if that mark is still valid (not stale — see
+ * `readNativeClearWatermarkSeq`'s own doc comment on generation staleness). undefined for a
+ * session that was never cleared, whose mark went stale, or whose store can't be read.
+ */
+export function getNativeClearWatermarkClearedAt(agentId: string, sessionId: string, homeDir: string = process.env.HOME || ''): number | undefined {
+  if (!sessionId) return undefined
+  const database = openNativeStoreReadOnly(nativeAgentStorePath(agentId, homeDir))
+  if (!database) return undefined
+
+  try {
+    const mark = readNativeClearWatermarksFile(getNativeClearWatermarksPath(agentId, homeDir))?.[sessionId]
+    if (!mark || typeof mark.clearedAt !== 'number') return undefined
+    if (mark.generation && mark.generation !== readCurrentTranscriptGeneration(database, sessionId)) return undefined
+    return mark.clearedAt
+  } catch {
+    return undefined
+  } finally {
+    closeQuietly(database)
+  }
+}
+
 export function hasNativeTranscript(agentId: string, sessionId: string, homeDir: string = process.env.HOME || ''): boolean {
   if (!sessionId) return false
   const database = openNativeStoreReadOnly(nativeAgentStorePath(agentId, homeDir))
