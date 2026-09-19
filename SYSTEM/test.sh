@@ -2469,6 +2469,15 @@ else
   fail "RC feedback presentation regression tests"
 fi
 
+echo -e "${YELLOW}→ Running agent chat internal-notice extraction tests...${NC}"
+npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/AgentChatPanel.test.tsx > /tmp/clawmax-agent-chat-panel.out 2>&1 || true
+if grep -q "AgentChatPanel.test.tsx: 14 assertions passed" /tmp/clawmax-agent-chat-panel.out; then
+  pass "Agent chat internal-notice extraction tests (14 assertions)"
+else
+  cat /tmp/clawmax-agent-chat-panel.out
+  fail "Agent chat internal-notice extraction tests"
+fi
+
 echo -e "${YELLOW}→ Running Named export filename unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/stability-foundations.test.ts > /tmp/clawmax-stability-foundations.out 2>&1 || true
 if node "$SYSTEM_DIR/patch-openclaw-roster-removal.test.mjs"; then
