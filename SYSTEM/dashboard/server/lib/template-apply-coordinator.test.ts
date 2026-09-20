@@ -4,7 +4,7 @@ import os from 'os'
 import path from 'path'
 import { spawnSync } from 'child_process'
 import { templateFixture } from './portable-template.test'
-import { validatePortableTemplate } from './portable-template'
+import { sha256, validatePortableTemplate } from './portable-template'
 import { InstanceTemplateCatalog, writeAtomicJson } from './instance-template-catalog'
 import { readTemplateAuthorityRegistry } from './template-authority'
 import { createTemplateResourceFileCompiler } from './template-resource-files'
@@ -13,6 +13,7 @@ import { TemplateGatewayTransaction, TemplateGatewayTransport } from './template
 import { TemplateApplyCoordinator } from './template-apply-coordinator'
 import { recoverTemplatesBeforeStartup } from './template-startup-recovery'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
+import { noToolsTemplatePolicy, verifyTemplateExecutionPolicies } from './template-execution-policy'
 
 function components(root: string, options: { checkpoint?: (phase: string) => void; afterPatch?: () => void; beforeSnapshot?: () => void } = {}) {
   const file = path.join(root, 'synthetic-gateway.json')
@@ -51,7 +52,7 @@ async function setup(root: string) {
     bindings: bundle.artifacts.filter(item => item.kind === 'agent').map(agent => ({
       id: `${agent.id}-binding`, revision: 'v1', artifactId: agent.id, artifactDigest: agent.digest,
       actorIds: ['actor'], disabled: false, model: { id: 'openai/test', revision: 'v1' },
-      policy: { id: 'no-tools', sha256: 'a'.repeat(64) }, runtime: { platform: 'linux/amd64', revision: 'synthetic-runtime' }, skills: [], credentials: [],
+      policy: { id: 'no-tools', sha256: sha256(JSON.stringify(noToolsTemplatePolicy('no-tools'))) }, runtime: { platform: 'linux/amd64', revision: 'synthetic-runtime' }, skills: [], credentials: [],
     })),
   })
 }
@@ -124,14 +125,36 @@ async function main() {
     const authorityBytes = fs.readFileSync(authorityFile)
     let authorityReads = 0
     const source = { read: () => { authorityReads++; return readTemplateAuthorityRegistry(authorityFile) }, runtime: { platform: 'linux/amd64', revision: 'synthetic-runtime' } }
-    const check = () => staged.coordinator.verifyStagedExecution('actor', stagedRevision.id, stagedAgent, source)
+    let policy: unknown = noToolsTemplatePolicy('no-tools')
+    let policyReads = 0
+    const policies = { read: () => { policyReads++; return policy } }
+    const check = () => staged.coordinator.verifyStagedExecution('actor', stagedRevision.id, stagedAgent, source, policies)
     const stagedRoster = await staged.transport.snapshot()
     assert.deepEqual(await check(), { revisionId: stagedRevision.id, planDigest: stagedRevision.planDigest, authorityDigest: stagedRevision.authorityDigest, gatewayHash: stagedRoster.hash })
     assert.equal(authorityReads, 2, 'Authority is checked before and after the gateway await')
+    assert.equal(policyReads, 4, 'Each agent policy is checked before and after the gateway await')
     assert.deepEqual(await staged.transport.snapshot(), stagedRoster, 'Staging checks must not write gateway configuration')
     assert.throws(() => assertTemplateRuntimeAdmitted(stagedAgent), /execution is unavailable/, 'Evidence is not an execution grant')
-    await assert.rejects(staged.coordinator.verifyStagedExecution('other', stagedRevision.id, stagedAgent, source), /not authorized/)
-    await assert.rejects(staged.coordinator.verifyStagedExecution('actor', stagedRevision.id, 'unrelated', source), /does not belong/)
+    await assert.rejects(staged.coordinator.verifyStagedExecution('other', stagedRevision.id, stagedAgent, source, policies), /not authorized/)
+    await assert.rejects(staged.coordinator.verifyStagedExecution('actor', stagedRevision.id, 'unrelated', source, policies), /does not belong/)
+    for (const unsupported of [null, { ...noToolsTemplatePolicy('no-tools'), tools: { deny: [] } }, { ...noToolsTemplatePolicy('no-tools'), allow: ['exec'] }]) {
+      policy = unsupported
+      await assert.rejects(check(), /policy is unavailable or unsupported/)
+    }
+    policy = noToolsTemplatePolicy('no-tools')
+    const changedPolicyHash = structuredClone(stagedRevision.authority!)
+    changedPolicyHash.bindings[0].policy.sha256 = 'b'.repeat(64)
+    assert.throws(() => verifyTemplateExecutionPolicies(changedPolicyHash, policies), /policy is unavailable/)
+    const addedCredential = structuredClone(stagedRevision.authority!)
+    addedCredential.bindings[0].credentials = [{ name: 'API_KEY', reference: 'collector', revision: 'v1' }]
+    assert.throws(() => verifyTemplateExecutionPolicies(addedCredential, policies), /policy is unavailable/)
+    const addedSkill = structuredClone(stagedRevision.authority!)
+    addedSkill.bindings[0].skills = [{ name: 'collector', sha256: 'c'.repeat(64), platform: 'linux/amd64' }]
+    assert.throws(() => verifyTemplateExecutionPolicies(addedSkill, policies), /policy is unavailable/)
+    assert.throws(() => verifyTemplateExecutionPolicies(stagedRevision.authority!, { read: () => { throw new Error('private path') } }), error => error instanceof Error && !error.message.includes('private path'))
+    duringSnapshot = () => { policy = null }
+    await assert.rejects(check(), /policy is unavailable/)
+    policy = noToolsTemplatePolicy('no-tools')
     duringSnapshot = () => {
       const registry = JSON.parse(authorityBytes.toString())
       registry.bindings[0].actorIds = ['revoked']
