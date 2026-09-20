@@ -278,3 +278,26 @@ reconciliation and cancellation; real Group/Workflow graph execution; then two
 complete public CLI-driven cycles. This narrow native/local-model acceptance
 does not establish cloud acceptance, Operations deployment readiness, or RC81
 release approval.
+
+## Public chat bridge checkpoint — 2026-09-20
+
+`79c0b2a7` connects an explicitly server-composed Template executor to the
+public CLI chat route. It selects exactly one active, actor-owned revision,
+checks workspace bindings and staged authority before replay, and dispatches
+through the no-tools coordinator rather than browser chat. The coordinator
+rechecks workspace authorization after gateway awaits and before dispatch.
+Template session continuation is explicitly rejected; ordinary chat is unchanged.
+Without server composition, reserved Template execution remains blocked.
+
+Validation: server TypeScript, focused ESLint, the coordinator suite, and all
+13 HTTP chat contract tests passed. `fb44643c` extends the opt-in native harness:
+one isolated cycle passed both internal execution and the public CLI HTTP route
+using OpenClaw 2026.8.2 with `ollama/qwen2.5:latest`. The HTTP response contained
+a nonempty 34-byte reply, correlated start/delta/done events, and byte-identical
+durable replay with exactly one model dispatch. Recovery, rollback, exact cleanup,
+cleanup replay and unrelated roster preservation passed; the harness exited 0.
+
+This HTTP check uses synthetic isolated authentication, not installed RC6's
+production identity flow. Production router composition is still disabled.
+No Group/Workflow execution capability was enabled, no image was built, and
+MBP14/test10 were not modified. Remaining release gates above still apply.
