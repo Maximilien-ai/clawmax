@@ -193,3 +193,40 @@ ESLint passed. [Policy binding CI](https://github.com/Maximilien-ai/clawmax/acti
 was pending when recorded. Runtime queue integration and production Template
 execution are still disabled; these checks do not establish end-to-end policy
 enforcement or release readiness.
+
+## Internal no-tools execution owner
+
+`469abfca` adds `GatewayRPCClient.runNoToolsTemplateAgent`. The fixed request uses
+OpenClaw `agent` RPC with `modelRun: true`, `promptMode: "none"`, disabled message
+delivery, and an explicit server-selected model/instruction set. It never runs
+ordinary chat credential/config/Skill preparation. The protocol was checked
+against the prepared v2026.8.2 source: `packages/gateway-protocol/src/schema/agent.ts`,
+`src/gateway/agent-turn/agent-run-dispatch.ts`, and
+`src/gateway/worker-environments/worker-tool-authority.ts`.
+
+The adapter waits past the accepted acknowledgement for the final response with
+the same run ID. It rejects negative envelopes, failed/empty/media-only replies,
+and mismatched run identities. Gateway execution is bounded to 120 seconds;
+the response wait is 150 seconds. Disconnect/timeout is an uncertain outcome,
+not cancellation or permission to redispatch.
+
+`ffcf2689` adds the internal `TemplateApplyCoordinator.executeNoToolsAgent`
+owner. It verifies the revision, live authority, policy and gateway, holds the
+workspace lock through settlement, and writes a private local idempotency claim
+before dispatch. Completed replies replay without another call. Unknown outcomes
+block another run and cleanup, including after reopening the workspace. Receipts
+contain request hashes and replies, not a second raw-prompt copy; limits are
+128 receipts and 3 MiB per revision, with replies bounded to 2 MiB.
+
+Local checks passed: 11 gateway transport checks, seven gateway configuration
+checks, coordinator/revision/resource-file suites, HTTP lifecycle contracts,
+server TypeScript and focused ESLint.
+[Transport CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35534537429)
+was running and [execution-owner CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35534697180)
+was pending when recorded.
+
+**Still internal, not release-ready:** execution tests use a synthetic model
+transport. Real isolated native/model acceptance, pending-run inspection and
+reconciliation/cancellation, production route integration, Group/Workflow graph
+execution, and CLI-driven end-to-end cycles remain outstanding. Browser and
+public CLI Template execution remain blocked. No installed instance was changed.
