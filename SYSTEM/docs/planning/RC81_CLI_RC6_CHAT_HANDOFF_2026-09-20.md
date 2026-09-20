@@ -230,3 +230,51 @@ transport. Real isolated native/model acceptance, pending-run inspection and
 reconciliation/cancellation, production route integration, Group/Workflow graph
 execution, and CLI-driven end-to-end cycles remain outstanding. Browser and
 public CLI Template execution remain blocked. No installed instance was changed.
+
+## Real local Qwen acceptance — September 20 follow-up
+
+Two consecutive fresh-state runs passed on the prepared OpenClaw **2026.8.2**
+(`0965053fe6b9341776df147a6934b7485c60b5ca`, with the existing roster-removal
+patch), using local **ollama/qwen2.5:latest**. Observed Ollama model digest:
+`845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e`.
+Each run returned a nonempty 34-byte native reply, replayed the saved response
+with redispatch explicitly forbidden, and completed exact cleanup while
+preserving the unrelated baseline agent. The same runs passed staging replay,
+committed journal recovery, two-Agent rollback, stale-revision rejection,
+lost-response retry of gateway cleanup, non-mutating cleanup planning, catalog
+removal before cleanup, and cleanup replay. This is not a process-crash test.
+
+The live test found issues that synthetic transport tests had not exposed:
+
+- Token-only WebSocket callers do not receive execution scope. `fe47a11e`
+  requests `operator.write` and permits paired native CLI fallback **only** on
+  an explicit scope rejection before acceptance. It preserves the idempotency
+  key, waits for the final reply, and never retries unknown outcomes. The CLI
+  receives a minimal environment without provider or workspace partner secrets.
+- Execution uses the already-verified committed agent model, not a model
+  override requiring broader native permissions.
+- The harness must use its local config/state identity without an explicit URL
+  override and must enable the Ollama provider plugin. All other plugins,
+  schedules, heartbeats and browser access stay disabled.
+
+Harness checkpoint: `a1f69109`. Reproduce with an explicitly prepared binary:
+
+```sh
+cd SYSTEM/dashboard
+npx ts-node scripts/test-template-isolated-gateway.ts /absolute/prepared/openclaw --local-model ollama/qwen2.5:latest
+```
+
+Each invocation creates its own temporary gateway/state/workspace and removes
+only those disposable resources afterward. MBP14's installed agent, its VM,
+and test10 were not changed. The preparation failures were not counted as passes.
+The native calls use the internal coordinator, **not** public CLI chat routes.
+
+Twelve gateway transport checks, server TypeScript and focused ESLint also
+passed. [Acceptance-harness CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35536757878)
+was running when recorded; no image build was dispatched.
+
+Remaining gates: production lifecycle/chat integration; pending-run inspection,
+reconciliation and cancellation; real Group/Workflow graph execution; then two
+complete public CLI-driven cycles. This narrow native/local-model acceptance
+does not establish cloud acceptance, Operations deployment readiness, or RC81
+release approval.
