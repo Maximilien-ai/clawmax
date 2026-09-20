@@ -334,6 +334,19 @@ async function run() {
     assert.strictEqual(selectCliMembership(actor, 'missing'), null)
   })
 
+  await test('public chat is mounted behind CLI authentication and workspace authorization', async () => {
+    const chatBody = JSON.stringify({ apiVersion: 'clawmax.instance/v1', kind: 'AgentChatRequest', message: 'Synthetic', idempotencyKey: 'mount-check' })
+    const chat = (workspace: string, authenticated = true) => request(`/api/cli/v1/workspaces/${workspace}/agents/missing-agent/chat/sessions`, {
+      method: 'POST', headers: { ...(authenticated ? auth : {}), 'content-type': 'application/json' }, body: chatBody,
+    })
+    assert.strictEqual((await chat('operations', false)).response.status, 401)
+    assert.strictEqual((await chat('unknown')).response.status, 403)
+    const missing = await chat('operations')
+    assert.strictEqual(missing.response.status, 404)
+    assert.strictEqual(missing.json.error.code, 'agent_not_found')
+    assert(!fs.existsSync(path.join(root, 'workspaces', 'operations', '.clawmax', 'cli-chat')))
+  })
+
   await test('agent listing is workspace contextual and does not mutate selection', async () => {
     const result = await request('/api/cli/v1/workspaces/operations/agents', { headers: auth })
     assert.strictEqual(result.response.status, 200)

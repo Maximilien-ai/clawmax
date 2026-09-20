@@ -12,6 +12,7 @@ import { getWorkspaceManager, Workspace } from '../lib/workspace-manager'
 import { getDashboardVersion, listAgents } from '../lib/workspace'
 import { listWorkflows } from '../lib/workflows'
 import { createInstanceTemplatesRouter } from './instance-templates'
+import { createInstanceChatRouter } from './instance-chat'
 
 const API_VERSION = 'clawmax.instance/v1'
 const WORKSPACE_SCOPES = ['agents.read', 'agents.chat', 'workflows.run']
@@ -525,6 +526,29 @@ export function createInstanceCliRouter() {
     }
   })
 
+  router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceChatRouter({
+    authorize: (req, res) => {
+      const actorId = req.clawmaxCliActor!.actorId
+      const workspaceId = req.params.workspaceId
+      const workspace = manager.getWorkspace(workspaceId)
+      const assertAuthorized = () => {
+        const actor = resolveCliActor(req)
+        const current = manager.getWorkspace(workspaceId)
+        if (!actor || actor.actorId !== actorId || !workspace || !current
+          || current.path !== workspace.path || !authorizationFor(current, actor, loadState())) {
+          throw new Error('Workspace access denied')
+        }
+      }
+      try { assertAuthorized() } catch {
+        sendError(res, req, 403, 'workspace_forbidden', 'workspace access denied')
+        return null
+      }
+      return {
+        workspaceId: workspace!.id, workspacePath: workspace!.path, actorId, assertAuthorized,
+        run: fn => manager.withWorkspace(workspace!.id, fn),
+      }
+    },
+  }))
   router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceTemplatesRouter({
     authorize: (req, res) => {
       try {
