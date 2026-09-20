@@ -1,6 +1,7 @@
 /** Explicit opt-in acceptance. Pass a prepared OpenClaw binary; never an
  * installed instance profile. Owns a temporary state/config root and one child
- * process group. Does not load provider keys or make Agent/model calls.
+ * process group. Optional --local-model ollama/<id> enables credential-free
+ * native execution against localhost Ollama. Never loads hosted provider keys.
  */
 import assert from 'assert'
 import crypto from 'crypto'
@@ -12,18 +13,22 @@ import { spawn, execFile } from 'child_process'
 import { promisify } from 'util'
 import { setTimeout as delay } from 'timers/promises'
 import { templateFixture } from '../server/lib/portable-template.test'
-import { validatePortableTemplate } from '../server/lib/portable-template'
+import { sha256, validatePortableTemplate } from '../server/lib/portable-template'
 import { InstanceTemplateCatalog, writeAtomicJson } from '../server/lib/instance-template-catalog'
 import { createTemplateResourceFileCompiler } from '../server/lib/template-resource-files'
 import { TemplateRevisionStore } from '../server/lib/template-revisions'
 import { createTemplateGatewayTransport, TemplateGatewayTransaction } from '../server/lib/template-gateway-transaction'
 import { TemplateApplyCoordinator } from '../server/lib/template-apply-coordinator'
 import { recoverTemplatesBeforeStartup } from '../server/lib/template-startup-recovery'
-import { buildTemplateAgentEntriesPatch } from '../server/lib/gateway-rpc'
+import { buildTemplateAgentEntriesPatch, GatewayRPCClient } from '../server/lib/gateway-rpc'
+import { noToolsTemplatePolicy } from '../server/lib/template-execution-policy'
 
 async function main() {
   const binary = process.argv[2]
   assert(binary && path.isAbsolute(binary) && fs.existsSync(binary), 'Pass an absolute prepared OpenClaw binary path')
+  const localModel = process.argv[3] === '--local-model' ? process.argv[4] : undefined
+  assert(process.argv.length === 3 || (process.argv.length === 5 && localModel && /^ollama\/[a-zA-Z0-9._:-]+$/.test(localModel)), 'Optional arguments: --local-model ollama/<id>')
+  const model = localModel || 'openai/gpt-4.1-mini'
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-isolated-template-gateway-'))
   const workspace = path.join(root, 'workspace')
   const state = path.join(root, 'state')
@@ -40,13 +45,17 @@ async function main() {
     OPENCLAW_NO_RESPAWN: '1', OPENCLAW_DISABLE_BONJOUR: '1',
   }
   writeAtomicJson(configFile, {
+    ...(localModel ? { models: { providers: { ollama: {
+      baseUrl: 'http://127.0.0.1:11434', api: 'ollama', apiKey: 'ollama-local',
+      models: [{ id: localModel.slice('ollama/'.length), name: 'Isolated local acceptance', contextWindow: 32768, maxTokens: 1024 }],
+    } } } } : {}),
     logging: { file: path.join(root, 'gateway.log') },
-    plugins: { enabled: false },
+    plugins: localModel ? { enabled: true, allow: ['ollama'], entries: { ollama: { enabled: true } } } : { enabled: false },
     gateway: { mode: 'local', port, bind: 'loopback', auth: { mode: 'token', token }, controlUi: { enabled: false } },
     browser: { enabled: false }, cron: { enabled: false },
     agents: { ownership: 'explicit', entries: { baseline: {
       name: 'Unrelated acceptance fixture', workspace: path.join(root, 'baseline'),
-      agentDir: path.join(state, 'agents/baseline/agent'), model: 'openai/gpt-4.1-mini',
+      agentDir: path.join(state, 'agents/baseline/agent'), model,
       skills: [], tools: { deny: ['*'] }, heartbeat: { every: '0m' },
     } } },
   })
@@ -61,7 +70,7 @@ async function main() {
   const timeout = setTimeout(() => {
     timedOut = true
     if (child.pid) { try { process.kill(-child.pid, 'SIGTERM') } catch { /* already exited */ } }
-  }, 180000)
+  }, localModel ? 420000 : 180000)
   const rpc = async (method: string, params?: unknown) => {
     try {
       // The child reads ONLY the pinned test config/state root. Omitting --url
@@ -109,8 +118,8 @@ async function main() {
       apiVersion: 'clawmax.template-authority/v1alpha1', workspaceId: 'isolated', revision: 'v1',
       bindings: bundle.artifacts.filter(item => item.kind === 'agent').map(agent => ({
         id: `${agent.id}-binding`, revision: 'v1', artifactId: agent.id, artifactDigest: agent.digest,
-        actorIds: ['actor'], disabled: false, model: { id: 'openai/gpt-4.1-mini', revision: 'v1' },
-        policy: { id: 'no-tools', sha256: 'a'.repeat(64) }, runtime, skills: [], credentials: [],
+        actorIds: ['actor'], disabled: false, model: { id: model, revision: 'v1' },
+        policy: { id: 'no-tools', sha256: sha256(JSON.stringify(noToolsTemplatePolicy('no-tools'))) }, runtime, skills: [], credentials: [],
       })),
     }
     const store = new TemplateRevisionStore(workspace, 'isolated', createTemplateResourceFileCompiler(workspace, { read: () => registry, runtime }))
@@ -126,6 +135,56 @@ async function main() {
     assert.deepEqual(after.entries.baseline, before.entries.baseline)
     assert(fs.existsSync(path.join(workspace, 'AGENTS', result.revision.resources.agents.producer, 'IDENTITY.md')))
     assert.equal(await coordinator.recover(), 'none')
+    if (localModel) {
+      // Scope the Dashboard RPC client to this process's disposable gateway;
+      // never consult a profile or the installed instance's URL/state.
+      const previousConfig = process.env.OPENCLAW_CONFIG_PATH
+      const previousUrl = process.env.OPENCLAW_GATEWAY_URL
+      const previousState = process.env.OPENCLAW_STATE_DIR
+      const previousBinary = process.env.OPENCLAW_BIN
+      process.env.OPENCLAW_CONFIG_PATH = configFile
+      // Native CLI pairing uses this config's local endpoint. An explicit URL
+      // is a different auth contract and must not inherit config credentials.
+      delete process.env.OPENCLAW_GATEWAY_URL
+      process.env.OPENCLAW_STATE_DIR = state
+      process.env.OPENCLAW_BIN = binary
+      let diagnostic = ''
+      try {
+        const client = new GatewayRPCClient()
+        // Capture only isolated transport failure/shape diagnostics; the
+        // production adapter intentionally sanitizes errors for its callers.
+        const callRpc = (client as any).callRpc.bind(client)
+        ;(client as any).callRpc = async (...args: unknown[]) => {
+          try {
+            const reply = await callRpc(...args)
+            diagnostic = JSON.stringify({ status: reply?.status, resultKeys: Object.keys(reply?.result || {}), payloadCount: reply?.result?.payloads?.length })
+            return reply
+          } catch (error: any) { diagnostic = String(error.message); throw error }
+        }
+        const source = { read: () => registry, runtime }
+        const policies = { read: (id: string) => noToolsTemplatePolicy(id) }
+        const input = { agentId: result.revision.resources.agents.producer, message: 'Reply with a short greeting. Do not use tools.', idempotencyKey: 'local-model-greeting' }
+        const reply = await coordinator.executeNoToolsAgent('actor', result.revision.id, input, source, policies, client)
+        assert(reply.text.trim() && !reply.replayed)
+        const replay = await coordinator.executeNoToolsAgent('actor', result.revision.id, input, source, policies, {
+          runNoToolsTemplateAgent: async () => { throw new Error('Replay must not dispatch another model call') },
+        })
+        assert.deepEqual(replay, { ...reply, replayed: true })
+        console.log(`Native no-tools execution passed: model=${model}; replyBytes=${Buffer.byteLength(reply.text)}; durable replay passed`)
+      } catch (error: any) {
+        const cause = error.cause
+        throw new Error(`${error.message}; isolated transport: ${diagnostic}; isolated cause: ${String(cause?.stderr || cause?.stdout || cause?.message || '').slice(-3000)}`)
+      } finally {
+        if (previousConfig === undefined) delete process.env.OPENCLAW_CONFIG_PATH
+        else process.env.OPENCLAW_CONFIG_PATH = previousConfig
+        if (previousUrl === undefined) delete process.env.OPENCLAW_GATEWAY_URL
+        else process.env.OPENCLAW_GATEWAY_URL = previousUrl
+        if (previousState === undefined) delete process.env.OPENCLAW_STATE_DIR
+        else process.env.OPENCLAW_STATE_DIR = previousState
+        if (previousBinary === undefined) delete process.env.OPENCLAW_BIN
+        else process.env.OPENCLAW_BIN = previousBinary
+      }
+    }
     // Recreate the durable committed checkpoint left if the process exits before
     // removing its gateway journal. This is journal replay, not a crash test.
     const owned = Object.fromEntries(Object.values(result.revision.resources.agents).map(id => [id, after.entries[id]]))
@@ -172,7 +231,7 @@ async function main() {
     assert(!fs.existsSync(path.join(workspace, 'AGENTS', result.revision.resources.agents.producer, 'IDENTITY.md')))
     assert(store.history()[0].cleanedAt, 'Keep revision evidence after native cleanup')
     assert(!(await coordinator.cleanup('actor', result.revision.id, cleanupPlan.expectedRevision, cleanupPlan.planDigest, () => { throw new Error('Unexpected stopped check on cleaned retry') })).removed)
-    console.log('Isolated real OpenClaw gateway: staging, replay, committed journal recovery, two-Agent rollback, stale-revision rejection, lost-response retry, non-mutating cleanup planning, exact committed cleanup after catalog removal, cleanup replay, and unrelated roster preservation passed; no model calls; no process-crash claim')
+    console.log(`Isolated real OpenClaw gateway: staging, replay, committed journal recovery, two-Agent rollback, stale-revision rejection, lost-response retry, non-mutating cleanup planning, exact committed cleanup after catalog removal, cleanup replay, and unrelated roster preservation passed; ${localModel ? 'native local-model call and reply replay passed' : 'no model calls'}; no process-crash claim`)
   } catch (error: any) {
     const safe = `${error.message}\n${logs}`.split(token).join('[test-token-redacted]')
     throw new Error(safe)
