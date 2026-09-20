@@ -80,14 +80,16 @@ export class TemplateApplyCoordinator {
       return { revisionId: revision.id, planDigest: revision.planDigest, authorityDigest: revision.authorityDigest, gatewayHash: gateway.hash }
   }
 
-  /** Internal no-tools execution owner; not mounted in HTTP or general agent
-   * queues. Holds the workspace lock through settlement and persists uncertain
+  /** Server-owned no-tools executor, separate from general agent queues.
+   * Holds the workspace lock through settlement and persists uncertain
    * dispatches, so cleanup cannot race or silently forget a live model call.
    */
-  executeNoToolsAgent(actorId: string, revisionId: string, input: { agentId: string; message: string; idempotencyKey: string }, source: TemplateAuthoritySource, policies: TemplateExecutionPolicySource, runtime: Pick<GatewayRPCClient, 'runNoToolsTemplateAgent'>) {
+  executeNoToolsAgent(actorId: string, revisionId: string, input: { agentId: string; message: string; idempotencyKey: string }, source: TemplateAuthoritySource, policies: TemplateExecutionPolicySource, runtime: Pick<GatewayRPCClient, 'runNoToolsTemplateAgent'>, assertAuthorized: () => void = () => {}) {
     return this.exclusive(async () => {
+      assertAuthorized()
       if (!input || Object.keys(input).some(key => !['agentId', 'message', 'idempotencyKey'].includes(key)) || typeof input.message !== 'string' || !input.message.trim() || Buffer.byteLength(input.message) > 1024 * 1024 || typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(input.idempotencyKey)) throw new PortableTemplateError('invalid_request', 'Invalid Template execution request')
       await this.verifyStaged(actorId, revisionId, input.agentId, source, policies)
+      assertAuthorized()
       const revision = this.store.verifyExecutionResources(actorId, revisionId, input.agentId)
       const authority = revalidateTemplateAuthority(revision.authority!, revision.authorityDigest, { workspaceId: this.workspaceId, actorId }, source)
       verifyTemplateExecutionPolicies(authority, policies)

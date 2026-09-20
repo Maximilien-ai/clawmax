@@ -190,6 +190,13 @@ async function main() {
       return { runId: 'synthetic-run', text: 'Synthetic final reply' }
     } }
     const executionInput = { agentId: stagedAgent, message: 'Private request not stored in receipts', idempotencyKey: 'first-run' }
+    let workspaceAuthorized = true
+    duringSnapshot = () => { workspaceAuthorized = false }
+    await assert.rejects(staged.coordinator.executeNoToolsAgent('actor', stagedRevision.id, executionInput, source, policies, noToolsRuntime,
+      () => { if (!workspaceAuthorized) throw new Error('workspace access revoked') }), /workspace access revoked/)
+    assert.equal(dispatches, 0)
+    assert(!fs.existsSync(path.join(admissionRoot, '.clawmax/template-runs', `${sha256(stagedRevision.id)}.json`)))
+    duringSnapshot = undefined
     const execute = () => staged.coordinator.executeNoToolsAgent('actor', stagedRevision.id, executionInput, source, policies, noToolsRuntime)
     assert.deepEqual(await execute(), { replayed: false, runId: 'synthetic-run', text: 'Synthetic final reply' })
     assert.deepEqual(await execute(), { replayed: true, runId: 'synthetic-run', text: 'Synthetic final reply' })
