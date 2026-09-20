@@ -50,6 +50,7 @@ interface Revision {
   resources: TemplateResourceOwnership; createdAt: string; cleanedAt?: string
   // Private rollback/cleanup data never returned through the public API.
   undo: WorkspaceFileMutation[]
+  groupAppend?: string
 }
 interface RevisionState { version: 1; current: string | null; revisions: Revision[] }
 const stateRelativePath = 'SYSTEM/.clawmax/template-revisions.json'
@@ -58,7 +59,7 @@ function canonical(value: any): string {
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`
   return JSON.stringify(value)
 }
-function publicRevision(revision: Revision) { const { undo: _undo, requestDigest: _requestDigest, ...result } = revision; return result }
+function publicRevision(revision: Revision) { const { undo: _undo, groupAppend: _groupAppend, requestDigest: _requestDigest, ...result } = revision; return result }
 
 /** Owns revision state and exact cleanup independently of the resource compiler.
  * The compiler must reject unsupported runtime/authority semantics, not silently
@@ -134,12 +135,42 @@ export class TemplateRevisionStore {
       ...(prepared.plan.authority ? { authority: prepared.plan.authority } : {}),
       resources: prepared.compiled.resources, createdAt: new Date().toISOString(), undo,
     }
+    const groupWrite = prepared.compiled.mutations.find(item => item.path === 'ORG/GROUPS.md')
+    const groupUndo = undo.find(item => item.path === 'ORG/GROUPS.md')
+    const groupBase = groupUndo?.content ?? '# Organization\n'
+    if (Object.keys(revision.resources.groups).length && groupWrite?.content?.startsWith(`${groupBase}\n## Groups\n\n`)) {
+      revision.groupAppend = groupWrite.content.slice(groupBase.length)
+    }
     const next: RevisionState = { version: 1, current: revision.id, revisions: [...prepared.state.revisions, revision] }
     commitWorkspaceFiles(this.workspacePath, [...prepared.compiled.mutations, { path: stateRelativePath, expectedSha256: prepared.bytes ? sha256(prepared.bytes) : null, content: JSON.stringify(next) }])
     return { created: true, revision: publicRevision(revision) }
   }
   history() { return this.read().state.revisions.map(publicRevision) }
   currentRevision() { return this.read().state.current }
+  private cleanupMutations(revision: Revision): WorkspaceFileMutation[] {
+    return revision.undo.map(item => {
+      // Older ledgers retain their original strict whole-file cleanup contract.
+      if (item.path !== 'ORG/GROUPS.md' || revision.groupAppend === undefined) return item
+      const conflict = () => new PortableTemplateError('resource_conflict', 'Revision-owned Group section changed; cleanup requires inspection', 409)
+      const appended = revision.groupAppend
+      if (typeof appended !== 'string' || !appended.startsWith('\n## Groups\n\n') || sha256((item.content ?? '# Organization\n') + appended) !== item.expectedSha256) throw conflict()
+      let current: string
+      let fd: number | undefined
+      try {
+        fd = fs.openSync(templateStoragePath(this.workspacePath, item.path), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK)
+        const stat = fs.fstatSync(fd)
+        if (!stat.isFile() || stat.size > 2 * 1024 * 1024) throw conflict()
+        current = fs.readFileSync(fd, 'utf8')
+      } catch { throw conflict() } finally { if (fd !== undefined) fs.closeSync(fd) }
+      const offset = current.indexOf(appended)
+      if (offset < 0 || current.indexOf(appended, offset + appended.length) !== -1) throw conflict()
+      for (const id of Object.values(revision.resources.groups)) {
+        if (current.split('\n').filter(line => line.trim() === `### ${id}`).length !== 1) throw conflict()
+      }
+      const remaining = current.slice(0, offset) + current.slice(offset + appended.length)
+      return { path: item.path, expectedSha256: sha256(current), content: item.content === null && remaining === '# Organization\n' ? null : remaining }
+    })
+  }
   /** Read-only integrity evidence, NOT execution permission. Callers must still
    * enforce live authority, gateway ownership and graph policy at admission.
    * Shared indexes and mutable legacy Workflow presentation are intentionally
@@ -186,7 +217,8 @@ export class TemplateRevisionStore {
     if (revision.cleanedAt) throw new PortableTemplateError('revision_cleaned', 'Revision was already cleaned', 409)
     if (state.current !== expectedRevision) throw new PortableTemplateError('stale_revision', 'Workspace revision changed; plan cleanup again', 409)
     assertStopped(structuredClone(revision.resources))
-    for (const item of revision.undo) {
+    const mutations = this.cleanupMutations(revision)
+    for (const item of mutations) {
       const file = templateStoragePath(this.workspacePath, item.path)
       if (fs.existsSync(file)) {
         const stat = fs.statSync(file)
@@ -199,7 +231,7 @@ export class TemplateRevisionStore {
       apiVersion: 'clawmax.instance/v1' as const, kind: 'TemplateCleanupPlan' as const,
       workspaceId: this.workspaceId, actorId, revisionId, expectedRevision,
       resources: structuredClone(revision.resources),
-      changes: revision.undo.map(item => ({ path: item.path, before: item.expectedSha256, after: item.content === null ? null : sha256(item.content) })),
+      changes: mutations.map(item => ({ path: item.path, before: item.expectedSha256, after: item.content === null ? null : sha256(item.content) })),
     }
     return { ...payload, planDigest: sha256(canonical(payload)) }
   }
@@ -210,9 +242,10 @@ export class TemplateRevisionStore {
     if (revision.cleanedAt) return { removed: false, currentRevision: state.current, revision: publicRevision(revision) }
     if (state.current !== expectedRevision) throw new PortableTemplateError('stale_revision', 'Workspace revision changed; plan cleanup again', 409)
     assertStopped(structuredClone(revision.resources))
+    const mutations = this.cleanupMutations(revision)
     revision.cleanedAt = new Date().toISOString()
     state.current = `cleanup_${sha256(`${revision.id}:${revision.cleanedAt}`).slice(0, 32)}`
-    commitWorkspaceFiles(this.workspacePath, [...revision.undo, { path: stateRelativePath, expectedSha256: sha256(bytes!), content: JSON.stringify(state) }])
+    commitWorkspaceFiles(this.workspacePath, [...mutations, { path: stateRelativePath, expectedSha256: sha256(bytes!), content: JSON.stringify(state) }])
     return { removed: true, currentRevision: state.current, revision: publicRevision(revision) }
   }
 }

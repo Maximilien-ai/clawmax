@@ -179,7 +179,16 @@ async function main() {
     duringSnapshot = undefined
     await check()
     const stagedCleanup = staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {})
-    await staged.coordinator.cleanup('actor', stagedRevision.id, stagedRevision.id, stagedCleanup.planDigest, () => {})
+    const stagedGroups = path.join(admissionRoot, 'ORG/GROUPS.md')
+    const concurrentGroup = '\n### concurrent-unrelated\n- **Members:** existing\n'
+    duringSnapshot = () => { duringSnapshot = undefined; fs.appendFileSync(stagedGroups, concurrentGroup) }
+    await assert.rejects(staged.coordinator.cleanup('actor', stagedRevision.id, stagedRevision.id, stagedCleanup.planDigest, () => {}), /Cleanup plan changed/)
+    assert(!staged.store.history()[0].cleanedAt, 'A concurrent shared-file edit must not partially commit cleanup')
+    assert(fs.readFileSync(stagedGroups, 'utf8').includes(stagedRevision.resources.groups.review))
+    const replannedCleanup = staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {})
+    assert.notEqual(replannedCleanup.planDigest, stagedCleanup.planDigest)
+    await staged.coordinator.cleanup('actor', stagedRevision.id, stagedRevision.id, replannedCleanup.planDigest, () => {})
+    assert.equal(fs.readFileSync(stagedGroups, 'utf8'), '# Organization\n' + concurrentGroup)
     await assert.rejects(check(), /already cleaned/)
     for (const phase of ['cleanup-prepared', 'cleanup-committed', 'cleanup-response-lost', 'cleanup-normal']) {
       const workspace = path.join(root, phase)

@@ -130,14 +130,23 @@ async function main() {
 
     const registry = path.join(root, 'ORG/GROUPS.md')
     const appliedGroups = fs.readFileSync(registry, 'utf8')
-    fs.appendFileSync(registry, '\n### added-later\n- **Members:** existing\n')
-    assert.throws(() => reopened.cleanup('actor', applied.revision.id, applied.revision.id, () => {}), /changed after planning/)
+    fs.writeFileSync(registry, appliedGroups.replace(`### ${groups.review}`, `### ${groups.review}-edited`))
+    assert.throws(() => reopened.cleanup('actor', applied.revision.id, applied.revision.id, () => {}), /Group section changed/)
     assert(fs.existsSync(path.join(agentDir, 'IDENTITY.md')), 'Failed cleanup must not partially delete agents')
-    assert(fs.readFileSync(registry, 'utf8').includes('added-later'))
-    fs.writeFileSync(registry, appliedGroups)
+    fs.writeFileSync(registry, appliedGroups + `\n### ${groups.review}\n- **Members:** unexpected\n`)
+    assert.throws(() => reopened.planCleanup('actor', applied.revision.id, applied.revision.id, () => {}), /Group section changed/, 'Duplicate owned Group headers require inspection')
+    const unrelatedAppend = '\n### added-later\n- **Members:** existing\n'
+    fs.writeFileSync(registry, appliedGroups + unrelatedAppend)
+    const preservedGroups = originalGroups + unrelatedAppend
+    const oldLedger = JSON.parse(ledgerBytes.toString())
+    delete oldLedger.revisions[0].groupAppend
+    fs.writeFileSync(ledgerFile, JSON.stringify(oldLedger))
+    assert.throws(() => reopened.planCleanup('actor', applied.revision.id, applied.revision.id, () => {}), /resources changed/, 'Old revisions retain strict cleanup without guessing section ownership')
+    fs.writeFileSync(ledgerFile, ledgerBytes)
+    assert(!JSON.stringify(reopened.history()).includes('groupAppend'), 'Private Group cleanup evidence is not returned by revision APIs')
     const cleaned = reopened.cleanup('actor', applied.revision.id, applied.revision.id, () => {})
     assert.throws(verify, /already cleaned/)
-    assert.equal(fs.readFileSync(registry, 'utf8'), originalGroups)
+    assert.equal(fs.readFileSync(registry, 'utf8'), preservedGroups)
     assert(!isManagedAgentWorkspaceDir(agentDir))
     assert(!fs.existsSync(path.join(root, `WORKFLOWS/${workflows.check}.md`)))
     assert(!reopened.cleanup('actor', applied.revision.id, cleaned.currentRevision, () => {}).removed)
@@ -145,8 +154,17 @@ async function main() {
     const nextPlan = await reopened.plan('actor', nextRequest)
     const next = await reopened.apply('actor', nextRequest, nextPlan.planDigest)
     assert.notEqual(next.revision.resources.agents.producer, agents.producer)
-    reopened.cleanup('actor', next.revision.id, next.revision.id, () => {})
-    assert.equal(fs.readFileSync(registry, 'utf8'), originalGroups)
+    const thirdRequest = { ...request, idempotencyKey: 'third-template', expectedRevision: next.revision.id }
+    const thirdPlan = await reopened.plan('actor', thirdRequest)
+    const third = await reopened.apply('actor', thirdRequest, thirdPlan.planDigest)
+    const cleanupPlan = reopened.planCleanup('actor', next.revision.id, third.revision.id, () => {})
+    assert(!JSON.stringify(cleanupPlan).includes('groupAppend'), 'Cleanup evidence does not expose private rollback content')
+    const removeNext = reopened.cleanup('actor', next.revision.id, third.revision.id, () => {})
+    reopened.verifyExecutionResources('actor', third.revision.id, third.revision.resources.agents.producer)
+    assert(fs.readFileSync(registry, 'utf8').includes(third.revision.resources.groups.review))
+    assert(!fs.readFileSync(registry, 'utf8').includes(next.revision.resources.groups.review))
+    reopened.cleanup('actor', third.revision.id, removeNext.currentRevision, () => {})
+    assert.equal(fs.readFileSync(registry, 'utf8'), preservedGroups)
     console.log('template-resource-files.test.ts: passed')
   } finally {
     if (previous === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
