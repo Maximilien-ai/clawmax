@@ -6,6 +6,7 @@ import { PortableTemplateError } from './portable-template-zip'
 import { commitWorkspaceFiles, WorkspaceFileMutation } from './workspace-file-transaction'
 import { templateStoragePath } from './template-storage-path'
 import type { resolveTemplateAuthority } from './template-authority'
+import { assertTemplateExecutionsSettled } from './template-execution-receipts'
 
 type TemplateAuthorityEvidence = Omit<ReturnType<typeof resolveTemplateAuthority>, 'digest'>
 
@@ -216,6 +217,7 @@ export class TemplateRevisionStore {
     if (!revision || revision.actorId !== actorId) throw new PortableTemplateError('revision_forbidden', 'Revision cleanup is not authorized', 403)
     if (revision.cleanedAt) throw new PortableTemplateError('revision_cleaned', 'Revision was already cleaned', 409)
     if (state.current !== expectedRevision) throw new PortableTemplateError('stale_revision', 'Workspace revision changed; plan cleanup again', 409)
+    assertTemplateExecutionsSettled(this.workspacePath, revisionId)
     assertStopped(structuredClone(revision.resources))
     const mutations = this.cleanupMutations(revision)
     for (const item of mutations) {
@@ -241,6 +243,7 @@ export class TemplateRevisionStore {
     if (!revision || revision.actorId !== actorId) throw new PortableTemplateError('revision_forbidden', 'Revision cleanup is not authorized', 403)
     if (revision.cleanedAt) return { removed: false, currentRevision: state.current, revision: publicRevision(revision) }
     if (state.current !== expectedRevision) throw new PortableTemplateError('stale_revision', 'Workspace revision changed; plan cleanup again', 409)
+    assertTemplateExecutionsSettled(this.workspacePath, revisionId)
     assertStopped(structuredClone(revision.resources))
     const mutations = this.cleanupMutations(revision)
     revision.cleanedAt = new Date().toISOString()

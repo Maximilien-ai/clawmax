@@ -9,6 +9,9 @@ import { recoverWorkspaceFileTransaction } from './workspace-file-transaction'
 import { revalidateTemplateAuthority, TemplateAuthoritySource } from './template-authority'
 import { templateStoragePath } from './template-storage-path'
 import { TemplateExecutionPolicySource, verifyTemplateExecutionPolicies } from './template-execution-policy'
+import { recordTemplateExecution } from './template-execution-receipts'
+import { sha256 } from './portable-template'
+import type { GatewayRPCClient } from './gateway-rpc'
 
 const active = new Set<string>()
 
@@ -48,7 +51,9 @@ export class TemplateApplyCoordinator {
    * request or cache this evidence as permission for a later execution.
    */
   verifyStagedExecution(actorId: string, revisionId: string, resourceId: string, source: TemplateAuthoritySource, policies: TemplateExecutionPolicySource) {
-    return this.exclusive(async () => {
+    return this.exclusive(() => this.verifyStaged(actorId, revisionId, resourceId, source, policies))
+  }
+  private async verifyStaged(actorId: string, revisionId: string, resourceId: string, source: TemplateAuthoritySource, policies: TemplateExecutionPolicySource) {
       const revision = this.store.verifyExecutionResources(actorId, revisionId, resourceId)
       if (!revision.authority) throw new PortableTemplateError('template_authority_unavailable', 'Committed server-owned authority is required', 409)
       const context = { workspaceId: this.store.workspaceId, actorId }
@@ -73,6 +78,25 @@ export class TemplateApplyCoordinator {
       const freshAuthority = revalidateTemplateAuthority(fresh.authority!, fresh.authorityDigest, context, source)
       verifyTemplateExecutionPolicies(freshAuthority, policies)
       return { revisionId: revision.id, planDigest: revision.planDigest, authorityDigest: revision.authorityDigest, gatewayHash: gateway.hash }
+  }
+
+  /** Internal no-tools execution owner; not mounted in HTTP or general agent
+   * queues. Holds the workspace lock through settlement and persists uncertain
+   * dispatches, so cleanup cannot race or silently forget a live model call.
+   */
+  executeNoToolsAgent(actorId: string, revisionId: string, input: { agentId: string; message: string; idempotencyKey: string }, source: TemplateAuthoritySource, policies: TemplateExecutionPolicySource, runtime: Pick<GatewayRPCClient, 'runNoToolsTemplateAgent'>) {
+    return this.exclusive(async () => {
+      if (!input || Object.keys(input).some(key => !['agentId', 'message', 'idempotencyKey'].includes(key)) || typeof input.message !== 'string' || !input.message.trim() || Buffer.byteLength(input.message) > 1024 * 1024 || typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(input.idempotencyKey)) throw new PortableTemplateError('invalid_request', 'Invalid Template execution request')
+      await this.verifyStaged(actorId, revisionId, input.agentId, source, policies)
+      const revision = this.store.verifyExecutionResources(actorId, revisionId, input.agentId)
+      const authority = revalidateTemplateAuthority(revision.authority!, revision.authorityDigest, { workspaceId: this.workspaceId, actorId }, source)
+      verifyTemplateExecutionPolicies(authority, policies)
+      const artifactId = Object.entries(revision.resources.agents).find(([, id]) => id === input.agentId)?.[0]
+      const binding = revision.authority?.bindings.find(item => item.artifactId === artifactId)
+      if (!binding) throw new PortableTemplateError('revision_forbidden', 'Execution target must be a revision-owned Agent', 403)
+      const instructions = fs.readFileSync(templateStoragePath(this.root, `AGENTS/${input.agentId}/SOUL.md`), 'utf8')
+      const requestHash = sha256(JSON.stringify([actorId, this.workspaceId, revisionId, input.agentId, input.message]))
+      return recordTemplateExecution(this.root, revisionId, input.idempotencyKey, requestHash, idempotencyKey => runtime.runNoToolsTemplateAgent({ agentId: input.agentId, model: binding.model.id, instructions, message: input.message, idempotencyKey }))
     })
   }
 

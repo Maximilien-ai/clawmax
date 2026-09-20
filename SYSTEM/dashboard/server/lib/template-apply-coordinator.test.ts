@@ -178,6 +178,26 @@ async function main() {
     fs.writeFileSync(stagedLedger, stagedLedgerBytes)
     duringSnapshot = undefined
     await check()
+    let dispatches = 0
+    const noToolsRuntime = { runNoToolsTemplateAgent: async (input: { agentId: string; model: string; message: string; instructions: string; idempotencyKey: string }) => {
+      dispatches++
+      assert.equal(input.agentId, stagedAgent)
+      assert.equal(input.model, 'openai/test')
+      assert(input.instructions.length)
+      assert.match(input.idempotencyKey, /^template-[a-f0-9]{64}$/)
+      await assert.rejects(staged.coordinator.cleanup('actor', stagedRevision.id, stagedRevision.id, 'a'.repeat(64), () => {}), /in progress/)
+      assert.throws(() => staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {}), /pending Template execution/)
+      return { runId: 'synthetic-run', text: 'Synthetic final reply' }
+    } }
+    const executionInput = { agentId: stagedAgent, message: 'Private request not stored in receipts', idempotencyKey: 'first-run' }
+    const execute = () => staged.coordinator.executeNoToolsAgent('actor', stagedRevision.id, executionInput, source, policies, noToolsRuntime)
+    assert.deepEqual(await execute(), { replayed: false, runId: 'synthetic-run', text: 'Synthetic final reply' })
+    assert.deepEqual(await execute(), { replayed: true, runId: 'synthetic-run', text: 'Synthetic final reply' })
+    assert.equal(dispatches, 1)
+    await assert.rejects(staged.coordinator.executeNoToolsAgent('actor', stagedRevision.id, { ...executionInput, message: 'Changed request' }, source, policies, noToolsRuntime), /different request/)
+    const receiptFile = path.join(admissionRoot, '.clawmax/template-runs', `${sha256(stagedRevision.id)}.json`)
+    assert(!fs.readFileSync(receiptFile, 'utf8').includes(executionInput.message))
+    assert.equal(fs.statSync(receiptFile).mode & 0o777, 0o600)
     const stagedCleanup = staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {})
     const stagedGroups = path.join(admissionRoot, 'ORG/GROUPS.md')
     const concurrentGroup = '\n### concurrent-unrelated\n- **Members:** existing\n'
@@ -190,6 +210,31 @@ async function main() {
     await staged.coordinator.cleanup('actor', stagedRevision.id, stagedRevision.id, replannedCleanup.planDigest, () => {})
     assert.equal(fs.readFileSync(stagedGroups, 'utf8'), '# Organization\n' + concurrentGroup)
     await assert.rejects(check(), /already cleaned/)
+    await assert.rejects(execute(), /already cleaned/, 'Cleaned revisions cannot replay chat through the execution owner')
+    const uncertainRoot = path.join(root, 'uncertain-execution')
+    await setup(uncertainRoot)
+    const uncertain = components(uncertainRoot)
+    const uncertainPlan = await uncertain.store.plan('actor', uncertain.request)
+    const uncertainRevision = (await uncertain.coordinator.apply('actor', uncertain.request, uncertainPlan.planDigest)).revision
+    const uncertainSource = { ...source, read: () => readTemplateAuthorityRegistry(path.join(uncertainRoot, 'authority.json')) }
+    const lostResponse = { runNoToolsTemplateAgent: async () => { throw new Error('Synthetic lost response') } }
+    const uncertainInput = { agentId: uncertainRevision.resources.agents.producer, message: 'Synthetic', idempotencyKey: 'uncertain' }
+    await assert.rejects(uncertain.coordinator.executeNoToolsAgent('actor', uncertainRevision.id, uncertainInput, uncertainSource, policies, lostResponse), /lost response/)
+    const restarted = components(uncertainRoot)
+    await assert.rejects(restarted.coordinator.executeNoToolsAgent('actor', uncertainRevision.id, uncertainInput, uncertainSource, policies, noToolsRuntime), /pending Template execution/)
+    await assert.rejects(restarted.coordinator.executeNoToolsAgent('actor', uncertainRevision.id, { ...uncertainInput, idempotencyKey: 'do-not-redispatch' }, uncertainSource, policies, noToolsRuntime), /pending Template execution/)
+    assert.throws(() => restarted.store.planCleanup('actor', uncertainRevision.id, uncertainRevision.id, () => {}), /pending Template execution/)
+    assert.throws(() => restarted.store.cleanup('actor', uncertainRevision.id, uncertainRevision.id, () => {}), /pending Template execution/)
+    assert.equal(dispatches, 1, 'Unknown outcomes never redispatch even with a different key')
+    const uncertainReceipt = path.join(uncertainRoot, '.clawmax/template-runs', `${sha256(uncertainRevision.id)}.json`)
+    const uncertainBytes = fs.readFileSync(uncertainReceipt)
+    fs.writeFileSync(uncertainReceipt, '{invalid')
+    assert.throws(() => restarted.store.planCleanup('actor', uncertainRevision.id, uncertainRevision.id, () => {}), /evidence requires inspection/)
+    fs.unlinkSync(uncertainReceipt)
+    fs.symlinkSync(receiptFile, uncertainReceipt)
+    await assert.rejects(restarted.coordinator.executeNoToolsAgent('actor', uncertainRevision.id, uncertainInput, uncertainSource, policies, noToolsRuntime), /evidence requires inspection/)
+    fs.unlinkSync(uncertainReceipt)
+    fs.writeFileSync(uncertainReceipt, uncertainBytes)
     for (const phase of ['cleanup-prepared', 'cleanup-committed', 'cleanup-response-lost', 'cleanup-normal']) {
       const workspace = path.join(root, phase)
       await setup(workspace)
