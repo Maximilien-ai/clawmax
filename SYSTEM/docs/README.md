@@ -25,6 +25,7 @@
 | [planning/RC80_DOCUMENT_PDF_2026-09-17.md](planning/RC80_DOCUMENT_PDF_2026-09-17.md) | RC80 source-only document PDF feature, validation evidence, limits, and pending release gates |
 | [planning/RC80_STABILITY_AND_TEMPLATE_GATE_2026-09-18.md](planning/RC80_STABILITY_AND_TEMPLATE_GATE_2026-09-18.md) | Template-first repeatable stability gates, executed foundation tests, and Dashboard/CLI contract gaps |
 | [planning/RC80_DASHBOARD_CLI_TEMPLATE_HANDOFF_2026-09-18.md](planning/RC80_DASHBOARD_CLI_TEMPLATE_HANDOFF_2026-09-18.md) | Tested portable Template catalog contract, real CLI interoperability, and remaining Dashboard lifecycle gates |
+| [planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md](planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md) | Public RC6 chat submission fix, isolated strict-client evidence, and remaining Workflow/runtime acceptance gates |
 | [planning/RC70_TEST10_RUNTIME_HANDOFF_2026-09-11.md](planning/RC70_TEST10_RUNTIME_HANDOFF_2026-09-11.md) | RC69 test10 evidence and RC70 gateway, lifecycle, storage, identity, and Operations API gates |
 | [planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md) | Active two-day target with separate AI Builder, Telegram, Discord, and Slack candidates plus 71.2% branch coverage |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
