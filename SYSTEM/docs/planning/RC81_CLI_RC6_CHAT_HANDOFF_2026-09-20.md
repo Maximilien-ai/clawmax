@@ -147,3 +147,32 @@ chat, Group, workflow/result/cancel, and exact-cleanup cycles; full CI/coverage;
 then immutable RC81 public/combined builds and the same checks on MBP14, test10,
 and the Mac Mini upgrade. Portable production Template admission is still
 disabled and must be completed, not bypassed to make these tests pass.
+
+## Follow-up: internal Template staging verification
+
+Checkpoints `7163ab26`, `da7d5f35`, `92148ec4`, and `7559393b` add fresh
+authority revalidation, committed execution-file integrity, exact gateway
+receipt/roster verification, and their composition in
+`TemplateApplyCoordinator.verifyStagedExecution`.
+
+The coordinator checks actor-owned, uncleaned revision resources and current
+server authority before gateway inspection, then repeats revision and authority
+checks after the RPC. Gateway expectations come from checked agent graph files,
+committed bindings, and the server-owned runtime directory. It rejects authority
+revocation, resource changes, or cleanup during that call. Shared Group listings
+and mutable Workflow Markdown are not execution evidence; the checked graph
+sidecars must drive any future graph executor. No verification operation patches
+gateway state or performs automatic recovery.
+
+Passed locally: coordinator, gateway transaction, authority revalidation and
+resource-file suites, server TypeScript, and focused ESLint. Tests use isolated
+synthetic gateways; they do not establish live-model or installed-image acceptance.
+[Composition CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35529034265)
+was pending when recorded.
+
+**Not an execution grant:** the verifier is internal and is not wired into queue
+admission. Production lifecycle routes remain gated, and reserved Template IDs
+remain blocked. Dashboard still owns actual policy enforcement, verified Skill
+installation, named-credential isolation, graph execution, and revalidation at
+the execution queue boundary. CLI packaging cannot resolve these runtime gates.
+No new release image or MBP14/test10 deployment was performed for these changes.
