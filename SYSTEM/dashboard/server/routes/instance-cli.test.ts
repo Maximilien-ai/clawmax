@@ -347,6 +347,17 @@ async function run() {
     assert(!fs.existsSync(path.join(root, 'workspaces', 'operations', '.clawmax', 'cli-chat')))
   })
 
+  await test('public Workflow execution routes are authenticated and mounted', async () => {
+    const base = '/api/cli/v1/workspaces/operations'
+    assert.strictEqual((await request(`${base}/workflow-runs/missing`)).response.status, 401)
+    const missing = await request(`${base}/workflow-runs/missing`, { headers: auth })
+    assert.strictEqual(missing.response.status, 404)
+    assert.strictEqual(missing.json.error.code, 'run_not_found')
+    const workflow = await request(`${base}/workflows/missing`, { headers: auth })
+    assert.strictEqual(workflow.response.status, 404)
+    assert.strictEqual(workflow.json.error.code, 'workflow_not_found')
+  })
+
   await test('agent listing is workspace contextual and does not mutate selection', async () => {
     const result = await request('/api/cli/v1/workspaces/operations/agents', { headers: auth })
     assert.strictEqual(result.response.status, 200)

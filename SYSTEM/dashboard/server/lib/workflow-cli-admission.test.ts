@@ -57,6 +57,10 @@ async function main() {
     assert.strictEqual(JSON.stringify(workflows.getWorkflow(parent.id)), parentBefore)
     assert.strictEqual(workflows.listExecutions(parent.id).length, historyBefore)
     console.log('✓ denied admission leaves definition and run history unchanged')
+    assert.strictEqual(workflows.triggerWorkflow(parent.id, { manual: true, executionScope: 'single-workflow' }).success, false)
+    assert.strictEqual(JSON.stringify(workflows.getWorkflow(parent.id)), parentBefore)
+    assert.strictEqual(workflows.listExecutions(parent.id).length, historyBefore)
+    console.log('✓ empty participant selection cannot create a successful empty run')
     const agentExecution = require('./agent-execution')
     workspace.listAgents = () => [{ id: 'synthetic-owner', name: 'Synthetic owner' }]
     for (const cancel of [false, true]) {
@@ -89,7 +93,7 @@ async function main() {
     }
     console.log('✓ queued authorization is revalidated before runtime preparation')
     console.log('✓ queued cancellation settles without starting an agent')
-    console.log('5 workflow CLI admission tests passed')
+    console.log('6 workflow CLI admission tests passed')
   } finally {
     ;[workspace.getWorkspacePath, workspace.listAgents, budget.checkBudgetBlock, integrations.readWorkspaceIntegrationConfig, opik.traceWorkflowExecution] = originals
     fs.rmSync(root, { recursive: true, force: true })

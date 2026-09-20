@@ -1998,6 +1998,12 @@ export function triggerWorkflow(workflowId: string, options?: {
       return { success: false, error: 'This workflow is already running. Stop the current run before starting another.' }
     }
 
+    const admittedParticipants = options?.executionScope === 'single-workflow' && !options.mock
+      ? resolveParticipants(workflow, require('./workspace').listAgents()) : null
+    if (admittedParticipants && admittedParticipants.length === 0) {
+      return { success: false, error: 'Workflow has no executable participants.' }
+    }
+
     // Check maxRuns limit (skip for manual triggers)
     if (!options?.manual && workflow.maxRuns && workflow.maxRuns > 0) {
       const currentCount = workflow.runCount || 0
@@ -2047,7 +2053,7 @@ export function triggerWorkflow(workflowId: string, options?: {
     // Resolve participants upfront
     const { listAgents } = require('./workspace')
     const agents = listAgents()
-    const workflowParticipants = resolveParticipants(workflow, agents)
+    const workflowParticipants = admittedParticipants || resolveParticipants(workflow, agents)
     const resolvedWorkflowParticipants = options?.mock && workflowParticipants.length === 0
       ? (() => {
           const seen = new Set<string>()
