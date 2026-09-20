@@ -353,12 +353,30 @@ export class GatewayRPCClient {
       || typeof input.message !== 'string' || !input.message.trim() || Buffer.byteLength(input.message) > 1024 * 1024
       || typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(input.idempotencyKey)) throw new Error('Invalid no-tools Template execution request')
     try {
-      const result = await this.callRpc<any>('agent', {
-        agentId: input.agentId, model: input.model, message: input.message,
+      const params = {
+        // The coordinator verified the model in the committed gateway entry.
+        // Do not turn it into an RPC override requiring broader authority.
+        agentId: input.agentId, message: input.message,
         extraSystemPrompt: input.instructions, idempotencyKey: input.idempotencyKey,
         modelRun: true, promptMode: 'none', deliver: false, disableMessageTool: true,
         timeout: 120,
-      }, true)
+      }
+      let result: any
+      try { result = await this.callRpc<any>('agent', params, true) } catch (error: any) {
+        if (error.gatewayExecutionNotAdmitted !== true) throw error
+        const cli = resolveOpenClawCliPath()
+        if (!cli) throw error
+        const { stdout } = await execFileAsync(cli, [...buildGatewayCliCallArgs('agent', params, 150000), '--expect-final'], {
+          encoding: 'utf8', timeout: 155000, maxBuffer: 3 * 1024 * 1024,
+          // Do not use safeEnv(): it includes workspace partner credentials.
+          env: { PATH: process.env.PATH, TMPDIR: process.env.TMPDIR,
+            OPENCLAW_CONFIG_PATH: process.env.OPENCLAW_CONFIG_PATH,
+            OPENCLAW_STATE_DIR: process.env.OPENCLAW_STATE_DIR,
+            OPENCLAW_GATEWAY_URL: process.env.OPENCLAW_GATEWAY_URL,
+          },
+        })
+        result = parseGatewayCliOutput(stdout)
+      }
       if (result?.status !== 'ok' || typeof result.runId !== 'string' || !result.runId || !Array.isArray(result.result?.payloads)) throw new Error('Invalid terminal reply')
       const chunks = result.result.payloads.map((payload: any) => {
         if (typeof payload?.text !== 'string' || payload.isError || payload.mediaUrl || payload.mediaUrls?.length) throw new Error('Unsupported reply')
@@ -367,10 +385,12 @@ export class GatewayRPCClient {
       const text = chunks.join('\n')
       if (!text.trim() || Buffer.byteLength(text) > 2 * 1024 * 1024) throw new Error('Invalid reply size')
       return { runId: result.runId, text }
-    } catch {
+    } catch (cause) {
       // A lost connection is not proof that the agent never ran. The owner must
       // retain its pending receipt; do not retry with a fresh idempotency key.
-      throw new Error('No-tools Template execution did not return a verified final reply; inspect the recorded request before retrying')
+      const failure = new Error('No-tools Template execution did not return a verified final reply; inspect the recorded request before retrying')
+      Object.defineProperty(failure, 'cause', { value: cause })
+      throw failure
     }
   }
 
@@ -417,7 +437,7 @@ export class GatewayRPCClient {
             caps: [],
             auth: { token: this.authToken },
             role: 'operator',
-            scopes: ['operator.read', 'operator.admin']
+            scopes: expectFinalAgent ? ['operator.write'] : ['operator.read', 'operator.admin']
           }
         }
         ws.send(JSON.stringify(connectMessage))
@@ -480,7 +500,9 @@ export class GatewayRPCClient {
 
             if (message.error || (expectFinalAgent && message.ok !== true)) {
               ws.close()
-              reject(new Error(`Gateway RPC error: ${message.error?.message || 'request failed'}`))
+              reject(Object.assign(new Error(`Gateway RPC error: ${message.error?.message || 'request failed'}`), {
+                gatewayExecutionNotAdmitted: expectFinalAgent && !acceptedRunId && message.error?.message === 'missing scope: operator.write',
+              }))
             } else {
               ws.close()
               resolve(message.payload as T)
