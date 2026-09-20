@@ -86,8 +86,11 @@ void (async () => {
       const result = await generateCronFromText('Every weekday at 9am', 'America/New_York')
       assert.strictEqual(result.cron, '')
       assert.strictEqual(result.explanation, '')
-      // A CLI runtime is now an accepted execution path, so the message names both.
-      assert.strictEqual(result.error, 'No OpenAI API key or CLI runtime configured')
+      // The gate now runs through getAvailableProvider — the same availability check every other
+      // generator in this file uses — so a request-scoped BYOK key (including an OpenAI-compatible
+      // endpoint), not just a system OpenAI key or a CLI runtime, is also an accepted execution
+      // path. Its error names every accepted path instead of only the two this test used to check.
+      assert.match(result.error!, /No API key configured/)
     })
   })
 
