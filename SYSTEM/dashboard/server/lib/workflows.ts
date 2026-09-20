@@ -2317,8 +2317,6 @@ export function triggerWorkflow(workflowId: string, options?: {
           // without this, the step held runExclusiveAgentExecution's per-agent lock but was invisible
           // to the registry and unstoppable by anything, including the "stop this agent" path.
           const agentResponse = await withRegisteredTurn(participant.agentId, (turn) => runExclusiveAgentExecution(participant.agentId, async () => {
-            if (isExecutionCancelled(executionId) || turn.signal.aborted) throw new Error('Workflow execution was cancelled')
-            options?.assertAuthorized?.()
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             if (resolvedAgent.runtime !== 'openclaw') {
               // 2.0 builds executionEnv per attempt inside executeAttempt(), so the runtime path
@@ -2542,6 +2540,10 @@ export function triggerWorkflow(workflowId: string, options?: {
               return await executeAttempt(fallbackModel, fallbackProvider)
             }
           }, {
+            assertAuthorized: () => {
+              if (isExecutionCancelled(executionId) || turn.signal.aborted) throw new Error('Workflow execution was cancelled')
+              options?.assertAuthorized?.()
+            },
             maxSessionLockRetries: 1,
             onSessionLockRetry: (attempt) => {
               workflowSessionRetryAttempt = attempt + 1

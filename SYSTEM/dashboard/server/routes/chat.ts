@@ -1010,7 +1010,6 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
       const executionSessionId = currentSessionId
 
       await runExclusiveAgentExecution(id, async () => {
-        transport?.assertAuthorized()
         if (!isRequestedChatAgentCurrent(req, id)) {
           throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
         }
@@ -1090,7 +1089,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
         if (!res.writableEnded) {
           res.end()
         }
-      }).catch((err) => {
+      }, { assertAuthorized: () => transport?.assertAuthorized() }).catch((err) => {
         console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
         clearInterval(keepalive)
         send('error', `Failed to prepare agent execution: ${err.message}`)
@@ -1340,7 +1339,6 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
       }
 
       await runExclusiveAgentExecution(id, async () => {
-        transport?.assertAuthorized()
         if (!isRequestedChatAgentCurrent(req, id)) {
           throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
         }
@@ -1379,6 +1377,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
         throwIfChatAttemptNeedsSessionRetry(fallbackResult)
         return fallbackResult
       }, {
+        assertAuthorized: () => transport?.assertAuthorized(),
         maxSessionLockRetries: 1,
         onSessionLockRetry: (attempt) => {
           chatSessionRetryAttempt = attempt + 1

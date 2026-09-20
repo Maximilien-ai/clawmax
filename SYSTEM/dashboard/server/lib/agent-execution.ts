@@ -66,6 +66,11 @@ const agentExecutionLocks = new Map<string, Promise<void>>()
 const AGENT_EXECUTION_SESSION_LOCK_RETRIES = 2
 
 interface ExclusiveAgentExecutionOptions {
+  /** Server-owned admission check, rerun at queue head and before each retry.
+   * Failure releases the queue and is never treated as a session-lock retry.
+   * This hook cannot override reserved Template runtime admission.
+   */
+  assertAuthorized?: () => void | Promise<void>
   onSessionLockRetry?: (attempt: number, error: unknown) => void | Promise<void>
   maxSessionLockRetries?: number
 }
@@ -201,6 +206,9 @@ export async function runExclusiveAgentExecution<T>(
     let attempt = 0
     const maxSessionLockRetries = options.maxSessionLockRetries ?? AGENT_EXECUTION_SESSION_LOCK_RETRIES
     while (true) {
+      assertTemplateRuntimeAdmitted(agentId)
+      await options.assertAuthorized?.()
+      assertTemplateRuntimeAdmitted(agentId)
       try {
         return await fn()
       } catch (error) {

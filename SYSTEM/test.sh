@@ -3227,6 +3227,11 @@ if npx ts-node --transpileOnly server/lib/workflow-cli-admission.test.ts; then
 else
   fail "Workflow CLI admission tests"
 fi
+if npx ts-node server/lib/agent-queue-admission.test.ts; then
+  pass "Agent queue admission tests"
+else
+  fail "Agent queue admission tests"
+fi
 if npx ts-node --transpileOnly server/routes/instance-chat.test.ts; then
   pass "Instance CLI chat contract tests"
 else
