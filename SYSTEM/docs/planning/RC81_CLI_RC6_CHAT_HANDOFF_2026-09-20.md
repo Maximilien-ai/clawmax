@@ -176,3 +176,20 @@ remain blocked. Dashboard still owns actual policy enforcement, verified Skill
 installation, named-credential isolation, graph execution, and revalidation at
 the execution queue boundary. CLI packaging cannot resolve these runtime gates.
 No new release image or MBP14/test10 deployment was performed for these changes.
+
+### No-tools policy binding
+
+`2544fc41` requires a server-owned policy source when verifying staged execution.
+The only accepted document is `noToolsTemplatePolicy(id)` from
+`template-execution-policy.ts`; its fixed-order JSON SHA-256 must match the
+committed binding. Policy lookup and comparison repeat after gateway inspection.
+Unknown fields, broader tools, missing policies, digest mismatches, requested
+Skills, and named credentials fail closed rather than silently losing authority.
+This restricted profile does **not** implement Collector-only execution.
+
+The coordinator regression suite covers these failures, policy removal during
+the gateway call, and sanitized lookup failures. Server TypeScript and focused
+ESLint passed. [Policy binding CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35529172606)
+was pending when recorded. Runtime queue integration and production Template
+execution are still disabled; these checks do not establish end-to-end policy
+enforcement or release readiness.
