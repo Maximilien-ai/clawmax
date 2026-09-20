@@ -9,6 +9,8 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import net from 'net'
+import http from 'http'
+import express from 'express'
 import { spawn, execFile } from 'child_process'
 import { promisify } from 'util'
 import { setTimeout as delay } from 'timers/promises'
@@ -171,6 +173,51 @@ async function main() {
         })
         assert.deepEqual(replay, { ...reply, replayed: true })
         console.log(`Native no-tools execution passed: model=${model}; replyBytes=${Buffer.byteLength(reply.text)}; durable replay passed`)
+        const { createInstanceChatRouter } = await import('../server/routes/instance-chat')
+        const app = express()
+        const authorization = `Bearer ${crypto.randomUUID()}`
+        let httpDispatches = 0
+        app.use(express.json())
+        app.use('/api/cli/v1/workspaces/:workspaceId', createInstanceChatRouter({
+          authorize(req, res) {
+            if (req.get('authorization') !== authorization) { res.status(401).end(); return null }
+            if (req.params.workspaceId !== 'isolated') { res.status(403).end(); return null }
+            return { actorId: 'actor', workspaceId: 'isolated', workspacePath: workspace,
+              run: async fn => fn(), assertAuthorized() { assert.equal(req.get('authorization'), authorization) } }
+          },
+          execute: async () => { throw new Error('Template execution must not use browser chat') },
+          templateExecution: () => ({ store, coordinator, authority: source, policies, assertStopped() {},
+            runtime: { runNoToolsTemplateAgent: async request => { httpDispatches++; return client.runNoToolsTemplateAgent(request) } } }),
+        }))
+        const server = http.createServer(app)
+        try {
+          await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
+          const address = server.address() as net.AddressInfo
+          const url = `http://127.0.0.1:${address.port}/api/cli/v1/workspaces/isolated/agents/${input.agentId}/chat/sessions`
+          const send = () => fetch(url, { method: 'POST', headers: { authorization, 'content-type': 'application/json' },
+            body: JSON.stringify({ apiVersion: 'clawmax.instance/v1', kind: 'AgentChatRequest', message: input.message, idempotencyKey: 'http-model-greeting' }),
+            signal: AbortSignal.timeout(180000) })
+          const response = await send()
+          assert.equal(response.status, 200)
+          assert(response.headers.get('content-type')?.startsWith('application/x-ndjson'))
+          const text = await response.text()
+          const events = text.trim().split('\n').map(line => JSON.parse(line))
+          assert.deepEqual(events.map(event => event.type), ['start', 'delta', 'done'])
+          assert(events[1].content.trim())
+          events.forEach((event, index) => {
+            assert.equal(event.sequence, index + 1)
+            assert.equal(event.requestId, events[0].requestId)
+            assert.equal(event.sessionId, events[0].sessionId)
+            assert.equal(event.workspaceId, 'isolated')
+            assert.equal(event.agentId, input.agentId)
+          })
+          assert.equal(await (await send()).text(), text)
+          assert.equal(httpDispatches, 1)
+          console.log(`Public CLI chat HTTP native execution passed: model=${model}; replyBytes=${Buffer.byteLength(events[1].content)}; correlated events and durable replay passed`)
+        } finally {
+          server.closeAllConnections()
+          await new Promise<void>(resolve => server.close(() => resolve()))
+        }
       } catch (error: any) {
         const cause = error.cause
         throw new Error(`${error.message}; isolated transport: ${diagnostic}; isolated cause: ${String(cause?.stderr || cause?.stdout || cause?.message || '').slice(-3000)}`)
