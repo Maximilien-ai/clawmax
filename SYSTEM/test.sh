@@ -3217,6 +3217,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Instance CLI API contract tests...${NC}"
+if npx ts-node --transpileOnly server/lib/workflow-cli-admission.test.ts; then
+  pass "Workflow CLI admission tests"
+else
+  fail "Workflow CLI admission tests"
+fi
 if npx ts-node --transpileOnly server/routes/instance-chat.test.ts; then
   pass "Instance CLI chat contract tests"
 else

@@ -1910,6 +1910,11 @@ export function isExecutionCancelled(executionId: string): boolean {
   return cancelledExecutions.has(executionId)
 }
 
+/** Terminal files may be written before the runner releases its processes. */
+export function isWorkflowExecutionActive(workflowId: string, executionId: string): boolean {
+  return activeWorkflowExecutions.get(workflowId) === executionId
+}
+
 export function cancelExecution(workflowId: string, executionId: string): { success: boolean; error?: string } {
   const execution = getExecution(workflowId, executionId)
   if (!execution) return { success: false, error: 'Execution not found' }
@@ -1943,6 +1948,10 @@ export function cancelExecution(workflowId: string, executionId: string): { succ
 
 // Trigger workflow manually
 export function triggerWorkflow(workflowId: string, options?: {
+  /** Server-owned admission, rechecked after the participant execution queue. */
+  assertAuthorized?: () => void
+  /** Public CLI runs must not reset or automatically start dependent workflows. */
+  executionScope?: 'single-workflow'
   manual?: boolean
   mock?: boolean
   byok?: WorkflowRuntimeOverrides
@@ -1957,6 +1966,7 @@ export function triggerWorkflow(workflowId: string, options?: {
 }): { success: boolean; executionId?: string; error?: string } {
   let claimedExecutionId: string | undefined
   try {
+    options?.assertAuthorized?.()
     assertTemplateRuntimeAdmitted(workflowId)
     if (getWorkflowPipelineState().paused) {
       return { success: false, error: 'Workflow pipeline is paused. Resume the pipeline before starting new runs.' }
@@ -2009,7 +2019,8 @@ export function triggerWorkflow(workflowId: string, options?: {
 
     // Reset all downstream dependent workflows to idle for a clean rerun
     const allWorkflows = listWorkflows()
-    const downstreamWorkflowIds = getRecursiveDownstreamWorkflowIds(workflowId, allWorkflows)
+    const downstreamWorkflowIds = options?.executionScope === 'single-workflow'
+      ? [] : getRecursiveDownstreamWorkflowIds(workflowId, allWorkflows)
     for (const downstreamId of downstreamWorkflowIds) {
       updateWorkflow(downstreamId, { status: 'idle', progress: 0 } as any)
       console.log(`[Workflow] Reset downstream ${downstreamId} to idle (depends on re-triggered ${workflowId})`)
@@ -2266,7 +2277,8 @@ export function triggerWorkflow(workflowId: string, options?: {
           progress: 100,
         } as any)
 
-        const { readyToRun } = completeWorkflow(workflowId)
+        const { readyToRun } = options?.executionScope === 'single-workflow'
+          ? { readyToRun: [] } : completeWorkflow(workflowId)
         if (readyToRun.length > 0) {
           execution.logs.push(`DAG: unlocked ${readyToRun.join(', ')}`)
           persistExecution()
@@ -2299,6 +2311,8 @@ export function triggerWorkflow(workflowId: string, options?: {
           // without this, the step held runExclusiveAgentExecution's per-agent lock but was invisible
           // to the registry and unstoppable by anything, including the "stop this agent" path.
           const agentResponse = await withRegisteredTurn(participant.agentId, (turn) => runExclusiveAgentExecution(participant.agentId, async () => {
+            if (isExecutionCancelled(executionId) || turn.signal.aborted) throw new Error('Workflow execution was cancelled')
+            options?.assertAuthorized?.()
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             if (resolvedAgent.runtime !== 'openclaw') {
               // 2.0 builds executionEnv per attempt inside executeAttempt(), so the runtime path
@@ -2726,7 +2740,8 @@ export function triggerWorkflow(workflowId: string, options?: {
       if (execution.status === 'completed') {
         const { resolveWorkflowExecutionNotifications } = require('./notifications')
         resolveWorkflowExecutionNotifications(workflowId, execution.id, { includeOlderExecutions: true })
-        const { readyToRun } = completeWorkflow(workflowId)
+        const { readyToRun } = options?.executionScope === 'single-workflow'
+          ? { readyToRun: [] } : completeWorkflow(workflowId)
         if (readyToRun.length > 0) {
           execution.logs.push(`DAG: unlocked ${readyToRun.join(', ')}`)
           persistExecution()
