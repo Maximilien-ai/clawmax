@@ -38,6 +38,7 @@ import { appendActivityExportEventsForActiveConsents } from '../lib/activity-exp
 import { appendBoundedOutput } from '../lib/stream-bounds'
 import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '../lib/process-tree'
 import { isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
+import { assertTemplateRuntimeAdmitted } from '../lib/template-runtime-admission'
 
 const router = Router()
 const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
@@ -770,6 +771,9 @@ router.post('/:id/chat/readiness', (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  try { assertTemplateRuntimeAdmitted(id) } catch {
+    return res.json({ available: false, code: 'template_runtime_unavailable', error: 'Template execution is unavailable pending runtime and authority admission' })
+  }
   if (rejectStaleChatAgent(req, res, id)) return
 
   const readiness = evaluateChatExecutionReadiness(id, byok)
@@ -811,6 +815,11 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
 
   if (!message || typeof message !== 'string') {
     return reject(400, 'message is required')
+  }
+  // Managed actions can bypass the agent queue. Reject before readiness,
+  // credential capabilities, session creation, or any action dispatch.
+  try { assertTemplateRuntimeAdmitted(id) } catch {
+    return reject(409, 'Template execution is unavailable pending runtime and authority admission')
   }
   if (transport) {
     transport.assertAuthorized()
