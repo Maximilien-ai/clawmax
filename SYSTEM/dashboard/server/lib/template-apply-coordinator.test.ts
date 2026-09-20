@@ -12,6 +12,7 @@ import { TemplateRevisionStore } from './template-revisions'
 import { TemplateGatewayTransaction, TemplateGatewayTransport } from './template-gateway-transaction'
 import { TemplateApplyCoordinator } from './template-apply-coordinator'
 import { recoverTemplatesBeforeStartup } from './template-startup-recovery'
+import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
 
 function components(root: string, options: { checkpoint?: (phase: string) => void; afterPatch?: () => void; beforeSnapshot?: () => void } = {}) {
   const file = path.join(root, 'synthetic-gateway.json')
@@ -112,6 +113,51 @@ async function main() {
       assert.equal(store.history().length, 1)
       await assert.rejects(coordinator.apply('actor', { ...request, bindings: { ...request.bindings, producer: 'changed' } }, plan.planDigest), /Apply key/)
     }
+    const admissionRoot = path.join(root, 'staged-admission')
+    await setup(admissionRoot)
+    let duringSnapshot: (() => void) | undefined
+    const staged = components(admissionRoot, { beforeSnapshot: () => duringSnapshot?.() })
+    const stagedPlan = await staged.store.plan('actor', staged.request)
+    const stagedRevision = (await staged.coordinator.apply('actor', staged.request, stagedPlan.planDigest)).revision
+    const stagedAgent = stagedRevision.resources.agents.producer
+    const authorityFile = path.join(admissionRoot, 'authority.json')
+    const authorityBytes = fs.readFileSync(authorityFile)
+    let authorityReads = 0
+    const source = { read: () => { authorityReads++; return readTemplateAuthorityRegistry(authorityFile) }, runtime: { platform: 'linux/amd64', revision: 'synthetic-runtime' } }
+    const check = () => staged.coordinator.verifyStagedExecution('actor', stagedRevision.id, stagedAgent, source)
+    const stagedRoster = await staged.transport.snapshot()
+    assert.deepEqual(await check(), { revisionId: stagedRevision.id, planDigest: stagedRevision.planDigest, authorityDigest: stagedRevision.authorityDigest, gatewayHash: stagedRoster.hash })
+    assert.equal(authorityReads, 2, 'Authority is checked before and after the gateway await')
+    assert.deepEqual(await staged.transport.snapshot(), stagedRoster, 'Staging checks must not write gateway configuration')
+    assert.throws(() => assertTemplateRuntimeAdmitted(stagedAgent), /execution is unavailable/, 'Evidence is not an execution grant')
+    await assert.rejects(staged.coordinator.verifyStagedExecution('other', stagedRevision.id, stagedAgent, source), /not authorized/)
+    await assert.rejects(staged.coordinator.verifyStagedExecution('actor', stagedRevision.id, 'unrelated', source), /does not belong/)
+    duringSnapshot = () => {
+      const registry = JSON.parse(authorityBytes.toString())
+      registry.bindings[0].actorIds = ['revoked']
+      writeAtomicJson(authorityFile, registry)
+    }
+    await assert.rejects(check(), /authority|authorized/i, 'Revocation during the gateway call must reject admission evidence')
+    fs.writeFileSync(authorityFile, authorityBytes)
+    const soulFile = path.join(admissionRoot, 'AGENTS', stagedAgent, 'SOUL.md')
+    const soulBytes = fs.readFileSync(soulFile)
+    duringSnapshot = () => fs.writeFileSync(soulFile, 'Changed while checking gateway')
+    await assert.rejects(check(), /missing or changed/)
+    fs.writeFileSync(soulFile, soulBytes)
+    const stagedLedger = path.join(admissionRoot, 'SYSTEM/.clawmax/template-revisions.json')
+    const stagedLedgerBytes = fs.readFileSync(stagedLedger)
+    duringSnapshot = () => {
+      const ledger = JSON.parse(stagedLedgerBytes.toString())
+      ledger.revisions[0].cleanedAt = new Date().toISOString()
+      writeAtomicJson(stagedLedger, ledger)
+    }
+    await assert.rejects(check(), /already cleaned/)
+    fs.writeFileSync(stagedLedger, stagedLedgerBytes)
+    duringSnapshot = undefined
+    await check()
+    const stagedCleanup = staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {})
+    await staged.coordinator.cleanup('actor', stagedRevision.id, stagedRevision.id, stagedCleanup.planDigest, () => {})
+    await assert.rejects(check(), /already cleaned/)
     for (const phase of ['cleanup-prepared', 'cleanup-committed', 'cleanup-response-lost', 'cleanup-normal']) {
       const workspace = path.join(root, phase)
       await setup(workspace)

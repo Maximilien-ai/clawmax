@@ -1,9 +1,13 @@
 import path from 'path'
+import fs from 'fs'
+import { isDeepStrictEqual } from 'util'
 import { InstanceTemplateCatalog } from './instance-template-catalog'
 import { PortableTemplateError } from './portable-template-zip'
 import { TemplateResourceOwnership, TemplateRevisionRequest, TemplateRevisionStore } from './template-revisions'
 import { TemplateGatewayEntry, TemplateGatewayTransaction } from './template-gateway-transaction'
 import { recoverWorkspaceFileTransaction } from './workspace-file-transaction'
+import { revalidateTemplateAuthority, TemplateAuthoritySource } from './template-authority'
+import { templateStoragePath } from './template-storage-path'
 
 const active = new Set<string>()
 
@@ -36,6 +40,38 @@ export class TemplateApplyCoordinator {
     return this.gateway.recover(digest => this.store.history().some(revision => revision.planDigest === digest && !revision.cleanedAt))
   }
   recover() { return this.exclusive(() => this.reconcile()) }
+
+  /** Internal, read-only staging check. This is not an execution grant: policy,
+   * Skill and credential enforcement, graph execution and queue admission must
+   * still be provided by the runtime. Never expose the authority source to a
+   * request or cache this evidence as permission for a later execution.
+   */
+  verifyStagedExecution(actorId: string, revisionId: string, resourceId: string, source: TemplateAuthoritySource) {
+    return this.exclusive(async () => {
+      const revision = this.store.verifyExecutionResources(actorId, revisionId, resourceId)
+      if (!revision.authority) throw new PortableTemplateError('template_authority_unavailable', 'Committed server-owned authority is required', 409)
+      const context = { workspaceId: this.store.workspaceId, actorId }
+      const authority = revalidateTemplateAuthority(revision.authority, revision.authorityDigest, context, source)
+      const entries: Record<string, TemplateGatewayEntry> = {}
+      const agents = Object.entries(revision.resources.agents)
+      if (agents.length !== authority.bindings.length) throw new PortableTemplateError('template_authority_unavailable', 'Revision agents do not match committed authority', 409)
+      for (const [artifactId, id] of agents) {
+        const binding = authority.bindings.find(item => item.artifactId === artifactId)
+        const agent = JSON.parse(fs.readFileSync(templateStoragePath(this.root, `AGENTS/${id}/TEMPLATE_RESOURCE.json`), 'utf8'))
+        if (!binding || agent.id !== id || agent.artifactId !== artifactId || agent.digest !== binding.artifactDigest) throw new PortableTemplateError('template_authority_unavailable', 'Revision agent identity does not match committed authority', 409)
+        entries[id] = {
+          name: agent.name, workspace: path.join(this.root, 'AGENTS', id),
+          agentDir: path.join(this.agentStateRoot, id, 'agent'), model: binding.model.id,
+          skills: [], tools: { deny: ['*'] }, heartbeat: { every: '0m' },
+        }
+      }
+      const gateway = await this.gateway.verifyCommitted(revision.planDigest, entries)
+      const fresh = this.store.verifyExecutionResources(actorId, revisionId, resourceId)
+      if (!isDeepStrictEqual(fresh, revision)) throw new PortableTemplateError('stale_revision', 'Revision changed during verification', 409)
+      revalidateTemplateAuthority(fresh.authority!, fresh.authorityDigest, context, source)
+      return { revisionId: revision.id, planDigest: revision.planDigest, authorityDigest: revision.authorityDigest, gatewayHash: gateway.hash }
+    })
+  }
 
   async cleanup(actorId: string, revisionId: string, expectedRevision: string | null, planDigest: string, assertStopped: (resources: TemplateResourceOwnership) => void) {
     return this.exclusive(async () => {
