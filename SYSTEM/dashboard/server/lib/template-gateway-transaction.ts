@@ -92,6 +92,25 @@ export class TemplateGatewayTransaction {
     busy.add(this.root)
     try { return await fn() } finally { busy.delete(this.root) }
   }
+  /** Read-only staging evidence, never an execution grant. Expected entries
+   * must be derived from the committed revision and server-owned authority,
+   * not supplied by a client. Callers must recheck that authority after await.
+   */
+  async verifyCommitted(planDigest: string, expectedEntries: Record<string, TemplateGatewayEntry>): Promise<{ hash: string }> {
+    return this.exclusively(async () => {
+      const expected = this.validate(structuredClone({ version: 1, planDigest, entries: expectedEntries }))
+      const receiptFile = this.receipt(planDigest)
+      if (this.read()) blocked('Recover the previous Template gateway transaction first')
+      const receipt = this.read(receiptFile)
+      if (!receipt || !isDeepStrictEqual(receipt, expected)) blocked('Template gateway revision receipt does not match committed authority')
+      let current: Awaited<ReturnType<TemplateGatewayTransport['snapshot']>>
+      try { current = await this.transport.snapshot() } catch { blocked('Template gateway ownership could not be verified') }
+      // A cleanup or receipt replacement across the RPC invalidates evidence.
+      if (this.read() || !isDeepStrictEqual(this.read(receiptFile), receipt)) blocked('Template gateway revision changed during verification')
+      if (!current || typeof current.hash !== 'string' || !current.hash || !current.entries || typeof current.entries !== 'object' || Array.isArray(current.entries) || Object.entries(expected.entries).some(([id, entry]) => !Object.hasOwn(current.entries, id) || !isDeepStrictEqual(current.entries[id], entry))) blocked('Template gateway registration does not match committed authority')
+      return { hash: current.hash }
+    })
+  }
   async register(planDigest: string, entries: Record<string, TemplateGatewayEntry>): Promise<void> {
     return this.exclusively(async () => {
       if (this.read()) blocked('Recover the previous Template gateway transaction first')
