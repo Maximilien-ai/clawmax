@@ -140,6 +140,45 @@ export class TemplateRevisionStore {
   }
   history() { return this.read().state.revisions.map(publicRevision) }
   currentRevision() { return this.read().state.current }
+  /** Read-only integrity evidence, NOT execution permission. Callers must still
+   * enforce live authority, gateway ownership and graph policy at admission.
+   * Shared indexes and mutable legacy Workflow presentation are intentionally
+   * excluded: execution must consume the checked graph sidecars instead.
+   */
+  verifyExecutionResources(actorId: string, revisionId: string, resourceId: string) {
+    const revision = this.read().state.revisions.find(entry => entry.id === revisionId)
+    if (!revision || revision.actorId !== actorId) throw new PortableTemplateError('revision_forbidden', 'Revision execution is not authorized', 403)
+    if (revision.cleanedAt) throw new PortableTemplateError('revision_cleaned', 'Revision was already cleaned', 409)
+    const conflict = () => new PortableTemplateError('resource_conflict', 'Revision execution resources are missing or changed', 409)
+    const paths: string[] = []
+    const ids: string[] = []
+    for (const kind of ['agents', 'groups', 'workflows'] as const) {
+      const resources = revision.resources?.[kind]
+      if (!resources || typeof resources !== 'object' || Array.isArray(resources)) throw conflict()
+      for (const id of Object.values(resources)) {
+        const singular = kind === 'agents' ? 'agent' : kind === 'groups' ? 'group' : 'workflow'
+        if (typeof id !== 'string' || !new RegExp(`^tr-[a-f0-9]{16}-${singular}-[a-f0-9]{12}$`).test(id) || ids.includes(id)) throw conflict()
+        ids.push(id)
+        if (kind === 'agents') {
+          for (const name of ['IDENTITY.md', 'SOUL.md', 'GROUPS.md', 'TEMPLATE_RESOURCE.json', ...(revision.authority ? ['TEMPLATE_AUTHORITY.json'] : [])]) paths.push(`AGENTS/${id}/${name}`)
+        } else paths.push(kind === 'groups' ? `ORG/template-groups/${id}.json` : `WORKFLOWS/${id}.json`)
+      }
+    }
+    if (!ids.includes(resourceId)) throw new PortableTemplateError('revision_forbidden', 'Resource does not belong to this revision', 403)
+    if (!Array.isArray(revision.undo)) throw conflict()
+    for (const relative of paths) {
+      const entries = revision.undo.filter(item => item.path === relative)
+      if (entries.length !== 1 || !/^[a-f0-9]{64}$/.test(entries[0].expectedSha256 || '')) throw conflict()
+      let fd: number | undefined
+      try {
+        const file = templateStoragePath(this.workspacePath, relative)
+        fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK)
+        const stat = fs.fstatSync(fd)
+        if (!stat.isFile() || stat.size > 2 * 1024 * 1024 || sha256(fs.readFileSync(fd)) !== entries[0].expectedSha256) throw conflict()
+      } catch { throw conflict() } finally { if (fd !== undefined) fs.closeSync(fd) }
+    }
+    return structuredClone(publicRevision(revision))
+  }
   planCleanup(actorId: string, revisionId: string, expectedRevision: string | null, assertStopped: (resources: TemplateResourceOwnership) => void) {
     const { state } = this.read()
     const revision = state.revisions.find(entry => entry.id === revisionId)
