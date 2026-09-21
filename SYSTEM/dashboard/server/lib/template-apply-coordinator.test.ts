@@ -205,6 +205,47 @@ async function main() {
     const receiptFile = path.join(admissionRoot, '.clawmax/template-runs', `${sha256(stagedRevision.id)}.json`)
     assert(!fs.readFileSync(receiptFile, 'utf8').includes(executionInput.message))
     assert.equal(fs.statSync(receiptFile).mode & 0o777, 0o600)
+    const groupInput = { groupId: Object.values(stagedRevision.resources.groups)[0], message: 'Private group request', idempotencyKey: 'group-run' }
+    const groupCalls: Array<{ agentId: string; message: string; idempotencyKey: string }> = []
+    const groupRuntime = { runNoToolsTemplateAgent: async (input: any) => {
+      groupCalls.push(input)
+      assert.throws(() => staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {}), /pending Template execution/)
+      return { runId: `turn-${groupCalls.length}`, text: `reply-${groupCalls.length}` }
+    } }
+    await assert.rejects(staged.coordinator.executeNoToolsGroup('other', stagedRevision.id, groupInput, source, policies, groupRuntime))
+    await assert.rejects(staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, { ...groupInput, message: 'x'.repeat(1025) }, source, policies, groupRuntime), /input exceeds/)
+    await assert.rejects(staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, { ...groupInput, message: '' }, source, policies, groupRuntime), /Invalid Group execution/)
+    assert.equal(groupCalls.length, 0)
+    const groupRun = await staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, groupInput, source, policies, groupRuntime)
+    const groupResult = JSON.parse(groupRun.text)
+    assert.equal(groupResult.stopReason, 'turn_limit')
+    assert.equal(groupResult.turns.length, 4)
+    assert.deepEqual(groupResult.turns.map((turn: any) => turn.memberId), ['producer', 'reviewer', 'producer', 'reviewer'])
+    assert.equal(JSON.parse(groupCalls[1].message).content, 'reply-1')
+    assert.equal(JSON.parse(groupCalls[1].message).from, 'producer')
+    assert.equal(new Set(groupCalls.map(call => call.idempotencyKey)).size, 4)
+    assert.deepEqual(await staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, groupInput, source, policies, {
+      runNoToolsTemplateAgent: async () => { throw new Error('Group replay dispatched') },
+    }), { ...groupRun, replayed: true })
+    await assert.rejects(staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, { ...groupInput, message: 'changed' }, source, policies, groupRuntime), /different request/)
+    assert(!fs.readFileSync(receiptFile, 'utf8').includes(groupInput.message))
+    assert.equal(JSON.parse(fs.readFileSync(path.join(admissionRoot, 'ORG/template-groups', `${groupInput.groupId}.json`), 'utf8')).state, 'stopped')
+
+    const groupFailureRoot = path.join(root, 'group-failure')
+    await setup(groupFailureRoot)
+    const failingGroup = components(groupFailureRoot)
+    const groupPlan = await failingGroup.store.plan('actor', failingGroup.request)
+    const failureRevision = (await failingGroup.coordinator.apply('actor', failingGroup.request, groupPlan.planDigest)).revision
+    const failureSource = { ...source, read: () => readTemplateAuthorityRegistry(path.join(groupFailureRoot, 'authority.json')) }
+    const failureInput = { ...groupInput, groupId: Object.values(failureRevision.resources.groups)[0] }
+    let allowed = true
+    let failureCalls = 0
+    const failingRuntime = { runNoToolsTemplateAgent: async () => { failureCalls++; allowed = false; return { runId: 'one', text: 'first reply' } } }
+    await assert.rejects(failingGroup.coordinator.executeNoToolsGroup('actor', failureRevision.id, failureInput, failureSource, policies, failingRuntime,
+      () => { if (!allowed) throw new Error('Group access revoked') }), /Group access revoked/)
+    assert.equal(failureCalls, 1)
+    await assert.rejects(failingGroup.coordinator.executeNoToolsGroup('actor', failureRevision.id, failureInput, failureSource, policies, failingRuntime), /pending Template execution/)
+    assert.throws(() => failingGroup.store.planCleanup('actor', failureRevision.id, failureRevision.id, () => {}), /pending Template execution/)
     const stagedCleanup = staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {})
     const stagedGroups = path.join(admissionRoot, 'ORG/GROUPS.md')
     const concurrentGroup = '\n### concurrent-unrelated\n- **Members:** existing\n'
