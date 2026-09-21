@@ -629,4 +629,50 @@ Residual warning: workspace plugin discovery is partial because no explicit
 system-agent owner is configured in this multi-agent profile. The four managed
 plugins are nevertheless loaded. Do not choose an owner without operator intent.
 This clears the observed gateway startup blocker, not the full integration suite
-or 2026.9.5 upgrade gates; the user may now retry the local test command.
+or 2026.9.5 upgrade gates. The later source pin below means the installed 2026.8.2
+binary is no longer the target for the development acceptance command.
+
+## Source-built September baseline — 2026-09-21
+
+- `4028d613` pins development/CI/images to OpenClaw `2026.9.5` and Node
+  `24.19.0`. Source preparation completed successfully in the isolated cache
+  `tmp/rc81-openclaw/v2026.9.5`, including the roster patch and the upstream
+  filesystem safeguard verifier (`b7a7f61a`). This verifies no-op chmod behavior,
+  not inode-changing cloud filesystem acceptance.
+- `c6bc113e` selects `.mjs` workspace-state bundles without falling through an
+  explicit package root to another installation. `11150073` awaits asynchronous
+  deletion and snapshot verification; delayed rejection and retained-state
+  regressions passed. A real 2026.9.5 empty disposable workspace probe passed.
+- `eb9ee9bf` aligns image Codex integration runtime and both architecture smoke
+  assertions to upstream's exact `0.154.0` pin. npm metadata includes Linux x64
+  and arm64 optional packages; this does not replace image execution checks.
+  Dockerfile contract tests and `git diff --check` passed.
+- The isolated native harness exited 0 against the **source-built** binary,
+  with local `ollama/qwen2.5:latest` and the actual CLI Go client. Agent chat,
+  authenticated public chat, Group discovery/execution/history/replay,
+  four-turn two-Agent handoffs, template apply/replay, committed recovery,
+  rollback, stale/lost-response checks, exact cleanup after catalog removal,
+  and unrelated resource/host-registry preservation passed.
+  Local log: `/private/tmp/rc81-source-native-acceptance.log` (temporary).
+
+Reproduction from `SYSTEM/dashboard`:
+
+```bash
+CLAWMAX_ACCEPTANCE_CLI_CHECKOUT=/absolute/path/to/clawmax-cli \
+  npx ts-node scripts/test-template-isolated-gateway.ts \
+  /absolute/path/to/clawmax-codex/tmp/rc81-openclaw/v2026.9.5/bin/openclaw \
+  --local-model ollama/qwen2.5:latest
+```
+
+The local harness has a seven-minute bound with local inference. Full CI's
+recent documented duration is approximately 27 minutes. CI for `11150073` was
+still running at the checkpoint:
+https://github.com/Maximilien-ai/clawmax/actions/runs/35655571998.
+Subsequent focused commits trigger replacement CI; a superseded cancellation
+does not establish test failure or success.
+
+No RC81 image/tag or deployment was created in this checkpoint. Installed
+OpenClaw, MBP14, test10, and CLI packaging remain unchanged. Template Workflow
+execution/results/cancellation and full integration/validation/coverage remain
+required before release, followed by real-instance restart and remote-model
+acceptance. Recurring schedules stay disabled.

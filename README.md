@@ -12,6 +12,10 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 Latest Stable Release: v1.9.9
 
+Development is targeting RC81 on OpenClaw `2026.9.5` and Node `24.19.0`.
+This is not a published or tester-approved candidate; see the
+[RC81 acceptance evidence](SYSTEM/docs/planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md).
+
 - `1.9.9` adds native OpenRouter and xAI/Grok providers, brokered agent-skill secret grants, scoped Keys & Secrets navigation, mobile-safe workflow runs, pinned OpenAI model compatibility, and clearer long-running tool feedback.
 - Browser-local secrets remain unavailable to agent chat by design. Runtime use requires an explicitly assigned skill, an exact secret grant, and a registered broker action; normal Google account passwords are not supported.
 - The release retains the OpenClaw `v2026.6.11` baseline and was promoted unchanged from the multi-architecture `1.9.9-test-rc6` image.

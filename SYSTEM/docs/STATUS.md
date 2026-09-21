@@ -4,11 +4,11 @@
 
 **Development Line**: 2.0.0
 
-**Last Updated**: August 30, 2026
+**Last Updated**: September 21, 2026
 
-**Status**: `v1.9.9` remains stable. RC46 is the latest fully published 2.0 test candidate; OpenClaw remains pinned to `v2026.6.34` on the 2.0 line.
+**Status**: `v1.9.9` remains stable. Active development targets RC81 with OpenClaw `v2026.9.5` and Node `24.19.0`; RC81 is not published or approved for testers. The source-built runtime passed isolated local Qwen template apply/cleanup and agent/Group chat acceptance. Template Workflow execution, release validation, image builds, and MBP14/test10 acceptance remain gates. See [current evidence](planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md).
 
-## Current State
+## Earlier release evidence (retained history)
 
 - RC43 public source, image, digest, and combined-image results are retained as historical evidence, but tester feedback made that candidate non-promotable.
 - RC45 carries the LM Studio/Gemma, QBO runtime packaging, Builder, optional-skill, Partner navigation, and focused Review repairs. Public source `4ea36c447b3380c4c3cce045b441ec3973edfccb` and amd64/arm64 image publication passed [run 32911120892](https://github.com/Maximilien-ai/clawmax/actions/runs/32911120892); the public manifest digest is `sha256:26d49eb2da975a449db9513ba889f0cd78f064e4fbba2f16458312d69824f688`. The matching authorized combined image passed its private build, contract, smoke, and publication run.

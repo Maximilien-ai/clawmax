@@ -5,6 +5,14 @@
 
 ## Current Mini Sprint
 
+- [ ] **RC81 stability release gate** — finish authority-enforced Template
+  Workflow graph execution, correlated results and settled cancellation on
+  OpenClaw `2026.9.5`; run complete integration/validation/coverage, then public
+  and matching combined images, followed by MBP14 and test10 acceptance.
+  Native source-build template apply/cleanup and agent/Group chat passed;
+  keep schedules disabled and tester distribution on hold. Evidence:
+  [RC81 acceptance](planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md).
+
 - [ ] **AI Builder, agent channels, and branch coverage** — strengthen explicit
   AI Create behavior first, then implement Telegram, Discord, and Slack Socket
   Mode in ascending complexity behind a shared OpenClaw connection/binding

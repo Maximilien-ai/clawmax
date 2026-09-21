@@ -1,6 +1,6 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: August 30, 2026
+**Last Updated**: September 21, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
@@ -11,6 +11,15 @@ active release tracks. Historical snapshots are kept under
 [`archive/`](archive/).
 
 ## Runtime And Workflows
+
+### RC81 Template Workflow execution is not yet admitted
+
+The server compiles revision-owned Workflow graphs but the public execution
+route deliberately returns `template_runtime_unavailable`. It still needs an
+authority-enforced graph executor, correlated results, and settled cancellation.
+Passing template application and Group chat does not clear this gate. OpenClaw
+`2026.9.5` is the development baseline, not a verified cloud/on-prem rollout.
+See [RC81 evidence](planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md).
 
 ### Workflow communication can partially fail
 

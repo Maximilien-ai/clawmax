@@ -1,6 +1,10 @@
 # ClawMax Documentation
 
-> Last updated: August 31, 2026
+> Last updated: September 21, 2026
+
+Active development: RC81 / OpenClaw `2026.9.5`; stable remains `v1.9.9`.
+RC81 is not yet published or tester-approved. Start with the
+[current runtime and execution evidence](planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md).
 
 ## Active Documents
 

@@ -4,6 +4,11 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC81 runtime preparation (not released)
+- Pin development, CI, and images to OpenClaw `2026.9.5` on Node `24.19.0`, with the upstream Codex integration runtime `0.154.0`.
+- Support native `.mjs` auth/workspace bundles, await workspace deletion verification, and verify upstream no-op chmod safeguards while retaining the roster-removal patch.
+- Source-built local Qwen template apply/cleanup, agent and Group chat, CLI-client interoperability, and replay passed. Template Workflow execution, full release validation, images, and live cloud/on-prem acceptance remain outstanding.
+
 ### RC49 candidate
 - **Discord agent channels** — connect or replace a Discord bot token without placing it in subprocess arguments or OpenClaw config, validate optional application, user, server, and channel IDs, preserve pairing or explicit DM allowlists, and route a named Discord account to one agent with fail-closed guild policy.
 - **Discord diagnostics and lifecycle** — surface portal intent/permission requirements, pairing-required and connection/binding states, run bounded credential/capability probes with categorized non-secret results, persist redacted lifecycle evidence, and remove only the selected account, binding, and credential on disconnect.
