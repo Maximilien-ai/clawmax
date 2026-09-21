@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"reflect"
 	"strings"
@@ -19,7 +20,9 @@ func main() {
 	if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil {
 		panic("invalid isolated client input")
 	}
-	client, err := instanceclient.New(input.Origin, input.Token, "native-template-acceptance", nil)
+	// Four sequential local-model turns can exceed the client's 15-second
+	// default. Match the explicit acceptance budget; do not change CLI defaults.
+	client, err := instanceclient.New(input.Origin, input.Token, "native-template-acceptance", &http.Client{Timeout: 180 * time.Second})
 	if err != nil {
 		panic("cannot initialize isolated client")
 	}
