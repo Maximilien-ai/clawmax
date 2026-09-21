@@ -8,7 +8,7 @@ import { getDashboardEnvRaw, getDashboardInstanceLabel } from '../lib/dashboard-
 import { createCliSessionToken, getAuthenticatedSession, isGitHubAuthConfigured } from '../lib/github-auth'
 import { isDashboardAuthBypassAllowed } from '../lib/http-security'
 import { getRuntimeInstanceIdentity } from '../lib/opik'
-import { getWorkspaceManager, Workspace } from '../lib/workspace-manager'
+import { getWorkspaceManager, Workspace, WorkspaceManager } from '../lib/workspace-manager'
 import { getDashboardVersion, listAgents } from '../lib/workspace'
 import { listWorkflows } from '../lib/workflows'
 import { createInstanceTemplatesRouter } from './instance-templates'
@@ -267,9 +267,10 @@ function issueTokenSession(actor: CliActor, state: CliState) {
  * default; a request can never enable execution or supply authority bindings. */
 export function createInstanceCliRouter(options: {
   templates?: (context: TemplateWorkspaceContext) => CliTemplateExecution
+  workspaceManager?: WorkspaceManager
 } = {}) {
   const router = express.Router()
-  const manager = getWorkspaceManager()
+  const manager = options.workspaceManager || getWorkspaceManager()
 
   router.get('/discovery', (req, res) => {
     const issuer = originFor(req)

@@ -173,20 +173,30 @@ async function main() {
         })
         assert.deepEqual(replay, { ...reply, replayed: true })
         console.log(`Native no-tools execution passed: model=${model}; replyBytes=${Buffer.byteLength(reply.text)}; durable replay passed`)
-        const { createInstanceChatRouter } = await import('../server/routes/instance-chat')
+        const { createInstanceCliRouter } = await import('../server/routes/instance-cli')
+        const { WorkspaceManager } = await import('../server/lib/workspace-manager')
+        const { createCliSessionToken } = await import('../server/lib/github-auth')
         const app = express()
-        const authorization = `Bearer ${crypto.randomUUID()}`
+        const isolatedEnv: Record<string, string> = {
+          JWT_SECRET: crypto.randomBytes(32).toString('hex'),
+          DASHBOARD_TOKEN: crypto.randomBytes(32).toString('hex'),
+          BYPASS_OAUTH: 'false', DASHBOARD_AUTH_DISABLED: 'false', DASHBOARD_AUTH_MODE: 'email_otp',
+          CLAWMAX_CLI_API_STATE_PATH: path.join(root, 'cli-api.json'), OPENCLAW_WORKSPACE: workspace,
+        }
+        const previousEnv = Object.fromEntries(Object.keys(isolatedEnv).map(key => [key, process.env[key]]))
+        Object.assign(process.env, isolatedEnv)
+        const registryPath = path.join(root, 'dashboard-workspaces.json')
+        writeAtomicJson(registryPath, { version: '1.0.0', activeWorkspaceId: 'isolated', workspaces: [{
+          id: 'isolated', name: 'Isolated acceptance', path: workspace,
+          createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString(),
+        }] })
+        const session = (actorId: string) => createCliSessionToken({ actorId, email: `${actorId}@example.test`, displayName: actorId })
+        const authorization = `Bearer ${session('actor')}`
         let httpDispatches = 0
         app.use(express.json())
-        app.use('/api/cli/v1/workspaces/:workspaceId', createInstanceChatRouter({
-          authorize(req, res) {
-            if (req.get('authorization') !== authorization) { res.status(401).end(); return null }
-            if (req.params.workspaceId !== 'isolated') { res.status(403).end(); return null }
-            return { actorId: 'actor', workspaceId: 'isolated', workspacePath: workspace,
-              run: async fn => fn(), assertAuthorized() { assert.equal(req.get('authorization'), authorization) } }
-          },
-          execute: async () => { throw new Error('Template execution must not use browser chat') },
-          templateExecution: () => ({ store, coordinator, authority: source, policies, assertStopped() {},
+        app.use('/api/cli/v1', createInstanceCliRouter({
+          workspaceManager: new WorkspaceManager(registryPath),
+          templates: () => ({ store, coordinator, authority: source, policies, assertStopped() {},
             runtime: { runNoToolsTemplateAgent: async request => { httpDispatches++; return client.runNoToolsTemplateAgent(request) } } }),
         }))
         const server = http.createServer(app)
@@ -194,9 +204,21 @@ async function main() {
           await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
           const address = server.address() as net.AddressInfo
           const url = `http://127.0.0.1:${address.port}/api/cli/v1/workspaces/isolated/agents/${input.agentId}/chat/sessions`
-          const send = () => fetch(url, { method: 'POST', headers: { authorization, 'content-type': 'application/json' },
+          const send = (credential = authorization, target = url) => fetch(target, { method: 'POST', headers: { authorization: credential, 'content-type': 'application/json' },
             body: JSON.stringify({ apiVersion: 'clawmax.instance/v1', kind: 'AgentChatRequest', message: input.message, idempotencyKey: 'http-model-greeting' }),
             signal: AbortSignal.timeout(180000) })
+          for (const credential of ['', 'Bearer invalid', `${authorization}invalid`]) {
+            const denied = await send(credential)
+            assert.equal(denied.status, 401)
+            await denied.text()
+          }
+          const wrongWorkspace = await send(authorization, url.replace('/workspaces/isolated/', '/workspaces/unknown/'))
+          assert.equal(wrongWorkspace.status, 403)
+          await wrongWorkspace.text()
+          const wrongActor = await send(`Bearer ${session('unrelated')}`)
+          assert.equal(wrongActor.status, 404)
+          await wrongActor.text()
+          assert.equal(httpDispatches, 0)
           const response = await send()
           assert.equal(response.status, 200)
           assert(response.headers.get('content-type')?.startsWith('application/x-ndjson'))
@@ -213,10 +235,14 @@ async function main() {
           })
           assert.equal(await (await send()).text(), text)
           assert.equal(httpDispatches, 1)
-          console.log(`Public CLI chat HTTP native execution passed: model=${model}; replyBytes=${Buffer.byteLength(events[1].content)}; correlated events and durable replay passed`)
+          console.log(`Authenticated public CLI router native execution passed: model=${model}; replyBytes=${Buffer.byteLength(events[1].content)}; invalid sessions, wrong workspace/actor rejected; correlated events and durable replay passed`)
         } finally {
           server.closeAllConnections()
           await new Promise<void>(resolve => server.close(() => resolve()))
+          for (const [key, value] of Object.entries(previousEnv)) {
+            if (value === undefined) delete process.env[key]
+            else process.env[key] = value
+          }
         }
       } catch (error: any) {
         const cause = error.cause
