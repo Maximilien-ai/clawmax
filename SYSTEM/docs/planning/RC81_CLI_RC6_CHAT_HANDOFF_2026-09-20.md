@@ -327,3 +327,31 @@ Remaining gates: operator-configured production composition, installed CLI
 end-to-end acceptance, pending-run reconciliation/cancellation, real Group and
 Workflow graph execution, and full repeated lifecycle cycles before image builds.
 No images, instance rollouts or recurring schedules were started.
+
+## CLI client interoperability — 2026-09-21
+
+The native harness now optionally runs the actual `instanceclient` Go package
+from an explicit CLI checkout. Acceptance passed against CLI checkout
+`47ee314fc22e0255480b6c8a6e333e009abc3d5d`: the PKCE-issued access token was
+provided on stdin, a nonempty Qwen reply completed through the public route,
+and byte-equivalent event replay caused no second model dispatch. The complete
+native harness exited 0 after its recovery and exact-cleanup checks. Server
+TypeScript and focused lint passed. The CLI checkout was read, not edited.
+
+```sh
+cd SYSTEM/dashboard
+CLAWMAX_ACCEPTANCE_CLI_CHECKOUT=/absolute/clawmax-cli \
+  npx ts-node scripts/test-template-isolated-gateway.ts /absolute/prepared/openclaw --local-model ollama/qwen2.5:latest
+```
+
+Installed `/usr/local/bin/clawmax` reports `2.0.0-test-rc6`, but its `instance`
+commands currently use the user profile and OS Keychain. This client-package
+check is **not** an installed-binary or interactive-login pass. No installed
+profile, credential, agent, VM, or cloud instance was changed.
+
+CLI handoff request: provide a supported opt-in isolated profile root and
+isolated test credential mechanism for installed-binary acceptance. Preserve
+normal Keychain defaults; do not put tokens in process arguments or logs.
+Dashboard still owns production composition, missing public Group routes,
+revision-owned graph execution, terminal cancellation/reconciliation, and
+full lifecycle acceptance. Do not advertise those gates as satisfied.
