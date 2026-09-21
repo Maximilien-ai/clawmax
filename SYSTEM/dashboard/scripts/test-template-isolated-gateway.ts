@@ -283,6 +283,24 @@ async function main() {
             })
             assert.equal(httpDispatches, 2, 'Go client replay must not dispatch twice')
           }
+          const groupId = Object.values(result.revision.resources.groups)[0]
+          const groupInput = { groupId, message: 'Reply with one short sentence. Do not use tools.', idempotencyKey: 'native-group-handoff' }
+          const handoffs: Array<{ agentId: string; message: string }> = []
+          const groupRun = await coordinator.executeNoToolsGroup('actor', result.revision.id, groupInput, source, policies, {
+            runNoToolsTemplateAgent: async request => { handoffs.push(request); return client.runNoToolsTemplateAgent(request) },
+          })
+          const groupResult = JSON.parse(groupRun.text)
+          assert.equal(groupResult.stopReason, 'turn_limit')
+          assert.deepEqual(groupResult.turns.map((turn: any) => turn.memberId), ['producer', 'reviewer', 'producer', 'reviewer'])
+          assert.equal(new Set(handoffs.map(turn => turn.agentId)).size, 2)
+          for (let index = 1; index < handoffs.length; index++) {
+            assert.equal(JSON.parse(handoffs[index].message).content, groupResult.turns[index - 1].text)
+            assert(groupResult.turns[index].text.trim())
+          }
+          assert.deepEqual(await coordinator.executeNoToolsGroup('actor', result.revision.id, groupInput, source, policies, {
+            runNoToolsTemplateAgent: async () => { throw new Error('Group replay must not execute') },
+          }), { ...groupRun, replayed: true })
+          console.log('Native Group communication passed: two agents, four edge-directed turns, exact reply handoffs, turn-limit stop and durable replay')
         } finally {
           server.closeAllConnections()
           await new Promise<void>(resolve => server.close(() => resolve()))
