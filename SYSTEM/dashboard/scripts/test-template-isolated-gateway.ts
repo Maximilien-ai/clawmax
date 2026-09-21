@@ -33,6 +33,8 @@ async function main() {
   const localModel = process.argv[3] === '--local-model' ? process.argv[4] : undefined
   assert(process.argv.length === 3 || (process.argv.length === 5 && localModel && /^ollama\/[a-zA-Z0-9._:-]+$/.test(localModel)), 'Optional arguments: --local-model ollama/<id>')
   const model = localModel || 'openai/gpt-4.1-mini'
+  const hostRegistry = path.join(os.homedir(), '.openclaw', 'dashboard-workspaces.json')
+  const hostRegistryBefore = fs.existsSync(hostRegistry) ? fs.readFileSync(hostRegistry) : null
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-isolated-template-gateway-'))
   const workspace = path.join(root, 'workspace')
   const state = path.join(root, 'state')
@@ -178,12 +180,14 @@ async function main() {
         const { createInstanceCliRouter } = await import('../server/routes/instance-cli')
         const { WorkspaceManager } = await import('../server/lib/workspace-manager')
         const { createCliSessionToken } = await import('../server/lib/github-auth')
+        const { createConfiguredTemplateResolver } = await import('../server/lib/template-service')
         const app = express()
         const isolatedEnv: Record<string, string> = {
           JWT_SECRET: crypto.randomBytes(32).toString('hex'),
           DASHBOARD_TOKEN: crypto.randomBytes(32).toString('hex'),
           BYPASS_OAUTH: 'false', DASHBOARD_AUTH_DISABLED: 'false', DASHBOARD_AUTH_MODE: 'email_otp',
           CLAWMAX_CLI_API_STATE_PATH: path.join(root, 'cli-api.json'), OPENCLAW_WORKSPACE: workspace,
+          CLAWMAX_TEST_WORKSPACE: workspace,
         }
         const previousEnv = Object.fromEntries(Object.keys(isolatedEnv).map(key => [key, process.env[key]]))
         Object.assign(process.env, isolatedEnv)
@@ -195,11 +199,15 @@ async function main() {
         const session = (actorId: string) => createCliSessionToken({ actorId, email: `${actorId}@example.test`, displayName: actorId })
         let authorization = `Bearer ${session('actor')}`
         let httpDispatches = 0
+        const authorityDirectory = path.join(root, 'operator-authority')
+        writeAtomicJson(path.join(authorityDirectory, `${sha256('isolated')}.json`), registry)
+        const templates = createConfiguredTemplateResolver({ authorityDirectory, agentStateRoot: path.join(state, 'agents'), runtime,
+          client: { getConfig: () => client.getConfig(), patchTemplateAgentEntriesAtRevision: (entries, hash) => client.patchTemplateAgentEntriesAtRevision(entries, hash),
+            runNoToolsTemplateAgent: async request => { httpDispatches++; return client.runNoToolsTemplateAgent(request) } } })
         app.use(express.json())
         app.use('/api/cli/v1', createInstanceCliRouter({
           workspaceManager: new WorkspaceManager(registryPath),
-          templates: () => ({ store, coordinator, authority: source, policies, assertStopped() {},
-            runtime: { runNoToolsTemplateAgent: async request => { httpDispatches++; return client.runNoToolsTemplateAgent(request) } } }),
+          templates,
         }))
         const server = http.createServer(app)
         try {
@@ -383,6 +391,9 @@ async function main() {
       await closed
     }
     fs.rmSync(root, { recursive: true, force: true })
+    const hostRegistryAfter = fs.existsSync(hostRegistry) ? fs.readFileSync(hostRegistry) : null
+    assert(hostRegistryBefore === null ? hostRegistryAfter === null : hostRegistryAfter !== null && hostRegistryBefore.equals(hostRegistryAfter),
+      'Native acceptance must not change the host workspace registry')
   }
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1 })
