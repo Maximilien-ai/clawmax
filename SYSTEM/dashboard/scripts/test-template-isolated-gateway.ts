@@ -2,6 +2,8 @@
  * installed instance profile. Owns a temporary state/config root and one child
  * process group. Optional --local-model ollama/<id> enables credential-free
  * native execution against localhost Ollama. Never loads hosted provider keys.
+ * CLAWMAX_ACCEPTANCE_CLI_CHECKOUT optionally runs the actual Go HTTP client
+ * from an explicit CLI checkout without touching profiles or the OS keychain.
  */
 import assert from 'assert'
 import crypto from 'crypto'
@@ -263,6 +265,24 @@ async function main() {
           assert.equal(await (await send()).text(), text)
           assert.equal(httpDispatches, 1)
           console.log(`PKCE-authenticated public CLI router native execution passed: model=${model}; replyBytes=${Buffer.byteLength(events[1].content)}; code reuse, invalid sessions, wrong workspace/actor rejected; correlated events and durable replay passed`)
+          const cliCheckout = process.env.CLAWMAX_ACCEPTANCE_CLI_CHECKOUT
+          if (cliCheckout) {
+            assert(path.isAbsolute(cliCheckout) && fs.existsSync(path.join(cliCheckout, 'go.mod')), 'CLI checkout must be an absolute module directory')
+            await new Promise<void>((resolve, reject) => {
+              const go = execFile('go', ['run', path.resolve(__dirname, 'fixtures/native-chat-cli-contract.go')], {
+                cwd: cliCheckout, timeout: 210000, maxBuffer: 65536,
+                env: { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: root, GOFLAGS: '-mod=readonly' },
+              }, (error, stdout) => {
+                if (error) { reject(new Error('Isolated CLI Go client acceptance failed')); return }
+                if (stdout.trim() !== 'CLI Go client: native reply and durable replay passed') { reject(new Error('Unexpected isolated CLI result')); return }
+                console.log(stdout.trim())
+                resolve()
+              })
+              go.stdin!.on('error', () => reject(new Error('Isolated CLI input failed')))
+              go.stdin!.end(JSON.stringify({ Origin: origin, Token: tokenSession.accessToken, Workspace: 'isolated', Agent: input.agentId }))
+            })
+            assert.equal(httpDispatches, 2, 'Go client replay must not dispatch twice')
+          }
         } finally {
           server.closeAllConnections()
           await new Promise<void>(resolve => server.close(() => resolve()))
