@@ -62,7 +62,7 @@ async function run() {
     assert.strictEqual(context.workspaceId, 'operations')
     assert.strictEqual(context.workspacePath, path.join(root, 'workspaces', 'operations'))
     return {
-      store: { workspaceId: context.workspaceId, workspacePath: context.workspacePath, history: () => [] },
+      store: { workspaceId: context.workspaceId, workspacePath: context.workspacePath, history: () => [], currentRevision: () => null },
       coordinator: { workspaceId: context.workspaceId, workspacePath: context.workspacePath },
       assertStopped() {}, authority: {}, policies: {}, runtime: {},
     }
