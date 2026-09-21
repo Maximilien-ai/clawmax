@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { openClawStatePath } from './openclaw-profile-paths'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
 import path from 'path'
 import matter from 'gray-matter'
@@ -888,8 +889,8 @@ export function resolveWorkflowOpenClawCliPath(): string {
   return cliPath
 }
 
-function resolveAgentSessionsDir(agentId: string, home: string): string {
-  return path.join(home, '.openclaw', 'agents', agentId, 'sessions')
+function resolveAgentSessionsDir(agentId: string, home?: string): string {
+  return path.join(openClawStatePath(home), 'agents', agentId, 'sessions')
 }
 
 function resolveSessionFileFromEntry(sessionsDir: string, sessionFile: string): string | undefined {
@@ -921,9 +922,9 @@ function readSessionHeaderId(sessionFile: string): string | undefined {
   }
 }
 
-export function repairWorkflowSessionEntryForRun(agentId: string, sessionId: string, home: string = process.env.HOME || ''): boolean {
+export function repairWorkflowSessionEntryForRun(agentId: string, sessionId: string, home?: string): boolean {
   try {
-    if (!agentId || !sessionId || !home) return false
+    if (!agentId || !sessionId || home === '') return false
     const sessionsDir = resolveAgentSessionsDir(agentId, home)
     const sessionsPath = path.join(sessionsDir, 'sessions.json')
     if (!fs.existsSync(sessionsPath)) return false
@@ -968,7 +969,7 @@ export function repairWorkflowSessionEntryForRun(agentId: string, sessionId: str
   }
 }
 
-export function getLatestAgentSessionErrorMessage(agentId: string, home: string = process.env.HOME || ''): string | undefined {
+export function getLatestAgentSessionErrorMessage(agentId: string, home?: string): string | undefined {
   try {
     const sessionsDir = resolveAgentSessionsDir(agentId, home)
     if (!fs.existsSync(sessionsDir)) return undefined
