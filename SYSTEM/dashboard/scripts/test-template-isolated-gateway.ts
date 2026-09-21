@@ -281,7 +281,7 @@ async function main() {
               go.stdin!.on('error', () => reject(new Error('Isolated CLI input failed')))
               go.stdin!.end(JSON.stringify({ Origin: origin, Token: tokenSession.accessToken, Workspace: 'isolated', Agent: input.agentId }))
             })
-            assert.equal(httpDispatches, 2, 'Go client replay must not dispatch twice')
+            assert.equal(httpDispatches, 6, 'One HTTP agent call, one Go agent call and four Group turns; replays must not dispatch')
           }
           const groupId = Object.values(result.revision.resources.groups)[0]
           const groupInput = { groupId, message: 'Reply with one short sentence. Do not use tools.', idempotencyKey: 'native-group-handoff' }

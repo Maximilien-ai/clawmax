@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -32,19 +31,38 @@ func main() {
 	}
 	for _, listed := range groups.Items {
 		group, err := client.Group(ctx, input.Workspace, listed.ID)
-		if err != nil || !reflect.DeepEqual(group, listed) || group.Status != "unavailable" {
+		if err != nil || !reflect.DeepEqual(group, listed) || group.Status != "stopped" {
 			panic("isolated group detail or execution gate mismatch")
 		}
-		_, err = client.GroupMessages(ctx, input.Workspace, listed.ID)
-		var apiError *instanceclient.APIError
-		if !errors.As(err, &apiError) || apiError.Code != "group_history_unavailable" {
-			panic("uncorrelated group history must remain unavailable")
+		history, err := client.GroupMessages(ctx, input.Workspace, listed.ID)
+		if err != nil || len(history.Items) != 0 {
+			panic("new isolated group history must be empty")
 		}
-		err = client.StreamGroupChat(ctx, input.Workspace, listed.ID, instanceclient.NewGroupChatRequest("Must not execute", "", "gated-group"), func(instanceclient.GroupChatEvent) error {
-			panic("gated group emitted an execution event")
-		})
-		if !errors.As(err, &apiError) || apiError.Code != "group_execution_unavailable" {
-			panic("group execution must remain unavailable")
+		var previous []instanceclient.GroupChatEvent
+		for attempt := 0; attempt < 2; attempt++ {
+			var events []instanceclient.GroupChatEvent
+			err = client.StreamGroupChat(ctx, input.Workspace, listed.ID, instanceclient.NewGroupChatRequest("Reply with one short sentence. Do not use tools.", "", "native-public-group"), func(event instanceclient.GroupChatEvent) error {
+				events = append(events, event)
+				return nil
+			})
+			if err != nil || len(events) != 6 || events[0].Type != "start" || events[5].Type != "done" || events[5].Content != "Group stopped: turn_limit" {
+				panic("bounded public group run failed")
+			}
+			if attempt == 1 && !reflect.DeepEqual(previous, events) {
+				panic("group replay changed events")
+			}
+			previous = events
+		}
+		history, err = client.GroupMessages(ctx, input.Workspace, listed.ID)
+		if err != nil || len(history.Items) != 5 {
+			panic("group history missing correlated replies")
+		}
+		for index := 0; index < 4; index++ {
+			message := history.Items[index]
+			event := previous[index+1]
+			if message.Content != event.Content || message.SenderID != event.AgentID || message.SessionID != event.SessionID {
+				panic("group history does not match execution")
+			}
 		}
 	}
 	request := instanceclient.NewChatRequest("Reply with a short greeting. Do not use tools.", "", "native-go-client-greeting")
