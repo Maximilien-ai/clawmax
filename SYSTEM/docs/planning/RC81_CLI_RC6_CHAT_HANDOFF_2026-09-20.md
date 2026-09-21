@@ -382,3 +382,25 @@ Group communication, correlated Group history, Workflow graph execution and
 terminal cancellation remain unproven and gated. This is discovery acceptance,
 not Operations deployment readiness. No installed profiles, credentials, VMs,
 MBP14/test10 instances, schedules or release images were changed.
+
+## Internal native Group communication — 2026-09-21
+
+`c27fc5ff` adds an explicit bounded, no-tools Group execution owner under the
+coordinator workspace lock. It verifies revision ownership and server authority
+at each handoff, follows only configured `sendTo` edges, and honors turn/message
+limits. Results record member/agent identity, preceding sender, native run IDs,
+reply text and an explicit stop reason. Limit termination does not claim the
+Group's objective succeeded. The Group stays stopped; schedules remain disabled.
+
+One real native Qwen cycle passed four turns across two agents:
+producer → reviewer → producer → reviewer. Each recipient received the exact
+preceding response. The recorded stop reason was `turn_limit`, and durable
+replay made no new model calls. The full harness exited 0 after recovery,
+rollback, exact cleanup and unrelated-resource preservation checks.
+
+Coordinator tests passed for handoffs, identity, oversized/empty input,
+idempotency conflicts, replay, and revocation after the first response. Uncertain
+or partial runs retain a pending claim and block redispatch and cleanup.
+TypeScript and focused lint passed. This does not yet provide cancellation,
+pending-run reconciliation, retention enforcement, public Group chat/history,
+or Workflow graph execution. Those remain release gates; no deployment changed.
