@@ -352,6 +352,33 @@ profile, credential, agent, VM, or cloud instance was changed.
 CLI handoff request: provide a supported opt-in isolated profile root and
 isolated test credential mechanism for installed-binary acceptance. Preserve
 normal Keychain defaults; do not put tokens in process arguments or logs.
-Dashboard still owns production composition, missing public Group routes,
+Dashboard still owns production composition, public Group execution/history,
 revision-owned graph execution, terminal cancellation/reconciliation, and
 full lifecycle acceptance. Do not advertise those gates as satisfied.
+
+## Group discovery and interruption recovery — 2026-09-21
+
+`e4f147f4` adds authenticated workspace-scoped Group list/detail routes. Names
+that are not valid resource IDs receive deterministic hashed IDs. Duplicate
+identities, symlinked catalogs and unauthorized workspaces fail closed. The
+routes are read-only, and all Groups report execution status `unavailable`.
+Public chat/history return explicit `group_execution_unavailable` and
+`group_history_unavailable` errors: legacy messages are not relabeled with
+invented actor/session identities. All 21 router tests, TypeScript and focused
+lint passed. [Implementation CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35623536569)
+and CodeQL passed.
+
+After an interruption removed the old temporary runtime, acceptance stopped
+before gateway startup. The repository preparation script rebuilt pinned
+OpenClaw 2026.8.2 (`0965053`) with the maintained patches in a fresh cache:
+`/private/tmp/clawmax-rc81-runtime.kFsPtH/v2026.8.2/bin/openclaw`.
+The resumed native harness exited 0. The actual CLI Go client validated Group
+list/detail and exact gated error codes, then completed Qwen chat and durable
+replay without duplicate model dispatch. Recovery, rollback, exact cleanup
+and unrelated roster preservation also passed. Disposable test resources were
+cleaned; the rebuilt runtime cache remains available for the next run.
+
+Group communication, correlated Group history, Workflow graph execution and
+terminal cancellation remain unproven and gated. This is discovery acceptance,
+not Operations deployment readiness. No installed profiles, credentials, VMs,
+MBP14/test10 instances, schedules or release images were changed.
