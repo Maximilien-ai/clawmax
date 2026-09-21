@@ -11,6 +11,8 @@ export CLAWMAX_AUTO_START_GATEWAY="${CLAWMAX_AUTO_START_GATEWAY:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG="${CLAWMAX_GATEWAY_WATCHDOG:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC="${CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC:-30}"
 export CLAWMAX_GATEWAY_READY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_READY_TIMEOUT_SEC:-25}"
+export CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC:-330}"
+export CLAWMAX_GATEWAY_LOG="${CLAWMAX_GATEWAY_LOG:-/tmp/openclaw-gateway.log}"
 export CLAWMAX_HOST_OPENCLAW_CONFIG="${CLAWMAX_HOST_OPENCLAW_CONFIG:-/root/.openclaw/openclaw.json}"
 export CLAWMAX_RUNTIME_PACKAGE_JSON="${CLAWMAX_RUNTIME_PACKAGE_JSON:-/app/SYSTEM/dashboard/package.json}"
 export CLAWMAX_STRICT_OPENCLAW_PLUGIN_POLICY="${CLAWMAX_STRICT_OPENCLAW_PLUGIN_POLICY:-true}"
@@ -350,30 +352,68 @@ wait_for_gateway_ready() {
     fi
     if [ -n "${gateway_pid:-}" ] && ! kill -0 "$gateway_pid" 2>/dev/null; then
       echo "[entrypoint] ERROR: gateway exited before authenticated readiness" >&2
-      tail -n 40 /tmp/openclaw-gateway.log >&2 2>/dev/null || true
+      tail -n 40 "$CLAWMAX_GATEWAY_LOG" >&2 2>/dev/null || true
       return 1
     fi
     sleep 1
   done
 
   echo "[entrypoint] ERROR: gateway did not pass authenticated readiness within ${timeout_sec}s on port ${port}" >&2
-  tail -n 40 /tmp/openclaw-gateway.log >&2 2>/dev/null || true
+  tail -n 40 "$CLAWMAX_GATEWAY_LOG" >&2 2>/dev/null || true
   return 1
 }
 
 start_gateway_run() {
   port="$1"
   echo "[entrypoint] starting gateway on port ${port}"
-  openclaw gateway run --port "$port" >>/tmp/openclaw-gateway.log 2>&1 &
+  openclaw gateway run --port "$port" >>"$CLAWMAX_GATEWAY_LOG" 2>&1 &
   gateway_pid=$!
   sleep 2
   if kill -0 "$gateway_pid" 2>/dev/null; then
     echo "[entrypoint] gateway started (pid ${gateway_pid})"
   else
     echo "[entrypoint] gateway failed to start — check /tmp/openclaw-gateway.log" >&2
-    tail -n 40 /tmp/openclaw-gateway.log >&2 2>/dev/null || true
+    tail -n 40 "$CLAWMAX_GATEWAY_LOG" >&2 2>/dev/null || true
     return 1
   fi
+}
+
+start_gateway_with_lease_recovery() {
+  lease_port="$1"
+  lease_budget="$CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC"
+  case "$lease_budget" in ''|*[!0-9]*) lease_budget=330 ;; esac
+  [ "$lease_budget" -le 330 ] || lease_budget=330
+  lease_deadline=$(( $(date +%s) + lease_budget ))
+  while true; do
+    # Classify only this attempt, never an old failure left in an appended log.
+    lease_log_offset=0
+    if [ -f "$CLAWMAX_GATEWAY_LOG" ]; then
+      lease_log_offset=$(wc -c < "$CLAWMAX_GATEWAY_LOG")
+    fi
+    if start_gateway_run "$lease_port" && wait_for_gateway_ready "$lease_port"; then
+      return 0
+    fi
+    # Never abandon a live child or retry unrelated configuration/auth failures.
+    if [ -n "${gateway_pid:-}" ] && kill -0 "$gateway_pid" 2>/dev/null; then
+      return 1
+    fi
+    if [ -n "${gateway_pid:-}" ]; then wait "$gateway_pid" 2>/dev/null || true; fi
+    if ! tail -c "+$((lease_log_offset + 1))" "$CLAWMAX_GATEWAY_LOG" 2>/dev/null \
+      | grep -F 'Gateway failed to start: Another Gateway owner lease is still active for this state directory.' >/dev/null; then
+      return 1
+    fi
+    if [ "$(date +%s)" -ge "$lease_deadline" ]; then
+      echo '[entrypoint] ERROR: gateway owner lease recovery deadline exceeded; refusing to clear another owner' >&2
+      return 1
+    fi
+    echo '[entrypoint] waiting for gateway owner lease expiry; readiness remains unavailable'
+    sleep 5
+    # Another gateway may have appeared while we waited. Do not compete with it.
+    if gateway_port_listening "$lease_port"; then
+      gateway_authenticated_ready "$lease_port"
+      return $?
+    fi
+  done
 }
 
 ensure_gateway_running() {
@@ -386,8 +426,7 @@ ensure_gateway_running() {
     echo "[entrypoint] ERROR: port ${port} is listening but the gateway failed authenticated readiness" >&2
     return 1
   fi
-  start_gateway_run "$port" || return 1
-  wait_for_gateway_ready "$port"
+  start_gateway_with_lease_recovery "$port"
 }
 
 gateway_watchdog_tick() {
@@ -402,8 +441,7 @@ gateway_watchdog_tick() {
     echo "[entrypoint] ERROR: unhealthy gateway on port ${port} is not managed by this container" >&2
     return 1
   fi
-  start_gateway_run "$port" || return 1
-  wait_for_gateway_ready "$port"
+  start_gateway_with_lease_recovery "$port"
 }
 
 start_gateway_watchdog() {

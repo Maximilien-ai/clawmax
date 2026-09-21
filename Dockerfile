@@ -289,7 +289,9 @@ ENV CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC=30
 
 EXPOSE 3001
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+# A forced replacement can retain OpenClaw's five-minute remote-owner lease.
+# Keep health failing during recovery without declaring startup permanently bad.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=350s --retries=3 \
   CMD curl -fsS http://127.0.0.1:3001/api/health >/dev/null || exit 1
 
 ENTRYPOINT ["/app/SYSTEM/dashboard/docker-entrypoint.sh"]

@@ -441,4 +441,48 @@ if grep -F -- '--accept-capabilities' "$SCRIPT" >/dev/null 2>&1; then
   exit 1
 fi
 
+# Only retry this attempt's lease failure after its child has exited.
+(
+  CLAWMAX_GATEWAY_LOG="$TMP_DIR/lease-recovery.log"
+  CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC=10
+  recovery_now=0
+  recovery_attempts=0
+  gateway_pid=''
+  date() { echo "$recovery_now"; }
+  sleep() { recovery_now=$((recovery_now + 5)); }
+  gateway_port_listening() { return 1; }
+  wait_for_gateway_ready() { return 0; }
+  lease_error() { echo 'Gateway failed to start: Another Gateway owner lease is still active for this state directory.' >> "$CLAWMAX_GATEWAY_LOG"; }
+  start_gateway_run() {
+    recovery_attempts=$((recovery_attempts + 1))
+    if [ "$recovery_attempts" -lt 3 ]; then lease_error; return 1; fi
+    return 0
+  }
+  start_gateway_with_lease_recovery 18789
+  [ "$recovery_attempts" -eq 3 ]
+  start_gateway_run() { recovery_attempts=$((recovery_attempts + 1)); echo 'configuration invalid' >> "$CLAWMAX_GATEWAY_LOG"; return 1; }
+  recovery_attempts=0
+  if start_gateway_with_lease_recovery 18789; then exit 1; fi
+  [ "$recovery_attempts" -eq 1 ] # stale success/error text cannot mask a new failure
+  start_gateway_run() { recovery_attempts=$((recovery_attempts + 1)); lease_error; return 1; }
+  recovery_now=0
+  recovery_attempts=0
+  if start_gateway_with_lease_recovery 18789; then exit 1; fi
+  [ "$recovery_attempts" -eq 3 ] # stop at the deadline; never steal a lease
+  recovery_attempts=0
+  gateway_pid=$$
+  if start_gateway_with_lease_recovery 18789; then exit 1; fi
+  [ "$recovery_attempts" -eq 1 ] # never overlap a live child
+  gateway_pid=''
+  recovery_attempts=0
+  gateway_port_listening() { return 0; }
+  gateway_authenticated_ready() { return 1; }
+  if start_gateway_with_lease_recovery 18789; then exit 1; fi
+  [ "$recovery_attempts" -eq 1 ]
+  recovery_attempts=0
+  gateway_authenticated_ready() { return 0; }
+  start_gateway_with_lease_recovery 18789
+  [ "$recovery_attempts" -eq 1 ]
+)
+
 echo "docker-entrypoint gateway tests passed"

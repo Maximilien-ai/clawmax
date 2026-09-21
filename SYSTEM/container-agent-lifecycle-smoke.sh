@@ -31,10 +31,18 @@ fail() {
 
 start_dashboard() {
   local started_at now elapsed gateway_timeout
+  local health_timeout="${1:-40}"
+  local entrypoint_mount=()
+  if [ "${CLAWMAX_LIFECYCLE_SOURCE_ENTRYPOINT:-false}" = true ]; then
+    # Explicit diagnostic lane, never used to approve the packaged entrypoint.
+    echo 'DIAGNOSTIC: testing source entrypoint overlay, not immutable image acceptance'
+    entrypoint_mount=(--mount "type=bind,source=${script_dir}/dashboard/docker-entrypoint.sh,target=/app/SYSTEM/dashboard/docker-entrypoint.sh,readonly")
+  fi
   started_at="$(date +%s)"
   dashboard_health_elapsed=''
   gateway_ready_elapsed=''
   "$container_cli" run -d \
+    "${entrypoint_mount[@]}" \
     --platform "$platform" \
     --name "$container_name" \
     --add-host host.docker.internal:host-gateway \
@@ -59,7 +67,7 @@ start_dashboard() {
   [ -n "$binding" ] || fail 'dashboard port was not published'
   base_url="http://127.0.0.1:${binding##*:}"
 
-  while [ "$(( $(date +%s) - started_at ))" -le 40 ]; do
+  while [ "$(( $(date +%s) - started_at ))" -le "$health_timeout" ]; do
     now="$(date +%s)"
     elapsed="$((now - started_at))"
     if [ -z "$gateway_ready_elapsed" ] && "$container_cli" logs "$container_name" 2>&1 | grep -F 'gateway authenticated readiness verified' >/dev/null; then
@@ -67,16 +75,16 @@ start_dashboard() {
     fi
     if curl -fsS --connect-timeout 1 --max-time 2 "$base_url/api/health" >/dev/null 2>&1; then
       dashboard_health_elapsed="$elapsed"
-      if [ "$dashboard_health_elapsed" -gt 40 ]; then
-        fail "dashboard health exceeded 40 seconds (${dashboard_health_elapsed}s)"
+      if [ "$dashboard_health_elapsed" -gt "$health_timeout" ]; then
+        fail "dashboard health exceeded ${health_timeout} seconds (${dashboard_health_elapsed}s)"
       fi
       break
     fi
     sleep 1
   done
-  [ -n "$dashboard_health_elapsed" ] || fail 'dashboard health endpoint did not become ready within 40 seconds'
+  [ -n "$dashboard_health_elapsed" ] || fail "dashboard health endpoint did not become ready within ${health_timeout} seconds"
 
-  gateway_timeout="${CLAWMAX_GATEWAY_ACCEPTANCE_TIMEOUT_SEC:-120}"
+  gateway_timeout="${CLAWMAX_GATEWAY_ACCEPTANCE_TIMEOUT_SEC:-$((health_timeout + 80))}"
   case "$gateway_timeout" in
     ''|*[!0-9]*) fail "invalid gateway acceptance timeout: ${gateway_timeout}" ;;
   esac
@@ -96,7 +104,8 @@ start_dashboard() {
 }
 
 stop_dashboard() {
-  "$container_cli" rm -f "$container_name" >/dev/null
+  "$container_cli" stop --time 30 "$container_name" >/dev/null
+  "$container_cli" rm "$container_name" >/dev/null
 }
 
 provision_agent() {
@@ -395,4 +404,13 @@ assert_populated_fixture
 assert_instance_cli_persistence
 assert_gateway_chat
 
-echo "container-agent-lifecycle-smoke.sh: lifecycle, instance CLI, populated persistence, restart, cron, gateway, and <=40s health checks passed for ${platform}"
+# A forced replacement has an unknown remote owner until its five-minute lease
+# expires. Never weaken the 40s fresh/graceful gate or clear the persisted lease.
+"$container_cli" rm -f "$container_name" >/dev/null
+start_dashboard 360
+assert_one_ordered_agent
+assert_populated_fixture
+assert_instance_cli_persistence
+assert_gateway_chat
+
+echo "container-agent-lifecycle-smoke.sh: lifecycle, persistence, graceful restart <=40s, and forced-replacement recovery <=360s passed for ${platform}"
