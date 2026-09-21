@@ -35,9 +35,16 @@ const state = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
 if (state.setupExists !== false || state.attestation) process.exit(1)
 ' "$TMP_DIR/state.json"
 
+mv "$TMP_DIR/openclaw/dist/workspace-state-store-fixture.js" "$TMP_DIR/openclaw/dist/workspace-state-store-fixture.mjs"
+printf '{"setupExists":true,"attestation":{"attestedAtMs":2}}\n' > "$TMP_DIR/state.json"
+OPENCLAW_PACKAGE_ROOT="$TMP_DIR/openclaw" OPENCLAW_TEST_WORKSPACE_STATE="$TMP_DIR/state.json" \
+  node "$ROOT_DIR/SYSTEM/dashboard/openclaw-workspace-state.mjs" "$TMP_DIR/workspace" \
+  | grep -F '"cleared":true' >/dev/null
+grep -F '"setupExists":false' "$TMP_DIR/state.json" >/dev/null
+
 if OPENCLAW_PACKAGE_ROOT="$TMP_DIR/missing" node "$ROOT_DIR/SYSTEM/dashboard/openclaw-workspace-state.mjs" "$TMP_DIR/workspace" >/dev/null 2>&1; then
   echo "Expected missing pinned module to fail" >&2
   exit 1
 fi
 
-echo "openclaw-workspace-state.test.sh: 6 tests passed"
+echo "openclaw-workspace-state.test.sh: 8 tests passed"
