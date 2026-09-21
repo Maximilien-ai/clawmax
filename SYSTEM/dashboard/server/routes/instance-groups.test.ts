@@ -6,6 +6,7 @@ import http from 'http'
 import express from 'express'
 import { createInstanceGroupsRouter } from './instance-groups'
 import type { CliTemplateExecution } from './instance-chat'
+import { CliGroupReceipts } from '../lib/cli-group-receipts'
 
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cli-group-contract-'))
@@ -61,6 +62,9 @@ async function main() {
     assert.equal(history[1].senderId, 'reviewer')
     assert.equal(history[2].content, 'Group stopped: turn_limit')
     assert.equal(history[0].sessionId, first.items[0].sessionId)
+    assert.deepEqual(new CliGroupReceipts(root, 'alice', 'revision', groupId).history(), history)
+    assert.deepEqual(new CliGroupReceipts(root, 'bob', 'revision', groupId).history(), [])
+    assert.deepEqual(new CliGroupReceipts(root, 'alice', 'replacement-revision', groupId).history(), [])
     cleaned = true
     assert.equal((await request()).status, 404)
     cleaned = false
@@ -78,6 +82,10 @@ async function main() {
         const full = path.join(root, '.clawmax/cli-groups', directory, file)
         assert.equal(fs.statSync(full).mode & 0o777, 0o600)
         assert(!fs.readFileSync(full, 'utf8').includes('Private input'))
+        const bytes = fs.readFileSync(full)
+        fs.writeFileSync(full, '{corrupt')
+        assert.equal((await request()).status, 503)
+        fs.writeFileSync(full, bytes)
       }
     }
     console.log('Public Group chat/history contract passed: ownership, correlation, replay, invalid input, cleanup, revocation, uncertain execution and private storage')
