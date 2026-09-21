@@ -452,12 +452,13 @@ Dashboard container was not modified by that registry write.
 The harness now sets `CLAWMAX_TEST_WORKSPACE` during gateway lookups and asserts
 byte-for-byte host-registry preservation at teardown. A fresh complete rerun
 exited 0 with that guard passing. The affected host registry was privately copied
-to ignored `tmp/host-workspace-registry-after-test.json`; restoration of the
-earlier default path/active selection awaits the user's choice because no
-pre-incident backup proves those values. Do not silently infer that restoration
-is complete.
+to ignored `tmp/host-workspace-registry-after-test.json`. With the user's approval,
+the default path was restored to `/Users/maximilien/.openclaw/workspace`, leaving
+`default` selected. A structural comparison verified that only this approved
+path changed; every other entry and field was preserved. This restores the
+approved selection, not an unverified claim about the pre-incident selection.
 
-Next: resolve the host registry restoration, confirm candidate CI, then prepare
+Next: confirm candidate CI, then prepare
 an internal MBP14 image and disposable-workspace acceptance with rollback.
 Cancellation/reconciliation, retention enforcement and Workflow graph execution
 remain distribution gates. No release image or installed-instance rollout was
