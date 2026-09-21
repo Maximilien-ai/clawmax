@@ -492,3 +492,71 @@ To use this installation with the full local suite, set
 prepares its own pinned runtime. The full wrapper still restarts its configured
 gateway by default, and `--with-validation` modifies workspace data; use it
 only with the intended development workspace and gateway.
+
+## OpenClaw 2026.9.5 isolated evaluation — 2026-09-21
+
+The installed 2026.8.2 LaunchAgent subsequently failed readiness: its obsolete
+temporary-runtime path was automatically repaired, but plugin verification
+rejected Codex, Google Meet, Teams Meetings, and Zoom Meetings for missing
+capability consent. Repeated exit-code-1 restarts were observed. The user requires
+all four integrations; disabling them is not the agreed remedy.
+
+Evaluated the official `openclaw@2026.9.5` package (`ec9c1a1`) under ignored
+`tmp/openclaw-2026.9.5-evaluation`, without changing the global installation,
+branch pin, installed gateway, MBP14 container, or test10. Package installation
+used `--ignore-scripts`; the package-local bundled-plugin postinstall was then
+run explicitly. No provider keys or integration sign-ins were used.
+
+- Unmodified 2026.9.5 passed native Qwen agent replies, PKCE-authenticated public
+  agent chat, and four-turn Group handoffs, but failed two-Agent rollback with
+  `Config write would drop agent roster entries without an explicit deletion`.
+- `16f074e5` extends the existing roster patch to `.mjs` bundles. Tests cover
+  `.js` and `.mjs`, idempotence, ambiguous-handler refusal without mutation, and
+  revision-checked explicit deletions only. Patch tests, preparation contract,
+  and Dashboard TypeScript passed. The branch remains pinned to 2026.8.2.
+- With that patch, native staging, replay, committed-journal recovery, two-Agent
+  rollback, stale-revision rejection, lost-response retry, cleanup planning,
+  exact cleanup after catalog removal, and unrelated roster preservation passed.
+  Native Qwen agent chat and four-turn Group handoffs also passed. This is not
+  a process-crash or long-duration stability claim.
+- The old filesystem patch correctly refuses the new package layout. It was
+  not bypassed or force-applied; cloud inode-changing filesystem compatibility
+  remains unverified, despite successful native macOS writes and cleanup.
+- Installed each exact `@openclaw/{codex,google-meet,teams-meetings,zoom-meetings}`
+  version 2026.9.5 through `openclaw plugins install ... --pin` in a separate
+  disposable profile, with no `--accept-capabilities` flag. All four reported
+  enabled/loaded with zero discovery diagnostics; the isolated gateway health
+  probe passed. Official verified packages have a new first-party consent
+  exemption; this does not grant account OAuth or operating-system permissions.
+  Channels, cron, and heartbeats were disabled; no meetings or account calls ran.
+  Local install logs and discovery evidence are in ignored
+  `tmp/openclaw-2026.9.5-evaluation/plugin-check-14WZ9h`.
+- Ten Workflow API contract tests and eight Workflow session regression tests
+  passed. These use fixtures, not real 2026.9.5 Workflow execution; live Workflow
+  completion/results/cancellation and cloud remote-model execution remain gates.
+
+The optional actual CLI Go-client run initially failed during Group execution.
+Its default HTTP client has a 15-second total timeout despite the fixture's
+180-second context; native multi-turn execution can exceed that. The acceptance
+fixture now explicitly requests a 180-second HTTP timeout (`78d6f801`), without
+editing CLI sources or changing installed CLI behavior. The complete native rerun
+exited 0: actual Go-client agent chat, Group discovery/detail, four-turn public
+Group execution, correlated history and exact replay passed, followed by native
+rollback and cleanup checks. The host workspace-registry preservation guard
+also passed. CLI should review production streaming timeout policy for multi-turn
+runs separately; this does not prove the installed CLI's default timeout adequate.
+
+Reproduce the native check from `SYSTEM/dashboard` (after preparing and patching
+the isolated package; this does not start the installed LaunchAgent):
+
+```bash
+CLAWMAX_ACCEPTANCE_CLI_CHECKOUT=/absolute/path/to/clawmax-cli \
+  npx ts-node scripts/test-template-isolated-gateway.ts \
+  /absolute/path/to/clawmax-codex/tmp/openclaw-2026.9.5-evaluation/node_modules/.bin/openclaw \
+  --local-model ollama/qwen2.5:latest
+```
+
+No image was built or rollout approved. The previous Dashboard CI completed
+successfully: https://github.com/Maximilien-ai/clawmax/actions/runs/35643713065.
+Roster bundle compatibility CI:
+https://github.com/Maximilien-ai/clawmax/actions/runs/35648073559.
