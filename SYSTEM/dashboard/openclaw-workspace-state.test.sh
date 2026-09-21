@@ -12,8 +12,15 @@ printf '{"setupExists":true,"attestation":{"attestedAtMs":1}}\n' > "$TMP_DIR/sta
 cat > "$TMP_DIR/openclaw/dist/workspace-state-store-fixture.js" <<'EOF'
 import fs from 'node:fs'
 function prepare(workspaceDir) { return { workspaceDir } }
-function clear() { fs.writeFileSync(process.env.OPENCLAW_TEST_WORKSPACE_STATE, '{"setupExists":false}\n') }
-function read() { return JSON.parse(fs.readFileSync(process.env.OPENCLAW_TEST_WORKSPACE_STATE, 'utf8')) }
+async function clear() {
+  await new Promise(resolve => setTimeout(resolve, 20))
+  if (process.env.OPENCLAW_TEST_DELETE_FAILURE) throw new Error('deletion failed')
+  if (!process.env.OPENCLAW_TEST_RETAIN_STATE) fs.writeFileSync(process.env.OPENCLAW_TEST_WORKSPACE_STATE, '{"setupExists":false}\n')
+}
+async function read() {
+  await new Promise(resolve => setTimeout(resolve, 20))
+  return JSON.parse(fs.readFileSync(process.env.OPENCLAW_TEST_WORKSPACE_STATE, 'utf8'))
+}
 export { prepare as s, clear as i, read as c }
 // prepareWorkspaceStateDeletion as s
 // deleteWorkspaceState as i
@@ -47,4 +54,17 @@ if OPENCLAW_PACKAGE_ROOT="$TMP_DIR/missing" node "$ROOT_DIR/SYSTEM/dashboard/ope
   exit 1
 fi
 
-echo "openclaw-workspace-state.test.sh: 8 tests passed"
+printf '{"setupExists":true}\n' > "$TMP_DIR/state.json"
+for failure in OPENCLAW_TEST_DELETE_FAILURE OPENCLAW_TEST_RETAIN_STATE; do
+  if env "$failure=1" OPENCLAW_PACKAGE_ROOT="$TMP_DIR/openclaw" OPENCLAW_TEST_WORKSPACE_STATE="$TMP_DIR/state.json" \
+    node "$ROOT_DIR/SYSTEM/dashboard/openclaw-workspace-state.mjs" "$TMP_DIR/workspace" > "$TMP_DIR/result" 2> "$TMP_DIR/error"; then
+    echo "Expected async cleanup failure for $failure" >&2
+    exit 1
+  fi
+  if grep -F '"cleared":true' "$TMP_DIR/result"; then
+    echo "Cleanup reported success before async verification" >&2
+    exit 1
+  fi
+done
+
+echo "openclaw-workspace-state.test.sh: asynchronous cleanup and failure checks passed"

@@ -58,10 +58,10 @@ if (
   throw new Error('Pinned OpenClaw workspace state module is missing required lifecycle exports')
 }
 
-const deletionPlan = prepareWorkspaceStateDeletion(workspaceDir)
-deleteWorkspaceState(deletionPlan)
+const deletionPlan = await prepareWorkspaceStateDeletion(workspaceDir)
+await deleteWorkspaceState(deletionPlan)
 
-const snapshot = readWorkspaceStateSnapshot(workspaceDir, { readOnly: true })
+const snapshot = await readWorkspaceStateSnapshot(workspaceDir, { readOnly: true })
 if (snapshot?.setupExists || snapshot?.attestation) {
   throw new Error('OpenClaw workspace state remains after deletion')
 }
