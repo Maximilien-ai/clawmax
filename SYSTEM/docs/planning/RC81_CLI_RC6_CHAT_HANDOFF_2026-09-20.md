@@ -301,3 +301,29 @@ This HTTP check uses synthetic isolated authentication, not installed RC6's
 production identity flow. Production router composition is still disabled.
 No Group/Workflow execution capability was enabled, no image was built, and
 MBP14/test10 were not modified. Remaining release gates above still apply.
+
+## Authenticated native checkpoint — 2026-09-21
+
+The server router now accepts one trusted Template service resolver for lifecycle
+and chat (`2506ba45`, fixture correction `1b2f2457`). All 20 authenticated router
+tests passed, including rejecting unauthenticated and unknown-workspace requests
+before service resolution. Default production composition remains disabled.
+
+`ff9f33d1` adds an isolated WorkspaceManager to native acceptance, preserving
+the installed registry. One real Qwen cycle passed through the production CLI
+router using a signed session: invalid tokens, wrong workspace and unrelated
+actor were rejected without model dispatch; a nonempty 34-byte reply and durable
+replay passed. A subsequent cycle additionally obtained its execution token from
+the real one-time authorization-code/PKCE exchange, with authentication bypass
+disabled. It returned a nonempty 40-byte reply; code reuse was rejected.
+
+Both cycles exited 0 after recovery, rollback, exact cleanup, cleanup replay and
+unrelated roster preservation checks. Server TypeScript and focused lint passed.
+Only the initial browser identity is seeded in the PKCE harness; there was no
+interactive browser login or installed RC6 binary invocation. Signing material,
+CLI state, workspace registry and gateway resources are disposable and isolated.
+
+Remaining gates: operator-configured production composition, installed CLI
+end-to-end acceptance, pending-run reconciliation/cancellation, real Group and
+Workflow graph execution, and full repeated lifecycle cycles before image builds.
+No images, instance rollouts or recurring schedules were started.
