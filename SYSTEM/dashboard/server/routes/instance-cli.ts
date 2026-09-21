@@ -559,7 +559,7 @@ export function createInstanceCliRouter(options: {
     authorize: authorizeExecution, templateExecution: options.templates,
   }))
   router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceWorkflowsRouter({ authorize: authorizeExecution }))
-  router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceGroupsRouter({ authorize: authorizeExecution }))
+  router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceGroupsRouter({ authorize: authorizeExecution, templateExecution: options.templates }))
   router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceTemplatesRouter({
     authorize: (req, res) => {
       try {
