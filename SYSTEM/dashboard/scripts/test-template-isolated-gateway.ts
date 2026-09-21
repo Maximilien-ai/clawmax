@@ -191,7 +191,7 @@ async function main() {
           createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString(),
         }] })
         const session = (actorId: string) => createCliSessionToken({ actorId, email: `${actorId}@example.test`, displayName: actorId })
-        const authorization = `Bearer ${session('actor')}`
+        let authorization = `Bearer ${session('actor')}`
         let httpDispatches = 0
         app.use(express.json())
         app.use('/api/cli/v1', createInstanceCliRouter({
@@ -203,6 +203,33 @@ async function main() {
         try {
           await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
           const address = server.address() as net.AddressInfo
+          const origin = `http://127.0.0.1:${address.port}`
+          // Seed only the browser identity; the execution bearer must come from
+          // the real one-time authorization-code/PKCE exchange, with bypass off.
+          const verifier = crypto.randomBytes(48).toString('base64url')
+          const loginState = crypto.randomUUID()
+          const redirectUri = `${origin}/isolated-callback`
+          const query = new URLSearchParams({ response_type: 'code', client_id: 'clawmax-cli',
+            redirect_uri: redirectUri, code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'),
+            code_challenge_method: 'S256', state: loginState })
+          const login = await fetch(`${origin}/api/cli/v1/auth/authorize?${query}`, { headers: { authorization }, redirect: 'manual' })
+          assert.equal(login.status, 302)
+          const callback = new URL(login.headers.get('location')!)
+          await login.text()
+          assert.equal(callback.searchParams.get('state'), loginState)
+          assert.equal(callback.origin, origin)
+          const exchange = () => fetch(`${origin}/api/cli/v1/auth/token`, { method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ grantType: 'authorization_code', clientId: 'clawmax-cli', code: callback.searchParams.get('code'), redirectUri, codeVerifier: verifier }) })
+          const exchanged = await exchange()
+          assert.equal(exchanged.status, 200)
+          const tokenSession = await exchanged.json() as { kind: string; actorId: string; accessToken: string }
+          assert.equal(tokenSession.kind, 'TokenSession')
+          assert.equal(tokenSession.actorId, 'actor')
+          assert(tokenSession.accessToken)
+          authorization = `Bearer ${tokenSession.accessToken}`
+          const reusedCode = await exchange()
+          assert.equal(reusedCode.status, 400)
+          await reusedCode.text()
           const url = `http://127.0.0.1:${address.port}/api/cli/v1/workspaces/isolated/agents/${input.agentId}/chat/sessions`
           const send = (credential = authorization, target = url) => fetch(target, { method: 'POST', headers: { authorization: credential, 'content-type': 'application/json' },
             body: JSON.stringify({ apiVersion: 'clawmax.instance/v1', kind: 'AgentChatRequest', message: input.message, idempotencyKey: 'http-model-greeting' }),
@@ -235,7 +262,7 @@ async function main() {
           })
           assert.equal(await (await send()).text(), text)
           assert.equal(httpDispatches, 1)
-          console.log(`Authenticated public CLI router native execution passed: model=${model}; replyBytes=${Buffer.byteLength(events[1].content)}; invalid sessions, wrong workspace/actor rejected; correlated events and durable replay passed`)
+          console.log(`PKCE-authenticated public CLI router native execution passed: model=${model}; replyBytes=${Buffer.byteLength(events[1].content)}; code reuse, invalid sessions, wrong workspace/actor rejected; correlated events and durable replay passed`)
         } finally {
           server.closeAllConnections()
           await new Promise<void>(resolve => server.close(() => resolve()))
