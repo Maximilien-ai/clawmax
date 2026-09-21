@@ -676,3 +676,40 @@ OpenClaw, MBP14, test10, and CLI packaging remain unchanged. Template Workflow
 execution/results/cancellation and full integration/validation/coverage remain
 required before release, followed by real-instance restart and remote-model
 acceptance. Recurring schedules stay disabled.
+
+## RC81 internal image build started — 2026-09-21
+
+At the user's request to proceed with an image build, tagged the green source
+`081d6cf93b9275db27cb456e768cfce0b886c162` as `v2.0.0-test-rc81` and dispatched
+the public amd64/arm64 workflow from that immutable candidate ref:
+https://github.com/Maximilien-ai/clawmax/actions/runs/35664174564.
+Source CI passed: https://github.com/Maximilien-ai/clawmax/actions/runs/35661298499.
+Version-alignment, Dockerfile contracts, native workspace cleanup, and diff
+checks passed again before dispatch. The ignored local `.env` now specifies
+`2.0.0-test-rc81`; a fresh temporary Dashboard reported that version through
+`/api/system` and the rendered client DOM. Its empty workspace scheduled zero
+Workflows. The installed global OpenClaw was not upgraded.
+
+The initial version probe exposed a separate development isolation pitfall:
+setting `OPENCLAW_WORKSPACE` made WorkspaceManager reconcile the host registry's
+default entry to the temporary workspace despite `CLAWMAX_TEST_WORKSPACE`.
+Stopped that probe and restored the previously approved default path and saved
+timestamp, comparing all 24 entries against the preserved snapshot with the
+approved path correction. The repeat probe omitted `OPENCLAW_WORKSPACE`, used
+the test-workspace override, and preserved the saved registry byte-for-byte.
+This is an unresolved test-profile isolation issue, not clean evidence for the
+initial probe. No agent/workflow resources were deleted and no deployed instance
+was restarted. Temporary probe evidence is under
+`/private/tmp/clawmax-rc81-version.NSruLB`.
+
+The matching combined workflow is queued locally to dispatch **only after** the
+public workflow succeeds, with both `base_tag` and `image_tag` set to
+`2.0.0-test-rc81`. Queue log: `/private/tmp/rc81-combined-build-queue.log`.
+The queue depends on this Mac remaining available; this is not yet a private
+workflow run or a successful combined image. Recent expected durations are
+approximately 31 minutes public and 7 minutes combined, with sparse checks.
+
+This is a build-only checkpoint, not release acceptance. Full live
+integration/validation/coverage, Template Workflow execution/results/cancellation,
+combined-image validation and smoke, and MBP14/test10 acceptance remain open.
+No rollout or tester distribution is approved by this build.
