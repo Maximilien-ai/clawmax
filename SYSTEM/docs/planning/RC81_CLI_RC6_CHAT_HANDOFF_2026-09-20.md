@@ -404,3 +404,61 @@ or partial runs retain a pending claim and block redispatch and cleanup.
 TypeScript and focused lint passed. This does not yet provide cancellation,
 pending-run reconciliation, retention enforcement, public Group chat/history,
 or Workflow graph execution. Those remain release gates; no deployment changed.
+
+## Public Group execution and operator configuration — 2026-09-21
+
+`90d7232e` connects revision-owned Group chat and correlated history to the
+public CLI contract. Completed runs persist private actor/revision-scoped
+receipts before `done`, retain the explicit stop reason, and replay identical
+events without redispatch. Unknown outcomes remain pending and block retries.
+One-shot runs are supported; session continuation is explicitly rejected.
+Legacy transcripts are not relabeled or exported. `f49961eb` verifies fresh-reader
+recovery, actor/revision isolation and corrupt-receipt rejection. `ad2efb00`
+keeps owned history readable during gateway outages without allowing execution.
+
+`e6a7666e` verifies actual Go-client Group chat/history/replay against native
+Qwen in isolation. `2c6092b0` adds the operator-configured production service:
+
+- Default remains off. Set `CLAWMAX_TEMPLATE_AUTHORITY_DIR` to a protected,
+  absolute directory outside all user-editable workspace trees.
+- Store each workspace's existing `clawmax.template-authority/v1alpha1`
+  registry as `<sha256(workspaceId)>.json` in that directory. Limit access to the
+  Dashboard operator; do not place provider keys in these binding registries.
+- Set `CLAWMAX_TEMPLATE_RUNTIME_REVISION` to an operator-pinned runtime revision
+  matching each binding. The service derives OS/architecture from its actual
+  process; actor IDs, artifact digests, model and policy bindings must match.
+- Only the fixed `noToolsTemplatePolicy(id)` hash is admitted. Skills and named
+  credentials remain unsupported. Bindings are reread rather than cached.
+- Agent state uses the same `~/.openclaw/agents` root as startup recovery. Mount
+  this state and the authority directory consistently in a candidate container.
+
+The configured factory passed native agent chat, public Group chat/history,
+four-turn handoffs, replay, recovery and cleanup. TypeScript, focused lint,
+coordinator tests, Group HTTP tests and all 21 CLI router tests passed. This is
+not installed RC6 binary acceptance or an MBP14/test10 rollout.
+
+### Isolation incident and recovery
+
+The OS restart removed the temporary runtime cache again. It was rebuilt with
+the maintained patches under ignored `tmp/rc81-openclaw/v2026.8.2/` so the next
+run need not depend on OS temporary storage.
+
+The first native factory run exposed a harness isolation defect: gateway config
+lookup consulted the global WorkspaceManager and rewrote the host registry's
+default path/active selection to the temporary test workspace. Execution checks
+passed, but that run was **not** clean isolation evidence. The installed
+Dashboard container was not modified by that registry write.
+
+The harness now sets `CLAWMAX_TEST_WORKSPACE` during gateway lookups and asserts
+byte-for-byte host-registry preservation at teardown. A fresh complete rerun
+exited 0 with that guard passing. The affected host registry was privately copied
+to ignored `tmp/host-workspace-registry-after-test.json`; restoration of the
+earlier default path/active selection awaits the user's choice because no
+pre-incident backup proves those values. Do not silently infer that restoration
+is complete.
+
+Next: resolve the host registry restoration, confirm candidate CI, then prepare
+an internal MBP14 image and disposable-workspace acceptance with rollback.
+Cancellation/reconciliation, retention enforcement and Workflow graph execution
+remain distribution gates. No release image or installed-instance rollout was
+performed during this work.
