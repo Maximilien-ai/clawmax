@@ -15,6 +15,7 @@ import { createInstanceTemplatesRouter } from './instance-templates'
 import { createInstanceChatRouter, type CliChatContext, type CliTemplateExecution } from './instance-chat'
 import type { TemplateWorkspaceContext } from './instance-templates'
 import { createInstanceWorkflowsRouter } from './instance-workflows'
+import { createInstanceGroupsRouter } from './instance-groups'
 
 const API_VERSION = 'clawmax.instance/v1'
 const WORKSPACE_SCOPES = ['agents.read', 'agents.chat', 'workflows.run']
@@ -558,6 +559,7 @@ export function createInstanceCliRouter(options: {
     authorize: authorizeExecution, templateExecution: options.templates,
   }))
   router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceWorkflowsRouter({ authorize: authorizeExecution }))
+  router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceGroupsRouter({ authorize: authorizeExecution }))
   router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceTemplatesRouter({
     authorize: (req, res) => {
       try {

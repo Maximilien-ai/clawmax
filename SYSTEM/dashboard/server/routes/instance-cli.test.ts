@@ -381,6 +381,52 @@ async function run() {
     assert.strictEqual(unconfigured.json.error.code, 'template_lifecycle_unavailable')
   })
 
+  await test('public Group discovery is authorized, contextual, stable and read-only', async () => {
+    const prefix = '/api/cli/v1/workspaces/operations/groups'
+    assert.strictEqual((await request(prefix)).response.status, 401)
+    assert.strictEqual((await request('/api/cli/v1/workspaces/unknown/groups', { headers: auth })).response.status, 403)
+    const file = path.join(root, 'workspaces', 'operations', 'ORG', 'GROUPS.md')
+    const before = fs.existsSync(file) ? fs.readFileSync(file) : null
+    const content = '# Organization\n\n## Groups\n\n### Demo team 🌍\n- **Description:** Isolated group\n- **Members:** analyst, reviewer\n'
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, content)
+    try {
+      const list = await request(prefix, { headers: auth })
+      assert.strictEqual(list.response.status, 200)
+      assert.strictEqual(list.json.kind, 'GroupList')
+      assert.strictEqual(list.json.items.length, 1)
+      const group = list.json.items[0]
+      assert.match(group.id, /^group-[a-f0-9]{64}$/)
+      assert.strictEqual(group.name, 'Demo team 🌍')
+      assert.strictEqual(group.memberCount, 2)
+      assert.strictEqual(group.status, 'unavailable')
+      assert.deepStrictEqual((await request(prefix, { headers: auth })).json, list.json)
+      assert.deepStrictEqual((await request(`${prefix}/${group.id}`, { headers: auth })).json.group, group)
+      assert.strictEqual((await request(`${prefix}/missing`, { headers: auth })).response.status, 404)
+      assert.strictEqual((await request(`${prefix}?cursor=unsupported`, { headers: auth })).response.status, 400)
+      assert.strictEqual((await request(`${prefix}/${group.id}/messages`, { headers: auth })).json.error.code, 'group_history_unavailable')
+      const chat = await request(`${prefix}/${group.id}/chat/sessions`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: '{}' })
+      assert.strictEqual(chat.response.status, 503)
+      assert.strictEqual(chat.json.error.code, 'group_execution_unavailable')
+      assert.strictEqual(fs.readFileSync(file, 'utf8'), content)
+      assert(!fs.existsSync(path.join(root, 'workspaces', 'operations', 'SYSTEM', 'messages')))
+      fs.writeFileSync(file, content + '\n### Demo team 🌍\n')
+      assert.strictEqual((await request(prefix, { headers: auth })).response.status, 503)
+      fs.unlinkSync(file)
+      const outside = path.join(root, 'private-group-catalog')
+      fs.writeFileSync(outside, 'sensitive catalog')
+      fs.symlinkSync(outside, file)
+      const linked = await request(prefix, { headers: auth })
+      assert.strictEqual(linked.response.status, 503)
+      assert(!linked.text.includes('sensitive'))
+      fs.unlinkSync(file)
+      assert.deepStrictEqual((await request(prefix, { headers: auth })).json.items, [])
+    } finally {
+      if (before) fs.writeFileSync(file, before)
+      else if (fs.existsSync(file)) fs.unlinkSync(file)
+    }
+  })
+
   await test('public Workflow execution routes are authenticated and mounted', async () => {
     const base = '/api/cli/v1/workspaces/operations'
     assert.strictEqual((await request(`${base}/workflow-runs/missing`)).response.status, 401)
