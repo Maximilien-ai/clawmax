@@ -35,7 +35,7 @@ for (const root of roots) {
   if (!fs.existsSync(distDir)) continue
   const entries = fs.readdirSync(distDir)
   const match = entries.find((name) => {
-    if (!name.startsWith('store-') || !name.endsWith('.js')) return false
+    if (!name.startsWith('store-') || !/\.(?:js|mjs)$/.test(name)) return false
     const source = fs.readFileSync(path.join(distDir, name), 'utf8')
     const exportMatch = source.match(/saveAuthProfileStore as ([A-Za-z_$][\w$]*)/)
     if (!exportMatch) return false
@@ -45,7 +45,7 @@ for (const root of roots) {
   if (match) {
     storeModulePath = path.join(distDir, match)
     const persistedMatch = entries.find((name) => {
-      if (!name.startsWith('persisted-') || !name.endsWith('.js')) return false
+      if (!name.startsWith('persisted-') || !/\.(?:js|mjs)$/.test(name)) return false
       const source = fs.readFileSync(path.join(distDir, name), 'utf8')
       const exportMatch = source.match(/loadPersistedAuthProfileStore as ([A-Za-z_$][\w$]*)/)
       if (!exportMatch) return false
