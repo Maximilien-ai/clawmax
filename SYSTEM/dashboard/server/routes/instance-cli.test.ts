@@ -54,6 +54,19 @@ async function run() {
 
   const app = express()
   app.use(express.json())
+  let composedCalls = 0
+  let accessToken = ''
+  app.use('/composed/api/cli/v1', createInstanceCliRouter({ templates: (context: any) => {
+    composedCalls++
+    assert.strictEqual(context.actorId, 'actor_local')
+    assert.strictEqual(context.workspaceId, 'operations')
+    assert.strictEqual(context.workspacePath, path.join(root, 'workspaces', 'operations'))
+    return {
+      store: { workspaceId: context.workspaceId, workspacePath: context.workspacePath, history: () => [] },
+      coordinator: { workspaceId: context.workspaceId, workspacePath: context.workspacePath },
+      assertStopped() {}, authority: {}, policies: {}, runtime: {},
+    }
+  } }))
   app.use('/api/cli/v1', createInstanceCliRouter())
   app.get('*', (_req, res) => res.type('html').send('<html>SPA</html>'))
   const server = http.createServer(app)
@@ -165,6 +178,7 @@ async function run() {
     assert.strictEqual(token.response.status, 200)
     assert.strictEqual(token.json.kind, 'TokenSession')
     assert.strictEqual(token.json.instanceId, 'inst_test')
+    accessToken = token.json.accessToken
     const identity = await request('/api/cli/v1/identity', { headers: { authorization: `Bearer ${token.json.accessToken}` } })
     assert.strictEqual(identity.json.actorId, 'actor_local')
 
@@ -345,6 +359,26 @@ async function run() {
     assert.strictEqual(missing.response.status, 404)
     assert.strictEqual(missing.json.error.code, 'agent_not_found')
     assert(!fs.existsSync(path.join(root, 'workspaces', 'operations', '.clawmax', 'cli-chat')))
+  })
+
+  await test('shared Template composition is reached only after session and workspace authorization', async () => {
+    const prefix = '/composed/api/cli/v1/workspaces'
+    const headers = { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' }
+    const chat = (workspace: string, authenticated = true) => request(`${prefix}/${workspace}/agents/tr-0123456789abcdef-agent-0123456789ab/chat/sessions`, {
+      method: 'POST', headers: authenticated ? headers : { 'content-type': 'application/json' },
+      body: JSON.stringify({ apiVersion: 'clawmax.instance/v1', kind: 'AgentChatRequest', message: 'Synthetic', idempotencyKey: 'composed-chat' }),
+    })
+    assert.strictEqual((await chat('operations', false)).response.status, 401)
+    assert.strictEqual((await chat('unknown')).response.status, 403)
+    assert.strictEqual(composedCalls, 0)
+    assert.strictEqual((await chat('operations')).json.error.code, 'agent_not_found')
+    assert.strictEqual(composedCalls, 1)
+    const revisions = await request(`${prefix}/operations/revisions`, { headers })
+    assert.strictEqual(revisions.response.status, 200)
+    assert.strictEqual(composedCalls, 2)
+    const unconfigured = await request('/api/cli/v1/workspaces/operations/revisions', { headers })
+    assert.strictEqual(unconfigured.response.status, 503)
+    assert.strictEqual(unconfigured.json.error.code, 'template_lifecycle_unavailable')
   })
 
   await test('public Workflow execution routes are authenticated and mounted', async () => {

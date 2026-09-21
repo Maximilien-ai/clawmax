@@ -12,7 +12,8 @@ import { getWorkspaceManager, Workspace } from '../lib/workspace-manager'
 import { getDashboardVersion, listAgents } from '../lib/workspace'
 import { listWorkflows } from '../lib/workflows'
 import { createInstanceTemplatesRouter } from './instance-templates'
-import { createInstanceChatRouter, type CliChatContext } from './instance-chat'
+import { createInstanceChatRouter, type CliChatContext, type CliTemplateExecution } from './instance-chat'
+import type { TemplateWorkspaceContext } from './instance-templates'
 import { createInstanceWorkflowsRouter } from './instance-workflows'
 
 const API_VERSION = 'clawmax.instance/v1'
@@ -262,7 +263,11 @@ function issueTokenSession(actor: CliActor, state: CliState) {
   }
 }
 
-export function createInstanceCliRouter() {
+/** Optional trusted server composition shared by lifecycle and chat. Absent by
+ * default; a request can never enable execution or supply authority bindings. */
+export function createInstanceCliRouter(options: {
+  templates?: (context: TemplateWorkspaceContext) => CliTemplateExecution
+} = {}) {
   const router = express.Router()
   const manager = getWorkspaceManager()
 
@@ -548,7 +553,9 @@ export function createInstanceCliRouter() {
       run: fn => manager.withWorkspace(workspace!.id, fn),
     }
   }
-  router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceChatRouter({ authorize: authorizeExecution }))
+  router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceChatRouter({
+    authorize: authorizeExecution, templateExecution: options.templates,
+  }))
   router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceWorkflowsRouter({ authorize: authorizeExecution }))
   router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceTemplatesRouter({
     authorize: (req, res) => {
@@ -566,6 +573,7 @@ export function createInstanceCliRouter() {
       }
     },
     dashboardVersion: getDashboardVersion,
+    lifecycle: options.templates,
     // Do not invent a runtime version when a source checkout has no pinned one.
     openClawVersion: () => process.env.CLAWMAX_OPENCLAW_VERSION || 'unknown',
   }))
