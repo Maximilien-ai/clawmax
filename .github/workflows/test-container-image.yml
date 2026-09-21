@@ -168,7 +168,7 @@ jobs:
             -lc 'test "$OPENCLAW_CODEX_APP_SERVER_BIN" = /usr/local/bin/codex && "$OPENCLAW_CODEX_APP_SERVER_BIN" --version')"
 
           case "${actual_codex_version}" in
-            *0.151.0*) ;;
+            *0.154.0*) ;;
             *)
               echo "Codex app-server mismatch for ${{ matrix.platform }}: ${actual_codex_version}" >&2
               exit 1
@@ -316,7 +316,7 @@ jobs:
               -lc "test -x /usr/local/bin/clawmax-skill-run && test -f /app/SKILLS/custom/clawmax-secret-test/SKILL.md && clawmax-skill-run --help >/dev/null"
 
             case "$actual_codex_version" in
-              *0.151.0*) ;;
+              *0.154.0*) ;;
               *)
                 echo "Codex app-server mismatch for $ref ($platform): $actual_codex_version" >&2
                 return 1

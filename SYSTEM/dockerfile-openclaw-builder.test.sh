@@ -60,7 +60,7 @@ assert_contains "ARG TARGETARCH"
 assert_contains '    tini \'
 grep -Fq 'exec /usr/bin/tini -g -- "$0" "$@"' "$ROOT_DIR/SYSTEM/dashboard/docker-entrypoint.sh" \
   || { echo "Expected wrapped container entrypoints to install a child-reaping init" >&2; exit 1; }
-assert_contains "ARG OPENCLAW_CODEX_APP_SERVER_VERSION=0.151.0"
+assert_contains "ARG OPENCLAW_CODEX_APP_SERVER_VERSION=0.154.0"
 assert_contains 'npm install -g --include=optional "@openai/codex@${OPENCLAW_CODEX_APP_SERVER_VERSION}"'
 assert_contains "require('/usr/local/lib/node_modules/@openai/codex/package.json').version"
 assert_contains 'codex --version | grep -F "${OPENCLAW_CODEX_APP_SERVER_VERSION}"'
@@ -95,7 +95,7 @@ grep -Fq 'CLAWMAX_ENABLED_PLUGINS=clawmax-lifecycle,plugin-review-notes' "$TEST_
   || { echo "Expected public test images to enable only public product plugins" >&2; exit 1; }
 grep -Fq 'test "$OPENCLAW_CODEX_APP_SERVER_BIN" = /usr/local/bin/codex' "$TEST_IMAGE_WORKFLOW" \
   || { echo "Expected public image validation to exercise the configured Codex app-server binary" >&2; exit 1; }
-grep -Fq '*0.151.0*)' "$TEST_IMAGE_WORKFLOW" \
+test "$(grep -Fc '*0.154.0*)' "$TEST_IMAGE_WORKFLOW")" -eq 2 \
   || { echo "Expected public image validation to enforce the pinned Codex app-server version" >&2; exit 1; }
 
 assert_not_contains() {
