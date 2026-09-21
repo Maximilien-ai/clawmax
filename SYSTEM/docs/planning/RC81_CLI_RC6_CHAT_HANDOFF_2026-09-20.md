@@ -597,3 +597,36 @@ that guard, rename resources, or substitute a manually created Workflow to claim
 Template Workflow acceptance. Next implement/revalidate server-owned graph
 execution, correlated results and settled cancellation, then run native acceptance
 before candidate images and MBP14/test10 rollout. Recurring schedules stay off.
+
+## Installed 2026.8.2 plugin repair — 2026-09-21
+
+After reviewing the capabilities, the user explicitly approved installation of
+Codex, Google Meet, Teams Meetings, and Zoom Meetings. Each exact official
+`@openclaw/<id>@2026.8.2` package was installed with `--pin --accept-capabilities`.
+These were configured as enabled but missing, causing the previous startup loop.
+The native LaunchAgent was stopped during repair and subsequently started;
+no Podman VM, MBP14 Dashboard container, or cloud deployment was restarted.
+
+The configuration and LaunchAgent backups, installation logs, and plugin listing
+are retained in the private local directory
+`/private/tmp/clawmax-plugin-repair-2026.8.2.RG74Yr` (temporary, not durable release
+storage; config backups may contain secrets and must not be published).
+Top-level JSON changes were limited to metadata and explicit `cron.enabled=false`.
+Agent configuration and existing plugin configuration remained byte-equivalent
+under JSON serialization. Install/consent records were managed by OpenClaw.
+
+Verified after startup completed:
+
+- All four plugins report version 2026.8.2, enabled and loaded.
+- `/healthz` returned HTTP 200, `ok:true`, `status:live`.
+- `/readyz` returned HTTP 200, `ready:true`, no failing components.
+- `openclaw gateway status --json`: service loaded/running, config audit clean,
+  RPC `ok:true`, server version 2026.8.2. The PID remained 46327 across checks.
+- No accounts were connected, meetings joined, conversations read, model calls
+  made, or transcript exports enabled by this repair. Scheduling stays disabled.
+
+Residual warning: workspace plugin discovery is partial because no explicit
+system-agent owner is configured in this multi-agent profile. The four managed
+plugins are nevertheless loaded. Do not choose an owner without operator intent.
+This clears the observed gateway startup blocker, not the full integration suite
+or 2026.9.5 upgrade gates; the user may now retry the local test command.
