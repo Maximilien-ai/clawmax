@@ -17,9 +17,10 @@ async function main() {
   let authorized = true
   let fail = false
   let cleaned = false
+  let gatewayAvailable = true
   const service = {
     store: { workspaceId: 'test', workspacePath: root, history: () => [{ id: 'revision', actorId: 'alice', cleanedAt: cleaned ? 'now' : undefined, resources: { groups: { review: groupId } } }] },
-    coordinator: { workspaceId: 'test', workspacePath: root, verifyStagedExecution: async () => {},
+    coordinator: { workspaceId: 'test', workspacePath: root, verifyStagedExecution: async () => { if (!gatewayAvailable) throw new Error('Gateway unavailable') },
       executeNoToolsGroup: async () => { calls++; if (fail) throw new Error('secret-runtime-details'); return { text: JSON.stringify({ stopReason: 'turn_limit', turns: [
         { sequence: 1, agentId: 'producer', text: 'First reply' }, { sequence: 2, agentId: 'reviewer', text: 'Review reply' },
       ] }) } },
@@ -62,6 +63,11 @@ async function main() {
     assert.equal(history[1].senderId, 'reviewer')
     assert.equal(history[2].content, 'Group stopped: turn_limit')
     assert.equal(history[0].sessionId, first.items[0].sessionId)
+    gatewayAvailable = false
+    assert.deepEqual((await request()).items[0].items, history)
+    assert.equal((await request(body('gateway-down'))).status, 503)
+    assert.equal(calls, 1)
+    gatewayAvailable = true
     assert.deepEqual(new CliGroupReceipts(root, 'alice', 'revision', groupId).history(), history)
     assert.deepEqual(new CliGroupReceipts(root, 'bob', 'revision', groupId).history(), [])
     assert.deepEqual(new CliGroupReceipts(root, 'alice', 'replacement-revision', groupId).history(), [])

@@ -63,12 +63,15 @@ export function createInstanceGroupsRouter(options: {
               && Object.values(revision.resources.groups).includes(group.id))
             if (revisions.length !== 1) { fail(404, 'group_not_found', 'Group not found'); return }
             const revision = revisions[0]
-            await service.coordinator.verifyStagedExecution(context.actorId, revision.id, group.id, service.authority, service.policies)
-            context.assertAuthorized()
             const receipts = new CliGroupReceipts(context.workspacePath, context.actorId, revision.id, group.id)
             if (operation === 'messages') {
+              // Reading owned local history is not an execution grant and must
+              // remain available when the model gateway is temporarily down.
+              context.assertAuthorized()
               res.json({ apiVersion: API_VERSION, kind: 'GroupMessageList', items: receipts.history() }); return
             }
+            await service.coordinator.verifyStagedExecution(context.actorId, revision.id, group.id, service.authority, service.policies)
+            context.assertAuthorized()
             const body = req.body
             if (!body || typeof body !== 'object' || Array.isArray(body)
               || Object.keys(body).some(key => !['apiVersion', 'kind', 'message', 'idempotencyKey', 'sessionId'].includes(key))
