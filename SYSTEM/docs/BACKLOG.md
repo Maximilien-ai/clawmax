@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: September 18, 2026
+> Last updated: September 21, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Mini Sprint
@@ -18,6 +18,32 @@
   [MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md).
 
 ## Release Tracks
+
+- [ ] **System → OpenClaw Plugins — installed inventory and enable/disable controls**
+  — requested after missing external plugins blocked native gateway startup.
+  Keep this distinct from the existing ClawMax product-plugin manager.
+  - Show installed versions/source, configured-but-missing plugins, enabled,
+    loaded, failed, and permission-review-required states. Show discovery scope
+    warnings rather than presenting partial discovery as a complete inventory.
+  - Initial scope is listing installed runtime plugins and enabling/disabling
+    them where OpenClaw supports it. Restrict changes to administrators, disclose
+    capabilities before required consent, confirm disruptive disable operations,
+    and preserve exact prior selection for recovery.
+  - Show action progress, actionable errors, persistent enable/disable history,
+    restart requirements, and independently verified gateway readiness.
+    Gateway unavailability must not hide inventory or supported controls.
+  - Defer browsing/adding, installing, and updating plugins to a later phase;
+    those will require verified sources, compatible pinned versions, explicit
+    capability review, and backup/rollback evidence.
+  - Installation is not OAuth sign-in, permission to read existing conversations,
+    join meetings, or consent to transcript export. Preserve per-user data-egress
+    controls, protect secrets, and keep recurring schedules disabled by default.
+  - Verify administrator authorization, unsupported toggles, denied/revoked consent,
+    failed enable/disable, restart recovery, and unrelated-resource
+    preservation on cloud and on-prem; audit desktop/mobile presentation.
+  - Prioritize missing-plugin diagnosis within stability work; do not
+    hold the immediate native repair for this new UI or promise a release slot
+    before the runtime acceptance gates are met.
 
 - [ ] **RC81 — audit and expand ready-to-apply business templates (after stability)**
   — begin after the [RC80 cloud/on-prem stability gate](planning/RC80_STABILITY_AND_TEMPLATE_GATE_2026-09-18.md)
