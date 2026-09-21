@@ -8,6 +8,35 @@ const { ESLint } = require('eslint')
 
 const repo = path.resolve(__dirname, '../../..')
 
+test('workspace cleanup suite trusts exit status rather than summary wording', () => {
+  const suite = fs.readFileSync(path.join(repo, 'SYSTEM/test.sh'), 'utf8')
+  const marker = '→ Running OpenClaw workspace-state cleanup tests...'
+  const start = suite.indexOf('\n', suite.indexOf(marker)) + 1
+  const end = suite.indexOf('\nfi', start)
+  assert(suite.includes(marker) && end > start)
+  const block = suite.slice(start, end + '\nfi'.length)
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-cleanup-runner-'))
+  try {
+    const isolated = block.replaceAll('/tmp/clawmax-openclaw-workspace-state.out', path.join(temp, 'output'))
+    const run = (code, summary) => spawnSync('/bin/bash', ['-c', `
+      bash() { printf '%s\\n' "$CLEANUP_SUMMARY"; return "$CLEANUP_EXIT"; }
+      pass() { echo accepted; }
+      fail() { echo rejected; exit 17; }
+      ${isolated}
+    `], { encoding: 'utf8', env: { ...process.env, CLEANUP_EXIT: String(code), CLEANUP_SUMMARY: summary } })
+    const success = run(0, 'asynchronous cleanup and failure checks passed')
+    assert.equal(success.status, 0, success.stderr)
+    assert.match(success.stdout, /accepted/)
+    for (const summary of ['openclaw-workspace-state.test.sh: 6 tests passed', '', 'cleanup failed']) {
+      const failure = run(23, summary)
+      assert.equal(failure.status, 17, 'nonzero exit must fail even with a success-looking summary')
+      assert.match(failure.stdout, /rejected/)
+    }
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true })
+  }
+})
+
 test('release API requests use bounded configurable timeouts and never retry writes', () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-http-contract-'))
   try {

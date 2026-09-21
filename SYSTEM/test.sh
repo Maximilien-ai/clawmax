@@ -2798,9 +2798,8 @@ else
 fi
 
 echo -e "${YELLOW}→ Running OpenClaw workspace-state cleanup tests...${NC}"
-bash "$SYSTEM_DIR/dashboard/openclaw-workspace-state.test.sh" > /tmp/clawmax-openclaw-workspace-state.out 2>&1 || true
-if grep -q "openclaw-workspace-state.test.sh: 6 tests passed" /tmp/clawmax-openclaw-workspace-state.out; then
-  pass "OpenClaw workspace-state cleanup tests (6 tests)"
+if bash "$SYSTEM_DIR/dashboard/openclaw-workspace-state.test.sh" > /tmp/clawmax-openclaw-workspace-state.out 2>&1; then
+  pass "OpenClaw workspace-state cleanup tests"
 else
   cat /tmp/clawmax-openclaw-workspace-state.out
   fail "OpenClaw workspace-state cleanup tests"
