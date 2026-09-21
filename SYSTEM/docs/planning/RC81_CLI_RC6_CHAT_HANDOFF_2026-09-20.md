@@ -560,3 +560,40 @@ No image was built or rollout approved. The previous Dashboard CI completed
 successfully: https://github.com/Maximilien-ai/clawmax/actions/runs/35643713065.
 Roster bundle compatibility CI:
 https://github.com/Maximilien-ai/clawmax/actions/runs/35648073559.
+
+## Workflow upgrade preflight follow-up — 2026-09-21
+
+No installed gateway, container, or cloud deployment was changed in this pass.
+Before attempting live Workflow execution, inspection found Dashboard code that
+still addressed the default host profile despite an explicit OpenClaw profile.
+
+- `05de8aec` makes execution auth/config selection, model/skill-triggered session
+  resets, and Workflow session repair honor `OPENCLAW_STATE_DIR` and
+  `OPENCLAW_CONFIG_PATH`. Explicit legacy-home arguments remain supported.
+  Skills config discovery cannot silently switch to another profile when an
+  explicitly selected config is missing. Regression fixtures verify selected
+  configuration, session repair/reset, missing-config failure, and byte-preserved
+  unrelated session state. This is not a claim that all Dashboard profile paths
+  are migrated: workspace discovery and legacy chat-history paths still need
+  review before running the general Workflow executor in a host-side profile.
+- `8b440064` isolates legacy auth unit tests from the operator's installed
+  OpenClaw package. A failing JSON-auth expectation was reproduced using the
+  pre-change agent-execution module; upgrading global OpenClaw had caused those
+  tests to exercise native SQLite instead of their intended legacy boundary.
+  Native-store tests retain their own explicit fixtures. All 58 agent-execution
+  tests now pass. Agent-model tests (32), Skills suite, Workflow session
+  regressions (9), and TypeScript also passed.
+- `71603701` recognizes `.mjs` native auth-store bundles. Both bundle-extension
+  fixtures passed. The real isolated 2026.9.5 package also passed empty native
+  store write/read with no legacy JSON and no credentials. This does not prove
+  provider sign-in or hosted-model execution.
+
+The principal live Template Workflow gate remains a Dashboard implementation
+gap, not an established OpenClaw defect: `instance-workflows.ts` rejects
+revision-owned Template Workflow IDs with HTTP 409 `template_runtime_unavailable`.
+The compiler persists their graph and disabled state, but the general participant
+executor is deliberately not an authority-admitted graph executor. Do not remove
+that guard, rename resources, or substitute a manually created Workflow to claim
+Template Workflow acceptance. Next implement/revalidate server-owned graph
+execution, correlated results and settled cancellation, then run native acceptance
+before candidate images and MBP14/test10 rollout. Recurring schedules stay off.
