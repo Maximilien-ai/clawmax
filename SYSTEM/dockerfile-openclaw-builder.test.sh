@@ -53,9 +53,9 @@ for channel in whatsapp discord telegram slack; do
 done
 assert_contains "ARG BUILDPLATFORM"
 assert_contains "ARG TARGETPLATFORM"
-assert_contains "FROM --platform=\$BUILDPLATFORM node:22.22.3-bookworm-slim AS openclaw-builder"
-assert_contains "FROM --platform=\$BUILDPLATFORM node:22.22.3-bookworm-slim AS builder"
-assert_contains "FROM --platform=\$TARGETPLATFORM node:22.22.3-bookworm-slim AS runtime"
+assert_contains "FROM --platform=\$BUILDPLATFORM node:24.19.0-bookworm-slim AS openclaw-builder"
+assert_contains "FROM --platform=\$BUILDPLATFORM node:24.19.0-bookworm-slim AS builder"
+assert_contains "FROM --platform=\$TARGETPLATFORM node:24.19.0-bookworm-slim AS runtime"
 assert_contains "ARG TARGETARCH"
 assert_contains '    tini \'
 grep -Fq 'exec /usr/bin/tini -g -- "$0" "$@"' "$ROOT_DIR/SYSTEM/dashboard/docker-entrypoint.sh" \

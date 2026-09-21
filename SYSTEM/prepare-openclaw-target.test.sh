@@ -18,12 +18,13 @@ pass() {
 [ -f "$script_file" ] || fail "expected prepare-openclaw-target.sh to exist"
 
 grep -q 'openclaw-version.sh' "$script_file" || fail "expected script to source openclaw-version.sh"
-grep -q 'Node.js 22.22.3+, 24.15.0+, or 25.9.0+' "$script_file" || fail "expected script to enforce the OpenClaw 2 Node ranges"
+grep -Fq 'Node.js 24.16.0+ (24.x) or 26.1.0+' "$script_file" || fail "expected script to enforce the OpenClaw 2026.9 Node ranges"
 grep -q 'pnpm install --frozen-lockfile --ignore-scripts' "$script_file" || fail "expected pnpm install command"
 grep -q 'npm run build:docker' "$script_file" || fail "expected docker-oriented OpenClaw build path"
 grep -q 'patch-openclaw-fs-safe.mjs' "$script_file" || fail "expected OpenClaw fs-safe compatibility patch"
 grep -q 'node "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs" "$src_dir"' "$script_file" || fail "expected explicit roster-removal source patch"
 grep -q 'cksum < "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs"' "$script_file" || fail "expected patch-aware runtime cache invalidation"
+grep -q 'cksum < "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs"' "$script_file" || fail "expected filesystem-verifier-aware runtime cache invalidation"
 grep -q 'postinstall-bundled-plugins.mjs' "$script_file" || fail "expected bundled plugin postinstall repair step"
 for channel in whatsapp discord telegram slack; do
   grep -q "\\\"$channel\\\"" "$script_file" || fail "expected $channel startup metadata smoke check"

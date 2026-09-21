@@ -27,15 +27,14 @@ const patch = Number(patchRaw);
 const atLeast = (wantedMinor, wantedPatch) =>
   minor > wantedMinor || (minor === wantedMinor && patch >= wantedPatch);
 if (
-  (major === 22 && atLeast(22, 3)) ||
-  (major === 24 && atLeast(15, 0)) ||
-  (major === 25 && atLeast(9, 0)) ||
-  major > 25
+  (major === 24 && atLeast(16, 0)) ||
+  (major === 26 && atLeast(1, 0)) ||
+  major > 26
 ) {
   process.exit(0);
 }
 console.error(
-  `prepare-openclaw-target.sh requires Node.js 22.22.3+, 24.15.0+, or 25.9.0+ (current: ${process.versions.node})`,
+  `prepare-openclaw-target.sh requires Node.js 24.16.0+ (24.x) or 26.1.0+ (current: ${process.versions.node})`,
 );
 process.exit(1);
 EOF
@@ -119,6 +118,7 @@ prepare_checkout() {
 
   # Rebuild cached artifacts when the maintained source compatibility patch changes.
   current_commit="${current_commit}:$(cksum < "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs")"
+  current_commit="${current_commit}:$(cksum < "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs")"
   if [ ! -f "${src_dir}/dist/index.js" ] || [ ! -f "$prepared_stamp" ] || [ "$(cat "$prepared_stamp" 2>/dev/null || true)" != "$current_commit" ]; then
     (
       cd "$src_dir"

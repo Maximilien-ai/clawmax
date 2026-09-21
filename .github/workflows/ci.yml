@@ -22,14 +22,14 @@ jobs:
       DASHBOARD_AUTH_DISABLED: "true"
       DASHBOARD_PORT: "3001"
       CORS_ORIGIN: http://localhost:5173
-      CLAWMAX_OPENCLAW_TARGET: v2026.8.2
+      CLAWMAX_OPENCLAW_TARGET: v2026.9.5
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.22.3
+          node-version: 24.19.0
           cache: npm
           cache-dependency-path: SYSTEM/dashboard/package-lock.json
 
