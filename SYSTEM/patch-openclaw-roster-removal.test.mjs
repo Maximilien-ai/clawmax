@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { patchRosterRemoval, patchBundledRosterRemoval } from './patch-openclaw-roster-removal.mjs'
 
 const fixture = `const configHandlers = {
@@ -22,6 +27,26 @@ assert.throws(() => patchBundledRosterRemoval(bundledFixture.replace('\t\t\twrit
 assert.equal(patchRosterRemoval(patched), patched)
 assert.throws(() => patchRosterRemoval('unknown source'), /Unsupported/)
 assert.throws(() => patchRosterRemoval(fixture.replace('      writeOptions,', '      writeOptions: changed,')), /Unsupported/)
+const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-roster-patch-'))
+try {
+  const dist = path.join(packageRoot, 'dist')
+  fs.mkdirSync(dist)
+  const script = fileURLToPath(new URL('./patch-openclaw-roster-removal.mjs', import.meta.url))
+  for (const extension of ['js', 'mjs']) {
+    const target = path.join(dist, `config-fixture.${extension}`)
+    fs.writeFileSync(target, bundledFixture)
+    execFileSync(process.execPath, [script, packageRoot, '--dist'])
+    assert.equal(fs.readFileSync(target, 'utf8'), bundled)
+    execFileSync(process.execPath, [script, packageRoot, '--dist'])
+    assert.equal(fs.readFileSync(target, 'utf8'), bundled)
+    fs.unlinkSync(target)
+  }
+  for (const extension of ['js', 'mjs']) fs.writeFileSync(path.join(dist, `config-fixture.${extension}`), bundledFixture)
+  assert.throws(() => execFileSync(process.execPath, [script, packageRoot, '--dist'], { stdio: 'pipe' }), /Expected one bundled config handler, found 2/)
+  for (const extension of ['js', 'mjs']) assert.equal(fs.readFileSync(path.join(dist, `config-fixture.${extension}`), 'utf8'), bundledFixture)
+} finally {
+  fs.rmSync(packageRoot, { recursive: true, force: true })
+}
 for (const scenario of [
   { entries: { first: null, second: null, keep: { name: 'changed' }, absent: null }, expected: ['first', 'second'] },
   { entries: { first: { name: 'updated' } }, expected: [] },

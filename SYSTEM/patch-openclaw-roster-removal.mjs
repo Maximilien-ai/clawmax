@@ -51,7 +51,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   let file = path.join(root, 'src/gateway/server-methods/config.ts')
   const bundled = process.argv[3] === '--dist'
   if (bundled) {
-    const candidates = fs.readdirSync(path.join(root, 'dist')).filter(name => /^config-[\w-]+\.js$/.test(name))
+    const candidates = fs.readdirSync(path.join(root, 'dist')).filter(name => /^config-[\w-]+\.(?:js|mjs)$/.test(name))
       .map(name => path.join(root, 'dist', name)).filter(candidate => fs.readFileSync(candidate, 'utf8').includes('\t"config.patch": async ('))
     if (candidates.length !== 1) throw new Error(`Expected one bundled config handler, found ${candidates.length}`)
     file = candidates[0]
