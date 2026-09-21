@@ -463,3 +463,32 @@ an internal MBP14 image and disposable-workspace acceptance with rollback.
 Cancellation/reconciliation, retention enforcement and Workflow graph execution
 remain distribution gates. No release image or installed-instance rollout was
 performed during this work.
+
+## Global local OpenClaw update — 2026-09-21
+
+At the user's request, `/opt/homebrew/bin/openclaw` was upgraded from
+2026.5.26 (`10ad3aa`) to 2026.8.2 (`0965053`). The global npm package is a real
+installation, not a link into the acceptance cache. `8de101e5` adds tested,
+idempotent support for applying the maintained roster-removal patch to the
+published JavaScript bundle; the filesystem compatibility patch is also present.
+The patch semantic tests and preparation-script contract passed.
+
+Staged patched package SHA-256:
+`2b4569606e9553044927ba6ff044dc0a5cf901d197d7f9e54cc326277606b9c0`.
+The previous package is retained at ignored
+`tmp/openclaw-local-update/openclaw-2026.5.26.tgz` for rollback.
+Named installation scripts were allowed once; the user's global script policy
+was not changed. Native dependencies loaded and gateway help/version checks passed.
+
+A full isolated native run using `/opt/homebrew/bin/openclaw` exited 0:
+Qwen replies, PKCE-authenticated agent chat, four-turn Group handoffs, replay,
+recovery, rollback and cleanup passed. The host registry preservation guard
+passed. This invocation did not include the optional Go-client check; that
+check's earlier results remain separate evidence. No installed gateway or VM
+was restarted; the harness started and stopped only its disposable gateway.
+
+To use this installation with the full local suite, set
+`OPENCLAW_BIN="$(command -v openclaw)"`. Without that override, the wrapper
+prepares its own pinned runtime. The full wrapper still restarts its configured
+gateway by default, and `--with-validation` modifies workspace data; use it
+only with the intended development workspace and gateway.
