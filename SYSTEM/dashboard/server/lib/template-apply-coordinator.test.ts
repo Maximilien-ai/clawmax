@@ -14,6 +14,7 @@ import { TemplateApplyCoordinator } from './template-apply-coordinator'
 import { recoverTemplatesBeforeStartup } from './template-startup-recovery'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
 import { noToolsTemplatePolicy, verifyTemplateExecutionPolicies } from './template-execution-policy'
+import { createConfiguredTemplateResolver } from './template-service'
 
 function components(root: string, options: { checkpoint?: (phase: string) => void; afterPatch?: () => void; beforeSnapshot?: () => void } = {}) {
   const file = path.join(root, 'synthetic-gateway.json')
@@ -72,6 +73,33 @@ async function main() {
   }
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-apply-coordinator-'))
   try {
+    const configuredRoot = path.join(root, 'configured-workspace')
+    await setup(configuredRoot)
+    const configured = components(configuredRoot)
+    const authorityDirectory = path.join(root, 'operator-authority')
+    const registryFile = path.join(authorityDirectory, `${sha256('workspace')}.json`)
+    writeAtomicJson(registryFile, readTemplateAuthorityRegistry(path.join(configuredRoot, 'authority.json')))
+    const resolverOptions = { authorityDirectory, agentStateRoot: path.join(configuredRoot, 'runtime'),
+      runtime: { platform: 'linux/amd64', revision: 'synthetic-runtime' }, client: {
+        getConfig: async () => { const snapshot = await configured.transport.snapshot(); return { hash: snapshot.hash, sourceConfig: { agents: { entries: snapshot.entries } } } },
+        patchTemplateAgentEntriesAtRevision: async (entries: any, hash: string) => { await configured.transport.patch(entries, hash) },
+        runNoToolsTemplateAgent: async () => ({ runId: 'configured-reply', text: 'Configured reply' }),
+      } }
+    const resolver = createConfiguredTemplateResolver(resolverOptions)
+    const context = { workspaceId: 'workspace', workspacePath: configuredRoot, actorId: 'actor' }
+    const service = resolver(context)
+    const configuredPlan = await service.store.plan('actor', configured.request)
+    const applied = await service.coordinator.apply('actor', configured.request, configuredPlan.planDigest)
+    const configuredGroup = { groupId: Object.values(applied.revision.resources.groups)[0], message: 'Configured group', idempotencyKey: 'configured-group' }
+    const configuredResult = await service.coordinator.executeNoToolsGroup('actor', applied.revision.id, configuredGroup, service.authority, service.policies, service.runtime)
+    assert.equal(JSON.parse(configuredResult.text).turns.length, 4)
+    const revokedRegistry: any = readTemplateAuthorityRegistry(registryFile)
+    revokedRegistry.bindings[0].disabled = true
+    writeAtomicJson(registryFile, revokedRegistry)
+    await assert.rejects(service.coordinator.executeNoToolsGroup('actor', applied.revision.id, { ...configuredGroup, idempotencyKey: 'revoked' }, service.authority, service.policies, service.runtime))
+    assert.throws(() => resolver({ ...context, workspaceId: 'missing' }), /unavailable/)
+    assert.throws(() => createConfiguredTemplateResolver({ ...resolverOptions, authorityDirectory: configuredRoot })(context), /outside the workspace/)
+    assert.throws(() => createConfiguredTemplateResolver({ ...resolverOptions, runtime: { ...resolverOptions.runtime, revision: '' } }), /Invalid server/)
     const unavailable: TemplateGatewayTransport = {
       async snapshot() { throw new Error('Synthetic gateway unavailable') },
       async patch() { throw new Error('Unexpected gateway mutation') },

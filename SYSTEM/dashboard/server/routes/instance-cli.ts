@@ -16,6 +16,7 @@ import { createInstanceChatRouter, type CliChatContext, type CliTemplateExecutio
 import type { TemplateWorkspaceContext } from './instance-templates'
 import { createInstanceWorkflowsRouter } from './instance-workflows'
 import { createInstanceGroupsRouter } from './instance-groups'
+import { configuredTemplateResolverFromEnv } from '../lib/template-service'
 
 const API_VERSION = 'clawmax.instance/v1'
 const WORKSPACE_SCOPES = ['agents.read', 'agents.chat', 'workflows.run']
@@ -584,4 +585,4 @@ export function createInstanceCliRouter(options: {
   return router
 }
 
-export default createInstanceCliRouter()
+export default createInstanceCliRouter({ templates: configuredTemplateResolverFromEnv() })
