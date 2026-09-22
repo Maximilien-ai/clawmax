@@ -43,6 +43,9 @@ no installed instance rollout. Published RC81 is unchanged.
   isolated rerun passed without that storage warning.
 - Existing partner-setup clarity suite: 12 passed. Sidebar suite: 15 passed.
 - Focused ESLint passed.
+- `npm run build` passed (server TypeScript and production Vite bundle).
+  Existing non-blocking warnings remain for stale Browserslist data, package
+  module typing and large client bundles; they are not new release blockers.
 - Isolated Chrome desktop/mobile checks passed using synthetic API responses:
   warning disclosure, provider targeting, warning clearing, failed readiness,
   gateway warning, confirmation before plugin mutation, visible saved history,
@@ -67,7 +70,7 @@ installed instance. Non-macOS runs can use Playwright's installed Chromium.
 
 ## Still required before release
 
-- Full integration, validation and coverage, plus production build and green CI.
+- Full integration, validation and coverage, plus green CI.
 - Gateway reload race and CLI stream/deployment timeout acceptance from the
   [MBP14 recovery handoff](RC81_MBP14_RECOVERY_2026-09-21.md).
 - Real upgraded MBP14 and test10: chat, groups, templates, workflow completion,
