@@ -4,7 +4,13 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
-### RC81 runtime preparation (not released)
+### RC83 preparation
+- Canonicalize isolated runtime paths for native SQLite session admission, keep test workspace/profile state disposable, and separate unit-test environment overrides from live execution.
+- Expand branch coverage for provider validation, metering isolation/merges, generated workflow normalization and Builder catalog/fallback handling; the full 75% release gate is pending.
+- Make Builder routing tests independent of the active workspace and reject partial-success test runs with nonzero exit status.
+- RC82 public and matching combined images passed their engineering checks; installed-instance rollout and broader acceptance remain separate gates. See the [RC83 checkpoint](SYSTEM/docs/planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
+
+### RC81 runtime foundation (retained history)
 - Pin development, CI, and images to OpenClaw `2026.9.5` on Node `24.19.0`, with the upstream Codex integration runtime `0.154.0`.
 - Support native `.mjs` auth/workspace bundles, await workspace deletion verification, and verify upstream no-op chmod safeguards while retaining the roster-removal patch.
 - Source-built local Qwen template apply/cleanup, agent and Group chat, CLI-client interoperability, and replay passed. Template Workflow execution, full release validation, images, and live cloud/on-prem acceptance remain outstanding.

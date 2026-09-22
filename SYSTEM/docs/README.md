@@ -1,16 +1,18 @@
 # ClawMax Documentation
 
-> Last updated: September 21, 2026
+> Last updated: September 22, 2026
 
-Active development: RC81 / OpenClaw `2026.9.5`; stable remains `v1.9.9`.
-RC81 is not yet published or tester-approved. Start with the
-[current runtime and execution evidence](planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md).
+Active development: RC83 preparation / OpenClaw `2026.9.5`; stable remains
+`v1.9.9`. RC82 image checks passed, but installed-instance acceptance is still
+pending. Start with the [current release gate](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
 
 ## Active Documents
 
 | Document | Description |
 |----------|-------------|
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
+| [planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md) | RC83 branch coverage, isolated runtime validation, image and acceptance gates |
+| [planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md](planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md) | Published RC82 evidence and unresolved installed-instance deployment blockers |
 | [BACKLOG.md](BACKLOG.md) | Prioritized backlog, sprint items, and roadmap |
 | [TESTING_GUIDE.md](TESTING_GUIDE.md) | Unit, API, integration, and manual testing guide |
 | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Active bugs and limitations |

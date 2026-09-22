@@ -4,9 +4,9 @@
 
 **Development Line**: 2.0.0
 
-**Last Updated**: September 21, 2026
+**Last Updated**: September 22, 2026
 
-**Status**: `v1.9.9` remains stable. Active development targets RC81 with OpenClaw `v2026.9.5` and Node `24.19.0`; RC81 is not published or approved for testers. The source-built runtime passed isolated local Qwen template apply/cleanup and agent/Group chat acceptance. Template Workflow execution, release validation, image builds, and MBP14/test10 acceptance remain gates. See [current evidence](planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md).
+**Status**: `v1.9.9` remains stable. Active development is preparing RC83 with OpenClaw `v2026.9.5` and Node `24.19.0`. RC82 public and combined image checks passed; MBP14/test10 deployment and acceptance remain unresolved. RC83 adds isolated-runtime repairs, stronger tests and a 75% branch-coverage target; its full validation and images are pending. Public Template Workflow graph execution remains a separate gate. See [current evidence](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
 
 ## Earlier release evidence (retained history)
 

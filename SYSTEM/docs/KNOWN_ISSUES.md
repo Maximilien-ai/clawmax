@@ -1,6 +1,6 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: September 21, 2026
+**Last Updated**: September 22, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
@@ -12,7 +12,15 @@ active release tracks. Historical snapshots are kept under
 
 ## Runtime And Workflows
 
-### RC81 Template Workflow execution is not yet admitted
+### Installed-instance RC82 acceptance remains blocked
+
+Public and combined image checks passed, but MBP14 encountered Podman storage
+exhaustion and test10 redeployment selected the wrong cluster. These are CLI
+deployment blockers, not evidence of successful runtime upgrades. RC83 isolated
+source validation does not clear them. See the
+[deployment handoff](planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md).
+
+### Public Template Workflow execution is not yet admitted
 
 The server compiles revision-owned Workflow graphs but the public execution
 route deliberately returns `template_runtime_unavailable`. It still needs an

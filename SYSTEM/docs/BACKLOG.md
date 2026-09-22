@@ -1,11 +1,16 @@
 # Backlog
 
-> Last updated: September 21, 2026
+> Last updated: September 22, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Mini Sprint
 
-- [ ] **RC81 stability release gate** — finish authority-enforced Template
+- [ ] **RC83 coverage and image gate** — verify at least 75% branch coverage
+  with the complete integration/validation suite, then build and validate public
+  and matching combined candidates. Keep installed-instance acceptance separate
+  from image publication. [Current evidence](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
+
+- [ ] **Remaining Template runtime and deployment acceptance** — finish authority-enforced Template
   Workflow graph execution, correlated results and settled cancellation on
   OpenClaw `2026.9.5`; run complete integration/validation/coverage, then public
   and matching combined images, followed by MBP14 and test10 acceptance.
