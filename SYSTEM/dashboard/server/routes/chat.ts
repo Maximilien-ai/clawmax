@@ -8,6 +8,7 @@ import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunn
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
+import { recoverRejectedGatewayChat } from '../lib/gateway-chat-recovery'
 import { checkBudgetBlock } from '../lib/budget'
 import { createStreamingWarningFilter, normalizeChatMessage, stripBenignChatRuntimeWarnings } from '../lib/chat-normalization'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
@@ -1133,6 +1134,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
         console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
 
         type ChatAttemptResult = {
+          exitCode?: number | null
           completionText: string
           rawError: string
           usage: ReturnType<typeof readLatestAssistantUsageFromPersistedSession>
@@ -1329,6 +1331,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
               resolveAttempt({
                 completionText,
                 rawError: stderrOutput || (code !== 0 ? 'Agent failed.' : 'No reply from agent.'),
+                exitCode: code,
                 usage,
                 persistedAssistant,
                 hadVisibleOutput,
@@ -1352,6 +1355,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
           throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
         }
         let primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
+        let usedGateway = !useLocal
         if (shouldRetryViaGatewayAfterLocalCollision({
           useLocal,
           provider: resolvedAgent.provider,
@@ -1365,10 +1369,21 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
           const gatewayReady = await waitForGatewayResponsive(120000, 1000)
           if (gatewayReady.running) {
             primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
+            usedGateway = true
           } else {
             console.warn(`[Chat Route] Gateway did not become ready for retry: ${gatewayReady.error || 'unknown readiness failure'}`)
           }
         }
+        primaryResult = await recoverRejectedGatewayChat(primaryResult, {
+          usedGateway,
+          signal: turn.signal,
+          waitUntilReady: async () => (await waitForGatewayResponsive(120000, 1000, turn.signal)).running,
+          assertCurrentAuthority: () => {
+            transport?.assertAuthorized()
+            if (!isRequestedChatAgentCurrent(req, id)) throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
+          },
+          retry: () => runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true),
+        })
         throwIfChatAttemptNeedsSessionRetry(primaryResult)
         const fallbackModel = resolvedAgent.backupModel
         const fallbackProvider = resolvedAgent.backupProvider

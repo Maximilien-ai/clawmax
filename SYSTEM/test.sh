@@ -877,6 +877,11 @@ if npx ts-node --transpileOnly client/src/lib/agentReadiness.test.ts; then
 else
   fail "Agent readiness warning tests"
 fi
+if npx ts-node --transpileOnly server/lib/gateway-chat-recovery.test.ts; then
+  pass "Gateway chat admission recovery tests"
+else
+  fail "Gateway chat admission recovery tests"
+fi
 if npx ts-node --transpileOnly server/lib/openclaw-plugins.test.ts && npx ts-node --transpileOnly server/routes/openclaw-plugins.test.ts; then
   pass "OpenClaw plugin control tests"
 else
