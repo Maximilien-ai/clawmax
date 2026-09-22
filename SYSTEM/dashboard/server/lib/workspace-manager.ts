@@ -60,7 +60,7 @@ export class WorkspaceManager {
 
   constructor(registryPath?: string) {
     const HOME = process.env.HOME || ''
-    this.registryPath = registryPath || path.join(HOME, '.openclaw', 'dashboard-workspaces.json')
+    this.registryPath = registryPath || process.env.CLAWMAX_WORKSPACE_REGISTRY_PATH || path.join(HOME, '.openclaw', 'dashboard-workspaces.json')
   }
 
   /** Load registry from disk, creating default if it doesn't exist */

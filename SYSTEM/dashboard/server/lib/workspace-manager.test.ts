@@ -42,6 +42,22 @@ function createManager() {
   return new WorkspaceManager(registryPath)
 }
 
+test('explicit registry wins over an isolated environment registry', () => {
+  const previous = process.env.CLAWMAX_WORKSPACE_REGISTRY_PATH
+  const isolated = path.join(tmpRoot, 'isolated', 'registry.json')
+  try {
+    process.env.CLAWMAX_WORKSPACE_REGISTRY_PATH = isolated
+    new WorkspaceManager().loadRegistry()
+    assert(fs.existsSync(isolated), 'Environment registry must be created')
+    const explicit = path.join(tmpRoot, 'explicit', 'registry.json')
+    new WorkspaceManager(explicit).loadRegistry()
+    assert(fs.existsSync(explicit), 'Explicit registry must take precedence')
+  } finally {
+    if (previous === undefined) delete process.env.CLAWMAX_WORKSPACE_REGISTRY_PATH
+    else process.env.CLAWMAX_WORKSPACE_REGISTRY_PATH = previous
+  }
+})
+
 test('createWorkspace allows a missing target directory', () => {
   const manager = createManager()
   const workspacePath = path.join(tmpRoot, 'fresh-workspace')
