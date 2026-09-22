@@ -28,7 +28,10 @@ async function main() {
   await reservePort(Number(process.env.DASHBOARD_PORT || 3001))
   await reservePort(Number(process.env.DASHBOARD_CLIENT_PORT || 5173))
   const binary = process.env.OPENCLAW_BIN || execFileSync('bash', [path.join(system, 'prepare-openclaw-target.sh'), '--print-bin'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-test-runtime-'))
+  // SQLite reports physical paths. Keep config, registry and workspace paths
+  // identical to those identities (not /var aliases of /private/var on macOS),
+  // or native canonical-session admission can repeatedly validate another key.
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-test-runtime-')))
   const state = path.join(root, 'state')
   const workspace = path.join(root, 'workspace')
   fs.mkdirSync(state, { mode: 0o700 })
