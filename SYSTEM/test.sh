@@ -872,6 +872,11 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Agent loading helper unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentReadiness.test.ts; then
+  pass "Agent readiness warning tests"
+else
+  fail "Agent readiness warning tests"
+fi
 npx ts-node --transpileOnly client/src/lib/agentLoading.test.ts > /tmp/clawmax-agent-loading.out 2>&1 || true
 if grep -q "agentLoading.test.ts:" /tmp/clawmax-agent-loading.out; then
   agent_loading_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-agent-loading.out | head -1 | grep -o '[0-9]\+')

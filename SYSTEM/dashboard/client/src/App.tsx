@@ -21,6 +21,7 @@ import { AuthGate } from './components/AuthGate'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
 import { ByokWizard } from './components/ByokWizard'
+import { AgentReadinessProvider } from './contexts/AgentReadinessContext'
 import { HostAgentStatusBanner } from './components/HostAgentStatusBanner'
 import { MaintenanceBanner } from './components/MaintenanceBanner'
 import { NotificationCenter } from './components/NotificationCenter'
@@ -773,6 +774,7 @@ export default function App() {
         <AuthGate>
         <ToastProvider>
         <WorkspaceProvider>
+        <AgentReadinessProvider>
           <ConnectionStatus />
           <WorkspaceDialog
             isOpen={showWorkspaceDialog}
@@ -1189,6 +1191,7 @@ export default function App() {
             )}
           </main>
           </div>
+        </AgentReadinessProvider>
         </WorkspaceProvider>
       </ToastProvider>
         </AuthGate>
