@@ -5,6 +5,17 @@
 
 ## Current Mini Sprint
 
+- [ ] **Next RC after RC83: bulk agent budget limits (testing priority)** —
+  let an operator select multiple agents on the Agents page and apply the same
+  budget limit in one action. Team testing currently requires editing each
+  agent individually. Show the selected count and proposed limit before
+  applying, preserve unselected agents, support clearing selected limits,
+  and report per-agent success/failure with retry of failed updates. Reuse
+  existing per-agent budget semantics and authorization; do not introduce a
+  pooled team budget. Cover input validation, mixed existing limits, partial
+  failure, persistence and desktop/mobile selection flows. Keep this out of
+  RC83's validation-and-coverage scope.
+
 - [ ] **RC83 coverage and image gate** — verify at least 75% branch coverage
   with the complete integration/validation suite, then build and validate public
   and matching combined candidates. Keep installed-instance acceptance separate
