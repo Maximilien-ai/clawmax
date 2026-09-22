@@ -6,7 +6,11 @@ const originalSession = auth.getAuthenticatedSession
 const originalList = openClawPlugins.list
 const originalHistory = openClawPlugins.history
 const originalChange = openClawPlugins.change
-const handler = (method: string, route: string) => router.stack.find((entry: any) => entry.route?.path === route && entry.route.methods[method])!.route.stack[0].handle
+const handler = (method: string, route: string): Function => {
+  const layer = router.stack.find((entry: any) => entry.route?.path === route && entry.route.methods[method])
+  assert(layer?.route, `Missing route ${method} ${route}`)
+  return layer.route.stack[0].handle
+}
 const response = () => ({ code: 200, body: null as any, status(code: number) { this.code = code; return this }, json(body: any) { this.body = body; return this } })
 async function main() {
   let enterprise = false
