@@ -119,7 +119,8 @@ prepare_checkout() {
   # Rebuild cached artifacts when the maintained source compatibility patch changes.
   current_commit="${current_commit}:$(cksum < "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs")"
   current_commit="${current_commit}:$(cksum < "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs")"
-  if [ ! -f "${src_dir}/dist/index.js" ] || [ ! -f "$prepared_stamp" ] || [ "$(cat "$prepared_stamp" 2>/dev/null || true)" != "$current_commit" ]; then
+  current_commit="${current_commit}:source-plugins-v1:$(cksum < "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs")"
+  if [ ! -f "${src_dir}/dist/index.js" ] || [ ! -f "$prepared_stamp" ] || [ "$(cat "$prepared_stamp" 2>/dev/null || true)" != "$current_commit" ] || ! node "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs" "$src_dir" >&2; then
     (
       cd "$src_dir"
       export COREPACK_HOME="${COREPACK_HOME:-${work_root}/corepack}"
@@ -127,8 +128,12 @@ prepare_checkout() {
       run_pnpm install --frozen-lockfile --ignore-scripts >&2
       node "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs" "$src_dir" >&2
       run_pnpm run build:docker >&2
+      # The Docker lane omits standalone first-party plugin graphs. A local
+      # source checkout must build them too, before advertising cache readiness.
+      node --import ./scripts/tsx.mjs scripts/build-external-plugin-local-dist.mts >&2
       node "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs" "$src_dir" >&2
-      node scripts/postinstall-bundled-plugins.mjs >&2 || true
+      node scripts/postinstall-bundled-plugins.mjs >&2
+      node "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs" "$src_dir" >&2
       node - dist/cli-startup-metadata.json <<'EOF'
 const fs = require("node:fs");
 const metadata = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));

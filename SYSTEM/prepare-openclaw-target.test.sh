@@ -26,6 +26,9 @@ grep -q 'node "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs" "$src_dir"' "$scri
 grep -q 'cksum < "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs"' "$script_file" || fail "expected patch-aware runtime cache invalidation"
 grep -q 'cksum < "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs"' "$script_file" || fail "expected filesystem-verifier-aware runtime cache invalidation"
 grep -q 'postinstall-bundled-plugins.mjs' "$script_file" || fail "expected bundled plugin postinstall repair step"
+grep -q 'scripts/build-external-plugin-local-dist.mts' "$script_file" || fail "expected standalone source plugin build"
+grep -q 'source-plugins-v1:' "$script_file" || fail "expected cache invalidation for standalone plugins"
+node "$repo_root/SYSTEM/verify-openclaw-plugin-entries.test.mjs"
 for channel in whatsapp discord telegram slack; do
   grep -q "\\\"$channel\\\"" "$script_file" || fail "expected $channel startup metadata smoke check"
 done
