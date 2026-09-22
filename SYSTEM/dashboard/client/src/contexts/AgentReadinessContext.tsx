@@ -35,6 +35,8 @@ export function AgentReadinessProvider({ children }: { children: React.ReactNode
       if (!response.ok) throw new Error('Agent list unavailable')
       const data = await response.json()
       if (!Array.isArray(data.agents)) throw new Error('Invalid agent list')
+      const health = await fetch(url('/api/health'), { signal: controller.signal }).then(res => res.json()).catch(() => null)
+      const gatewayUnavailable = health?.readiness?.gateway?.required === true && health.readiness.gateway.ready === false
       const queue = data.agents.filter((agent: any) => !agent.archived)
       const entries: Record<string, Entry> = {}
       // Bound fan-out for larger workspaces. Credentials remain only in POST bodies.
@@ -57,7 +59,7 @@ export function AgentReadinessProvider({ children }: { children: React.ReactNode
               const fingerprint = buildByokVerificationFingerprint(keyProvider, stored)
               needsValidation = !!fingerprint && stored.verifiedProviders?.[keyProvider] !== fingerprint
             }
-            attention = agentAttentionFromReadiness(readiness, needsValidation)
+            attention = agentAttentionFromReadiness(readiness, needsValidation, gatewayUnavailable)
           } catch { attention = agentAttentionFromReadiness(null) }
           entries[agentAttentionKey(agent.id, agent.generation)] = { id: agent.id, name: agent.name, generation: agent.generation, attention }
         }

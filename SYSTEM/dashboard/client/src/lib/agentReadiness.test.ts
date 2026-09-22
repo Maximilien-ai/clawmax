@@ -15,6 +15,8 @@ for (const provider of ['openai', 'anthropic', 'gemini', 'openrouter', 'xai']) {
   assert.equal(attention({ available: true, resolvedAgent: { provider } }, false), null, 'successful validation clears warning')
 }
 assert.equal(attention(null)?.kind, 'unknown')
+assert.equal(attention({ available: true, resolvedAgent: { runtime: 'openclaw' } }, false, true)?.kind, 'runtime')
+assert.equal(attention({ available: true, resolvedAgent: { runtime: 'codex' } }, false, true), null, 'a CLI runtime must not depend on gateway readiness')
 assert.equal(attention({ error: 'network down' })?.kind, 'unknown')
 assert.equal(attention({ available: false, code: 'template_runtime_unavailable' })?.kind, 'runtime')
 assert.equal(attention({ available: false, error: 'no Ollama runtime is configured' })?.kind, 'runtime')

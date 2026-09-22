@@ -8,10 +8,11 @@ export interface AgentAttention {
 const providers: Record<string, string> = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Gemini', openrouter: 'OpenRouter', xai: 'xAI' }
 
 // Store only presentation metadata, never request credentials or raw runtime errors.
-export function agentAttentionFromReadiness(data: any, browserKeyNeedsValidation = false): AgentAttention | null {
+export function agentAttentionFromReadiness(data: any, browserKeyNeedsValidation = false, gatewayUnavailable = false): AgentAttention | null {
   const provider = data?.resolvedAgent?.provider
   const providerLabel = typeof provider === 'string' && Object.hasOwn(providers, provider) ? providers[provider] : undefined
   if (data?.available === true) {
+    if (gatewayUnavailable && (!data.resolvedAgent?.runtime || data.resolvedAgent.runtime === 'openclaw')) return { kind: 'runtime', message: 'The gateway runtime is not ready. Check System status before chatting.', action: 'View runtime status' }
     if (browserKeyNeedsValidation && providerLabel && (!data.resolvedAgent.runtime || data.resolvedAgent.runtime === 'openclaw')) return { kind: 'credentials', provider, message: `${providerLabel} credentials in this browser need validation.`, action: 'Verify credentials' }
     return null
   }
