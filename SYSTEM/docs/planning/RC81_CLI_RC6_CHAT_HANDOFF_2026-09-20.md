@@ -713,3 +713,44 @@ This is a build-only checkpoint, not release acceptance. Full live
 integration/validation/coverage, Template Workflow execution/results/cancellation,
 combined-image validation and smoke, and MBP14/test10 acceptance remain open.
 No rollout or tester distribution is approved by this build.
+
+## Restart recovery and full RC81 rebuild — 2026-09-21
+
+The initial RC81 public build published both architectures and passed registry
+smoke, but failed lifecycle acceptance after container replacement. OpenClaw
+retained a five-minute gateway-owner lease for an unknown container hostname.
+The source entrypoint now retries only that specific failure, without removing
+lease rows, and waits for owned services to finish graceful shutdown. A distinct
+forced-crash gate permits bounded lease expiry; normal restart remains <=40s.
+The image health startup period allows this crash-recovery window without
+reporting false readiness. Focused shell, real-process shutdown, Dockerfile,
+lifecycle-contract, and TypeScript checks passed.
+
+Source-overlay diagnostic run
+https://github.com/Maximilien-ai/clawmax/actions/runs/35671519310
+passed on both native architectures at `9448dd15`. Normal replacement health
+took 17s amd64 / 22s arm64; forced replacement took 293s / 286s respectively.
+This proves the diagnostic source overlay, not the original packaged image.
+The earlier failing attempts remain recorded in Actions; no deadline was
+relaxed for ordinary startup or graceful restart.
+
+With explicit approval, preserved the first candidate source under
+`v2.0.0-test-rc81-build1` and moved the unreleased `v2.0.0-test-rc81` tag to
+`9448dd15a85b1015ab37da4111f2426c1110a4da`. The RC81 image names are being rebuilt;
+do not deploy an old RC81 tag resolution while publication is in progress.
+
+- Full packaged public build, registry smoke, and native lifecycle acceptance
+  **without** the entrypoint overlay:
+  https://github.com/Maximilien-ai/clawmax/actions/runs/35672622489.
+- Fresh tag CI and coverage:
+  https://github.com/Maximilien-ai/clawmax/actions/runs/35672622535.
+- The local queue dispatches the combined workflow only after **both** succeed,
+  using `base_tag=image_tag=2.0.0-test-rc81`. Its log is
+  `/private/tmp/rc81-final-combined-build-queue.log`; this Mac must remain
+  available. A private workflow link and final digests remain to be recorded.
+
+Expected duration: roughly 45–55 minutes for the public pipeline including
+forced-crash acceptance, then 7–10 minutes for combined validation. The redundant
+CI triggered solely by the history tag was cancelled deliberately. No deployed
+instance was changed; final combined-image readiness, real Template Workflow
+execution, and MBP14/test10 acceptance still govern distribution.
