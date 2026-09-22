@@ -16,6 +16,13 @@
     "page": "templates"
   },
   {
+    "name": "single-agent price research prompt does not get pushed into an unrelated team template",
+    "prompt": "I want an agent that researches prices.",
+    "intent": "ai_generate",
+    "scope": "single_agent",
+    "page": "agents"
+  },
+  {
     "name": "integration prompt maps to skills",
     "prompt": "I have an agent but it needs GitHub and Slack tools",
     "intent": "skill_or_integration",
