@@ -14,6 +14,8 @@ assertions=$((assertions + 1))
 grep -Fq 'local health_timeout="${1:-40}"' "$smoke"
 grep -Fq 'dashboard health endpoint did not become ready within ${health_timeout} seconds' "$smoke"
 grep -Fq '"$container_cli" stop --time 30 "$container_name"' "$smoke"
+grep -Fq 'Graceful-stop exit={{.State.ExitCode}}' "$smoke"
+grep -Fq '"$container_name:/tmp/openclaw-gateway.log"' "$smoke"
 grep -Fq 'start_dashboard 360' "$smoke"
 grep -Fq 'CLAWMAX_LIFECYCLE_SOURCE_ENTRYPOINT:-false' "$smoke"
 grep -Fq 'target=/app/SYSTEM/dashboard/docker-entrypoint.sh,readonly' "$smoke"

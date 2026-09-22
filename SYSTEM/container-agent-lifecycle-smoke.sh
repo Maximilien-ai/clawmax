@@ -104,7 +104,19 @@ start_dashboard() {
 }
 
 stop_dashboard() {
+  echo 'Graceful-stop process ownership (no command arguments):'
+  "$container_cli" top "$container_name" -eo pid,ppid,comm || true
   "$container_cli" stop --time 30 "$container_name" >/dev/null
+  "$container_cli" inspect --format 'Graceful-stop exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}' "$container_name"
+  local shutdown_log
+  shutdown_log="$(mktemp)"
+  if "$container_cli" cp "$container_name:/tmp/openclaw-gateway.log" "$shutdown_log"; then
+    echo 'Gateway shutdown evidence:'
+    tail -n 100 "$shutdown_log"
+  else
+    echo 'Gateway shutdown log unavailable'
+  fi
+  rm -f "$shutdown_log"
   "$container_cli" rm "$container_name" >/dev/null
 }
 
