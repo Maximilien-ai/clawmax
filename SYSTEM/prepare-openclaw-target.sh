@@ -131,6 +131,10 @@ prepare_checkout() {
       # The Docker lane omits standalone first-party plugin graphs. A local
       # source checkout must build them too, before advertising cache readiness.
       node --import ./scripts/tsx.mjs scripts/build-external-plugin-local-dist.mts >&2
+      # Standalone compilation replaces plugin output directories. Restore the
+      # package/manifests and assets afterward, matching upstream build-all.
+      run_pnpm plugins:assets:copy >&2
+      node scripts/runtime-postbuild.mjs >&2
       node "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs" "$src_dir" >&2
       node scripts/postinstall-bundled-plugins.mjs >&2
       node "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs" "$src_dir" >&2

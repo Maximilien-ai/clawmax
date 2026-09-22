@@ -87,6 +87,9 @@ set -euo pipefail
 [ "${1:-}" = "pnpm" ] || exit 31
 shift
 case "${1:-}" in
+  plugins:assets:copy)
+    exit 0
+    ;;
   install)
     exit 0
     ;;
