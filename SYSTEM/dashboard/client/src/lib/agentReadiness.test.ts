@@ -4,6 +4,7 @@ import { agentAttentionFromReadiness as attention, agentAttentionKey } from './a
 assert.equal(attention({ available: true, resolvedAgent: { model: 'inherited/model' } }), null)
 assert.equal(attention({ available: true, resolvedAgent: { provider: 'openai' } }), null, 'usable shared credentials must not warn')
 assert.equal(attention({ available: true, resolvedAgent: { provider: 'ollama' } }), null, 'local models do not require hosted keys')
+assert.equal(attention({ available: true, resolvedAgent: { provider: 'openai', runtime: 'codex' } }, true), null, 'CLI-owned authentication must not require browser key verification')
 assert.equal(attention({ available: false, error: 'Agent x has no model configured.' })?.kind, 'model')
 for (const provider of ['openai', 'anthropic', 'gemini', 'openrouter', 'xai']) {
   const result = attention({ available: false, error: `no ${provider} credential is available`, resolvedAgent: { provider } })!

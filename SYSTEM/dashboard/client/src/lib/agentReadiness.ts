@@ -12,7 +12,7 @@ export function agentAttentionFromReadiness(data: any, browserKeyNeedsValidation
   const provider = data?.resolvedAgent?.provider
   const providerLabel = typeof provider === 'string' && Object.hasOwn(providers, provider) ? providers[provider] : undefined
   if (data?.available === true) {
-    if (browserKeyNeedsValidation && providerLabel) return { kind: 'credentials', provider, message: `${providerLabel} credentials in this browser need validation.`, action: 'Verify credentials' }
+    if (browserKeyNeedsValidation && providerLabel && (!data.resolvedAgent.runtime || data.resolvedAgent.runtime === 'openclaw')) return { kind: 'credentials', provider, message: `${providerLabel} credentials in this browser need validation.`, action: 'Verify credentials' }
     return null
   }
   if (data?.available !== false) return { kind: 'unknown', message: 'Readiness could not be checked. Try again.', action: 'Check again' }

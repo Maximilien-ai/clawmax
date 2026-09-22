@@ -17,7 +17,7 @@ export function repairAgentAttention(attention: Attention, refresh: () => void) 
 export function AgentAttention({ agentId, generation }: { agentId: string; generation?: string }) {
   const { entries, refresh } = useAgentReadiness()
   const [expanded, setExpanded] = useState(false)
-  const entry = entries[agentAttentionKey(agentId, generation)]
+  const entry = entries[agentAttentionKey(agentId, generation)] || entries.unavailable
   const attention = entry?.attention
   if (!attention) return null
   return <span className="inline-flex min-w-0 flex-wrap items-center gap-1 text-amber-800 dark:text-amber-200" onClick={event => event.stopPropagation()}>
@@ -34,7 +34,7 @@ export function AgentAttention({ agentId, generation }: { agentId: string; gener
 
 export function ByokAttentionSummary() {
   const { entries, refresh } = useAgentReadiness()
-  const warnings = Object.values(entries).filter(entry => entry.attention?.kind === 'credentials' || entry.attention?.kind === 'model')
+  const warnings = Object.values(entries).filter(entry => entry.attention && entry.attention.kind !== 'runtime')
   if (!warnings.length) return null
   return <div role="status" className="mb-3 max-h-40 overflow-y-auto rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
     <p className="font-semibold">⚠ Needs attention</p>

@@ -241,7 +241,7 @@ export function ByokWizard({
   const { user, config } = useAuth()
   const { activeWorkspace } = useWorkspace()
   const { entries: agentReadiness } = useAgentReadiness()
-  const needsAttention = initialStep === 'models' && Object.values(agentReadiness).some(entry => entry.attention?.kind === 'credentials' || entry.attention?.kind === 'model')
+  const needsAttention = initialStep === 'models' && Object.values(agentReadiness).some(entry => entry.attention && entry.attention.kind !== 'runtime')
   const { showSuccess, showInfo, showWarning } = useToast()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('models')
@@ -2322,7 +2322,7 @@ export function ByokWizard({
             ? 'border-emerald-300/60 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
             : 'border-amber-300/60 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
         }`}
-        title={needsAttention ? 'Needs attention: agents require model or credential configuration' : triggerTitle}
+        title={needsAttention ? 'Needs attention: review agent configuration and readiness checks' : triggerTitle}
       >
         {triggerLabel}
         {needsAttention && <span className="ml-1" aria-label="Needs attention">⚠ Needs attention</span>}

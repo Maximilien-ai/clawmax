@@ -22,6 +22,13 @@ export function AgentReadinessProvider({ children }: { children: React.ReactNode
   useEffect(() => {
     if (!workspaceId) return
     const controller = new AbortController()
+    let disposed = false
+    const failed = () => {
+      if (!disposed) setResult({ workspaceId, entries: {
+        unavailable: { id: '', name: 'Workspace', attention: agentAttentionFromReadiness(null) },
+      } })
+    }
+    const timeout = window.setTimeout(() => { controller.abort(); failed() }, 30000)
     const url = (route: string) => buildWorkspaceScopedPath(route, workspaceId)
     const run = async () => {
       const response = await fetch(url('/api/agents'), { signal: controller.signal })
@@ -57,12 +64,8 @@ export function AgentReadinessProvider({ children }: { children: React.ReactNode
       }))
       if (!controller.signal.aborted) setResult({ workspaceId, entries })
     }
-    void run().catch(() => {
-      if (!controller.signal.aborted) setResult({ workspaceId, entries: {
-        unavailable: { id: '', name: 'Workspace', attention: agentAttentionFromReadiness(null) },
-      } })
-    })
-    return () => controller.abort()
+    void run().catch(failed).finally(() => window.clearTimeout(timeout))
+    return () => { disposed = true; window.clearTimeout(timeout); controller.abort() }
   }, [workspaceId, revision])
   return <Context.Provider value={{ entries: result.workspaceId === workspaceId ? result.entries : {}, refresh: () => setRevision(value => value + 1) }}>{children}</Context.Provider>
 }
