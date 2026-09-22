@@ -54,7 +54,11 @@ async function main() {
     gateway: { mode: 'local', port, bind: 'loopback', auth: { mode: 'token', token }, controlUi: { enabled: false } },
     logging: { file: path.join(root, 'gateway.log') },
     plugins: { enabled: true, allow: ['openai'], entries: { openai: { enabled: true } } }, browser: { enabled: false }, cron: { enabled: false },
-    agents: { defaults: { workspace, heartbeat: { every: '0m' } }, entries: {} },
+    // Exercise native API-key execution, not an installed Codex login/runtime
+    // selected implicitly by newer OpenClaw releases for OpenAI models.
+    agents: { defaults: { workspace, heartbeat: { every: '0m' },
+      models: { 'openai/*': { agentRuntime: { id: 'openclaw' } } },
+    }, entries: {} },
   }), { mode: 0o600 })
   let gateway, runner, interrupted = false
   const cancel = () => { interrupted = true; void stop(runner); void stop(gateway) }

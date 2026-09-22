@@ -18,6 +18,7 @@ if (process.argv[3] === 'call') process.exit(0);
 if (process.argv[3] !== 'run') process.exit(7);
 const config = JSON.parse(fs.readFileSync(process.env.OPENCLAW_CONFIG_PATH));
 if (!process.env.CLAWMAX_WORKSPACE_REGISTRY_PATH || config.cron.enabled !== false || process.env.CLAWMAX_TEST_WORKSPACE) process.exit(8);
+if (config.agents.defaults.models['openai/*'].agentRuntime.id !== 'openclaw') process.exit(12);
 if (process.env.CLAWMAX_SYSTEM_TEST_WORKSPACE !== require('node:path').join(require('node:path').dirname(process.env.CLAWMAX_WORKSPACE_REGISTRY_PATH), 'system-test-workspace')) process.exit(11);
 if (process.env.OPENCLAW_PACKAGE_ROOT !== require('node:path').resolve(require('node:path').dirname(process.argv[1]), '../src')) process.exit(10);
 require('node:http').createServer((req,res) => res.end('{}')).listen(config.gateway.port, '127.0.0.1');
