@@ -2214,8 +2214,12 @@ else
 fi
 
 echo -e "${YELLOW}→ Running AI Builder routing unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/ai-builder.test.ts > /tmp/clawmax-ai-builder-routing.out 2>&1 || true
-if grep -q "^✓" /tmp/clawmax-ai-builder-routing.out; then
+if node "$SYSTEM_DIR/test-builder-routing-runner.test.mjs"; then
+  pass "AI Builder routing runner exit-status regression"
+else
+  fail "AI Builder routing runner exit-status regression"
+fi
+if npx ts-node --transpileOnly server/lib/ai-builder.test.ts > /tmp/clawmax-ai-builder-routing.out 2>&1; then
   ai_builder_routing_count=$(grep -c "^✓" /tmp/clawmax-ai-builder-routing.out | tr -cd '0-9')
   pass "AI Builder routing unit tests (${ai_builder_routing_count:-?} tests)"
 else
