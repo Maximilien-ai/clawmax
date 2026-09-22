@@ -877,6 +877,11 @@ if npx ts-node --transpileOnly client/src/lib/agentReadiness.test.ts; then
 else
   fail "Agent readiness warning tests"
 fi
+if npx ts-node --transpileOnly server/lib/openclaw-plugins.test.ts && npx ts-node --transpileOnly server/routes/openclaw-plugins.test.ts; then
+  pass "OpenClaw plugin control tests"
+else
+  fail "OpenClaw plugin control tests"
+fi
 npx ts-node --transpileOnly client/src/lib/agentLoading.test.ts > /tmp/clawmax-agent-loading.out 2>&1 || true
 if grep -q "agentLoading.test.ts:" /tmp/clawmax-agent-loading.out; then
   agent_loading_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-agent-loading.out | head -1 | grep -o '[0-9]\+')
