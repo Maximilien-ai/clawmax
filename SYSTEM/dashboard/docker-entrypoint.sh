@@ -10,7 +10,8 @@ export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE:-/app/WORKSPACES/default}"
 export CLAWMAX_AUTO_START_GATEWAY="${CLAWMAX_AUTO_START_GATEWAY:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG="${CLAWMAX_GATEWAY_WATCHDOG:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC="${CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC:-30}"
-export CLAWMAX_GATEWAY_READY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_READY_TIMEOUT_SEC:-25}"
+# Existing rosters need time for SQLite integrity validation on cold startup.
+export CLAWMAX_GATEWAY_READY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_READY_TIMEOUT_SEC:-120}"
 export CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC:-330}"
 export CLAWMAX_GATEWAY_LOG="${CLAWMAX_GATEWAY_LOG:-/tmp/openclaw-gateway.log}"
 export CLAWMAX_HOST_OPENCLAW_CONFIG="${CLAWMAX_HOST_OPENCLAW_CONFIG:-/root/.openclaw/openclaw.json}"
@@ -336,13 +337,18 @@ gateway_authenticated_ready() {
     --token "$gateway_token" >/dev/null 2>&1
 }
 
-wait_for_gateway_ready() {
-  port="$1"
-  timeout_sec="$CLAWMAX_GATEWAY_READY_TIMEOUT_SEC"
+gateway_ready_timeout_seconds() {
+  timeout_sec="${CLAWMAX_GATEWAY_READY_TIMEOUT_SEC:-120}"
   case "$timeout_sec" in
-    ''|*[!0-9]*) timeout_sec=25 ;;
+    ''|*[!0-9]*) timeout_sec=120 ;;
   esac
   [ "$timeout_sec" -gt 0 ] || timeout_sec=1
+  printf '%s\n' "$timeout_sec"
+}
+
+wait_for_gateway_ready() {
+  port="$1"
+  timeout_sec="$(gateway_ready_timeout_seconds)"
   deadline=$(( $(date +%s) + timeout_sec ))
 
   while [ "$(date +%s)" -lt "$deadline" ]; do
