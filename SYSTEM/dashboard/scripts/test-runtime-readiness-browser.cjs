@@ -1,0 +1,84 @@
+// Run against a frontend-only Vite server; every API request is mocked.
+// NODE_PATH=<isolated-playwright-install>/node_modules node scripts/test-runtime-readiness-browser.cjs
+const { chromium } = require('playwright');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const fixtureDir = fs.mkdtempSync(path.join(__dirname, '../client/.readiness-browser-'));
+const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-readiness-browser-'));
+fs.writeFileSync(path.join(fixtureDir, 'entry.tsx'), "import React from 'react'\nimport { createRoot } from 'react-dom/client'\nimport { AuthProvider } from '../src/contexts/AuthContext'\nimport { ToastProvider } from '../src/components/Toast'\nimport { WorkspaceProvider } from '../src/contexts/WorkspaceContext'\nimport { AgentReadinessProvider } from '../src/contexts/AgentReadinessContext'\nimport { AgentAttention } from '../src/components/AgentAttention'\nimport { ByokWizard } from '../src/components/ByokWizard'\nimport System from '../src/pages/Logs'\nimport '../src/index.css'\ncreateRoot(document.getElementById('root')!).render(<AuthProvider><ToastProvider><WorkspaceProvider><AgentReadinessProvider>\n  <div className=\"min-h-screen bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100\">\n    <div className=\"flex flex-wrap items-center gap-3 p-4\"><h1>Jarvis</h1><AgentAttention agentId=\"jarvis\" generation=\"one\" /><ByokWizard triggerLabel=\"BYOK\" openEventName=\"open-byok-wizard\" suppressAutoOpen /></div>\n    <System />\n  </div>\n</AgentReadinessProvider></WorkspaceProvider></ToastProvider></AuthProvider>)\n");
+fs.writeFileSync(path.join(fixtureDir, 'index.html'), '<html><head><meta name="viewport" content="width=device-width, initial-scale=1" /></head><body><div id="root"></div><script type="module" src="./entry.tsx"></script></body></html>');
+let browser;
+
+const assert = require('node:assert/strict');
+(async () => {
+ browser = await chromium.launch({executablePath:process.env.CLAWMAX_CHROME_BIN || undefined,headless:true});
+ const context = await browser.newContext();
+ const page = await context.newPage();
+ const errors=[]; page.on('pageerror', e=>errors.push(e.message));
+ let ready=false, enabled=false, mutations=0, inventoryFailure=false, empty=false, listFailure=false, gatewayFailure=false;
+ const workspace={id:'default',name:'Test',path:'/mock',createdAt:'',lastAccessedAt:''};
+ await page.route('**/api/**', async route=>{
+  const url=new URL(route.request().url()); let data={};
+  if ((inventoryFailure && url.pathname==='/api/system/openclaw-plugins') || (listFailure && url.pathname==='/api/agents')) return route.fulfill({status:503,contentType:'application/json',body:'{}'});
+  if(url.pathname==='/api/auth/config')data={authDisabled:true,deploymentKind:'onprem'};
+  if(url.pathname==='/api/auth/me')data={authenticated:true,user:{id:'test',login:'test'}};
+  if(url.pathname==='/api/workspaces')data={workspaces:[workspace]};
+  if(url.pathname==='/api/workspaces/active')data={workspace};
+  if(url.pathname==='/api/agents')data={agents:[{id:'jarvis',name:'Jarvis',generation:'one'}]};
+  if(url.pathname==='/api/health')data={readiness:{gateway:{required:true,ready:!gatewayFailure}}};
+  if(url.pathname.endsWith('/chat/readiness'))data={available:ready,error:'no openai credential is available',resolvedAgent:{provider:'openai'}};
+  if(url.pathname==='/api/system/openclaw-plugins')data={canManage:true,plugins:empty?[]:[{id:'example',name:'Example runtime plugin with a long descriptive name',version:'2026.9.5',origin:'bundled',enabled,status:enabled?'loaded':'disabled'}],history:mutations?[{id:'change1',pluginId:'example',enabled,at:'2026-09-21',status:'saved'}]:[]};
+  if(url.pathname==='/api/system/openclaw-plugins/example'){mutations++;enabled=route.request().postDataJSON().enabled;data={changed:true,restartRequired:true};}
+  if(url.pathname==='/api/integrations/config')data={};
+  if(url.pathname==='/api/integrations/runtimes')data={runtimes:[]};
+  if(url.pathname==='/api/models')data={models:[]};
+  await route.fulfill({contentType:'application/json',body:JSON.stringify(data)});
+ });
+ await page.goto(`${process.env.CLAWMAX_UI_TEST_URL || 'http://127.0.0.1:5186'}/${path.basename(fixtureDir)}/index.html`);
+ const badge=page.getByRole('button',{name:/Jarvis: needs attention/});
+ await badge.waitFor(); await badge.click();
+ await page.getByRole('button',{name:'Configure credentials',exact:true}).click();
+ await page.locator('#byok-openai').waitFor();
+ assert(await page.getByText('⚠ Needs attention',{exact:true}).count()>0);
+ await page.screenshot({path:path.join(screenshots, 'byok-desktop.png')});
+ await page.keyboard.press('Escape');
+ // Close any remaining dialog via its documented close button.
+ const close=page.getByRole('button',{name:'Close',exact:true}); if(await close.count())await close.click();
+ await page.getByRole('tab',{name:'OpenClaw Plugins',exact:true}).click();
+ await page.getByRole('button',{name:/Enable Example/}).click();
+ assert.equal(mutations,0); await page.getByRole('button',{name:'Confirm change',exact:true}).click();
+ await page.getByText('configuration saved; verify runtime status',{exact:false}).waitFor();
+ assert.equal(mutations,1);
+ await page.screenshot({path:path.join(screenshots, 'plugins-desktop.png')});
+ await page.setViewportSize({width:390,height:844});
+ await page.getByRole('button',{name:/Disable Example/}).click();
+ await page.screenshot({path:path.join(screenshots, 'plugins-mobile.png')});
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
+ await page.getByRole('button',{name:'Cancel',exact:true}).click();
+ ready=true;await page.evaluate(()=>window.dispatchEvent(new Event('integrations-saved')));
+ await badge.waitFor({state:'detached'});
+ assert.equal(await page.getByRole('button',{name:/BYOK.*Needs attention/}).count(),0);
+ gatewayFailure=true;await page.evaluate(()=>window.dispatchEvent(new Event('integrations-saved')));
+ await page.getByRole('button',{name:/Jarvis: needs attention. The gateway runtime/}).waitFor();
+ gatewayFailure=false;
+ listFailure=true; await page.evaluate(()=>window.dispatchEvent(new Event('integrations-saved')));
+ await page.getByRole('button',{name:/Workspace: needs attention/}).waitFor();
+ await page.getByRole('button',{name:/BYOK.*Needs attention/}).waitFor();
+ inventoryFailure=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();
+ await page.getByRole('alert').waitFor();
+ assert(await page.getByRole('button',{name:/Disable Example/}).isDisabled());
+ inventoryFailure=false;empty=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();
+ await page.getByText('No installed plugins reported by OpenClaw.').waitFor();
+ await page.evaluate(()=>document.documentElement.classList.add('dark'));
+ await page.screenshot({path:path.join(screenshots, 'plugins-empty-mobile-dark.png')});
+ listFailure=false;ready=false;await page.evaluate(()=>window.dispatchEvent(new Event('integrations-saved')));
+ await badge.waitFor();if(await badge.getAttribute('aria-expanded')!=='true')await badge.click();await page.getByRole('button',{name:'Configure credentials',exact:true}).click();
+ await page.locator('#byok-openai').waitFor();
+ assert(await page.getByRole('button',{name:'Save & Close',exact:true}).isVisible());
+ await page.screenshot({path:path.join(screenshots, 'byok-mobile-dark.png')});
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
+ assert.deepEqual(errors,[]);
+ console.log('Browser checks passed: warnings, BYOK provider targeting, refresh clearing, plugin confirmation/history, mobile overflow.');
+ console.log(`Screenshots: ${screenshots}`);
+})().catch(error=>{console.error(error);process.exitCode=1}).finally(async()=>{ if(browser) await browser.close(); fs.rmSync(fixtureDir,{recursive:true,force:true}); });
