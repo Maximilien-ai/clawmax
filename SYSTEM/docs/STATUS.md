@@ -6,7 +6,7 @@
 
 **Last Updated**: September 22, 2026
 
-**Status**: `v1.9.9` remains stable. Active development is preparing RC83 with OpenClaw `v2026.9.5` and Node `24.19.0`. RC82 public and combined image checks passed; MBP14/test10 deployment and acceptance remain unresolved. RC83 adds isolated-runtime repairs, stronger tests and a 75% branch-coverage target; its full validation and images are pending. Public Template Workflow graph execution remains a separate gate. See [current evidence](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
+**Status**: `v1.9.9` remains stable. Active development is preparing RC83 with OpenClaw `v2026.9.5` and Node `24.19.0`. RC82 public and combined image checks passed; MBP14/test10 deployment and acceptance remain unresolved. RC83's full source validation passed 485/485 checks with 75.59% branch coverage; candidate image builds remain pending. Public Template Workflow graph execution remains a separate gate. See [current evidence](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
 
 ## Earlier release evidence (retained history)
 

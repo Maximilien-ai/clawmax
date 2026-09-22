@@ -6,7 +6,7 @@ All notable changes to ClawMax are documented here.
 
 ### RC83 preparation
 - Canonicalize isolated runtime paths for native SQLite session admission, keep test workspace/profile state disposable, and separate unit-test environment overrides from live execution.
-- Expand branch coverage for provider validation, metering isolation/merges, generated workflow normalization and Builder catalog/fallback handling; the full 75% release gate is pending.
+- Expand branch coverage for provider validation, metering isolation/merges, generated workflow normalization and Builder catalog/fallback handling: the complete integration/validation run passed 485/485 checks with 75.59% branch coverage.
 - Make Builder routing tests independent of the active workspace and reject partial-success test runs with nonzero exit status.
 - RC82 public and matching combined images passed their engineering checks; installed-instance rollout and broader acceptance remain separate gates. See the [RC83 checkpoint](SYSTEM/docs/planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
 

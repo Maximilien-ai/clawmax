@@ -1,6 +1,6 @@
 # RC83 coverage and isolated-runtime release gate
 
-Status: candidate preparation; full integration/validation/coverage is running.
+Status: source validation passed: 485/485 checks, 75.59% branch coverage.
 RC83 images have not been built. Stable remains `v1.9.9`. No installed instance
 rollout is authorized by this preparation checkpoint.
 
@@ -34,12 +34,15 @@ rollout is authorized by this preparation checkpoint.
   73.17% (14,431/19,721). The Builder wrapper limitation above applies to this
   historical result.
 - Focused provider validation: 125 tests passed; metering: 47; generator
-  internal edges: 19; Builder routing: 125. TypeScript no-emit passed.
+  internal edges: 19; Builder routing: 127 in the full run. TypeScript no-emit passed.
 - Merging retained baseline coverage with focused reports estimates 75.66%
   branches (15,284/20,200). This is planning evidence, not the release gate.
   V8 branch totals change as previously unexecuted paths are discovered.
-- Full gate started September 22, expected duration approximately 20–30
-  minutes. Command:
+- Full gate passed September 22: 485 passed, zero failed; branches 75.59%
+  (15,229/20,146), statements/lines 83.45% (54,426/65,213), functions 92.31%
+  (2,211/2,395). The live integration section took 46 seconds: agent chat
+  7,871 ms and kickoff completion 24,559 ms. The complete run took roughly
+  16 minutes versus the pre-run 20–30 minute budget. Command:
 
   ```sh
   DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 \
@@ -48,11 +51,22 @@ rollout is authorized by this preparation checkpoint.
 
   No `gpt-4o-mini` performance override: the pinned runtime rejected that
   model in the earlier probe. Live execution uses the server-selected default.
-- [Source CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35783664745)
-  is pending at this checkpoint.
-- Before image dispatch: require full-suite success and branch coverage at
-  least 75%, align the ignored local version to `2.0.0-test-rc83`, restart the
-  local dashboard, and verify visible version plus `/api/system`.
+- Local log: `/private/tmp/clawmax-rc83-validation.log`; machine-readable
+  coverage: `SYSTEM/dashboard/coverage/coverage-summary.json`. Disposable
+  runtime artifacts end in `clawmax-test-runtime-jgopPw`; cleanup verified no
+  system-test agents, workflows, communities or groups leaked into its default
+  workspace. Optional checks requiring pre-existing agents/channels remain
+  skipped in the clean test workspace, including the global engineer RPC check.
+- [Source CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35785317672)
+  was still running at the local gate's completion; later documentation pushes
+  may supersede it. Verify CI for the exact candidate ref before dispatch.
+- Ignored local `.env` now names `2.0.0-test-rc83`. A restarted local dashboard
+  using the disposable test state reported that exact version in `/api/system`
+  and the visible UI (headless Chrome screenshot:
+  `/private/tmp/clawmax-rc83-version.png`). The in-app browser execution tool was
+  unavailable, so the visual check used a separate temporary Chrome profile.
+  No installed gateway was started or changed. The full-suite, >=75% branch
+  and local version-identity gates are satisfied.
 - Dispatch public `Test Container Image` from the candidate ref first, then
   matching combined validation with both tags `2.0.0-test-rc83`. RC82 observed
   durations: public build/lifecycle approximately 43 minutes; combined
