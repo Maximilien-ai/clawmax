@@ -368,6 +368,7 @@ start_gateway_run() {
   echo "[entrypoint] starting gateway on port ${port}"
   openclaw gateway run --port "$port" >>"$CLAWMAX_GATEWAY_LOG" 2>&1 &
   gateway_pid=$!
+  gateway_owned=true
   sleep 2
   if kill -0 "$gateway_pid" 2>/dev/null; then
     echo "[entrypoint] gateway started (pid ${gateway_pid})"
@@ -447,8 +448,15 @@ gateway_watchdog_tick() {
 start_gateway_watchdog() {
   port="$1"
   (
+    # The initial gateway belongs to the parent supervisor. Only forward to a
+    # replacement that this watchdog actually spawned, avoiding double TERM.
+    gateway_owned=false
+    trap 'if [ -n "${watchdog_sleep_pid:-}" ]; then kill "$watchdog_sleep_pid" 2>/dev/null || true; wait "$watchdog_sleep_pid" 2>/dev/null || true; fi; if [ "${gateway_owned:-false}" = true ] && [ -n "${gateway_pid:-}" ]; then kill "$gateway_pid" 2>/dev/null || true; wait "$gateway_pid" 2>/dev/null || true; fi; exit 0' TERM INT
     while true; do
-      sleep "$CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC"
+      sleep "$CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC" &
+      watchdog_sleep_pid=$!
+      wait "$watchdog_sleep_pid" || true
+      watchdog_sleep_pid=''
       # A failed recovery must not terminate this supervisor under set -e.
       # Keep retrying on subsequent ticks, without overlapping attempts.
       if ! gateway_watchdog_tick "$port"; then
@@ -456,16 +464,29 @@ start_gateway_watchdog() {
       fi
     done
   ) &
+  watchdog_pid=$!
+}
+
+shutdown_children() {
+  # Do not let the init process exit (and the kernel kill remaining children)
+  # before OpenClaw has released its persisted owner lease.
+  trap '' TERM INT
+  for managed_pid in "${watchdog_pid:-}" "${dashboard_pid:-}" "${gateway_pid:-}"; do
+    if [ -n "$managed_pid" ]; then kill "$managed_pid" 2>/dev/null || true; fi
+  done
+  for managed_pid in "${watchdog_pid:-}" "${dashboard_pid:-}" "${gateway_pid:-}"; do
+    if [ -n "$managed_pid" ]; then wait "$managed_pid" 2>/dev/null || true; fi
+  done
 }
 
 main() {
-  # The dashboard replaces this shell while gateway/watchdog children outlive
-  # it. Node does not reap adopted children: a dead gateway can then retain its
-  # PID and block OpenClaw's state-directory ownership check forever. Re-exec
-  # here so downstream images that wrap this entrypoint also get an init.
+  # Keep an init for adopted children and a supervisor that waits for every
+  # owned service's graceful shutdown, including gateway lease release.
   if [ "$$" -eq 1 ]; then
-    exec /usr/bin/tini -g -- "$0" "$@"
+    exec /usr/bin/tini -- "$0" "$@"
   fi
+  trap 'shutdown_children; exit 143' TERM
+  trap 'shutdown_children; exit 130' INT
   ensure_runtime_dirs
   log_runtime_version_diagnostics
   verify_runtime_version_matches_image
@@ -488,7 +509,12 @@ main() {
     start_gateway_watchdog "$gateway_port"
   fi
 
-  exec "$@"
+  "$@" &
+  dashboard_pid=$!
+  dashboard_status=0
+  wait "$dashboard_pid" || dashboard_status=$?
+  shutdown_children
+  return "$dashboard_status"
 }
 
 if [ "${CLAWMAX_ENTRYPOINT_TEST_MODE:-false}" = "true" ]; then

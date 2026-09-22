@@ -485,4 +485,5 @@ fi
   [ "$recovery_attempts" -eq 1 ]
 )
 
+node --test "$ROOT_DIR/dashboard/scripts/entrypoint-shutdown.test.cjs"
 echo "docker-entrypoint gateway tests passed"
