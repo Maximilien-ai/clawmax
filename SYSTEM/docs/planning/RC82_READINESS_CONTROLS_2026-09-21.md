@@ -80,3 +80,51 @@ installed instance. Non-macOS runs can use Playwright's installed Chromium.
 - Keep schedules disabled, preserve unrelated resources, and do not distribute
   based only on health or source CI. The RC81 MBP14 startup overlay is not part
   of the published RC81 image.
+
+## Native runtime checkpoint — September 21, evening PDT
+
+Candidate source: `ab390e01`. The bounded chat admission recovery retries only
+the explicit pre-dispatch `Gateway request entry is closed` rejection, once,
+after readiness and current authority checks. Partial output, persisted replies,
+timeouts and ambiguous disconnections are not replayed. Focused recovery,
+gateway RPC, chat-route tests and TypeScript passed before that commit.
+
+The isolated native acceptance runner reported all assertions passed using
+OpenClaw 2026.9.5 and `ollama/qwen2.5:latest`:
+
+- Template staging, replay, journal recovery, two-agent rollback, stale-revision
+  rejection and lost-response cleanup recovery.
+- Non-mutating cleanup plans, exact revision cleanup after catalog deletion,
+  repeated cleanup and preservation of unrelated registrations.
+- Nonempty native chat and durable reply replay.
+- PKCE-authenticated public CLI router chat, correlated events and rejection of
+  reused codes, invalid sessions, wrong workspace and wrong actor.
+- Two-agent Group communication: four edge-directed turns, exact reply handoffs,
+  turn-limit termination and durable replay.
+
+The runner exited and its log contains no cleanup or host-registry assertion
+failure. It uses disposable state and stops only its own gateway process group.
+This is not installed-CLI stream acceptance, full workflow execution, a
+process-crash test, or acceptance of an upgraded MBP14/test10 image.
+
+Reproduce from `SYSTEM/dashboard` with a prepared 2026.9.5 executable:
+
+```sh
+npx ts-node scripts/test-template-isolated-gateway.ts /absolute/path/to/openclaw --local-model ollama/qwen2.5:latest
+```
+
+The local-model harness has a seven-minute bound. CI normally takes about
+27 minutes; at this checkpoint it is still running:
+
+- [Source CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35685673635)
+- [Code scanning](https://github.com/Maximilien-ai/clawmax/actions/runs/35685674046)
+
+The existing full-suite wrapper can restart the host gateway and touches a
+HOME-based workspace registry. Setting only `OPENCLAW_STATE_DIR` does not isolate
+that registry. Run the remaining complete integration/validation/coverage gate
+in an isolated environment; do not restart MBP14 merely to run source tests.
+
+CLI action remains necessary: the inspected CLI main still uses a 15-second
+HTTP client for `StreamChat`, despite the chat command's longer context. See the
+[CLI handoff](RC81_MBP14_RECOVERY_2026-09-21.md#cli-handoff--remaining-gates).
+No RC82 image has been dispatched and no tester rollout is approved.
