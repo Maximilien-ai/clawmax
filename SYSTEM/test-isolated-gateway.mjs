@@ -38,12 +38,17 @@ async function main() {
   const config = path.join(state, 'openclaw.json')
   const env = { ...process.env, OPENCLAW_BIN: binary, OPENCLAW_STATE_DIR: state,
     OPENCLAW_CONFIG_PATH: config, OPENCLAW_WORKSPACE: workspace,
-    CLAWMAX_TEST_WORKSPACE: workspace, CLAWMAX_WORKSPACE_REGISTRY_PATH: path.join(root, 'registry.json'),
+    CLAWMAX_WORKSPACE_REGISTRY_PATH: path.join(root, 'registry.json'),
     OPENCLAW_GATEWAY_TOKEN: token, OPENCLAW_GATEWAY_PORT: String(port),
     OPENCLAW_NO_RESPAWN: '1', OPENCLAW_SKIP_CHANNELS: '1', OPENCLAW_DISABLE_BONJOUR: '1',
     CLAWMAX_TEST_ISOLATED_GATEWAY: 'true', CLAWMAX_TEST_KEEP_SERVER: 'false',
     CLAWMAX_TEST_REUSE_SERVER: 'false', CLAWMAX_SKIP_GATEWAY_BOOTSTRAP: 'true' }
   delete env.OPENCLAW_PROFILE
+  // This override bypasses workspace selection entirely; never give it to a
+  // live multi-workspace server or integration runner.
+  delete env.CLAWMAX_TEST_WORKSPACE
+  const packageRoot = path.resolve(path.dirname(binary), '../src')
+  if (fs.existsSync(path.join(packageRoot, 'package.json'))) env.OPENCLAW_PACKAGE_ROOT = packageRoot
   fs.writeFileSync(config, JSON.stringify({
     gateway: { mode: 'local', port, bind: 'loopback', auth: { mode: 'token', token }, controlUi: { enabled: false } },
     logging: { file: path.join(root, 'gateway.log') },

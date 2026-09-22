@@ -769,6 +769,13 @@ test_validation() {
 }
 
 # Section 0: TypeScript & Unit Tests
+. "$SYSTEM_DIR/test-unit-environment.sh"
+clawmax_enter_unit_environment
+if bash "$SYSTEM_DIR/test-unit-environment.test.sh"; then
+  pass "Unit/live environment separation"
+else
+  fail "Unit/live environment separation"
+fi
 echo ""
 echo "========================================="
 echo "Section 0: TypeScript & Skills Tests"
@@ -3793,6 +3800,7 @@ fi
 # Section 1: Health & System APIs
 # =========================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+clawmax_leave_unit_environment
 echo "1. Health & System APIs"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 

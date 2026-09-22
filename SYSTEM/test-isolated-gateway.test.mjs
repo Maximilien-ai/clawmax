@@ -8,13 +8,17 @@ import { fileURLToPath } from 'node:url'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-gateway-runner-test-'))
 const script = fileURLToPath(new URL('./test-isolated-gateway.mjs', import.meta.url))
-const binary = path.join(root, 'openclaw')
+fs.mkdirSync(path.join(root, 'bin'))
+fs.mkdirSync(path.join(root, 'src'))
+fs.writeFileSync(path.join(root, 'src/package.json'), '{}')
+const binary = path.join(root, 'bin/openclaw')
 fs.writeFileSync(binary, `#!/usr/bin/env node
 const fs = require('node:fs');
 if (process.argv[3] === 'call') process.exit(0);
 if (process.argv[3] !== 'run') process.exit(7);
 const config = JSON.parse(fs.readFileSync(process.env.OPENCLAW_CONFIG_PATH));
-if (!process.env.CLAWMAX_WORKSPACE_REGISTRY_PATH || config.cron.enabled !== false) process.exit(8);
+if (!process.env.CLAWMAX_WORKSPACE_REGISTRY_PATH || config.cron.enabled !== false || process.env.CLAWMAX_TEST_WORKSPACE) process.exit(8);
+if (process.env.OPENCLAW_PACKAGE_ROOT !== require('node:path').resolve(require('node:path').dirname(process.argv[1]), '../src')) process.exit(10);
 require('node:http').createServer((req,res) => res.end('{}')).listen(config.gateway.port, '127.0.0.1');
 `, { mode: 0o700 })
 async function run(extra = {}) {
@@ -30,7 +34,7 @@ async function run(extra = {}) {
   return { code, output }
 }
 try {
-  assert.equal((await run()).code, 0)
+  assert.equal((await run({ CLAWMAX_TEST_WORKSPACE: '/must-not-leak' })).code, 0)
   const occupied = net.createServer()
   await new Promise(resolve => occupied.listen(0, '127.0.0.1', resolve))
   try { assert.notEqual((await run({ DASHBOARD_PORT: String(occupied.address().port) })).code, 0) }
