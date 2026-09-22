@@ -2895,6 +2895,12 @@ else
 fi
 
 echo -e "${YELLOW}→ Running OpenClaw target prep shell tests...${NC}"
+if node "$SYSTEM_DIR/test-isolated-gateway.test.mjs" > /tmp/clawmax-isolated-gateway.out 2>&1; then
+  pass "Isolated gateway startup and cleanup tests"
+else
+  cat /tmp/clawmax-isolated-gateway.out
+  fail "Isolated gateway startup and cleanup tests"
+fi
 bash "$SYSTEM_DIR/prepare-openclaw-target.test.sh" > /tmp/clawmax-openclaw-target-shell.out 2>&1 || true
 if grep -q "PASS: prepare-openclaw-target.sh uses the branch target Node/PNPM OpenClaw build flow" /tmp/clawmax-openclaw-target-shell.out; then
   pass "OpenClaw target prep shell tests"

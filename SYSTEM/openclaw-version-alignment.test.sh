@@ -44,14 +44,15 @@ grep -Fq 'prepare-openclaw-target.sh" --print-bin' "$test_wrapper" \
   || fail "expected integration wrapper to prepare the branch OpenClaw target"
 grep -Fq 'Integration tests require OpenClaw' "$test_wrapper" \
   || fail "expected integration wrapper to reject a mismatched OpenClaw binary"
-grep -Fq '"$OPENCLAW_BIN" gateway restart --force' "$test_wrapper" \
-  || fail "expected integration wrapper to force-restart the isolated targeted OpenClaw gateway"
-grep -Fq 'Gateway version: $expected_version' "$test_wrapper" \
-  || fail "expected integration wrapper to verify the targeted OpenClaw gateway version"
-grep -Fq 'Connectivity probe: ok' "$test_wrapper" \
-  || fail "expected integration wrapper to require a responsive targeted OpenClaw gateway"
-grep -Fq 'Waiting for targeted OpenClaw gateway readiness' "$test_wrapper" \
-  || fail "expected integration wrapper to tolerate bounded OpenClaw cold-start latency"
+grep -Fq 'test-isolated-gateway.mjs' "$test_wrapper" \
+  || fail "expected integration wrapper to own a dedicated test gateway"
+grep -Fq "'gateway', 'call', 'health'" "$repo_root/SYSTEM/test-isolated-gateway.mjs" \
+  || fail "expected authenticated foreground gateway readiness"
+grep -Fq 'Date.now() + 120000' "$repo_root/SYSTEM/test-isolated-gateway.mjs" \
+  || fail "expected bounded foreground gateway readiness"
+if grep -q 'gateway restart' "$test_wrapper"; then
+  fail "test wrapper must not restart an installed gateway"
+fi
 grep -Fq '. "$SCRIPT_DIR/openclaw-version.sh"' "$start_script" \
   || fail "expected local development to source the branch OpenClaw target"
 grep -Fq 'prepare-openclaw-target.sh" --print-bin' "$start_script" \
