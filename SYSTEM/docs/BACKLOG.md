@@ -9,11 +9,19 @@
   let an operator select multiple agents on the Agents page and apply the same
   budget limit in one action. Team testing currently requires editing each
   agent individually. Show the selected count and proposed limit before
-  applying, preserve unselected agents, support clearing selected limits,
+  applying. Make the current workspace budget explicit (including unset or
+  unlimited state), and show each selected agent's current budget limit and
+  current spend when available so the operator can make an informed decision.
+  Label the spending period and data freshness; distinguish unavailable or
+  stale spend from zero. Show workspace spend/remaining budget when available
+  and explain the relationship between workspace and per-agent limits without
+  implying that per-agent limits reserve or add funds to the workspace budget.
+  Preserve unselected agents, support clearing selected limits,
   and report per-agent success/failure with retry of failed updates. Reuse
   existing per-agent budget semantics and authorization; do not introduce a
   pooled team budget. Cover input validation, mixed existing limits, partial
-  failure, persistence and desktop/mobile selection flows. Keep this out of
+  failure, persistence, budget/spend context, missing/stale data, and
+  desktop/mobile selection flows. Keep this out of
   RC83's validation-and-coverage scope.
 
 - [ ] **RC83 coverage and image gate** — verify at least 75% branch coverage
