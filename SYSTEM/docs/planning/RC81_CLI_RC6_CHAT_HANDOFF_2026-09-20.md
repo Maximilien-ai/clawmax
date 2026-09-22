@@ -754,3 +754,25 @@ forced-crash acceptance, then 7–10 minutes for combined validation. The redund
 CI triggered solely by the history tag was cancelled deliberately. No deployed
 instance was changed; final combined-image readiness, real Template Workflow
 execution, and MBP14/test10 acceptance still govern distribution.
+
+## Packaged public RC81 green; combined build started
+
+Verified successful final tag CI (`35672622535`) and the entire public pipeline
+(`35672622489`): amd64/arm64 builds, manifest publication, registry smoke, and
+native lifecycle acceptance **without** an entrypoint overlay all passed.
+
+Published `ghcr.io/maximilien-ai/clawmax-dashboard:2.0.0-test-rc81`:
+
+- Multi-architecture manifest: `sha256:5f76cd09ac4f35b5db3e5a98ee7af392b9634236aaeadcc0d401c80bfde538b0`.
+- amd64: `sha256:f68077bc3cea4b89f0bfde1f07c5489eeb9f4d3fba900bc7ccbfa758327bbef8`.
+- arm64: `sha256:c4d406f773015d54241d2471d1c15547b525db23bb9903cb59a3c6af25551ec0`.
+- Graceful replacement health: 23s amd64 / 21s arm64. Forced replacement:
+  289s / 294s; gateway readiness was 290s / 294s. These crash-recovery times
+  remain a material availability limitation, not continuous uptime.
+
+The local queue was still between sparse status checks. Stopped only that
+watcher (exit 143, so its chained dispatch could not run) and explicitly started
+the matching combined build with `base_tag=image_tag=2.0.0-test-rc81`:
+https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/35675789739.
+Expected duration remains 7–10 minutes. Combined validation/smoke is pending;
+do not call the combined candidate ready yet. MBP14/test10 were not changed.
