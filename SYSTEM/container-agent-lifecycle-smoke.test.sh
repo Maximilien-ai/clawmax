@@ -8,6 +8,7 @@ image_workflow="$script_dir/../.github/workflows/test-container-image.yml"
 assertions=0
 
 bash -n "$smoke"
+test -x "$script_dir/dashboard/docker-entrypoint.sh"
 assertions=$((assertions + 1))
 
 grep -Fq 'local health_timeout="${1:-40}"' "$smoke"
