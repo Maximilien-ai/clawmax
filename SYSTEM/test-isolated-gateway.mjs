@@ -39,6 +39,7 @@ async function main() {
   const env = { ...process.env, OPENCLAW_BIN: binary, OPENCLAW_STATE_DIR: state,
     OPENCLAW_CONFIG_PATH: config, OPENCLAW_WORKSPACE: workspace,
     CLAWMAX_WORKSPACE_REGISTRY_PATH: path.join(root, 'registry.json'),
+    CLAWMAX_SYSTEM_TEST_WORKSPACE: path.join(root, 'system-test-workspace'),
     OPENCLAW_GATEWAY_TOKEN: token, OPENCLAW_GATEWAY_PORT: String(port),
     OPENCLAW_NO_RESPAWN: '1', OPENCLAW_SKIP_CHANNELS: '1', OPENCLAW_DISABLE_BONJOUR: '1',
     CLAWMAX_TEST_ISOLATED_GATEWAY: 'true', CLAWMAX_TEST_KEEP_SERVER: 'false',

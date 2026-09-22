@@ -5286,7 +5286,7 @@ INTEGRATION_START=$(date +%s)
 # Step 1: Create/activate system-test workspace
 echo -e "${YELLOW}→ Setting up system-test workspace...${NC}"
 SYSTEM_TEST_WS_NAME="ClawMax System Test"
-SYSTEM_TEST_WS_PATH="${HOME}/.openclaw/workspaces/clawmax-system-test"
+SYSTEM_TEST_WS_PATH="${CLAWMAX_SYSTEM_TEST_WORKSPACE:-${HOME}/.openclaw/workspaces/clawmax-system-test}"
 
 workspaces_json=$(apicurl "$API_BASE/api/workspaces")
 SYSTEM_TEST_WS=$(echo "$workspaces_json" | jq -r \
