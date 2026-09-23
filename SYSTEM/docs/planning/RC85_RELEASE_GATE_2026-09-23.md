@@ -26,10 +26,15 @@ Priorities remain stability, simplification, then consistency.
   partial failure, provider readiness/discovery, generic plugin contracts and
   persistence, and workspace result presentation. Focused tests and TypeScript
   passed.
-- Validation source: `2317a379331f17f05d30037a6b5825b78aef7b3d`.
-- Clean integration/validation/coverage rerun: pending. Require at least 77%
-  branch coverage; the incremental estimate is not release evidence.
-- [Candidate source CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35914749999).
+- Validation source: `a6f23e9210dea81c749bdf9ab224be8eb593297d`.
+- Clean integration/validation/coverage rerun: **485 passed, zero failed**.
+  Branches **77.19% (15987/20710)**; statements/lines 84.17%
+  (55034/65382); functions 92.95% (2244/2414). This exceeds the 77% gate.
+  Command: `DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/test-with-server.sh integration --with-validation --coverage`.
+  Local log: `/private/tmp/clawmax-rc85-final-gate.log`.
+- Local ignored environment aligned to `2.0.0-test-rc85`; restarted dashboard
+  verified through `/api/system` and a read-only browser version check.
+- [Candidate source CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35917231768).
 - RC85 tag, public image and matching combined image: not dispatched yet.
 - Previous observed timing: approximately 8 minutes for local coverage, 50
   minutes for public images, and 13 minutes for the combined image.
