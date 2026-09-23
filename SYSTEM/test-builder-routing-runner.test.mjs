@@ -24,6 +24,29 @@ try {
     assert.doesNotMatch(result.stdout, exitCode === 0 ? /RESULT_FAIL/ : /RESULT_PASS/)
   }
   console.log('Builder routing runner: 3 exit-status cases passed')
+  const schemaStart = source.indexOf('if npx ts-node --transpileOnly server/lib/plugin-system-schema-edges.test.ts')
+  assert(schemaStart >= 0, 'Plugin schema results must require a successful exit status')
+  const schemaEnd = source.indexOf('\nfi', schemaStart)
+  assert(schemaEnd > schemaStart)
+  const schemaBlock = source.slice(schemaStart, schemaEnd + 3).replaceAll('/tmp/clawmax-plugin-schema-edges.out', path.join(directory, 'schema.out'))
+  for (const [exitCode, output, succeeds] of [
+    [0, 'plugin-system-schema-edges.test.ts: ok (84 checks)', true],
+    [0, 'plugin-system-schema-edges.test.ts: ok (100 checks)', true],
+    [0, 'incomplete output', false],
+    [1, 'plugin-system-schema-edges.test.ts: ok (84 checks)', false],
+    [137, 'plugin-system-schema-edges.test.ts: ok (84 checks)', false],
+  ]) {
+    const result = spawnSync('bash', ['-c', `
+      npx() { echo '${output}'; return ${exitCode}; }
+      pass() { echo 'RESULT_PASS'; }
+      fail() { echo 'RESULT_FAIL'; }
+      ${schemaBlock}
+    `], { encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, succeeds ? /RESULT_PASS/ : /RESULT_FAIL/)
+    assert.doesNotMatch(result.stdout, succeeds ? /RESULT_FAIL/ : /RESULT_PASS/)
+  }
+  console.log('Plugin schema runner: 5 count/exit-status cases passed')
 } finally {
   fs.rmSync(directory, { recursive: true, force: true })
 }
