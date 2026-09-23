@@ -1,12 +1,18 @@
 # ClawMax Documentation
 
-> Last updated: August 31, 2026
+> Last updated: September 22, 2026
+
+Active development: RC83 preparation / OpenClaw `2026.9.5`; stable remains
+`v1.9.9`. RC82 image checks passed, but installed-instance acceptance is still
+pending. Start with the [current release gate](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
 
 ## Active Documents
 
 | Document | Description |
 |----------|-------------|
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
+| [planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md) | RC83 branch coverage, isolated runtime validation, image and acceptance gates |
+| [planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md](planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md) | Published RC82 evidence and unresolved installed-instance deployment blockers |
 | [BACKLOG.md](BACKLOG.md) | Prioritized backlog, sprint items, and roadmap |
 | [TESTING_GUIDE.md](TESTING_GUIDE.md) | Unit, API, integration, and manual testing guide |
 | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Active bugs and limitations |
@@ -25,6 +31,7 @@
 | [planning/RC80_DOCUMENT_PDF_2026-09-17.md](planning/RC80_DOCUMENT_PDF_2026-09-17.md) | RC80 source-only document PDF feature, validation evidence, limits, and pending release gates |
 | [planning/RC80_STABILITY_AND_TEMPLATE_GATE_2026-09-18.md](planning/RC80_STABILITY_AND_TEMPLATE_GATE_2026-09-18.md) | Template-first repeatable stability gates, executed foundation tests, and Dashboard/CLI contract gaps |
 | [planning/RC80_DASHBOARD_CLI_TEMPLATE_HANDOFF_2026-09-18.md](planning/RC80_DASHBOARD_CLI_TEMPLATE_HANDOFF_2026-09-18.md) | Tested portable Template catalog contract, real CLI interoperability, and remaining Dashboard lifecycle gates |
+| [planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md](planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md) | Public RC6 chat submission fix, isolated strict-client evidence, and remaining Workflow/runtime acceptance gates |
 | [planning/RC70_TEST10_RUNTIME_HANDOFF_2026-09-11.md](planning/RC70_TEST10_RUNTIME_HANDOFF_2026-09-11.md) | RC69 test10 evidence and RC70 gateway, lifecycle, storage, identity, and Operations API gates |
 | [planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md) | Active two-day target with separate AI Builder, Telegram, Discord, and Slack candidates plus 71.2% branch coverage |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |

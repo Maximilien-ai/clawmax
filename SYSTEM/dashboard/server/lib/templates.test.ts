@@ -1001,6 +1001,41 @@ test('upsertOpenClawAgentRegistration adopts existing agent ids into active work
   fs.rmSync(home, { recursive: true, force: true })
 })
 
+test('native template finalization respects explicit config and state paths', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-template-profile-'))
+  const keys = ['OPENCLAW_CONFIG_PATH', 'OPENCLAW_STATE_DIR', 'CLAWMAX_TEST_WORKSPACE']
+  const previous = keys.map(key => process.env[key])
+  const gateway = require('./gateway-rpc')
+  const originalRunning = gateway.isGatewayRunning
+  const originalClient = gateway.getGatewayClient
+  const configPath = path.join(root, 'selected.json')
+  const state = path.join(root, 'state')
+  const workspace = path.join(root, 'workspace')
+  const homeConfig = path.join(os.homedir(), '.openclaw', 'openclaw.json')
+  const before = fs.existsSync(homeConfig) ? fs.readFileSync(homeConfig) : null
+  process.env.OPENCLAW_CONFIG_PATH = configPath
+  process.env.OPENCLAW_STATE_DIR = state
+  process.env.CLAWMAX_TEST_WORKSPACE = workspace
+  fs.mkdirSync(workspace, { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [] } }))
+  gateway.isGatewayRunning = () => ({ running: true })
+  gateway.getGatewayClient = () => ({ upsertAgentsNative: async (agents: any[]) => {
+    assertEqual(agents[0].agentDir, path.join(state, 'agents/profile-check/agent'), 'Native lifecycle must use selected state')
+    fs.writeFileSync(configPath, JSON.stringify({ agents: { list: agents } }))
+  } })
+  try {
+    const result = await importAgentFromTemplate('briefing-writer-template', { newAgentId: 'profile-check', model: 'openai/gpt-4o-mini' })
+    assert(result.ok, result.error || 'Expected selected-profile registration to persist')
+    assert(fs.existsSync(path.join(state, 'agents/profile-check/config.yaml')), 'Runtime artifacts must stay in selected state')
+    assert(before === null ? !fs.existsSync(homeConfig) : before.equals(fs.readFileSync(homeConfig)), 'Installed config must remain unchanged')
+  } finally {
+    keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index] })
+    gateway.isGatewayRunning = originalRunning
+    gateway.getGatewayClient = originalClient
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('importAgentFromTemplate registers created agents into the active OpenClaw workspace config', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME

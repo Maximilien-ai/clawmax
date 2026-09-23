@@ -695,6 +695,51 @@ async function run() {
       'flushing inside resolveAttempt runs after callers have already computed completionText')
   })
 
+  await test('public transport revalidates authorization after the shared execution queue', async () => {
+    let allowed = true
+    let checks = 0
+    let runtimeCalls = 0
+    const overrides: Array<[string, Record<string, any>]> = [
+      [agentExecutionModulePath, {
+        resolveAgentExecutionConfig: () => ({ workspace: '/tmp/workspace/AGENTS/queued-cli-agent', runtime: 'droid' }),
+        deriveWorkspaceRootFromAgentWorkspace: () => '/tmp/workspace',
+      }],
+      [workspaceIntegrationsModulePath, { readWorkspaceIntegrationConfig: () => ({}), hasWorkspaceManagedPartnerSecrets: () => false }],
+      [safeEnvModulePath, { userExecutionEnv: () => ({}) }],
+      [skillsModulePath, { getAgentSkills: () => [] }],
+      [runtimeSessionsModulePath, { hasRuntimeSession: () => false }],
+      [agentRuntimeModulePath, {
+        buildRuntimePlan: () => ({ cliPath: '/fake/droid', args: [], streamsDeltas: false }),
+        executeAgentRuntimeTurn: async () => { runtimeCalls++; return { text: 'must not execute' } },
+      }],
+    ]
+    const enter = async (index: number): Promise<void> => {
+      if (index < overrides.length) return withModuleOverrides(overrides[index][0], overrides[index][1], () => enter(index + 1))
+      let release!: () => void
+      const held = new Promise<void>(resolve => { release = resolve })
+      const lock = require(agentExecutionModulePath).runExclusiveAgentExecution('queued-cli-agent', () => held)
+      const res = makeSseRes()
+      const events: string[] = []
+      try {
+        await require('./chat').executeAgentChat(makeReq({
+          params: { id: 'queued-cli-agent' }, body: { message: 'synthetic' }, on() {},
+        }), res, {
+          actor: { userId: 'test-cli-actor', login: 'test-cli-actor', email: null },
+          open() {}, send(type: string) { events.push(type) }, reject() { throw new Error('Unexpected preflight rejection') },
+          assertAuthorized() { checks++; if (!allowed) throw new Error('Access revoked while queued') },
+        })
+        assert.strictEqual(checks, 1)
+        allowed = false
+        release()
+        await Promise.all([lock, res.done])
+        assert.strictEqual(checks, 2)
+        assert.strictEqual(runtimeCalls, 0)
+        assert(events.includes('error'))
+      } finally { release(); await lock }
+    }
+    await enter(0)
+  })
+
   await test('the chat route arms no turn deadline, and a queued request still delivers its reply', async () => {
     // This used to assert that the route's watchdog armed once per request, at execution start
     // rather than request arrival, so a queued request did not have its budget eaten while

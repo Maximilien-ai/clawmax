@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import OpenClawPlugins from '../components/OpenClawPlugins'
 import { detectDoctorRuntimeSignal } from '../lib/doctorRuntimeSignals'
 import { detectLogRuntimeSignal } from '../lib/logRuntimeSignals'
 import {
@@ -49,7 +50,20 @@ function normalizeDoctorResults(data: any): DoctorResults {
   }
 }
 
-export default function Logs() {
+export default function System() {
+  const [tab, setTab] = useState<'logs' | 'plugins'>('logs')
+  return <div className="flex min-h-0 flex-1 flex-col">
+    <div role="tablist" aria-label="System" className="flex flex-wrap gap-2 border-b px-4 py-3 dark:border-gray-700">
+      {(['logs', 'plugins'] as const).map(id => <button key={id} type="button" role="tab" aria-selected={tab === id}
+        onClick={() => setTab(id)} className={`rounded px-3 py-2 text-sm ${tab === id ? 'bg-sky-100 text-sky-900 dark:bg-sky-900 dark:text-sky-100' : 'text-gray-600 dark:text-gray-300'}`}>
+        {id === 'logs' ? 'Logs' : 'OpenClaw Plugins'}
+      </button>)}
+    </div>
+    {tab === 'logs' ? <Logs /> : <OpenClawPlugins />}
+  </div>
+}
+
+function Logs() {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [paused, setPaused] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)

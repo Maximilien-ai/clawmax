@@ -2,6 +2,7 @@ import express, { NextFunction, Request, Response } from 'express'
 import { InstanceTemplateCatalog, validResourceId } from '../lib/instance-template-catalog'
 import { validatePortableTemplate } from '../lib/portable-template'
 import { PortableTemplateError } from '../lib/portable-template-zip'
+import { createInstanceTemplateLifecycleRouter, TemplateLifecycleResolver } from './instance-template-lifecycle'
 
 const apiVersion = 'clawmax.instance/v1'
 export const TEMPLATE_MEDIA_TYPE = 'application/vnd.clawmax.portable-template+zip'
@@ -10,6 +11,7 @@ interface Dependencies {
   authorize(req: Request, res: Response): TemplateWorkspaceContext | null
   dashboardVersion(): string
   openClawVersion(): string
+  lifecycle?: TemplateLifecycleResolver
 }
 function error(res: Response, req: Request, status: number, code: string, message: string) {
   return res.status(status).json({ apiVersion, kind: 'Error', requestId: res.locals.templateRequestId, error: { code, message, retryable: status === 503 || status === 429 } })
@@ -77,10 +79,14 @@ export function createInstanceTemplatesRouter(dependencies: Dependencies) {
     } finally { res.locals.releaseTemplateUpload?.() }
   }))
 
+  router.use(createInstanceTemplateLifecycleRouter(dependencies.lifecycle))
   router.use((failure: any, req: Request, res: Response, _next: NextFunction) => {
     res.locals.releaseTemplateUpload?.()
     if (failure instanceof PortableTemplateError) return error(res, req, failure.status, failure.code, failure.message)
-    if (failure?.type === 'entity.too.large') return error(res, req, 413, 'template_too_large', 'Template ZIP exceeds the upload limit')
+    if (failure?.type === 'entity.parse.failed') return error(res, req, 400, 'invalid_request', 'Invalid JSON request')
+    if (failure?.type === 'entity.too.large') return req.is(TEMPLATE_MEDIA_TYPE)
+      ? error(res, req, 413, 'template_too_large', 'Template ZIP exceeds the upload limit')
+      : error(res, req, 413, 'request_too_large', 'Request exceeds the size limit')
     if (failure?.status === 415) return error(res, req, 415, 'unsupported_media_type', 'Compressed HTTP request bodies are unsupported')
     return error(res, req, 503, 'template_store_unavailable', 'Template operation could not be completed')
   })

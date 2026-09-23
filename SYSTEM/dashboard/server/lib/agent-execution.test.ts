@@ -45,8 +45,24 @@ let testsPassed = 0
 let testsFailed = 0
 let testQueue: Promise<void> = Promise.resolve()
 
+// Legacy-profile tests must not silently change behavior when the operator
+// upgrades their globally installed OpenClaw. Native-store tests supply their
+// own explicit package fixtures below.
+const legacyPackage = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-legacy-package-'))
+fs.mkdirSync(path.join(legacyPackage, 'dist'))
+fs.writeFileSync(path.join(legacyPackage, 'package.json'), JSON.stringify({ type: 'module' }))
+fs.writeFileSync(path.join(legacyPackage, 'dist/store-fixture.js'), `
+  import fs from 'node:fs'
+  // Bundle marker: saveAuthProfileStore as s
+  export function s(store, targetDir) {
+    fs.writeFileSync(targetDir + '/auth-profiles.json', JSON.stringify(store))
+  }
+`)
+
 function test(name: string, fn: () => void | Promise<void>) {
   testQueue = testQueue.then(async () => {
+    const previousPackage = process.env.OPENCLAW_PACKAGE_ROOT
+    process.env.OPENCLAW_PACKAGE_ROOT = legacyPackage
     try {
       await fn()
       console.log(`${GREEN}✓${RESET} ${name}`)
@@ -55,6 +71,9 @@ function test(name: string, fn: () => void | Promise<void>) {
       console.log(`${RED}✗${RESET} ${name}`)
       console.error(`  Error: ${err.message}`)
       testsFailed++
+    } finally {
+      if (previousPackage === undefined) delete process.env.OPENCLAW_PACKAGE_ROOT
+      else process.env.OPENCLAW_PACKAGE_ROOT = previousPackage
     }
   })
 }
@@ -2595,6 +2614,7 @@ test('withTemporaryAgentAuthProfiles falls back when the selected OpenClaw lacks
 
 setTimeout(async () => {
   await testQueue
+  fs.rmSync(legacyPackage, { recursive: true, force: true })
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE

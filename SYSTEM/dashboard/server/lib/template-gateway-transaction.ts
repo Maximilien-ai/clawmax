@@ -64,6 +64,10 @@ export class TemplateGatewayTransaction {
   constructor(workspacePath: string, private transport: TemplateGatewayTransport) { this.root = path.resolve(workspacePath) }
   get workspacePath(): string { return this.root }
   private file() { return templateStoragePath(this.root, '.clawmax/template-gateway-transaction.json') }
+  private receipt(planDigest: string) {
+    if (!/^[a-f0-9]{64}$/.test(planDigest)) blocked('Invalid Template revision identity')
+    return templateStoragePath(this.root, `.clawmax/template-gateway-revisions/${planDigest}.json`)
+  }
   private validate(value: unknown): Journal {
     if (!validateJournal(value)) blocked('Invalid Template gateway transaction')
     for (const [id, entry] of Object.entries(value.entries)) {
@@ -71,8 +75,7 @@ export class TemplateGatewayTransaction {
     }
     return value
   }
-  private read(): Journal | null {
-    const file = this.file()
+  private read(file = this.file()): Journal | null {
     let fd: number | undefined
     try {
       fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK)
@@ -89,10 +92,30 @@ export class TemplateGatewayTransaction {
     busy.add(this.root)
     try { return await fn() } finally { busy.delete(this.root) }
   }
+  /** Read-only staging evidence, never an execution grant. Expected entries
+   * must be derived from the committed revision and server-owned authority,
+   * not supplied by a client. Callers must recheck that authority after await.
+   */
+  async verifyCommitted(planDigest: string, expectedEntries: Record<string, TemplateGatewayEntry>): Promise<{ hash: string }> {
+    return this.exclusively(async () => {
+      const expected = this.validate(structuredClone({ version: 1, planDigest, entries: expectedEntries }))
+      const receiptFile = this.receipt(planDigest)
+      if (this.read()) blocked('Recover the previous Template gateway transaction first')
+      const receipt = this.read(receiptFile)
+      if (!receipt || !isDeepStrictEqual(receipt, expected)) blocked('Template gateway revision receipt does not match committed authority')
+      let current: Awaited<ReturnType<TemplateGatewayTransport['snapshot']>>
+      try { current = await this.transport.snapshot() } catch { blocked('Template gateway ownership could not be verified') }
+      // A cleanup or receipt replacement across the RPC invalidates evidence.
+      if (this.read() || !isDeepStrictEqual(this.read(receiptFile), receipt)) blocked('Template gateway revision changed during verification')
+      if (!current || typeof current.hash !== 'string' || !current.hash || !current.entries || typeof current.entries !== 'object' || Array.isArray(current.entries) || Object.entries(expected.entries).some(([id, entry]) => !Object.hasOwn(current.entries, id) || !isDeepStrictEqual(current.entries[id], entry))) blocked('Template gateway registration does not match committed authority')
+      return { hash: current.hash }
+    })
+  }
   async register(planDigest: string, entries: Record<string, TemplateGatewayEntry>): Promise<void> {
     return this.exclusively(async () => {
       if (this.read()) blocked('Recover the previous Template gateway transaction first')
       const journal = this.validate(structuredClone({ version: 1, planDigest, entries }))
+      if (this.read(this.receipt(planDigest))) blocked('Template gateway revision already exists')
       const before = await this.transport.snapshot()
       if (Object.keys(journal.entries).some(id => Object.hasOwn(before.entries, id))) blocked('Template gateway resource already exists')
       writeAtomicJson(this.file(), journal)
@@ -105,10 +128,27 @@ export class TemplateGatewayTransaction {
       } catch { blocked('Template gateway registration requires recovery') }
     })
   }
+  /** Journal removal before the resource ledger commits cleanup. Until that
+   * commit, recovery retains the registrations; afterward it removes only the
+   * exact receipt entries. No credential or current catalog lookup is required.
+   */
+  async prepareCleanup(planDigest: string): Promise<void> {
+    return this.exclusively(async () => {
+      if (this.read()) blocked('Recover the previous Template gateway transaction first')
+      const receipt = this.read(this.receipt(planDigest))
+      if (!receipt || receipt.planDigest !== planDigest) blocked('Template gateway revision receipt is unavailable')
+      const current = await this.transport.snapshot()
+      if (Object.entries(receipt.entries).some(([id, entry]) => !isDeepStrictEqual(current.entries[id], entry))) blocked('Template gateway registration changed outside this transaction')
+      writeAtomicJson(this.file(), receipt)
+    })
+  }
   async recover(revisionCommitted: (planDigest: string) => boolean): Promise<'none' | 'committed' | 'rolled-back'> {
     return this.exclusively(async () => {
       const journal = this.read()
       if (!journal) return 'none'
+      const receiptFile = this.receipt(journal.planDigest)
+      const receipt = this.read(receiptFile)
+      if (receipt && !isDeepStrictEqual(receipt, journal)) blocked('Template gateway revision receipt changed')
       const committed = revisionCommitted(journal.planDigest)
       const current = await this.transport.snapshot()
       const removal: Record<string, null> = {}
@@ -126,6 +166,13 @@ export class TemplateGatewayTransaction {
           const after = await this.transport.snapshot()
           if (Object.keys(removal).some(id => Object.hasOwn(after.entries, id))) blocked('Template gateway rollback could not be verified')
         } catch { blocked('Template gateway rollback requires recovery') }
+      }
+      if (committed) {
+        if (!receipt) writeAtomicJson(receiptFile, journal)
+      } else if (receipt) {
+        fs.unlinkSync(receiptFile)
+        const receiptDirectory = fs.openSync(path.dirname(receiptFile), 'r')
+        try { fs.fsyncSync(receiptDirectory) } finally { fs.closeSync(receiptDirectory) }
       }
       fs.unlinkSync(this.file())
       const directory = fs.openSync(path.dirname(this.file()), 'r')

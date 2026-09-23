@@ -557,9 +557,9 @@ export function upsertAgentModelFitInIdentityContent(
   return joinIdentityRuntimeSection(nextRuntime, suffix)
 }
 
-export function resetAgentSessionsForModelChange(homeDir: string, agentId: string): { ok: boolean; error?: string } {
+export function resetAgentSessionsForModelChange(homeDir: string, agentId: string, stateRoot = path.join(homeDir, '.openclaw')): { ok: boolean; error?: string } {
   try {
-    const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
+    const sessionsDir = path.join(stateRoot, 'agents', agentId, 'sessions')
     if (!fs.existsSync(sessionsDir)) {
       return { ok: true }
     }

@@ -8,6 +8,7 @@ import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunn
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
+import { recoverRejectedGatewayChat } from '../lib/gateway-chat-recovery'
 import { checkBudgetBlock } from '../lib/budget'
 import { createStreamingWarningFilter, normalizeChatMessage, stripBenignChatRuntimeWarnings } from '../lib/chat-normalization'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
@@ -39,6 +40,7 @@ import { appendActivityExportEventsForActiveConsents } from '../lib/activity-exp
 import { appendBoundedOutput } from '../lib/stream-bounds'
 import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '../lib/process-tree'
 import { isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
+import { assertTemplateRuntimeAdmitted } from '../lib/template-runtime-admission'
 
 const router = Router()
 const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
@@ -760,6 +762,9 @@ router.post('/:id/chat/readiness', (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  try { assertTemplateRuntimeAdmitted(id) } catch {
+    return res.json({ available: false, code: 'template_runtime_unavailable', error: 'Template execution is unavailable pending runtime and authority admission' })
+  }
   if (rejectStaleChatAgent(req, res, id)) return
 
   const readiness = evaluateChatExecutionReadiness(id, byok)
@@ -774,7 +779,17 @@ router.post('/:id/chat/readiness', (req, res) => {
  * SSE proxy that spawns `openclaw agent` CLI to handle chat.
  * The CLI handles gateway auth, device identity, and agent routing.
  */
-router.post('/:id/chat', async (req, res) => {
+// Both public CLI and browser transports enter the same execution owner. The
+// CLI never calls a browser HTTP endpoint or supplies runtime credentials.
+export interface AgentChatTransport {
+  actor: { userId: string; login: string; email: string | null }
+  open(): void
+  send(type: string, data: any): void
+  reject(status: number, message: string): void
+  assertAuthorized(): void
+}
+
+export async function executeAgentChat(req: Request, res: Response, transport?: AgentChatTransport) {
   const { id } = req.params
   const { message, sessionId, byok } = req.body as {
     message?: string
@@ -783,25 +798,35 @@ router.post('/:id/chat', async (req, res) => {
     byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
 
-  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
-    return res.status(400).json({ error: 'Invalid agent id' })
-  }
+  const reject = (status: number, message: string) => transport
+    ? transport.reject(status, message)
+    : res.status(status).json({ error: message })
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) return reject(400, 'Invalid agent id')
 
   if (!message || typeof message !== 'string') {
-    return res.status(400).json({ error: 'message is required' })
+    return reject(400, 'message is required')
   }
-  if (rejectStaleChatAgent(req, res, id)) return
+  // Managed actions can bypass the agent queue. Reject before readiness,
+  // credential capabilities, session creation, or any action dispatch.
+  try { assertTemplateRuntimeAdmitted(id) } catch {
+    return reject(409, 'Template execution is unavailable pending runtime and authority admission')
+  }
+  if (transport) {
+    transport.assertAuthorized()
+    if (!isRequestedChatAgentCurrent(req, id)) return reject(410, 'Agent was deleted or replaced')
+  } else if (rejectStaleChatAgent(req, res, id)) return
 
   // Check workspace budget
   const budgetBlock = checkBudgetBlock({ operation: 'agent' })
   if (budgetBlock) {
-    return res.status(402).json({ error: budgetBlock })
+    return reject(402, budgetBlock)
   }
 
-  const session = getAuthenticatedSession(req)
+  const session = getAuthenticatedSession(req) || transport?.actor || null
   const readiness = evaluateChatExecutionReadiness(id, byok)
   if (!readiness.available) {
-    return res.status(400).json({ error: readiness.error })
+    return reject(400, readiness.error || 'Agent execution is unavailable')
   }
   const resolvedAgent = readiness.resolvedAgent
   const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
@@ -832,7 +857,8 @@ router.post('/:id/chat', async (req, res) => {
   console.log(`[Chat Route] Starting CLI chat for agent ${id}`)
 
   // Set up SSE headers
-  res.writeHead(200, {
+  if (transport) transport.open()
+  else res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
@@ -840,13 +866,14 @@ router.post('/:id/chat', async (req, res) => {
   res.flushHeaders()
 
   const send = (type: string, data: any) => {
-    if (!res.writableEnded) {
+    if (transport) transport.send(type, data)
+    else if (!res.writableEnded) {
       res.write(`data: ${JSON.stringify({ type, data })}\n\n`)
     }
   }
 
   const keepalive = setInterval(() => {
-    try { res.write(': keepalive\n\n') } catch {}
+    if (!transport) { try { res.write(': keepalive\n\n') } catch {} }
   }, 2000)
   const chatStartedAt = Date.now()
   const dashboardSessionKey = `agent:${id}:dashboard-chat`
@@ -927,6 +954,7 @@ router.post('/:id/chat', async (req, res) => {
     // this branch used to, made it invisible to both.
     await withRegisteredTurn(id, async () => {
       try {
+        transport?.assertAuthorized()
         const result = await executeClawmaxResendSend({
           to: dispatch.to,
           subject: dispatch.subject,
@@ -1061,7 +1089,7 @@ router.post('/:id/chat', async (req, res) => {
         if (!res.writableEnded) {
           res.end()
         }
-      }).catch((err) => {
+      }, { assertAuthorized: () => transport?.assertAuthorized() }).catch((err) => {
         console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
         clearInterval(keepalive)
         send('error', `Failed to prepare agent execution: ${err.message}`)
@@ -1096,6 +1124,7 @@ router.post('/:id/chat', async (req, res) => {
         console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
 
         type ChatAttemptResult = {
+          exitCode?: number | null
           completionText: string
           rawError: string
           usage: ReturnType<typeof readLatestAssistantUsageFromPersistedSession>
@@ -1292,6 +1321,7 @@ router.post('/:id/chat', async (req, res) => {
               resolveAttempt({
                 completionText,
                 rawError: stderrOutput || (code !== 0 ? 'Agent failed.' : 'No reply from agent.'),
+                exitCode: code,
                 usage,
                 persistedAssistant,
                 hadVisibleOutput,
@@ -1315,6 +1345,7 @@ router.post('/:id/chat', async (req, res) => {
           throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
         }
         let primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
+        let usedGateway = !useLocal
         if (shouldRetryViaGatewayAfterLocalCollision({
           useLocal,
           provider: resolvedAgent.provider,
@@ -1328,10 +1359,21 @@ router.post('/:id/chat', async (req, res) => {
           const gatewayReady = await waitForGatewayResponsive(120000, 1000)
           if (gatewayReady.running) {
             primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
+            usedGateway = true
           } else {
             console.warn(`[Chat Route] Gateway did not become ready for retry: ${gatewayReady.error || 'unknown readiness failure'}`)
           }
         }
+        primaryResult = await recoverRejectedGatewayChat(primaryResult, {
+          usedGateway,
+          signal: turn.signal,
+          waitUntilReady: async () => (await waitForGatewayResponsive(120000, 1000, turn.signal)).running,
+          assertCurrentAuthority: () => {
+            transport?.assertAuthorized()
+            if (!isRequestedChatAgentCurrent(req, id)) throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
+          },
+          retry: () => runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true),
+        })
         throwIfChatAttemptNeedsSessionRetry(primaryResult)
         const fallbackModel = resolvedAgent.backupModel
         const fallbackProvider = resolvedAgent.backupProvider
@@ -1349,6 +1391,7 @@ router.post('/:id/chat', async (req, res) => {
         throwIfChatAttemptNeedsSessionRetry(fallbackResult)
         return fallbackResult
       }, {
+        assertAuthorized: () => transport?.assertAuthorized(),
         maxSessionLockRetries: 1,
         onSessionLockRetry: (attempt) => {
           chatSessionRetryAttempt = attempt + 1
@@ -1409,6 +1452,7 @@ router.post('/:id/chat', async (req, res) => {
     // withRegisteredTurn's `finally`, and this route would be back to leaking on an exit path.
     console.error(`[Chat Route] Unexpected error running chat turn for ${id}:`, err)
     clearInterval(keepalive)
+    send('error', 'Agent execution failed')
     if (!res.writableEnded) res.end()
   })
 
@@ -1431,6 +1475,10 @@ router.post('/:id/chat', async (req, res) => {
     // and each one closes this request while the agent is working perfectly well. The turn keeps
     // running and stays in the registry, which is what makes it still stoppable afterwards.
   })
+}
+
+router.post('/:id/chat', (req, res, next) => {
+  return executeAgentChat(req, res).catch(next)
 })
 
 /**

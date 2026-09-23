@@ -8,13 +8,153 @@ import {
   shouldUseAiBuilderLlmFallback,
 } from './ai-builder'
 
+function withCatalogs(catalog: { agents?: any[]; skills?: any[]; templates?: any[]; workflows?: any[] }, fn: () => void) {
+  const modules = [require('./workspace'), require('./skills'), require('./templates'), require('./workflows')]
+  const names = ['listAgents', 'listAvailableSkills', 'listTemplates', 'listWorkflows']
+  const values = [catalog.agents || [], catalog.skills || [], catalog.templates || [], catalog.workflows || []]
+  const originals = modules.map((module, i) => module[names[i]])
+  modules.forEach((module, i) => { module[names[i]] = () => values[i] })
+  try { fn() } finally { modules.forEach((module, i) => { module[names[i]] = originals[i] }) }
+}
+
+test('empty catalogs offer creation without inventing existing assets', () => {
+  withCatalogs({}, () => {
+    for (const [prompt, intent] of [
+      ['Create a new agent for municipal permits', 'ai_generate'],
+      ['Create a company template for municipal permits', 'team_template'],
+      ['Improve my existing permits agent', 'existing_agent'],
+      ['Create a new skill for municipal permits', 'skill_or_integration'],
+      ['Refine my existing permits skill', 'skill_or_integration'],
+    ]) {
+      const result = buildAiBuilderRecommendation(prompt)
+      assert.strictEqual(result.intent, intent, prompt)
+      assert(Object.values(result.matchedAssets).every((assets) => assets.length === 0))
+      assert(result.testPlan.length > 0)
+      assert(!result.suggestedActions.some((action) => action.agentId || action.templateId))
+    }
+  })
+})
+
+test('workspace matches exclude archived agents and preserve actionable chat and workflow targets', () => {
+  withCatalogs({
+    agents: [
+      { id: 'atlas', name: 'Atlas', status: 'idle', tags: ['research'], skills: ['catalog'], groups: [{ name: 'Research' }], communities: [{ name: 'Science' }] },
+      { id: 'atlas-archived', name: 'Atlas Archived', archived: true },
+      { id: 'minimal', status: 'unknown' },
+    ],
+    skills: [{ name: 'catalog', source: 'workspace', description: 'Research catalog integration', tags: ['research'], registryCategories: ['research'], requires: { bins: ['catalog-cli'] } }, { name: 'minimal', source: 'workspace' }],
+    workflows: [{ id: 'weekly-research', name: 'Weekly Research', description: 'weekly research workflow', targeting: { groups: ['Research'], communities: ['Science'], tags: ['research'] } }, { id: 'minimal', name: 'Minimal' }],
+  }, () => {
+    const chat = buildAiBuilderRecommendation('Chat with Atlas')
+    assert.strictEqual(chat.intent, 'existing_agent')
+    assert.strictEqual(chat.recommendedPath.primaryAction.action, 'chat')
+    assert.strictEqual(chat.recommendedPath.primaryAction.agentId, 'atlas')
+    assert(!chat.matchedAssets.agents.some((agent) => agent.id === 'atlas-archived'))
+    const workflow = buildAiBuilderRecommendation('Improve my Atlas agent with a weekly research workflow')
+    assert.strictEqual(workflow.intent, 'existing_agent')
+    assert(workflow.suggestedActions.some((action) => action.id === 'review-existing-workflow'))
+    const skill = buildAiBuilderRecommendation('Add catalog integration to my Atlas agent')
+    assert.strictEqual(skill.intent, 'skill_or_integration')
+    assert.strictEqual(skill.matchedAssets.skills[0].id, 'catalog')
+    assert(skill.suggestedActions.some((action) => action.id === 'create-skill' && action.agentId === 'atlas'))
+    const minimal = buildAiBuilderRecommendation('Use my minimal agent')
+    assert.strictEqual(minimal.matchedAssets.agents[0].name, 'minimal')
+    assert.strictEqual(minimal.matchedAssets.agents[0].summary, 'Existing workspace agent')
+  })
+})
+
+test('template catalogs support sparse metadata and organization context without workspace agents', () => {
+  withCatalogs({ templates: [
+    { type: 'agent', name: 'Permit Agent', source: 'workspace', agents: [{ id: 'permit', role: 'Permit Agent' }] },
+    { type: 'organization', name: 'Research Team', source: 'workspace', agents: [{ id: 'research', role: 'Researcher' }], communities: [{ name: 'Science' }], groups: [{ name: 'Research' }], teams: [{ name: 'Research' }], workflows: [{ id: 'review', name: 'Review' }] },
+    { type: 'organization', name: 'Sparse Team', source: 'workspace', agents: [] },
+  ] }, () => {
+    const agent = buildAiBuilderRecommendation('Use the Permit Agent template')
+    assert.strictEqual(agent.intent, 'agent_template')
+    assert.strictEqual(agent.matchedAssets.agentTemplates[0].id, 'Permit Agent')
+    const team = buildAiBuilderRecommendation('Refine the Research Team template for science research')
+    assert.strictEqual(team.intent, 'team_template')
+    assert.strictEqual(team.matchedAssets.organizationTemplates[0].id, 'Research Team')
+    assert.strictEqual(team.recommendedPath.primaryAction.templateRefineMode, true)
+    assert.strictEqual(team.recommendedPath.primaryAction.prefillPrompt, 'Refine the Research Team template for science research')
+  })
+})
+
+test('fallback decisions distinguish confidence, template availability and family knowledge', () => {
+  withCatalogs({}, () => {
+    const base = buildAiBuilderRecommendation('Create a company template for permits')
+    for (const confidence of ['high', 'medium', 'low'] as const) {
+      assert.strictEqual(shouldUseAiBuilderLlmFallback({ ...base, intent: 'ai_generate', confidence }), confidence === 'low')
+      assert.strictEqual(shouldUseAiBuilderLlmFallback({ ...base, confidence }), true)
+      for (const family of [undefined, 'other', 'research_analysis'] as const) {
+        const matchedAssets = { ...base.matchedAssets, organizationTemplates: [{ id: 'research', name: 'Research', family }] as any }
+        assert.strictEqual(shouldUseAiBuilderLlmFallback({ ...base, confidence, matchedAssets }), confidence === 'low' || family !== 'research_analysis')
+      }
+    }
+  })
+})
+
+for (const strategy of ['keep_current', 'create_new_template', 'use_existing_template', 'refine_existing_template'] as const) {
+  for (const hasTemplate of [false, true]) {
+    test(`fallback ${strategy} with existing template=${hasTemplate} preserves explicit choices`, () => {
+      withCatalogs({}, () => {
+        const prompt = 'Create a company template for permits'
+        const base = buildAiBuilderRecommendation(prompt)
+        base.confidence = 'high'
+        if (hasTemplate) base.matchedAssets.organizationTemplates = [{ id: 'permits', name: 'Permits', type: 'organization-template', summary: 'Permit operations', source: 'workspace', score: 10 }]
+        const before = JSON.stringify(base)
+        const result = applyAiBuilderLlmFallback(base, prompt, {
+          grouping: 'Permit operations', rationale: 'Needs several operating lanes', strategy,
+          candidateGroupings: ['', 'Permit operations', 'A', 'B', 'C', 'D'],
+        })
+        assert.strictEqual(JSON.stringify(base), before)
+        assert.strictEqual(result.confidence, 'medium')
+        assert.strictEqual(result.scope, base.scope)
+        assert.deepStrictEqual(result.groupingSuggestion?.alternatives, ['A', 'B', 'C'])
+        assert.strictEqual(result.usedLlmFallback, true)
+        if (strategy === 'create_new_template') {
+          assert.strictEqual(result.operation, 'create_new')
+          assert.strictEqual(result.recommendedPath.primaryAction.templateDraftTarget, 'company')
+          assert.strictEqual(result.recommendedPath.primaryAction.prefillPrompt, prompt)
+        } else if (hasTemplate && strategy !== 'keep_current') {
+          assert.strictEqual(result.operation, strategy === 'use_existing_template' ? 'use_template' : 'refine_template')
+          assert.strictEqual(result.recommendedPath.primaryAction.templateId, 'permits')
+          assert.strictEqual(result.recommendedPath.primaryAction.templateRefineMode, true)
+        } else {
+          assert.deepStrictEqual(result.recommendedPath, base.recommendedPath)
+        }
+      })
+    })
+  }
+}
+
+test('non-team fallback supplies guidance without replacing the action', () => {
+  withCatalogs({}, () => {
+    const base = buildAiBuilderRecommendation('Create a new agent for permits')
+    const result = applyAiBuilderLlmFallback(base, 'Create a new agent for permits', { grouping: 'Permits', rationale: 'One role is sufficient', strategy: 'create_new_template' })
+    assert.deepStrictEqual(result.recommendedPath, base.recommendedPath)
+    assert.deepStrictEqual(result.groupingSuggestion?.alternatives, [])
+    assert.match(result.summary, /Suggested grouping: Permits/)
+  })
+})
+
 function test(name: string, fn: () => void) {
+  // Routing evaluations must not depend on the operator's current workspace.
+  const workspace = require('./workspace')
+  const workflows = require('./workflows')
+  const originalAgents = workspace.listAgents
+  const originalWorkflows = workflows.listWorkflows
+  workspace.listAgents = () => [{ id: 'ceo', name: 'CEO', status: 'idle' }]
+  workflows.listWorkflows = () => []
   try {
     fn()
     console.log(`✓ ${name}`)
   } catch (error) {
     console.error(`✗ ${name}`)
     throw error
+  } finally {
+    workspace.listAgents = originalAgents
+    workflows.listWorkflows = originalWorkflows
   }
 }
 

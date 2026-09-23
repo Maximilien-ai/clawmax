@@ -4,6 +4,17 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC83 preparation
+- Canonicalize isolated runtime paths for native SQLite session admission, keep test workspace/profile state disposable, and separate unit-test environment overrides from live execution.
+- Expand branch coverage for provider validation, metering isolation/merges, generated workflow normalization and Builder catalog/fallback handling: the complete integration/validation run passed 485/485 checks with 75.59% branch coverage.
+- Make Builder routing tests independent of the active workspace and reject partial-success test runs with nonzero exit status.
+- RC82 public and matching combined images passed their engineering checks; installed-instance rollout and broader acceptance remain separate gates. See the [RC83 checkpoint](SYSTEM/docs/planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
+
+### RC81 runtime foundation (retained history)
+- Pin development, CI, and images to OpenClaw `2026.9.5` on Node `24.19.0`, with the upstream Codex integration runtime `0.154.0`.
+- Support native `.mjs` auth/workspace bundles, await workspace deletion verification, and verify upstream no-op chmod safeguards while retaining the roster-removal patch.
+- Source-built local Qwen template apply/cleanup, agent and Group chat, CLI-client interoperability, and replay passed. Template Workflow execution, full release validation, images, and live cloud/on-prem acceptance remain outstanding.
+
 ### RC49 candidate
 - **Discord agent channels** — connect or replace a Discord bot token without placing it in subprocess arguments or OpenClaw config, validate optional application, user, server, and channel IDs, preserve pairing or explicit DM allowlists, and route a named Discord account to one agent with fail-closed guild policy.
 - **Discord diagnostics and lifecycle** — surface portal intent/permission requirements, pairing-required and connection/binding states, run bounded credential/capability probes with categorized non-secret results, persist redacted lifecycle evidence, and remove only the selected account, binding, and credential on disconnect.

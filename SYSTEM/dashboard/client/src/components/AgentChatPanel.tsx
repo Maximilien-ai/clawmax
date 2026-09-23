@@ -16,6 +16,7 @@ import { formatAgentWorkStatus, summarizeAgentChatFailure } from '../lib/chatRun
 import { INCOMPLETE_AGENT_CHAT_MESSAGE, markIncompleteAgentReply } from '../lib/agentChatStream'
 import { buildAgentChatMarkdown, getAgentChatDownloadState } from '../lib/agentChatExport'
 import { useToast } from './Toast'
+import { AgentAttention } from './AgentAttention'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -1101,6 +1102,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
           <div className="flex items-start gap-3">
             <div className="min-w-0 w-0 flex-1">
               <h2 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 truncate">Agent Chat: {agentName}</h2>
+              <AgentAttention agentId={agentId} generation={agentGeneration} />
             </div>
             <button
               type="button"

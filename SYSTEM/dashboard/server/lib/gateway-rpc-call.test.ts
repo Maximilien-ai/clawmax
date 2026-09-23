@@ -88,15 +88,120 @@ function message(socket: FakeWebSocket, payload: unknown) {
   socket.emit('message', Buffer.from(JSON.stringify(payload)))
 }
 
-function authenticate(socket: FakeWebSocket) {
+function authenticate(socket: FakeWebSocket, execution = false) {
   message(socket, { event: 'connect.challenge', payload: { nonce: 'challenge-nonce' } })
   assert.strictEqual(socket.sent[0]?.method, 'connect')
   assert.strictEqual(socket.sent[0]?.params.auth.token, 'rpc-token')
-  assert.deepStrictEqual(socket.sent[0]?.params.scopes, ['operator.read', 'operator.admin'])
+  assert.deepStrictEqual(socket.sent[0]?.params.scopes, execution ? ['operator.write'] : ['operator.read', 'operator.admin'])
   message(socket, { type: 'res', ok: true })
 }
 
 async function run() {
+  const templateRequest = { agentId: 'tr-0123456789abcdef-agent-0123456789ab', model: 'ollama/qwen', instructions: 'Synthetic no-tools instructions', message: 'Reply briefly', idempotencyKey: 'synthetic-request' }
+  await test('no-tools Template execution waits for a correlated final response with fixed authority options', async () => {
+    await withClient(async client => {
+      const pending = client.runNoToolsTemplateAgent(templateRequest)
+      const socket = currentSocket()
+      authenticate(socket, true)
+      const request = socket.sent[1]
+      assert.equal(request.method, 'agent')
+      assert.deepEqual(request.params, { agentId: templateRequest.agentId, message: 'Reply briefly', extraSystemPrompt: templateRequest.instructions, idempotencyKey: 'synthetic-request', modelRun: true, promptMode: 'none', deliver: false, disableMessageTool: true, timeout: 120 })
+      message(socket, { type: 'res', id: request.id, ok: true, payload: { status: 'accepted', runId: 'run-1' } })
+      await Promise.resolve()
+      assert.equal(socket.closed, false, 'Acceptance must not close the final-response stream')
+      message(socket, { type: 'res', id: request.id, ok: true, payload: { status: 'ok', runId: 'run-1', result: { payloads: [{ text: 'Hello' }] } } })
+      assert.deepEqual(await pending, { runId: 'run-1', text: 'Hello' })
+      assert(socket.closed)
+    })
+  })
+  await test('no-tools transport rejects overrides before connecting', async () => {
+    await withClient(async client => {
+      await assert.rejects(client.runNoToolsTemplateAgent({ ...templateRequest, tools: ['exec'] } as any), /Invalid no-tools/)
+      await assert.rejects(client.runNoToolsTemplateAgent({ ...templateRequest, agentId: 'unrelated' }), /Invalid no-tools/)
+      assert.equal(FakeWebSocket.instances.length, 0)
+    })
+  })
+  await test('only explicit pre-admission scope rejection uses the paired CLI with the same key', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'template-paired-cli-'))
+    const cli = path.join(root, 'openclaw')
+    const previous = process.env.OPENCLAW_BIN
+    fs.writeFileSync(cli, `#!${process.execPath}\nconst assert = require('assert');
+      const args = process.argv.slice(2);
+      assert(args.includes('--expect-final'));
+      const params = JSON.parse(args[args.indexOf('--params') + 1]);
+      assert.equal(params.idempotencyKey, 'synthetic-request');
+      assert.equal(params.modelRun, true);
+      assert.equal(params.promptMode, 'none');
+      assert.equal(params.deliver, false);
+      assert.equal(process.env.CLAWMAX_TEST_NO_TOOLS_SECRET, undefined);
+      process.stdout.write(JSON.stringify({ status: 'ok', runId: 'paired-run', result: { payloads: [{ text: 'Paired reply' }] } }));
+    `, { mode: 0o700 })
+    process.env.OPENCLAW_BIN = cli
+    const previousSentinel = process.env.CLAWMAX_TEST_NO_TOOLS_SECRET
+    process.env.CLAWMAX_TEST_NO_TOOLS_SECRET = 'synthetic-do-not-forward'
+    try {
+      await withClient(async client => {
+        const pending = client.runNoToolsTemplateAgent(templateRequest)
+        const socket = currentSocket()
+        authenticate(socket, true)
+        message(socket, { type: 'res', id: socket.sent[1].id, ok: false, error: { message: 'missing scope: operator.write' } })
+        assert.deepEqual(await pending, { runId: 'paired-run', text: 'Paired reply' })
+      })
+      await withClient(async client => {
+        const pending = client.runNoToolsTemplateAgent(templateRequest)
+        const socket = currentSocket()
+        authenticate(socket, true)
+        const id = socket.sent[1].id
+        message(socket, { type: 'res', id, ok: true, payload: { status: 'accepted', runId: 'run-1' } })
+        message(socket, { type: 'res', id, ok: false, error: { message: 'missing scope: operator.write' } })
+        await assert.rejects(pending, /inspect the recorded request/, 'Never redispatch after acceptance')
+      })
+    } finally {
+      if (previous === undefined) delete process.env.OPENCLAW_BIN
+      else process.env.OPENCLAW_BIN = previous
+      if (previousSentinel === undefined) delete process.env.CLAWMAX_TEST_NO_TOOLS_SECRET
+      else process.env.CLAWMAX_TEST_NO_TOOLS_SECRET = previousSentinel
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+  await test('no-tools execution rejects mismatched, empty, failed and media-only terminal replies', async () => {
+    for (const payload of [
+      { status: 'ok', runId: 'different', result: { payloads: [{ text: 'Wrong run' }] } },
+      { status: 'ok', runId: 'run-1', result: { payloads: [] } },
+      { status: 'error', runId: 'run-1', privateDiagnostic: 'secret' },
+      { status: 'ok', runId: 'run-1', result: { payloads: [{ text: 'Error', isError: true }] } },
+      { status: 'ok', runId: 'run-1', result: { payloads: [{ text: 'Image', mediaUrl: 'private-location' }] } },
+    ]) await withClient(async client => {
+      const pending = client.runNoToolsTemplateAgent(templateRequest)
+      const socket = currentSocket()
+      authenticate(socket, true)
+      const id = socket.sent[1].id
+      message(socket, { type: 'res', id, ok: true, payload: { status: 'accepted', runId: 'run-1' } })
+      message(socket, { type: 'res', id, ok: true, payload })
+      await assert.rejects(pending, /did not return a verified final reply/)
+      assert.equal(socket.sent.length, 2, 'Failed runs must not be automatically dispatched again')
+    })
+  })
+  await test('lost connection after no-tools acceptance remains an uncertain outcome', async () => {
+    await withClient(async client => {
+      const pending = client.runNoToolsTemplateAgent(templateRequest)
+      const socket = currentSocket()
+      authenticate(socket, true)
+      message(socket, { type: 'res', id: socket.sent[1].id, ok: true, payload: { status: 'accepted', runId: 'run-1' } })
+      socket.emit('close')
+      await assert.rejects(pending, /inspect the recorded request/)
+      assert.equal(FakeWebSocket.instances.length, 1)
+    })
+  })
+  await test('no-tools execution never accepts a negative RPC envelope as success', async () => {
+    await withClient(async client => {
+      const pending = client.runNoToolsTemplateAgent(templateRequest)
+      const socket = currentSocket()
+      authenticate(socket, true)
+      message(socket, { type: 'res', id: socket.sent[1].id, ok: false, payload: { status: 'ok', runId: 'run-1', result: { payloads: [{ text: 'Not successful' }] } } })
+      await assert.rejects(pending, /did not return a verified final reply/)
+    })
+  })
   await test('call completes the challenge, authentication, and RPC response flow', async () => {
     await withClient(async (client) => {
       const pending = client.call('agents.list', { includeArchived: false })

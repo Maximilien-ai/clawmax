@@ -44,6 +44,160 @@ function assert(condition: boolean, message: string) {
 console.log(`\n${YELLOW}=== Metering Test Suite ===${RESET}\n`)
 
 async function run() {
+  await test('empty and legacy metering snapshots merge with finite zero totals', () => {
+    const merged = mergeWorkspaceMetering({} as any, {} as any)
+    assert(merged.period === 'all', 'Legacy snapshots default to all time')
+    for (const key of ['totalTraces', 'totalInputTokens', 'totalOutputTokens', 'totalTokens', 'estimatedCostUsd'] as const) {
+      assert(merged[key] === 0, `Missing ${key} must default to zero`)
+    }
+    assert(merged.byAgent.length === 0 && merged.byWorkflow.length === 0 && merged.dailyCost.length === 0, 'Missing collections must be empty')
+    assert(Object.values(merged.costSummary).every((value) => value === 0), 'Empty cost windows must remain finite zero')
+    assert(mergeWorkspaceMetering({ period: 'month' } as any, {} as any).period === 'month', 'Preserve previous period when absent from refresh')
+    assert(mergeWorkspaceMetering({ period: 'month' } as any, { period: 'all' } as any).period === 'all', 'Explicit refresh period takes precedence')
+  })
+
+  await test('legacy agent and workflow merges preserve identifiers and normalize missing counters', () => {
+    const snapshot = {
+      byAgent: [{ agentId: 'legacy' }],
+      byWorkflow: [{ workflowId: 'legacy', workflowName: 'Legacy workflow' }],
+      dailyCost: [{ date: '2026-01-01' }],
+    } as any
+    const merged = mergeWorkspaceMetering(snapshot, snapshot)
+    const agent = merged.byAgent[0]
+    assert(agent.agentName === 'legacy' && agent.agentType === 'unknown', 'Expected fallback identity')
+    assert(agent.agentTags.length === 0 && !agent.isBuiltIn, 'Expected empty metadata')
+    assert(agent.lastActivity === '' && merged.byWorkflow[0].lastRun === '', 'Missing timestamps must stay empty')
+    for (const key of ['totalCalls', 'totalInputTokens', 'totalOutputTokens', 'totalTokens', 'estimatedCostUsd', 'avgDurationMs'] as const) {
+      assert(agent[key] === 0, `Missing agent ${key} must become zero`)
+    }
+    assert(merged.byWorkflow[0].workflowName === 'Legacy workflow', 'Preserve prior workflow name')
+    for (const key of ['totalRuns', 'totalTokens', 'estimatedCostUsd', 'avgDurationMs'] as const) {
+      assert(merged.byWorkflow[0][key] === 0, `Missing workflow ${key} must become zero`)
+    }
+    assert(merged.dailyCost[0].estimatedCostUsd === 0 && merged.dailyCost[0].traceCount === 0, 'Legacy daily bucket must be normalized')
+  })
+
+  for (const [leftType, rightType, expected] of [
+    ['unknown', 'unknown', 'unknown'], ['unknown', 'user', 'user'],
+    ['user', 'unknown', 'user'], ['user', 'built-in', 'built-in'], ['built-in', 'user', 'built-in'],
+  ]) {
+    await test(`metadata merge ${leftType} + ${rightType} retains ${expected} without mutating inputs`, () => {
+      const previous = {
+        byAgent: [{ agentId: 'alpha', agentName: 'Original', agentType: leftType, agentTags: ['old'], models: { shared: 3 }, isBuiltIn: leftType === 'built-in' }],
+      } as any
+      const next = {
+        byAgent: [{ agentId: 'alpha', agentName: '', agentType: rightType, agentTags: ['new'], models: { shared: 1, fresh: 2, empty: 0 }, isBuiltIn: rightType === 'built-in' }],
+      } as any
+      const before = JSON.stringify([previous, next])
+      const merged = mergeWorkspaceMetering(previous, next)
+      const agent = merged.byAgent[0]
+      assert(agent.agentType === expected && agent.isBuiltIn === (expected === 'built-in'), 'Expected strongest agent classification')
+      assert(agent.agentName === 'Original' && agent.agentTags.join() === 'new', 'Use available name and new nonempty tags')
+      assert(agent.models.shared === 3 && agent.models.fresh === 2 && agent.models.empty === 0, 'Model counts must union with maxima, not sums')
+      agent.agentTags.push('mutation')
+      agent.models.shared = 99
+      assert(JSON.stringify([previous, next]) === before, 'Merge result must not alias input tags or model maps')
+    })
+  }
+
+  await test('merge unions new entities, sorts costs and dates, and clones new metadata', () => {
+    const previous = {
+      byAgent: [{ agentId: 'old', estimatedCostUsd: 1 }],
+      byWorkflow: [{ workflowId: 'old', estimatedCostUsd: 1 }],
+      dailyCost: [{ date: '2026-01-03', estimatedCostUsd: 1, traceCount: 1 }],
+    } as any
+    const next = {
+      byAgent: [{ agentId: 'new', agentTags: ['new'], models: { model: 1 }, estimatedCostUsd: 2 }, { agentId: 'empty' }],
+      byWorkflow: [{ workflowId: 'new', estimatedCostUsd: 2 }, { workflowId: 'empty' }],
+      dailyCost: [{ date: '2026-01-01', estimatedCostUsd: 2, traceCount: 2 }],
+    } as any
+    const before = JSON.stringify([previous, next])
+    const merged = mergeWorkspaceMetering(previous, next)
+    assert(merged.byAgent.map((a) => a.agentId).join() === 'new,old,empty', 'Agents must sort by descending cost')
+    assert(merged.byWorkflow.map((w) => w.workflowId).join() === 'new,old,empty', 'Workflows must sort by descending cost')
+    assert(merged.dailyCost.map((d) => d.date).join() === '2026-01-01,2026-01-03', 'Daily buckets must sort chronologically')
+    merged.byAgent[0].agentTags.push('mutation')
+    merged.byAgent[0].models.model = 99
+    merged.byWorkflow[0].estimatedCostUsd = 99
+    merged.dailyCost[0].estimatedCostUsd = 99
+    assert(JSON.stringify([previous, next]) === before, 'New entities must not alias input data')
+  })
+
+  await test('metadata enrichment preserves legacy values when metadata is partial or absent', () => {
+    const base = { byAgent: [
+      { agentId: 'missing', agentName: 'Unchanged' },
+      { agentId: 'existing', agentName: 'Existing', agentTags: ['old'], agentType: 'user', isBuiltIn: true },
+      { agentId: 'fallback' },
+    ] } as any
+    const result = enrichWorkspaceMeteringWithAgentMetadata(base, new Map([
+      ['existing', {}], ['fallback', {}],
+    ]) as any)
+    assert(result.byAgent[0] === base.byAgent[0], 'Unknown metadata must leave record intact')
+    assert(result.byAgent[1].agentName === 'Existing' && result.byAgent[1].agentTags[0] === 'old', 'Existing metadata must survive partial refresh')
+    assert(result.byAgent[1].agentType === 'user' && result.byAgent[1].isBuiltIn, 'Existing classification must survive')
+    assert(result.byAgent[2].agentName === 'fallback' && result.byAgent[2].agentType === 'unknown' && result.byAgent[2].agentTags.length === 0, 'Legacy rows need safe display defaults')
+  })
+
+  await test('aggregation handles absent metadata and out-of-order traces without losing latest activity', () => {
+    const trace = (name: string, start_time: string, metadata?: object) => ({ id: name, name, start_time, metadata })
+    const result = aggregateWorkspaceMeteringFromTraces([
+      trace('agent.chat.alpha', '2026-01-03', { workflow_id: 'workflow', model: 'model', duration_ms: 30 }),
+      trace('agent.chat.alpha', '2026-01-02', { workflow_id: 'workflow', model: 'model', duration_ms: 10 }),
+      trace('agent.chat.alpha', '2026-01-01'),
+      trace('workflow.workflow', '2026-01-03', { duration_ms: 30 }),
+      trace('workflow.workflow', '2026-01-01', { duration_ms: 10 }),
+      trace('workflow.other', '2026-01-01'),
+      trace('unrelated', ''),
+    ] as any)
+    assert(result.totalTraces === 7 && result.byAgent.length === 1 && result.byWorkflow.length === 2, 'Only recognized names produce entity rollups')
+    const agent = result.byAgent[0]
+    assert(agent.agentId === 'alpha' && agent.totalCalls === 3 && agent.totalTokens === 0, 'Fallback agent ID and zero usage expected')
+    assert(agent.lastActivity === '2026-01-03' && agent.avgDurationMs === 40 / 3, 'Preserve latest activity and average all calls')
+    assert(agent.models.model === 2 && agent.models.unknown === 1, 'Count model usage including unknown')
+    const workflow = result.byWorkflow.find((w) => w.workflowId === 'workflow')!
+    assert(workflow.workflowName === 'workflow' && workflow.totalRuns === 2 && workflow.avgDurationMs === 20 && workflow.lastRun === '2026-01-03', 'Workflow runs must exclude attributed agent calls')
+  })
+
+  const viewerCases: Array<[string, object | undefined, object | undefined, boolean]> = [
+    ['no selector', undefined, undefined, true],
+    ['empty selector', { user_id: 'other' }, {}, true],
+    ['login matches case-insensitively', { user_login: 'ALPHA' }, { login: 'alpha' }, true],
+    ['email matches case-insensitively', { user_email: 'A@EXAMPLE.TEST' }, { email: 'a@example.test' }, true],
+    ['different user ID', { user_id: 'other' }, { userId: 'mine' }, false],
+    ['different login', { user_login: 'other' }, { login: 'mine' }, false],
+    ['different email', { user_email: 'other@example.test' }, { email: 'mine@example.test' }, false],
+    ['unscoped user identity', { user_id: 'other' }, { machineId: 'machine' }, true],
+    ['missing metadata', undefined, { userId: 'mine' }, true],
+    ['different machine', { machine_id: 'other', user_id: 'mine' }, { machineId: 'mine', userId: 'mine' }, false],
+    ['different machine name', { machine_name: 'other' }, { machineName: 'mine' }, false],
+    ['machine name matches after trimming', { machine_name: ' MINE ' }, { machineName: 'mine' }, true],
+    ['stable instance overrides renamed machine', { instance_key: ' MINE ', machine_name: 'old' }, { instanceKey: 'mine', machineName: 'new' }, true],
+    ['stable machine overrides renamed machine', { machine_id: ' MINE ', machine_name: 'old' }, { machineId: 'mine', machineName: 'new' }, true],
+    ['local-to-hosted denied', { dashboard_instance_id: 'https://cloud.example.test' }, { dashboardInstanceId: 'http://localhost:3001' }, false],
+    ['malformed instance denied', { dashboard_instance_id: 'not a URL' }, { dashboardInstanceId: 'http://localhost:3001' }, false],
+    ['malformed viewer denied', { dashboard_instance_id: 'http://localhost:3001' }, { dashboardInstanceId: 'not a URL' }, false],
+  ]
+  for (const [name, metadata, viewer, expected] of viewerCases) {
+    await test(`viewer scoping: ${name}`, () => {
+      assert(traceMatchesViewer({ metadata } as any, viewer) === expected, `Incorrect visibility for ${name}`)
+    })
+  }
+  for (const hostname of ['127.0.0.1', '0.0.0.0', 'workstation.local']) {
+    await test(`local dashboard alias ${hostname} retains development trace visibility`, () => {
+      assert(traceMatchesViewer({ metadata: { dashboard_instance_id: `http://${hostname}:3001` } } as any, { dashboardInstanceId: 'http://localhost:3002' }), 'Local aliases must remain equivalent')
+    })
+  }
+  await test('failure throttling reports changed errors immediately and resets suppression', () => {
+    resetMeteringFetchFailureStateForTests()
+    assert(recordMeteringFetchFailure('first', 0) === 'first', 'First failure must log')
+    assert(recordMeteringFetchFailure('first', 1) === null, 'Duplicate failure must be suppressed')
+    assert(recordMeteringFetchFailure('different', 2) === 'different', 'Different failure must not inherit suppression')
+    assert(recordMeteringFetchFailure('different', 60002) === 'different', 'No suppression suffix when no failures suppressed')
+    resetMeteringFetchFailureStateForTests()
+    assert(recordMeteringFetchFailure('different') === 'different', 'Reset must clear throttle state')
+    resetMeteringFetchFailureStateForTests()
+  })
+
   await test('calendar-month metering cache rolls over without retaining the prior month', () => {
     const august = getMeteringPeriodCacheSuffix('month', new Date('2026-08-31T23:59:59.000Z'))
     const september = getMeteringPeriodCacheSuffix('month', new Date('2026-09-01T00:00:00.000Z'))

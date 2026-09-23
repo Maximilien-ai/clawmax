@@ -1,9 +1,41 @@
 # Backlog
 
-> Last updated: September 18, 2026
+> Last updated: September 22, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Mini Sprint
+
+- [ ] **Next RC after RC83: bulk agent budget limits (testing priority)** —
+  let an operator select multiple agents on the Agents page and apply the same
+  budget limit in one action. Team testing currently requires editing each
+  agent individually. Show the selected count and proposed limit before
+  applying. Make the current workspace budget explicit (including unset or
+  unlimited state), and show each selected agent's current budget limit and
+  current spend when available so the operator can make an informed decision.
+  Label the spending period and data freshness; distinguish unavailable or
+  stale spend from zero. Show workspace spend/remaining budget when available
+  and explain the relationship between workspace and per-agent limits without
+  implying that per-agent limits reserve or add funds to the workspace budget.
+  Preserve unselected agents, support clearing selected limits,
+  and report per-agent success/failure with retry of failed updates. Reuse
+  existing per-agent budget semantics and authorization; do not introduce a
+  pooled team budget. Cover input validation, mixed existing limits, partial
+  failure, persistence, budget/spend context, missing/stale data, and
+  desktop/mobile selection flows. Keep this out of
+  RC83's validation-and-coverage scope.
+
+- [ ] **RC83 coverage and image gate** — verify at least 75% branch coverage
+  with the complete integration/validation suite, then build and validate public
+  and matching combined candidates. Keep installed-instance acceptance separate
+  from image publication. [Current evidence](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
+
+- [ ] **Remaining Template runtime and deployment acceptance** — finish authority-enforced Template
+  Workflow graph execution, correlated results and settled cancellation on
+  OpenClaw `2026.9.5`; run complete integration/validation/coverage, then public
+  and matching combined images, followed by MBP14 and test10 acceptance.
+  Native source-build template apply/cleanup and agent/Group chat passed;
+  keep schedules disabled and tester distribution on hold. Evidence:
+  [RC81 acceptance](planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md).
 
 - [ ] **AI Builder, agent channels, and branch coverage** — strengthen explicit
   AI Create behavior first, then implement Telegram, Discord, and Slack Socket
@@ -18,6 +50,32 @@
   [MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md).
 
 ## Release Tracks
+
+- [ ] **System → OpenClaw Plugins — installed inventory and enable/disable controls**
+  — requested after missing external plugins blocked native gateway startup.
+  Keep this distinct from the existing ClawMax product-plugin manager.
+  - Show installed versions/source, configured-but-missing plugins, enabled,
+    loaded, failed, and permission-review-required states. Show discovery scope
+    warnings rather than presenting partial discovery as a complete inventory.
+  - Initial scope is listing installed runtime plugins and enabling/disabling
+    them where OpenClaw supports it. Restrict changes to administrators, disclose
+    capabilities before required consent, confirm disruptive disable operations,
+    and preserve exact prior selection for recovery.
+  - Show action progress, actionable errors, persistent enable/disable history,
+    restart requirements, and independently verified gateway readiness.
+    Gateway unavailability must not hide inventory or supported controls.
+  - Defer browsing/adding, installing, and updating plugins to a later phase;
+    those will require verified sources, compatible pinned versions, explicit
+    capability review, and backup/rollback evidence.
+  - Installation is not OAuth sign-in, permission to read existing conversations,
+    join meetings, or consent to transcript export. Preserve per-user data-egress
+    controls, protect secrets, and keep recurring schedules disabled by default.
+  - Verify administrator authorization, unsupported toggles, denied/revoked consent,
+    failed enable/disable, restart recovery, and unrelated-resource
+    preservation on cloud and on-prem; audit desktop/mobile presentation.
+  - Prioritize missing-plugin diagnosis within stability work; do not
+    hold the immediate native repair for this new UI or promise a release slot
+    before the runtime acceptance gates are met.
 
 - [ ] **RC81 — audit and expand ready-to-apply business templates (after stability)**
   — begin after the [RC80 cloud/on-prem stability gate](planning/RC80_STABILITY_AND_TEMPLATE_GATE_2026-09-18.md)
