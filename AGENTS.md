@@ -1,5 +1,28 @@
 # Repository Instructions
 
+## Governing Goal: A Stable, Simple, Consistent 2.0
+
+Our overriding product goal is a 2.0 release people can reliably use. Apply
+these priorities, in order, to every implementation and release decision:
+
+1. **Stability first.** Without a stable system, features are not useful.
+   Prioritize reliable end-to-end behavior, persistence, recovery, and clear
+   failure states. Fix regressions and validate real workflows before adding
+   scope; green health checks alone do not establish release readiness.
+2. **Simplification second.** Reduce unnecessary controls, steps, duplicated
+   surfaces, and concepts. Keep primary actions obvious; group secondary
+   actions in clearly separated menus. Simplification must not hide errors,
+   remove needed capabilities without an explicit decision, or weaken safety,
+   authorization, observability, or testing.
+3. **Consistency everywhere.** Once someone learns one part of ClawMax, that
+   knowledge should transfer to the rest. Reuse established components,
+   wording, layout, filters, Actions menus, and desktop/mobile interaction
+   patterns instead of introducing one-off alternatives.
+
+Prefer focused stability and usability improvements over new features on the
+path to 2.0. Explain any necessary exception and its release impact before
+expanding scope.
+
 ## Commit Messages
 
 - Every commit subject must start with a lowercase Conventional Commit-style
