@@ -39,13 +39,18 @@ Priorities remain stability, simplification, then consistency.
   `dc0c4369500d6d3e9c19e7ccf9bb299f55197402` (documentation-only evidence update
   after the tested source).
 - [Public image build](https://github.com/Maximilien-ai/clawmax/actions/runs/35918395530):
-  dispatched; amd64/arm64 validation pending.
-- Matching combined image is locally queued, **not yet dispatched or validated**.
-  The queue requires public success and unchanged private source
-  `ce2516d8a07ef96796ca138b748e6bd501672547`, then dispatches with both
-  `base_tag` and `image_tag` set to `2.0.0-test-rc85`.
-  Queue log: `/private/tmp/clawmax-rc85-queue-combined.log`; the local machine
-  must remain running. Any public failure or private-source change stops it.
+  passed amd64 and arm64 builds, manifest publication, registry smoke, and
+  lifecycle acceptance on both architectures. Published image:
+  `ghcr.io/maximilien-ai/clawmax-dashboard:2.0.0-test-rc85`, digest
+  `sha256:a094d8ed7f251ba46974893e8c98292d114cb30a92e4a67fa91e926ca5fa0363`.
+- [Matching combined image](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/35923539989):
+  passed runtime acceptance, monorepo contracts, private package boundary,
+  packaged plugin discovery, amd64/arm64 registry smoke, and ARM64 template
+  persistence. Private source:
+  `ce2516d8a07ef96796ca138b748e6bd501672547`. Both `base_tag` and
+  `image_tag` were `2.0.0-test-rc85`. Published image:
+  `ghcr.io/maximilien-ai/clawmax-plugins:2.0.0-test-rc85`, digest
+  `sha256:33a0850a7b9068fcf7020c94571cb61257a6dc7084bc90a37568d57c4ec9e869`.
 - Previous observed timing: approximately 8 minutes for local coverage, 50
   minutes for public images, and 13 minutes for the combined image.
 

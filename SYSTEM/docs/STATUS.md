@@ -6,7 +6,7 @@
 
 **Last Updated**: September 23, 2026
 
-**Status**: `v1.9.9` remains stable. RC85 preparation uses OpenClaw `v2026.9.5` and Node `24.19.0`. RC84 public and combined image checks passed. RC85's clean source-validation rerun passed 485/485 checks with 77.19% branch coverage; image validation remains pending. Installed-instance acceptance and public Template Workflow execution remain separate gates. See [current evidence](planning/RC85_RELEASE_GATE_2026-09-23.md).
+**Status**: `v1.9.9` remains stable. RC85 uses OpenClaw `v2026.9.5` and Node `24.19.0`. Its clean source-validation rerun passed 485/485 checks with 77.19% branch coverage; matching public and combined images passed multi-architecture validation and smoke checks. Installed-instance acceptance and public Template Workflow execution remain separate gates. See [current evidence](planning/RC85_RELEASE_GATE_2026-09-23.md).
 
 ## Earlier release evidence (retained history)
 
