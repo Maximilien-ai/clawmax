@@ -14,6 +14,7 @@ import {
   listWorkspaceDashboards,
   regenerateWorkspaceDashboardToken,
   updateWorkspaceDashboard,
+  normalizeWorkspaceDashboardSlug,
 } from './workspace-dashboards'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
@@ -165,6 +166,59 @@ test('deleteWorkspaceDashboard removes the dashboard', () => {
   const deleted = deleteWorkspaceDashboard('workspace-a', dashboard.id)
   assert(deleted === true, 'Expected delete to succeed')
   assert(listWorkspaceDashboards('workspace-a').find(entry => entry.id === dashboard.id) === undefined, 'Expected dashboard to be removed')
+})
+
+test('legacy dashboard records normalize missing fields without changing stored data', () => {
+  const filePath = path.join(workspaceB, 'SYSTEM', 'workspace-dashboards.json')
+  const legacy = { id: 'legacy', workspaceId: 'workspace-b', title: 'Old Board', token: 'legacy-token', updatedAt: '2025-01-01T00:00:00Z', sections: { costs: false } }
+  fs.writeFileSync(filePath, JSON.stringify({ dashboards: [legacy] }))
+  const loaded = listWorkspaceDashboards('workspace-b').find((entry) => entry.id === 'legacy')
+  assert(loaded?.slug === 'old-board', 'Expected title-derived legacy slug')
+  assert(loaded?.refreshEnabled === false && loaded.refreshIntervalSeconds === 30, 'Expected safe refresh defaults')
+  assert(loaded?.sections.costs === false && loaded.sections.agents === true, 'Expected merged section defaults')
+  assert(JSON.parse(fs.readFileSync(filePath, 'utf-8')).dashboards[0].slug === undefined, 'Read must not rewrite legacy file')
+  fs.writeFileSync(filePath, '{broken')
+  assert(listWorkspaceDashboards('workspace-b').length === 0, 'Corrupt store must read as empty')
+  fs.writeFileSync(filePath, JSON.stringify({ dashboards: null }))
+  assert(listWorkspaceDashboards('workspace-b').length === 0, 'Malformed collection must read as empty')
+})
+
+test('slug normalization and collision handling preserve separate workspace identities', () => {
+  assert(normalizeWorkspaceDashboardSlug('  Sales & Ops / 2026!  ') === 'sales-ops-2026', 'Expected safe URL slug')
+  const blank = createWorkspaceDashboard('workspace-a', { title: '?!', slug: '  ' })
+  assert(blank.slug === 'dashboard-workspace-a', 'Expected a safe fallback for blank slugs')
+  const first = createWorkspaceDashboard('workspace-a', { title: 'Sales One', slug: 'sales' })
+  const second = createWorkspaceDashboard('workspace-a', { title: 'Sales Two', slug: 'sales' })
+  const updated = updateWorkspaceDashboard('workspace-a', first.id, { slug: 'sales' })
+  assert(updated?.slug === 'sales', 'Self-collision must be excluded on update')
+  assert(second.slug === 'sales-2', 'Other dashboard collision must get suffix')
+})
+
+test('optional updates can clear description and focus without resetting untouched fields', () => {
+  const dashboard = createWorkspaceDashboard('workspace-a', {
+    title: 'Options', description: 'Shared', companyFocusKind: 'prefix', companyFocusValue: ' alpha ',
+    companyFocusLabel: ' Alpha ', refreshIntervalSeconds: 2, sectionOrder: ['agents', 'costs'], compactColumns: { agents: 'left' },
+  })
+  assert(dashboard.refreshIntervalSeconds === 10, 'Create must clamp low refresh intervals')
+  assert(dashboard.companyFocusValue === 'alpha', 'Create must trim focus')
+  assert(dashboard.sectionOrder.join(',') === 'agents,costs' && dashboard.compactColumns.agents === 'left', 'Create must preserve layout')
+  const updated = updateWorkspaceDashboard('workspace-a', dashboard.id, {
+    title: ' ', slug: ' ', description: null, companyFocusValue: null, companyFocusLabel: '',
+    refreshIntervalSeconds: 5000, sectionOrder: [], compactColumns: { agents: 'right' },
+  })
+  assert(updated?.title === 'Options' && updated.slug === dashboard.slug, 'Blank title and slug must be ignored')
+  assert(updated?.description === null && updated.companyFocusValue === null && updated.companyFocusLabel === null, 'Optional text must clear')
+  assert(updated?.refreshIntervalSeconds === 3600, 'Update must clamp high refresh intervals')
+  assert(updated?.sectionOrder.join(',') === 'agents,costs' && updated.compactColumns.agents === 'right', 'Empty order must be ignored while columns update')
+  assert(updateWorkspaceDashboard('workspace-a', dashboard.id, { refreshIntervalSeconds: Number.NaN })?.refreshIntervalSeconds === 3600, 'Nonfinite interval must be ignored')
+})
+
+test('unknown IDs cannot rotate or delete an unrelated dashboard', () => {
+  const before = listWorkspaceDashboards('workspace-a').length
+  assert(regenerateWorkspaceDashboardToken('workspace-a', 'missing') === null, 'Unknown rotation must fail closed')
+  assert(updateWorkspaceDashboard('workspace-a', 'missing', { title: 'Changed' }) === null, 'Unknown update must fail closed')
+  assert(deleteWorkspaceDashboard('workspace-a', 'missing') === false, 'Unknown deletion must fail closed')
+  assert(listWorkspaceDashboards('workspace-a').length === before, 'Unknown operations must preserve all dashboards')
 })
 
 if (typeof originalHome === 'undefined') delete process.env.HOME
