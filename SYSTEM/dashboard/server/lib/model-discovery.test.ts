@@ -215,6 +215,70 @@ test('cloud discovery never probes local model endpoints but retains remote-comp
   }
 })
 
+test('all providers recover from HTTP, malformed JSON and empty discovery results', async () => {
+  const keys = { openai: 'fixture', anthropic: 'fixture', gemini: 'fixture', openrouter: 'fixture', xai: 'fixture', ollamaBaseUrl: 'https://ollama.example.invalid', openaiCompatibleBaseUrl: 'https://compatible.example.invalid/v1' }
+  const previousKind = process.env.DASHBOARD_DEPLOYMENT_KIND
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
+  try {
+    for (const mode of ['http-error', 'network-error', 'json-error', 'empty', 'missing']) {
+      clearModelCache()
+      let calls = 0
+      global.fetch = (async () => {
+        calls++
+        if (mode === 'network-error') throw new Error('Synthetic offline provider')
+        return { ok: mode !== 'http-error', status: 503, json: async () => {
+          if (mode === 'json-error') throw new Error('Synthetic malformed JSON')
+          return mode === 'missing' ? {} : { data: [], models: [] }
+        } }
+      }) as any
+      const result = await discoverModels(keys, { showAll: true })
+      assert(calls === 7, `Expected all seven isolated provider requests for ${mode}, got ${calls}`)
+      assert(result.models.includes('openai/gpt-5.4-mini'), `Expected OpenAI fallback for ${mode}`)
+      assert(!result.models.some(model => model.startsWith('ollama/') || model.startsWith('openai-compatible/')), 'Failed local/compatible discovery must not invent models')
+    }
+  } finally {
+    if (previousKind === undefined) delete process.env.DASHBOARD_DEPLOYMENT_KIND
+    else process.env.DASHBOARD_DEPLOYMENT_KIND = previousKind
+    clearModelCache()
+  }
+})
+
+test('provider discovery caches valid catalogs and filters malformed optional model entries', async () => {
+  const previousKind = process.env.DASHBOARD_DEPLOYMENT_KIND
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
+  const originalNow = Date.now
+  const keys = { openai: 'fixture', anthropic: 'fixture', gemini: 'fixture', openrouter: 'fixture', xai: 'fixture', ollamaBaseUrl: 'https://ollama.example.invalid/', openaiCompatibleBaseUrl: 'https://compatible.example.invalid/v1/', openaiCompatibleApiKey: ' compatible-key ' }
+  let calls = 0
+  clearModelCache()
+  global.fetch = (async (input: any, init: any) => {
+    calls++
+    const url = String(input)
+    if (url.includes('compatible.example.invalid')) assert(init.headers.Authorization === 'Bearer compatible-key', 'Expected trimmed compatible credential')
+    const body = url.includes('anthropic') ? { data: [{ id: 'claude-sonnet-4-6' }] }
+      : url.includes('generativelanguage') ? { models: [{ name: 'models/gemini-2.5-flash' }, { name: 'models/embedding-001' }] }
+      : url.includes('ollama') ? { models: [{}, { name: ' fixture-model ' }] }
+      : url.includes('api.openai.com') ? { data: [{ id: 'gpt-5.4-mini' }, { id: 'text-embedding-3-small' }] }
+      : { data: [{}, { id: ' fixture-model ' }, { id: 'grok-4' }] }
+    return { ok: true, status: 200, json: async () => body }
+  }) as any
+  try {
+    const first = await discoverModels(keys, { showAll: true })
+    assert(first.models.includes('ollama/fixture-model'), 'Expected trimmed Ollama model')
+    assert(first.models.includes('openai-compatible/fixture-model'), 'Expected compatible model')
+    const firstCalls = calls
+    await discoverModels(keys, { showAll: true })
+    assert(calls === firstCalls, 'Valid provider catalogs should be cached')
+    Date.now = () => originalNow() + 2 * 60 * 60 * 1000
+    await discoverModels(keys, { showAll: true })
+    assert(calls === firstCalls * 2, 'Expired provider catalogs should refresh')
+  } finally {
+    Date.now = originalNow
+    if (previousKind === undefined) delete process.env.DASHBOARD_DEPLOYMENT_KIND
+    else process.env.DASHBOARD_DEPLOYMENT_KIND = previousKind
+    clearModelCache()
+  }
+})
+
 testChain.then(() => {
   global.fetch = originalFetch
   console.log(`\nTests passed: ${testsPassed}`)
