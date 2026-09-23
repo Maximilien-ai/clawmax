@@ -4,9 +4,9 @@
 
 **Development Line**: 2.0.0
 
-**Last Updated**: September 22, 2026
+**Last Updated**: September 23, 2026
 
-**Status**: `v1.9.9` remains stable. Active development is preparing RC83 with OpenClaw `v2026.9.5` and Node `24.19.0`. RC82 public and combined image checks passed; MBP14/test10 deployment and acceptance remain unresolved. RC83's full source validation passed 485/485 checks with 75.59% branch coverage; candidate image builds remain pending. Public Template Workflow graph execution remains a separate gate. See [current evidence](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
+**Status**: `v1.9.9` remains stable. RC85 preparation uses OpenClaw `v2026.9.5` and Node `24.19.0`. RC84 public and combined image checks passed. RC85's clean source-validation rerun, 77% branch-coverage gate, and images remain pending. Installed-instance acceptance and public Template Workflow execution remain separate gates. See [current evidence](planning/RC85_RELEASE_GATE_2026-09-23.md).
 
 ## Earlier release evidence (retained history)
 
@@ -33,10 +33,10 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Latest published candidate: `2.0.0-test-rc46`
-- Next candidate: only if RC46 hands-on or external-environment testing finds a source or packaging defect
-- Runtime: OpenClaw `v2026.6.34`
-- Hands-on review: use the focused RC46 Review set; RC45 results remain historical evidence.
+- Latest published candidate: `2.0.0-test-rc84`
+- Next candidate: `2.0.0-test-rc85`, pending the engineering release gate
+- Runtime: OpenClaw `v2026.9.5`
+- Hands-on review: use the RC85 acceptance checks in the current release gate; earlier RC checklists remain historical evidence.
 - External validation: verify cloud and on-prem health, restart behavior, chat, workflows, and plugin persistence against the accepted images.
 - Promotion rule: if candidate source changes, cut and validate a new RC. Otherwise promote the exact tested source and image digest.
 - Alternate runtime PR #170 is merged in RC46; its source, package, and runtime contracts are green, while hands-on Claude Code and Factory Droid checks remain in the focused Review set.

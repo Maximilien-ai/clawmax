@@ -1,16 +1,17 @@
 # ClawMax Documentation
 
-> Last updated: September 22, 2026
+> Last updated: September 23, 2026
 
-Active development: RC83 preparation / OpenClaw `2026.9.5`; stable remains
-`v1.9.9`. RC82 image checks passed, but installed-instance acceptance is still
-pending. Start with the [current release gate](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
+Active development: RC85 preparation / OpenClaw `2026.9.5`; stable remains
+`v1.9.9`. RC84 image checks passed. RC85 validation, images and installed-instance
+acceptance remain pending. Start with the [current release gate](planning/RC85_RELEASE_GATE_2026-09-23.md).
 
 ## Active Documents
 
 | Document | Description |
 |----------|-------------|
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
+| [planning/RC85_RELEASE_GATE_2026-09-23.md](planning/RC85_RELEASE_GATE_2026-09-23.md) | RC85 candidate scope, engineering gate and Mike acceptance |
 | [planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md) | RC83 branch coverage, isolated runtime validation, image and acceptance gates |
 | [planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md](planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md) | Published RC82 evidence and unresolved installed-instance deployment blockers |
 | [BACKLOG.md](BACKLOG.md) | Prioritized backlog, sprint items, and roadmap |

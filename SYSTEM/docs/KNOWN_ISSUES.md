@@ -1,6 +1,6 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: September 22, 2026
+**Last Updated**: September 23, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
@@ -11,6 +11,13 @@ active release tracks. Historical snapshots are kept under
 [`archive/`](archive/).
 
 ## Runtime And Workflows
+
+### RC85 does not yet establish resolution of Mike's wrong-model report
+
+RC85 preparation addresses configuration validation and policy-denied model saves.
+The RC83 report of a different model executing still needs same-agent saved
+configuration and redacted runtime evidence. Duplicated chat errors/raw Markdown
+also remain unresolved. See the [RC85 gate](planning/RC85_RELEASE_GATE_2026-09-23.md).
 
 ### Installed-instance RC82 acceptance remains blocked
 

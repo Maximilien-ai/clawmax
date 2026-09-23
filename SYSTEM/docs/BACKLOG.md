@@ -1,9 +1,14 @@
 # Backlog
 
-> Last updated: September 22, 2026
+> Last updated: September 23, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Mini Sprint
+
+- [ ] **RC85 release gate** — complete clean integration/validation with at least
+  77% branch coverage, publish and validate matching public/combined images,
+  then obtain Mike's installed-instance acceptance. Keep unresolved reports
+  explicit in the [release gate](planning/RC85_RELEASE_GATE_2026-09-23.md).
 
 - [ ] **Next RC after RC83: bulk agent budget limits (testing priority)** —
   let an operator select multiple agents on the Agents page and apply the same
