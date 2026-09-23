@@ -76,7 +76,7 @@ export const WORKSPACE_TOUR_STEPS: WorkspaceTourStep[] = [
     id: 'system',
     target: '[data-tour="nav-docs"]',
     title: 'System controls live down here',
-    description: 'Use Documents for DocHub and agent/workflow files, Keys & Secrets for credentials, Activity & Budget for usage and cost tracking, and System & Logs when you need diagnostics or runtime details.',
+    description: 'Use Documents for DocHub and agent/workflow files, Keys & Secrets for credentials, Activity & Budget for usage and cost tracking, Plugins to manage OpenClaw runtime plugins and ClawMax dashboard plugins and extensions, and Logs for diagnostics. Open enabled ClawMax features from Extensions.',
   },
 ]
 

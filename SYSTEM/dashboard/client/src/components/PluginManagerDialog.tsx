@@ -16,18 +16,22 @@ interface PluginManagerDialogProps {
   open: boolean
   onClose: () => void
   onSaved: (plugins: PluginManifest[]) => void
+  embedded?: boolean
 }
 
-export function PluginManagerDialog({ open, onClose, onSaved }: PluginManagerDialogProps) {
+export function PluginManagerDialog({ open, onClose, onSaved, embedded = false }: PluginManagerDialogProps) {
   const [entries, setEntries] = useState<PluginSettingsEntry[]>([])
   const [enabled, setEnabled] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+  const [notice, setNotice] = useState('')
 
   useEffect(() => {
     if (!open) return
     setLoading(true)
+    setLoaded(false)
     setError(null)
     fetch('/api/plugins/settings')
       .then((response) => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
@@ -35,6 +39,7 @@ export function PluginManagerDialog({ open, onClose, onSaved }: PluginManagerDia
         const plugins = Array.isArray(data.plugins) ? data.plugins as PluginSettingsEntry[] : []
         setEntries(plugins)
         setEnabled(new Set(plugins.filter((plugin) => plugin.enabled).map((plugin) => plugin.slug)))
+        setLoaded(true)
       })
       .catch(() => setError('Available plugins could not be loaded.'))
       .finally(() => setLoading(false))
@@ -45,6 +50,7 @@ export function PluginManagerDialog({ open, onClose, onSaved }: PluginManagerDia
   const save = async () => {
     setSaving(true)
     setError(null)
+    setNotice('')
     try {
       const response = await fetch('/api/plugins/settings', {
         method: 'PUT',
@@ -54,7 +60,8 @@ export function PluginManagerDialog({ open, onClose, onSaved }: PluginManagerDia
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const data = await response.json()
       onSaved(Array.isArray(data.plugins) ? data.plugins : [])
-      onClose()
+      setNotice('ClawMax dashboard plugin selection saved for this instance.')
+      if (!embedded) onClose()
     } catch {
       setError('Plugin changes could not be saved.')
     } finally {
@@ -62,26 +69,27 @@ export function PluginManagerDialog({ open, onClose, onSaved }: PluginManagerDia
     }
   }
 
+  const Container = embedded ? EmbeddedPluginManager : MobileSafeDialog
   return (
-    <MobileSafeDialog
+    <Container
       ariaLabelledBy="plugin-manager-title"
       onClose={saving ? undefined : onClose}
       panelClassName="max-w-2xl"
       header={(
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 id="plugin-manager-title" className="text-lg font-semibold text-gray-900 dark:text-white">Manage plugins</h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Choose which available plugins appear in this instance.</p>
+            <h2 id="plugin-manager-title" className="text-lg font-semibold text-gray-900 dark:text-white">ClawMax Plugins and Extensions</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">These extend the ClawMax dashboard with pages and features. They are different from OpenClaw runtime plugins. Choose which appear for all workspaces on this instance.</p>
           </div>
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50 dark:hover:bg-gray-700 dark:hover:text-white" aria-label="Close plugin manager">
+          {!embedded && <button type="button" onClick={onClose} disabled={saving} className="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50 dark:hover:bg-gray-700 dark:hover:text-white" aria-label="Close plugin manager">
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
-          </button>
+          </button>}
         </div>
       )}
       footer={(
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">Cancel</button>
-          <button type="button" onClick={save} disabled={loading || saving} className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
+          {!embedded && <button type="button" onClick={onClose} disabled={saving} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">Cancel</button>}
+          <button type="button" onClick={save} disabled={!loaded || loading || saving} className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
         </div>
       )}
     >
@@ -95,6 +103,7 @@ export function PluginManagerDialog({ open, onClose, onSaved }: PluginManagerDia
             <label key={plugin.slug} className="flex cursor-pointer items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <input
                 type="checkbox"
+                disabled={saving}
                 checked={enabled.has(plugin.slug)}
                 onChange={(event) => setEnabled((current) => {
                   const next = new Set(current)
@@ -117,6 +126,14 @@ export function PluginManagerDialog({ open, onClose, onSaved }: PluginManagerDia
         </div>
       )}
       {error && <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{error}</p>}
-    </MobileSafeDialog>
+      {notice && <p role="status" className="mt-3 text-sm text-green-700 dark:text-green-300">{notice}</p>}
+    </Container>
   )
+}
+
+function EmbeddedPluginManager({ header, footer, children }: React.ComponentProps<typeof MobileSafeDialog>) {
+  return <section className="min-w-0 p-4 sm:p-6" aria-labelledby="plugin-manager-title">
+    {header}<div className="my-4 break-words">{children}</div>
+    <div className="sticky bottom-0 border-t bg-white py-3 dark:border-gray-700 dark:bg-gray-900">{footer}</div>
+  </section>
 }

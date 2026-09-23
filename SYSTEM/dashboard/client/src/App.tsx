@@ -27,7 +27,7 @@ import { MaintenanceBanner } from './components/MaintenanceBanner'
 import { NotificationCenter } from './components/NotificationCenter'
 import { OnboardingWizard } from './components/OnboardingWizard'
 import { TermsOfServiceModal } from './components/TermsOfServiceModal'
-import { PluginManagerDialog } from './components/PluginManagerDialog'
+import SystemPlugins from './pages/SystemPlugins'
 import { WorkspaceFirstRunTour } from './components/WorkspaceFirstRunTour'
 import { useWorkspace } from './contexts/WorkspaceContext'
 import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
@@ -311,7 +311,8 @@ const DEFAULT_NAV_ORDER: NavItem[] = [
   { id: 'docs', label: 'Documents', icon: FileIcon },
   { id: 'keys', label: 'Keys & Secrets', icon: KeyIcon },
   { id: 'activity', label: 'Activity & Budget', icon: ActivityIcon },
-  { id: 'logs', label: 'System & Logs', icon: LogIcon },
+  { id: 'plugins', label: 'Plugins', icon: WrenchIcon },
+  { id: 'logs', label: 'Logs', icon: LogIcon },
 ]
 
 const USER_TABS_COUNT = 7
@@ -322,7 +323,7 @@ const PRIMARY_CLIENT_GROUPS: CoreDashboardPage[][] = [
 ]
 const DOCUMENTS_TABS_ORDER: Page[] = ['docs']
 const CREATION_TABS_ORDER: Page[] = []
-const OPERATIONS_TABS_ORDER: Page[] = ['keys', 'activity', 'logs']
+const OPERATIONS_TABS_ORDER: Page[] = ['keys', 'activity', 'plugins', 'logs']
 const SYSTEM_TABS_ORDER: Page[] = [...DOCUMENTS_TABS_ORDER, ...CREATION_TABS_ORDER, ...OPERATIONS_TABS_ORDER]
 const SYSTEM_NAV_EXPANDED_STORAGE_KEY = 'clawmax-system-nav-expanded'
 const LAST_PAGE_STORAGE_KEY = 'clawmax-last-dashboard-page'
@@ -490,7 +491,6 @@ export default function App() {
   })
   const [dismissedMaintenanceKey, setDismissedMaintenanceKey] = useState<string | null>(null)
   const [showTermsOfService, setShowTermsOfService] = useState(false)
-  const [showPluginManager, setShowPluginManager] = useState(false)
 
   const coreUserNav = navOrder.slice(0, USER_TABS_COUNT)
   const navIndexById = new Map(navOrder.map((item, index) => [item.id, index]))
@@ -781,11 +781,6 @@ export default function App() {
             onClose={() => setShowWorkspaceDialog(false)}
           />
           <TermsOfServiceModal open={showTermsOfService} onClose={() => setShowTermsOfService(false)} />
-          <PluginManagerDialog
-            open={showPluginManager}
-            onClose={() => setShowPluginManager(false)}
-            onSaved={(nextPlugins) => setPlugins(nextPlugins)}
-          />
           <div className="flex h-[100dvh] w-full min-w-0 overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
           {/* Mobile nav overlay backdrop */}
           {mobileNavOpen && (
@@ -867,20 +862,26 @@ export default function App() {
                       onClick={() => setPluginNavExpanded((current) => !current)}
                       aria-expanded={pluginNavExpanded}
                       className={`flex min-w-0 flex-1 items-center px-3 py-2 text-left text-sm font-medium ${navCollapsed ? 'justify-center' : 'justify-between'}`}
-                      title={navCollapsed ? 'Toggle plugin navigation' : undefined}
+                      title={navCollapsed ? 'Toggle extension navigation' : undefined}
                     >
                       {navCollapsed ? (
                         pluginNavExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightSmallIcon className="h-4 w-4" />
                       ) : (
                         <>
-                        <span className="uppercase tracking-[0.18em] text-[11px] text-gray-400">Plugins</span>
+                        <span className="uppercase tracking-[0.18em] text-[11px] text-gray-400">Extensions</span>
                         {pluginNavExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightSmallIcon className="h-4 w-4" />}
                         </>
                       )}
                     </button>
                     <button
                       type="button"
-                      onClick={() => setShowPluginManager(true)}
+                      onClick={() => {
+                        window.history.pushState({}, '', '/system/plugins#clawmax')
+                        window.dispatchEvent(new PopStateEvent('popstate'))
+                        setPage('plugins')
+                        setSystemNavExpanded(true)
+                        setMobileNavOpen(false)
+                      }}
                       className="mr-1 rounded-md p-2 text-gray-400 hover:bg-gray-700 hover:text-white"
                       title="Manage plugins"
                       aria-label="Manage plugins"
@@ -1175,6 +1176,7 @@ export default function App() {
               </WorkspaceScoped>
             </div>
             )}
+            {page === 'plugins' && <div className="min-w-0 flex-1 overflow-auto"><SystemPlugins onSaved={setPlugins} /></div>}
             {page === 'logs' && (
             <div className="flex-1 overflow-auto">
               <WorkspaceScoped pageKey="logs">
