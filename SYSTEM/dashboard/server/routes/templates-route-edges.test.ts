@@ -316,6 +316,52 @@ async function run() {
     assert.strictEqual(res.jsonBody?.error, 'Feedback store unavailable')
   })
 
+  await test('agent template file editor reads inherited files when the workspace copy is blank', async () => {
+    const workspaceTemplates = path.join(tmpWorkspace, 'TEMPLATES_OUT', 'agent-files')
+    const systemTemplates = path.join(tmpWorkspace, 'TEMPLATES_OUT', 'system-agent-files')
+    const workspaceCopy = path.join(workspaceTemplates, 'copy')
+    const systemBase = path.join(systemTemplates, 'base')
+    fs.mkdirSync(workspaceCopy, { recursive: true })
+    fs.mkdirSync(systemBase, { recursive: true })
+    fs.writeFileSync(path.join(workspaceCopy, 'IDENTITY.md'), '  \n')
+    fs.writeFileSync(path.join(workspaceCopy, 'TOOLS.md'), '# Workspace tools')
+    fs.writeFileSync(path.join(systemBase, 'IDENTITY.md'), '# Base identity')
+    fs.writeFileSync(path.join(systemBase, 'SOUL.md'), '# Base soul')
+    fs.writeFileSync(path.join(systemBase, 'TOOLS.md'), '# Base tools')
+    const handler = getRouteHandler('get', '/agents/:slug/files', { templates: {
+      getTemplate: (_type: string, slug: string) => slug === 'copy' ? { source: 'workspace', name: 'Copy', metadata: { basedOnSlug: 'base', basedOnSource: 'system' } } : null,
+      getAgentTemplatesDir: () => workspaceTemplates,
+      getGlobalAgentTemplatesDir: () => systemTemplates,
+    } as any })
+    let res = makeRes()
+    await handler(makeReq({ params: { slug: 'copy' } }), res)
+    assert.strictEqual(res.statusCode, 200)
+    assert.deepStrictEqual(res.jsonBody, { identity: '# Base identity', soul: '# Base soul', tools: '# Workspace tools' })
+    res = makeRes()
+    await handler(makeReq({ params: { slug: 'missing' } }), res)
+    assert.strictEqual(res.statusCode, 404)
+  })
+
+  await test('legacy agent template copies infer their system source without changing files', async () => {
+    const workspaceTemplates = path.join(tmpWorkspace, 'TEMPLATES_OUT', 'legacy-agent-files')
+    const systemTemplates = path.join(tmpWorkspace, 'TEMPLATES_OUT', 'legacy-system-files')
+    const base = path.join(systemTemplates, 'shared-base')
+    fs.mkdirSync(path.join(workspaceTemplates, 'legacy-copy'), { recursive: true })
+    fs.mkdirSync(base, { recursive: true })
+    fs.writeFileSync(path.join(base, 'IDENTITY.md'), '# Inherited identity')
+    const handler = getRouteHandler('get', '/agents/:slug/files', { templates: {
+      getTemplate: () => ({ source: 'workspace', name: 'Shared Base copy', agents: [{ id: 'shared-agent' }] }),
+      listTemplates: () => [{ source: 'system', slug: 'shared-base', name: 'Shared Base', agents: [{ id: 'shared-agent' }] }],
+      getAgentTemplatesDir: () => workspaceTemplates,
+      getGlobalAgentTemplatesDir: () => systemTemplates,
+    } as any })
+    const res = makeRes()
+    await handler(makeReq({ params: { slug: 'legacy-copy' } }), res)
+    assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(res.jsonBody?.identity, '# Inherited identity')
+    assert.strictEqual(fs.existsSync(path.join(workspaceTemplates, 'legacy-copy', 'IDENTITY.md')), false, 'Reading inherited files must not copy them')
+  })
+
   await test('workflow export markdown route returns markdown payload and headers', async () => {
     const handler = getRouteHandler('get', '/workflows/:id/export-md', {
       workflows: {
