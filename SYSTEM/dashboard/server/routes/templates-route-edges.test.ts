@@ -59,11 +59,13 @@ function loadRouter(overrides: {
   templates?: Partial<typeof import('../lib/templates')>
   workflows?: Partial<typeof import('../lib/workflows')>
   templateFeedback?: Partial<typeof import('../lib/template-feedback')>
+  workspace?: Partial<typeof import('../lib/workspace')>
 } = {}) {
   const moduleOverrides: Array<[string, Record<string, any> | undefined]> = [
     ['../lib/templates', overrides.templates],
     ['../lib/workflows', overrides.workflows],
     ['../lib/template-feedback', overrides.templateFeedback],
+    ['../lib/workspace', overrides.workspace],
   ]
 
   for (const [modulePath, patch] of moduleOverrides) {
@@ -442,6 +444,45 @@ async function run() {
     assert.strictEqual(res.statusCode, 400)
     assert.strictEqual(res.jsonBody?.error, 'Workflow already exists')
     assert.deepStrictEqual(res.jsonBody?.errors, ['duplicate workflow id'])
+  })
+
+  await test('organization conflict preview reports only matching agents, channels, and workflows', async () => {
+    const template = {
+      type: 'organization', name: 'Importable',
+      agents: [
+        { id: 'worker', groups: ['Team'], communities: ['Hub'] },
+        { id: 'built-in', tags: ['built-in'] },
+      ],
+      parameters: [{ agentId: 'worker', default: 1 }],
+      groups: [{ name: 'Team', community: 'Hub' }],
+      communities: [{ name: 'Hub' }],
+      workflows: [
+        { id: 'new-name-id', name: 'Existing Name' },
+        { id: 'existing-id', name: 'Different Name' },
+        { id: 'dependent', name: 'Depends on External', dependsOn: ['external-id'] },
+        { id: 'internal', name: 'Internal Dependency', dependsOn: ['dependent'] },
+      ],
+    }
+    const handler = getRouteHandler('post', '/organizations/conflicts', {
+      templates: { getTemplate: () => template } as any,
+      workspace: {
+        getWorkspacePath: () => tmpWorkspace,
+        listAgents: () => [{ id: 'worker2' }, { id: 'built-in' }],
+        parseGroups: () => ({ groups: [{ name: 'team' }], communities: [{ name: 'hub' }] }),
+      } as any,
+      workflows: { listWorkflows: () => [
+        { id: 'existing-id', name: 'Existing Name' },
+        { id: 'external-id', name: 'External' },
+      ] } as any,
+    })
+    const res = makeRes()
+    await handler(makeReq({ body: { templateSlug: 'importable', includeBuiltIn: false, agentCounts: { worker: 2 } } }), res)
+    assert.strictEqual(res.statusCode, 200)
+    assert.deepStrictEqual(res.jsonBody?.agentConflicts, ['worker2'])
+    assert.deepStrictEqual(res.jsonBody?.groupConflicts, ['Team'])
+    assert.deepStrictEqual(res.jsonBody?.communityConflicts, ['Hub'])
+    assert.deepStrictEqual(res.jsonBody?.workflowConflicts, ['Existing Name', 'Different Name', 'Depends on External'])
+    assert(!res.jsonBody?.workflowConflicts.includes('Internal Dependency'), 'Internal dependency must not be mistaken for an external conflict')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME
