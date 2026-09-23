@@ -35,7 +35,17 @@ Priorities remain stability, simplification, then consistency.
 - Local ignored environment aligned to `2.0.0-test-rc85`; restarted dashboard
   verified through `/api/system` and a read-only browser version check.
 - [Candidate source CI](https://github.com/Maximilien-ai/clawmax/actions/runs/35917231768).
-- RC85 tag, public image and matching combined image: not dispatched yet.
+- Candidate tag: `v2.0.0-test-rc85`, source
+  `dc0c4369500d6d3e9c19e7ccf9bb299f55197402` (documentation-only evidence update
+  after the tested source).
+- [Public image build](https://github.com/Maximilien-ai/clawmax/actions/runs/35918395530):
+  dispatched; amd64/arm64 validation pending.
+- Matching combined image is locally queued, **not yet dispatched or validated**.
+  The queue requires public success and unchanged private source
+  `ce2516d8a07ef96796ca138b748e6bd501672547`, then dispatches with both
+  `base_tag` and `image_tag` set to `2.0.0-test-rc85`.
+  Queue log: `/private/tmp/clawmax-rc85-queue-combined.log`; the local machine
+  must remain running. Any public failure or private-source change stops it.
 - Previous observed timing: approximately 8 minutes for local coverage, 50
   minutes for public images, and 13 minutes for the combined image.
 
