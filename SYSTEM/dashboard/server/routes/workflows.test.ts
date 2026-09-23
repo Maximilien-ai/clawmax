@@ -669,6 +669,74 @@ async function run() {
     assert(persistedPaused === false, 'Expected pipeline resume to be persisted')
   })
 
+  await test('workflow markdown import sets a default author and preserves save errors', async () => {
+    let imported: any
+    const parsed = { name: 'Imported', schedule: 'manual', content: '# Imported', targeting: { agents: [] } }
+    let handler = getRouteHandler('post', '/import-md', {
+      workflows: {
+        listWorkflows: () => [],
+        parseWorkflowMd: () => ({ ...parsed }),
+        createWorkflow: (workflow: any) => { imported = workflow; return { success: true, id: 'imported' } },
+      } as any,
+    })
+    let res = makeRes()
+    await handler(makeReq({}, { body: { content: '---\nname: Imported\n---' } }), res)
+    assert(res.statusCode === 200 && res.jsonBody?.id === 'imported', 'Valid markdown should be imported')
+    assert(imported.author === 'imported', 'Missing author should be attributed to import')
+
+    handler = getRouteHandler('post', '/import-md', {
+      workflows: { listWorkflows: () => [], parseWorkflowMd: () => ({ ...parsed, author: 'Alice' }), createWorkflow: () => ({ success: false, error: 'Duplicate workflow', errors: ['duplicate id'] }) } as any,
+    })
+    res = makeRes()
+    await handler(makeReq({}, { body: { content: '---\nname: Imported\n---' } }), res)
+    assert(res.statusCode === 400 && res.jsonBody?.errors?.[0] === 'duplicate id', 'Save error details should reach the caller')
+  })
+
+  await test('cron generation handles provider failure, invalid cron, and empty response', async () => {
+    const scenarios = [
+      { result: { error: 'Provider unavailable' }, status: 500, valid: undefined },
+      { result: { cron: 'bad cron', explanation: 'Daily' }, status: 200, valid: false },
+      { result: { explanation: 'No schedule' }, status: 200, valid: false },
+      { result: { cron: '0 9 * * *', explanation: 'Every morning' }, status: 200, valid: true },
+    ]
+    for (const scenario of scenarios) {
+      const handler = getRouteHandler('post', '/generate-cron', {
+        aiGenerator: { generateCronFromText: async () => scenario.result as any, isOneTimeScheduleRequest: () => false } as any,
+        workflows: { validateCron: (cron: string) => ({ valid: cron === '0 9 * * *', humanReadable: 'Every day at 9' }) } as any,
+      })
+      const res = makeRes()
+      await handler(makeReq({}, { body: { text: 'Run daily', tz: 123 } }), res)
+      await new Promise(resolve => setImmediate(resolve))
+      assert(res.statusCode === scenario.status && res.jsonBody?.valid === scenario.valid, `Unexpected cron result: ${JSON.stringify(res.jsonBody)}`)
+    }
+  })
+
+  await test('workflow generation classifies missing credentials and always clears request keys', async () => {
+    for (const [message, status] of [['No API key configured for provider', 400], ['Generation failed', 500]] as Array<[string, number]>) {
+      const calls: any[] = []
+      const handler = getRouteHandler('post', '/generate', {
+        aiGenerator: {
+          setRequestByokKeys: (keys: any) => calls.push(keys),
+          generateWorkflowFromNL: async () => { throw new Error(message) },
+        } as any,
+      })
+      const res = makeRes()
+      await handler(makeReq({}, { body: { description: 'Build a report', byokKeys: { openai: 'synthetic-only' } } }), res)
+      assert(res.statusCode === status, `Expected status ${status}`)
+      assert(calls.length === 2 && calls[0]?.openai === 'synthetic-only' && calls[1] === undefined, 'Request keys must be cleared after failure')
+      assert(!JSON.stringify(res.jsonBody).includes('synthetic-only'), 'Credentials must stay out of errors')
+    }
+  })
+
+  await test('pipeline mutation failures return a stable server error', async () => {
+    const handler = getRouteHandler('put', '/pipeline-state', {
+      workflows: { setWorkflowPipelinePaused: () => { throw new Error('private state path') } } as any,
+    })
+    const res = makeRes()
+    await handler(makeReq({}, { body: { paused: true } }), res)
+    assert(res.statusCode === 500 && res.jsonBody?.error === 'Failed to update workflow pipeline state', 'Internal state paths must not be disclosed')
+  })
+
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
 
