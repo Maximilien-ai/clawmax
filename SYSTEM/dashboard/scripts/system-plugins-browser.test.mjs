@@ -8,6 +8,15 @@ try {
   for (const width of [1440, 390]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } })
     await page.addInitScript(() => {
+      window.EventSource = class {
+        constructor() {
+          this.timer = setTimeout(() => {
+            this.onopen?.({})
+            this.onmessage?.({ data: JSON.stringify({ line: 'INFO synthetic log entry for toolbar testing' }) })
+          }, 100)
+        }
+        close() { clearTimeout(this.timer) }
+      }
       for (let version = 1; version <= 10; version++) localStorage.setItem(`clawmax-workspace-tour:disable:v${version}`, 'dismissed')
       localStorage.setItem('clawmax-system-nav-expanded', 'true')
     })
@@ -124,6 +133,37 @@ try {
     await page.getByRole('alert').filter({ hasText: 'Could not load OpenClaw' }).waitFor()
     assert.equal(await alpha.isDisabled(), true)
     assert.equal(await page.getByRole('checkbox').count(), 2, 'failed refresh retains cached inventory')
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+    await page.goto(`${base}/logs`)
+    await page.getByRole('heading', { name: 'Logs', exact: true }).waitFor()
+    await page.getByRole('button', { name: '🩺 Doctor', exact: true }).waitFor()
+    assert.equal(await page.locator('main').getByRole('button', { name: 'Plugins', exact: true }).count(), 0)
+    const actions = page.getByRole('button', { name: 'Log actions', exact: true })
+    await actions.click()
+    await page.getByRole('button', { name: 'Pause live logs', exact: true }).click()
+    assert.equal(await actions.getAttribute('aria-expanded'), 'false')
+    await actions.click()
+    await page.getByRole('button', { name: 'Resume live logs', exact: true }).waitFor()
+    await page.screenshot({ path: `/private/tmp/log-actions-${width}.png` })
+    await page.keyboard.press('Escape')
+    assert.equal(await actions.getAttribute('aria-expanded'), 'false')
+    assert.equal(await actions.evaluate(element => element === document.activeElement), true)
+    await actions.click()
+    await page.getByRole('heading', { name: 'Logs', exact: true }).click()
+    assert.equal(await actions.getAttribute('aria-expanded'), 'false')
+    await actions.click()
+    await page.getByRole('button', { name: 'Resume live logs', exact: true }).click()
+    await page.getByText('INFO synthetic log entry for toolbar testing', { exact: true }).waitFor()
+    await actions.click()
+    const downloadEvent = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Download filtered logs', exact: true }).click()
+    assert.match((await downloadEvent).suggestedFilename(), /^clawmax-system-logs-/)
+    await actions.click()
+    await page.getByRole('button', { name: 'Clear visible logs', exact: true }).click()
+    await actions.click()
+    assert.equal(await page.getByRole('button', { name: 'Download filtered logs', exact: true }).isDisabled(), true)
+    await page.getByRole('button', { name: 'Refresh logs', exact: true }).click()
+    await page.getByText('INFO synthetic log entry for toolbar testing', { exact: true }).waitFor()
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
     await page.close()
     console.log(`PASS ${width}px: navigation/cache, shared filters, confirmation/cancel, save/persistence, stale/error states, disabled installation, overflow`)
