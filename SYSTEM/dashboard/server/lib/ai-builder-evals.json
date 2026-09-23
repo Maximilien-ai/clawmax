@@ -1,5 +1,35 @@
 [
   {
+    "name": "single-agent price research is not redirected to a team",
+    "prompt": "I want an agent that researches prices.",
+    "intent": "ai_generate", "scope": "single_agent", "page": "agents"
+  },
+  {
+    "name": "single-agent template request preserves scope",
+    "prompt": "Create agent template: supplier pricing",
+    "intent": "ai_generate", "scope": "single_agent"
+  },
+  {
+    "name": "team of CEO agents stays team scoped",
+    "prompt": "Build a team of CEO agents",
+    "intent": "team_template", "scope": "team"
+  },
+  {
+    "name": "team template refinement does not pick an agent template",
+    "prompt": "Refine the team specialist template for outreach",
+    "intent": "team_template", "scope": "team"
+  },
+  {
+    "name": "team specialist template preserves team intent",
+    "prompt": "Build a team using the sales specialist template",
+    "intent": "team_template", "scope": "team"
+  },
+  {
+    "name": "explicit agent template request keeps existing precedence",
+    "prompt": "Build a team using the sales agent template",
+    "intent": "agent_template", "scope": "team"
+  },
+  {
     "name": "explicit team request maps to team template",
     "prompt": "I need a customer support team with handoffs and workflows",
     "intent": "team_template",
