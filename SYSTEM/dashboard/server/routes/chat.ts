@@ -11,6 +11,7 @@ import { resolveUserExecutionProviderKeys } from '../lib/dashboard-env'
 import { warmDefaultAgentModelEndpoint } from '../lib/agent-default-model'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
+import { recoverRejectedGatewayChat } from '../lib/gateway-chat-recovery'
 import { checkBudgetBlock } from '../lib/budget'
 import { createStreamingWarningFilter, normalizeChatMessage, stripBenignChatRuntimeWarnings } from '../lib/chat-normalization'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
@@ -41,6 +42,7 @@ import { appendActivityExportEventsForActiveConsents } from '../lib/activity-exp
 import { appendBoundedOutput } from '../lib/stream-bounds'
 import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '../lib/process-tree'
 import { isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
+import { assertTemplateRuntimeAdmitted } from '../lib/template-runtime-admission'
 
 const router = Router()
 const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
@@ -836,6 +838,9 @@ router.post('/:id/chat/readiness', async (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  try { assertTemplateRuntimeAdmitted(id) } catch {
+    return res.json({ available: false, code: 'template_runtime_unavailable', error: 'Template execution is unavailable pending runtime and authority admission' })
+  }
   if (rejectStaleChatAgent(req, res, id)) return
 
   await warmChatOpenAiCompatibleModel(byok)
@@ -875,6 +880,11 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
 
   if (!message || typeof message !== 'string') {
     return reject(400, 'message is required')
+  }
+  // Managed actions can bypass the agent queue. Reject before readiness,
+  // credential capabilities, session creation, or any action dispatch.
+  try { assertTemplateRuntimeAdmitted(id) } catch {
+    return reject(409, 'Template execution is unavailable pending runtime and authority admission')
   }
   if (transport) {
     transport.assertAuthorized()
@@ -1078,7 +1088,6 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
       const executionSessionId = currentSessionId
 
       await runExclusiveAgentExecution(id, async () => {
-        transport?.assertAuthorized()
         if (!isRequestedChatAgentCurrent(req, id)) {
           throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
         }
@@ -1158,7 +1167,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
         if (!res.writableEnded) {
           res.end()
         }
-      }).catch((err) => {
+      }, { assertAuthorized: () => transport?.assertAuthorized() }).catch((err) => {
         console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
         clearInterval(keepalive)
         send('error', `Failed to prepare agent execution: ${err.message}`)
@@ -1193,6 +1202,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
         console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
 
         type ChatAttemptResult = {
+          exitCode?: number | null
           completionText: string
           rawError: string
           usage: ReturnType<typeof readLatestAssistantUsageFromPersistedSession>
@@ -1389,6 +1399,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
               resolveAttempt({
                 completionText,
                 rawError: stderrOutput || (code !== 0 ? 'Agent failed.' : 'No reply from agent.'),
+                exitCode: code,
                 usage,
                 persistedAssistant,
                 hadVisibleOutput,
@@ -1408,11 +1419,11 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
       }
 
       await runExclusiveAgentExecution(id, async () => {
-        transport?.assertAuthorized()
         if (!isRequestedChatAgentCurrent(req, id)) {
           throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
         }
         let primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
+        let usedGateway = !useLocal
         if (shouldRetryViaGatewayAfterLocalCollision({
           useLocal,
           provider: resolvedAgent.provider,
@@ -1426,10 +1437,21 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
           const gatewayReady = await waitForGatewayResponsive(120000, 1000)
           if (gatewayReady.running) {
             primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true)
+            usedGateway = true
           } else {
             console.warn(`[Chat Route] Gateway did not become ready for retry: ${gatewayReady.error || 'unknown readiness failure'}`)
           }
         }
+        primaryResult = await recoverRejectedGatewayChat(primaryResult, {
+          usedGateway,
+          signal: turn.signal,
+          waitUntilReady: async () => (await waitForGatewayResponsive(120000, 1000, turn.signal)).running,
+          assertCurrentAuthority: () => {
+            transport?.assertAuthorized()
+            if (!isRequestedChatAgentCurrent(req, id)) throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
+          },
+          retry: () => runChatAttempt(resolvedAgent.model, resolvedAgent.provider, true),
+        })
         throwIfChatAttemptNeedsSessionRetry(primaryResult)
         const fallbackModel = resolvedAgent.backupModel
         const fallbackProvider = resolvedAgent.backupProvider
@@ -1447,6 +1469,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
         throwIfChatAttemptNeedsSessionRetry(fallbackResult)
         return fallbackResult
       }, {
+        assertAuthorized: () => transport?.assertAuthorized(),
         maxSessionLockRetries: 1,
         onSessionLockRetry: (attempt) => {
           chatSessionRetryAttempt = attempt + 1

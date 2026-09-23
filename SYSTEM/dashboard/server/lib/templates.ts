@@ -17,6 +17,7 @@ import { applyGeneratedWorkflowHandoffs, normalizeGeneratedWorkflowReferences } 
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
 import { getWorkspaceManager } from './workspace-manager'
+import { openClawConfigPath, openClawStatePath } from './openclaw-profile-paths'
 
 // Template storage paths (dynamic functions)
 
@@ -210,7 +211,7 @@ function scaffoldAgentMemory(agentId: string) {
 
 function initializeTemplateCreatedAgent(agentId: string) {
   scaffoldAgentMemory(agentId)
-  const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+  const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId, openClawStatePath())
   if (!reset.ok) {
     throw new Error(reset.error || `Failed to reset runtime sessions for ${agentId}`)
   }
@@ -251,7 +252,7 @@ async function finalizeTemplateCreatedAgentRegistration(args: {
   const { agentId, displayName, workspacePath, model, skills, gatewayAlreadySynchronized = false } = args
   const intendedDisplayName = displayName?.trim() || agentId
   const workspaceArg = path.join(workspacePath, 'AGENTS', agentId)
-  const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+  const agentDirArg = path.join(openClawStatePath(), 'agents', agentId, 'agent')
   if (gatewayAlreadySynchronized) {
     console.log(`Agent ${agentId} was synchronized through the native OpenClaw lifecycle`)
   } else {
@@ -265,7 +266,7 @@ async function finalizeTemplateCreatedAgentRegistration(args: {
     }
   }
 
-  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+  const configPath = openClawConfigPath()
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
   const registeredAgent = materializeDashboardAgentList(config).find((agent: any) =>
     agent?.id === agentId && String(agent?.workspace || '') === workspaceArg
@@ -809,7 +810,7 @@ function ensureOpenClawAgentRegisteredForWorkspace(
   agentDirArg: string,
   displayName = agentId
 ): OpenClawAgentRegistrationResult {
-  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+  const configPath = openClawConfigPath()
   const existing = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
   if (existing) return existing
   return createOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg, displayName)
@@ -840,7 +841,7 @@ async function runOrganizationPostImportSetup(args: {
         id: agentId,
         name: templateAgent?.name?.trim() || agentId,
         workspace: path.join(workspacePath, 'AGENTS', agentId),
-        agentDir: path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent'),
+        agentDir: path.join(openClawStatePath(), 'agents', agentId, 'agent'),
         model: appliedModelsByAgentId?.[agentId],
         skills: templateAgent?.skills,
       }
@@ -2244,7 +2245,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         id: targetAgentId,
         name: sourceAgent.name?.trim() || targetAgentId,
         workspace: path.join(getWorkspacePath(), 'AGENTS', targetAgentId),
-        agentDir: path.join(process.env.HOME || '', '.openclaw', 'agents', targetAgentId, 'agent'),
+        agentDir: path.join(openClawStatePath(), 'agents', targetAgentId, 'agent'),
         model: effectiveModel,
         skills: sourceAgent.skills,
       }])

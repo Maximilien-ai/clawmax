@@ -8,11 +8,15 @@ import { getDashboardEnvRaw, getDashboardInstanceLabel } from '../lib/dashboard-
 import { createCliSessionToken, getAuthenticatedSession, isGitHubAuthConfigured } from '../lib/github-auth'
 import { isDashboardAuthBypassAllowed } from '../lib/http-security'
 import { getRuntimeInstanceIdentity } from '../lib/opik'
-import { getWorkspaceManager, Workspace } from '../lib/workspace-manager'
+import { getWorkspaceManager, Workspace, WorkspaceManager } from '../lib/workspace-manager'
 import { getDashboardVersion, listAgents } from '../lib/workspace'
 import { listWorkflows } from '../lib/workflows'
 import { createInstanceTemplatesRouter } from './instance-templates'
-import { createInstanceChatRouter } from './instance-chat'
+import { createInstanceChatRouter, type CliChatContext, type CliTemplateExecution } from './instance-chat'
+import type { TemplateWorkspaceContext } from './instance-templates'
+import { createInstanceWorkflowsRouter } from './instance-workflows'
+import { createInstanceGroupsRouter } from './instance-groups'
+import { configuredTemplateResolverFromEnv } from '../lib/template-service'
 
 const API_VERSION = 'clawmax.instance/v1'
 const WORKSPACE_SCOPES = ['agents.read', 'agents.chat', 'workflows.run']
@@ -261,9 +265,14 @@ function issueTokenSession(actor: CliActor, state: CliState) {
   }
 }
 
-export function createInstanceCliRouter() {
+/** Optional trusted server composition shared by lifecycle and chat. Absent by
+ * default; a request can never enable execution or supply authority bindings. */
+export function createInstanceCliRouter(options: {
+  templates?: (context: TemplateWorkspaceContext) => CliTemplateExecution
+  workspaceManager?: WorkspaceManager
+} = {}) {
   const router = express.Router()
-  const manager = getWorkspaceManager()
+  const manager = options.workspaceManager || getWorkspaceManager()
 
   router.get('/discovery', (req, res) => {
     const issuer = originFor(req)
@@ -526,29 +535,32 @@ export function createInstanceCliRouter() {
     }
   })
 
+  const authorizeExecution = (req: Request, res: Response): CliChatContext | null => {
+    const actorId = req.clawmaxCliActor!.actorId
+    const workspaceId = req.params.workspaceId
+    const workspace = manager.getWorkspace(workspaceId)
+    const assertAuthorized = () => {
+      const actor = resolveCliActor(req)
+      const current = manager.getWorkspace(workspaceId)
+      if (!actor || actor.actorId !== actorId || !workspace || !current
+        || current.path !== workspace.path || !authorizationFor(current, actor, loadState())) {
+        throw new Error('Workspace access denied')
+      }
+    }
+    try { assertAuthorized() } catch {
+      sendError(res, req, 403, 'workspace_forbidden', 'workspace access denied')
+      return null
+    }
+    return {
+      workspaceId: workspace!.id, workspacePath: workspace!.path, actorId, assertAuthorized,
+      run: fn => manager.withWorkspace(workspace!.id, fn),
+    }
+  }
   router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceChatRouter({
-    authorize: (req, res) => {
-      const actorId = req.clawmaxCliActor!.actorId
-      const workspaceId = req.params.workspaceId
-      const workspace = manager.getWorkspace(workspaceId)
-      const assertAuthorized = () => {
-        const actor = resolveCliActor(req)
-        const current = manager.getWorkspace(workspaceId)
-        if (!actor || actor.actorId !== actorId || !workspace || !current
-          || current.path !== workspace.path || !authorizationFor(current, actor, loadState())) {
-          throw new Error('Workspace access denied')
-        }
-      }
-      try { assertAuthorized() } catch {
-        sendError(res, req, 403, 'workspace_forbidden', 'workspace access denied')
-        return null
-      }
-      return {
-        workspaceId: workspace!.id, workspacePath: workspace!.path, actorId, assertAuthorized,
-        run: fn => manager.withWorkspace(workspace!.id, fn),
-      }
-    },
+    authorize: authorizeExecution, templateExecution: options.templates,
   }))
+  router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceWorkflowsRouter({ authorize: authorizeExecution }))
+  router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceGroupsRouter({ authorize: authorizeExecution, templateExecution: options.templates }))
   router.use('/workspaces/:workspaceId', requireCliAuth, createInstanceTemplatesRouter({
     authorize: (req, res) => {
       try {
@@ -565,6 +577,7 @@ export function createInstanceCliRouter() {
       }
     },
     dashboardVersion: getDashboardVersion,
+    lifecycle: options.templates,
     // Do not invent a runtime version when a source checkout has no pinned one.
     openClawVersion: () => process.env.CLAWMAX_OPENCLAW_VERSION || 'unknown',
   }))
@@ -572,4 +585,4 @@ export function createInstanceCliRouter() {
   return router
 }
 
-export default createInstanceCliRouter()
+export default createInstanceCliRouter({ templates: configuredTemplateResolverFromEnv() })

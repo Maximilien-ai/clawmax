@@ -769,6 +769,13 @@ test_validation() {
 }
 
 # Section 0: TypeScript & Unit Tests
+. "$SYSTEM_DIR/test-unit-environment.sh"
+clawmax_enter_unit_environment
+if bash "$SYSTEM_DIR/test-unit-environment.test.sh"; then
+  pass "Unit/live environment separation"
+else
+  fail "Unit/live environment separation"
+fi
 echo ""
 echo "========================================="
 echo "Section 0: TypeScript & Skills Tests"
@@ -872,6 +879,21 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Agent loading helper unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentReadiness.test.ts; then
+  pass "Agent readiness warning tests"
+else
+  fail "Agent readiness warning tests"
+fi
+if npx ts-node --transpileOnly server/lib/gateway-chat-recovery.test.ts; then
+  pass "Gateway chat admission recovery tests"
+else
+  fail "Gateway chat admission recovery tests"
+fi
+if npx ts-node --transpileOnly server/lib/openclaw-plugins.test.ts && npx ts-node --transpileOnly server/routes/openclaw-plugins.test.ts; then
+  pass "OpenClaw plugin control tests"
+else
+  fail "OpenClaw plugin control tests"
+fi
 npx ts-node --transpileOnly client/src/lib/agentLoading.test.ts > /tmp/clawmax-agent-loading.out 2>&1 || true
 if grep -q "agentLoading.test.ts:" /tmp/clawmax-agent-loading.out; then
   agent_loading_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-agent-loading.out | head -1 | grep -o '[0-9]\+')
@@ -2192,8 +2214,12 @@ else
 fi
 
 echo -e "${YELLOW}→ Running AI Builder routing unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/ai-builder.test.ts > /tmp/clawmax-ai-builder-routing.out 2>&1 || true
-if grep -q "^✓" /tmp/clawmax-ai-builder-routing.out; then
+if node "$SYSTEM_DIR/test-builder-routing-runner.test.mjs"; then
+  pass "AI Builder routing runner exit-status regression"
+else
+  fail "AI Builder routing runner exit-status regression"
+fi
+if npx ts-node --transpileOnly server/lib/ai-builder.test.ts > /tmp/clawmax-ai-builder-routing.out 2>&1; then
   ai_builder_routing_count=$(grep -c "^✓" /tmp/clawmax-ai-builder-routing.out | tr -cd '0-9')
   pass "AI Builder routing unit tests (${ai_builder_routing_count:-?} tests)"
 else
@@ -2476,7 +2502,7 @@ if node "$SYSTEM_DIR/patch-openclaw-roster-removal.test.mjs"; then
 else
   fail "OpenClaw explicit roster-removal patch"
 fi
-for template_suite in server/lib/portable-template-zip.test.ts server/lib/portable-template.test.ts server/routes/instance-templates.test.ts server/routes/instance-template-lifecycle.test.ts server/lib/messages-workspace-isolation.test.ts server/lib/workspace-file-transaction.test.ts server/lib/template-revisions.test.ts server/lib/template-resource-graph.test.ts server/lib/template-resource-files.test.ts server/lib/template-authority.test.ts server/lib/template-gateway-transaction.test.ts server/lib/template-apply-coordinator.test.ts server/lib/workspace-agent-registration.test.ts server/lib/workspace-recovery-admission.test.ts server/lib/template-recovery-worker.test.ts server/lib/recovery-serving-gate.test.ts server/lib/recovery-serving-http.test.ts; do
+for template_suite in server/lib/portable-template-zip.test.ts server/lib/portable-template.test.ts server/routes/instance-templates.test.ts server/routes/instance-template-lifecycle.test.ts server/lib/messages-workspace-isolation.test.ts server/lib/workspace-file-transaction.test.ts server/lib/template-revisions.test.ts server/lib/template-resource-graph.test.ts server/lib/template-resource-files.test.ts server/lib/template-authority.test.ts server/lib/template-authority-revalidation.test.ts server/lib/template-gateway-transaction.test.ts server/lib/template-apply-coordinator.test.ts server/lib/workspace-agent-registration.test.ts server/lib/workspace-recovery-admission.test.ts server/lib/template-recovery-worker.test.ts server/lib/recovery-serving-gate.test.ts server/lib/recovery-serving-http.test.ts; do
   if npx ts-node --transpileOnly "$template_suite" > /tmp/clawmax-portable-template-suite.out 2>&1; then
     pass "Portable Template contract: $template_suite"
   else
@@ -2798,9 +2824,8 @@ else
 fi
 
 echo -e "${YELLOW}→ Running OpenClaw workspace-state cleanup tests...${NC}"
-bash "$SYSTEM_DIR/dashboard/openclaw-workspace-state.test.sh" > /tmp/clawmax-openclaw-workspace-state.out 2>&1 || true
-if grep -q "openclaw-workspace-state.test.sh: 6 tests passed" /tmp/clawmax-openclaw-workspace-state.out; then
-  pass "OpenClaw workspace-state cleanup tests (6 tests)"
+if bash "$SYSTEM_DIR/dashboard/openclaw-workspace-state.test.sh" > /tmp/clawmax-openclaw-workspace-state.out 2>&1; then
+  pass "OpenClaw workspace-state cleanup tests"
 else
   cat /tmp/clawmax-openclaw-workspace-state.out
   fail "OpenClaw workspace-state cleanup tests"
@@ -2881,6 +2906,12 @@ else
 fi
 
 echo -e "${YELLOW}→ Running OpenClaw target prep shell tests...${NC}"
+if node "$SYSTEM_DIR/test-isolated-gateway.test.mjs" > /tmp/clawmax-isolated-gateway.out 2>&1; then
+  pass "Isolated gateway startup and cleanup tests"
+else
+  cat /tmp/clawmax-isolated-gateway.out
+  fail "Isolated gateway startup and cleanup tests"
+fi
 bash "$SYSTEM_DIR/prepare-openclaw-target.test.sh" > /tmp/clawmax-openclaw-target-shell.out 2>&1 || true
 if grep -q "PASS: prepare-openclaw-target.sh uses the branch target Node/PNPM OpenClaw build flow" /tmp/clawmax-openclaw-target-shell.out; then
   pass "OpenClaw target prep shell tests"
@@ -3217,10 +3248,30 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Instance CLI API contract tests...${NC}"
+if npx ts-node --transpileOnly server/routes/instance-workflows.test.ts; then
+  pass "Instance CLI workflow contract tests"
+else
+  fail "Instance CLI workflow contract tests"
+fi
+if npx ts-node --transpileOnly server/lib/workflow-cli-admission.test.ts; then
+  pass "Workflow CLI admission tests"
+else
+  fail "Workflow CLI admission tests"
+fi
+if npx ts-node server/lib/agent-queue-admission.test.ts; then
+  pass "Agent queue admission tests"
+else
+  fail "Agent queue admission tests"
+fi
 if npx ts-node --transpileOnly server/routes/instance-chat.test.ts; then
   pass "Instance CLI chat contract tests"
 else
   fail "Instance CLI chat contract tests"
+fi
+if npx ts-node --transpileOnly server/routes/instance-groups.test.ts; then
+  pass "Instance CLI Group chat and history contract tests"
+else
+  fail "Instance CLI Group chat and history contract tests"
 fi
 if npx ts-node --transpileOnly server/routes/instance-cli.test.ts; then
   pass "Instance CLI API contract tests (15 tests)"
@@ -3753,6 +3804,7 @@ fi
 # Section 1: Health & System APIs
 # =========================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+clawmax_leave_unit_environment
 echo "1. Health & System APIs"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -5238,7 +5290,7 @@ INTEGRATION_START=$(date +%s)
 # Step 1: Create/activate system-test workspace
 echo -e "${YELLOW}→ Setting up system-test workspace...${NC}"
 SYSTEM_TEST_WS_NAME="ClawMax System Test"
-SYSTEM_TEST_WS_PATH="${HOME}/.openclaw/workspaces/clawmax-system-test"
+SYSTEM_TEST_WS_PATH="${CLAWMAX_SYSTEM_TEST_WORKSPACE:-${HOME}/.openclaw/workspaces/clawmax-system-test}"
 
 workspaces_json=$(apicurl "$API_BASE/api/workspaces")
 SYSTEM_TEST_WS=$(echo "$workspaces_json" | jq -r \

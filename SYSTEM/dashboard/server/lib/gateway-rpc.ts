@@ -338,6 +338,63 @@ export class GatewayRPCClient {
    * Call a Gateway RPC method
    */
   async call<T = any>(method: string, params?: any): Promise<T> {
+    return this.callRpc<T>(method, params)
+  }
+
+  /** Internal transport only. The caller must own durable idempotency, revision
+   * admission and execution serialization. No automatic retries or credential,
+   * config, Skill, session, or delivery overrides are accepted here.
+   */
+  async runNoToolsTemplateAgent(input: { agentId: string; model: string; instructions: string; message: string; idempotencyKey: string }): Promise<{ runId: string; text: string }> {
+    if (!input || Object.keys(input).some(key => !['agentId', 'model', 'instructions', 'message', 'idempotencyKey'].includes(key))
+      || !/^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(input.agentId)
+      || typeof input.model !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(input.model)
+      || typeof input.instructions !== 'string' || Buffer.byteLength(input.instructions) > 2 * 1024 * 1024
+      || typeof input.message !== 'string' || !input.message.trim() || Buffer.byteLength(input.message) > 1024 * 1024
+      || typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(input.idempotencyKey)) throw new Error('Invalid no-tools Template execution request')
+    try {
+      const params = {
+        // The coordinator verified the model in the committed gateway entry.
+        // Do not turn it into an RPC override requiring broader authority.
+        agentId: input.agentId, message: input.message,
+        extraSystemPrompt: input.instructions, idempotencyKey: input.idempotencyKey,
+        modelRun: true, promptMode: 'none', deliver: false, disableMessageTool: true,
+        timeout: 120,
+      }
+      let result: any
+      try { result = await this.callRpc<any>('agent', params, true) } catch (error: any) {
+        if (error.gatewayExecutionNotAdmitted !== true) throw error
+        const cli = resolveOpenClawCliPath()
+        if (!cli) throw error
+        const { stdout } = await execFileAsync(cli, [...buildGatewayCliCallArgs('agent', params, 150000), '--expect-final'], {
+          encoding: 'utf8', timeout: 155000, maxBuffer: 3 * 1024 * 1024,
+          // Do not use safeEnv(): it includes workspace partner credentials.
+          env: { PATH: process.env.PATH, TMPDIR: process.env.TMPDIR,
+            OPENCLAW_CONFIG_PATH: process.env.OPENCLAW_CONFIG_PATH,
+            OPENCLAW_STATE_DIR: process.env.OPENCLAW_STATE_DIR,
+            OPENCLAW_GATEWAY_URL: process.env.OPENCLAW_GATEWAY_URL,
+          },
+        })
+        result = parseGatewayCliOutput(stdout)
+      }
+      if (result?.status !== 'ok' || typeof result.runId !== 'string' || !result.runId || !Array.isArray(result.result?.payloads)) throw new Error('Invalid terminal reply')
+      const chunks = result.result.payloads.map((payload: any) => {
+        if (typeof payload?.text !== 'string' || payload.isError || payload.mediaUrl || payload.mediaUrls?.length) throw new Error('Unsupported reply')
+        return payload.text
+      })
+      const text = chunks.join('\n')
+      if (!text.trim() || Buffer.byteLength(text) > 2 * 1024 * 1024) throw new Error('Invalid reply size')
+      return { runId: result.runId, text }
+    } catch (cause) {
+      // A lost connection is not proof that the agent never ran. The owner must
+      // retain its pending receipt; do not retry with a fresh idempotency key.
+      const failure = new Error('No-tools Template execution did not return a verified final reply; inspect the recorded request before retrying')
+      Object.defineProperty(failure, 'cause', { value: cause })
+      throw failure
+    }
+  }
+
+  private async callRpc<T = any>(method: string, params?: any, expectFinalAgent = false): Promise<T> {
     return new Promise((resolve, reject) => {
       const requestId = randomUUID()
       const config = this.loadGatewayConfig()
@@ -350,13 +407,14 @@ export class GatewayRPCClient {
       let authenticated = false
       let connectNonce: string | null = null
       let connectSent = false
+      let acceptedRunId: string | undefined
 
       const timeout = setTimeout(() => {
         if (!responseReceived) {
           ws.close()
           reject(new Error(`Gateway RPC timeout for method: ${method}`))
         }
-      }, 30000) // 30 second timeout
+      }, expectFinalAgent ? 150000 : 30000)
 
       const sendConnect = () => {
         if (connectSent) return
@@ -379,7 +437,7 @@ export class GatewayRPCClient {
             caps: [],
             auth: { token: this.authToken },
             role: 'operator',
-            scopes: ['operator.read', 'operator.admin']
+            scopes: expectFinalAgent ? ['operator.write'] : ['operator.read', 'operator.admin']
           }
         }
         ws.send(JSON.stringify(connectMessage))
@@ -425,12 +483,26 @@ export class GatewayRPCClient {
 
           // Handle RPC response
           if (message.type === 'res' && message.id === requestId) {
+            if (expectFinalAgent && !message.error && message.ok !== false) {
+              const runId = message.payload?.runId
+              if (typeof runId !== 'string' || !runId || (acceptedRunId && acceptedRunId !== runId)) {
+                responseReceived = true
+                clearTimeout(timeout)
+                ws.close()
+                reject(new Error('Gateway agent response identity mismatch'))
+                return
+              }
+              acceptedRunId = runId
+              if (message.payload.status === 'accepted') return
+            }
             responseReceived = true
             clearTimeout(timeout)
 
-            if (message.error) {
+            if (message.error || (expectFinalAgent && message.ok !== true)) {
               ws.close()
-              reject(new Error(`Gateway RPC error: ${message.error.message}`))
+              reject(Object.assign(new Error(`Gateway RPC error: ${message.error?.message || 'request failed'}`), {
+                gatewayExecutionNotAdmitted: expectFinalAgent && !acceptedRunId && message.error?.message === 'missing scope: operator.write',
+              }))
             } else {
               ws.close()
               resolve(message.payload as T)
@@ -914,14 +986,20 @@ export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ runnin
   })
 }
 
-export async function waitForGatewayResponsive(timeoutMs = 8000, pollMs = 500): Promise<{ running: boolean; port: number | null; error?: string }> {
+export async function waitForGatewayResponsive(timeoutMs = 8000, pollMs = 500, signal?: AbortSignal): Promise<{ running: boolean; port: number | null; error?: string }> {
+  const cancelled = { running: false, port: null, error: 'Gateway readiness cancelled' }
+  if (signal?.aborted) return cancelled
   const deadline = Date.now() + Math.max(0, timeoutMs)
   let last = await probeGatewayResponsive(Math.min(3000, Math.max(1000, pollMs * 2)))
+  if (signal?.aborted) return cancelled
   if (last.running || timeoutMs <= 0) return last
 
   while (Date.now() < deadline) {
+    if (signal?.aborted) return cancelled
     await new Promise((resolve) => setTimeout(resolve, pollMs))
+    if (signal?.aborted) return cancelled
     last = await probeGatewayResponsive(Math.min(3000, Math.max(1000, pollMs * 2)))
+    if (signal?.aborted) return cancelled
     if (last.running) return last
   }
 

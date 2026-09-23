@@ -138,6 +138,12 @@ export CLAWMAX_HOST_OPENCLAW_CONFIG="$TMP_DIR/host-openclaw.json"
 
 . "$SCRIPT"
 
+# Populated SQLite rosters must not inherit the old 25-second cold-start budget.
+[ "$(CLAWMAX_GATEWAY_READY_TIMEOUT_SEC= gateway_ready_timeout_seconds)" = 120 ]
+[ "$(CLAWMAX_GATEWAY_READY_TIMEOUT_SEC=invalid gateway_ready_timeout_seconds)" = 120 ]
+[ "$(CLAWMAX_GATEWAY_READY_TIMEOUT_SEC=45 gateway_ready_timeout_seconds)" = 45 ]
+[ "$(CLAWMAX_GATEWAY_READY_TIMEOUT_SEC=0 gateway_ready_timeout_seconds)" = 1 ]
+
 [ "$NPM_CONFIG_CACHE" = "/tmp/clawmax-npm-cache" ] || {
   echo "Expected runtime npm cache to default to ephemeral storage" >&2
   exit 1
@@ -441,4 +447,49 @@ if grep -F -- '--accept-capabilities' "$SCRIPT" >/dev/null 2>&1; then
   exit 1
 fi
 
+# Only retry this attempt's lease failure after its child has exited.
+(
+  CLAWMAX_GATEWAY_LOG="$TMP_DIR/lease-recovery.log"
+  CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC=10
+  recovery_now=0
+  recovery_attempts=0
+  gateway_pid=''
+  date() { echo "$recovery_now"; }
+  sleep() { recovery_now=$((recovery_now + 5)); }
+  gateway_port_listening() { return 1; }
+  wait_for_gateway_ready() { return 0; }
+  lease_error() { echo 'Gateway failed to start: Another Gateway owner lease is still active for this state directory.' >> "$CLAWMAX_GATEWAY_LOG"; }
+  start_gateway_run() {
+    recovery_attempts=$((recovery_attempts + 1))
+    if [ "$recovery_attempts" -lt 3 ]; then lease_error; return 1; fi
+    return 0
+  }
+  start_gateway_with_lease_recovery 18789
+  [ "$recovery_attempts" -eq 3 ]
+  start_gateway_run() { recovery_attempts=$((recovery_attempts + 1)); echo 'configuration invalid' >> "$CLAWMAX_GATEWAY_LOG"; return 1; }
+  recovery_attempts=0
+  if start_gateway_with_lease_recovery 18789; then exit 1; fi
+  [ "$recovery_attempts" -eq 1 ] # stale success/error text cannot mask a new failure
+  start_gateway_run() { recovery_attempts=$((recovery_attempts + 1)); lease_error; return 1; }
+  recovery_now=0
+  recovery_attempts=0
+  if start_gateway_with_lease_recovery 18789; then exit 1; fi
+  [ "$recovery_attempts" -eq 3 ] # stop at the deadline; never steal a lease
+  recovery_attempts=0
+  gateway_pid=$$
+  if start_gateway_with_lease_recovery 18789; then exit 1; fi
+  [ "$recovery_attempts" -eq 1 ] # never overlap a live child
+  gateway_pid=''
+  recovery_attempts=0
+  gateway_port_listening() { return 0; }
+  gateway_authenticated_ready() { return 1; }
+  if start_gateway_with_lease_recovery 18789; then exit 1; fi
+  [ "$recovery_attempts" -eq 1 ]
+  recovery_attempts=0
+  gateway_authenticated_ready() { return 0; }
+  start_gateway_with_lease_recovery 18789
+  [ "$recovery_attempts" -eq 1 ]
+)
+
+node --test "$ROOT_DIR/dashboard/scripts/entrypoint-shutdown.test.cjs"
 echo "docker-entrypoint gateway tests passed"

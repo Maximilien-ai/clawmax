@@ -27,15 +27,14 @@ const patch = Number(patchRaw);
 const atLeast = (wantedMinor, wantedPatch) =>
   minor > wantedMinor || (minor === wantedMinor && patch >= wantedPatch);
 if (
-  (major === 22 && atLeast(22, 3)) ||
-  (major === 24 && atLeast(15, 0)) ||
-  (major === 25 && atLeast(9, 0)) ||
-  major > 25
+  (major === 24 && atLeast(16, 0)) ||
+  (major === 26 && atLeast(1, 0)) ||
+  major > 26
 ) {
   process.exit(0);
 }
 console.error(
-  `prepare-openclaw-target.sh requires Node.js 22.22.3+, 24.15.0+, or 25.9.0+ (current: ${process.versions.node})`,
+  `prepare-openclaw-target.sh requires Node.js 24.16.0+ (24.x) or 26.1.0+ (current: ${process.versions.node})`,
 );
 process.exit(1);
 EOF
@@ -119,7 +118,9 @@ prepare_checkout() {
 
   # Rebuild cached artifacts when the maintained source compatibility patch changes.
   current_commit="${current_commit}:$(cksum < "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs")"
-  if [ ! -f "${src_dir}/dist/index.js" ] || [ ! -f "$prepared_stamp" ] || [ "$(cat "$prepared_stamp" 2>/dev/null || true)" != "$current_commit" ]; then
+  current_commit="${current_commit}:$(cksum < "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs")"
+  current_commit="${current_commit}:source-plugins-v1:$(cksum < "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs")"
+  if [ ! -f "${src_dir}/dist/index.js" ] || [ ! -f "$prepared_stamp" ] || [ "$(cat "$prepared_stamp" 2>/dev/null || true)" != "$current_commit" ] || ! node "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs" "$src_dir" >&2; then
     (
       cd "$src_dir"
       export COREPACK_HOME="${COREPACK_HOME:-${work_root}/corepack}"
@@ -127,8 +128,16 @@ prepare_checkout() {
       run_pnpm install --frozen-lockfile --ignore-scripts >&2
       node "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs" "$src_dir" >&2
       run_pnpm run build:docker >&2
+      # The Docker lane omits standalone first-party plugin graphs. A local
+      # source checkout must build them too, before advertising cache readiness.
+      node --import ./scripts/tsx.mjs scripts/build-external-plugin-local-dist.mts >&2
+      # Standalone compilation replaces plugin output directories. Restore the
+      # package/manifests and assets afterward, matching upstream build-all.
+      run_pnpm plugins:assets:copy >&2
+      node scripts/runtime-postbuild.mjs >&2
       node "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs" "$src_dir" >&2
-      node scripts/postinstall-bundled-plugins.mjs >&2 || true
+      node scripts/postinstall-bundled-plugins.mjs >&2
+      node "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs" "$src_dir" >&2
       node - dist/cli-startup-metadata.json <<'EOF'
 const fs = require("node:fs");
 const metadata = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));

@@ -8,9 +8,18 @@ image_workflow="$script_dir/../.github/workflows/test-container-image.yml"
 assertions=0
 
 bash -n "$smoke"
+test -x "$script_dir/dashboard/docker-entrypoint.sh"
 assertions=$((assertions + 1))
 
-grep -Fq 'dashboard health endpoint did not become ready within 40 seconds' "$smoke"
+grep -Fq 'local health_timeout="${1:-40}"' "$smoke"
+grep -Fq 'dashboard health endpoint did not become ready within ${health_timeout} seconds' "$smoke"
+grep -Fq '"$container_cli" stop --time 30 "$container_name"' "$smoke"
+grep -Fq 'Graceful-stop exit={{.State.ExitCode}}' "$smoke"
+grep -Fq '"$container_name:/tmp/openclaw-gateway.log"' "$smoke"
+grep -Fq 'start_dashboard 360' "$smoke"
+grep -Fq 'CLAWMAX_LIFECYCLE_SOURCE_ENTRYPOINT:-false' "$smoke"
+grep -Fq 'target=/app/SYSTEM/dashboard/docker-entrypoint.sh,readonly' "$smoke"
+grep -Fq 'Diagnostic only - mount source entrypoint' "$acceptance_workflow"
 assertions=$((assertions + 1))
 
 grep -Fq 'gateway authenticated readiness verified' "$smoke"

@@ -12,13 +12,17 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 Latest Stable Release: v1.9.9
 
+Development is preparing RC83 on OpenClaw `2026.9.5` and Node `24.19.0`.
+RC82 image checks passed; installed-instance acceptance and broad tester approval
+remain pending. See the [current release gate](SYSTEM/docs/planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
+
 - `1.9.9` adds native OpenRouter and xAI/Grok providers, brokered agent-skill secret grants, scoped Keys & Secrets navigation, mobile-safe workflow runs, pinned OpenAI model compatibility, and clearer long-running tool feedback.
 - Browser-local secrets remain unavailable to agent chat by design. Runtime use requires an explicitly assigned skill, an exact secret grant, and a registered broker action; normal Google account passwords are not supported.
 - The release retains the OpenClaw `v2026.6.11` baseline and was promoted unchanged from the multi-architecture `1.9.9-test-rc6` image.
 
 ## 🛠 Current Development Line: 2.0.0
 
-- RC46 is the latest fully published 2.0 test candidate. It includes resource-lifecycle hardening and the reviewed optional Claude Code and Factory Droid runtime work; stable installers and images remain at `v1.9.9` until the remaining external-environment and human-review gates in the [2.0 launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) are complete.
+- RC83 preparation strengthens isolated runtime validation and targets at least 75% branch coverage. RC82 public and matching combined image checks passed, but installed-instance acceptance remains open; stable installers and images remain at `v1.9.9` until the remaining external-environment and human-review gates in the [2.0 launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) are complete.
 - `main` now carries the public `clawmax.ai/v2` plugin platform. A plugin can contribute pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points through one domain-neutral host contract.
 - Lifecycle and Review are the public product plugins in the current 2.0 phase. Lifecycle provides a read-only deep view of agents, workflows, groups, and communities; Review keeps release validation organized and exportable. Other deployment-managed plugins remain outside this public repository and image. `PLUGINS/test/plugin-*` directories are synthetic host-contract fixtures and are never shown in the plugin manager.
 - Public 2.0 products include AI scoring, the Lifecycle and Review plugins, curated Gmail and Microsoft 365/Outlook integrations, and a consent-gated Activity Export contract for partner event integrations such as Digo. Activity export is off by default, visibly names its destination, and never blocks agent execution on remote delivery.

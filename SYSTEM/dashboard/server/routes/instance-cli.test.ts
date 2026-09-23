@@ -54,6 +54,19 @@ async function run() {
 
   const app = express()
   app.use(express.json())
+  let composedCalls = 0
+  let accessToken = ''
+  app.use('/composed/api/cli/v1', createInstanceCliRouter({ templates: (context: any) => {
+    composedCalls++
+    assert.strictEqual(context.actorId, 'actor_local')
+    assert.strictEqual(context.workspaceId, 'operations')
+    assert.strictEqual(context.workspacePath, path.join(root, 'workspaces', 'operations'))
+    return {
+      store: { workspaceId: context.workspaceId, workspacePath: context.workspacePath, history: () => [], currentRevision: () => null },
+      coordinator: { workspaceId: context.workspaceId, workspacePath: context.workspacePath },
+      assertStopped() {}, authority: {}, policies: {}, runtime: {},
+    }
+  } }))
   app.use('/api/cli/v1', createInstanceCliRouter())
   app.get('*', (_req, res) => res.type('html').send('<html>SPA</html>'))
   const server = http.createServer(app)
@@ -165,6 +178,7 @@ async function run() {
     assert.strictEqual(token.response.status, 200)
     assert.strictEqual(token.json.kind, 'TokenSession')
     assert.strictEqual(token.json.instanceId, 'inst_test')
+    accessToken = token.json.accessToken
     const identity = await request('/api/cli/v1/identity', { headers: { authorization: `Bearer ${token.json.accessToken}` } })
     assert.strictEqual(identity.json.actorId, 'actor_local')
 
@@ -345,6 +359,83 @@ async function run() {
     assert.strictEqual(missing.response.status, 404)
     assert.strictEqual(missing.json.error.code, 'agent_not_found')
     assert(!fs.existsSync(path.join(root, 'workspaces', 'operations', '.clawmax', 'cli-chat')))
+  })
+
+  await test('shared Template composition is reached only after session and workspace authorization', async () => {
+    const prefix = '/composed/api/cli/v1/workspaces'
+    const headers = { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' }
+    const chat = (workspace: string, authenticated = true) => request(`${prefix}/${workspace}/agents/tr-0123456789abcdef-agent-0123456789ab/chat/sessions`, {
+      method: 'POST', headers: authenticated ? headers : { 'content-type': 'application/json' },
+      body: JSON.stringify({ apiVersion: 'clawmax.instance/v1', kind: 'AgentChatRequest', message: 'Synthetic', idempotencyKey: 'composed-chat' }),
+    })
+    assert.strictEqual((await chat('operations', false)).response.status, 401)
+    assert.strictEqual((await chat('unknown')).response.status, 403)
+    assert.strictEqual(composedCalls, 0)
+    assert.strictEqual((await chat('operations')).json.error.code, 'agent_not_found')
+    assert.strictEqual(composedCalls, 1)
+    const revisions = await request(`${prefix}/operations/revisions`, { headers })
+    assert.strictEqual(revisions.response.status, 200)
+    assert.strictEqual(composedCalls, 2)
+    const unconfigured = await request('/api/cli/v1/workspaces/operations/revisions', { headers })
+    assert.strictEqual(unconfigured.response.status, 503)
+    assert.strictEqual(unconfigured.json.error.code, 'template_lifecycle_unavailable')
+  })
+
+  await test('public Group discovery is authorized, contextual, stable and read-only', async () => {
+    const prefix = '/api/cli/v1/workspaces/operations/groups'
+    assert.strictEqual((await request(prefix)).response.status, 401)
+    assert.strictEqual((await request('/api/cli/v1/workspaces/unknown/groups', { headers: auth })).response.status, 403)
+    const file = path.join(root, 'workspaces', 'operations', 'ORG', 'GROUPS.md')
+    const before = fs.existsSync(file) ? fs.readFileSync(file) : null
+    const content = '# Organization\n\n## Groups\n\n### Demo team 🌍\n- **Description:** Isolated group\n- **Members:** analyst, reviewer\n'
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, content)
+    try {
+      const list = await request(prefix, { headers: auth })
+      assert.strictEqual(list.response.status, 200)
+      assert.strictEqual(list.json.kind, 'GroupList')
+      assert.strictEqual(list.json.items.length, 1)
+      const group = list.json.items[0]
+      assert.match(group.id, /^group-[a-f0-9]{64}$/)
+      assert.strictEqual(group.name, 'Demo team 🌍')
+      assert.strictEqual(group.memberCount, 2)
+      assert.strictEqual(group.status, 'unavailable')
+      assert.deepStrictEqual((await request(prefix, { headers: auth })).json, list.json)
+      assert.deepStrictEqual((await request(`${prefix}/${group.id}`, { headers: auth })).json.group, group)
+      assert.strictEqual((await request(`${prefix}/missing`, { headers: auth })).response.status, 404)
+      assert.strictEqual((await request(`${prefix}?cursor=unsupported`, { headers: auth })).response.status, 400)
+      assert.strictEqual((await request(`${prefix}/${group.id}/messages`, { headers: auth })).json.error.code, 'group_history_unavailable')
+      const chat = await request(`${prefix}/${group.id}/chat/sessions`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: '{}' })
+      assert.strictEqual(chat.response.status, 503)
+      assert.strictEqual(chat.json.error.code, 'group_execution_unavailable')
+      assert.strictEqual(fs.readFileSync(file, 'utf8'), content)
+      assert(!fs.existsSync(path.join(root, 'workspaces', 'operations', 'SYSTEM', 'messages')))
+      fs.writeFileSync(file, content + '\n### Demo team 🌍\n')
+      assert.strictEqual((await request(prefix, { headers: auth })).response.status, 503)
+      fs.unlinkSync(file)
+      const outside = path.join(root, 'private-group-catalog')
+      fs.writeFileSync(outside, 'sensitive catalog')
+      fs.symlinkSync(outside, file)
+      const linked = await request(prefix, { headers: auth })
+      assert.strictEqual(linked.response.status, 503)
+      assert(!linked.text.includes('sensitive'))
+      fs.unlinkSync(file)
+      assert.deepStrictEqual((await request(prefix, { headers: auth })).json.items, [])
+    } finally {
+      if (before) fs.writeFileSync(file, before)
+      else if (fs.existsSync(file)) fs.unlinkSync(file)
+    }
+  })
+
+  await test('public Workflow execution routes are authenticated and mounted', async () => {
+    const base = '/api/cli/v1/workspaces/operations'
+    assert.strictEqual((await request(`${base}/workflow-runs/missing`)).response.status, 401)
+    const missing = await request(`${base}/workflow-runs/missing`, { headers: auth })
+    assert.strictEqual(missing.response.status, 404)
+    assert.strictEqual(missing.json.error.code, 'run_not_found')
+    const workflow = await request(`${base}/workflows/missing`, { headers: auth })
+    assert.strictEqual(workflow.response.status, 404)
+    assert.strictEqual(workflow.json.error.code, 'workflow_not_found')
   })
 
   await test('agent listing is workspace contextual and does not mutate selection', async () => {

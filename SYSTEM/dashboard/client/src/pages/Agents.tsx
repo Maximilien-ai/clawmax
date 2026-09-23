@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
+import { AgentAttention } from '../components/AgentAttention'
 import AddAgentWizard from '../components/AddAgentWizard'
 import { fetchModelsWithByok, refreshModelsWithByok, hasAiGenerationAccess } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
@@ -3599,6 +3600,7 @@ const AgentCard = React.memo(function AgentCard({
       <div className="flex items-center justify-between px-5 pt-4 pb-3 cursor-pointer" onClick={onToggle}>
         <div className="flex items-center gap-2 min-w-0 pr-8">
           <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : agent.paused ? 'bg-gray-400 dark:bg-gray-50 dark:bg-gray-9000' : STATUS_COLORS[agent.status]}`} />
+          <AgentAttention agentId={agent.id} generation={agent.generation} />
           {collapsed && (
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate dark:text-gray-100">{agent.name}</h3>
           )}
@@ -4781,6 +4783,7 @@ const AgentTableView = React.memo(function AgentTableView({
               <td className="px-4 py-3 whitespace-nowrap">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{agent.name}</span>
+                  <AgentAttention agentId={agent.id} generation={agent.generation} />
                   {agent.tags.includes('built-in') && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-700" title="Built-in system agent">
                       <ProductIconCell iconName="agent" label="Built-in system agent" size="xs" className="border-transparent bg-transparent text-current" />

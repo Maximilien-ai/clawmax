@@ -4,7 +4,7 @@ import os from 'os'
 import path from 'path'
 import { spawnSync } from 'child_process'
 import { templateFixture } from './portable-template.test'
-import { validatePortableTemplate } from './portable-template'
+import { sha256, validatePortableTemplate } from './portable-template'
 import { InstanceTemplateCatalog, writeAtomicJson } from './instance-template-catalog'
 import { readTemplateAuthorityRegistry } from './template-authority'
 import { createTemplateResourceFileCompiler } from './template-resource-files'
@@ -12,6 +12,9 @@ import { TemplateRevisionStore } from './template-revisions'
 import { TemplateGatewayTransaction, TemplateGatewayTransport } from './template-gateway-transaction'
 import { TemplateApplyCoordinator } from './template-apply-coordinator'
 import { recoverTemplatesBeforeStartup } from './template-startup-recovery'
+import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
+import { noToolsTemplatePolicy, verifyTemplateExecutionPolicies } from './template-execution-policy'
+import { createConfiguredTemplateResolver } from './template-service'
 
 function components(root: string, options: { checkpoint?: (phase: string) => void; afterPatch?: () => void; beforeSnapshot?: () => void } = {}) {
   const file = path.join(root, 'synthetic-gateway.json')
@@ -50,7 +53,7 @@ async function setup(root: string) {
     bindings: bundle.artifacts.filter(item => item.kind === 'agent').map(agent => ({
       id: `${agent.id}-binding`, revision: 'v1', artifactId: agent.id, artifactDigest: agent.digest,
       actorIds: ['actor'], disabled: false, model: { id: 'openai/test', revision: 'v1' },
-      policy: { id: 'no-tools', sha256: 'a'.repeat(64) }, runtime: { platform: 'linux/amd64', revision: 'synthetic-runtime' }, skills: [], credentials: [],
+      policy: { id: 'no-tools', sha256: sha256(JSON.stringify(noToolsTemplatePolicy('no-tools'))) }, runtime: { platform: 'linux/amd64', revision: 'synthetic-runtime' }, skills: [], credentials: [],
     })),
   })
 }
@@ -70,6 +73,33 @@ async function main() {
   }
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-apply-coordinator-'))
   try {
+    const configuredRoot = path.join(root, 'configured-workspace')
+    await setup(configuredRoot)
+    const configured = components(configuredRoot)
+    const authorityDirectory = path.join(root, 'operator-authority')
+    const registryFile = path.join(authorityDirectory, `${sha256('workspace')}.json`)
+    writeAtomicJson(registryFile, readTemplateAuthorityRegistry(path.join(configuredRoot, 'authority.json')))
+    const resolverOptions = { authorityDirectory, agentStateRoot: path.join(configuredRoot, 'runtime'),
+      runtime: { platform: 'linux/amd64', revision: 'synthetic-runtime' }, client: {
+        getConfig: async () => { const snapshot = await configured.transport.snapshot(); return { hash: snapshot.hash, sourceConfig: { agents: { entries: snapshot.entries } } } },
+        patchTemplateAgentEntriesAtRevision: async (entries: any, hash: string) => { await configured.transport.patch(entries, hash) },
+        runNoToolsTemplateAgent: async () => ({ runId: 'configured-reply', text: 'Configured reply' }),
+      } }
+    const resolver = createConfiguredTemplateResolver(resolverOptions)
+    const context = { workspaceId: 'workspace', workspacePath: configuredRoot, actorId: 'actor' }
+    const service = resolver(context)
+    const configuredPlan = await service.store.plan('actor', configured.request)
+    const applied = await service.coordinator.apply('actor', configured.request, configuredPlan.planDigest)
+    const configuredGroup = { groupId: Object.values(applied.revision.resources.groups)[0], message: 'Configured group', idempotencyKey: 'configured-group' }
+    const configuredResult = await service.coordinator.executeNoToolsGroup('actor', applied.revision.id, configuredGroup, service.authority, service.policies, service.runtime)
+    assert.equal(JSON.parse(configuredResult.text).turns.length, 4)
+    const revokedRegistry: any = readTemplateAuthorityRegistry(registryFile)
+    revokedRegistry.bindings[0].disabled = true
+    writeAtomicJson(registryFile, revokedRegistry)
+    await assert.rejects(service.coordinator.executeNoToolsGroup('actor', applied.revision.id, { ...configuredGroup, idempotencyKey: 'revoked' }, service.authority, service.policies, service.runtime))
+    assert.throws(() => resolver({ ...context, workspaceId: 'missing' }), /unavailable/)
+    assert.throws(() => createConfiguredTemplateResolver({ ...resolverOptions, authorityDirectory: configuredRoot })(context), /outside the workspace/)
+    assert.throws(() => createConfiguredTemplateResolver({ ...resolverOptions, runtime: { ...resolverOptions.runtime, revision: '' } }), /Invalid server/)
     const unavailable: TemplateGatewayTransport = {
       async snapshot() { throw new Error('Synthetic gateway unavailable') },
       async patch() { throw new Error('Unexpected gateway mutation') },
@@ -112,6 +142,175 @@ async function main() {
       assert.equal(store.history().length, 1)
       await assert.rejects(coordinator.apply('actor', { ...request, bindings: { ...request.bindings, producer: 'changed' } }, plan.planDigest), /Apply key/)
     }
+    const admissionRoot = path.join(root, 'staged-admission')
+    await setup(admissionRoot)
+    let duringSnapshot: (() => void) | undefined
+    const staged = components(admissionRoot, { beforeSnapshot: () => duringSnapshot?.() })
+    const stagedPlan = await staged.store.plan('actor', staged.request)
+    const stagedRevision = (await staged.coordinator.apply('actor', staged.request, stagedPlan.planDigest)).revision
+    const stagedAgent = stagedRevision.resources.agents.producer
+    const authorityFile = path.join(admissionRoot, 'authority.json')
+    const authorityBytes = fs.readFileSync(authorityFile)
+    let authorityReads = 0
+    const source = { read: () => { authorityReads++; return readTemplateAuthorityRegistry(authorityFile) }, runtime: { platform: 'linux/amd64', revision: 'synthetic-runtime' } }
+    let policy: unknown = noToolsTemplatePolicy('no-tools')
+    let policyReads = 0
+    const policies = { read: () => { policyReads++; return policy } }
+    const check = () => staged.coordinator.verifyStagedExecution('actor', stagedRevision.id, stagedAgent, source, policies)
+    const stagedRoster = await staged.transport.snapshot()
+    assert.deepEqual(await check(), { revisionId: stagedRevision.id, planDigest: stagedRevision.planDigest, authorityDigest: stagedRevision.authorityDigest, gatewayHash: stagedRoster.hash })
+    assert.equal(authorityReads, 2, 'Authority is checked before and after the gateway await')
+    assert.equal(policyReads, 4, 'Each agent policy is checked before and after the gateway await')
+    assert.deepEqual(await staged.transport.snapshot(), stagedRoster, 'Staging checks must not write gateway configuration')
+    assert.throws(() => assertTemplateRuntimeAdmitted(stagedAgent), /execution is unavailable/, 'Evidence is not an execution grant')
+    await assert.rejects(staged.coordinator.verifyStagedExecution('other', stagedRevision.id, stagedAgent, source, policies), /not authorized/)
+    await assert.rejects(staged.coordinator.verifyStagedExecution('actor', stagedRevision.id, 'unrelated', source, policies), /does not belong/)
+    for (const unsupported of [null, { ...noToolsTemplatePolicy('no-tools'), tools: { deny: [] } }, { ...noToolsTemplatePolicy('no-tools'), allow: ['exec'] }]) {
+      policy = unsupported
+      await assert.rejects(check(), /policy is unavailable or unsupported/)
+    }
+    policy = noToolsTemplatePolicy('no-tools')
+    const changedPolicyHash = structuredClone(stagedRevision.authority!)
+    changedPolicyHash.bindings[0].policy.sha256 = 'b'.repeat(64)
+    assert.throws(() => verifyTemplateExecutionPolicies(changedPolicyHash, policies), /policy is unavailable/)
+    const addedCredential = structuredClone(stagedRevision.authority!)
+    addedCredential.bindings[0].credentials = [{ name: 'API_KEY', reference: 'collector', revision: 'v1' }]
+    assert.throws(() => verifyTemplateExecutionPolicies(addedCredential, policies), /policy is unavailable/)
+    const addedSkill = structuredClone(stagedRevision.authority!)
+    addedSkill.bindings[0].skills = [{ name: 'collector', sha256: 'c'.repeat(64), platform: 'linux/amd64' }]
+    assert.throws(() => verifyTemplateExecutionPolicies(addedSkill, policies), /policy is unavailable/)
+    assert.throws(() => verifyTemplateExecutionPolicies(stagedRevision.authority!, { read: () => { throw new Error('private path') } }), error => error instanceof Error && !error.message.includes('private path'))
+    duringSnapshot = () => { policy = null }
+    await assert.rejects(check(), /policy is unavailable/)
+    policy = noToolsTemplatePolicy('no-tools')
+    duringSnapshot = () => {
+      const registry = JSON.parse(authorityBytes.toString())
+      registry.bindings[0].actorIds = ['revoked']
+      writeAtomicJson(authorityFile, registry)
+    }
+    await assert.rejects(check(), /authority|authorized/i, 'Revocation during the gateway call must reject admission evidence')
+    fs.writeFileSync(authorityFile, authorityBytes)
+    const soulFile = path.join(admissionRoot, 'AGENTS', stagedAgent, 'SOUL.md')
+    const soulBytes = fs.readFileSync(soulFile)
+    duringSnapshot = () => fs.writeFileSync(soulFile, 'Changed while checking gateway')
+    await assert.rejects(check(), /missing or changed/)
+    fs.writeFileSync(soulFile, soulBytes)
+    const stagedLedger = path.join(admissionRoot, 'SYSTEM/.clawmax/template-revisions.json')
+    const stagedLedgerBytes = fs.readFileSync(stagedLedger)
+    duringSnapshot = () => {
+      const ledger = JSON.parse(stagedLedgerBytes.toString())
+      ledger.revisions[0].cleanedAt = new Date().toISOString()
+      writeAtomicJson(stagedLedger, ledger)
+    }
+    await assert.rejects(check(), /already cleaned/)
+    fs.writeFileSync(stagedLedger, stagedLedgerBytes)
+    duringSnapshot = undefined
+    await check()
+    let dispatches = 0
+    const noToolsRuntime = { runNoToolsTemplateAgent: async (input: { agentId: string; model: string; message: string; instructions: string; idempotencyKey: string }) => {
+      dispatches++
+      assert.equal(input.agentId, stagedAgent)
+      assert.equal(input.model, 'openai/test')
+      assert(input.instructions.length)
+      assert.match(input.idempotencyKey, /^template-[a-f0-9]{64}$/)
+      await assert.rejects(staged.coordinator.cleanup('actor', stagedRevision.id, stagedRevision.id, 'a'.repeat(64), () => {}), /in progress/)
+      assert.throws(() => staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {}), /pending Template execution/)
+      return { runId: 'synthetic-run', text: 'Synthetic final reply' }
+    } }
+    const executionInput = { agentId: stagedAgent, message: 'Private request not stored in receipts', idempotencyKey: 'first-run' }
+    let workspaceAuthorized = true
+    duringSnapshot = () => { workspaceAuthorized = false }
+    await assert.rejects(staged.coordinator.executeNoToolsAgent('actor', stagedRevision.id, executionInput, source, policies, noToolsRuntime,
+      () => { if (!workspaceAuthorized) throw new Error('workspace access revoked') }), /workspace access revoked/)
+    assert.equal(dispatches, 0)
+    assert(!fs.existsSync(path.join(admissionRoot, '.clawmax/template-runs', `${sha256(stagedRevision.id)}.json`)))
+    duringSnapshot = undefined
+    const execute = () => staged.coordinator.executeNoToolsAgent('actor', stagedRevision.id, executionInput, source, policies, noToolsRuntime)
+    assert.deepEqual(await execute(), { replayed: false, runId: 'synthetic-run', text: 'Synthetic final reply' })
+    assert.deepEqual(await execute(), { replayed: true, runId: 'synthetic-run', text: 'Synthetic final reply' })
+    assert.equal(dispatches, 1)
+    await assert.rejects(staged.coordinator.executeNoToolsAgent('actor', stagedRevision.id, { ...executionInput, message: 'Changed request' }, source, policies, noToolsRuntime), /different request/)
+    const receiptFile = path.join(admissionRoot, '.clawmax/template-runs', `${sha256(stagedRevision.id)}.json`)
+    assert(!fs.readFileSync(receiptFile, 'utf8').includes(executionInput.message))
+    assert.equal(fs.statSync(receiptFile).mode & 0o777, 0o600)
+    const groupInput = { groupId: Object.values(stagedRevision.resources.groups)[0], message: 'Private group request', idempotencyKey: 'group-run' }
+    const groupCalls: Array<{ agentId: string; message: string; idempotencyKey: string }> = []
+    const groupRuntime = { runNoToolsTemplateAgent: async (input: any) => {
+      groupCalls.push(input)
+      assert.throws(() => staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {}), /pending Template execution/)
+      return { runId: `turn-${groupCalls.length}`, text: `reply-${groupCalls.length}` }
+    } }
+    await assert.rejects(staged.coordinator.executeNoToolsGroup('other', stagedRevision.id, groupInput, source, policies, groupRuntime))
+    await assert.rejects(staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, { ...groupInput, message: 'x'.repeat(1025) }, source, policies, groupRuntime), /input exceeds/)
+    await assert.rejects(staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, { ...groupInput, message: '' }, source, policies, groupRuntime), /Invalid Group execution/)
+    assert.equal(groupCalls.length, 0)
+    const groupRun = await staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, groupInput, source, policies, groupRuntime)
+    const groupResult = JSON.parse(groupRun.text)
+    assert.equal(groupResult.stopReason, 'turn_limit')
+    assert.equal(groupResult.turns.length, 4)
+    assert.deepEqual(groupResult.turns.map((turn: any) => turn.memberId), ['producer', 'reviewer', 'producer', 'reviewer'])
+    assert.equal(JSON.parse(groupCalls[1].message).content, 'reply-1')
+    assert.equal(JSON.parse(groupCalls[1].message).from, 'producer')
+    assert.equal(new Set(groupCalls.map(call => call.idempotencyKey)).size, 4)
+    assert.deepEqual(await staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, groupInput, source, policies, {
+      runNoToolsTemplateAgent: async () => { throw new Error('Group replay dispatched') },
+    }), { ...groupRun, replayed: true })
+    await assert.rejects(staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, { ...groupInput, message: 'changed' }, source, policies, groupRuntime), /different request/)
+    assert(!fs.readFileSync(receiptFile, 'utf8').includes(groupInput.message))
+    assert.equal(JSON.parse(fs.readFileSync(path.join(admissionRoot, 'ORG/template-groups', `${groupInput.groupId}.json`), 'utf8')).state, 'stopped')
+
+    const groupFailureRoot = path.join(root, 'group-failure')
+    await setup(groupFailureRoot)
+    const failingGroup = components(groupFailureRoot)
+    const groupPlan = await failingGroup.store.plan('actor', failingGroup.request)
+    const failureRevision = (await failingGroup.coordinator.apply('actor', failingGroup.request, groupPlan.planDigest)).revision
+    const failureSource = { ...source, read: () => readTemplateAuthorityRegistry(path.join(groupFailureRoot, 'authority.json')) }
+    const failureInput = { ...groupInput, groupId: Object.values(failureRevision.resources.groups)[0] }
+    let allowed = true
+    let failureCalls = 0
+    const failingRuntime = { runNoToolsTemplateAgent: async () => { failureCalls++; allowed = false; return { runId: 'one', text: 'first reply' } } }
+    await assert.rejects(failingGroup.coordinator.executeNoToolsGroup('actor', failureRevision.id, failureInput, failureSource, policies, failingRuntime,
+      () => { if (!allowed) throw new Error('Group access revoked') }), /Group access revoked/)
+    assert.equal(failureCalls, 1)
+    await assert.rejects(failingGroup.coordinator.executeNoToolsGroup('actor', failureRevision.id, failureInput, failureSource, policies, failingRuntime), /pending Template execution/)
+    assert.throws(() => failingGroup.store.planCleanup('actor', failureRevision.id, failureRevision.id, () => {}), /pending Template execution/)
+    const stagedCleanup = staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {})
+    const stagedGroups = path.join(admissionRoot, 'ORG/GROUPS.md')
+    const concurrentGroup = '\n### concurrent-unrelated\n- **Members:** existing\n'
+    duringSnapshot = () => { duringSnapshot = undefined; fs.appendFileSync(stagedGroups, concurrentGroup) }
+    await assert.rejects(staged.coordinator.cleanup('actor', stagedRevision.id, stagedRevision.id, stagedCleanup.planDigest, () => {}), /Cleanup plan changed/)
+    assert(!staged.store.history()[0].cleanedAt, 'A concurrent shared-file edit must not partially commit cleanup')
+    assert(fs.readFileSync(stagedGroups, 'utf8').includes(stagedRevision.resources.groups.review))
+    const replannedCleanup = staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {})
+    assert.notEqual(replannedCleanup.planDigest, stagedCleanup.planDigest)
+    await staged.coordinator.cleanup('actor', stagedRevision.id, stagedRevision.id, replannedCleanup.planDigest, () => {})
+    assert.equal(fs.readFileSync(stagedGroups, 'utf8'), '# Organization\n' + concurrentGroup)
+    await assert.rejects(check(), /already cleaned/)
+    await assert.rejects(execute(), /already cleaned/, 'Cleaned revisions cannot replay chat through the execution owner')
+    const uncertainRoot = path.join(root, 'uncertain-execution')
+    await setup(uncertainRoot)
+    const uncertain = components(uncertainRoot)
+    const uncertainPlan = await uncertain.store.plan('actor', uncertain.request)
+    const uncertainRevision = (await uncertain.coordinator.apply('actor', uncertain.request, uncertainPlan.planDigest)).revision
+    const uncertainSource = { ...source, read: () => readTemplateAuthorityRegistry(path.join(uncertainRoot, 'authority.json')) }
+    const lostResponse = { runNoToolsTemplateAgent: async () => { throw new Error('Synthetic lost response') } }
+    const uncertainInput = { agentId: uncertainRevision.resources.agents.producer, message: 'Synthetic', idempotencyKey: 'uncertain' }
+    await assert.rejects(uncertain.coordinator.executeNoToolsAgent('actor', uncertainRevision.id, uncertainInput, uncertainSource, policies, lostResponse), /lost response/)
+    const restarted = components(uncertainRoot)
+    await assert.rejects(restarted.coordinator.executeNoToolsAgent('actor', uncertainRevision.id, uncertainInput, uncertainSource, policies, noToolsRuntime), /pending Template execution/)
+    await assert.rejects(restarted.coordinator.executeNoToolsAgent('actor', uncertainRevision.id, { ...uncertainInput, idempotencyKey: 'do-not-redispatch' }, uncertainSource, policies, noToolsRuntime), /pending Template execution/)
+    assert.throws(() => restarted.store.planCleanup('actor', uncertainRevision.id, uncertainRevision.id, () => {}), /pending Template execution/)
+    assert.throws(() => restarted.store.cleanup('actor', uncertainRevision.id, uncertainRevision.id, () => {}), /pending Template execution/)
+    assert.equal(dispatches, 1, 'Unknown outcomes never redispatch even with a different key')
+    const uncertainReceipt = path.join(uncertainRoot, '.clawmax/template-runs', `${sha256(uncertainRevision.id)}.json`)
+    const uncertainBytes = fs.readFileSync(uncertainReceipt)
+    fs.writeFileSync(uncertainReceipt, '{invalid')
+    assert.throws(() => restarted.store.planCleanup('actor', uncertainRevision.id, uncertainRevision.id, () => {}), /evidence requires inspection/)
+    fs.unlinkSync(uncertainReceipt)
+    fs.symlinkSync(receiptFile, uncertainReceipt)
+    await assert.rejects(restarted.coordinator.executeNoToolsAgent('actor', uncertainRevision.id, uncertainInput, uncertainSource, policies, noToolsRuntime), /evidence requires inspection/)
+    fs.unlinkSync(uncertainReceipt)
+    fs.writeFileSync(uncertainReceipt, uncertainBytes)
     for (const phase of ['cleanup-prepared', 'cleanup-committed', 'cleanup-response-lost', 'cleanup-normal']) {
       const workspace = path.join(root, phase)
       await setup(workspace)

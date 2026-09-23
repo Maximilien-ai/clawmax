@@ -1,10 +1,10 @@
 ARG CLAWMAX_VERSION=
 ARG CLAWMAX_ENABLED_PLUGINS=
-ARG OPENCLAW_GIT_REF=v2026.8.2
+ARG OPENCLAW_GIT_REF=v2026.9.5
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
-FROM --platform=$BUILDPLATFORM node:22.22.3-bookworm-slim AS openclaw-builder
+FROM --platform=$BUILDPLATFORM node:24.19.0-bookworm-slim AS openclaw-builder
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG OPENCLAW_GIT_REF
@@ -62,7 +62,7 @@ RUN node scripts/postinstall-bundled-plugins.mjs \
 # npm pack preserves workspace:* and makes the runtime npm install fail.
 RUN pnpm --config.ignore-scripts=true pack
 
-FROM --platform=$BUILDPLATFORM node:22.22.3-bookworm-slim AS builder
+FROM --platform=$BUILDPLATFORM node:24.19.0-bookworm-slim AS builder
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG CLAWMAX_VERSION
@@ -92,7 +92,7 @@ RUN retry() { \
 COPY SYSTEM/dashboard ./
 RUN npm run build
 
-FROM --platform=$TARGETPLATFORM node:22.22.3-bookworm-slim AS runtime
+FROM --platform=$TARGETPLATFORM node:24.19.0-bookworm-slim AS runtime
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 WORKDIR /app/SYSTEM/dashboard
@@ -101,7 +101,7 @@ ARG CLAWMAX_VERSION
 ARG OPENCLAW_GIT_REF
 ARG CLAWMAX_ENABLED_PLUGINS
 ARG TARGETARCH
-ARG OPENCLAW_CODEX_APP_SERVER_VERSION=0.151.0
+ARG OPENCLAW_CODEX_APP_SERVER_VERSION=0.154.0
 ARG QBO_VERSION=0.6.1
 ARG QBO_LINUX_AMD64_SHA256=ce7774c7c641b1c6fe356e2e522465fbf16d80bce0a87fd2c8027774e2a46f31
 ARG QBO_LINUX_ARM64_SHA256=150cdb50c2dacc8c990c3594b358dcd84f2336de31cad73de266bbdf32b3d4e0
@@ -172,7 +172,7 @@ RUN chmod +x /tmp/ensure-openclaw-default-plugins.sh \
 # state on demand. That tree can survive an architecture change or predate
 # OpenClaw's platform-package verification, leaving the JavaScript launcher
 # present without @openai/codex-linux-{x64,arm64}. Ship the exact version pinned
-# by OpenClaw 2026.8.2 in the target image and select it explicitly so existing
+# by OpenClaw 2026.9.5 in the target image and select it explicitly so existing
 # volumes recover without reinstalling the plugin or changing capability consent.
 RUN npm install -g --include=optional "@openai/codex@${OPENCLAW_CODEX_APP_SERVER_VERSION}" \
   && test "$(node -p "require('/usr/local/lib/node_modules/@openai/codex/package.json').version")" = "${OPENCLAW_CODEX_APP_SERVER_VERSION}" \
@@ -289,7 +289,9 @@ ENV CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC=30
 
 EXPOSE 3001
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+# A forced replacement can retain OpenClaw's five-minute remote-owner lease.
+# Keep health failing during recovery without declaring startup permanently bad.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=350s --retries=3 \
   CMD curl -fsS http://127.0.0.1:3001/api/health >/dev/null || exit 1
 
 ENTRYPOINT ["/app/SYSTEM/dashboard/docker-entrypoint.sh"]

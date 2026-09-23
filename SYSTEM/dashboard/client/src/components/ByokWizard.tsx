@@ -33,6 +33,9 @@ function maskKey(value: string) {
   return `${value.slice(0, 4)}••••${value.slice(-4)}`
 }
 
+import { ByokAttentionSummary } from './AgentAttention'
+import { useAgentReadiness } from '../contexts/AgentReadinessContext'
+
 type Step = 'models' | 'partners' | 'runtime' | `partner:${string}`
 type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | 'openaiCompatible'
 type ProviderKey = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama'
@@ -237,6 +240,8 @@ export function ByokWizard({
 } = {}) {
   const { user, config } = useAuth()
   const { activeWorkspace } = useWorkspace()
+  const { entries: agentReadiness } = useAgentReadiness()
+  const needsAttention = initialStep === 'models' && Object.values(agentReadiness).some(entry => entry.attention && entry.attention.kind !== 'runtime')
   const { showSuccess, showInfo, showWarning } = useToast()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('models')
@@ -498,9 +503,13 @@ export function ByokWizard({
 
   useEffect(() => {
     const handleOpen = (event: Event) => {
-      const detail = (event as CustomEvent<{ step?: Step; focus?: string }>).detail || {}
+      const detail = (event as CustomEvent<{ step?: Step; focus?: string; provider?: string }>).detail || {}
       setOpen(true)
       setStep(detail.step || initialStep)
+      if (detail.provider && ['openai', 'anthropic', 'gemini', 'openrouter', 'xai'].includes(detail.provider)) {
+        setModelTab(detail.provider as ModelTab)
+        window.setTimeout(() => document.getElementById(`byok-${detail.provider}`)?.focus(), 100)
+      }
       if (detail.focus === 'preferred-model') {
         setHighlightPreferredModel(true)
         window.setTimeout(() => preferredModelRef.current?.focus(), 50)
@@ -2309,13 +2318,14 @@ export function ByokWizard({
       <button
         onClick={handleReopen}
         className={`text-xs rounded-full border px-2.5 py-1 transition-colors ${
-          triggerReady
+          triggerReady && !needsAttention
             ? 'border-emerald-300/60 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
             : 'border-amber-300/60 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
         }`}
-        title={triggerTitle}
+        title={needsAttention ? 'Needs attention: review agent configuration and readiness checks' : triggerTitle}
       >
         {triggerLabel}
+        {needsAttention && <span className="ml-1" aria-label="Needs attention">⚠ Needs attention</span>}
       </button>
 
       {!open ? null : createPortal(
@@ -2367,6 +2377,7 @@ export function ByokWizard({
           }
         >
 
+            {step === 'models' && <ByokAttentionSummary />}
             {initialStep !== 'models' && (
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                 {initialStep !== 'partners' && (
