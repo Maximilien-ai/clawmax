@@ -7,7 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { buildGitHubAuthChecks, buildGitHubTokenChecks, checkTemplatePrereqs } from './prereqs'
+import { buildGitHubAuthChecks, buildGitHubTokenChecks, checkTemplatePrereqs, getGitHubTokenFromEnv, hasRepoScope, isGhAuthenticated } from './prereqs'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -134,6 +134,60 @@ test('checkTemplatePrereqs warns (not fails) when claude/droid CLIs are absent',
       assert(claudeCheck?.status === 'warn', `Expected claude-cli warn (not fail) when absent, got ${claudeCheck?.status}`)
       assert(droidCheck?.status === 'warn', `Expected droid-cli warn (not fail) when absent, got ${droidCheck?.status}`)
       assert(!!claudeCheck?.fixHint, 'Expected a fixHint for the missing claude CLI')
+    })
+  })
+})
+
+test('GitHub auth parsing distinguishes authentication from repository scope', () => {
+  assert(isGhAuthenticated('Logged in to github.com as tester'), 'Logged-in status should authenticate')
+  assert(isGhAuthenticated('Active account: tester'), 'Active-account status should authenticate')
+  assert(isGhAuthenticated('Token scopes: read:org'), 'Token-scope status should authenticate')
+  assert(!isGhAuthenticated('You are not logged in'), 'Negated login must not authenticate')
+  assert(!hasRepoScope('Token scopes: read:org'), 'Read-only org scope is not repo scope')
+  assert(hasRepoScope("Token scopes: 'repo', read:org"), 'Quoted repo scope should count')
+  assert(hasRepoScope('Token scopes: repo, read:org'), 'Unquoted repo scope should count')
+  withEnv({ GITHUB_TOKEN: '  primary-token  ', GH_TOKEN: 'fallback-token' }, () => {
+    assert(getGitHubTokenFromEnv() === 'primary-token', 'Explicit GITHUB_TOKEN should win and trim')
+  })
+  withEnv({ GITHUB_TOKEN: ' ', GH_TOKEN: ' fallback-token ' }, () => {
+    assert(getGitHubTokenFromEnv() === 'fallback-token', 'GH_TOKEN should provide a fallback')
+  })
+})
+
+test('optional template prerequisites report GitHub, Senso, workspace files, and unknown skills', () => {
+  withTempDir('clawmax-prereqs-options-', dir => {
+    const fakeBin = path.join(dir, 'bin')
+    fs.mkdirSync(fakeBin)
+    writeFakeCli(path.join(fakeBin, 'openclaw'), 'openclaw 2026.9.5')
+    withEnv({
+      CLAWMAX_TEST_WORKSPACE: dir,
+      GITHUB_TOKEN: 'synthetic-token',
+      GH_TOKEN: undefined,
+      PATH: `${fakeBin}:${process.env.PATH || ''}`,
+      CLAUDE_BIN: path.join(dir, 'missing-claude'),
+      DROID_BIN: path.join(dir, 'missing-droid'),
+    }, () => {
+      const limited = checkTemplatePrereqs({ agents: [{ id: 'writer', skills: ['unknown-skill', 'github', 'gh-issues'] }] }, {
+        useGithub: true, useSenso: true, useWorkspaceFs: true,
+      })
+      assert(limited.checks.find(check => check.id === 'github-repo')?.status === 'warn', 'Missing repo should warn')
+      assert(limited.checks.find(check => check.id === 'senso-context')?.status === 'warn', 'Missing Senso context should warn')
+      assert(limited.checks.find(check => check.id === 'senso-auth-preview')?.status === 'warn', 'Browser-local Senso auth should remain advisory')
+      assert(limited.checks.find(check => check.id === 'workspace-files')?.status === 'pass', 'Installed OpenClaw should enable shared files')
+      assert(limited.checks.find(check => check.id === 'skill-available:unknown-skill')?.status === 'warn', 'Unknown skill should warn')
+      assert(limited.expectations.find(expectation => expectation.id === 'github-coordination')?.status === 'limited', 'Missing repo should limit coordination')
+      assert(limited.expectations.find(expectation => expectation.id === 'senso-memory')?.status === 'limited', 'Missing context should limit memory')
+      assert(limited.expectations.some(expectation => expectation.id === 'tool-using-agents'), 'Skills should add tool readiness')
+      assert(limited.summary.pass + limited.summary.warn + limited.summary.fail === limited.checks.length, 'Summary must account for all checks')
+
+      const configured = checkTemplatePrereqs({ agents: [{ id: 'writer', skills: [] }] }, {
+        useGithub: true, githubRepo: ' owner/repo ', useSenso: true, sensoContextLabel: ' Research ', useWorkspaceFs: true,
+      })
+      assert(configured.checks.find(check => check.id === 'github-repo')?.status === 'pass', 'Explicit repo should pass')
+      assert(configured.checks.find(check => check.id === 'senso-context')?.status === 'pass', 'Explicit Senso context should pass')
+      assert(configured.expectations.find(expectation => expectation.id === 'github-coordination')?.status === 'ready', 'Token and repo should enable coordination')
+      assert(configured.expectations.find(expectation => expectation.id === 'senso-memory')?.status === 'ready', 'Context should enable memory')
+      assert(configured.expectations.find(expectation => expectation.id === 'workspace-files-summary')?.status === 'ready', 'Installed OpenClaw should enable file coordination')
     })
   })
 })
