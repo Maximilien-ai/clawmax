@@ -78,7 +78,7 @@ function loadRouter(overrides: {
 }
 
 function getRouteHandler(
-  method: 'get' | 'post',
+  method: 'get' | 'post' | 'put' | 'delete',
   routePath: string,
   overrides: Parameters<typeof loadRouter>[0] = {},
 ) {
@@ -167,6 +167,96 @@ async function run() {
     await handler(makeReq(), res)
     assert.strictEqual(res.statusCode, 500)
     assert.strictEqual(res.jsonBody?.error, 'feedback store unavailable')
+  })
+
+  await test('template listing and lookup keep agent, organization, and workflow types distinct', async () => {
+    const overrides = {
+      templates: {
+        listTemplates: () => [{ type: 'agent', slug: 'agent-one' }, { type: 'organization', slug: 'org-one' }],
+        getTemplate: (type: string, slug: string) => type === 'agent' && slug === 'agent-one' ? { type, slug } : null,
+      } as any,
+      workflows: { listWorkflowTemplates: () => [{ id: 'workflow-one' }] } as any,
+    }
+    const list = getRouteHandler('get', '/', overrides)
+    for (const [type, expected] of [['agent', 'agents'], ['organization', 'organizations'], ['workflow', 'workflows']] as const) {
+      const res = makeRes()
+      await list(makeReq({ query: { type } }), res)
+      assert.strictEqual(res.statusCode, 200)
+      assert.strictEqual(res.jsonBody?.[expected]?.length, 1)
+      assert.strictEqual(res.jsonBody?.total, 1)
+    }
+    let res = makeRes()
+    await list(makeReq({ query: { type: 'invalid' } }), res)
+    assert.strictEqual(res.statusCode, 400)
+    const detail = getRouteHandler('get', '/:type/:slug', overrides)
+    res = makeRes()
+    await detail(makeReq({ params: { type: 'agents', slug: 'agent-one' } }), res)
+    assert.strictEqual(res.jsonBody?.slug, 'agent-one')
+    res = makeRes()
+    await detail(makeReq({ params: { type: 'organizations', slug: 'missing' } }), res)
+    assert.strictEqual(res.statusCode, 404)
+    res = makeRes()
+    await detail(makeReq({ params: { type: 'workflows', slug: 'workflow-one' } }), res)
+    assert.strictEqual(res.statusCode, 400)
+  })
+
+  await test('template saves reject malformed inputs and preserve errors from the store', async () => {
+    const overrides = { templates: {
+      createAgentTemplateFromAgent: () => ({ ok: false, error: 'Agent unavailable' }),
+      createOrganizationTemplate: () => ({ ok: false, error: 'Organization unavailable' }),
+    } as any }
+    const agent = getRouteHandler('post', '/agents/:agentId/save', overrides)
+    for (const fixture of [
+      { params: { agentId: 'agent-one' }, body: {}, status: 400 },
+      { params: { agentId: 'BAD ID' }, body: { name: 'Agent' }, status: 400 },
+      { params: { agentId: 'agent-one' }, body: { name: 'Agent' }, status: 500 },
+    ]) {
+      const res = makeRes()
+      await agent(makeReq(fixture), res)
+      assert.strictEqual(res.statusCode, fixture.status)
+    }
+    const organization = getRouteHandler('post', '/organizations/save', overrides)
+    let res = makeRes()
+    await organization(makeReq({ body: {} }), res)
+    assert.strictEqual(res.statusCode, 400)
+    res = makeRes()
+    await organization(makeReq({ body: { name: 'Org' } }), res)
+    assert.strictEqual(res.statusCode, 500)
+  })
+
+  await test('template update validates before saving and replaces only its previous slug', async () => {
+    const savedDir = path.join(tmpWorkspace, 'TEMPLATES_OUT', 'new-name')
+    fs.mkdirSync(savedDir, { recursive: true })
+    let removed = ''
+    let saved = 0
+    const overrides = { templates: {
+      validateTemplate: () => ({ valid: true }),
+      saveTemplate: () => { saved++; return { ok: true, path: savedDir } },
+      getTemplate: () => null,
+      deleteTemplate: (_type: string, slug: string) => { removed = slug; return { ok: true } },
+      slugify: () => 'new-name',
+    } as any }
+    const handler = getRouteHandler('put', '/:type/:slug', overrides)
+    for (const fixture of [
+      { params: { type: 'workflows', slug: 'old' }, body: { type: 'agent', name: 'New Name' } },
+      { params: { type: 'agents', slug: 'old' }, body: null },
+      { params: { type: 'agents', slug: 'old' }, body: { type: 'organization', name: 'New Name' } },
+    ]) {
+      const res = makeRes()
+      await handler(makeReq(fixture), res)
+      assert.strictEqual(res.statusCode, 400)
+    }
+    assert.strictEqual(saved, 0, 'Invalid updates must not write files')
+    const body = { type: 'agent', name: 'New Name', templateFiles: { identity: '# Identity', soul: '# Soul', tools: '' } }
+    const res = makeRes()
+    await handler(makeReq({ params: { type: 'agents', slug: 'old-name' }, body }), res)
+    assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(saved, 1)
+    assert.strictEqual(removed, 'old-name')
+    assert.strictEqual(fs.readFileSync(path.join(savedDir, 'IDENTITY.md'), 'utf8'), '# Identity')
+    assert.strictEqual(fs.readFileSync(path.join(savedDir, 'SOUL.md'), 'utf8'), '# Soul')
+    assert.strictEqual(fs.readFileSync(path.join(savedDir, 'TOOLS.md'), 'utf8'), '')
+    assert.strictEqual(res.jsonBody?.template?.name, 'New Name', 'Saved template should return even when reload is unavailable')
   })
 
   await test('workflow export markdown route returns markdown payload and headers', async () => {
