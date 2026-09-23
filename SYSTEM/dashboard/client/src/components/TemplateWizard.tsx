@@ -921,10 +921,23 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
     setAiCronLoadingIndex(idx)
     setWorkflowCronHints(prev => ({ ...prev, [idx]: '' }))
     try {
+      const byok = readStoredByokKeys()
       const resp = await fetch('/api/workflows/generate-cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: workflow.schedule.trim(), tz: timezone }),
+        body: JSON.stringify({
+          text: workflow.schedule.trim(),
+          tz: timezone,
+          byokKeys: (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl)
+            ? {
+                openai: byok.openai,
+                anthropic: byok.anthropic,
+                openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
+                openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
+                openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
+              }
+            : undefined,
+        }),
       })
       const data = await resp.json().catch(() => ({}))
       if (data.valid && data.cron) {

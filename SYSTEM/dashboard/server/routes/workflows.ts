@@ -96,41 +96,47 @@ router.post('/import-md', (req, res) => {
  * POST /api/workflows/generate-cron
  * Convert natural language to cron expression using AI
  */
-router.post('/generate-cron', (req, res) => {
-  const { text, tz } = req.body
+router.post('/generate-cron', async (req, res) => {
+  const { text, tz, byokKeys } = req.body as {
+    text?: string
+    tz?: string
+    byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+  }
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'text is required' })
   }
 
-  generateCronFromText(text, typeof tz === 'string' ? tz : undefined)
-    .then(result => {
-      if (result.error) {
-        return res.status(500).json({ error: result.error })
-      }
+  try {
+    setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
+    const result = await generateCronFromText(text, typeof tz === 'string' ? tz : undefined)
+    if (result.error) {
+      return res.status(500).json({ error: result.error })
+    }
 
-      if (isOneTimeScheduleRequest(text)) {
-        return res.json({
-          cron: '',
-          explanation: result.explanation || explainOneTimeCronLimitation(),
-          valid: false,
-        })
-      }
+    if (isOneTimeScheduleRequest(text)) {
+      return res.json({
+        cron: '',
+        explanation: result.explanation || explainOneTimeCronLimitation(),
+        valid: false,
+      })
+    }
 
-      // Validate the generated cron
-      if (result.cron) {
-        const validation = validateCron(result.cron)
-        if (!validation.valid) {
-          return res.json({ cron: '', explanation: `Could not generate a valid cron: ${result.explanation}`, valid: false })
-        }
-        return res.json({ cron: result.cron, explanation: result.explanation, humanReadable: validation.humanReadable, valid: true })
+    // Validate the generated cron
+    if (result.cron) {
+      const validation = validateCron(result.cron)
+      if (!validation.valid) {
+        return res.json({ cron: '', explanation: `Could not generate a valid cron: ${result.explanation}`, valid: false })
       }
+      return res.json({ cron: result.cron, explanation: result.explanation, humanReadable: validation.humanReadable, valid: true })
+    }
 
-      res.json({ cron: '', explanation: result.explanation, valid: false })
-    })
-    .catch(err => {
-      console.error('Error generating cron:', err)
-      res.status(500).json({ error: 'Failed to generate cron expression' })
-    })
+    res.json({ cron: '', explanation: result.explanation, valid: false })
+  } catch (err) {
+    console.error('Error generating cron:', err)
+    res.status(500).json({ error: 'Failed to generate cron expression' })
+  } finally {
+    setRequestByokKeys(undefined)
+  }
 })
 
 /**

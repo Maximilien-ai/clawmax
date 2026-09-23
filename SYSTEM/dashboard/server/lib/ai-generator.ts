@@ -293,11 +293,15 @@ export async function generateBuilderStarterPromptsWithAI(input: BuilderStarterP
       },
     ],
     temperature: 0.8,
-    ...completionTokenLimit(model, 500),
+    // 500 was sized for gpt-4o-mini's terse JSON. A less terse BYOK model can legitimately need
+    // more room for the same 4 prompts, truncating the JSON mid-string; parseJsonResponse below
+    // degrades that to an empty list instead of an uncaught SyntaxError, but a wider budget keeps
+    // truncation rare in the first place.
+    ...completionTokenLimit(model, 900),
   })
 
-  const raw = extractJsonResponseText(completion.choices[0].message.content || '')
-  const parsed = JSON.parse(raw)
+  const raw = completion.choices[0].message.content || ''
+  const parsed = parseJsonResponse<{ prompts?: unknown }>(raw, {})
   const prompts = Array.isArray(parsed?.prompts)
     ? parsed.prompts.map((value: unknown) => String(value || '').trim()).filter(Boolean)
     : []
@@ -2849,11 +2853,15 @@ export async function generateCronFromText(text: string, timezone?: string): Pro
     }
   }
 
-  // This gate predates CLI runtimes and checked only for an OpenAI key, so cron generation stayed
-  // unavailable on a keyless workspace even with a CLI enabled. Accept either execution path.
-  const apiKey = resolveSystemExecutionProviderKeys().openai
-  if ((!apiKey || apiKey.trim() === '') && !pickGenerationRuntime()) {
-    return { cron: '', explanation: '', error: 'No OpenAI API key or CLI runtime configured' }
+  // This gate used to check only a system-level OpenAI key, so cron generation stayed unavailable
+  // whenever the caller supplied its own BYOK key (including an OpenAI-compatible endpoint) or the
+  // workspace only had an Anthropic/Gemini default or an enabled CLI runtime. getAvailableProvider
+  // is the same check every other generator in this file relies on to decide whether *any*
+  // execution path — request-scoped BYOK, workspace/system default, or CLI runtime — is usable.
+  try {
+    getAvailableProvider(_requestByokKeys)
+  } catch (err: any) {
+    return { cron: '', explanation: '', error: err?.message || 'No OpenAI API key or CLI runtime configured' }
   }
 
   try {
