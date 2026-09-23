@@ -1,4 +1,5 @@
 import assert from 'assert'
+import { EventEmitter } from 'events'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -73,6 +74,67 @@ async function withSkillsOverrides<T>(overrides: Record<string, any>, fn: () => 
 console.log(`\n${YELLOW}=== Skills Route Edge Test Suite ===${RESET}\n`)
 
 async function run() {
+  await test('interactive setup sessions preserve bounded progress, input and terminal failures', async () => {
+    const childProcess = require('child_process')
+    const originalSpawn = childProcess.spawn
+    const children: any[] = []
+    childProcess.spawn = () => {
+      const child: any = new EventEmitter()
+      child.stdout = new EventEmitter()
+      child.stderr = new EventEmitter()
+      child.inputs = []
+      child.stdin = { write: (value: string) => child.inputs.push(value) }
+      child.kills = 0
+      child.kill = () => { child.kills++ }
+      children.push(child)
+      return child
+    }
+    try {
+      await withSkillsOverrides({ getSkillById: () => ({ name: 'fixture', setupRequirements: { actionId: 'himalaya-account-configure' } }) }, async () => {
+        const router = require('./skills').default
+        const call = async (method: string, route: string, params: any = {}, body: any = {}) => {
+          const handler = router.stack.find((entry: any) => entry.route?.path === route && entry.route.methods[method]).route.stack[0].handle
+          const res = makeRes()
+          await handler(makeReq({ params, body }), res)
+          return res
+        }
+        for (const [method, route] of [['get', '/setup-session/:sessionId'], ['post', '/setup-session/:sessionId/input'], ['post', '/setup-session/:sessionId/close']]) {
+          assert.strictEqual((await call(method, route, { sessionId: 'missing' })).statusCode, 404)
+        }
+        assert.strictEqual((await call('post', '/:skillId/setup-session/start', { skillId: 'fixture' })).statusCode, 500)
+        assert.strictEqual(children.length, 0, 'Missing setup inputs must not launch a process')
+        for (const outcome of ['success', 'failure', 'error', 'stop']) {
+          const start = await call('post', '/:skillId/setup-session/start', { skillId: 'fixture' }, { inputs: { accountName: 'fixture', configPath: outcome === 'success' ? '/fixture/config' : '' } })
+          assert.strictEqual(start.statusCode, 200)
+          const params = { sessionId: start.jsonBody.sessionId }
+          const child: any = children[children.length - 1]
+          assert.strictEqual((await call('post', '/setup-session/:sessionId/input', params, { input: ' ' })).statusCode, 400)
+          assert.strictEqual((await call('post', '/setup-session/:sessionId/input', params, { input: 'fixture answer' })).statusCode, 200)
+          assert.deepStrictEqual(child.inputs, ['fixture answer\n'])
+          for (let i = 0; i < 405; i++) child.stdout.emit('data', `line ${i}`)
+          child.stderr.emit('data', 'diagnostic')
+          let status = (await call('get', '/setup-session/:sessionId', params)).jsonBody
+          assert.strictEqual(status.status, 'running')
+          assert.strictEqual(status.logs.length, 400)
+          if (outcome === 'stop') {
+            await call('post', '/setup-session/:sessionId/close', params)
+            await call('post', '/setup-session/:sessionId/close', params)
+            assert.strictEqual(child.kills, 1, 'Closing a settled session must not kill twice')
+          } else {
+            if (outcome === 'error') child.emit('error', new Error('Synthetic spawn failure'))
+            child.emit('close', outcome === 'success' ? 0 : 1)
+          }
+          status = (await call('get', '/setup-session/:sessionId', params)).jsonBody
+          assert.strictEqual(status.status, outcome === 'success' ? 'completed' : 'failed')
+          assert.strictEqual(typeof status.endedAt, 'number')
+          if (outcome === 'error') assert.strictEqual(status.error, 'Synthetic spawn failure')
+          assert.strictEqual((await call('post', '/setup-session/:sessionId/input', params, { input: 'too late' })).statusCode, 400)
+          assert.deepStrictEqual(child.inputs, ['fixture answer\n'])
+        }
+      })
+    } finally { childProcess.spawn = originalSpawn }
+  })
+
   await test('read and validation failures return stable errors without exposing internals', async () => {
     for (const [method, route, dependency, body, error] of [
       ['get', '/', 'listAvailableSkills', {}, 'Failed to load skills'],
