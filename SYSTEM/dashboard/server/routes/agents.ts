@@ -1759,8 +1759,8 @@ router.post('/bulk-impact', (req, res) => {
 
   // Validate all agent IDs
   for (const agent of agentsToDelete) {
-    if (!/^[a-z][a-z0-9_-]*$/.test(agent.id)) {
-      return res.status(400).json({ error: `Invalid agent id: ${agent.id}` })
+    if (!agent || typeof agent.id !== 'string' || !/^[a-z][a-z0-9_-]*$/.test(agent.id)) {
+      return res.status(400).json({ error: `Invalid agent id: ${typeof agent?.id === 'string' ? agent.id : ''}` })
     }
   }
 
@@ -1812,8 +1812,8 @@ router.delete('/bulk', (req, res) => {
 
   // Validate all agent IDs
   for (const agent of agentsToDelete) {
-    if (!/^[a-z][a-z0-9_-]*$/.test(agent.id)) {
-      return res.status(400).json({ error: `Invalid agent id: ${agent.id}` })
+    if (!agent || typeof agent.id !== 'string' || !/^[a-z][a-z0-9_-]*$/.test(agent.id)) {
+      return res.status(400).json({ error: `Invalid agent id: ${typeof agent?.id === 'string' ? agent.id : ''}` })
     }
   }
 

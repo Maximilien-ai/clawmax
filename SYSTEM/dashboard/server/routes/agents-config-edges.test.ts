@@ -421,7 +421,7 @@ async function run() {
         : { todoCount: 4, communityCount: 2, groupCount: 1 },
     }, async () => {
       const handler = getRouteHandler('post', '/bulk-impact')
-      for (const agents of [undefined, [], [{ id: 'Bad ID' }]]) {
+      for (const agents of [undefined, [], [null], [{}], [{ id: 3 }], [{ id: 'Bad ID' }]]) {
         const invalid = makeRes()
         await handler(makeReq({ body: { agents } }), invalid)
         assert.equal(invalid.statusCode, 400)
@@ -448,7 +448,7 @@ async function run() {
       },
     }, async () => {
       const handler = getRouteHandler('delete', '/bulk')
-      for (const agents of [undefined, [], [{ id: '../escape' }]]) {
+      for (const agents of [undefined, [], [null], [{}], [{ id: 3 }], [{ id: '../escape' }]]) {
         const invalid = makeRes()
         await handler(makeReq({ body: { agents } }), invalid)
         assert.equal(invalid.statusCode, 400)
