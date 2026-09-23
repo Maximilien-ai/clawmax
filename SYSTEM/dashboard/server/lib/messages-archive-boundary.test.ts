@@ -2,7 +2,7 @@ import assert from 'assert'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { deleteArchivedMessages, getArchivedMessages, getArchives } from './messages'
+import { addMessage, clearMessages, deleteArchivedMessages, getArchivedMessages, getArchives, getMessages } from './messages'
 
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-message-archive-boundary-'))
@@ -35,6 +35,23 @@ async function main() {
       assert.equal(deleteArchivedMessages(type, 'team', own), true, `${type}: own archive must remain deletable`)
       assert(!fs.existsSync(path.join(archiveDir, own)), `${type}: own archive must be removed`)
       assert(fs.existsSync(path.join(archiveDir, other)), `${type}: another archive must remain`)
+
+      const malformed = 'team_2026-09-23_125.json'
+      fs.writeFileSync(path.join(archiveDir, malformed), '{broken')
+      assert.deepEqual(getArchivedMessages(type, 'team', malformed), [], `${type}: corrupt archive must fail closed`)
+      fs.writeFileSync(path.join(archiveDir, malformed), JSON.stringify({ entries: [] }))
+      assert.deepEqual(getArchivedMessages(type, 'team', malformed), [], `${type}: non-array archive must fail closed`)
+      assert.deepEqual(getArchivedMessages(type, 'team', 'team_2026-09-23_999.json'), [], `${type}: missing archive must be empty`)
+
+      const live = path.join(parent, 'new-team.json')
+      fs.writeFileSync(live, '{broken')
+      assert.deepEqual(getMessages(type, 'new-team'), [], `${type}: corrupt live store must read as empty`)
+      const message = addMessage(type, 'new-team', { from: 'user', content: 'Hello', mentions: ['analyst'] })
+      assert.deepEqual(getMessages(type, 'new-team').map(item => item.id), [message.id], `${type}: new message must be retained`)
+      const cleared = clearMessages(type, 'new-team')
+      assert.equal(cleared.archived, true, `${type}: populated messages must be archived`)
+      assert.deepEqual(getMessages(type, 'new-team'), [], `${type}: clear must empty live history`)
+      assert.equal(clearMessages(type, 'new-team').archived, false, `${type}: empty history must not create another archive`)
     }
     console.log('messages-archive-boundary.test.ts: passed')
   } finally {
