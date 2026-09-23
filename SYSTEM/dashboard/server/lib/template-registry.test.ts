@@ -139,6 +139,51 @@ async function run() {
     assert(parsed?.subpath === 'templates/product-research-team', 'Expected subpath')
   })
 
+  await test('registry import rejects unsupported types and invalid sources without fetching', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-registry-invalid-'))
+    const prior = process.env.CLAWMAX_TEST_WORKSPACE
+    process.env.CLAWMAX_TEST_WORKSPACE = root
+    resetWorkspaceManagerForTests()
+    globalThis.fetch = (async () => { throw new Error('Unexpected network request') }) as any
+    const input = { title: 'Unique invalid fixture', templateSlug: 'unique-invalid-fixture', templateType: 'agent' as const, sourceUrl: 'not a URL' }
+    try {
+      strictAssert.equal(templateExistsLocally({ ...input, templateType: 'workflow' }), false)
+      await strictAssert.rejects(importTemplateRegistryEntry({ ...input, templateType: 'workflow' }), /Only agent, team, and company/)
+      await strictAssert.rejects(importTemplateRegistryEntry(input), /GitHub tree\/blob URL/)
+    } finally {
+      if (prior === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+      else process.env.CLAWMAX_TEST_WORKSPACE = prior
+      resetWorkspaceManagerForTests()
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  await test('registry import rejects missing, malformed and invalid template assets before saving', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-registry-assets-'))
+    const prior = process.env.CLAWMAX_TEST_WORKSPACE
+    process.env.CLAWMAX_TEST_WORKSPACE = root
+    resetWorkspaceManagerForTests()
+    const input = { title: 'Unique invalid fixture', templateSlug: 'unique-invalid-fixture', templateType: 'agent' as const, sourceUrl: 'https://github.com/fixture/templates/tree/main/example' }
+    try {
+      for (const [status, body, message] of [
+        [404, '', /does not include template.json/],
+        [503, '', /Failed to fetch template asset \(503\)/],
+        [200, '{broken', /invalid template.json/],
+        [200, '{"type":"organization"}', /type mismatch/],
+        [200, '{"type":"agent"}', /required|missing/i],
+      ] as const) {
+        globalThis.fetch = (async () => ({ status, ok: status === 200, text: async () => body })) as any
+        await strictAssert.rejects(importTemplateRegistryEntry(input), message)
+        strictAssert.equal(templateExistsLocally(input), false, 'Failed import must not create a template')
+      }
+    } finally {
+      if (prior === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+      else process.env.CLAWMAX_TEST_WORKSPACE = prior
+      resetWorkspaceManagerForTests()
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   await test('buildRawGitHubTemplateFileUrl builds raw.githubusercontent paths', () => {
     const parsed = parseGitHubTemplateSourceUrl('https://github.com/Maximilien-ai/templates/tree/main/templates/product-research-team')
     assert(!!parsed, 'Expected parsed source')
