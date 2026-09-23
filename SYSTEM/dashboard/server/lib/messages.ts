@@ -128,6 +128,11 @@ function getArchiveFile(type: 'community' | 'group' | 'direct', name: string, ti
   return path.join(archiveDir, `${safeName}_${date}_${timestamp}.json`)
 }
 
+function isArchiveFilenameForName(name: string, filename: string): boolean {
+  const safeName = name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()
+  return filename.startsWith(`${safeName}_`) && /^\d{4}-\d{2}-\d{2}_\d+\.json$/.test(filename.slice(safeName.length + 1))
+}
+
 export function clearMessages(type: 'community' | 'group' | 'direct', name: string): { archived: boolean; archiveFile?: string } {
   const key = getStoreKey(type, name)
   const currentMessages = messageStore[key] || loadMessagesFromFile(type, name)
@@ -155,7 +160,6 @@ export function clearMessages(type: 'community' | 'group' | 'direct', name: stri
 export async function getArchives(type: 'community' | 'group' | 'direct', name: string): Promise<Array<{ filename: string; timestamp: number; messageCount: number; title: string }>> {
   const subdir = type === 'community' ? 'communities' : type === 'group' ? 'groups' : 'direct'
   const archiveDir = path.join(getMessagesDir(), subdir, 'archive')
-  const safeName = name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()
 
   if (!fs.existsSync(archiveDir)) {
     return []
@@ -163,7 +167,7 @@ export async function getArchives(type: 'community' | 'group' | 'direct', name: 
 
   try {
     const fileInfos = fs.readdirSync(archiveDir)
-      .filter(f => f.startsWith(safeName) && f.endsWith('.json'))
+      .filter(f => isArchiveFilenameForName(name, f))
       .map(filename => {
         const fullPath = path.join(archiveDir, filename)
         const timestampMatch = filename.match(/_(\d+)\.json$/)
@@ -239,6 +243,7 @@ export async function getArchives(type: 'community' | 'group' | 'direct', name: 
 }
 
 export function getArchivedMessages(type: 'community' | 'group' | 'direct', name: string, filename: string): Message[] {
+  if (!isArchiveFilenameForName(name, filename)) return []
   const subdir = type === 'community' ? 'communities' : type === 'group' ? 'groups' : 'direct'
   const archiveDir = path.join(getMessagesDir(), subdir, 'archive')
   const filePath = path.join(archiveDir, filename)
@@ -262,6 +267,7 @@ export function getArchivedMessages(type: 'community' | 'group' | 'direct', name
 }
 
 export function deleteArchivedMessages(type: 'community' | 'group' | 'direct', name: string, filename: string): boolean {
+  if (!isArchiveFilenameForName(name, filename)) return false
   const subdir = type === 'community' ? 'communities' : type === 'group' ? 'groups' : 'direct'
   const archiveDir = path.join(getMessagesDir(), subdir, 'archive')
   const filePath = path.join(archiveDir, filename)
