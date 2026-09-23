@@ -12,6 +12,7 @@ try {
       localStorage.setItem('clawmax-system-nav-expanded', 'true')
     })
     let enabled = true, failLoad = false, failSave = false, writes = 0
+    let runtimePlugins = [], runtimeReads = 0, runtimeWrites = 0, runtimeFail = false
     const entry = () => ({ id: 'example', slug: 'example', name: 'Example dashboard extension with a deliberately long display name', description: 'Synthetic dashboard extension for layout and persistence testing.', version: '1.0', visibility: 'public', enabled })
     await page.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname
@@ -27,7 +28,16 @@ try {
           else enabled = route.request().postDataJSON().enabledPluginIds.includes('example')
         } else if (failLoad) status = 500
         json = { plugins: [entry()] }
-      } else if (path === '/api/system/openclaw-plugins') json = { plugins: [], history: [], canManage: false }
+      } else if (path === '/api/system/openclaw-plugins') {
+        runtimeReads++
+        if (runtimeFail) status = 500
+        json = { plugins: runtimePlugins, history: [], canManage: true }
+      } else if (path.startsWith('/api/system/openclaw-plugins/')) {
+        runtimeWrites++
+        assert.equal(route.request().postDataJSON().confirmRestartImpact, true)
+        runtimePlugins[0].enabled = route.request().postDataJSON().enabled
+        json = { changed: true }
+      }
       else if (path === '/api/plugins') json = { plugins: [] }
       else if (path.includes('/agents') || path.includes('/workflows') || path.includes('/notifications')) json = []
       await route.fulfill({ status, json })
@@ -35,6 +45,11 @@ try {
     await page.goto(`${base}/system/plugins#clawmax`)
     const save = page.getByRole('button', { name: 'Save', exact: true })
     await save.waitFor()
+    await page.getByRole('combobox', { name: 'Status', exact: true }).selectOption('disabled')
+    await page.getByText('No plugins match your search and status filter.', { exact: true }).waitFor()
+    await page.getByRole('combobox', { name: 'Status', exact: true }).selectOption('enabled')
+    assert.equal(await page.getByRole('checkbox').count(), 1)
+    await page.getByRole('combobox', { name: 'Status', exact: true }).selectOption('all')
     await page.getByRole('checkbox').uncheck()
     await save.click()
     await page.getByRole('status').filter({ hasText: 'selection saved' }).waitFor()
@@ -65,8 +80,52 @@ try {
     await page.getByRole('alert').filter({ hasText: 'could not be loaded' }).waitFor()
     assert.equal(await save.isDisabled(), true)
     assert.equal(writes, priorWrites)
+    await page.getByRole('link', { name: 'OpenClaw Plugins', exact: true }).click()
+    await page.getByText('No installed plugins reported by OpenClaw.').waitFor()
+    runtimePlugins = [
+      { id: 'alpha', name: 'Alpha runtime', enabled: true, status: 'loaded', version: '1', origin: 'bundled' },
+      { id: 'beta', name: 'Beta runtime', enabled: false, status: 'disabled', version: '1', origin: 'bundled' },
+    ]
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click()
+    const alpha = page.getByRole('checkbox', { name: 'Enable Alpha runtime', exact: true })
+    await alpha.waitFor()
+    const cachedReads = runtimeReads
+    await page.getByRole('link', { name: 'ClawMax Plugins and Extensions', exact: true }).click()
+    await save.waitFor()
+    await page.getByRole('link', { name: 'OpenClaw Plugins', exact: true }).click()
+    await alpha.waitFor()
+    assert.equal(runtimeReads, cachedReads, 'tab revisit must reuse inventory')
+    if (width === 1440) {
+      await page.getByRole('button', { name: 'Logs', exact: true }).click()
+      await page.locator('aside').getByRole('button', { name: 'Plugins', exact: true }).click()
+      await alpha.waitFor()
+      assert.equal(runtimeReads, cachedReads, 'page revisit must reuse inventory')
+    }
+    await page.getByRole('combobox', { name: 'Status', exact: true }).selectOption('enabled')
+    assert.equal(await page.getByRole('checkbox').count(), 1)
+    await page.getByRole('searchbox', { name: 'Search plugins', exact: true }).fill('not present')
+    await page.getByText('No plugins match your search and status filter.', { exact: true }).waitFor()
+    await page.getByRole('searchbox', { name: 'Search plugins', exact: true }).fill('')
+    await alpha.click()
+    await page.getByRole('group', { name: 'Confirm plugin change' }).waitFor()
+    assert.equal(runtimeWrites, 0, 'checkbox must not mutate before confirmation')
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+    assert.equal(await alpha.isChecked(), true)
+    await alpha.click()
+    await page.getByRole('button', { name: 'Confirm change', exact: true }).click()
+    await page.getByRole('status').filter({ hasText: 'Configuration saved' }).waitFor()
+    assert.equal(runtimeWrites, 1)
+    await page.getByRole('combobox', { name: 'Status', exact: true }).selectOption('disabled')
+    assert.equal(await page.getByRole('checkbox').count(), 2)
+    assert.equal(await page.getByRole('button', { name: 'Install plugin', exact: true }).isDisabled(), true)
+    await page.screenshot({ path: `/private/tmp/system-plugins-${width}-runtime-filters.png` })
+    runtimeFail = true
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click()
+    await page.getByRole('alert').filter({ hasText: 'Could not load OpenClaw' }).waitFor()
+    assert.equal(await alpha.isDisabled(), true)
+    assert.equal(await page.getByRole('checkbox').count(), 2, 'failed refresh retains cached inventory')
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
     await page.close()
-    console.log(`PASS ${width}px: direct link, navigation/back, empty runtime, save/persistence, load/save errors, overflow`)
+    console.log(`PASS ${width}px: navigation/cache, shared filters, confirmation/cancel, save/persistence, stale/error states, disabled installation, overflow`)
   }
 } finally { await browser.close() }

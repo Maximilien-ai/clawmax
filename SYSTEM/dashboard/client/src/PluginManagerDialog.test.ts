@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import assert from 'assert'
+import { matchesPluginFilter } from './lib/pluginListFilters'
 
 const source = fs.readFileSync(path.join(__dirname, 'components', 'PluginManagerDialog.tsx'), 'utf-8')
 const appSource = fs.readFileSync(path.join(__dirname, 'App.tsx'), 'utf-8')
@@ -25,4 +26,14 @@ assert(source.includes('disabled={!loaded || loading || saving}'), 'failed inven
 assert(source.includes('role="status"') && source.includes('role="alert"'), 'save success and failure remain visible')
 assert(source.includes('sticky bottom-0') && pageSource.includes('flex flex-wrap'), 'actions and long tab names support mobile layouts')
 
-console.log('✓ Plugin manager UI contract tests (17 tests)')
+assert(matchesPluginFilter('Alpha Runtime', true, ' ALPHA ', 'enabled'))
+assert(!matchesPluginFilter('Alpha Runtime', false, 'alpha', 'enabled'))
+assert(matchesPluginFilter('Beta Runtime', false, '', 'disabled'))
+assert(!matchesPluginFilter('Beta Runtime', true, '', 'disabled'))
+assert(matchesPluginFilter('Beta Runtime', false, 'runtime', 'all'))
+assert(!matchesPluginFilter('Beta Runtime', false, 'missing', 'all'))
+const runtimeSource = fs.readFileSync(path.join(__dirname, 'components', 'OpenClawPlugins.tsx'), 'utf-8')
+assert(runtimeSource.includes('<PluginListControls') && source.includes('<PluginListControls'), 'both inventories share navigation controls')
+assert(runtimeSource.includes('type="checkbox"') && runtimeSource.includes('confirmRestartImpact: true'), 'runtime checkboxes preserve confirmation')
+assert(pageSource.includes("visited.has('openclaw')") && appSource.includes("visitedPages.has('plugins')"), 'inventory survives tab and page revisits')
+console.log('✓ Plugin manager UI contract tests (26 tests)')

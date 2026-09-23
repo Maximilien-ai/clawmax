@@ -1176,7 +1176,7 @@ export default function App() {
               </WorkspaceScoped>
             </div>
             )}
-            {page === 'plugins' && <div className="min-w-0 flex-1 overflow-auto"><SystemPlugins onSaved={setPlugins} /></div>}
+            {visitedPages.has('plugins') && <div hidden={page !== 'plugins'} className="min-w-0 flex-1 overflow-auto"><SystemPlugins onSaved={setPlugins} /></div>}
             {page === 'logs' && (
             <div className="flex-1 overflow-auto">
               <WorkspaceScoped pageKey="logs">

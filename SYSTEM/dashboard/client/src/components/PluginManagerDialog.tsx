@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { MobileSafeDialog } from './MobileSafeDialog'
 import type { PluginManifest } from '../lib/plugins'
+import { PluginListControls, PluginInstallUnavailable, matchesPluginFilter, type PluginStatusFilter } from './PluginListControls'
 
 export interface PluginSettingsEntry {
   id: string
@@ -27,6 +28,9 @@ export function PluginManagerDialog({ open, onClose, onSaved, embedded = false }
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [notice, setNotice] = useState('')
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState<PluginStatusFilter>('all')
+  const visible = entries.filter(plugin => matchesPluginFilter(`${plugin.name} ${plugin.slug} ${plugin.description}`, enabled.has(plugin.slug), search, status))
 
   useEffect(() => {
     if (!open) return
@@ -93,13 +97,17 @@ export function PluginManagerDialog({ open, onClose, onSaved, embedded = false }
         </div>
       )}
     >
+      <PluginInstallUnavailable />
+      <PluginListControls search={search} onSearch={setSearch} status={status} onStatus={setStatus} total={entries.length} enabled={entries.filter(plugin => enabled.has(plugin.slug)).length} visible={visible.length} />
+      <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Checkboxes and status filters reflect your selection. Choose Save to apply changes for this instance.</p>
+      {!loading && entries.length > 0 && visible.length === 0 && <p>No plugins match your search and status filter.</p>}
       {loading ? (
         <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">Loading plugins...</p>
       ) : entries.length === 0 ? (
         <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No plugins are available in this runtime.</p>
       ) : (
         <div className="divide-y divide-gray-200 rounded-md border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
-          {entries.map((plugin) => (
+          {visible.map((plugin) => (
             <label key={plugin.slug} className="flex cursor-pointer items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <input
                 type="checkbox"

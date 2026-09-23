@@ -6,6 +6,8 @@ import type { PluginManifest } from '../lib/plugins'
 export default function SystemPlugins({ onSaved }: { onSaved: (plugins: PluginManifest[]) => void }) {
   const readTab = () => window.location.hash === '#clawmax' ? 'clawmax' : 'openclaw'
   const [tab, setTab] = useState(readTab)
+  const [visited, setVisited] = useState(() => new Set([readTab()]))
+  useEffect(() => { setVisited(current => new Set([...current, tab])) }, [tab])
   useEffect(() => {
     const sync = () => setTab(readTab())
     window.addEventListener('popstate', sync)
@@ -26,6 +28,7 @@ export default function SystemPlugins({ onSaved }: { onSaved: (plugins: PluginMa
         </a>)}
       </nav>
     </header>
-    {tab === 'openclaw' ? <OpenClawPlugins /> : <PluginManagerDialog open embedded onClose={() => {}} onSaved={onSaved} />}
+    {visited.has('openclaw') && <div hidden={tab !== 'openclaw'}><OpenClawPlugins /></div>}
+    {visited.has('clawmax') && <div hidden={tab !== 'clawmax'}><PluginManagerDialog open embedded onClose={() => {}} onSaved={onSaved} /></div>}
   </div>
 }
