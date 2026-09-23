@@ -33,7 +33,7 @@ export function createInstanceTemplatesRouter(dependencies: Dependencies) {
   router.get('/capabilities', handle((_req, res) => res.json({
     apiVersion, kind: 'Capabilities', workspaceId: context(res).workspaceId,
     workspacePackage: { formats: [], operations: [] },
-    templates: { formats: [{ name: 'portable-zip', schemaVersions: ['clawmax.portable-template/v1alpha1'] }], operations: ['import', 'list', 'remove', 'show', 'validate', 'versions'] },
+    templates: { formats: [{ name: 'portable-zip', schemaVersions: ['clawmax.portable-template/v1alpha1'] }], operations: ['export', 'import', 'list', 'remove', 'show', 'validate', 'versions'] },
     skills: { formats: [], platforms: [], operations: [] }, communities: { available: false },
     groups: { permanent: false, operations: [] }, workflows: { scheduling: false, operations: [] },
     runtime: { dashboardVersion: dependencies.dashboardVersion(), openClawVersion: dependencies.openClawVersion(), operatingSystem: process.platform, architecture: process.arch === 'x64' ? 'amd64' : process.arch },
@@ -41,6 +41,14 @@ export function createInstanceTemplatesRouter(dependencies: Dependencies) {
 
   router.get('/templates', handle((_req, res) => res.json({ apiVersion, kind: 'TemplateList', items: catalog(res).list() })))
   router.get('/templates/:templateId', handle((req, res) => res.json({ apiVersion, kind: 'Template', template: catalog(res).get(req.params.templateId) })))
+  router.get('/templates/:templateId/export', handle(async (req, res) => {
+    if (!validResourceId(req.params.templateId) || Object.keys(req.query).length) throw new PortableTemplateError('invalid_request', 'Export requires a Template identity and no query fields')
+    const bytes = await catalog(res).exportBundle(req.params.templateId)
+    context(res).assertAuthorized?.()
+    res.set('Cache-Control', 'no-store')
+    res.set('Content-Disposition', `attachment; filename="${req.params.templateId}.zip"`)
+    res.type(TEMPLATE_MEDIA_TYPE).send(bytes)
+  }))
   router.get('/template-keys/:key/versions', handle((req, res) => {
     if (!/^[a-z][a-z0-9-]{0,63}$/.test(req.params.key)) throw new PortableTemplateError('invalid_request', 'Invalid Template key')
     return res.json({ apiVersion, kind: 'TemplateVersionList', items: catalog(res).list(req.params.key) })
