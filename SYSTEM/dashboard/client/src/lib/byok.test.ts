@@ -55,6 +55,24 @@ function installLocalStorageMock() {
 installLocalStorageMock()
 
 async function main() {
+  await test('browser provider paths are detected independently without enabling unsupported generation', () => {
+    for (const key of ['openai', 'anthropic', 'geminiApiKey', 'openrouter', 'xai', 'ollamaBaseUrl', 'ollamaDefaultModel', 'openaiCompatibleBaseUrl', 'openaiCompatibleDefaultModel']) {
+      localStorage.clear()
+      writeStoredByokKeys({ [key]: 'fixture' })
+      strictAssert.equal(hasAnyLLMKeys(), true, key)
+      strictAssert.equal(hasChatExecutionAccess(), true, key)
+      strictAssert.equal(hasAiGenerationAccess(), ['openai', 'anthropic', 'openaiCompatibleBaseUrl'].includes(key), key)
+    }
+    for (const provider of ['openai', 'anthropic'] as const) {
+      const keys = { [provider]: 'fixture' }
+      writeStoredByokKeys({ ...keys, verifiedProviders: { [provider]: buildByokVerificationFingerprint(provider, keys) } })
+      strictAssert.deepEqual(getAiGenerationReadiness(), { enabled: true })
+      writeStoredByokKeys({ ...keys, verifiedProviders: { [provider]: 'old-credential' } })
+      strictAssert.match(getAiGenerationReadiness().warning || '', /not been verified/)
+    }
+    localStorage.clear()
+  })
+
   await test('each supported provider respects user defaults and explicit system execution permission', () => {
     for (const provider of ['openai', 'anthropic', 'gemini', 'openrouter', 'xai', 'openaiCompatible']) {
       localStorage.clear()
