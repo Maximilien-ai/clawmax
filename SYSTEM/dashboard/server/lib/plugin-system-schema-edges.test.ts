@@ -11,6 +11,10 @@ import {
   getPluginGrantedCapabilities,
   listConfiguredPlugins,
   upsertPluginRecord,
+  generatePluginRecordDocument,
+  deletePluginRecord,
+  listPluginRecords,
+  getPluginWorkspaceContext,
 } from './plugin-system'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
@@ -231,6 +235,26 @@ try {
   assert.strictEqual(updated.fields.ratio, 2)
   assert.strictEqual(updated.fields.count, 1)
   assert.deepStrictEqual(updated.fields.tags, [])
+
+  // Generic extension records must survive edits and document generation, without
+  // granting access to workspace resources the manifest did not request.
+  assert.deepStrictEqual(getPluginWorkspaceContext(plugin!), { agents: [], workflows: [], groups: [], communities: [] })
+  assert.strictEqual(generatePluginRecordDocument(plugin!, 'missing-record'), null)
+  assert.strictEqual(deletePluginRecord(plugin!, 'missing-record'), false)
+  assert.throws(() => generatePluginRecordDocument({ ...plugin!, capabilities: {} }, created.id), /capability/)
+  const renamed = upsertPluginRecord(plugin!, { id: created.id, name: 'Renamed fixture', enabled: false, archived: true } as any)
+  assert.strictEqual(renamed.enabled, false)
+  assert.strictEqual(renamed.archived, true)
+  assert.deepStrictEqual((renamed as any).fields, updated.fields)
+  const documented = generatePluginRecordDocument(plugin!, created.id)
+  assert(documented?.document)
+  const documentPath = path.join(workspace, documented!.document!.path)
+  assert(fs.existsSync(documentPath))
+  assert(fs.readFileSync(documentPath, 'utf8').includes('Renamed fixture'))
+  assert.strictEqual(listPluginRecords(plugin!).find(record => record.id === created.id)?.document?.path, documented!.document!.path)
+  assert.strictEqual(deletePluginRecord(plugin!, created.id), true)
+  assert(!fs.existsSync(documentPath), 'Deleting a record removes its generated document')
+  assert(!listPluginRecords(plugin!).some(record => record.id === created.id))
 
   console.log(`plugin-system-schema-edges.test.ts: ok (${invalidFixtures.length + monitoringFixtures.length + 5} checks)`)
 } finally {
