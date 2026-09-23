@@ -26,7 +26,7 @@ import {
   buildTemplateFeedbackMetadata,
 } from '../lib/templates'
 import { listWorkflowTemplates, listWorkflows, getWorkflow, createWorkflow, parseWorkflowMd, workflowToMarkdown } from '../lib/workflows'
-import { generateTemplateFromNL, normalizeTemplateGenerationTarget, setRequestByokKeys } from '../lib/ai-generator'
+import { generateTemplateFromNL, normalizeTemplateGenerationTarget, setRequestByokKeys, warmOpenAiCompatibleGenerationModel } from '../lib/ai-generator'
 import { getWorkspacePath, listAgents as listWorkspaceAgents, parseGroups } from '../lib/workspace'
 import { addTemplateFeedback, getAllTemplateFeedbackSummaries, getTemplateApplyCount, getTemplateFeedbackSummary } from '../lib/template-feedback'
 import { getAuthenticatedSession } from '../lib/github-auth'
@@ -618,6 +618,7 @@ router.post('/generate', async (req, res) => {
   }
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     const template = await generateTemplateFromNL(
       description,

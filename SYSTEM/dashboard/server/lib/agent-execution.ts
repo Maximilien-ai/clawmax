@@ -11,8 +11,8 @@ import { REPO_ROOT } from './paths'
 import { syncAssignedSkillGuidanceForAgent } from './skills'
 import { normalizeAgentModelInput, readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
 import { resetAgentSessionsForModelChange } from './agent-model'
-import { resolveDefaultAgentModel } from './agent-default-model'
-import { getAvailableModelsCached } from './model-discovery'
+import { resolveDefaultAgentModel, policyScopedEnv } from './agent-default-model'
+import { getAvailableModelsCached, getCachedOpenAiCompatibleContextWindow, resolveOpenAiCompatibleDefaultModel } from './model-discovery'
 import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
@@ -61,6 +61,31 @@ interface AgentAuthProfileOptions {
   skipModelConfigMutation?: boolean
 }
 const LMSTUDIO_DEFAULT_CONTEXT_TOKENS = 64_000
+// Keys the execution environment substitutes for "no credential" on a keyless endpoint
+// (see providerKeysToEnv); discovery was warmed with no credential, so these must map back to it.
+const OPENAI_COMPATIBLE_PLACEHOLDER_KEYS = new Set(['openai-compatible', 'lmstudio-local'])
+/** The credential discovery was warmed with: a placeholder for a keyless endpoint means none. */
+function providerEntryFor(providerConfig: any, modelId: string | undefined): any {
+  if (!modelId || !Array.isArray(providerConfig?.models)) return undefined
+  return providerConfig.models.find((entry: any) => typeof entry === 'object' && entry !== null && String(entry.id || '').trim() === modelId)
+}
+
+function providerEntryContextWindow(providerConfig: any, modelId: string | undefined): number | undefined {
+  const value = providerEntryFor(providerConfig, modelId)?.contextWindow
+  return typeof value === 'number' && value > 0 ? value : undefined
+}
+
+// True when the provider entry for `modelId` would be resized by `contextFor`: the endpoint
+// advertises a context length and the entry carries a different one.
+function providerContextWindowIsStale(providerConfig: any, modelId: string | undefined, advertisedContextWindow: number | undefined): boolean {
+  if (!advertisedContextWindow || !providerEntryFor(providerConfig, modelId)) return false
+  return providerEntryContextWindow(providerConfig, modelId) !== advertisedContextWindow
+}
+
+function discoveryCredentialFor(apiKey?: string): string | undefined {
+  const trimmed = apiKey?.trim()
+  return trimmed && !OPENAI_COMPATIBLE_PLACEHOLDER_KEYS.has(trimmed) ? trimmed : undefined
+}
 const OPENCLAW_CONFIG_RELOAD_SETTLE_MS = 1500
 let openClawConfigMutationLock: Promise<void> = Promise.resolve()
 const agentExecutionLocks = new Map<string, Promise<void>>()
@@ -290,7 +315,7 @@ function isSupportedHostedModel(model: string | undefined): boolean {
   return availableModels.includes(model)
 }
 
-export function resolveAgentExecutionConfig(agentId: string): {
+export function resolveAgentExecutionConfig(agentId: string, options: { executionPolicy?: 'system' | 'user' } = {}): {
   model?: string
   backupModel?: string
   workspace?: string
@@ -331,14 +356,14 @@ export function resolveAgentExecutionConfig(agentId: string): {
   // If the active workspace contains this agent, trust its local identity first.
   // A stale global openclaw.json entry may point at a different workspace with the same agent id.
   const recordModel = normalizeMissingModel(record?.model)
+  const defaultModelOptions = { rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in'), executionPolicy: options.executionPolicy }
   let model = hasActiveWorkspaceAgent
-    ? (identityModel || recordModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in') }))
-    : (recordModel || identityModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in') }))
+    ? (identityModel || recordModel || resolveDefaultAgentModel(defaultModelOptions))
+    : (recordModel || identityModel || resolveDefaultAgentModel(defaultModelOptions))
   if (model && !isSupportedHostedModel(model)) {
     model = resolveDefaultAgentModel({
-      builtIn: identityTags.includes('built-in'),
-      rawEnv: process.env as Record<string, string>,
-      availableModels: getAvailableModelsCached(process.env as Record<string, string>),
+      ...defaultModelOptions,
+      availableModels: getAvailableModelsCached(policyScopedEnv(process.env as Record<string, string>, options.executionPolicy)),
     }) || model
   }
   const backupModel = (() => {
@@ -1154,6 +1179,13 @@ export async function withTemporaryAgentAuthProfiles<T>(
       ? cloneJsonValue(previousProviderConfig)
       : {}
     const normalizedModel = preferredModel?.trim().replace(/^lmstudio\//, '')
+    // The context length the endpoint advertises is what it can serve, so it outranks whatever the
+    // entry carries; without an advertised length the stored value, then the fixed default, stand.
+    const advertisedContext = getCachedOpenAiCompatibleContextWindow(normalizedBaseUrl, discoveryCredentialFor(apiKey), normalizedModel)
+    const contextFor = (existing: unknown) => {
+      const current = typeof existing === 'number' && existing > 0 ? existing : undefined
+      return advertisedContext || current || LMSTUDIO_DEFAULT_CONTEXT_TOKENS
+    }
     if (normalizedBaseUrl) {
       nextProviderConfig.baseUrl = normalizedBaseUrl
     }
@@ -1175,21 +1207,26 @@ export async function withTemporaryAgentAuthProfiles<T>(
             if (typeof entry !== 'object' || entry === null || String(entry.id || '').trim() !== normalizedModel) {
               return entry
             }
+            const previousWindow = typeof entry.contextWindow === 'number' && entry.contextWindow > 0 ? entry.contextWindow : undefined
+            const previousMaxTokens = typeof entry.maxTokens === 'number' && entry.maxTokens > 0 ? entry.maxTokens : undefined
+            const contextWindow = contextFor(entry.contextWindow)
             return {
               ...entry,
               id: normalizedModel,
               name: entry.name || normalizedModel,
-              contextWindow: typeof entry.contextWindow === 'number' && entry.contextWindow > 0 ? entry.contextWindow : LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-              contextTokens: typeof entry.contextTokens === 'number' && entry.contextTokens > 0 ? entry.contextTokens : LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-              maxTokens: typeof entry.maxTokens === 'number' && entry.maxTokens > 0 ? entry.maxTokens : Math.min(8_192, LMSTUDIO_DEFAULT_CONTEXT_TOKENS),
+              contextWindow,
+              contextTokens: contextFor(entry.contextTokens),
+              // A max-tokens value equal to the previous window was this code's own clamp, so it
+              // follows the window; any other value is kept, bounded by the window.
+              maxTokens: Math.min(previousMaxTokens && previousMaxTokens !== previousWindow ? previousMaxTokens : 8_192, contextWindow),
             }
           })
         : [...existingModels, {
             id: normalizedModel,
             name: normalizedModel,
-            contextWindow: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-            contextTokens: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-            maxTokens: 8_192,
+            contextWindow: contextFor(undefined),
+            contextTokens: contextFor(undefined),
+            maxTokens: Math.min(8_192, contextFor(undefined)),
           }]
       const executionModelRef = `lmstudio/${normalizedModel}`
       const mutableConfig = config as any
@@ -1339,9 +1376,22 @@ export async function withTemporaryAgentAuthProfiles<T>(
       executionModelOverride &&
       Object.prototype.hasOwnProperty.call(currentOpenClawConfig?.agents?.defaults?.models || {}, executionModelOverride)
     )
+    // Every execution surface passes here, so the endpoint's catalog is fetched (once per cache
+    // lifetime) before the provider entry is sized, even when no route warmed it first.
+    if (normalizedOpenAiCompatibleBaseUrl) {
+      try {
+        await resolveOpenAiCompatibleDefaultModel({ baseUrl: normalizedOpenAiCompatibleBaseUrl, apiKey: discoveryCredentialFor(providerKeys.openaiCompatibleApiKey) })
+      } catch {
+        // An unreachable endpoint fails the execution itself in its own words.
+      }
+    }
+    // An entry written before the endpoint's advertised context length was known (or with the
+    // fixed default) is stale once discovery knows better, even when everything else matches.
+    const advertisedContextWindow = getCachedOpenAiCompatibleContextWindow(normalizedOpenAiCompatibleBaseUrl, discoveryCredentialFor(providerKeys.openaiCompatibleApiKey), executionLmstudioModelId)
     const shouldInjectOpenAiCompatibleProvider = Boolean(
       hadConfig &&
       (
+        providerContextWindowIsStale(previousOpenAiCompatibleProvider.config, executionLmstudioModelId, advertisedContextWindow) ||
         (normalizedOpenAiCompatibleBaseUrl && !previousOpenAiCompatibleProvider.exists) ||
         (normalizedOpenAiCompatibleBaseUrl && previousOpenAiCompatibleProvider.config?.baseUrl !== normalizedOpenAiCompatibleBaseUrl) ||
         (previousOpenAiCompatibleProvider.exists && !previousOpenAiCompatibleProvider.config?.api) ||
@@ -1372,6 +1422,9 @@ export async function withTemporaryAgentAuthProfiles<T>(
           executionModelOverride &&
           Object.prototype.hasOwnProperty.call(latestOpenClawConfig.agents?.defaults?.models || {}, executionModelOverride)
         )
+        // Re-read under the lock, like the config itself, so the check and the write agree.
+        const latestAdvertisedContextWindow = getCachedOpenAiCompatibleContextWindow(normalizedOpenAiCompatibleBaseUrl, discoveryCredentialFor(providerKeys.openaiCompatibleApiKey), executionLmstudioModelId)
+        const latestContextWindowStale = providerContextWindowIsStale(latestOpenAiCompatibleProvider.config, executionLmstudioModelId, latestAdvertisedContextWindow)
         let changed = false
         if (
           (normalizedOpenAiCompatibleBaseUrl && !latestOpenAiCompatibleProvider.exists) ||
@@ -1379,7 +1432,8 @@ export async function withTemporaryAgentAuthProfiles<T>(
           (latestOpenAiCompatibleProvider.exists && !latestOpenAiCompatibleProvider.config?.api) ||
           (providerKeys.openaiCompatibleApiKey?.trim() && latestOpenAiCompatibleProvider.config?.apiKey !== providerKeys.openaiCompatibleApiKey.trim()) ||
           !latestHasExecutionModel ||
-          !latestHasExecutionModelAuthorization
+          !latestHasExecutionModelAuthorization ||
+          latestContextWindowStale
         ) {
           changed = applyOpenAiCompatibleProviderConfig(
             normalizedOpenAiCompatibleBaseUrl,
@@ -1393,11 +1447,13 @@ export async function withTemporaryAgentAuthProfiles<T>(
       })
     }
 
+    // The loaded instance targets the context length the provider entry now carries, so the
+    // persisted window and the running model never disagree.
     await normalizeLmstudioLoadedModelState({
       baseUrl: normalizedOpenAiCompatibleBaseUrl,
       apiKey: providerKeys.openaiCompatibleApiKey,
       modelId: executionLmstudioModelId,
-      requestedContextTokens: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
+      requestedContextTokens: providerEntryContextWindow(readCurrentOpenAiCompatibleProviderConfig().config, executionLmstudioModelId) || LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
     })
 
     return await fn()

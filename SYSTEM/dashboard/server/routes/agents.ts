@@ -48,7 +48,7 @@ import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } fr
 import { hasReadyOpenClawNativeAgentStore, runExclusiveAgentExecution } from '../lib/agent-execution'
 import { cancelTurnsForAgent, listActiveTurns, withRegisteredTurn } from '../lib/agent-turns'
 import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
-import { resolveDefaultAgentModel } from '../lib/agent-default-model'
+import { resolveDefaultAgentModel, warmDefaultAgentModelEndpoint } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
@@ -696,7 +696,8 @@ router.post('/generate', async (req, res) => {
   try {
     const session = getAuthenticatedSession(req)
     // Set BYOK keys for this request
-    const { setRequestByokKeys } = require('../lib/ai-generator')
+    const { setRequestByokKeys, warmOpenAiCompatibleGenerationModel } = require('../lib/ai-generator')
+    await warmOpenAiCompatibleGenerationModel(byokKeys)
     setRequestByokKeys(byokKeys)
 
     // If suggestMeta or no name, generate suggestions first
@@ -958,6 +959,9 @@ router.post('/provision', async (req, res) => {
     throw error
   }
 
+  // A direct call with no model on a cold cache: let the workspace endpoint's own model be known
+  // before the synchronous resolver below asks for it. An explicit model needs no lookup.
+  if (!String(model || '').trim()) await warmDefaultAgentModelEndpoint()
   const resolvedModel = resolveDefaultAgentModel({
     explicitModel: model,
     builtIn: Array.isArray(tags) && tags.includes('built-in'),

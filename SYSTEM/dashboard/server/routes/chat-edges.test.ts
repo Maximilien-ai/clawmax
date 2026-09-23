@@ -4,14 +4,21 @@
  * Run with: npx ts-node --transpileOnly server/routes/chat-edges.test.ts
  */
 
-import {
+import express from 'express'
+import http from 'node:http'
+import chatRouter, {
   buildManagedResendDispatch,
   buildManagedSecretStatelessChatMessage,
   deriveChatError,
+  evaluateChatExecutionReadiness,
   resolveByokChatFallbackModel,
+  toChatReadinessResponse,
+  resolveChatOpenAiCompatibleEndpoint,
   retryAssistantTextLookup,
   shouldUseLocalChatExecution,
 } from './chat'
+import { clearModelCache, resolveOpenAiCompatibleDefaultModel } from '../lib/model-discovery'
+import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -46,8 +53,260 @@ function assert(condition: boolean, message: string) {
 console.log(`\n${YELLOW}=== Chat Route Edge Test Suite ===${RESET}\n`)
 
 test('resolveByokChatFallbackModel returns undefined when no usable BYOK path exists', () => {
+  clearModelCache()
   assert(resolveByokChatFallbackModel(undefined) === undefined, 'Expected undefined BYOK payload to return undefined')
-  assert(resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' }) === undefined, 'Expected missing openai-compatible default model to return undefined')
+  assert(resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' }) === undefined, 'Expected an unreachable endpoint with no default model to return undefined')
+})
+
+test('resolveByokChatFallbackModel uses the endpoint model once discovery has run', async () => {
+  clearModelCache()
+  const originalFetch = global.fetch
+  try {
+    global.fetch = (async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'text-embedding-small' }, { id: 'endpoint-chat-model' }] }),
+    }) as any) as any
+    // What the chat route now does before readiness is evaluated.
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://127.0.0.1:1234/v1' })
+    const model = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' })
+    assert(model === 'openai-compatible/endpoint-chat-model', `Expected the endpoint's chat model, got ${model}`)
+  } finally {
+    global.fetch = originalFetch
+    clearModelCache()
+  }
+})
+
+test('an unreachable endpoint still yields no fallback model', async () => {
+  clearModelCache()
+  const originalFetch = global.fetch
+  try {
+    global.fetch = (async () => { throw new Error('ECONNREFUSED') }) as any
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://offline-endpoint:9999/v1' })
+    const model = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://offline-endpoint:9999/v1' })
+    assert(model === undefined, `Expected no fallback from an unreachable endpoint, got ${model}`)
+  } finally {
+    global.fetch = originalFetch
+    clearModelCache()
+  }
+})
+
+test('one endpoint seen through two credentials does not share a model catalog', async () => {
+  clearModelCache()
+  const originalFetch = global.fetch
+  try {
+    global.fetch = (async (_url: string, init?: any) => {
+      const auth = init?.headers?.Authorization || ''
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [{ id: auth === 'Bearer key-a' ? 'tenant-a-model' : 'tenant-b-model' }] }),
+      } as any
+    }) as any
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://shared-gateway:8000/v1', apiKey: 'key-a' })
+    const asB = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://shared-gateway:8000/v1', openaiCompatibleApiKey: 'key-b' })
+    assert(asB === undefined, `Expected the second credential to see no cached catalog, got ${asB}`)
+    const asA = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://shared-gateway:8000/v1', openaiCompatibleApiKey: 'key-a' })
+    assert(asA === 'openai-compatible/tenant-a-model', `Expected the first credential's own model, got ${asA}`)
+  } finally {
+    global.fetch = originalFetch
+    clearModelCache()
+  }
+})
+
+/**
+ * Runs fn against a throwaway workspace whose URL-only integrations point at the vLLM endpoint.
+ * HOME moves to a temp dir too: the workspace manager persists the active workspace under
+ * $HOME/.openclaw, and this test must never rewrite the real registry.
+ */
+async function withKeylessWorkspaceEndpoint(fn: () => void | Promise<void>) {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-chat-edge-home-'))
+  const workspaceRoot = path.join(tmpHome, 'workspace')
+  fs.mkdirSync(path.join(workspaceRoot, 'SYSTEM'), { recursive: true })
+  fs.writeFileSync(path.join(workspaceRoot, 'SYSTEM', 'integrations.json'), JSON.stringify({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' }))
+  const originalHome = process.env.HOME
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  process.env.HOME = tmpHome
+  process.env.OPENCLAW_WORKSPACE = workspaceRoot
+  resetWorkspaceManagerForTests()
+  try {
+    await fn()
+  } finally {
+    if (originalHome === undefined) delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (originalWorkspace === undefined) delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tmpHome, { recursive: true, force: true })
+  }
+}
+
+test('a workspace endpoint is paired only with the protected credential the user-execution policy allows', async () => {
+  await withKeylessWorkspaceEndpoint(() => {
+    const userKey = resolveChatOpenAiCompatibleEndpoint({}, {
+      USER_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1/',
+      USER_OPENAI_COMPATIBLE_API_KEY: 'user-secret',
+    })
+    assert(userKey.baseUrl === 'http://172.16.1.70:8000/v1' && userKey.apiKey === 'user-secret', `Expected the workspace URL paired with the user's protected key, got ${JSON.stringify(userKey)}`)
+    const systemKeyDenied = resolveChatOpenAiCompatibleEndpoint({}, {
+      SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',
+      ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false',
+    })
+    assert(systemKeyDenied.baseUrl === 'http://172.16.1.70:8000/v1' && systemKeyDenied.apiKey === undefined, `Expected no system key while user execution may not use system keys, got ${JSON.stringify(systemKeyDenied)}`)
+    const systemKeyAllowed = resolveChatOpenAiCompatibleEndpoint({}, {
+      SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',
+      ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true',
+    })
+    assert(systemKeyAllowed.apiKey === 'system-secret', `Expected the system key once policy allows it, got ${JSON.stringify(systemKeyAllowed)}`)
+    const browserOwn = resolveChatOpenAiCompatibleEndpoint({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1', openaiCompatibleApiKey: 'browser-secret' }, {
+      USER_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      USER_OPENAI_COMPATIBLE_API_KEY: 'user-secret',
+    })
+    assert(browserOwn.apiKey === 'browser-secret', `Expected browser BYOK to keep its own credential, got ${JSON.stringify(browserOwn)}`)
+    // The browser stores and sends back the workspace URL it verified; a bare URL is not a
+    // credential and must not suppress the protected key for that same server.
+    const browserUrlOnly = resolveChatOpenAiCompatibleEndpoint({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1/' }, {
+      USER_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      USER_OPENAI_COMPATIBLE_API_KEY: 'user-secret',
+    })
+    assert(browserUrlOnly.apiKey === 'user-secret', `Expected a URL-only browser payload to still pair with the protected key, got ${JSON.stringify(browserUrlOnly)}`)
+    const browserOtherKey = resolveChatOpenAiCompatibleEndpoint({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1', openai: 'sk-browser-openai' }, {
+      USER_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      USER_OPENAI_COMPATIBLE_API_KEY: 'user-secret',
+    })
+    assert(browserOtherKey.apiKey === undefined, `Expected a browser that brought its own keys to get no protected credential, got ${JSON.stringify(browserOtherKey)}`)
+  })
+})
+
+test('chat readiness finds the endpoint model through the paired protected credential', async () => {
+  clearModelCache()
+  const originalFetch = global.fetch
+  try {
+    await withKeylessWorkspaceEndpoint(async () => {
+    global.fetch = (async (_url: string, init?: any) => {
+      if (init?.headers?.Authorization !== 'Bearer user-secret') return { ok: false, status: 401, json: async () => ({}) } as any
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'authenticated-chat-model' }] }) } as any
+    }) as any
+    const endpoint = resolveChatOpenAiCompatibleEndpoint({}, {
+      USER_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      USER_OPENAI_COMPATIBLE_API_KEY: 'user-secret',
+    })
+    // What the chat route does before readiness: warm through the paired credential.
+    await resolveOpenAiCompatibleDefaultModel({ baseUrl: endpoint.baseUrl, apiKey: endpoint.apiKey })
+    const paired = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: endpoint.baseUrl, openaiCompatibleApiKey: endpoint.apiKey })
+    assert(paired === 'openai-compatible/authenticated-chat-model', `Expected the model discovered through the protected key, got ${paired}`)
+    const unpaired = resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: endpoint.baseUrl })
+    assert(unpaired === undefined, `Expected a credential-less read to miss the credentialed catalog, got ${unpaired}`)
+    })
+  } finally {
+    global.fetch = originalFetch
+    clearModelCache()
+  }
+})
+
+test('chat readiness for a model-less agent resolves and authenticates through the paired protected credential', async () => {
+  clearModelCache()
+  const originalFetch = global.fetch
+  try {
+    await withKeylessWorkspaceEndpoint(async () => {
+      const workspaceRoot = process.env.OPENCLAW_WORKSPACE as string
+      fs.mkdirSync(path.join(workspaceRoot, 'AGENTS', 'harness'), { recursive: true })
+      fs.writeFileSync(path.join(workspaceRoot, 'AGENTS', 'harness', 'IDENTITY.md'), '# IDENTITY.md - Who Am I?\n\n- **Name:** harness\n- **Creature:** test agent\n')
+      const protectedEnv = {
+        USER_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+        USER_OPENAI_COMPATIBLE_API_KEY: 'user-secret',
+      }
+      global.fetch = (async (_url: string, init?: any) => {
+        if (init?.headers?.Authorization !== 'Bearer user-secret') return { ok: false, status: 401, json: async () => ({}) } as any
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: 'authenticated-chat-model' }] }) } as any
+      }) as any
+      // What the route does before readiness: warm through the paired endpoint.
+      const endpoint = resolveChatOpenAiCompatibleEndpoint({}, protectedEnv)
+      await resolveOpenAiCompatibleDefaultModel({ baseUrl: endpoint.baseUrl, apiKey: endpoint.apiKey })
+      const readiness = evaluateChatExecutionReadiness('harness', {}, protectedEnv) as any
+      assert(readiness.available === true, `Expected readiness, got ${JSON.stringify({ available: readiness.available, error: readiness.error })}`)
+      assert(readiness.resolvedAgent.model === 'openai-compatible/authenticated-chat-model', `Expected the endpoint's model, got ${readiness.resolvedAgent.model}`)
+      assert(readiness.executionEnv.OPENAI_API_KEY === 'user-secret', `Expected the protected credential in the execution environment, got ${readiness.executionEnv.OPENAI_API_KEY}`)
+      assert(String(readiness.executionEnv.OPENAI_BASE_URL).includes('172.16.1.70:8000/v1'), `Expected the workspace endpoint in the execution environment, got ${readiness.executionEnv.OPENAI_BASE_URL}`)
+      const wire = JSON.stringify(toChatReadinessResponse(readiness))
+      assert(!wire.includes('user-secret') && !wire.includes('executionEnv'), `Expected the readiness response sent to the browser to carry no execution environment or credential, got ${wire.slice(0, 200)}`)
+      assert(JSON.parse(wire).available === true && JSON.parse(wire).resolvedAgent.model === 'openai-compatible/authenticated-chat-model', 'Expected the public readiness fields to survive')
+      // Warm the endpoint through the SYSTEM credential (as provisioning would), then ask on
+      // behalf of a user who may not use system keys: the system-discovered model must not be
+      // offered, and the credential must not reach execution.
+      global.fetch = (async (_url: string, init?: any) => {
+        if (init?.headers?.Authorization !== 'Bearer system-secret') return { ok: false, status: 401, json: async () => ({}) } as any
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: 'system-only-model' }] }) } as any
+      }) as any
+      await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://172.16.1.70:8000/v1', apiKey: 'system-secret' })
+      const deniedEnv = {
+        SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+        SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',
+        ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false',
+      }
+      const originalSystemEnv = { url: process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL, key: process.env.SYSTEM_OPENAI_COMPATIBLE_API_KEY, allow: process.env.ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION }
+      process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL = deniedEnv.SYSTEM_OPENAI_COMPATIBLE_BASE_URL
+      process.env.SYSTEM_OPENAI_COMPATIBLE_API_KEY = deniedEnv.SYSTEM_OPENAI_COMPATIBLE_API_KEY
+      process.env.ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION = 'false'
+      try {
+        const denied = evaluateChatExecutionReadiness('harness', {}, deniedEnv) as any
+        assert(denied.available === false, `Expected no readiness through a system key user execution may not use, got ${JSON.stringify({ available: denied.available, model: denied.resolvedAgent?.model })}`)
+        assert(denied.executionEnv?.OPENAI_API_KEY !== 'system-secret' && denied.resolvedAgent?.model !== 'openai-compatible/system-only-model', `Expected a denied system key to reach neither execution nor the offered model, got ${JSON.stringify({ key: denied.executionEnv?.OPENAI_API_KEY, model: denied.resolvedAgent?.model })}`)
+        process.env.ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION = 'true'
+        const allowed = evaluateChatExecutionReadiness('harness', {}, { ...deniedEnv, ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true' }) as any
+        assert(allowed.available === true && allowed.resolvedAgent?.model === 'openai-compatible/system-only-model' && allowed.executionEnv?.OPENAI_API_KEY === 'system-secret', `Expected readiness through the system key once policy allows it, got ${JSON.stringify({ available: allowed.available, model: allowed.resolvedAgent?.model, key: allowed.executionEnv?.OPENAI_API_KEY })}`)
+      } finally {
+        for (const [name, value] of [['SYSTEM_OPENAI_COMPATIBLE_BASE_URL', originalSystemEnv.url], ['SYSTEM_OPENAI_COMPATIBLE_API_KEY', originalSystemEnv.key], ['ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION', originalSystemEnv.allow]] as const) {
+          if (value === undefined) delete process.env[name]
+          else process.env[name] = value
+        }
+      }
+    })
+  } finally {
+    global.fetch = originalFetch
+    clearModelCache()
+  }
+})
+
+test('the readiness route itself sends the browser only the public fields', async () => {
+  clearModelCache()
+  const originalFetch = global.fetch
+  try {
+    await withKeylessWorkspaceEndpoint(async () => {
+      const workspaceRoot = process.env.OPENCLAW_WORKSPACE as string
+      fs.mkdirSync(path.join(workspaceRoot, 'AGENTS', 'harness'), { recursive: true })
+      fs.writeFileSync(path.join(workspaceRoot, 'AGENTS', 'harness', 'IDENTITY.md'), '# IDENTITY.md - Who Am I?\n\n- **Name:** harness\n')
+      // Discovery is stubbed; the route itself is called over a real socket.
+      global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'route-model' }] }) }) as any) as any
+      const app = express()
+      app.use(express.json())
+      app.use('/api/agents', chatRouter)
+      const server = http.createServer(app)
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      try {
+        const port = (server.address() as { port: number }).port
+        const raw = await new Promise<string>((resolve, reject) => {
+          const req = http.request({ host: '127.0.0.1', port, path: '/api/agents/harness/chat/readiness', method: 'POST', headers: { 'content-type': 'application/json' } }, (res) => {
+            let data = ''
+            res.on('data', (chunk) => { data += chunk })
+            res.on('end', () => resolve(data))
+          })
+          req.on('error', reject)
+          req.end(JSON.stringify({ byok: { openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1', openaiCompatibleApiKey: 'browser-secret' } }))
+        })
+        assert(!raw.includes('executionEnv') && !raw.includes('browser-secret'), `Expected the route's response to carry no execution environment or credential, got ${raw.slice(0, 200)}`)
+        const body = JSON.parse(raw)
+        assert(body.available === true && body.resolvedAgent?.model === 'openai-compatible/route-model', `Expected the public readiness fields, got ${raw.slice(0, 200)}`)
+      } finally {
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    })
+  } finally {
+    global.fetch = originalFetch
+    clearModelCache()
+  }
 })
 
 test('shouldUseLocalChatExecution prefers direct mode only when hosted gateway execution is unavailable', () => {
