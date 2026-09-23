@@ -485,6 +485,51 @@ async function run() {
     assert(!res.jsonBody?.workflowConflicts.includes('Internal Dependency'), 'Internal dependency must not be mistaken for an external conflict')
   })
 
+  await test('agent template import validates input and reports import failures without partial success', async () => {
+    let calls = 0
+    const handler = getRouteHandler('post', '/agents/import', {
+      templates: { importAgentFromTemplate: async () => { calls++; return { ok: false, error: 'Registration failed' } } } as any,
+      workspace: { listAgents: () => [] } as any,
+    })
+    let res = makeRes()
+    await handler(makeReq({ body: {} }), res)
+    assert.strictEqual(res.statusCode, 400)
+    assert.strictEqual(calls, 0, 'Missing slug must not start an import')
+    res = makeRes()
+    await handler(makeReq({ body: { templateSlug: 'agent-template', agentId: 'new-agent' } }), res)
+    assert.strictEqual(res.statusCode, 400)
+    assert.strictEqual(res.jsonBody?.error, 'Registration failed')
+    assert.strictEqual(calls, 1)
+  })
+
+  await test('organization template import validates identity, capacity inputs, and final result', async () => {
+    const template = { type: 'organization', name: 'Org', agents: [
+      { id: 'built-in', tags: ['built-in'] }, { id: 'worker' },
+    ], parameters: [{ agentId: 'worker', default: 2 }], workflows: [] }
+    let options: any
+    const handler = getRouteHandler('post', '/organizations/import', {
+      templates: {
+        getTemplate: (_type: string, slug: string) => slug === 'org' ? template : null,
+        importOrganizationTemplate: async (_slug: string, incoming: any) => { options = incoming; return { ok: true, agentIds: ['worker1', 'worker2'] } },
+      } as any,
+      workspace: { listAgents: () => [] } as any,
+      workflows: { listWorkflows: () => [] } as any,
+    })
+    let res = makeRes()
+    await handler(makeReq({ body: {} }), res)
+    assert.strictEqual(res.statusCode, 400)
+    res = makeRes()
+    await handler(makeReq({ body: { templateSlug: 'missing' } }), res)
+    assert.strictEqual(res.statusCode, 404)
+    res = makeRes()
+    await handler(makeReq({ body: { templateSlug: 'org', includeBuiltIn: false, agentCounts: { worker: 2 }, prefix: 'trial-' } }), res)
+    assert.strictEqual(res.statusCode, 200)
+    assert.deepStrictEqual(res.jsonBody?.agentIds, ['worker1', 'worker2'])
+    assert.strictEqual(options.includeBuiltIn, false)
+    assert.strictEqual(options.prefix, 'trial-')
+    assert.deepStrictEqual(options.agentCounts, { worker: 2 })
+  })
+
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
