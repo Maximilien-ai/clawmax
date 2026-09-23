@@ -17,6 +17,7 @@ import type { TemplateWorkspaceContext } from './instance-templates'
 import { createInstanceWorkflowsRouter } from './instance-workflows'
 import { createInstanceGroupsRouter } from './instance-groups'
 import { configuredTemplateResolverFromEnv } from '../lib/template-service'
+import { PortableTemplateError } from '../lib/portable-template-zip'
 
 const API_VERSION = 'clawmax.instance/v1'
 const WORKSPACE_SCOPES = ['agents.read', 'agents.chat', 'workflows.run']
@@ -570,7 +571,15 @@ export function createInstanceCliRouter(options: {
           sendError(res, req, 403, 'workspace_forbidden', 'workspace access denied')
           return null
         }
-        return { workspaceId: workspace.id, workspacePath: workspace.path, actorId: actor.actorId }
+        const assertAuthorized = () => {
+          const currentActor = resolveCliActor(req)
+          const currentWorkspace = manager.getWorkspace(workspace.id)
+          if (!currentActor || currentActor.actorId !== actor.actorId || !currentWorkspace
+            || currentWorkspace.path !== workspace.path || !authorizationFor(currentWorkspace, currentActor, loadState())) {
+            throw new PortableTemplateError('workspace_forbidden', 'workspace access denied', 403)
+          }
+        }
+        return { workspaceId: workspace.id, workspacePath: workspace.path, actorId: actor.actorId, assertAuthorized }
       } catch {
         sendError(res, req, 503, 'workspace_store_unavailable', 'workspace storage is unavailable', true)
         return null

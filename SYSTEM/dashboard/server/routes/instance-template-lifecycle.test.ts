@@ -40,12 +40,19 @@ async function main() {
     let running = false
     let mismatch = false
     let coordinatorMismatch = false
+    let authorized = true
+    let revokeOnSnapshot = false
+    let revokeAfterPatch = false
     const entries: Record<string, unknown> = { unrelated: { name: 'Preserve' } }
     const transport: TemplateGatewayTransport = {
-      async snapshot() { return { hash: String(revision), entries: structuredClone(entries) } },
+      async snapshot() {
+        if (revokeOnSnapshot) { authorized = false; revokeOnSnapshot = false }
+        return { hash: String(revision), entries: structuredClone(entries) }
+      },
       async patch(changes, hash) {
         assert.equal(hash, String(revision++))
         for (const [id, entry] of Object.entries(changes)) { if (entry === null) delete entries[id]; else entries[id] = entry }
+        if (revokeAfterPatch) { authorized = false; revokeAfterPatch = false }
       },
     }
     const runtime = { platform: 'linux/amd64', revision: 'fixture-v1' }
@@ -63,7 +70,9 @@ async function main() {
     const authorize = (req: express.Request, res: express.Response) => {
       const actorId = req.get('Authorization') === 'Bearer owner-fixture' ? 'actor' : req.get('Authorization') === 'Bearer other-fixture' ? 'other' : null
       if (!actorId || req.params.workspaceId !== 'owned') { res.status(actorId ? 403 : 401).json({ kind: 'Error' }); return null }
-      return { workspaceId: 'owned', workspacePath: workspace, actorId }
+      return { workspaceId: 'owned', workspacePath: workspace, actorId, assertAuthorized() {
+        if (!authorized) throw new PortableTemplateError('workspace_forbidden', 'workspace access denied', 403)
+      } }
     }
     const dependencies = { authorize, dashboardVersion: () => 'fixture', openClawVersion: () => 'fixture' }
     app.use('/disabled/:workspaceId', createInstanceTemplatesRouter(dependencies))
@@ -104,8 +113,22 @@ async function main() {
     assert.deepEqual(files(root), initial, 'Planning and rejected requests cannot persist files')
     assert.equal(revision, 0, 'Planning cannot contact the mutating transport')
     const payload = { request, planDigest: planned.body.planDigest }
+    authorized = false
+    assert.equal((await call(`${base}/revisions`, 'POST', payload)).status, 403)
+    assert.equal(revision, 0, 'Revoked caller must not mutate gateway')
+    authorized = true
+    revokeOnSnapshot = true
+    assert.equal((await call(`${base}/revisions`, 'POST', payload)).status, 403)
+    assert.equal(revision, 0, 'Revocation during snapshot prevents registration')
+    authorized = true
+    revokeAfterPatch = true
+    assert.equal((await call(`${base}/revisions`, 'POST', payload)).status, 403)
+    assert.deepEqual(entries, { unrelated: { name: 'Preserve' } }, 'Revocation after registration rolls back only owned entries')
+    assert.equal(store.history().length, 0, 'Revocation before file commit cannot create a revision')
+    authorized = true
+    const patchesBeforeStalePlan = revision
     assert.equal((await call(`${base}/revisions`, 'POST', { request, planDigest: 'b'.repeat(64) })).status, 409)
-    assert.equal(revision, 0, 'Stale apply plans must not mutate the gateway')
+    assert.equal(revision, patchesBeforeStalePlan, 'Stale apply plans must not mutate the gateway')
     const applied = await call(`${base}/revisions`, 'POST', payload)
     assert.equal(applied.status, 201)
     assert.equal((await call(`${base}/revisions`, 'POST', payload)).status, 200)
@@ -132,6 +155,11 @@ async function main() {
     assert.equal((await call(`${base}/revisions/${id}/cleanup`, 'POST', cleanup)).status, 409)
     running = false
     catalog.remove(template.id)
+    revokeOnSnapshot = true
+    assert.equal((await call(`${base}/revisions/${id}/cleanup`, 'POST', cleanup)).status, 403)
+    assert(!store.history()[0].cleanedAt, 'Revocation during cleanup prevents ledger commit')
+    assert(Object.keys(entries).length > 1, 'Denied cleanup retains staged registrations')
+    authorized = true
     const removed = await call(`${base}/revisions/${id}/cleanup`, 'POST', cleanup)
     assert.equal(removed.status, 200)
     assert(removed.body.removed)

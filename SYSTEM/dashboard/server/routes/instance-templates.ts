@@ -6,7 +6,7 @@ import { createInstanceTemplateLifecycleRouter, TemplateLifecycleResolver } from
 
 const apiVersion = 'clawmax.instance/v1'
 export const TEMPLATE_MEDIA_TYPE = 'application/vnd.clawmax.portable-template+zip'
-export interface TemplateWorkspaceContext { workspaceId: string; workspacePath: string; actorId: string }
+export interface TemplateWorkspaceContext { workspaceId: string; workspacePath: string; actorId: string; assertAuthorized?: () => void }
 interface Dependencies {
   authorize(req: Request, res: Response): TemplateWorkspaceContext | null
   dashboardVersion(): string
@@ -72,6 +72,7 @@ export function createInstanceTemplatesRouter(dependencies: Dependencies) {
     if (operation === 'templates' && !validResourceId(req.get('Idempotency-Key'))) throw new PortableTemplateError('invalid_request', 'A valid Idempotency-Key is required')
     if (!Buffer.isBuffer(req.body)) throw new PortableTemplateError('invalid_template', 'A ZIP body is required')
     const bundle = await validatePortableTemplate(req.body)
+    context(res).assertAuthorized?.()
     if (req.get('X-ClawMax-Template-Key') !== bundle.manifest.key || req.get('X-ClawMax-Template-Version') !== bundle.manifest.version || req.get('X-ClawMax-Template-SHA256') !== bundle.bundleSha256) throw new PortableTemplateError('template_identity_mismatch', 'Bundle headers do not match validated content')
     if (operation === 'template-validations') return res.json({ apiVersion, kind: 'TemplateValidation', valid: true, key: bundle.manifest.key, name: bundle.manifest.name, version: bundle.manifest.version, bundleSha256: bundle.bundleSha256, artifactCount: bundle.artifacts.length, secretRequirementCount: bundle.manifest.secretRequirements.length })
     const result = catalog(res).import(bundle, req.body, context(res).actorId, req.get('Idempotency-Key')!)

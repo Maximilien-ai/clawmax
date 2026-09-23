@@ -159,17 +159,20 @@ export class TemplateApplyCoordinator {
     })
   }
 
-  async cleanup(actorId: string, revisionId: string, expectedRevision: string | null, planDigest: string, assertStopped: (resources: TemplateResourceOwnership) => void) {
+  async cleanup(actorId: string, revisionId: string, expectedRevision: string | null, planDigest: string, assertStopped: (resources: TemplateResourceOwnership) => void, assertAuthorized: () => void = () => {}) {
     return this.exclusive(async () => {
+      assertAuthorized()
       // Authorize before recovery so an unrelated actor cannot trigger cleanup.
       const revision = this.store.history().find(item => item.id === revisionId)
       if (!revision || revision.actorId !== actorId) throw new PortableTemplateError('revision_forbidden', 'Revision cleanup is not authorized', 403)
       await this.reconcile()
+      assertAuthorized()
       if (revision.cleanedAt) return this.store.cleanup(actorId, revisionId, expectedRevision, assertStopped)
       const plan = this.store.planCleanup(actorId, revisionId, expectedRevision, assertStopped)
       if (plan.planDigest !== planDigest) throw new PortableTemplateError('stale_plan', 'Cleanup plan changed; plan again', 409)
       try {
         await this.gateway.prepareCleanup(revision.planDigest)
+        assertAuthorized()
         this.checkpoint?.('cleanup-prepared')
         // Recheck resource contents and stopped state after gateway awaits.
         const fresh = this.store.planCleanup(actorId, revisionId, expectedRevision, assertStopped)
@@ -185,16 +188,20 @@ export class TemplateApplyCoordinator {
     })
   }
 
-  async apply(actorId: string, request: TemplateRevisionRequest, planDigest: string) {
+  async apply(actorId: string, request: TemplateRevisionRequest, planDigest: string, assertAuthorized: () => void = () => {}) {
     return this.exclusive(async () => {
+      assertAuthorized()
       await this.reconcile()
+      assertAuthorized()
       // Let the store validate exact request identity for an existing result.
       // Never re-register Agents when retrying a committed resource revision.
-      if (this.store.history().some(revision => revision.actorId === actorId && revision.idempotencyKey === request.idempotencyKey)) return this.store.apply(actorId, request, planDigest)
+      if (this.store.history().some(revision => revision.actorId === actorId && revision.idempotencyKey === request.idempotencyKey)) return this.store.apply(actorId, request, planDigest, assertAuthorized)
       const plan = await this.store.plan(actorId, request)
+      assertAuthorized()
       if (plan.planDigest !== planDigest) throw new PortableTemplateError('stale_plan', 'Template plan changed; plan again', 409)
       if (!plan.authority || plan.authority.workspaceId !== this.store.workspaceId) throw new PortableTemplateError('template_authority_unavailable', 'Server-owned authority bindings are required for gateway staging', 409)
       const bundle = await new InstanceTemplateCatalog(this.root, this.store.workspaceId).bundle(request.templateId)
+      assertAuthorized()
       if (bundle.bundleSha256 !== plan.templateDigest) throw new PortableTemplateError('stale_plan', 'Template content changed; plan again', 409)
       const entries: Record<string, TemplateGatewayEntry> = {}
       for (const [artifactId, id] of Object.entries(plan.resources.agents)) {
@@ -208,11 +215,12 @@ export class TemplateApplyCoordinator {
         }
       }
       try {
-        await this.gateway.register(planDigest, entries)
+        await this.gateway.register(planDigest, entries, assertAuthorized)
+        assertAuthorized()
         this.checkpoint?.('gateway-registered')
         // Recompile after all gateway awaits: authority revocation, concurrent
         // resource changes, or catalog removal must prevent the file commit.
-        const result = await this.store.apply(actorId, request, planDigest)
+        const result = await this.store.apply(actorId, request, planDigest, assertAuthorized)
         this.checkpoint?.('resources-committed')
         await this.reconcile()
         return result

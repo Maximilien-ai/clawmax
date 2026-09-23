@@ -107,7 +107,8 @@ export class TemplateRevisionStore {
   async plan(actorId: string, request: TemplateRevisionRequest): Promise<TemplateRevisionPlan> {
     return (await this.prepare(actorId, request)).plan
   }
-  async apply(actorId: string, request: TemplateRevisionRequest, planDigest: string) {
+  async apply(actorId: string, request: TemplateRevisionRequest, planDigest: string, assertAuthorized: () => void = () => {}) {
+    assertAuthorized()
     this.validateRequest(request)
     const requestDigest = sha256(canonical(request))
     const replay = this.read().state.revisions.find(entry => entry.actorId === actorId && entry.idempotencyKey === request.idempotencyKey)
@@ -123,6 +124,7 @@ export class TemplateRevisionStore {
       if (concurrent && concurrent.requestDigest === requestDigest && concurrent.planDigest === planDigest && !concurrent.cleanedAt) return { created: false, revision: publicRevision(concurrent) }
       throw error
     }
+    assertAuthorized()
     if (prepared.plan.planDigest !== planDigest) throw new PortableTemplateError('stale_plan', 'Template, resources, or authority changed; plan again', 409)
     const undo = prepared.compiled.mutations.map(item => {
       const file = path.join(this.workspacePath, item.path)
