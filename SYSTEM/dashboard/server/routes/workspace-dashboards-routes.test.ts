@@ -429,6 +429,52 @@ async function run() {
     assert.strictEqual(res.jsonBody?.costs?.metering?.totalCostUsd, 15, 'Expected scoped metering total to sum scoped agents')
   })
 
+  await test('prefix focus includes linked teams and costs while excluding another company', async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-dashboard-prefix-'))
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, 'ORG'), { recursive: true })
+      fs.writeFileSync(path.join(workspaceRoot, 'ORG', 'GROUPS.md'), '# Groups\n')
+      fs.writeFileSync(path.join(workspaceRoot, 'ORG', 'COMMUNITIES.md'), '# Communities\n')
+      const workflows = [
+        { id: 'alpha-workflow', name: 'Acme · Operations / Daily', owner: 'alpha', targeting: { agents: ['beta'], teamIds: ['acme-ops'], groups: ['acme-ops'] }, content: '# Daily', schedule: 'manual', enabled: true },
+        { id: 'other-workflow', name: 'Other · Operations / Daily', owner: 'outsider', targeting: { agents: ['outsider'] }, content: '# Other', schedule: 'manual', enabled: true },
+      ]
+      const router = loadRouter({
+        workspaceDashboards: { getWorkspaceDashboardByToken: () => ({ id: 'prefix-board', workspaceId: 'workspace-1', token: 'prefix-token', companyFocusKind: 'prefix', companyFocusValue: 'ACME', companyFocusLabel: 'Acme Company' }) } as any,
+        workspaceManager: { getWorkspaceManager: () => ({
+          getWorkspace: () => ({ id: 'workspace-1', name: 'Workspace', path: workspaceRoot }),
+          withWorkspace: async (_id: string, fn: Function) => fn(),
+        }) } as any,
+        workspace: {
+          listAgents: () => ['alpha', 'beta', 'gamma', 'outsider'].map(id => ({ id, name: id, status: 'online', archived: false, paused: false })),
+          parseGroups: () => ({ groups: [], communities: [] }),
+          parseGroupsWithMembers: () => ({ groups: [{ name: 'acme-ops', members: [{ id: 'alpha' }], description: 'Operations' }, { name: 'other', members: [{ id: 'outsider' }] }], communities: [{ name: 'Acme Hub', members: [{ id: 'alpha' }, { id: 'beta' }] }] }),
+        } as any,
+        teams: { listTeams: () => [{ id: 'acme-ops', name: 'Acme Operations', leaderAgentId: 'gamma', memberAgentIds: [], tags: [] }, { id: 'other-team', name: 'Other', leaderAgentId: 'outsider', memberAgentIds: [], tags: [] }] } as any,
+        workflows: { listWorkflows: () => workflows, listExecutions: () => [], getLatestExecution: () => null, resolveWorkflowInputRefs: () => [] } as any,
+        budget: { getBudgetStatus: async () => ({ totalBudgetUsd: 100 }) } as any,
+        metering: { getWorkspaceMetering: async () => ({ estimatedCostUsd: 100, totalTraces: 1, dailyCost: [], costSummary: [], byAgent: [
+          { agentId: 'alpha', estimatedCostUsd: 10 }, { agentId: 'beta', estimatedCostUsd: 20 },
+          { agentId: 'gamma', estimatedCostUsd: 5 }, { agentId: 'outsider', estimatedCostUsd: 65 },
+        ], byWorkflow: [{ workflowId: 'alpha-workflow', estimatedCostUsd: 35 }, { workflowId: 'other-workflow', estimatedCostUsd: 65 }] }) } as any,
+        notifications: { getActiveNotifications: () => [{ id: 'alpha-note', entityType: 'agent', entityId: 'alpha', severity: 'critical' }, { id: 'other-note', entityType: 'agent', entityId: 'outsider', severity: 'critical' }] } as any,
+        messages: { getMessages: () => [] } as any,
+        cron: { getNextCronRun: () => null } as any,
+      })
+      const res = makeRes()
+      await getRouteHandler(router, 'get', '/:token')(makeReq({ params: { token: 'prefix-token' } }), res)
+      assert.strictEqual(res.statusCode, 200)
+      assert.strictEqual(res.jsonBody?.company?.kind, 'prefix')
+      assert.deepStrictEqual(res.jsonBody?.agents?.map((agent: any) => agent.id), ['alpha', 'beta', 'gamma'])
+      assert.deepStrictEqual(res.jsonBody?.workflows?.map((workflow: any) => workflow.id), ['alpha-workflow'])
+      assert.strictEqual(res.jsonBody?.costs?.metering?.totalCostUsd, 35)
+      assert.deepStrictEqual(res.jsonBody?.notifications?.map((note: any) => note.id), ['alpha-note'])
+      assert(!JSON.stringify(res.jsonBody).includes('outsider'), 'Another company must not appear in the prefix dashboard')
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true })
+    }
+  })
+
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)
