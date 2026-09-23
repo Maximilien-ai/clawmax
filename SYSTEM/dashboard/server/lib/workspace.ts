@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import net from 'net'
+import { parseIdentityTags } from './identity-tags'
 import os from 'os'
 import { createHash, randomUUID } from 'crypto'
 import { execFileSync } from 'child_process'
@@ -1534,16 +1535,13 @@ export function parseGroups(content: string): { communities: GroupEntry[]; group
  *  Format: `**Tags:** tag1, tag2, tag3` (comma-separated) */
 export function parseTags(content: string): string[] {
   const runtimeContent = getIdentityRuntimeSection(content)
-  const tagsMatch = runtimeContent.match(/\*\*Tags[:\*\s]*\*?\*?\s*\n?\s*([^\n]+)/mi)
+  const tagsMatch = runtimeContent.match(/\*\*Tags[:* \t]*([^\r\n]*)/mi)
   if (!tagsMatch) return []
 
   const tagsStr = tagsMatch[1].trim()
   if (!tagsStr) return []
 
-  return tagsStr
-    .split(',')
-    .map(t => t.trim())
-    .filter(t => t.length > 0)
+  return parseIdentityTags(tagsStr)
 }
 
 function getIdentityRuntimeSection(content: string): string {

@@ -67,6 +67,17 @@ const validTools = `# TOOLS.md - Local Notes
 
 console.log(`\n${YELLOW}=== Agent Config Validation Test Suite ===${RESET}\n`)
 
+test('legacy N/A identity tags do not block config repairs', () => {
+  const { parseTags } = require('./workspace')
+  for (const value of ['N/A', 'n/a', 'engineer, N/A']) {
+    const identity = validIdentity.replace('engineer, backend', value)
+    assert(validateAgentConfigSections({ identity, soul: validSoul, tools: '' }).valid, 'Legacy placeholder should not block saving')
+    assert(parseTags(identity).join(',') === (value.startsWith('engineer') ? 'engineer' : ''), 'Placeholder must not become an agent tag')
+  }
+  assert(parseTags('**Tags:**\n**Model:** openai/test').length === 0, 'Empty tags must not consume the next field')
+  assert(!validateAgentConfigSections({ identity: validIdentity.replace('engineer, backend', 'bad/tag'), soul: validSoul, tools: '' }).valid, 'Real invalid tags must remain invalid')
+})
+
 test('validateAgentConfigSections accepts valid config', () => {
   const result = validateAgentConfigSections({
     identity: validIdentity,
