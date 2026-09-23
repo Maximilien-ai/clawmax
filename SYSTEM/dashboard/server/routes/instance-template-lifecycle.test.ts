@@ -13,6 +13,7 @@ import { TemplateRevisionStore } from '../lib/template-revisions'
 import { TemplateApplyCoordinator } from '../lib/template-apply-coordinator'
 import { TemplateGatewayTransaction, TemplateGatewayTransport } from '../lib/template-gateway-transaction'
 import { PortableTemplateError } from '../lib/portable-template-zip'
+import { TEMPLATE_LIFECYCLE_OPERATIONS } from './instance-template-lifecycle'
 
 function files(root: string): Record<string, string> {
   const result: Record<string, string> = {}
@@ -41,6 +42,7 @@ async function main() {
     let mismatch = false
     let coordinatorMismatch = false
     let authorized = true
+    let stagingAvailable = false
     let revokeOnSnapshot = false
     let revokeAfterPatch = false
     const entries: Record<string, unknown> = { unrelated: { name: 'Preserve' } }
@@ -79,6 +81,7 @@ async function main() {
     app.use('/api/cli/v1/workspaces/:workspaceId', createInstanceTemplatesRouter({ ...dependencies, lifecycle: () => ({
       store: mismatch ? new TemplateRevisionStore(workspace, 'wrong', compiler) : store,
       coordinator: coordinatorMismatch ? new TemplateApplyCoordinator(new TemplateRevisionStore(path.join(root, 'foreign'), 'foreign', compiler), new TemplateGatewayTransaction(path.join(root, 'foreign'), transport), path.join(root, 'runtime')) : coordinator,
+      assertStagingAvailable() { if (!stagingAvailable) throw new Error('private configuration unavailable') },
       assertStopped() { if (running) throw new PortableTemplateError('resources_running', 'Stop owned resources first', 409) },
     }) }))
     await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
@@ -94,6 +97,22 @@ async function main() {
     const base = '/api/cli/v1/workspaces/owned'
     const request = { templateId: template.id, expectedRevision: null, idempotencyKey: 'apply', bindings: { producer: 'producer-binding', reviewer: 'reviewer-binding' } }
     const initial = files(root)
+    assert.equal((await call('/disabled/owned/capabilities')).body.templates.lifecycle.available, false)
+    stagingAvailable = true
+    const capabilities = (await call(`${base}/capabilities`)).body
+    assert.deepEqual(capabilities.templates.operations, ['export', 'import', 'list', 'remove', 'show', 'validate', 'versions', ...TEMPLATE_LIFECYCLE_OPERATIONS])
+    assert.deepEqual(capabilities.templates.lifecycle, { available: true, mode: 'staged-no-tools', execution: false, scheduling: false, skillInstallation: false, credentialDelivery: false })
+    mismatch = true
+    assert.equal((await call(`${base}/capabilities`)).body.templates.lifecycle.available, false)
+    mismatch = false
+    authorized = false
+    assert.equal((await call(`${base}/capabilities`)).status, 403)
+    authorized = true
+    stagingAvailable = false
+    const unavailableCapabilities = (await call(`${base}/capabilities`)).body
+    assert.equal(unavailableCapabilities.templates.lifecycle.available, false)
+    assert(!JSON.stringify(unavailableCapabilities).includes('private configuration'))
+    assert.deepEqual(files(root), initial, 'Discovery must remain read-only')
     assert.equal((await call('/disabled/owned/package-plans', 'POST', request)).body.error.code, 'template_lifecycle_unavailable')
     assert.equal((await call(`${base}/package-plans`, 'POST', '{malformed', 'unknown')).status, 401)
     assert.equal((await call('/api/cli/v1/workspaces/foreign/revisions')).status, 403)

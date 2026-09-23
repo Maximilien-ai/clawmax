@@ -12,7 +12,10 @@ export interface InstanceTemplateLifecycle {
   store: TemplateRevisionStore
   coordinator: TemplateApplyCoordinator
   assertStopped(resources: TemplateResourceOwnership): void
+  /** Explicit production admission for staged resources, not execution. */
+  assertStagingAvailable?(): void
 }
+export const TEMPLATE_LIFECYCLE_OPERATIONS = ['plan', 'apply', 'history', 'revision-show', 'cleanup-plan', 'cleanup'] as const
 export type TemplateLifecycleResolver = (context: TemplateWorkspaceContext) => InstanceTemplateLifecycle
 
 function body(req: Request, fields: string[]) {

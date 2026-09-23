@@ -88,6 +88,24 @@ async function main() {
     const resolver = createConfiguredTemplateResolver(resolverOptions)
     const context = { workspaceId: 'workspace', workspacePath: configuredRoot, actorId: 'actor' }
     const service = resolver(context)
+    service.assertStagingAvailable!()
+    assert.throws(() => resolver({ ...context, actorId: 'unrelated' }).assertStagingAvailable!(), /authority/)
+    const supportedRegistry: any = readTemplateAuthorityRegistry(registryFile)
+    for (const mutation of ['policy', 'skills', 'credentials', 'runtime', 'disabled']) {
+      const unsupported = structuredClone(supportedRegistry)
+      for (const binding of unsupported.bindings) {
+        if (mutation === 'policy') binding.policy.sha256 = '0'.repeat(64)
+        if (mutation === 'skills') binding.skills = [{ name: 'unsupported', sha256: '0'.repeat(64), platform: 'linux/amd64' }]
+        if (mutation === 'credentials') binding.credentials = [{ name: 'API_KEY', reference: 'broker-only', revision: 'v1' }]
+        if (mutation === 'runtime') binding.runtime.revision = 'other-runtime'
+        if (mutation === 'disabled') binding.disabled = true
+      }
+      writeAtomicJson(registryFile, unsupported)
+      assert.throws(() => service.assertStagingAvailable!(), /authority/, mutation)
+      await assert.rejects(service.store.plan('actor', configured.request), mutation)
+    }
+    writeAtomicJson(registryFile, supportedRegistry)
+    service.assertStagingAvailable!()
     const configuredPlan = await service.store.plan('actor', configured.request)
     const applied = await service.coordinator.apply('actor', configured.request, configuredPlan.planDigest)
     const configuredGroup = { groupId: Object.values(applied.revision.resources.groups)[0], message: 'Configured group', idempotencyKey: 'configured-group' }

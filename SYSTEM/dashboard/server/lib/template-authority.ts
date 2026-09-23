@@ -3,6 +3,7 @@ import Ajv from 'ajv'
 import { PortableTemplate, sha256 } from './portable-template'
 import { PortableTemplateError } from './portable-template-zip'
 import { TemplateBindingSelection } from './template-revisions'
+import { noToolsTemplatePolicy } from './template-execution-policy'
 
 const identifier = { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$' }
 const hash = { type: 'string', pattern: '^[a-f0-9]{64}$' }
@@ -54,6 +55,17 @@ function readAuthorizedRegistry(context: TemplateAuthorityContext, source: Templ
   if (input.workspaceId !== context.workspaceId) fail('Authority registry belongs to another workspace')
   if (new Set(input.bindings.map(item => item.id)).size !== input.bindings.length) fail('Authority binding identities are ambiguous')
   return input
+}
+
+/** Read-only discovery admission; never resolves credential values. */
+export function assertTemplateLifecycleAuthority(context: TemplateAuthorityContext, source: TemplateAuthoritySource): void {
+  const registry = readAuthorizedRegistry(context, source)
+  if (!registry.bindings.some(binding => !binding.disabled && binding.actorIds.includes(context.actorId)
+    && binding.runtime.platform === source.runtime.platform && binding.runtime.revision === source.runtime.revision
+    && binding.skills.length === 0 && binding.credentials.length === 0
+    && binding.policy.sha256 === sha256(JSON.stringify(noToolsTemplatePolicy(binding.policy.id))))) {
+    fail('No supported lifecycle authority is available for this actor and runtime')
+  }
 }
 function projectBinding(selected: TemplateAuthorityBinding) {
   return {

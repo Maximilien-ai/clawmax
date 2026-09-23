@@ -2,8 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { sha256 } from './portable-template'
-import { readTemplateAuthorityRegistry } from './template-authority'
-import { noToolsTemplatePolicy } from './template-execution-policy'
+import { readTemplateAuthorityRegistry, assertTemplateLifecycleAuthority } from './template-authority'
+import { noToolsTemplatePolicy, verifyTemplateExecutionPolicies } from './template-execution-policy'
 import { createTemplateResourceFileCompiler } from './template-resource-files'
 import { TemplateRevisionStore } from './template-revisions'
 import { TemplateApplyCoordinator } from './template-apply-coordinator'
@@ -35,10 +35,17 @@ export function createConfiguredTemplateResolver(options: {
     // Fail at service resolution for missing configuration, without creating
     // workspace state or reaching the gateway.
     authority.read()
-    const store = new TemplateRevisionStore(context.workspacePath, context.workspaceId, createTemplateResourceFileCompiler(context.workspacePath, authority))
+    const compile = createTemplateResourceFileCompiler(context.workspacePath, authority)
+    const store = new TemplateRevisionStore(context.workspacePath, context.workspaceId, (...args) => {
+      const compiled = compile(...args)
+      if (!compiled.authority) throw new Error('Template authority is unavailable')
+      verifyTemplateExecutionPolicies(compiled.authority, { read: noToolsTemplatePolicy })
+      return compiled
+    })
     const coordinator = new TemplateApplyCoordinator(store,
       new TemplateGatewayTransaction(context.workspacePath, createTemplateGatewayTransport(options.client)), options.agentStateRoot)
     return { store, coordinator, authority, policies: { read: noToolsTemplatePolicy }, runtime: options.client,
+      assertStagingAvailable: () => assertTemplateLifecycleAuthority(context, authority),
       // Reserved resources cannot enter legacy runtimes. Coordinator locking,
       // immutable stopped/disabled resources and pending receipts guard cleanup.
       assertStopped() {},

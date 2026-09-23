@@ -2,7 +2,7 @@ import express, { NextFunction, Request, Response } from 'express'
 import { InstanceTemplateCatalog, validResourceId } from '../lib/instance-template-catalog'
 import { validatePortableTemplate } from '../lib/portable-template'
 import { PortableTemplateError } from '../lib/portable-template-zip'
-import { createInstanceTemplateLifecycleRouter, TemplateLifecycleResolver } from './instance-template-lifecycle'
+import { createInstanceTemplateLifecycleRouter, TemplateLifecycleResolver, TEMPLATE_LIFECYCLE_OPERATIONS } from './instance-template-lifecycle'
 
 const apiVersion = 'clawmax.instance/v1'
 export const TEMPLATE_MEDIA_TYPE = 'application/vnd.clawmax.portable-template+zip'
@@ -30,14 +30,35 @@ export function createInstanceTemplatesRouter(dependencies: Dependencies) {
   const catalog = (res: Response) => new InstanceTemplateCatalog(context(res).workspacePath, context(res).workspaceId)
   const handle = (operation: (req: Request, res: Response) => unknown | Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => { Promise.resolve().then(() => operation(req, res)).catch(next) }
 
-  router.get('/capabilities', handle((_req, res) => res.json({
+  router.get('/capabilities', handle((_req, res) => {
+    const workspace = context(res)
+    let available = false
+    workspace.assertAuthorized?.()
+    if (dependencies.lifecycle && workspace.assertAuthorized) {
+      try {
+        const service = dependencies.lifecycle(workspace)
+        if (service.store.workspaceId === workspace.workspaceId && service.store.workspacePath === workspace.workspacePath
+          && service.coordinator.workspaceId === workspace.workspaceId && service.coordinator.workspacePath === workspace.workspacePath
+          && service.assertStagingAvailable) {
+          service.assertStagingAvailable()
+          available = true
+        }
+      } catch { /* Missing/revoked server configuration must not advertise admission. */ }
+    }
+    workspace.assertAuthorized?.()
+    return res.json({
     apiVersion, kind: 'Capabilities', workspaceId: context(res).workspaceId,
     workspacePackage: { formats: [], operations: [] },
-    templates: { formats: [{ name: 'portable-zip', schemaVersions: ['clawmax.portable-template/v1alpha1'] }], operations: ['export', 'import', 'list', 'remove', 'show', 'validate', 'versions'] },
+    templates: {
+      formats: [{ name: 'portable-zip', schemaVersions: ['clawmax.portable-template/v1alpha1'] }],
+      operations: ['export', 'import', 'list', 'remove', 'show', 'validate', 'versions', ...(available ? TEMPLATE_LIFECYCLE_OPERATIONS : [])],
+      lifecycle: { available, mode: 'staged-no-tools', execution: false, scheduling: false, skillInstallation: false, credentialDelivery: false },
+    },
     skills: { formats: [], platforms: [], operations: [] }, communities: { available: false },
     groups: { permanent: false, operations: [] }, workflows: { scheduling: false, operations: [] },
     runtime: { dashboardVersion: dependencies.dashboardVersion(), openClawVersion: dependencies.openClawVersion(), operatingSystem: process.platform, architecture: process.arch === 'x64' ? 'amd64' : process.arch },
-  })))
+  })
+  }))
 
   router.get('/templates', handle((_req, res) => res.json({ apiVersion, kind: 'TemplateList', items: catalog(res).list() })))
   router.get('/templates/:templateId', handle((req, res) => res.json({ apiVersion, kind: 'Template', template: catalog(res).get(req.params.templateId) })))
