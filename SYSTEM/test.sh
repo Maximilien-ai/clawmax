@@ -3031,7 +3031,7 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Workspace export unit tests...${NC}"
-if npx ts-node --transpileOnly server/lib/native-chat-history.test.ts > /tmp/clawmax-native-chat-history.out 2>&1; then
+if npx ts-node --transpileOnly server/lib/openclaw-native-transcripts.test.ts > /tmp/clawmax-native-chat-history.out 2>&1; then
   pass "Native chat history read-only and branch tests"
 else
   cat /tmp/clawmax-native-chat-history.out

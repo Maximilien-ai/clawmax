@@ -11,6 +11,7 @@ import assert from 'assert'
 import { EventEmitter } from 'events'
 import { listActiveTurns, cancelTurn } from '../lib/agent-turns'
 import { getAgentLifecycleGeneration } from '../lib/workspace'
+import { hasNativeTranscript } from '../lib/openclaw-native-transcripts'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -73,6 +74,46 @@ function writeAgent(workspacePath: string, agentId: string, identityContent?: st
   if (typeof identityContent === 'string') {
     fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), identityContent, 'utf-8')
   }
+}
+
+// Fixture for OpenClaw 2's native session store (~/.openclaw/agents/<id>/agent/openclaw-agent.sqlite).
+// Mirrors the real schema: session_nodes maps a session key to its current session id, and
+// transcript_events holds one legacy-JSONL-format line per row, ordered by seq.
+function writeNativeAgentStore(
+  tmpHome: string,
+  agentId: string,
+  options: {
+    sessions?: Array<{ sessionKey: string; sessionId: string; updatedAt?: number }>
+    transcripts?: Record<string, string[]>
+  } = {}
+) {
+  const { DatabaseSync } = require('node:sqlite')
+  const agentDir = path.join(tmpHome, '.openclaw', 'agents', agentId, 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
+  database.exec('CREATE TABLE session_key_contract (id INTEGER PRIMARY KEY)')
+  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
+  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
+
+  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
+  for (const session of options.sessions || []) {
+    const updatedAt = session.updatedAt ?? Date.now()
+    insertSession.run(
+      session.sessionKey,
+      session.sessionId,
+      JSON.stringify({ sessionId: session.sessionId, updatedAt }),
+      updatedAt
+    )
+  }
+
+  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
+  for (const [sessionId, lines] of Object.entries(options.transcripts || {})) {
+    lines.forEach((line, index) => {
+      insertEvent.run(sessionId, index, line, Date.now())
+    })
+  }
+
+  database.close()
 }
 
 function getRouteHandler(method: 'get' | 'post' | 'put' | 'patch' | 'delete', routePath: string) {
@@ -2020,27 +2061,26 @@ async function run() {
     )
   })
 
-  await test('chat history reopens a native SQLite conversation without a legacy sessions directory', async () => {
-    const id = 'native-history-agent'
+  await test('chat history reopens a native SQLite conversation using the active transcript branch, without a legacy sessions directory', async () => {
+    const id = 'native-active-branch-agent'
     writeAgent(workspacePath, id, '**Name:** Native history\n**Model:** openai/gpt-4o-mini\n')
     const nativeDir = path.join(tmpHome, '.openclaw', 'agents', id, 'agent')
     fs.mkdirSync(nativeDir, { recursive: true })
     const { DatabaseSync } = require('node:sqlite')
     const db = new DatabaseSync(path.join(nativeDir, 'openclaw-agent.sqlite'))
     db.exec(`
-      CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT);
-      CREATE TABLE session_windows (session_id TEXT);
-      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT);
-      CREATE TABLE session_transcript_index_state (session_id TEXT, needs_rebuild INTEGER);
+      CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER);
       CREATE TABLE session_transcript_active_events (session_id TEXT, event_seq INTEGER, active_position INTEGER);
-      INSERT INTO session_nodes VALUES ('agent:native-history-agent:dashboard-chat', 'native-window');
-      INSERT INTO session_windows VALUES ('native-window');
-      INSERT INTO session_transcript_index_state VALUES ('native-window', 0);
+      INSERT INTO session_nodes VALUES ('agent:${id}:dashboard-chat', 'native-window', NULL, 1);
       INSERT INTO session_transcript_active_events VALUES ('native-window', 1, 0), ('native-window', 2, 1);
     `)
-    const insert = db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?)')
-    insert.run('native-window', 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'Synthetic question', timestamp: 1 } }))
-    insert.run('native-window', 2, JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: 'Synthetic answer' }], timestamp: 2 } }))
+    const insert = db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?, ?)')
+    insert.run('native-window', 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'Synthetic question', timestamp: 1 } }), 1)
+    insert.run('native-window', 2, JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: 'Synthetic answer' }], timestamp: 2 } }), 2)
+    // A rewound turn: present in transcript_events but not in the active branch, so it must never
+    // surface in the merged view.
+    insert.run('native-window', 5, JSON.stringify({ type: 'message', message: { role: 'assistant', content: 'Rewound turn that must not appear', timestamp: 5 } }), 5)
     db.close()
     const handler = getRouteHandler('get', '/:id/chat/messages')
     for (let reopen = 0; reopen < 2; reopen++) {
@@ -2050,6 +2090,473 @@ async function run() {
       assert.deepStrictEqual(res.jsonBody.messages.map((message: any) => message.content), ['Synthetic question', 'Synthetic answer'])
     }
     assert(!fs.existsSync(path.join(nativeDir, '..', 'sessions')), 'History read must not create legacy state')
+  })
+
+
+  await test('chat messages route reads from the OpenClaw 2 native session store when no legacy jsonl exists', async () => {
+    writeAgent(workspacePath, 'native-agent', [
+      '# IDENTITY.md',
+      '**Name:** native-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'native-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'native-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    // Use the real seed the live chat route (routes/chat.ts POST /:id/chat) actually passes
+    // OpenClaw as --session-id — a live install recorded this exact shape (session_key
+    // "agent:<id>:dashboard-chat" mapped to a "dashboard-<id>-<mtime36>-chat"-derived id, NOT the
+    // "agent:<id>:dashboard-chat" string scoped directly) — not the idealized semantic key alone.
+    const { buildDashboardChatSeed, scopeSessionIdToModel } = require('../lib/agent-execution')
+    const agentWorkspaceDir = path.join(workspacePath, 'AGENTS', 'native-agent')
+    const sessionId = scopeSessionIdToModel(buildDashboardChatSeed('native-agent', agentWorkspaceDir), 'openai/gpt-4o-mini')
+    // A second, unrelated native session recorded more recently (e.g. a scheduled workflow ping
+    // to the same agent) proves resolution picks the session matching the real seed, not merely
+    // "whichever native session is newest" — a naive newest-only reader would return this instead.
+    writeNativeAgentStore(tmpHome, 'native-agent', {
+      sessions: [
+        { sessionKey: 'agent:native-agent:dashboard-chat', sessionId, updatedAt: 1000 },
+        { sessionKey: 'agent:native-agent:workflow-run', sessionId: 'unrelated-newer-session', updatedAt: 9000 },
+      ],
+      transcripts: {
+        [sessionId]: [
+          JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'Hello from native store' }], timestamp: 1 } }),
+          JSON.stringify({ type: 'message', timestamp: 2, message: { role: 'assistant', content: [{ type: 'text', text: 'Hi, native reply' }], timestamp: 2 } }),
+        ],
+        'unrelated-newer-session': [
+          JSON.stringify({ type: 'message', timestamp: 3, message: { role: 'user', content: [{ type: 'text', text: 'Unrelated workflow content that must not win' }], timestamp: 3 } }),
+        ],
+      },
+    })
+
+    // No sessions.json and no sessions dir at all for this agent — matches a freshly created
+    // OpenClaw 2 agent, which never writes either.
+    assert.strictEqual(fs.existsSync(path.join(tmpHome, '.openclaw', 'agents', 'native-agent', 'sessions')), false, 'Expected no legacy sessions dir to exist yet')
+
+    const handler = getRouteHandler('get', '/:id/chat/messages')
+    const res = makeRes()
+    await handler(makeReq({ params: { id: 'native-agent' } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected chat history route success')
+    assert.deepStrictEqual(
+      res.jsonBody?.messages?.map((message: any) => message.content),
+      ['Hello from native store', 'Hi, native reply'],
+      'Expected chat history to load from the dashboard-chat native session, not the more recently updated unrelated one'
+    )
+  })
+
+  await test('chat messages route prefers the legacy jsonl transcript over the native store, then falls back to it once the jsonl is gone', async () => {
+    writeAgent(workspacePath, 'legacy-wins-agent', [
+      '# IDENTITY.md',
+      '**Name:** legacy-wins-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'legacy-wins-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'legacy-wins-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    // Use the real seed the live chat route (routes/chat.ts) actually passes OpenClaw as
+    // --session-id — not the semantic key alone (see buildDashboardChatSeed) — so this fixture
+    // exercises the same session-id resolution production traffic does.
+    const { buildDashboardChatSeed, scopeSessionIdToModel } = require('../lib/agent-execution')
+    const agentWorkspaceDir = path.join(workspacePath, 'AGENTS', 'legacy-wins-agent')
+    const sessionId = scopeSessionIdToModel(buildDashboardChatSeed('legacy-wins-agent', agentWorkspaceDir), 'openai/gpt-4o-mini')
+
+    const sessionsDir = path.join(tmpHome, '.openclaw', 'agents', 'legacy-wins-agent', 'sessions')
+    fs.mkdirSync(sessionsDir, { recursive: true })
+    const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`)
+    fs.writeFileSync(jsonlPath, [
+      JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'Legacy jsonl content' }], timestamp: 1 } }),
+    ].join('\n'), 'utf-8')
+
+    writeNativeAgentStore(tmpHome, 'legacy-wins-agent', {
+      sessions: [{ sessionKey: 'agent:legacy-wins-agent:dashboard-chat', sessionId }],
+      transcripts: {
+        [sessionId]: [
+          JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'Native store content that must not win' }], timestamp: 1 } }),
+        ],
+      },
+    })
+
+    const handler = getRouteHandler('get', '/:id/chat/messages')
+    const withBothRes = makeRes()
+    await handler(makeReq({ params: { id: 'legacy-wins-agent' } }), withBothRes)
+
+    assert.strictEqual(withBothRes.statusCode, 200, 'Expected chat history route success')
+    assert.deepStrictEqual(
+      withBothRes.jsonBody?.messages?.map((message: any) => message.content),
+      ['Legacy jsonl content'],
+      'Expected the legacy jsonl transcript to win over the native store when both exist'
+    )
+
+    // Prove this isn't passing merely because the native store is never consulted (which the
+    // pre-fix route would also do, vacuously "preferring" jsonl): with the jsonl gone, the SAME
+    // route must now surface the native content instead of going empty.
+    fs.unlinkSync(jsonlPath)
+    const nativeOnlyRes = makeRes()
+    await handler(makeReq({ params: { id: 'legacy-wins-agent' } }), nativeOnlyRes)
+    assert.strictEqual(nativeOnlyRes.statusCode, 200, 'Expected chat history route success once the jsonl is removed')
+    assert.deepStrictEqual(
+      nativeOnlyRes.jsonBody?.messages?.map((message: any) => message.content),
+      ['Native store content that must not win'],
+      'Expected the native store to be read once the legacy jsonl no longer exists'
+    )
+  })
+
+  await test('clearing a native-only chat archives the transcript, empties the current view via a watermark, leaves SQLite untouched, and a later turn reappears', async () => {
+    writeAgent(workspacePath, 'native-clear-agent', [
+      '# IDENTITY.md',
+      '**Name:** native-clear-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'native-clear-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'native-clear-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const { buildDashboardChatSeed, scopeSessionIdToModel } = require('../lib/agent-execution')
+    const agentWorkspaceDir = path.join(workspacePath, 'AGENTS', 'native-clear-agent')
+    const sessionId = scopeSessionIdToModel(buildDashboardChatSeed('native-clear-agent', agentWorkspaceDir), 'openai/gpt-4o-mini')
+    writeNativeAgentStore(tmpHome, 'native-clear-agent', {
+      sessions: [{ sessionKey: 'agent:native-clear-agent:dashboard-chat', sessionId }],
+      transcripts: {
+        [sessionId]: [
+          JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'Native clear test' }], timestamp: 1 } }),
+          JSON.stringify({ type: 'message', timestamp: 2, message: { role: 'assistant', content: [{ type: 'text', text: 'Native clear reply' }], timestamp: 2 } }),
+        ],
+      },
+    })
+
+    const dbPath = path.join(tmpHome, '.openclaw', 'agents', 'native-clear-agent', 'agent', 'openclaw-agent.sqlite')
+    const dbContentBeforeClear = fs.readFileSync(dbPath)
+
+    const clearHandler = getRouteHandler('delete', '/:id/chat/messages')
+    const clearRes = makeRes()
+    await clearHandler(makeReq({ params: { id: 'native-clear-agent' } }), clearRes)
+    assert.strictEqual(clearRes.jsonBody?.archived, true, 'Expected the native-only chat to be archived')
+
+    const archiveDir = path.join(tmpHome, '.openclaw', 'agents', 'native-clear-agent', 'sessions', 'archive')
+    assert(fs.existsSync(archiveDir), 'Expected archive dir to be created')
+    const archiveFiles = fs.readdirSync(archiveDir).filter((name) => name.endsWith('.jsonl'))
+    assert.strictEqual(archiveFiles.length, 1, 'Expected exactly one archived file')
+    const archivedLines = fs.readFileSync(path.join(archiveDir, archiveFiles[0]), 'utf-8').trim().split('\n').map((line) => JSON.parse(line))
+    assert.strictEqual(archivedLines.length, 2, 'Expected both native turns to be archived')
+
+    assert(
+      !fs.existsSync(path.join(tmpHome, '.openclaw', 'agents', 'native-clear-agent', 'sessions', 'sessions.json')),
+      'Expected Clear never to create a legacy sessions.json for a native-store agent: OpenClaw 2 refuses to start its gateway when it finds one'
+    )
+    assert(fs.existsSync(dbPath), 'Expected native SQLite store to remain on disk after Clear')
+    assert(Buffer.compare(fs.readFileSync(dbPath), dbContentBeforeClear) === 0, 'Expected Clear never to modify the native SQLite store — the runtime owns it')
+
+    // Clear owns a dashboard-side watermark (server/lib/openclaw-native-transcripts.ts) instead —
+    // it can't delete the runtime's rows, but it can make the dashboard stop showing them. The
+    // current conversation must now read as empty, and the history list must show no active entry.
+    const messagesHandler = getRouteHandler('get', '/:id/chat/messages')
+    const clearedMessagesRes = makeRes()
+    await messagesHandler(makeReq({ params: { id: 'native-clear-agent' } }), clearedMessagesRes)
+    assert.deepStrictEqual(clearedMessagesRes.jsonBody?.messages, [], 'Expected the current conversation to read as empty right after Clear')
+
+    const listHandler = getRouteHandler('get', '/:id/chat/archives')
+    const listRes = makeRes()
+    await listHandler(makeReq({ params: { id: 'native-clear-agent' } }), listRes)
+    assert.strictEqual(listRes.statusCode, 200, 'Expected archive list route success')
+    assert.strictEqual(listRes.jsonBody?.archives?.some((entry: any) => entry.active), false, 'Expected no active/current entry right after Clear')
+    const archivedEntry = listRes.jsonBody?.archives?.find((entry: any) => !entry.active)
+    assert(archivedEntry, 'Expected the archived native chat to appear in the history list')
+    assert.strictEqual(archivedEntry.messageCount, 2, 'Expected the archived native chat message count to include both turns')
+
+    // A later turn on the same session (the runtime appending a higher-seq row, exactly as it
+    // would on the next real chat message) must reappear as the current conversation — proving
+    // the watermark filters by position, not by hiding the session outright.
+    const { DatabaseSync } = require('node:sqlite')
+    const liveDb = new DatabaseSync(dbPath)
+    liveDb.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)').run(
+      sessionId,
+      2,
+      JSON.stringify({ type: 'message', timestamp: 3, message: { role: 'user', content: [{ type: 'text', text: 'Turn after Clear' }], timestamp: 3 } }),
+      Date.now()
+    )
+    liveDb.close()
+
+    const afterNewTurnRes = makeRes()
+    await messagesHandler(makeReq({ params: { id: 'native-clear-agent' } }), afterNewTurnRes)
+    assert.deepStrictEqual(
+      afterNewTurnRes.jsonBody?.messages?.map((message: any) => message.content),
+      ['Turn after Clear'],
+      'Expected a turn added after Clear to reappear as the current conversation, without the archived turns'
+    )
+  })
+
+  await test('clearing a native-only chat is safe to retry after a crash between archiving and marking the watermark', async () => {
+    writeAgent(workspacePath, 'native-clear-retry-agent', [
+      '# IDENTITY.md',
+      '**Name:** native-clear-retry-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'native-clear-retry-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'native-clear-retry-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const { buildDashboardChatSeed, scopeSessionIdToModel } = require('../lib/agent-execution')
+    const agentWorkspaceDir = path.join(workspacePath, 'AGENTS', 'native-clear-retry-agent')
+    const sessionId = scopeSessionIdToModel(buildDashboardChatSeed('native-clear-retry-agent', agentWorkspaceDir), 'openai/gpt-4o-mini')
+    const turnOne = JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'Retry test turn' }], timestamp: 1 } })
+    const turnTwo = JSON.stringify({ type: 'message', timestamp: 2, message: { role: 'assistant', content: [{ type: 'text', text: 'Retry test reply' }], timestamp: 2 } })
+    writeNativeAgentStore(tmpHome, 'native-clear-retry-agent', {
+      sessions: [{ sessionKey: 'agent:native-clear-retry-agent:dashboard-chat', sessionId }],
+      transcripts: { [sessionId]: [turnOne, turnTwo] },
+    })
+
+    // Simulate a process crash that completed the archive write but never reached
+    // markNativeTranscriptCleared: pre-create the exact archive file a first Clear attempt would
+    // have produced, while the native store is still unwatermarked (still reads as live).
+    const archiveDir = path.join(tmpHome, '.openclaw', 'agents', 'native-clear-retry-agent', 'sessions', 'archive')
+    fs.mkdirSync(archiveDir, { recursive: true })
+    fs.writeFileSync(path.join(archiveDir, `${sessionId}_2026-01-01_1735689600000.jsonl`), `${turnOne}\n${turnTwo}\n`)
+    assert(hasNativeTranscript('native-clear-retry-agent', sessionId, tmpHome), 'Expected the transcript to still read as live before the retried Clear — the crash never reached the watermark')
+
+    const clearHandler = getRouteHandler('delete', '/:id/chat/messages')
+    const clearRes = makeRes()
+    await clearHandler(makeReq({ params: { id: 'native-clear-retry-agent' } }), clearRes)
+    assert.strictEqual(clearRes.jsonBody?.archived, true, 'Expected the retried Clear to report the chat as archived')
+
+    const archiveFilesAfterRetry = fs.readdirSync(archiveDir).filter((name) => name.endsWith('.jsonl'))
+    assert.strictEqual(archiveFilesAfterRetry.length, 1, `Expected the pre-existing archive not to be duplicated, got ${archiveFilesAfterRetry.length} files`)
+
+    assert(!hasNativeTranscript('native-clear-retry-agent', sessionId, tmpHome), 'Expected the retried Clear to finish the interrupted step and finally mark the transcript cleared')
+
+    const messagesHandler = getRouteHandler('get', '/:id/chat/messages')
+    const messagesRes = makeRes()
+    await messagesHandler(makeReq({ params: { id: 'native-clear-retry-agent' } }), messagesRes)
+    assert.deepStrictEqual(messagesRes.jsonBody?.messages, [], 'Expected the current conversation to read as empty after the retry completes')
+  })
+
+  await test('after Clear, the newest-native-session fallback does not present an unrelated, more recently touched native session as the current conversation', async () => {
+    writeAgent(workspacePath, 'native-clear-fallback-agent', [
+      '# IDENTITY.md',
+      '**Name:** native-clear-fallback-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'native-clear-fallback-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'native-clear-fallback-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const { buildDashboardChatSeed, scopeSessionIdToModel } = require('../lib/agent-execution')
+    const agentWorkspaceDir = path.join(workspacePath, 'AGENTS', 'native-clear-fallback-agent')
+    const seedSessionId = scopeSessionIdToModel(buildDashboardChatSeed('native-clear-fallback-agent', agentWorkspaceDir), 'openai/gpt-4o-mini')
+    // A second native session recorded under a completely different key (e.g. a scheduled
+    // workflow ping, or a session left behind by an earlier model switch) that happens to be
+    // touched more recently than this agent's own dashboard-chat session.
+    const unrelatedSessionId = 'unrelated-post-clear-session'
+
+    writeNativeAgentStore(tmpHome, 'native-clear-fallback-agent', {
+      sessions: [
+        { sessionKey: 'agent:native-clear-fallback-agent:dashboard-chat', sessionId: seedSessionId, updatedAt: 1000 },
+        { sessionKey: 'agent:native-clear-fallback-agent:workflow-run', sessionId: unrelatedSessionId, updatedAt: 9000 },
+      ],
+      transcripts: {
+        [seedSessionId]: [
+          JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'My own conversation' }], timestamp: 1 } }),
+          JSON.stringify({ type: 'message', timestamp: 2, message: { role: 'assistant', content: [{ type: 'text', text: 'My own conversation reply' }], timestamp: 2 } }),
+        ],
+        [unrelatedSessionId]: [
+          JSON.stringify({ type: 'message', timestamp: 3, message: { role: 'user', content: [{ type: 'text', text: 'Unrelated session content' }], timestamp: 3 } }),
+          JSON.stringify({ type: 'message', timestamp: 4, message: { role: 'assistant', content: [{ type: 'text', text: 'Unrelated session reply' }], timestamp: 4 } }),
+        ],
+      },
+    })
+
+    const messagesHandler = getRouteHandler('get', '/:id/chat/messages')
+    const beforeClearRes = makeRes()
+    await messagesHandler(makeReq({ params: { id: 'native-clear-fallback-agent' } }), beforeClearRes)
+    assert.deepStrictEqual(
+      beforeClearRes.jsonBody?.messages?.map((message: any) => message.content),
+      ['My own conversation', 'My own conversation reply'],
+      'Expected the seeded dashboard-chat session to be current before Clear, not the more recently touched unrelated one'
+    )
+
+    const clearHandler = getRouteHandler('delete', '/:id/chat/messages')
+    const clearRes = makeRes()
+    await clearHandler(makeReq({ params: { id: 'native-clear-fallback-agent' } }), clearRes)
+    assert.strictEqual(clearRes.jsonBody?.archived, true, 'Expected the seeded session to be archived by Clear')
+
+    // The bug: resolvePersistedAgentSessionId's newest-native-session fallback isn't
+    // watermark-aware, so once the seed session reads as empty it would fall through to "the
+    // newest native session for this agent, whatever its key" and hand back the unrelated
+    // session's own messages here instead of an empty conversation.
+    const afterClearRes = makeRes()
+    await messagesHandler(makeReq({ params: { id: 'native-clear-fallback-agent' } }), afterClearRes)
+    assert.deepStrictEqual(afterClearRes.jsonBody?.messages, [], 'Expected the current conversation to read as empty right after Clear, not the unrelated session\'s messages')
+
+    const listHandler = getRouteHandler('get', '/:id/chat/archives')
+    const listRes = makeRes()
+    await listHandler(makeReq({ params: { id: 'native-clear-fallback-agent' } }), listRes)
+    const archives = listRes.jsonBody?.archives || []
+    assert.strictEqual(archives.some((entry: any) => entry.active), false, 'Expected no active/current entry right after Clear — the unrelated session must not be named as current')
+
+    const unrelatedEntry = archives.find((entry: any) => entry.filename === `native:${unrelatedSessionId}`)
+    assert(unrelatedEntry, 'Expected the unrelated native session to still be visible as ordinary history, just not as the current conversation')
+    assert.strictEqual(unrelatedEntry.messageCount, 2, 'Expected the unrelated session\'s own messages to be intact')
+  })
+
+  await test('an agent re-pinned to a non-openclaw runtime with no runtime transcript yet never resolves to a session left behind in the old openclaw store', async () => {
+    writeAgent(workspacePath, 're-pinned-agent', [
+      '# IDENTITY.md',
+      '**Name:** re-pinned-agent',
+      '**Runtime:** droid',
+    ].join('\n'))
+    fs.mkdirSync(path.join(workspacePath, 'SYSTEM'), { recursive: true })
+    fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['droid'] }), 'utf-8')
+
+    // The agent used to run on openclaw; its native store still holds a session recorded under an
+    // unrelated key (e.g. a scheduled workflow run) that the re-pin to droid never touched or
+    // cleared. With no droid transcript yet (a fresh re-pin, nothing sent under the new runtime),
+    // resolveAgentChatSessionId falls back to the openclaw-side resolver — which must not offer up
+    // that leftover session just because it is the only (or newest) thing in the store.
+    writeNativeAgentStore(tmpHome, 're-pinned-agent', {
+      sessions: [{ sessionKey: 'agent:re-pinned-agent:workflow-run', sessionId: 'leftover-workflow-session', updatedAt: 9000 }],
+      transcripts: {
+        'leftover-workflow-session': [
+          JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'Unrelated workflow content' }], timestamp: 1 } }),
+        ],
+      },
+    })
+
+    const messagesHandler = getRouteHandler('get', '/:id/chat/messages')
+    const res = makeRes()
+    await messagesHandler(makeReq({ params: { id: 're-pinned-agent' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected the chat messages route to succeed for a re-pinned agent with no runtime transcript yet')
+    assert.deepStrictEqual(res.jsonBody?.messages, [], 'Expected an empty conversation, not the leftover workflow session from before the re-pin')
+  })
+
+  await test('chat archives route lists older native sessions from session_nodes as read-only history entries', async () => {
+    writeAgent(workspacePath, 'native-history-agent', [
+      '# IDENTITY.md',
+      '**Name:** native-history-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'native-history-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'native-history-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const { scopeSessionIdToModel } = require('../lib/agent-execution')
+    const activeSessionId = scopeSessionIdToModel('agent:native-history-agent:dashboard-chat', 'openai/gpt-4o-mini')
+    // A session recorded under a completely different key — e.g. a session started before a model
+    // switch re-scoped the dashboard-chat key, or a CLI run — with no file-based archive covering
+    // it at all, since Clear can never delete rows from this database (see readChatSessionMessages).
+    const oldSessionId = 'old-native-session-1'
+
+    writeNativeAgentStore(tmpHome, 'native-history-agent', {
+      sessions: [
+        { sessionKey: 'agent:native-history-agent:dashboard-chat', sessionId: activeSessionId, updatedAt: 2000 },
+        { sessionKey: 'agent:native-history-agent:dashboard-chat:explicit:old', sessionId: oldSessionId, updatedAt: 1000 },
+      ],
+      transcripts: {
+        [activeSessionId]: [
+          JSON.stringify({ type: 'message', timestamp: 3, message: { role: 'user', content: [{ type: 'text', text: 'Current native turn' }], timestamp: 3 } }),
+        ],
+        [oldSessionId]: [
+          JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'Old native turn one' }], timestamp: 1 } }),
+          JSON.stringify({ type: 'message', timestamp: 2, message: { role: 'assistant', content: [{ type: 'text', text: 'Old native turn two' }], timestamp: 2 } }),
+        ],
+      },
+    })
+
+    const listHandler = getRouteHandler('get', '/:id/chat/archives')
+    const listRes = makeRes()
+    await listHandler(makeReq({ params: { id: 'native-history-agent' } }), listRes)
+
+    assert.strictEqual(listRes.statusCode, 200, 'Expected chat archives route success')
+    const archives = listRes.jsonBody?.archives || []
+    const activeEntry = archives.find((entry: any) => entry.active)
+    assert(activeEntry, 'Expected the active native session to appear as the current entry')
+    assert.strictEqual(activeEntry.filename, `current:${activeSessionId}`)
+
+    const nativeHistoryEntry = archives.find((entry: any) => entry.filename === `native:${oldSessionId}`)
+    assert(nativeHistoryEntry, 'Expected the older native session to appear as a history entry')
+    assert.strictEqual(nativeHistoryEntry.active, false, 'Expected the older native session not to be marked active')
+    assert.strictEqual(nativeHistoryEntry.removable, false, 'Expected a native session entry to be marked non-removable — the dashboard never writes to that SQLite store')
+    assert.strictEqual(nativeHistoryEntry.messageCount, 2, 'Expected both turns of the older native session to be counted')
+
+    const detailHandler = getRouteHandler('get', '/:id/chat/archives/:filename')
+    const detailRes = makeRes()
+    await detailHandler(makeReq({ params: { id: 'native-history-agent', filename: `native:${oldSessionId}` } }), detailRes)
+    assert.strictEqual(detailRes.statusCode, 200, 'Expected native history detail route success')
+    assert.deepStrictEqual(
+      detailRes.jsonBody?.messages?.map((message: any) => message.content),
+      ['Old native turn one', 'Old native turn two'],
+      'Expected the native history detail route to return that session\'s own transcript'
+    )
+  })
+
+  await test('chat archive restore and delete routes reject native-session filenames — the dashboard never writes to that store', async () => {
+    const restoreHandler = getRouteHandler('post', '/:id/chat/archives/:filename/restore')
+    let res = makeRes()
+    await restoreHandler(makeReq({
+      params: { id: 'native-history-agent', filename: 'native:old-native-session-1' },
+    }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected native session restore to return HTTP 400')
+
+    const deleteHandler = getRouteHandler('delete', '/:id/chat/archives/:filename')
+    res = makeRes()
+    await deleteHandler(makeReq({
+      params: { id: 'native-history-agent', filename: 'native:old-native-session-1' },
+    }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected native session delete to return HTTP 400')
   })
 
   await test('chat archives route includes the current explicit conversation when no archived sessions exist yet', async () => {
