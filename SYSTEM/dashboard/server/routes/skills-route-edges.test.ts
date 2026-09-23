@@ -73,6 +73,123 @@ async function withSkillsOverrides<T>(overrides: Record<string, any>, fn: () => 
 console.log(`\n${YELLOW}=== Skills Route Edge Test Suite ===${RESET}\n`)
 
 async function run() {
+  await test('read and validation failures return stable errors without exposing internals', async () => {
+    for (const [method, route, dependency, body, error] of [
+      ['get', '/', 'listAvailableSkills', {}, 'Failed to load skills'],
+      ['get', '/:skillId', 'getSkillById', {}, 'Failed to load skill'],
+      ['get', '/:skillId/content', 'getSkillContent', {}, 'Failed to load skill content'],
+      ['get', '/agent/:agentId', 'getAgentSkills', {}, 'Failed to load agent skills'],
+      ['post', '/validate', 'validateSkills', { skills: [] }, 'Failed to validate skills'],
+      ['post', '/bulk-assign', 'validateSkills', { agentIds: ['a'], addSkills: ['x'] }, 'Failed to bulk assign skills'],
+    ] as const) {
+      await withSkillsOverrides({ [dependency]: () => { throw new Error('synthetic internal failure') } }, async () => {
+        const res = makeRes()
+        await getRouteHandler(method, route)(makeReq({ params: { skillId: 'x', agentId: 'a' }, body }), res)
+        assert.strictEqual(res.statusCode, 500)
+        assert.deepStrictEqual(res.jsonBody, { error })
+      })
+    }
+  })
+
+  await test('invalid edits and assignments never call mutation helpers', async () => {
+    await withSkillsOverrides({
+      updateSkillContent: () => { throw new Error('Mutation must not execute') },
+      setAgentSkills: () => { throw new Error('Mutation must not execute') },
+      createCustomSkill: () => { throw new Error('Mutation must not execute') },
+    }, async () => {
+      for (const [method, route, body, error] of [
+        ['put', '/:skillId/content', {}, 'content must be a string'],
+        ['put', '/:skillId/content', { content: 'x', name: 3 }, 'name must be a string when provided'],
+        ['put', '/:skillId/content', { content: 'x', description: false }, 'description must be a string when provided'],
+        ['put', '/:skillId/content', { content: 'x', tags: 'bad' }, 'tags must be an array when provided'],
+        ['put', '/agent/:agentId', { skills: 'bad' }, 'Skills must be an array'],
+        ['post', '/validate', {}, 'Skills must be an array'],
+        ['post', '/bulk-assign', { agentIds: [] }, 'agentIds must be a non-empty array'],
+        ['post', '/bulk-assign', { agentIds: ['a'] }, 'Provide addSkills and/or removeSkills'],
+        ['post', '/', { name: 'x', description: 'x' }, 'Missing required fields: name, description, content'],
+        ['post', '/generate', { description: ' ' }, 'description is required'],
+      ] as const) {
+        const res = makeRes()
+        await getRouteHandler(method, route)(makeReq({ params: { skillId: 'x', agentId: 'a' }, body }), res)
+        assert.strictEqual(res.statusCode, 400, route)
+        assert.strictEqual(res.jsonBody.error, error)
+      }
+    })
+  })
+
+  await test('content edit errors preserve not-found, permission and validation status codes', async () => {
+    for (const [message, status] of [['read-only skill', 403], ['skill not found', 404], ['name already exists', 400], ['name must contain only letters', 400], ['name required', 400], ['disk unavailable', 500], ['', 500]] as const) {
+      await withSkillsOverrides({ updateSkillContent: () => { throw new Error(message) } }, async () => {
+        const res = makeRes()
+        await getRouteHandler('put', '/:skillId/content')(makeReq({ params: { skillId: 'x' }, body: { content: 'x' } }), res)
+        assert.strictEqual(res.statusCode, status)
+        assert.strictEqual(res.jsonBody.error, message || 'Failed to update skill content')
+      })
+    }
+  })
+
+  await test('skill content and creation return exact helper results', async () => {
+    await withSkillsOverrides({
+      getSkillContent: () => null,
+      createCustomSkill: (input: any) => ({ id: 'fixture', ...input }),
+      updateSkillContent: (id: string, content: string, metadata: any) => ({ id, content, ...metadata }),
+    }, async () => {
+      let res = makeRes()
+      await getRouteHandler('get', '/:skillId/content')(makeReq({ params: { skillId: 'absent' } }), res)
+      assert.strictEqual(res.statusCode, 404)
+      res = makeRes()
+      await getRouteHandler('post', '/')(makeReq({ body: { name: 'fixture', description: 'Fixture', content: '# Fixture' } }), res)
+      assert.strictEqual(res.jsonBody.skill.content, '# Fixture')
+      for (const tags of [undefined, ['testing']]) {
+        res = makeRes()
+        await getRouteHandler('put', '/:skillId/content')(makeReq({ params: { skillId: 'fixture' }, body: { content: '# Updated', tags } }), res)
+        assert.strictEqual(res.jsonBody.ok, true)
+        assert.deepStrictEqual(res.jsonBody.tags, tags)
+      }
+    })
+  })
+
+  await test('setup refuses absent skills and unsupported commands without launching processes', async () => {
+    for (const route of ['/:skillId/install-requirements', '/:skillId/complete-setup']) {
+      for (const exists of [false, true]) {
+        await withSkillsOverrides({ getSkillById: () => exists ? { name: 'fixture' } : null, getSkillRequirementInstallCommands: () => [], getSkillSetupCommands: () => [] }, async () => {
+          const res = makeRes()
+          await getRouteHandler('post', route)(makeReq({ params: { skillId: 'fixture' } }), res)
+          assert.strictEqual(res.statusCode, exists ? 400 : 404)
+        })
+      }
+      for (const detail of ['', 'synthetic setup diagnostic']) {
+        await withSkillsOverrides({ getSkillById: () => { throw { message: '', stderr: detail } } }, async () => {
+          const res = makeRes()
+          await getRouteHandler('post', route)(makeReq({ params: { skillId: 'fixture' } }), res)
+          assert.strictEqual(res.statusCode, 500)
+          assert.strictEqual(res.jsonBody.detail, detail || undefined)
+          assert.match(res.jsonBody.error, /^Failed to/)
+        })
+      }
+    }
+  })
+
+  await test('bulk assignment keeps successful results when another agent fails', async () => {
+    const writes: string[] = []
+    await withSkillsOverrides({
+      getAgentSkills: () => ['legacy', 'remove'],
+      validateSkillChanges: () => ({ invalidAdded: [], invalidPreserved: ['legacy'] }),
+      setAgentSkills: (id: string, skills: string[]) => {
+        if (id === 'missing') throw new Error('Agent not found')
+        assert.deepStrictEqual(skills, ['legacy'])
+        writes.push(id)
+      },
+    }, async () => {
+      const res = makeRes()
+      await getRouteHandler('post', '/bulk-assign')(makeReq({ body: { agentIds: ['ok', 'missing'], removeSkills: ['remove'] } }), res)
+      assert.strictEqual(res.jsonBody.updated, 1)
+      assert.strictEqual(res.jsonBody.total, 2)
+      assert.deepStrictEqual(writes, ['ok'])
+      assert.match(res.jsonBody.results[0].warnings[0], /legacy/)
+      assert.strictEqual(res.jsonBody.results[1].error, 'Agent not found')
+    })
+  })
   await test('skill detail route returns 404 for unknown skills and 200 for known skills', async () => {
     let handler = getRouteHandler('get', '/:skillId')
     let res = makeRes()
