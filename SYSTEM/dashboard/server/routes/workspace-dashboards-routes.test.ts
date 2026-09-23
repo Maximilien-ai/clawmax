@@ -142,6 +142,35 @@ async function run() {
     assert.strictEqual(res.jsonBody?.error, 'Workspace not found', 'Expected missing workspace guidance')
   })
 
+  await test('stale company focus never broadens a dashboard token to the whole workspace', async () => {
+    for (const focus of [
+      { kind: 'team', value: 'deleted-team' },
+      { kind: 'prefix', value: 'Deleted Company' },
+      { kind: 'team', value: null },
+      { kind: 'prefix', value: null },
+    ] as const) {
+      const router = loadRouter({
+        workspaceDashboards: { getWorkspaceDashboardByToken: () => ({ id: 'stale', workspaceId: 'workspace-1', token: 'stale-token', companyFocusKind: focus.kind, companyFocusValue: focus.value, companyFocusLabel: null }) } as any,
+        workspaceManager: { getWorkspaceManager: () => ({
+          getWorkspace: () => ({ id: 'workspace-1', name: 'Workspace', path: '/tmp/nonexistent-workspace-dashboard-fixture' }),
+          withWorkspace: async (_id: string, fn: Function) => fn(),
+        }) } as any,
+        workspace: { listAgents: () => [{ id: 'private-agent' }], parseGroups: () => ({ groups: [], communities: [] }), parseGroupsWithMembers: () => ({ groups: [], communities: [] }) } as any,
+        budget: { getBudgetStatus: async () => ({ totalBudgetUsd: 100 }) } as any,
+        metering: { getWorkspaceMetering: async () => ({ estimatedCostUsd: 42, byAgent: [], byWorkflow: [], dailyCost: [], costSummary: [] }) } as any,
+        notifications: { getActiveNotifications: () => [] } as any,
+        workflows: { listWorkflows: () => [], listExecutions: () => [] } as any,
+        teams: { listTeams: () => [] } as any,
+      })
+      const res = makeRes()
+      await getRouteHandler(router, 'get', '/:token')(makeReq({ params: { token: 'stale-token' } }), res)
+      assert.strictEqual(res.statusCode, 404, `Stale ${focus.kind} focus should return 404`)
+      assert.strictEqual(res.jsonBody?.error, 'Dashboard company focus not found')
+      assert(!JSON.stringify(res.jsonBody).includes('private-agent'), 'No workspace agent should be disclosed')
+      assert(!JSON.stringify(res.jsonBody).includes('42'), 'No workspace metering should be disclosed')
+    }
+  })
+
   await test('workspace dashboard token route returns a workspace payload snapshot', async () => {
     const router = loadRouter({
       workspaceDashboards: {

@@ -16,6 +16,8 @@ const router = Router()
 const URL_REGEX = /https?:\/\/[^\s)>\]]+/g
 const FILE_PATH_REGEX = /\/[^\s"'<>]+?\.(md|txt|pdf|json|csv|png|jpg|jpeg|gif|html)/gi
 
+class CompanyFocusNotFoundError extends Error {}
+
 export interface WorkspaceDashboardCompanyOption {
   kind: 'workspace' | 'team' | 'prefix'
   value: string | null
@@ -367,6 +369,9 @@ router.get('/:token', async (req, res) => {
         groups,
         communities,
       })
+      if (dashboard.companyFocusKind !== 'workspace' && !companyScope) {
+        throw new CompanyFocusNotFoundError('Dashboard company focus not found')
+      }
 
       const groupChats = [
         ...groups.map((group) => {
@@ -676,6 +681,9 @@ router.get('/:token', async (req, res) => {
 
     res.json(payload)
   } catch (err: any) {
+    if (err instanceof CompanyFocusNotFoundError) {
+      return res.status(404).json({ error: err.message })
+    }
     console.error('Error building workspace dashboard payload:', err)
     res.status(500).json({ error: err.message || 'Failed to load workspace dashboard' })
   }
