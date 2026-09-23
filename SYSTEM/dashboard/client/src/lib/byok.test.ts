@@ -6,6 +6,8 @@
 
 import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, hasCogneeConfiguration, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
 import { cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
+import strictAssert from 'node:assert/strict'
+import { buildByokVerificationFingerprint, byokModelParams, byokModelParamsWithOptions, fetchModelsWithByok, getByokStorageKey, hasAnyLLMKeys, readStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -53,6 +55,70 @@ function installLocalStorageMock() {
 installLocalStorageMock()
 
 async function main() {
+  await test('each supported provider respects user defaults and explicit system execution permission', () => {
+    for (const provider of ['openai', 'anthropic', 'gemini', 'openrouter', 'xai', 'openaiCompatible']) {
+      localStorage.clear()
+      const defaults = { [provider]: true }
+      strictAssert.equal(hasAnyLLMKeys({ userKeyDefaults: defaults }), true, provider)
+      strictAssert.equal(hasAnyLLMKeys({ systemKeyDefaults: defaults }), true, provider)
+      strictAssert.equal(hasChatExecutionAccess({ userKeyDefaults: defaults }), true, provider)
+      strictAssert.equal(hasChatExecutionAccess({ systemKeyDefaults: defaults }), false, provider)
+      strictAssert.equal(hasChatExecutionAccess({ systemKeyDefaults: defaults, allowSystemKeysForUserExecution: true }), true, provider)
+      const supportsGeneration = ['openai', 'anthropic', 'openaiCompatible'].includes(provider)
+      strictAssert.equal(hasAiGenerationAccess({ userKeyDefaults: defaults }), supportsGeneration, provider)
+      strictAssert.equal(hasAiGenerationAccess({ systemKeyDefaults: defaults, allowSystemKeysForUserExecution: true }), supportsGeneration, provider)
+    }
+    strictAssert.equal(hasAnyLLMKeys(null), false)
+  })
+
+  await test('provider verification fingerprints include the relevant endpoint and model', () => {
+    const pairs = [['openai', 'openai'], ['anthropic', 'anthropic'], ['gemini', 'geminiApiKey'], ['openrouter', 'openrouter'], ['xai', 'xai']] as const
+    for (const [provider, key] of pairs) {
+      strictAssert.equal(buildByokVerificationFingerprint(provider, {}), '')
+      strictAssert.equal(buildByokVerificationFingerprint(provider, { [key]: ' fixture ' }), 'fixture')
+    }
+    strictAssert.equal(buildByokVerificationFingerprint('ollama', {}), '::')
+    strictAssert.equal(buildByokVerificationFingerprint('ollama', { ollamaBaseUrl: ' http://host ', ollamaDefaultModel: ' model ' }), 'http://host::model')
+    strictAssert.equal(buildByokVerificationFingerprint('openaiCompatible', {}), '::::')
+    strictAssert.equal(buildByokVerificationFingerprint('openaiCompatible', { openaiCompatibleBaseUrl: ' https://host ', openaiCompatibleApiKey: ' key ', openaiCompatibleDefaultModel: ' model ' }), 'https://host::key::model')
+  })
+
+  await test('malformed storage is recoverable and silent saves do not dispatch change events', () => {
+    for (const raw of ['{broken', 'null', '42', '"string"']) {
+      localStorage.setItem(getByokStorageKey(), raw)
+      strictAssert.equal(readStoredByokKeys().openai, undefined)
+    }
+    const originalDispatch = window.dispatchEvent
+    let events = 0
+    window.dispatchEvent = () => { events++; return true }
+    try {
+      writeStoredByokKeys({ openai: 'fixture' }, { silent: true })
+      strictAssert.equal(events, 0)
+      writeStoredByokKeys({ openai: 'updated' })
+      strictAssert.equal(events, 1)
+      strictAssert.equal(readStoredByokKeys().openai, 'updated')
+    } finally { window.dispatchEvent = originalDispatch }
+  })
+
+  await test('model discovery encodes each browser credential and propagates HTTP failures', async () => {
+    localStorage.clear()
+    strictAssert.equal(byokModelParams(), '')
+    writeStoredByokKeys({ openai: 'a&b', anthropic: 'anthropic', geminiApiKey: 'gemini', openrouter: 'router', xai: 'xai', ollamaBaseUrl: 'http://ollama', openaiCompatibleApiKey: 'compatible', openaiCompatibleBaseUrl: 'https://host/v1', openaiCompatibleDefaultModel: 'model' })
+    const params = new URLSearchParams(byokModelParamsWithOptions({ showAll: true }))
+    strictAssert.deepEqual(Object.fromEntries(params), { openaiKey: 'a&b', anthropicKey: 'anthropic', geminiKey: 'gemini', openrouterKey: 'router', xaiKey: 'xai', ollamaBaseUrl: 'http://ollama', openaiCompatibleApiKey: 'compatible', openaiCompatibleBaseUrl: 'https://host/v1', openaiCompatibleDefaultModel: 'model', showAll: 'true' })
+    const originalFetch = globalThis.fetch
+    try {
+      globalThis.fetch = (async (url: any) => {
+        strictAssert.equal(String(url), `/api/agents/models${byokModelParamsWithOptions({ showAll: true })}`)
+        return { ok: true, json: async () => ({ models: ['model'], modelsByProvider: {} }) }
+      }) as any
+      strictAssert.deepEqual(await fetchModelsWithByok({ showAll: true }), { models: ['model'], modelsByProvider: {} })
+      globalThis.fetch = (async () => ({ ok: false })) as any
+      await strictAssert.rejects(fetchModelsWithByok(), /Failed to load models/)
+      await strictAssert.rejects(refreshModelsWithByok(), /Failed to refresh models/)
+    } finally { globalThis.fetch = originalFetch; localStorage.clear() }
+  })
+
   console.log(`\n${YELLOW}=== BYOK Helper Test Suite ===${RESET}\n`)
 
   await test('browser-local BYOK key enables AI generation access', () => {
