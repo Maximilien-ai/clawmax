@@ -15,6 +15,7 @@ const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
 
 const agentModelModulePath = require.resolve('../lib/agent-model')
+const workspaceModulePath = require.resolve('../lib/workspace')
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -100,12 +101,25 @@ function makeRes() {
   }
 }
 
-function getRouteHandler(method: 'get' | 'post' | 'put' | 'patch', routePath: string) {
+function getRouteHandler(method: 'get' | 'post' | 'put' | 'patch' | 'delete', routePath: string) {
   delete require.cache[require.resolve('./agents')]
   const router = require('./agents').default
   const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
   if (!layer) throw new Error(`Route ${method.toUpperCase()} ${routePath} not found`)
   return layer.route.stack[layer.route.stack.length - 1].handle as Function
+}
+
+async function withWorkspaceOverrides<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
+  const mod = require(workspaceModulePath)
+  const originals = Object.fromEntries(Object.keys(overrides).map(key => [key, mod[key]]))
+  Object.assign(mod, overrides)
+  delete require.cache[require.resolve('./agents')]
+  try {
+    return await fn()
+  } finally {
+    Object.assign(mod, originals)
+    delete require.cache[require.resolve('./agents')]
+  }
 }
 
 async function withAgentModelOverrides<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
@@ -394,6 +408,59 @@ async function run() {
       assert.equal(res.statusCode, expected)
       assert(fs.existsSync(existingPath), 'Rejected rename must preserve the original agent')
     }
+  })
+
+  await test('bulk impact validates IDs and summarizes only matching live and archived agents', async () => {
+    await withWorkspaceOverrides({
+      listAgents: () => [
+        { id: 'live', archived: false, workspacePath: '/synthetic/live' },
+        { id: 'old', archived: true, workspacePath: '/synthetic/old' },
+      ],
+      getAgentImpact: (id: string) => id === 'live'
+        ? { todoCount: 2, communityCount: 1, groupCount: 3 }
+        : { todoCount: 4, communityCount: 2, groupCount: 1 },
+    }, async () => {
+      const handler = getRouteHandler('post', '/bulk-impact')
+      for (const agents of [undefined, [], [{ id: 'Bad ID' }]]) {
+        const invalid = makeRes()
+        await handler(makeReq({ body: { agents } }), invalid)
+        assert.equal(invalid.statusCode, 400)
+      }
+      const res = makeRes()
+      await handler(makeReq({ body: { agents: [
+        { id: 'live' }, { id: 'old', archived: true }, { id: 'old' }, { id: 'missing' },
+      ] } }), res)
+      assert.equal(res.statusCode, 200)
+      assert.equal(res.jsonBody.summary.agentCount, 2)
+      assert.equal(res.jsonBody.summary.totalTodos, 6)
+      assert.equal(res.jsonBody.summary.totalCommunities, 3)
+      assert.equal(res.jsonBody.summary.totalGroups, 4)
+      assert.deepEqual(res.jsonBody.notFound, ['old', 'missing'])
+    })
+  })
+
+  await test('bulk delete reports per-agent failures and forwards state removal only when requested', async () => {
+    const calls: Array<[string, boolean, boolean]> = []
+    await withWorkspaceOverrides({
+      deleteAgent: (id: string, removeStateDir: boolean, archived: boolean) => {
+        calls.push([id, removeStateDir, archived])
+        return id === 'failed' ? { steps: [], errors: ['Synthetic failure'] } : { steps: ['Deleted'], errors: [] }
+      },
+    }, async () => {
+      const handler = getRouteHandler('delete', '/bulk')
+      for (const agents of [undefined, [], [{ id: '../escape' }]]) {
+        const invalid = makeRes()
+        await handler(makeReq({ body: { agents } }), invalid)
+        assert.equal(invalid.statusCode, 400)
+      }
+      const res = makeRes()
+      await handler(makeReq({ body: { agents: [{ id: 'plain-agent' }, { id: 'failed', archived: true }], removeStateDir: true } }), res)
+      assert.equal(res.statusCode, 200)
+      assert.equal(res.jsonBody.ok, false)
+      assert.deepEqual(res.jsonBody.summary, { total: 2, success: 1, failure: 1 })
+      assert.deepEqual(calls, [['plain-agent', true, false], ['failed', true, true]])
+      assert.match(res.jsonBody.results.failed.errors[0], /Synthetic failure/)
+    })
   })
 
   console.log(`\nTests passed: ${testsPassed}`)
