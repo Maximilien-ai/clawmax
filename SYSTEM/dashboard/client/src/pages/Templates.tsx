@@ -2406,6 +2406,7 @@ export default function Templates() {
             window.dispatchEvent(new CustomEvent('agents-updated'))
             window.dispatchEvent(new CustomEvent('workflows-updated'))
             window.dispatchEvent(new CustomEvent('channels-updated'))
+            window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'agents' } }))
           }}
         />
       )}
@@ -2419,6 +2420,7 @@ export default function Templates() {
             setApplyingAgentTemplate(null)
             markTemplateLiteracy()
             window.dispatchEvent(new CustomEvent('agents-updated'))
+            window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'agents' } }))
           }}
         />
       )}
