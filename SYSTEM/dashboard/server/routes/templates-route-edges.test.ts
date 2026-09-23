@@ -93,6 +93,7 @@ function makeReq(overrides: Record<string, any> = {}) {
     params: {},
     query: {},
     body: {},
+    headers: {},
     ...overrides,
   } as any
 }
@@ -257,6 +258,62 @@ async function run() {
     assert.strictEqual(fs.readFileSync(path.join(savedDir, 'SOUL.md'), 'utf8'), '# Soul')
     assert.strictEqual(fs.readFileSync(path.join(savedDir, 'TOOLS.md'), 'utf8'), '')
     assert.strictEqual(res.jsonBody?.template?.name, 'New Name', 'Saved template should return even when reload is unavailable')
+  })
+
+  await test('template feedback rejects invalid targets and ratings before persistence', async () => {
+    let writes = 0
+    const handler = getRouteHandler('post', '/:type/:slug/feedback', {
+      templates: { getTemplate: (type: string, slug: string) => type === 'agent' && slug === 'present' ? { type, slug, name: 'Present' } : null } as any,
+      templateFeedback: { addTemplateFeedback: async () => { writes++; return { summary: {} } } } as any,
+    })
+    for (const fixture of [
+      { params: { type: 'workflows', slug: 'present' }, body: { rating: 4 }, status: 400 },
+      { params: { type: 'agents', slug: 'missing' }, body: { rating: 4 }, status: 404 },
+      { params: { type: 'agents', slug: 'present' }, body: { rating: 'not-a-number' }, status: 400 },
+      { params: { type: 'agents', slug: 'present' }, body: { rating: 0 }, status: 400 },
+      { params: { type: 'agents', slug: 'present' }, body: { rating: 6 }, status: 400 },
+    ]) {
+      const res = makeRes()
+      await handler(makeReq(fixture), res)
+      assert.strictEqual(res.statusCode, fixture.status)
+    }
+    assert.strictEqual(writes, 0, 'Invalid feedback must not be stored')
+  })
+
+  await test('template feedback normalizes optional answers and reports storage failures', async () => {
+    let saved: any
+    const overrides = {
+      templates: {
+        getTemplate: () => ({ type: 'agent', name: 'Present', slug: 'present' }),
+        buildTemplateFeedbackMetadata: () => ({ templateType: 'agent', templateId: 'agent:present', templateSource: 'workspace', templateTags: ['assistant'], templateInfo: {} }),
+      } as any,
+      templateFeedback: {
+        getTemplateApplyCount: () => 3,
+        addTemplateFeedback: async (feedback: any) => { saved = feedback; return { summary: { count: 1 } } },
+      } as any,
+    }
+    let handler = getRouteHandler('post', '/:type/:slug/feedback', overrides)
+    let res = makeRes()
+    await handler(makeReq({ params: { type: 'agents', slug: 'present' }, body: {
+      rating: '4', easyToUse: 'unknown', solvedUseCase: 'partly', customized: 'a-little', otherUseCases: '  reporting  ', suggestions: 42,
+    } }), res)
+    assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(saved.rating, 4)
+    assert.strictEqual(saved.easyToUse, '')
+    assert.strictEqual(saved.solvedUseCase, 'partly')
+    assert.strictEqual(saved.customized, 'a-little')
+    assert.strictEqual(saved.otherUseCases, 'reporting')
+    assert.strictEqual(saved.suggestions, '')
+    assert.strictEqual(saved.applyCount, 3)
+
+    handler = getRouteHandler('post', '/:type/:slug/feedback', {
+      ...overrides,
+      templateFeedback: { getTemplateApplyCount: () => 0, addTemplateFeedback: async () => { throw new Error('Feedback store unavailable') } } as any,
+    })
+    res = makeRes()
+    await handler(makeReq({ params: { type: 'agents', slug: 'present' }, body: { rating: 5 } }), res)
+    assert.strictEqual(res.statusCode, 500)
+    assert.strictEqual(res.jsonBody?.error, 'Feedback store unavailable')
   })
 
   await test('workflow export markdown route returns markdown payload and headers', async () => {
