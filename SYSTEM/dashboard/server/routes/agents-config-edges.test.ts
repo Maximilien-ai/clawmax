@@ -148,6 +148,31 @@ async function run() {
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
 
+  await test('model policy rejection prevents partial primary or backup saves', async () => {
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    const original = fs.readFileSync(configPath, 'utf-8')
+    const config = JSON.parse(original)
+    config.agents.defaults = { modelPolicy: { allow: ['openai/gpt-5.4'] } }
+    const restricted = JSON.stringify(config)
+    fs.writeFileSync(configPath, restricted)
+    const identityPath = path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md')
+    const identity = fs.readFileSync(identityPath, 'utf-8')
+    try {
+      for (const [method, route, body] of [
+        ['patch', '/:id/model', { model: 'openai/gpt-5.4', backupModel: 'anthropic/blocked' }],
+        ['patch', '/:id/model', { model: 'anthropic/blocked' }],
+        ['put', '/:id/config', { identity: identity.replace('openai/gpt-4o-mini', 'openai/gpt-5.4'), soul: 'Updated soul', tools: '' }],
+      ] as const) {
+        const res = makeRes()
+        await getRouteHandler(method, route)(makeReq({ params: { id: 'plain-agent' }, body }), res)
+        assert.equal(res.statusCode, 409)
+        assert.equal(res.jsonBody.code, 'model_policy_conflict')
+        assert.equal(fs.readFileSync(configPath, 'utf-8'), restricted)
+        assert.equal(fs.readFileSync(identityPath, 'utf-8'), identity)
+      }
+    } finally { fs.writeFileSync(configPath, original) }
+  })
+
   await test('cost-limit routes accept valid updates and return persisted values', async () => {
     const putHandler = getRouteHandler('put', '/:id/cost-limit')
     let res = makeRes()

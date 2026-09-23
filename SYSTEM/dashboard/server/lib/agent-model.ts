@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { assertAgentModelPolicy } from './agent-model-policy'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getModelLifecycleEntry } from './openAiModelLifecycle'
 
@@ -13,6 +14,18 @@ export interface AgentModelConfigUpdateResult {
 
 export type AgentModelSelectionMode = 'auto' | 'manual'
 export type AgentModelPreference = 'quality' | 'balanced' | 'cost'
+
+export function validateAgentModelPolicyInConfigFile(configPath: string, agentId: string, models: Array<string | undefined>, workspacePath: string): AgentModelConfigUpdateResult {
+  try {
+    const config = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf-8')) : {}
+    const agents = materializeDashboardAgentList(config)
+    const agent = agents.find(item => item.id === agentId && item.workspace === workspacePath) || agents.find(item => item.id === agentId)
+    assertAgentModelPolicy(config, agent, models.map(model => model ? normalizeAgentModelInput(model) : undefined))
+    return { ok: true }
+  } catch (error: any) {
+    return { ok: false, error: error.message || 'Model policy could not be verified' }
+  }
+}
 
 export function normalizeAgentModelInput(model: string): string {
   const trimmed = model.trim()
@@ -121,6 +134,7 @@ export function updateAgentModelInConfigFile(
       return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
     }
 
+    assertAgentModelPolicy(config, agentList[agentIndex], [nextModel])
     const previousModel = agentList[agentIndex]?.model
     const allowlistChanged = ensureAgentModelAllowed(config, nextModel)
     const changed = previousModel !== nextModel || allowlistChanged
@@ -164,6 +178,7 @@ export function updateAgentBackupModelInConfigFile(
       return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
     }
 
+    assertAgentModelPolicy(config, agentList[agentIndex], [nextBackupModel])
     const hadLegacyBackupModel = Object.prototype.hasOwnProperty.call(agentList[agentIndex] || {}, 'backupModel')
     if (!hadLegacyBackupModel) {
       return { ok: true, changed: false, backupModel: nextBackupModel }
@@ -211,6 +226,7 @@ export function upsertAgentModelInConfigFile(
       agentIndex = agentList.findIndex((agent: any) => agent.id === agentId)
     }
 
+    assertAgentModelPolicy(config, agentList[agentIndex], [nextModel])
     let changed = ensureAgentModelAllowed(config, nextModel)
     if (agentIndex === -1) {
       agentList.push({

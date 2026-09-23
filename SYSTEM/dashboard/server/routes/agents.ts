@@ -15,6 +15,7 @@ import { validateAgentConfigSections, validateProvisionInput } from '../lib/agen
 import type { AgentModelConfigUpdateResult } from '../lib/agent-model'
 import {
   normalizeAgentModelInput,
+  validateAgentModelPolicyInConfigFile,
   resetAgentSessionsForModelChange,
   updateAgentBackupModelInConfigFile,
   upsertAgentBackupModelInIdentityContent,
@@ -148,6 +149,11 @@ function updateAgentModelInConfig(agentId: string, model: string): AgentModelCon
     agentDir: runtimeAgentDir,
     name: agentId,
   })
+}
+
+function validateAgentModelPolicy(agentId: string, model: string, backupModel?: string) {
+  return validateAgentModelPolicyInConfigFile(path.join(process.env.HOME || '', '.openclaw', 'openclaw.json'),
+    agentId, [model, backupModel], path.join(getWorkspacePath(), 'AGENTS', agentId))
 }
 
 function updateAgentBackupModelInConfig(agentId: string, backupModel: string | undefined): AgentModelConfigUpdateResult {
@@ -3191,6 +3197,8 @@ router.put('/:id/config', (req, res) => {
       const identityModel = normalizeAgentModelInput(parsedIdentity.model || '')
       const identityBackupModel = parsedIdentity.backupModel ? normalizeAgentModelInput(parsedIdentity.backupModel) : undefined
       if (identityModel) {
+        const admission = validateAgentModelPolicy(id, identityModel, identityBackupModel)
+        if (!admission.ok) return res.status(409).json({ error: admission.error, code: 'model_policy_conflict' })
         configUpdate = updateAgentModelInConfig(id, identityModel)
         if (!configUpdate.ok) {
           return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
@@ -3273,6 +3281,8 @@ router.patch('/:id/model', (req, res) => {
   const identityPath = path.join(agentDir, 'IDENTITY.md')
 
   try {
+    const admission = validateAgentModelPolicy(id, normalizedModel, typeof backupModel === 'string' ? backupModel : undefined)
+    if (!admission.ok) return res.status(409).json({ error: admission.error, code: 'model_policy_conflict' })
     const configUpdate = updateAgentModelInConfig(id, normalizedModel)
     if (!configUpdate.ok) {
       return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })

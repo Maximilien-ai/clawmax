@@ -7,6 +7,8 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import nodeAssert from 'assert'
+import { assertAgentModelPolicy } from './agent-model-policy'
 import {
   normalizeAgentModelInput,
   resetAgentSessionsForModelChange,
@@ -53,6 +55,33 @@ function readMaterializedConfig(configPath: string): any {
 }
 
 console.log(`\n${YELLOW}=== Agent Model Test Suite ===${RESET}\n`)
+
+test('explicit model policies preserve instance and per-agent restrictions', () => {
+  const config = { agents: { defaults: { modelPolicy: { allow: ['openai/gpt-5.4'] }, models: {} } } }
+  assertAgentModelPolicy(config, {}, ['openai/gpt-5.4'])
+  nodeAssert.throws(() => assertAgentModelPolicy(config, {}, ['openai/gpt-5.4-mini']), /blocked.*defaults.modelPolicy.allow/)
+  assertAgentModelPolicy(config, { modelPolicy: { allow: ['anthropic/*'] } }, ['anthropic/claude-test'])
+  nodeAssert.throws(() => assertAgentModelPolicy(config, { modelPolicy: { allow: ['anthropic/*'] } }, ['openai/gpt-5.4']), /blocked.*agent.modelPolicy.allow/)
+  assertAgentModelPolicy(config, { modelPolicy: { allow: [] } }, ['other/model'])
+  assertAgentModelPolicy({}, {}, ['other/model'])
+  assertAgentModelPolicy(config, { modelPolicy: { allow: ['lmstudio/google/*'] } }, ['openai-compatible/google/gemma-test'])
+  nodeAssert.throws(() => assertAgentModelPolicy(config, { modelPolicy: { allow: ['openai/gpt*'] } }, ['openai/gpt-5.4']), /blocked/)
+  nodeAssert.throws(() => assertAgentModelPolicy(config, { modelPolicy: { allow: 'openai/*' } }, ['openai/gpt-5.4']), /blocked/)
+  assertAgentModelPolicy({ agents: { defaults: { models: { 'openai/gpt-5.4': { alias: 'primary' } }, modelPolicy: { allow: ['primary'] } } } }, {}, ['openai/gpt-5.4'])
+})
+
+test('rejected primary, backup and provisioned models leave config unchanged', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-policy-'))
+  try {
+    const configPath = path.join(tmpDir, 'openclaw.json')
+    const original = JSON.stringify({ agents: { defaults: { modelPolicy: { allow: ['openai/gpt-5.4'] } }, entries: { ceo: { model: 'openai/gpt-5.4' } } } })
+    fs.writeFileSync(configPath, original)
+    for (const result of [updateAgentModelInConfigFile(configPath, 'ceo', 'anthropic/blocked'), updateAgentBackupModelInConfigFile(configPath, 'ceo', 'anthropic/blocked'), upsertAgentModelInConfigFile(configPath, 'new-agent', 'anthropic/blocked')]) {
+      assert(!result.ok && !!result.error?.includes('blocked'), 'Policy must reject the selection')
+      assert(fs.readFileSync(configPath, 'utf-8') === original, 'Rejection must not mutate the config')
+    }
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }) }
+})
 
 test('updateAgentModelInConfigFile updates model in openclaw.json', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
