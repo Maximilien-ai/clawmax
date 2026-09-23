@@ -3080,8 +3080,8 @@ router.get('/:id/cost-limit', (req, res) => {
 // PUT /api/agents/:id/cost-limit — set cost limit for a specific agent
 router.put('/:id/cost-limit', (req, res) => {
   const { limitUsd } = req.body
-  if (limitUsd !== null && (typeof limitUsd !== 'number' || limitUsd < 0)) {
-    return res.status(400).json({ error: 'limitUsd must be a positive number or null to remove' })
+  if (limitUsd !== null && (typeof limitUsd !== 'number' || !Number.isFinite(limitUsd) || limitUsd < 0)) {
+    return res.status(400).json({ error: 'limitUsd must be a finite non-negative number or null to remove' })
   }
   const validationError = validateAgentCostLimit(limitUsd ?? null)
   if (validationError) {

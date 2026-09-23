@@ -115,6 +115,9 @@ export function checkBudgetBlock(options?: { workspaceId?: string; operation?: '
 }
 
 export function validateAgentCostLimit(limitUsd: number | null, workspaceId?: string): string | null {
+  if (limitUsd !== null && (!Number.isFinite(limitUsd) || limitUsd < 0)) {
+    return 'Agent limit must be a finite non-negative number or null.'
+  }
   if (limitUsd === null || limitUsd <= 0) return null
   const budget = loadBudgetConfig(workspaceId)
   if (budget.limitUsd > 0 && limitUsd > budget.limitUsd) {

@@ -130,6 +130,12 @@ async function run() {
     assert(validateAgentCostLimit(10, 'workspace-b') === null, 'Expected in-range agent limit to be allowed')
   })
 
+  await test('validateAgentCostLimit rejects non-finite and negative values', () => {
+    for (const value of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1]) {
+      assert(validateAgentCostLimit(value, 'workspace-b') !== null, `Expected ${String(value)} to be invalid`)
+    }
+  })
+
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
 

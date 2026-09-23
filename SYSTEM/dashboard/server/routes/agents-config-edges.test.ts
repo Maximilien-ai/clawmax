@@ -323,7 +323,7 @@ async function run() {
 
   await test('cost limits reject invalid values and permit explicit removal', async () => {
     const handler = getRouteHandler('put', '/:id/cost-limit')
-    for (const limitUsd of ['5', -1]) {
+    for (const limitUsd of ['5', -1, Number.NaN, Number.POSITIVE_INFINITY]) {
       const res = makeRes()
       await handler(makeReq({ params: { id: 'plain-agent' }, body: { limitUsd } }), res)
       assert.equal(res.statusCode, 400, `Expected ${String(limitUsd)} to be rejected`)
