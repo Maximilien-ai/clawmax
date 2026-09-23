@@ -299,6 +299,103 @@ async function run() {
     })
   })
 
+  await test('bulk model update reports each config outcome without hiding partial failures', async () => {
+    const handler = getRouteHandler('post', '/bulk-model')
+    for (const body of [{}, { agentIds: ['plain-agent'] }, { agentIds: 'plain-agent', model: 'openai/gpt-5' }, { agentIds: [], model: '   ' }]) {
+      const invalid = makeRes()
+      await handler(makeReq({ body }), invalid)
+      assert.equal(invalid.statusCode, 400)
+    }
+    await withAgentModelOverrides({
+      upsertAgentModelInConfigFile: (_configPath: string, id: string) => id === 'plain-agent'
+        ? { ok: true, changed: false, model: 'openai/gpt-4o-mini' }
+        : { ok: false, error: 'Synthetic policy failure' },
+    }, async () => {
+      const res = makeRes()
+      await getRouteHandler('post', '/bulk-model')(makeReq({ body: { agentIds: ['plain-agent', 'other-agent'], model: 'gpt-4o-mini' } }), res)
+      assert.equal(res.statusCode, 200)
+      assert.equal(res.jsonBody.updated, 1)
+      assert.equal(res.jsonBody.total, 2)
+      assert.equal(res.jsonBody.ok, false)
+      assert.match(res.jsonBody.results[1].error, /Synthetic policy failure/)
+    })
+  })
+
+  await test('cost limits reject invalid values and permit explicit removal', async () => {
+    const handler = getRouteHandler('put', '/:id/cost-limit')
+    for (const limitUsd of ['5', -1]) {
+      const res = makeRes()
+      await handler(makeReq({ params: { id: 'plain-agent' }, body: { limitUsd } }), res)
+      assert.equal(res.statusCode, 400, `Expected ${String(limitUsd)} to be rejected`)
+    }
+    const res = makeRes()
+    await handler(makeReq({ params: { id: 'plain-agent' }, body: { limitUsd: null } }), res)
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.jsonBody.limitUsd, null)
+    const fetched = makeRes()
+    await getRouteHandler('get', '/:id/cost-limit')(makeReq({ params: { id: 'plain-agent' } }), fetched)
+    assert.equal(fetched.jsonBody.limitUsd, null)
+  })
+
+  await test('tag updates reject malformed requests and preserve the existing identity file', async () => {
+    const handler = getRouteHandler('patch', '/:id/tags')
+    const identityPath = path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md')
+    const original = fs.readFileSync(identityPath, 'utf-8')
+    const originalError = console.error
+    console.error = () => {}
+    try {
+      for (const [id, tags, expected] of [
+        ['../plain-agent', ['valid'], 400],
+        ['plain-agent', 'valid', 400],
+        ['missing', ['valid'], 500],
+      ] as const) {
+        const res = makeRes()
+        await handler(makeReq({ params: { id }, body: { tags } }), res)
+        assert.equal(res.statusCode, expected)
+        assert.equal(fs.readFileSync(identityPath, 'utf-8'), original)
+      }
+    } finally {
+      console.error = originalError
+    }
+  })
+
+  await test('runtime updates reject invalid identities, runtimes, and missing agents', async () => {
+    const handler = getRouteHandler('patch', '/:id/runtime')
+    for (const [id, runtime, expected] of [
+      ['../plain-agent', 'default', 400],
+      ['plain-agent', 3, 400],
+      ['plain-agent', 'unknown-runtime', 400],
+      ['missing', 'default', 404],
+    ] as const) {
+      const res = makeRes()
+      await handler(makeReq({ params: { id }, body: { runtime } }), res)
+      assert.equal(res.statusCode, expected)
+    }
+    const res = makeRes()
+    await handler(makeReq({ params: { id: 'plain-agent' }, body: { runtime: 'default' } }), res)
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.jsonBody.runtime, 'default')
+  })
+
+  await test('agent rename rejects invalid and conflicting identities before touching files', async () => {
+    const handler = getRouteHandler('patch', '/:id/rename')
+    const existingPath = path.join(workspacePath, 'AGENTS', 'plain-agent')
+    fs.mkdirSync(path.join(workspacePath, 'AGENTS', 'occupied'), { recursive: true })
+    for (const [id, newId, expected] of [
+      ['../plain-agent', 'new-agent', 400],
+      ['plain-agent', undefined, 400],
+      ['plain-agent', 'Bad ID', 400],
+      ['plain-agent', 'plain-agent', 400],
+      ['missing', 'new-agent', 404],
+      ['plain-agent', 'occupied', 409],
+    ] as const) {
+      const res = makeRes()
+      await handler(makeReq({ params: { id }, body: { newId } }), res)
+      assert.equal(res.statusCode, expected)
+      assert(fs.existsSync(existingPath), 'Rejected rename must preserve the original agent')
+    }
+  })
+
   console.log(`\nTests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)
 
