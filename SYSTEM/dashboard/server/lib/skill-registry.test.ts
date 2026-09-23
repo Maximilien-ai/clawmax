@@ -96,6 +96,51 @@ function run() {
   assert.strictEqual(normalizedClawhub.results[0].homepage, 'https://clawhub.dev/skills/gog')
   assert.strictEqual(normalizedClawhub.results[0].emoji, '🎮')
 
+  for (const [field, value] of [
+    ['full_name', 'acme/alpha@1.0'],
+    ['registry_name', 'acme/alpha@1.0'],
+    ['packageName', 'acme/alpha@1.0'],
+    ['purl', 'acme/alpha@1.0'],
+    ['installCommand', 'tessl install acme/alpha@1.0 --yes'],
+    ['command', 'tessl install acme/alpha@1.0 --yes'],
+  ]) {
+    const result = normalizeSkillRegistrySearchResults('tessl', { items: [{ name: 'alpha', [field]: value }] })
+    assert.strictEqual(result.results[0]?.install_name, 'acme/alpha@1.0', `Expected qualified install name from ${field}`)
+  }
+  const tiles = normalizeSkillRegistrySearchResults('tessl', {
+    skills: [
+      { type: 'tile-skill', name: 'alpha', source: 'acme/alpha', summary: 'Projected skill' },
+      { type: 'tile', name: 'alpha', full_name: 'acme/alpha', description: 'Canonical tile' },
+      { type: 'git-skill', name: 'untrusted', source: 'https://example.com/repo' },
+      { type: 'tile', name: '' },
+    ],
+    pagination: { total: 4 },
+  })
+  assert.strictEqual(tiles.results.length, 1, 'Only the canonical tile should remain')
+  assert.strictEqual(tiles.results[0].description, 'Canonical tile')
+  assert.strictEqual(tiles.total, 4, 'Provider total should be preserved')
+  assert.strictEqual(normalizeSkillRegistrySearchResults('tessl', null).results.length, 0)
+  assert.strictEqual(normalizeSkillRegistrySearchResults('tessl', [{ name: 'bare' }]).total, 1)
+  assert.strictEqual(normalizeSkillRegistrySearchResults('clawhub', { data: [{ id: 'from-data' }] }).results[0].install_name, 'from-data')
+  assert.strictEqual(normalizeSkillRegistrySearchResults('clawhub', { skills: [{ name: 'from-skills', tagline: 'Short description' }] }).results[0].description, 'Short description')
+  assert.strictEqual(normalizeSkillRegistrySearchResults('clawhub', null).results.length, 0)
+  assert.strictEqual(normalizeSkillRegistrySearchResults('shipables', [{ name: 'raw', url: 'https://example.com' }]).results[0].homepage, 'https://example.com')
+
+  assert.strictEqual(selectBestRegistryInstallName('tessl', 'ACME/ALPHA@1.0', []), 'ACME/ALPHA@1.0')
+  assert.strictEqual(selectBestRegistryInstallName('tessl', ' ALPHA ', [{ name: 'alpha', install_name: 'acme/alpha' }]), 'acme/alpha')
+  assert.strictEqual(selectBestRegistryInstallName('tessl', 'alpha', [{ name: 'other', install_name: 'acme/alpha@latest' }]), 'acme/alpha@latest')
+  assert.strictEqual(selectBestRegistryInstallName('tessl', 'missing', [{ name: 'alpha', install_name: 'acme/alpha' }]), 'missing')
+  assert.strictEqual(selectBestRegistryInstallName('clawhub', 'alpha', []), 'alpha')
+  assert.deepStrictEqual(parseRegistryJsonOutput('  '), {})
+  assert.deepStrictEqual(parseRegistryJsonOutput('heading\n[1,2]'), [1, 2])
+  assert.throws(() => parseRegistryJsonOutput('command failed'), /did not return JSON/)
+  assert.throws(() => parseRegistryJsonOutput('prefix {malformed'), SyntaxError)
+  assert.strictEqual(getTesslInstallBlockerMessage(''), null)
+  assert.strictEqual(getTesslInstallBlockerMessage('Skipped alpha for another reason'), null)
+  assert.strictEqual(buildSkillRegistrySearchCommands('clawhub', '', 20)[0].args[1], 'explore')
+  assert.deepStrictEqual(buildSkillRegistrySearchCommands('tessl', '', 20).map(command => command.command), ['npx', 'tessl'])
+  assert.strictEqual(buildSkillRegistryInstallCommands('tessl', 'acme/alpha').length, 2)
+
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tessl-skill-registry-test-'))
   try {
     const clawhubSkillDir = path.join(tmpDir, 'skills', 'github')
@@ -133,11 +178,29 @@ function run() {
     const importable = resolveImportableRegistrySkillDirs('tessl', [tileContainerDir, tesslSkillDir])
     assert(importable.some((dir) => dir.endsWith(path.join('.tessl', 'tiles', 'maceytest', 'testytesty', 'skills', 'testytesty'))))
     assert(importable.some((dir) => dir.endsWith(path.join('.codex', 'skills', 'review-skill'))))
+
+    const hiddenSkillDir = path.join(tmpDir, 'skills', '.hidden')
+    fs.mkdirSync(hiddenSkillDir, { recursive: true })
+    assert(!discoverInstalledRegistrySkillDirs('clawhub', tmpDir).includes(hiddenSkillDir), 'Hidden skills should not be discovered')
+    assert.deepStrictEqual(resolveImportableRegistrySkillDirs('clawhub', [clawhubSkillDir, clawhubSkillDir]), [clawhubSkillDir])
+    const malformedTile = path.join(tmpDir, '.tessl', 'tiles', 'acme', 'malformed')
+    fs.mkdirSync(malformedTile, { recursive: true })
+    fs.writeFileSync(path.join(malformedTile, 'tile.json'), '{invalid')
+    assert.deepStrictEqual(resolveImportableRegistrySkillDirs('tessl', [malformedTile]), [], 'Malformed tile should not become importable')
+    fs.writeFileSync(path.join(malformedTile, 'tile.json'), JSON.stringify({ skills: { missing: {}, wrongType: { path: 42 }, noSkillFile: { path: 'missing/SKILL.md' } } }))
+    assert.deepStrictEqual(resolveImportableRegistrySkillDirs('tessl', [malformedTile]), [], 'Tile entries require actual skill files')
+    const direct = path.join(tmpDir, 'skills', 'lowercase')
+    fs.mkdirSync(direct, { recursive: true })
+    fs.writeFileSync(path.join(direct, 'skill.md'), '# lower')
+    assert.deepStrictEqual(resolveImportableRegistrySkillDirs('tessl', [direct, direct]), [direct], 'Direct lowercase skill manifests should deduplicate')
+    const shipable = path.join(tmpDir, '.claude', 'skills', 'shipable')
+    fs.mkdirSync(shipable, { recursive: true })
+    assert.deepStrictEqual(discoverInstalledRegistrySkillDirs('shipables', tmpDir), [shipable], 'Shipables should prefer installed Claude skills')
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   }
 
-  console.log('skill-registry.test.ts: 32 tests passed')
+  console.log('skill-registry.test.ts: tests passed')
 }
 
 run()
