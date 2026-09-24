@@ -1108,6 +1108,50 @@ async function run() {
     assert.strictEqual(getActiveNotifications().length, notificationCount, 'Expected docs-only action not to emit a notification')
   })
 
+  await test('persisted plugin records normalize malformed optional fields without losing usable evidence', () => {
+    const fixtures: Array<{ plugin: any; records: any[] }> = [
+      {
+        plugin: { ...getPluginBySlug('plugin-guardrails')!, id: 'guard-normalize', slug: 'guard-normalize' },
+        records: [null, { id: 'guard-one', name: 'Guard One', tags: ['stable', 'stable'], enabled: false,
+          appliesTo: { agents: ['analyst', 'analyst'] }, controls: { blockEmail: true },
+          history: [{ action: 'unknown', summary: ' Retained ', createdAt: '2026-01-01T00:00:00Z' }] }],
+      },
+      {
+        plugin: { ...getPluginBySlug('plugin-evals')!, id: 'eval-normalize', slug: 'eval-normalize' },
+        records: [{ id: 'eval-one', name: 'Eval One', target: { type: 'invalid', ids: ['analyst', 'analyst'] },
+          experiment: { input: 'Prompt', expectedOutput: 'Answer', iterations: 999, fixedMatch: 'invalid',
+            cases: [{ id: 'case-a', input: { type: 'file', value: 'input.md' }, expected: { type: 'text', value: 'Answer' } }] },
+          runs: [{ id: 'run-one', score: Number.NaN, createdAt: '2026-01-01T00:00:00Z' }, { id: '', createdAt: '2026-01-01T00:00:00Z' }],
+          humanReview: { status: 'invalid', reviewerEmail: ' TEST@EXAMPLE.COM ', requestedAt: '2026-01-01' } }],
+      },
+      {
+        plugin: { ...getPluginBySlug('plugin-review-notes')!, id: 'generic-normalize', slug: 'generic-normalize' },
+        records: [{ id: 'note-one', name: 'Note One', tags: ['one', 'one'], fields: { release: '2.0.0', area: 'regression', completed: 1, outcome: 'invalid' } }],
+      },
+    ]
+    const normalized = fixtures.map(({ plugin, records }) => {
+      const storage = path.join(tempWorkspace, 'SYSTEM', 'plugins', plugin.slug)
+      fs.mkdirSync(storage, { recursive: true })
+      fs.writeFileSync(path.join(storage, 'items.json'), JSON.stringify(records))
+      return listPluginRecords(plugin)
+    })
+    assert.strictEqual(normalized[0].length, 1, 'Null persisted records must be ignored')
+    const guard = normalized[0][0] as any
+    assert.strictEqual(guard.enabled, false)
+    assert.deepStrictEqual(guard.appliesTo.agents, ['analyst'])
+    assert.strictEqual(guard.history[0].action, 'updated', 'Unknown history actions should normalize safely')
+    const evaluation = normalized[1][0] as any
+    assert.strictEqual(evaluation.target.type, 'agent')
+    assert.strictEqual(evaluation.experiment.iterations, 100)
+    assert.strictEqual(evaluation.experiment.cases[0].input.type, 'file')
+    assert.strictEqual(evaluation.runs.length, 1, 'Incomplete historical runs should be dropped')
+    assert.strictEqual(evaluation.runs[0].score, 0, 'Non-finite stored scores should not propagate')
+    assert.strictEqual(evaluation.humanReview.reviewerEmail, 'test@example.com')
+    const note = normalized[2][0] as any
+    assert.deepStrictEqual(note.tags, ['one'])
+    assert.strictEqual(note.fields.completed, false, 'Only an explicit true enables a persisted check')
+  })
+
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
   if (typeof originalHome === 'undefined') delete process.env.HOME
