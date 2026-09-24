@@ -71,6 +71,19 @@ async function withSkillsOverrides<T>(overrides: Record<string, any>, fn: () => 
   }
 }
 
+async function withModuleOverrides<T>(modulePath: string, overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
+  const mod = require(modulePath)
+  const originals = Object.fromEntries(Object.keys(overrides).map((key) => [key, mod[key]]))
+  Object.assign(mod, overrides)
+  delete require.cache[require.resolve('./skills')]
+  try {
+    return await fn()
+  } finally {
+    Object.assign(mod, originals)
+    delete require.cache[require.resolve('./skills')]
+  }
+}
+
 console.log(`\n${YELLOW}=== Skills Route Edge Test Suite ===${RESET}\n`)
 
 async function run() {
@@ -356,6 +369,57 @@ async function run() {
       assert.strictEqual(res.jsonBody?.valid, true)
       assert.deepStrictEqual(res.jsonBody?.missing, [])
     })
+  })
+
+  await test('AI skill generation clears request credentials on success and every failure class', async () => {
+    const aiPath = require.resolve('../lib/ai-generator')
+    const keyTransitions: any[] = []
+    for (const [message, expectedStatus, expectedMessage] of [
+      ['', 200, undefined],
+      ['No API key configured', 400, 'AI generation needs a configured'],
+      ['developer API key required', 400, 'developer API key required'],
+      ['subscription or app credentials are unsupported', 400, 'subscription or app credentials are unsupported'],
+      ['does not look like an API key', 400, 'does not look like an API key'],
+      ['Synthetic provider failure', 500, 'Synthetic provider failure'],
+    ] as const) {
+      await withModuleOverrides(require.resolve('../lib/github-auth'), {
+        getAuthenticatedSession: () => null,
+      }, () => withModuleOverrides(require.resolve('../lib/opik'), {
+        traceAgentChat: () => undefined,
+      }, () => withModuleOverrides(aiPath, {
+        setRequestByokKeys: (keys: any) => keyTransitions.push(keys),
+        generateSkillFromNL: async (description: string, draft: any) => {
+          assert.strictEqual(description, 'Create a safe skill')
+          assert.deepStrictEqual(draft, { name: 'draft' })
+          if (message) throw new Error(message)
+          return { name: 'fixture-skill', content: '# Fixture' }
+        },
+      }, async () => {
+        const res = makeRes()
+        await getRouteHandler('post', '/generate')(makeReq({ body: {
+          description: '  Create a safe skill  ',
+          currentDraft: { name: 'draft' },
+          byokKeys: { openai: 'test-key' },
+        } }), res)
+        assert.strictEqual(res.statusCode, expectedStatus)
+        if (message) assert.match(res.jsonBody.error, new RegExp(expectedMessage!))
+        else assert.strictEqual(res.jsonBody.skill.name, 'fixture-skill')
+      })))
+    }
+    assert.strictEqual(keyTransitions.length, 12)
+    for (let index = 0; index < keyTransitions.length; index += 2) {
+      assert.deepStrictEqual(keyTransitions[index], { openai: 'test-key' })
+      assert.strictEqual(keyTransitions[index + 1], undefined)
+    }
+  })
+
+  await test('partner install status exposes a keyed result for every curated installer', async () => {
+    const res = makeRes()
+    await getRouteHandler('get', '/partner-install/status')(makeReq(), res)
+    assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(res.jsonBody.ok, true)
+    assert.strictEqual(typeof res.jsonBody.statuses, 'object')
+    assert(Object.values(res.jsonBody.statuses).every((status: any) => typeof status.installed === 'boolean'))
   })
 
   console.log('\n========================================')
