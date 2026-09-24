@@ -723,6 +723,39 @@ test('templateToMarkdown produces valid output', () => {
   assert(parsed.name === 'Round Trip', 'Round-trip name should match')
 })
 
+test('template markdown omits absent optional sections and preserves explicit sparse defaults', () => {
+  const { templateToMarkdown, parseTemplateMd } = require('./templates')
+  const sparse = {
+    name: 'Sparse Organization',
+    type: 'organization',
+    agents: [{ id: 'lead' }],
+    teams: [{ name: 'Unnamed Team' }],
+    communities: [{ name: 'General' }],
+    groups: [{ name: 'Updates' }],
+    workflows: [{ id: 'daily', name: 'Daily', targeting: {} }],
+  }
+  const markdown = templateToMarkdown(sparse, {
+    agentFiles: { lead: { 'SOUL.md': '  ', 'TOOLS.md': '# Tools' } },
+  })
+  assert(markdown.includes('version: 1.0.0'), 'Missing version should use portable default')
+  assert(markdown.includes('| lead | lead |'), 'Unnamed agent should render its ID')
+  assert(markdown.includes('**Unnamed Team**'), 'Sparse teams should remain visible')
+  assert(markdown.includes('**General**'), 'Sparse communities should remain visible')
+  assert(markdown.includes('**Updates**'), 'Sparse groups should remain visible')
+  assert(markdown.includes('**Schedule:** manual'), 'Sparse workflows should remain manually scheduled')
+  assert(markdown.includes('**Mode:** automated'), 'Sparse workflows should retain the execution default')
+  assert(!markdown.includes('### lead/SOUL.md'), 'Blank agent files must not be exported')
+  assert(markdown.includes('### lead/TOOLS.md'), 'Populated agent files must be exported')
+  const parsed = parseTemplateMd(markdown)
+  assert(parsed?.name === 'Sparse Organization', 'Sparse template should remain parseable')
+  assertEqual(parsed?.workflows?.length, 1, 'Sparse workflow should round-trip')
+
+  const agentOnly = templateToMarkdown({ name: 'One Agent', type: 'agent', metadata: { aiPrompt: 'Draft carefully' } })
+  assert(agentOnly.includes('## AI Prompt'), 'AI prompt should render when present')
+  assert(!agentOnly.includes('## Agent Files'), 'Agent files are organization-only')
+  assert(!agentOnly.includes('## Workflows'), 'Absent workflow section should not render')
+})
+
 test('templateToMarkdown round-trips multiple workflows with internal markdown headings', () => {
   const { templateToMarkdown, parseTemplateMd } = require('./templates')
   const template = {
