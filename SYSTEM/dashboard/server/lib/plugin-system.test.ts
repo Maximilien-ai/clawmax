@@ -211,6 +211,27 @@ async function run() {
     )
   })
 
+  await test('malformed persisted plugin selections fall back without exposing fixtures', () => {
+    const settingsPath = process.env.CLAWMAX_PLUGIN_SETTINGS_PATH!
+    const originalSelection = process.env.CLAWMAX_ENABLED_PLUGINS
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'clawmax-lifecycle,plugin-review-notes'
+    try {
+      for (const invalid of ['{bad json', JSON.stringify({ version: 2, enabledPluginIds: [] }), JSON.stringify({ version: 1, enabledPluginIds: null })]) {
+        fs.writeFileSync(settingsPath, invalid)
+        const slugs = listConfiguredPlugins().map((plugin) => plugin.slug)
+        assert.deepStrictEqual(slugs, ['clawmax-lifecycle', 'plugin-review-notes'])
+      }
+      fs.writeFileSync(settingsPath, JSON.stringify({ version: 1, enabledPluginIds: ['clawmax-lifecycle', 42, 'clawmax-lifecycle'] }))
+      assert.deepStrictEqual(listConfiguredPlugins().map((plugin) => plugin.slug), ['clawmax-lifecycle'])
+      assert.throws(() => updatePluginSettings([null]), (error: any) => error instanceof PluginContractError && error.statusCode === 400)
+      assert.throws(() => updatePluginSettings('clawmax-lifecycle'), (error: any) => error instanceof PluginContractError && error.statusCode === 400)
+    } finally {
+      fs.unlinkSync(settingsPath)
+      if (originalSelection === undefined) delete process.env.CLAWMAX_ENABLED_PLUGINS
+      else process.env.CLAWMAX_ENABLED_PLUGINS = originalSelection
+    }
+  })
+
   await test('Lifecycle exposes agent files, conversations, models, and chronological evidence', () => {
     const plugin = getPluginBySlug('clawmax-lifecycle')
     assert(plugin, 'Expected public Lifecycle plugin')
