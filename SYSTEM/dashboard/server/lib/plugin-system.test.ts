@@ -263,6 +263,39 @@ async function run() {
     assert(evidence.events.every((entry, index, events) => index === 0 || events[index - 1].at <= entry.at), 'Expected chronological workflow events')
   })
 
+  await test('Lifecycle includes owned workflow artifacts but never traverses outside the workspace', () => {
+    const lifecycle = getPluginBySlug('clawmax-lifecycle')!
+    const workflowId = getPluginWorkspaceContext(lifecycle).workflows[0]?.id
+    assert(workflowId, 'Expected seeded workflow')
+    const executionPath = path.join(tempWorkspace, 'WORKFLOWS', 'executions', workflowId, 'run-1.json')
+    const original = fs.readFileSync(executionPath, 'utf-8')
+    const outputPath = path.join(tempWorkspace, 'WORKFLOWS', 'outputs', workflowId, 'report.md')
+    const externalPath = path.join(tempHome, 'private-output.md')
+    try {
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true })
+      fs.writeFileSync(outputPath, '# Report')
+      fs.writeFileSync(externalPath, '# Private')
+      const execution = JSON.parse(original)
+      execution.outputs = {
+        report: { artifactPath: path.relative(tempWorkspace, outputPath) },
+        repeated: { artifactPath: path.relative(tempWorkspace, outputPath) },
+        outside: { artifactPath: externalPath },
+        missing: { artifactPath: 'WORKFLOWS/outputs/missing.md' },
+        empty: {},
+      }
+      fs.writeFileSync(executionPath, JSON.stringify(execution))
+      const evidence = getWorkflowLifecycleEvidence(lifecycle, workflowId)
+      const artifact = path.relative(tempWorkspace, outputPath)
+      assert.strictEqual(evidence.files.filter((file) => file.path === artifact).length, 1)
+      assert(!evidence.files.some((file) => file.path.includes('private-output.md')))
+      assert(evidence.events.some((event) => event.type === 'file' && event.detail === artifact))
+    } finally {
+      fs.writeFileSync(executionPath, original)
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath)
+      if (fs.existsSync(externalPath)) fs.unlinkSync(externalPath)
+    }
+  })
+
   await test('Lifecycle exposes group and community communication evidence', async () => {
     const plugin = getPluginBySlug('clawmax-lifecycle')
     addMessage('group', 'Research Ops', { from: 'analyst', content: 'Research update', mentions: [] })
