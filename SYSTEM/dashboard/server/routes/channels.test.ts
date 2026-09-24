@@ -147,6 +147,42 @@ async function run() {
     assert.strictEqual(groupRes.statusCode, 400, 'Expected missing group name to return HTTP 400')
   })
 
+  await test('channel metadata edits stay within the named section and preserve adjacent entries', async () => {
+    const { updateGroupTags, updateGroupMembers } = require('../lib/workspace')
+    for (const type of ['community', 'group'] as const) {
+      const filePath = path.join(workspacePath, 'ORG', type === 'community' ? 'COMMUNITIES.md' : 'GROUPS.md')
+      const original = fs.readFileSync(filePath, 'utf-8')
+      try {
+        const fixture = [
+          '# Channels', '## Active', '### Alpha', '- **Description:** First',
+          '### Beta', '- **Tags:** existing', '- **Members:** old',
+          '## Archive', '### Gamma', '- **Description:** Last', '',
+        ].join('\n')
+        fs.writeFileSync(filePath, fixture)
+        assert.strictEqual(updateGroupTags(type, 'Alpha', ['new']), true)
+        assert.strictEqual(updateGroupMembers(type, 'Alpha', ['alice']), true)
+        let current = fs.readFileSync(filePath, 'utf-8')
+        assert.match(current, /### Alpha[\s\S]*?- \*\*Tags:\*\* new[\s\S]*?- \*\*Members:\*\* alice[\s\S]*?### Beta/)
+        assert.match(current, /### Beta\n- \*\*Tags:\*\* existing\n- \*\*Members:\*\* old/)
+
+        assert.strictEqual(updateGroupTags(type, 'Beta', ['updated']), true)
+        assert.strictEqual(updateGroupMembers(type, 'Beta', []), true)
+        current = fs.readFileSync(filePath, 'utf-8')
+        assert.match(current, /### Beta\n- \*\*Tags:\*\* updated\n## Archive/)
+        assert.strictEqual(current.includes('**Members:** old'), false)
+
+        assert.strictEqual(updateGroupTags(type, 'Gamma', ['final']), true)
+        assert.strictEqual(updateGroupMembers(type, 'Gamma', ['zoe']), true)
+        current = fs.readFileSync(filePath, 'utf-8')
+        assert.match(current, /### Gamma[\s\S]*?- \*\*Tags:\*\* final[\s\S]*?- \*\*Members:\*\* zoe/)
+        assert.strictEqual(updateGroupTags(type, 'Missing', ['x']), false)
+        assert.strictEqual(updateGroupMembers(type, 'Missing', ['x']), false)
+      } finally {
+        fs.writeFileSync(filePath, original)
+      }
+    }
+  })
+
   await test('community and group routes create, list, and delete channel structures', async () => {
     const createCommunity = getRouteHandler('post', '/communities')
     const createGroup = getRouteHandler('post', '/groups')
