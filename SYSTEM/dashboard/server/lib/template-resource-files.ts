@@ -43,6 +43,22 @@ export function createTemplateResourceFileCompiler(workspacePath: string, author
       const groups = graph.groups.filter(group => group.members.some(member => member.agentId === agent.id))
       create(`${dir}/GROUPS.md`, `# Groups\n\n${groups.map(group => `- ${group.id}`).join('\n')}\n`)
     }
+    if (graph.communities.length) {
+      const relative = 'ORG/COMMUNITIES.md'
+      const file = templateStoragePath(workspacePath, relative)
+      let before: string | null = null
+      if (fs.existsSync(file)) {
+        const stat = fs.statSync(file)
+        if (!stat.isFile() || stat.size > 1024 * 1024) throw new PortableTemplateError('resource_conflict', 'Community registry is not a bounded regular file', 409)
+        before = fs.readFileSync(file, 'utf8')
+      }
+      for (const community of graph.communities) {
+        if ((before || '').split('\n').some(row => row.trim() === `### ${line(community.name)}`)) throw new PortableTemplateError('resource_conflict', 'Template Community already exists', 409)
+        create(`ORG/template-communities/${community.id}.json`, JSON.stringify(community))
+      }
+      const entries = graph.communities.map(community => `### ${line(community.name)}\n- **Description:** ${line(community.description)}\n- **Tags:** ${community.tags.join(', ')}\n- **Members:** ${community.memberAgentIds.join(', ')}\n- **Template Resource ID:** ${community.id}\n`).join('\n')
+      mutations.push({ path: relative, expectedSha256: before === null ? null : sha256(before), content: `${before || '# Communities\n'}\n## Communities\n\n${entries}` })
+    }
     if (graph.groups.length) {
       const relative = 'ORG/GROUPS.md'
       const file = templateStoragePath(workspacePath, relative)
@@ -56,7 +72,10 @@ export function createTemplateResourceFileCompiler(workspacePath: string, author
         if ((before || '').split('\n').some(row => row.trim() === `### ${group.id}`)) throw new PortableTemplateError('resource_conflict', 'Template Group already exists', 409)
         create(`ORG/template-groups/${group.id}.json`, JSON.stringify(group))
       }
-      const entries = graph.groups.map(group => `### ${group.id}\n- **Description:** ${line(group.name)} — ${line(group.description)}\n- **Members:** ${[...new Set(group.members.map(member => member.agentId))].join(', ')}\n`).join('\n')
+      const entries = graph.groups.map(group => {
+        const community = graph.communities.find(item => item.groupIds.includes(group.id))
+        return `### ${group.id}\n- **Description:** ${line(group.name)} — ${line(group.description)}\n${community ? `- **Community:** ${line(community.name)}\n` : ''}- **Members:** ${[...new Set(group.members.map(member => member.agentId))].join(', ')}\n`
+      }).join('\n')
       mutations.push({ path: relative, expectedSha256: before === null ? null : sha256(before), content: `${before || '# Organization\n'}\n## Groups\n\n${entries}` })
     }
     for (const workflow of graph.workflows) {

@@ -50,7 +50,7 @@ export function createInstanceTemplatesRouter(dependencies: Dependencies) {
     apiVersion, kind: 'Capabilities', workspaceId: context(res).workspaceId,
     workspacePackage: { formats: [], operations: [] },
     templates: {
-      formats: [{ name: 'portable-zip', schemaVersions: ['clawmax.portable-template/v1alpha1'] }],
+      formats: [{ name: 'portable-zip', schemaVersions: ['clawmax.portable-template/v1alpha1', 'clawmax.portable-template/v1alpha2'] }],
       operations: ['export', 'import', 'list', 'remove', 'show', 'validate', 'versions', ...(available ? TEMPLATE_LIFECYCLE_OPERATIONS : [])],
       lifecycle: { available, mode: 'staged-no-tools', execution: false, scheduling: false, skillInstallation: false, credentialDelivery: false },
     },

@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { templateFixture } from './portable-template.test'
+import { addCommunityToTemplateFixture, templateFixture } from './portable-template.test'
 import { validatePortableTemplate } from './portable-template'
 import { compileTemplateResourceGraph } from './template-resource-graph'
 
@@ -23,6 +23,12 @@ async function main() {
   assert.deepEqual(graph.groups[0].members[1].sendTo, ['producer'])
   assert.equal(graph.workflows[0].steps[0].targetId, graph.resources.groups.review)
   assert.equal(Object.keys(graph.resources.communities).length, 0)
+  const communityBundle = await validatePortableTemplate(await templateFixture(addCommunityToTemplateFixture))
+  const communityGraph = compileTemplateResourceGraph(communityBundle, prefix)
+  assert.equal(communityGraph.communities.length, 1)
+  assert.deepEqual(new Set(communityGraph.communities[0].memberAgentIds), new Set(Object.values(communityGraph.resources.agents)))
+  assert.deepEqual(communityGraph.communities[0].groupIds, [communityGraph.resources.groups.review])
+  assert.deepEqual(communityGraph.communities[0].channels, [])
   const separate = compileTemplateResourceGraph(bundle, 'tr-fedcba9876543210')
   assert.notEqual(separate.agents[0].id, graph.agents[0].id, 'Revisions must not share resource IDs')
   assert.throws(() => compileTemplateResourceGraph(bundle, '../escape'), /namespace/)

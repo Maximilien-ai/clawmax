@@ -52,6 +52,7 @@ interface Revision {
   // Private rollback/cleanup data never returned through the public API.
   undo: WorkspaceFileMutation[]
   groupAppend?: string
+  communityAppend?: string
 }
 interface RevisionState { version: 1; current: string | null; revisions: Revision[] }
 const stateRelativePath = 'SYSTEM/.clawmax/template-revisions.json'
@@ -60,7 +61,7 @@ function canonical(value: any): string {
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`
   return JSON.stringify(value)
 }
-function publicRevision(revision: Revision) { const { undo: _undo, groupAppend: _groupAppend, requestDigest: _requestDigest, ...result } = revision; return result }
+function publicRevision(revision: Revision) { const { undo: _undo, groupAppend: _groupAppend, communityAppend: _communityAppend, requestDigest: _requestDigest, ...result } = revision; return result }
 
 /** Owns revision state and exact cleanup independently of the resource compiler.
  * The compiler must reject unsupported runtime/authority semantics, not silently
@@ -144,6 +145,12 @@ export class TemplateRevisionStore {
     if (Object.keys(revision.resources.groups).length && groupWrite?.content?.startsWith(`${groupBase}\n## Groups\n\n`)) {
       revision.groupAppend = groupWrite.content.slice(groupBase.length)
     }
+    const communityWrite = prepared.compiled.mutations.find(item => item.path === 'ORG/COMMUNITIES.md')
+    const communityUndo = undo.find(item => item.path === 'ORG/COMMUNITIES.md')
+    const communityBase = communityUndo?.content ?? '# Communities\n'
+    if (Object.keys(revision.resources.communities).length && communityWrite?.content?.startsWith(`${communityBase}\n## Communities\n\n`)) {
+      revision.communityAppend = communityWrite.content.slice(communityBase.length)
+    }
     const next: RevisionState = { version: 1, current: revision.id, revisions: [...prepared.state.revisions, revision] }
     commitWorkspaceFiles(this.workspacePath, [...prepared.compiled.mutations, { path: stateRelativePath, expectedSha256: prepared.bytes ? sha256(prepared.bytes) : null, content: JSON.stringify(next) }])
     return { created: true, revision: publicRevision(revision) }
@@ -153,10 +160,15 @@ export class TemplateRevisionStore {
   private cleanupMutations(revision: Revision): WorkspaceFileMutation[] {
     return revision.undo.map(item => {
       // Older ledgers retain their original strict whole-file cleanup contract.
-      if (item.path !== 'ORG/GROUPS.md' || revision.groupAppend === undefined) return item
-      const conflict = () => new PortableTemplateError('resource_conflict', 'Revision-owned Group section changed; cleanup requires inspection', 409)
-      const appended = revision.groupAppend
-      if (typeof appended !== 'string' || !appended.startsWith('\n## Groups\n\n') || sha256((item.content ?? '# Organization\n') + appended) !== item.expectedSha256) throw conflict()
+      const isGroup = item.path === 'ORG/GROUPS.md' && revision.groupAppend !== undefined
+      const isCommunity = item.path === 'ORG/COMMUNITIES.md' && revision.communityAppend !== undefined
+      if (!isGroup && !isCommunity) return item
+      const label = isGroup ? 'Group' : 'Community'
+      const sectionName = isGroup ? 'Groups' : 'Communities'
+      const conflict = () => new PortableTemplateError('resource_conflict', `Revision-owned ${label} section changed; cleanup requires inspection`, 409)
+      const appended = isGroup ? revision.groupAppend : revision.communityAppend
+      const base = isGroup ? '# Organization\n' : '# Communities\n'
+      if (typeof appended !== 'string' || !appended.startsWith(`\n## ${sectionName}\n\n`) || sha256((item.content ?? base) + appended) !== item.expectedSha256) throw conflict()
       let current: string
       let fd: number | undefined
       try {
@@ -167,11 +179,12 @@ export class TemplateRevisionStore {
       } catch { throw conflict() } finally { if (fd !== undefined) fs.closeSync(fd) }
       const offset = current.indexOf(appended)
       if (offset < 0 || current.indexOf(appended, offset + appended.length) !== -1) throw conflict()
-      for (const id of Object.values(revision.resources.groups)) {
-        if (current.split('\n').filter(line => line.trim() === `### ${id}`).length !== 1) throw conflict()
+      for (const id of Object.values(isGroup ? revision.resources.groups : revision.resources.communities)) {
+        const marker = isGroup ? `### ${id}` : `- **Template Resource ID:** ${id}`
+        if (current.split('\n').filter(line => line.trim() === marker).length !== 1) throw conflict()
       }
       const remaining = current.slice(0, offset) + current.slice(offset + appended.length)
-      return { path: item.path, expectedSha256: sha256(current), content: item.content === null && remaining === '# Organization\n' ? null : remaining }
+      return { path: item.path, expectedSha256: sha256(current), content: item.content === null && remaining === base ? null : remaining }
     })
   }
   /** Read-only integrity evidence, NOT execution permission. Callers must still
@@ -186,16 +199,16 @@ export class TemplateRevisionStore {
     const conflict = () => new PortableTemplateError('resource_conflict', 'Revision execution resources are missing or changed', 409)
     const paths: string[] = []
     const ids: string[] = []
-    for (const kind of ['agents', 'groups', 'workflows'] as const) {
+    for (const kind of ['agents', 'communities', 'groups', 'workflows'] as const) {
       const resources = revision.resources?.[kind]
       if (!resources || typeof resources !== 'object' || Array.isArray(resources)) throw conflict()
       for (const id of Object.values(resources)) {
-        const singular = kind === 'agents' ? 'agent' : kind === 'groups' ? 'group' : 'workflow'
+        const singular = kind === 'agents' ? 'agent' : kind === 'communities' ? 'community' : kind === 'groups' ? 'group' : 'workflow'
         if (typeof id !== 'string' || !new RegExp(`^tr-[a-f0-9]{16}-${singular}-[a-f0-9]{12}$`).test(id) || ids.includes(id)) throw conflict()
         ids.push(id)
         if (kind === 'agents') {
           for (const name of ['IDENTITY.md', 'SOUL.md', 'GROUPS.md', 'TEMPLATE_RESOURCE.json', ...(revision.authority ? ['TEMPLATE_AUTHORITY.json'] : [])]) paths.push(`AGENTS/${id}/${name}`)
-        } else paths.push(kind === 'groups' ? `ORG/template-groups/${id}.json` : `WORKFLOWS/${id}.json`)
+        } else paths.push(kind === 'communities' ? `ORG/template-communities/${id}.json` : kind === 'groups' ? `ORG/template-groups/${id}.json` : `WORKFLOWS/${id}.json`)
       }
     }
     if (!ids.includes(resourceId)) throw new PortableTemplateError('revision_forbidden', 'Resource does not belong to this revision', 403)
