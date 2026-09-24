@@ -122,9 +122,138 @@ test('offline backup refuses symlinked supplemental data instead of following ex
   try {
     fs.symlinkSync('/etc/passwd', path.join(fx.dataRoot, 'linked-secret'))
     assert.throws(() => createBundle({ dataRoot: fx.dataRoot, output: fx.output, writersStopped: true, openclawBin: fx.openclawBin }),
-      error => error instanceof OfflineBackupError && error.code === 'unsupported_symlink')
+      error => error instanceof OfflineBackupError && error.code === 'external_symlink')
     assert(!fs.existsSync(fx.output))
   } finally { cleanup(fx) }
+})
+
+test('RC57-style relative links are preserved without copying targets and survive candidate restore', () => {
+  const fx = fixture()
+  try {
+    const links = []
+    for (let index = 0; index < 15; index++) {
+      const name = `agent-link-${index}`
+      const link = path.join(fx.dataRoot, 'default', name)
+      fs.symlinkSync('AGENTS/agent-one', link)
+      links.push(link)
+    }
+    const nativeLink = path.join(fx.dataRoot, 'default', 'runtime-config')
+    fs.symlinkSync('../.home/.openclaw/openclaw.json', nativeLink)
+    createBundle({ dataRoot: fx.dataRoot, output: fx.output, writersStopped: true, openclawBin: fx.openclawBin })
+    const manifest = JSON.parse(fs.readFileSync(path.join(fx.output, 'manifest.json'), 'utf8'))
+    assert.equal(manifest.schemaVersion, 2)
+    assert.equal(manifest.symlinks.length, 16)
+    assert.equal(verifyBundle(fx.output, { openclawBin: fx.openclawBin }).assets.symlinks, 16)
+    const original = path.join(fx.root, 'original-DATA')
+    fs.renameSync(fx.dataRoot, original)
+    fs.mkdirSync(path.join(fx.dataRoot, '.home', '.openclaw'), { recursive: true })
+    process.env.FAKE_DATA_ROOT = fs.realpathSync(fx.dataRoot)
+    const restored = restoreBundle({ bundle: fx.output, candidateRoot: fx.dataRoot, writersStopped: true, openclawBin: fx.openclawBin })
+    assert.equal(restored.assets.symlinks, 16)
+    for (const link of links) {
+      assert(fs.lstatSync(link).isSymbolicLink())
+      assert.equal(fs.readlinkSync(link), 'AGENTS/agent-one')
+    }
+    assert(fs.lstatSync(nativeLink).isSymbolicLink())
+    assert.equal(fs.readlinkSync(nativeLink), '../.home/.openclaw/openclaw.json')
+    assert(fs.lstatSync(path.join(original, 'default', 'agent-link-0')).isSymbolicLink())
+  } finally { delete process.env.FAKE_DATA_ROOT; cleanup(fx) }
+})
+
+test('relative escaping and changed bundle links fail with stable errors', () => {
+  const fx = fixture()
+  try {
+    const link = path.join(fx.dataRoot, 'default', 'outside')
+    fs.symlinkSync('../../../outside', link)
+    assert.throws(() => createBundle({ dataRoot: fx.dataRoot, output: fx.output, writersStopped: true, openclawBin: fx.openclawBin }),
+      error => error instanceof OfflineBackupError && error.code === 'external_symlink')
+    assert(!fs.existsSync(fx.output))
+    fs.rmSync(link)
+    fs.symlinkSync('AGENTS/agent-one', link)
+    createBundle({ dataRoot: fx.dataRoot, output: fx.output, writersStopped: true, openclawBin: fx.openclawBin })
+    const archived = path.join(fx.output, 'dashboard', 'default', 'outside')
+    fs.rmSync(archived)
+    fs.symlinkSync('AGENTS/other', archived)
+    assert.throws(() => verifyBundle(fx.output, { openclawBin: fx.openclawBin }),
+      error => error instanceof OfflineBackupError && error.code === 'integrity_failed')
+  } finally { cleanup(fx) }
+})
+
+test('source version provenance is separate from the running backup tool', () => {
+  const fx = fixture()
+  const previous = process.env.CLAWMAX_VERSION
+  try {
+    process.env.CLAWMAX_VERSION = '2.0.0-test-rc86'
+    createBundle({ dataRoot: fx.dataRoot, output: fx.output, writersStopped: true, openclawBin: fx.openclawBin,
+      sourceDashboardVersion: '2.0.0-test-rc57', sourceOpenclawVersion: '2026.8.2' })
+    const manifest = JSON.parse(fs.readFileSync(path.join(fx.output, 'manifest.json'), 'utf8'))
+    assert.deepEqual(manifest.versions.dashboard, { value: '2.0.0-test-rc57', provenance: 'operator-attested-from-source-image' })
+    assert.deepEqual(manifest.versions.openclaw, { value: '2026.8.2', provenance: 'operator-attested-from-source-image' })
+    assert.deepEqual(manifest.versions.backupTool, { value: '2.0.0-test-rc86', provenance: 'running-backup-image' })
+    assert.equal(verifyBundle(fx.output, { openclawBin: fx.openclawBin }).dashboardVersion, '2.0.0-test-rc57')
+  } finally {
+    if (previous === undefined) delete process.env.CLAWMAX_VERSION
+    else process.env.CLAWMAX_VERSION = previous
+    cleanup(fx)
+  }
+})
+
+test('missing source versions stay unknown and CLI-attested RC57 versions are recorded', () => {
+  const unknown = fixture()
+  const attested = fixture()
+  try {
+    createBundle({ dataRoot: unknown.dataRoot, output: unknown.output, writersStopped: true, openclawBin: unknown.openclawBin })
+    const unknownManifest = JSON.parse(fs.readFileSync(path.join(unknown.output, 'manifest.json'), 'utf8'))
+    assert.deepEqual(unknownManifest.versions.dashboard, { value: 'unknown', provenance: 'not-provided' })
+    assert.deepEqual(unknownManifest.versions.openclaw, { value: 'unknown', provenance: 'not-provided' })
+    const result = spawnSync(process.execPath, [path.join(import.meta.dirname, 'offline-backup.mjs'),
+      'backup', '--data-root', attested.dataRoot, '--output', attested.output, '--writers-stopped',
+      '--openclaw-bin', attested.openclawBin, '--source-dashboard-version', '2.0.0-test-rc57',
+      '--source-openclaw-version', '2026.8.2'], { encoding: 'utf8' })
+    assert.equal(result.status, 0)
+    const manifest = JSON.parse(fs.readFileSync(path.join(attested.output, 'manifest.json'), 'utf8'))
+    assert.equal(manifest.versions.dashboard.value, '2.0.0-test-rc57')
+    assert.equal(manifest.versions.openclaw.value, '2026.8.2')
+  } finally { cleanup(unknown); cleanup(attested) }
+})
+
+test('schema 1 bundles remain verifiable and restorable without link inventory', () => {
+  const fx = fixture()
+  try {
+    createBundle({ dataRoot: fx.dataRoot, output: fx.output, writersStopped: true, openclawBin: fx.openclawBin })
+    const manifestPath = path.join(fx.output, 'manifest.json')
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    manifest.schemaVersion = 1
+    manifest.dashboardVersion = '2.0.0-test-rc86'
+    manifest.openclawVersion = '2026.9.5'
+    delete manifest.versions
+    delete manifest.symlinks
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest))
+    assert.equal(verifyBundle(fx.output, { openclawBin: fx.openclawBin }).dashboardVersion, '2.0.0-test-rc86')
+    fs.renameSync(fx.dataRoot, path.join(fx.root, 'original-DATA'))
+    fs.mkdirSync(path.join(fx.dataRoot, '.home', '.openclaw'), { recursive: true })
+    process.env.FAKE_DATA_ROOT = fs.realpathSync(fx.dataRoot)
+    assert.equal(restoreBundle({ bundle: fx.output, candidateRoot: fx.dataRoot,
+      writersStopped: true, openclawBin: fx.openclawBin }).status, 'restored')
+  } finally { delete process.env.FAKE_DATA_ROOT; cleanup(fx) }
+})
+
+test('interrupted restore with links leaves original intact and no success receipt', () => {
+  const fx = fixture()
+  try {
+    fs.symlinkSync('AGENTS/agent-one', path.join(fx.dataRoot, 'default', 'linked-agent'))
+    createBundle({ dataRoot: fx.dataRoot, output: fx.output, writersStopped: true, openclawBin: fx.openclawBin })
+    const original = path.join(fx.root, 'original-DATA')
+    fs.renameSync(fx.dataRoot, original)
+    fs.mkdirSync(path.join(fx.dataRoot, '.home', '.openclaw'), { recursive: true })
+    process.env.FAKE_DATA_ROOT = fs.realpathSync(fx.dataRoot)
+    process.env.FAKE_DOCTOR_FAIL = 'true'
+    assert.throws(() => restoreBundle({ bundle: fx.output, candidateRoot: fx.dataRoot, writersStopped: true, openclawBin: fx.openclawBin }),
+      error => error instanceof OfflineBackupError && error.code === 'migration_failed')
+    assert(!fs.existsSync(path.join(fx.dataRoot, '.clawmax-offline-restore.json')))
+    assert(fs.lstatSync(path.join(original, 'default', 'linked-agent')).isSymbolicLink())
+    assert(fs.existsSync(path.join(original, '.home', '.openclaw', 'auth-profiles.json')))
+  } finally { delete process.env.FAKE_DATA_ROOT; delete process.env.FAKE_DOCTOR_FAIL; cleanup(fx) }
 })
 
 test('offline CLI emits one versioned JSON result without private diagnostics', () => {
