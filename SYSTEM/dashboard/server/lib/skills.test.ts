@@ -1339,6 +1339,40 @@ test('bundled plugin skill roots are discovered without allowing manifest traver
   fs.rmSync(packageRoot, { recursive: true, force: true })
 })
 
+test('bundled plugin discovery skips malformed, missing, and symlink-escaped skill roots', () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-plugin-skill-boundary-'))
+  const skillsRoot = path.join(packageRoot, 'skills')
+  const extensionsRoot = path.join(packageRoot, 'extensions')
+  const externalRoot = path.join(packageRoot, 'outside')
+  try {
+    fs.mkdirSync(skillsRoot, { recursive: true })
+    fs.mkdirSync(externalRoot, { recursive: true })
+    fs.writeFileSync(path.join(externalRoot, 'SKILL.md'), '# outside')
+    const scenarios = [
+      { id: 'broken', manifest: '{bad json' },
+      { id: 'none', manifest: JSON.stringify({ id: 'none' }) },
+      { id: 'invalid', manifest: JSON.stringify({ id: 'invalid', skills: [null, '', 1, '../outside', './missing'] }) },
+      { id: 'valid', manifest: JSON.stringify({ id: 'valid', skills: ['skills', 'skills'] }) },
+    ]
+    for (const scenario of scenarios) {
+      const pluginDir = path.join(extensionsRoot, scenario.id)
+      fs.mkdirSync(pluginDir, { recursive: true })
+      fs.writeFileSync(path.join(pluginDir, 'openclaw.plugin.json'), scenario.manifest)
+    }
+    const validRoot = path.join(extensionsRoot, 'valid', 'skills')
+    fs.mkdirSync(path.join(validRoot, 'nested'), { recursive: true })
+    fs.writeFileSync(path.join(validRoot, 'nested', 'SKILL.md'), '# valid')
+    fs.mkdirSync(path.join(validRoot, 'no-markdown'), { recursive: true })
+    const linkedDir = path.join(extensionsRoot, 'invalid', 'linked')
+    fs.symlinkSync(externalRoot, linkedDir)
+    fs.writeFileSync(path.join(extensionsRoot, 'invalid', 'openclaw.plugin.json'), JSON.stringify({ id: 'invalid', skills: ['linked', '../outside', './missing', ''] }))
+    const discovered = findBundledPluginSkillFiles(skillsRoot)
+    assertEqual(JSON.stringify(discovered), JSON.stringify([fs.realpathSync(path.join(validRoot, 'nested', 'SKILL.md'))]), 'Only the valid in-plugin skill may be discovered')
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true })
+  }
+})
+
 // Test 14: Bundled skills resolve to packaged skill roots
 test('Bundled skills have correct file path', () => {
   const skills = listAvailableSkills()
