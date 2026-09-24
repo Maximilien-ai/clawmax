@@ -2293,9 +2293,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running API security boundary tests...${NC}"
-npx ts-node --transpileOnly server/lib/security-boundaries.test.ts > /tmp/clawmax-security-boundaries.out 2>&1 || true
-if grep -q "security-boundaries.test.ts: 65 tests passed" /tmp/clawmax-security-boundaries.out; then
-  pass "API security boundary tests (65 tests)"
+npx ts-node --transpileOnly server/lib/security-boundaries.test.ts > /tmp/clawmax-security-boundaries.out 2>&1
+security_boundaries_status=$?
+if [ "$security_boundaries_status" -eq 0 ] && grep -Eq "security-boundaries.test.ts: [0-9]+ tests passed" /tmp/clawmax-security-boundaries.out; then
+  security_boundaries_count=$(sed -n 's/.*security-boundaries.test.ts: \([0-9][0-9]*\) tests passed.*/\1/p' /tmp/clawmax-security-boundaries.out | tail -n 1)
+  pass "API security boundary tests (${security_boundaries_count} tests)"
 else
   cat /tmp/clawmax-security-boundaries.out
   fail "API security boundary tests"
