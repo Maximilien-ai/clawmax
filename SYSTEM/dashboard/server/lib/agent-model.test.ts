@@ -809,6 +809,19 @@ test('resetAgentSessionsForModelChange archives runtime session state', () => {
   assert(archived.some(name => name.endsWith('session-a.jsonl')), 'Expected archived session transcript')
 })
 
+test('session reset ignores absent state and unrelated files', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-reset-'))
+  try {
+    assert(resetAgentSessionsForModelChange(home, 'ceo').ok, 'Absent sessions should be a no-op')
+    const sessionsDir = path.join(home, '.openclaw', 'agents', 'ceo', 'sessions')
+    fs.mkdirSync(path.join(sessionsDir, 'nested'), { recursive: true })
+    fs.writeFileSync(path.join(sessionsDir, 'notes.txt'), 'unrelated')
+    assert(resetAgentSessionsForModelChange(home, 'ceo').ok, 'Unrelated entries should not fail reset')
+    assert(fs.existsSync(path.join(sessionsDir, 'notes.txt')), 'Unrelated file should remain')
+    assert(fs.existsSync(path.join(sessionsDir, 'nested')), 'Unrelated directory should remain')
+  } finally { fs.rmSync(home, { recursive: true, force: true }) }
+})
+
 setTimeout(() => {
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
