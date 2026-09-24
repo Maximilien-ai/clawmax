@@ -1276,6 +1276,41 @@ test('triggerWorkflow rejects a concurrent second run before it can increment st
   assert(!second.success && /already running/i.test(second.error || ''), 'Second trigger must be rejected while the first claim is active')
 })
 
+test('workflow admission disables exhausted scheduled runs without creating an execution', () => {
+  const result = createWorkflow({
+    name: `Run Limit ${Date.now()}`,
+    description: 'Scheduled workflow with exhausted quota',
+    schedule: '0 9 * * *',
+    content: '# Limited run',
+    executionMode: 'automated',
+    targeting: { agents: [], groups: [], communities: [], tags: [] },
+  })
+  assert(result.success && !!result.id, `Workflow should be created: ${result.error}`)
+  createdIds.push(result.id!)
+  updateWorkflow(result.id!, { maxRuns: 1, runCount: 1 } as any)
+  const before = listExecutions(result.id!).length
+  const rejected = triggerWorkflow(result.id!, { manual: false })
+  assert(!rejected.success && /max runs limit/i.test(rejected.error || ''), 'Scheduled run must stop at its configured limit')
+  assert(getWorkflow(result.id!)?.enabled === false, 'Exhausted workflow should be disabled')
+  assert(listExecutions(result.id!).length === before, 'Rejected admission must not create execution history')
+})
+
+test('single-workflow admission rejects empty participant selection before claiming a run', () => {
+  const result = createWorkflow({
+    name: `No Participants ${Date.now()}`,
+    description: 'Single-workflow admission boundary',
+    schedule: 'manual',
+    content: '# Work',
+    executionMode: 'automated',
+    targeting: { agents: ['missing-agent'], groups: [], communities: [], tags: [] },
+  })
+  assert(result.success && !!result.id, `Workflow should be created: ${result.error}`)
+  createdIds.push(result.id!)
+  const rejected = triggerWorkflow(result.id!, { manual: true, executionScope: 'single-workflow' })
+  assert(!rejected.success && /no executable participants/i.test(rejected.error || ''), 'Empty resolved target must be refused')
+  assert(listExecutions(result.id!).length === 0, 'No execution should be persisted for empty target')
+})
+
 test('getWorkflow marks an execution owned by an earlier dashboard boot as interrupted', () => {
   const result = createWorkflow({
     name: `Restart Recovery ${Date.now()}`,
