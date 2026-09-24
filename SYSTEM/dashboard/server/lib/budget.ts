@@ -9,7 +9,7 @@ import path from 'path'
 import { getWorkspacePath } from './workspace'
 import { getWorkspaceMetering, type MeteringViewer } from './metering'
 import { getWorkspaceManager } from './workspace-manager'
-import { isOpikEnabled } from './opik'
+import { getRuntimeInstanceIdentity, isOpikEnabled } from './opik'
 
 export interface BudgetConfig {
   /** Maximum budget in USD (e.g., 10.00) */
@@ -37,6 +37,17 @@ const DEFAULT_CONFIG: BudgetConfig = {
   paused: false,
 }
 
+export function updatedBudgetConfig(current: BudgetConfig, updates: Partial<BudgetConfig>, spendUsd: number): BudgetConfig {
+  const limitUsd = updates.limitUsd ?? current.limitUsd
+  const enforced = updates.enforced ?? current.enforced
+  return {
+    limitUsd,
+    warningPct: updates.warningPct ?? current.warningPct,
+    enforced,
+    paused: enforced && limitUsd > 0 && spendUsd >= limitUsd,
+  }
+}
+
 function getBudgetPath(workspaceId?: string): string {
   const workspacePath = workspaceId
     ? getWorkspaceManager().resolveWorkspacePath(workspaceId)
@@ -62,7 +73,13 @@ export function saveBudgetConfig(config: BudgetConfig, workspaceId?: string): vo
 
 export async function getBudgetStatus(workspaceId?: string, viewer?: MeteringViewer): Promise<BudgetStatus> {
   const config = loadBudgetConfig(workspaceId)
-  const metering = await getWorkspaceMetering(workspaceId, viewer)
+  const instance = getRuntimeInstanceIdentity()
+  const metering = await getWorkspaceMetering(workspaceId, {
+    instanceKey: instance.instanceKey || null,
+    machineId: instance.machineId || null,
+    machineName: instance.machineName || null,
+    ...viewer,
+  })
   const currentSpend = metering.estimatedCostUsd
 
   const usedPct = config.limitUsd > 0
@@ -84,7 +101,7 @@ export async function getBudgetStatus(workspaceId?: string, viewer?: MeteringVie
   }
 
   // Auto-unpause if spend drops below limit (e.g., after budget increase)
-  if (config.paused && level !== 'exceeded') {
+  if (config.paused && (!config.enforced || level !== 'exceeded')) {
     config.paused = false
     saveBudgetConfig(config, workspaceId)
     console.log(`[Budget] Budget no longer exceeded — agents unpaused`)

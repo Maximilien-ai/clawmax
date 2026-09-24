@@ -1010,6 +1010,15 @@ else
   fail "Workspace scope helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace budget client tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workspaceBudget.test.ts > /tmp/clawmax-workspace-budget-client.out 2>&1 || true
+if grep -q "Workspace budget client tests passed" /tmp/clawmax-workspace-budget-client.out; then
+  pass "Workspace budget client tests (8 assertions)"
+else
+  cat /tmp/clawmax-workspace-budget-client.out
+  fail "Workspace budget client tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace scope edge-case unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceScopeEdges.test.ts > /tmp/clawmax-workspace-scope-edges.out 2>&1 || true
 if grep -q "workspaceScopeEdges.test.ts:" /tmp/clawmax-workspace-scope-edges.out; then

@@ -13,6 +13,7 @@ import {
   getBudgetStatus,
   checkBudgetBlock,
   validateAgentCostLimit,
+  updatedBudgetConfig,
 } from './budget'
 import { initOpikTracing, shutdownOpik } from './opik'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
@@ -90,6 +91,19 @@ async function run() {
     assert(budgetB.limitUsd === 22, 'Expected workspace-b limit to persist independently')
     assert(budgetA.enforced === true, 'Expected workspace-a enforced=true')
     assert(budgetB.enforced === false, 'Expected workspace-b enforced=false')
+  })
+
+  await test('raising or disabling one workspace budget clears only its own pause', () => {
+    const exceeded = { limitUsd: 10, warningPct: 80, enforced: true, paused: true }
+    const raised = updatedBudgetConfig(exceeded, { limitUsd: 20 }, 15)
+    const disabled = updatedBudgetConfig(exceeded, { enforced: false }, 15)
+    const stillExceeded = updatedBudgetConfig(exceeded, { warningPct: 90 }, 15)
+    assert(!raised.paused && raised.limitUsd === 20, 'Raising the limit must unpause')
+    assert(!disabled.paused, 'Disabling enforcement must unpause')
+    assert(stillExceeded.paused, 'An unrelated edit must not unblock an exceeded budget')
+    saveBudgetConfig(raised, 'workspace-a')
+    saveBudgetConfig(exceeded, 'workspace-b')
+    assert(!loadBudgetConfig('workspace-a').paused && loadBudgetConfig('workspace-b').paused, 'Workspace pauses must remain independent')
   })
 
   await test('getBudgetStatus reads the requested workspace config', async () => {

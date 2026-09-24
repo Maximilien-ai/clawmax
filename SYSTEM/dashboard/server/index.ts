@@ -43,7 +43,7 @@ import { requireAuth, verifyToken } from './lib/auth'
 import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthConfigured, getAuthenticatedSession, shouldUseSecureAuthCookies } from './lib/github-auth'
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
-import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
+import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, updatedBudgetConfig, BudgetConfig } from './lib/budget'
 import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardDeploymentKind, getDashboardEnvRaw, getDashboardInstanceLabel, getDefaultOllamaBaseUrl, getDefaultOpenAICompatibleBaseUrl, isManagedRuntime, isOllamaUiEnabled, resolveSystemExecutionProviderKeys } from './lib/dashboard-env'
 import { getResolvedMaintenanceBanner } from './lib/cloud-maintenance-status'
 import { getHostAgentStatus } from './lib/host-agent-status'
@@ -448,17 +448,9 @@ app.get('/api/budget', protect, async (req, res) => {
       })
     }
     const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : undefined
-    const session = getAuthenticatedSession(req)
-    const runtimeIdentity = getRuntimeInstanceIdentity()
-    const status = await getBudgetStatus(workspaceId, {
-      userId: session?.userId || null,
-      login: session?.login || null,
-      email: session?.email || null,
-      dashboardInstanceId: getRequestDashboardInstanceId(req),
-      instanceKey: runtimeIdentity.instanceKey || null,
-      machineId: runtimeIdentity.machineId || null,
-      machineName: runtimeIdentity.machineName || null,
-    })
+    // A workspace budget is shared by every actor in that workspace. Viewer-
+    // scoped spend would undercount the budget and disagree with enforcement.
+    const status = await getBudgetStatus(workspaceId)
     res.json({ enabled: true, ...status })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
@@ -466,7 +458,7 @@ app.get('/api/budget', protect, async (req, res) => {
 })
 
 // Update budget config
-app.put('/api/budget', protect, (req, res) => {
+app.put('/api/budget', protect, async (req, res) => {
   try {
     if (!isOpikEnabled()) {
       return res.status(400).json({
@@ -478,21 +470,21 @@ app.put('/api/budget', protect, (req, res) => {
     const current = loadBudgetConfig(workspaceId)
 
     // Validate
-    if (updates.limitUsd !== undefined && (typeof updates.limitUsd !== 'number' || updates.limitUsd < 0)) {
+    if (updates.limitUsd !== undefined && (typeof updates.limitUsd !== 'number' || !Number.isFinite(updates.limitUsd) || updates.limitUsd < 0)) {
       res.status(400).json({ error: 'limitUsd must be a non-negative number' })
       return
     }
-    if (updates.warningPct !== undefined && (typeof updates.warningPct !== 'number' || updates.warningPct < 0 || updates.warningPct > 100)) {
+    if (updates.warningPct !== undefined && (typeof updates.warningPct !== 'number' || !Number.isFinite(updates.warningPct) || updates.warningPct < 0 || updates.warningPct > 100)) {
       res.status(400).json({ error: 'warningPct must be 0-100' })
       return
     }
-
-    const config: BudgetConfig = {
-      limitUsd: updates.limitUsd ?? current.limitUsd,
-      warningPct: updates.warningPct ?? current.warningPct,
-      enforced: updates.enforced ?? current.enforced,
-      paused: updates.paused ?? current.paused,
+    if (updates.enforced !== undefined && typeof updates.enforced !== 'boolean') {
+      res.status(400).json({ error: 'enforced must be a boolean' })
+      return
     }
+
+    const spend = (await getBudgetStatus(workspaceId)).currentSpendUsd
+    const config = updatedBudgetConfig(current, updates, spend)
 
     saveBudgetConfig(config, workspaceId)
     res.json({ ok: true, config })
