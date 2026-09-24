@@ -414,12 +414,18 @@ async function run() {
   })
 
   await test('partner install status exposes a keyed result for every curated installer', async () => {
-    const res = makeRes()
-    await getRouteHandler('get', '/partner-install/status')(makeReq(), res)
-    assert.strictEqual(res.statusCode, 200)
-    assert.strictEqual(res.jsonBody.ok, true)
-    assert.strictEqual(typeof res.jsonBody.statuses, 'object')
-    assert(Object.values(res.jsonBody.statuses).every((status: any) => typeof status.installed === 'boolean'))
+    await withModuleOverrides(require.resolve('child_process'), {
+      execFile: (_command: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(null, JSON.stringify({ plugins: [] }), '')
+      },
+    }, async () => {
+      const res = makeRes()
+      await getRouteHandler('get', '/partner-install/status')(makeReq(), res)
+      assert.strictEqual(res.statusCode, 200)
+      assert.strictEqual(res.jsonBody.ok, true)
+      assert.strictEqual(typeof res.jsonBody.statuses, 'object')
+      assert(Object.values(res.jsonBody.statuses).every((status: any) => typeof status.installed === 'boolean'))
+    })
   })
 
   console.log('\n========================================')
