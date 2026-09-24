@@ -756,6 +756,53 @@ test('template markdown omits absent optional sections and preserves explicit sp
   assert(!agentOnly.includes('## Workflows'), 'Absent workflow section should not render')
 })
 
+test('lean template parser accepts bullet agents, mixed workflow targets, and bounded agent files', () => {
+  const { parseTemplateMd } = require('./templates')
+  const markdown = [
+    '---', 'name: Handwritten Organization', 'type: organization', 'category: operations',
+    'parameters:', '  - name: region', '    default: west', '---', '',
+    'Handwritten deployment notes.', '',
+    '## Agents', '',
+    '- **lead**: Operations lead (tags: manager, ops) (skills: github, workspace-ls)',
+    '- **writer**: Drafts updates', '',
+    '## Teams', '',
+    '- **Operations** — Runs delivery (id: operations; leader: lead; members: lead, writer; tags: ops, delivery)',
+    '- **Review Team** — Reviews output', '',
+    '## Communities', '', '- **Company** — Shared context', '',
+    '## Groups', '', '- **Updates** — Daily updates (Company)', '',
+    '## Workflows', '',
+    '### Daily Brief',
+    '- **Description:** Summarize progress',
+    '- **Schedule:** 0 9 * * *',
+    '- **Mode:** automated',
+    '- **Depends On:** source scan, approval',
+    '- **Targets:** agents: lead, writer; teams: operations; groups: Updates; communities: Company; tags: ops',
+    '', '    # Brief', '    Include status.', '',
+    '### Final Review', '- **Mode:** managed', '', 'Review the result.', '',
+    '## Agent Files', '',
+    '### lead/SOUL.md', '', '```md', '# Lead soul', '### Preserve this heading', '```', '',
+    '### writer/TOOLS.md', '', '# Writer tools', '',
+    '### lead/UNSUPPORTED.md', '', 'Do not import.', '',
+  ].join('\n')
+  const parsed = parseTemplateMd(markdown) as any
+  assert(parsed !== null, 'Handwritten lean template should parse')
+  assertEqual(parsed.description, 'Handwritten deployment notes.', 'Leading prose should become description')
+  assertEqual(parsed.agents.length, 2, 'Bullet agents should parse')
+  assertEqual(parsed.agents[0].tags.join(','), 'manager,ops', 'Agent tags should parse')
+  assertEqual(parsed.agents[0].skills.join(','), 'github,workspace-ls', 'Agent skills should parse')
+  assertEqual(parsed.teams[0].memberAgentIds.join(','), 'lead,writer', 'Team members should parse')
+  assertEqual(parsed.teams[1].id, 'review-team', 'Missing team ID should use a stable slug')
+  assertEqual(parsed.groups[0].community, 'Company', 'Group community should parse')
+  assertEqual(parsed.workflows[0].dependsOn.join(','), 'source-scan,approval', 'Workflow dependencies should normalize')
+  assertEqual(parsed.workflows[0].targeting.teamIds.join(','), 'operations', 'Team workflow target should parse')
+  assertEqual(parsed.workflows[0].targeting.communities.join(','), 'Company', 'Community workflow target should parse')
+  assert(parsed.workflows[0].content.includes('Include status.'), 'Indented workflow body should decode')
+  assertEqual(parsed.workflows[1].schedule, 'manual', 'Sparse workflow should keep manual default')
+  assertEqual(parsed.agentFiles.lead['SOUL.md'].includes('### Preserve this heading'), true, 'Fenced file headings should remain content')
+  assertEqual(parsed.agentFiles.writer['TOOLS.md'], '# Writer tools', 'Unfenced agent files should parse')
+  assertEqual(parsed.agentFiles.lead['UNSUPPORTED.md'], undefined, 'Unrecognized agent files must be ignored')
+})
+
 test('templateToMarkdown round-trips multiple workflows with internal markdown headings', () => {
   const { templateToMarkdown, parseTemplateMd } = require('./templates')
   const template = {
