@@ -1,9 +1,17 @@
 # Backlog
 
-> Last updated: September 23, 2026
+> Last updated: September 24, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Mini Sprint
+
+- [ ] **RC86 on-prem offline upgrade recovery** — implement the versioned
+  Dashboard backup/verify/restore contract, using OpenClaw's verified native
+  archive for sessions/auth/SQLite and a separate inventory for Dashboard-owned
+  data. Restore and migrate only into an empty candidate volume; never touch
+  the original. Gate release on the private M4 RC57→RC85 fixture, locked and
+  interrupted operations, insufficient space, preserved state, and rollback.
+  See [offline upgrade recovery design](planning/ONPREM_OFFLINE_UPGRADE_RECOVERY.md).
 
 - [ ] **RC85 release gate** — complete clean integration/validation with at least
   77% branch coverage, publish and validate matching public/combined images,
