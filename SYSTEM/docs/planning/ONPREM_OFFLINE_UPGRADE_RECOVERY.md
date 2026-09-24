@@ -44,7 +44,13 @@ session text, or config contents.
   private temporary directory and publishes it only after verification.
   Existing output is never overwritten. The manifest records bundle/schema
   version, source Dashboard/OpenClaw versions, source layout, required mounts,
-  logical assets, byte lengths, SHA-256 digests, and creation time. It never
+  logical assets, byte lengths, SHA-256 digests, and creation time. Schema 2
+  records safe relative in-mount links as link text without following or copying
+  their targets; absolute, escaping, dangling, or ambiguous links block with
+  `external_symlink` or `unsafe_symlink`. Source Dashboard and OpenClaw versions
+  are distinct from the running backup tool version. The caller may provide
+  source versions attested from the original pinned image; otherwise each is
+  `unknown` with `not-provided` provenance. It never
   contains resolved credentials or transcript text.
 - `verify` (source implementation available): independently validates the manifest, exact asset inventory,
   digests, OpenClaw archive, and supported schema version without changing the
@@ -58,12 +64,16 @@ session text, or config contents.
   candidate is not reused; retry starts with another empty candidate.
 
 The current source-only invocations are
-`node /app/SYSTEM/dashboard/offline-backup.mjs backup --data-root /app/DATA --output /private-backups/<new-name> --writers-stopped`,
+`node /app/SYSTEM/dashboard/offline-backup.mjs backup --data-root /app/DATA --output /private-backups/<new-name> --writers-stopped --source-dashboard-version 2.0.0-test-rc57 --source-openclaw-version 2026.8.2`,
 `verify --bundle /private-backups/<name>`, and
 `restore --bundle /private-backups/<name> --candidate-root /app/DATA --writers-stopped`.
 Run the image with its entrypoint overridden; **do not** start the normal
 entrypoint. `--writers-stopped` is an operator assertion, not a process-lock
 proof. A future release gate must prove the local agent stopped every writer.
+The CLI team must verify both supplied source versions against the original
+pinned image before passing them; this offline executable cannot inspect that
+image from inside the new container and does not infer source versions from its
+own binaries. Omit unverified values so the manifest records `unknown`.
 The candidate must appear at the same canonical data-root path as the source
 did when backed up, but it must be a distinct empty volume; the source volume
 must not be mounted in the restore container.
@@ -77,9 +87,14 @@ must still be confirmed with the CLI team):
   "operation": "verify",
   "status": "verified",
   "bundleId": "uuid",
-  "dashboardVersion": "2.0.0-test-rc85",
-  "openclawVersion": "2026.9.5",
-  "assets": { "files": 0, "bytes": 0 },
+  "dashboardVersion": "2.0.0-test-rc57",
+  "openclawVersion": "2026.8.2",
+  "versions": {
+    "dashboard": { "value": "2.0.0-test-rc57", "provenance": "operator-attested-from-source-image" },
+    "openclaw": { "value": "2026.8.2", "provenance": "operator-attested-from-source-image" },
+    "backupTool": { "value": "2.0.0-test-rc87", "provenance": "running-backup-image" }
+  },
+  "assets": { "files": 0, "symlinks": 0, "bytes": 0 },
   "checks": { "manifest": "passed", "hashes": "passed", "openclaw": "passed" }
 }
 ```
@@ -87,7 +102,7 @@ must still be confirmed with the CLI team):
 Failure responses use `status: "blocked"` and a stable `code`, e.g.
 `writers_not_confirmed`, `sqlite_busy`, `insufficient_space`, `external_path_unmapped`,
 `unsupported_bundle_version`, `integrity_failed`, `candidate_not_empty`,
-`migration_failed`, or `verification_failed`. They identify a safe next action
+`external_symlink`, `unsafe_symlink`, `migration_failed`, or `verification_failed`. They identify a safe next action
 without including credentials, transcript data, or raw config content.
 
 ## OpenClaw-owned state
