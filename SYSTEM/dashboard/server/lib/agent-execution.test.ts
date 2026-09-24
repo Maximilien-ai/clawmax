@@ -695,6 +695,68 @@ test('readLatestAssistantTextFromPersistedSession extracts assistant text from r
   assert(latest?.content === "I'm the CEO agent.", `Expected assistant text from persisted session, got ${latest?.content}`)
 })
 
+test('session resolution prefers existing files and recovers from invalid indexes', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-edges-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'writer', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  try {
+    assert(resolvePersistedAgentSessionId('', 'key', 'preferred', home) === 'preferred', 'Missing agent should keep caller alias')
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', '') === 'preferred', 'Missing home should keep caller alias')
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', home) === 'preferred', 'Empty store should keep alias')
+    fs.writeFileSync(path.join(sessionsDir, 'preferred.jsonl'), '')
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', home) === 'preferred', 'Existing preferred file should win')
+    fs.writeFileSync(path.join(sessionsDir, 'mapped.jsonl'), '')
+    fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({
+      'other-key': { sessionId: 'mapped' },
+      preferred: { sessionId: 'mapped' },
+    }))
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', home) === 'preferred', 'Direct preferred file must outrank index')
+    fs.unlinkSync(path.join(sessionsDir, 'preferred.jsonl'))
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', home) === 'mapped', 'Preferred alias should resolve through the index')
+    fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), '{broken')
+    assert(resolvePersistedAgentSessionId('writer', 'key', undefined, home) === 'mapped', 'Corrupt index should fall back to an existing file')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('persisted assistant readers handle missing, non-assistant, and malformed records', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-read-edges-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'writer', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  const sessionFile = path.join(sessionsDir, 'read-edges.jsonl')
+  try {
+    assert(readLatestAssistantUsageFromPersistedSession('writer', 'key', undefined, home) === null, 'Missing session should have no usage')
+    assert(readLatestAssistantTextFromPersistedSession('writer', 'key', undefined, home) === null, 'Missing session should have no text')
+    fs.writeFileSync(sessionFile, JSON.stringify({ type: 'message', message: { role: 'user', content: 'hello' } }))
+    assert(readLatestAssistantUsageFromPersistedSession('writer', 'key', 'read-edges', home)?.sessionId === 'read-edges', 'User-only session should retain its ID')
+    assert(readLatestAssistantTextFromPersistedSession('writer', 'key', 'read-edges', home)?.content === undefined, 'User-only session should not invent assistant text')
+    fs.writeFileSync(sessionFile, '{broken')
+    assert(readLatestAssistantUsageFromPersistedSession('writer', 'key', 'read-edges', home)?.sessionId === 'read-edges', 'Invalid JSON should retain only the ID')
+    assert(readLatestAssistantTextFromPersistedSession('writer', 'key', 'read-edges', home)?.content === undefined, 'Invalid JSON should not become text')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('persisted assistant text combines supported content parts and skips empty turns', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-content-edges-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'writer', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  try {
+    fs.writeFileSync(path.join(sessionsDir, 'parts.jsonl'), [
+      JSON.stringify({ type: 'message', message: { role: 'assistant', content: ['plain', { type: 'text', text: 'typed' }, { text: 'generic' }, { content: 'nested' }, null, { type: 'image' }] } }),
+      JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'image', data: 'hidden' }] } }),
+    ].join('\n'))
+    const result = readLatestAssistantTextFromPersistedSession('writer', 'key', 'parts', home)
+    assert(result?.content === 'plain\ntyped\ngeneric\nnested', `Expected text-only content parts, got ${result?.content}`)
+    const usage = readLatestAssistantUsageFromPersistedSession('writer', 'key', 'parts', home)
+    assert(usage?.inputTokens === 0 && usage.outputTokens === 0, 'Missing usage should normalize to zero')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
 test('isOpenClawSessionLockError matches lock timeout errors', () => {
   assert(
     isOpenClawSessionLockError(new Error('session file locked (timeout 10000ms)')),
