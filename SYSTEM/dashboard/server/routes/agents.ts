@@ -148,12 +148,13 @@ function updateAgentModelInConfig(agentId: string, model: string): AgentModelCon
     workspacePath,
     agentDir: runtimeAgentDir,
     name: agentId,
+    authorizePolicy: true,
   })
 }
 
 function validateAgentModelPolicy(agentId: string, model: string, backupModel?: string) {
   return validateAgentModelPolicyInConfigFile(path.join(process.env.HOME || '', '.openclaw', 'openclaw.json'),
-    agentId, [model, backupModel], path.join(getWorkspacePath(), 'AGENTS', agentId))
+    agentId, [model, backupModel], path.join(getWorkspacePath(), 'AGENTS', agentId), true)
 }
 
 function updateAgentBackupModelInConfig(agentId: string, backupModel: string | undefined): AgentModelConfigUpdateResult {
@@ -162,6 +163,7 @@ function updateAgentBackupModelInConfig(agentId: string, backupModel: string | u
   const workspacePath = path.join(getWorkspacePath(), 'AGENTS', agentId)
   return updateAgentBackupModelInConfigFile(defaultConfigPath, agentId, backupModel, {
     workspacePath,
+    authorizePolicy: true,
   })
 }
 

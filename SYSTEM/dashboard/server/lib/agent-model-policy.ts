@@ -25,3 +25,34 @@ export function assertAgentModelPolicy(config: any, agent: any, models: Array<st
     if (!refs.some((ref: string) => ref === selected || (ref.endsWith('/*') && selected.startsWith(ref.slice(0, -1))))) deny(model)
   }
 }
+
+/** An owner-initiated Dashboard model save may admit exact refs into OpenClaw's
+ * migrated default allowlist. Runtime execution and agent-specific policies
+ * never use this path, so a chat request cannot silently widen permissions.
+ */
+export function authorizeDashboardModelSelection(config: any, agent: any, models: Array<string | undefined>): boolean {
+  const selected = [...new Set(models.filter((model): model is string => typeof model === 'string' && !!model))]
+  const agentAllow = agent?.modelPolicy && Object.prototype.hasOwnProperty.call(agent.modelPolicy, 'allow')
+  const policy = config?.agents?.defaults?.modelPolicy
+  const migrated = config?.meta?.migrations?.modelPolicyAllowlist === true
+  if (agentAllow || !migrated || !policy || !Object.prototype.hasOwnProperty.call(policy, 'allow')) {
+    assertAgentModelPolicy(config, agent, selected)
+    return false
+  }
+  if (!Array.isArray(policy.allow) || policy.allow.some((ref: unknown) => typeof ref !== 'string')) {
+    assertAgentModelPolicy(config, agent, selected)
+    return false
+  }
+  if (policy.allow.length === 0) return false
+  let changed = false
+  for (const model of selected) {
+    try {
+      assertAgentModelPolicy(config, agent, [model])
+    } catch {
+      policy.allow.push(model)
+      changed = true
+    }
+  }
+  assertAgentModelPolicy(config, agent, selected)
+  return changed
+}

@@ -88,6 +88,52 @@ test('rejected primary, backup and provisioned models leave config unchanged', (
   } finally { fs.rmSync(tmpDir, { recursive: true, force: true }) }
 })
 
+test('explicit Dashboard save admits exact primary and backup refs into a migrated default policy', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-migrated-policy-'))
+  try {
+    const configPath = path.join(tmpDir, 'openclaw.json')
+    const original = { meta: { migrations: { modelPolicyAllowlist: true } }, agents: {
+      defaults: { modelPolicy: { allow: ['openai/gpt-4o-mini'] }, models: { 'openai/gpt-4o-mini': {} } },
+      list: [{ id: 'admin-secretary', workspace: '/workspace/a', model: 'openai/gpt-5.4' },
+        { id: 'peer', workspace: '/workspace/b', model: 'openai/gpt-4o-mini' }],
+    } }
+    fs.writeFileSync(configPath, JSON.stringify(original))
+    nodeAssert.ok(validateAgentModelPolicyInConfigFile(configPath, 'admin-secretary',
+      ['openai/gpt-5.4', 'openai/gpt-5.4-mini'], '/workspace/a', true).ok)
+    nodeAssert.deepEqual(JSON.parse(fs.readFileSync(configPath, 'utf8')), original, 'Preflight must be read-only')
+    nodeAssert.ok(upsertAgentModelInConfigFile(configPath, 'admin-secretary', 'openai/gpt-5.4',
+      { workspacePath: '/workspace/a', authorizePolicy: true }).ok)
+    nodeAssert.ok(updateAgentBackupModelInConfigFile(configPath, 'admin-secretary', 'openai/gpt-5.4-mini',
+      { workspacePath: '/workspace/a', authorizePolicy: true }).ok)
+    const saved = readMaterializedConfig(configPath)
+    nodeAssert.deepEqual(saved.agents.defaults.modelPolicy.allow,
+      ['openai/gpt-4o-mini', 'openai/gpt-5.4', 'openai/gpt-5.4-mini'])
+    nodeAssert.ok(saved.agents.defaults.models['openai/gpt-5.4'])
+    nodeAssert.ok(saved.agents.defaults.models['openai/gpt-5.4-mini'])
+    nodeAssert.deepEqual(saved.agents.list.find((agent: any) => agent.id === 'peer'), original.agents.list[1])
+    assert(!saved.agents.defaults.modelPolicy.allow.includes('openai/*'), 'Never authorize a wildcard')
+    assert(!upsertAgentModelInConfigFile(configPath, 'admin-secretary', 'anthropic/blocked',
+      { workspacePath: '/workspace/a' }).ok, 'Runtime/internal writes remain strict')
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }) }
+})
+
+test('Dashboard save does not widen unmarked or per-agent model policies', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-owned-policy-'))
+  try {
+    const configPath = path.join(tmpDir, 'openclaw.json')
+    for (const config of [
+      { agents: { defaults: { modelPolicy: { allow: ['openai/gpt-4o-mini'] } }, list: [{ id: 'a', workspace: '/w' }] } },
+      { meta: { migrations: { modelPolicyAllowlist: true } }, agents: { defaults: { modelPolicy: { allow: ['openai/gpt-4o-mini'] } }, list: [{ id: 'a', workspace: '/w', modelPolicy: { allow: ['openai/gpt-4o-mini'] } }] } },
+    ]) {
+      const original = JSON.stringify(config)
+      fs.writeFileSync(configPath, original)
+      nodeAssert.ok(!validateAgentModelPolicyInConfigFile(configPath, 'a', ['openai/gpt-5.4'], '/w', true).ok)
+      nodeAssert.ok(!upsertAgentModelInConfigFile(configPath, 'a', 'openai/gpt-5.4', { workspacePath: '/w', authorizePolicy: true }).ok)
+      nodeAssert.ok(fs.readFileSync(configPath, 'utf8') === original)
+    }
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }) }
+})
+
 test('model inspection and policy checks remain workspace-scoped on malformed or missing configs', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-read-'))
   try {

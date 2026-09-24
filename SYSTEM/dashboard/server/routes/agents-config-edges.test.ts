@@ -187,6 +187,28 @@ async function run() {
     } finally { fs.writeFileSync(configPath, original) }
   })
 
+  await test('explicit model save authorizes exact models in a migrated default policy', async () => {
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    const original = fs.readFileSync(configPath, 'utf-8')
+    const config = JSON.parse(original)
+    config.meta = { migrations: { modelPolicyAllowlist: true } }
+    config.agents.defaults = { modelPolicy: { allow: ['openai/gpt-4o-mini'] } }
+    fs.writeFileSync(configPath, JSON.stringify(config))
+    try {
+      const res = makeRes()
+      await getRouteHandler('patch', '/:id/model')(makeReq({
+        params: { id: 'plain-agent' },
+        body: { model: 'openai/gpt-5.4', backupModel: 'openai/gpt-5.4-mini' },
+      }), res)
+      assert.equal(res.statusCode, 200)
+      const saved = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      assert.deepEqual(saved.agents.defaults.modelPolicy.allow, [
+        'openai/gpt-4o-mini', 'openai/gpt-5.4', 'openai/gpt-5.4-mini',
+      ])
+      assert.equal(res.jsonBody?.model, 'openai/gpt-5.4')
+    } finally { fs.writeFileSync(configPath, original) }
+  })
+
   await test('cost-limit routes accept valid updates and return persisted values', async () => {
     const putHandler = getRouteHandler('put', '/:id/cost-limit')
     let res = makeRes()
