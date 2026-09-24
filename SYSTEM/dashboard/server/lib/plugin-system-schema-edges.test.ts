@@ -256,6 +256,35 @@ try {
   assert(!fs.existsSync(documentPath), 'Deleting a record removes its generated document')
   assert(!listPluginRecords(plugin!).some(record => record.id === created.id))
 
+  const optionalSlug = 'optional-field-plugin'
+  const optionalManifest = baseManifest(optionalSlug)
+  optionalManifest.recordSchema.properties = {
+    mode: { type: 'string', title: 'Mode', enum: ['safe', 'fast'] },
+    freeText: { type: 'string', title: 'Text' },
+    ratio: { type: 'number', title: 'Ratio' },
+    count: { type: 'integer', title: 'Count' },
+    enabled: { type: 'boolean', title: 'Enabled' },
+    tags: { type: 'array', title: 'Tags', items: { type: 'string' } },
+  }
+  writeManifest(optionalSlug, optionalManifest)
+  process.env.CLAWMAX_ENABLED_PLUGINS = optionalSlug
+  const optionalPlugin = getPluginBySlug(optionalSlug)
+  assert(optionalPlugin, 'Expected optional-field manifest to load')
+  const fallbackRecord = upsertPluginRecord(optionalPlugin!, {
+    name: 'Fallback values',
+    fields: { mode: 'unsupported', freeText: null, ratio: 'not-a-number', count: Number.POSITIVE_INFINITY, enabled: 1, tags: 'alpha, beta, alpha' },
+  } as any) as any
+  assert.deepStrictEqual(fallbackRecord.fields, {
+    mode: 'safe', freeText: '', ratio: 0, count: 0, enabled: false, tags: ['alpha', 'beta'],
+  }, 'Malformed optional values should normalize to safe defaults')
+  const explicitRecord = upsertPluginRecord(optionalPlugin!, {
+    name: 'Explicit values',
+    fields: { mode: 'fast', freeText: '  retained  ', ratio: '2.5', count: '3.8', enabled: true, tags: [1, 'one', 'one'] },
+  } as any) as any
+  assert.deepStrictEqual(explicitRecord.fields, {
+    mode: 'fast', freeText: 'retained', ratio: 2.5, count: 3, enabled: true, tags: ['1', 'one'],
+  }, 'Valid optional values should preserve their normalized meaning')
+
   console.log(`plugin-system-schema-edges.test.ts: ok (${invalidFixtures.length + monitoringFixtures.length + 5} checks)`)
 } finally {
   fs.rmSync(root, { recursive: true, force: true })
