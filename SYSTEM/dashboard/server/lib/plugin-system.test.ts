@@ -256,6 +256,76 @@ async function run() {
     assert(communityEvidence.events.some((entry) => entry.type === 'conversation'), 'Expected community message timeline event')
   })
 
+  await test('Lifecycle rejects invalid or unavailable subjects before reading evidence', () => {
+    const lifecycle = getPluginBySlug('clawmax-lifecycle')!
+    const other = getPluginBySlug('plugin-evals')!
+    for (const operation of [
+      () => getAgentLifecycleEvidence(other, 'analyst'),
+      () => getWorkflowLifecycleEvidence(other, 'research-sweep'),
+      () => getCommunicationLifecycleEvidence(other, 'group', 'Research Ops'),
+      () => getAgentLifecycleEvidence(lifecycle, '../analyst'),
+      () => getWorkflowLifecycleEvidence(lifecycle, '../research-sweep'),
+      () => getCommunicationLifecycleEvidence(lifecycle, 'group', ' '),
+      () => getCommunicationLifecycleEvidence(lifecycle, 'group', 'x'.repeat(241)),
+    ]) {
+      assert.throws(operation, (error: any) => error instanceof PluginContractError && error.statusCode === 400)
+    }
+    for (const operation of [
+      () => getAgentLifecycleEvidence(lifecycle, 'missing-agent'),
+      () => getWorkflowLifecycleEvidence(lifecycle, 'missing-workflow'),
+      () => getCommunicationLifecycleEvidence(lifecycle, 'community', 'Missing Community'),
+    ]) {
+      assert.throws(operation, (error: any) => error instanceof PluginContractError && error.statusCode === 404)
+    }
+  })
+
+  await test('Lifecycle summarizes archived sessions and malformed retained evidence safely', () => {
+    const lifecycle = getPluginBySlug('clawmax-lifecycle')!
+    const sessionsRoot = path.join(tempHome, '.openclaw', 'agents', 'analyst', 'sessions')
+    const archiveDir = path.join(sessionsRoot, 'archive')
+    fs.mkdirSync(archiveDir, { recursive: true })
+    const archivePath = path.join(archiveDir, 'archived-chat.jsonl')
+    const indexPath = path.join(sessionsRoot, 'sessions.json')
+    const oldIndex = fs.readFileSync(indexPath, 'utf-8')
+    try {
+      fs.writeFileSync(archivePath, [
+        '{bad json}',
+        JSON.stringify({ type: 'message', message: { role: 'system', content: 'hidden' } }),
+        JSON.stringify({ type: 'message', message: { role: 'assistant', content: 'Visible' } }),
+      ].join('\n'))
+      fs.writeFileSync(indexPath, JSON.stringify({
+        one: { modelOverride: 'openai/gpt-4o-mini', updatedAt: 'not-a-timestamp' },
+        two: { model: 'openai/gpt-5.4-mini', updatedAt: Date.now() },
+        three: { updatedAt: Date.now() },
+      }))
+      const evidence = getAgentLifecycleEvidence(lifecycle, 'analyst')
+      assert.strictEqual(evidence.summary.conversationCount, 2)
+      assert.strictEqual(evidence.summary.messageCount, 3)
+      assert(evidence.conversations.some((entry) => entry.id === 'archived-chat' && !entry.active && entry.messageCount === 1))
+      assert(evidence.modelHistory.some((entry) => entry.model === 'openai/gpt-4o-mini' && entry.observedAt === null))
+      assert(evidence.modelHistory.some((entry) => entry.model === 'openai/gpt-5.4-mini' && entry.current))
+
+      const groupArchive = path.join(tempWorkspace, 'SYSTEM', 'messages', 'groups', 'archive')
+      fs.mkdirSync(groupArchive, { recursive: true })
+      const validArchive = path.join(groupArchive, 'research_ops_1785600000000.json')
+      const invalidArchive = path.join(groupArchive, 'research_ops_1785600000001.json')
+      try {
+        fs.writeFileSync(validArchive, JSON.stringify([{ content: 'Archived' }, { content: 'Retained' }]))
+        fs.writeFileSync(invalidArchive, '{invalid')
+        const group = getCommunicationLifecycleEvidence(lifecycle, 'group', 'Research Ops')
+        assert.strictEqual(group.summary.archiveCount, 2)
+        assert(group.events.some((entry) => entry.detail === '2 messages'))
+        assert(group.events.some((entry) => entry.detail === '0 messages'))
+      } finally {
+        fs.unlinkSync(validArchive)
+        fs.unlinkSync(invalidArchive)
+      }
+    } finally {
+      fs.unlinkSync(archivePath)
+      fs.writeFileSync(indexPath, oldIndex)
+    }
+  })
+
   await test('host supports zero-plugin mode when default plugins are disabled', () => {
     const previousEnabled = process.env.CLAWMAX_ENABLED_PLUGINS
     const previousDisableDefaults = process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
