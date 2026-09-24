@@ -757,6 +757,44 @@ test('persisted assistant text combines supported content parts and skips empty 
   }
 })
 
+test('provider and backup retry classifiers distinguish supported failure signals', () => {
+  for (const [model, provider] of [
+    ['openai-compatible/vendor/model', 'openai-compatible'], ['lmstudio/model', 'openai-compatible'],
+    ['openrouter/model', 'openrouter'], ['xai/grok', 'xai'], ['openai/gpt-5', 'openai'],
+    ['gpt-5', 'openai'], ['o3-mini', 'openai'], ['anthropic/claude', 'anthropic'],
+    ['claude-sonnet', 'anthropic'], ['gemini/model', 'gemini'], ['gemini-2.5', 'gemini'],
+    ['google/model', 'gemini'], ['ollama/llama', 'ollama'], ['llama:latest', 'ollama'],
+    ['unknown-model', null], ['', null],
+  ] as const) {
+    assert(providerFromModel(model) === provider, `Unexpected provider for ${model}`)
+  }
+  for (const signal of [
+    'Unknown model: bad', 'No API key found for provider', 'Incorrect API key provided',
+    'has auth issue (skipping all models)', 'insufficient_quota', 'quota exceeded',
+    'rate limit', 'too many requests', 'HTTP 429', 'is in cooldown (suspending lanes)',
+    'request timeout', 'All models failed',
+  ]) {
+    assert(shouldRetryWithBackupModel(signal), `Expected backup retry for ${signal}`)
+  }
+  assert(!shouldRetryWithBackupModel('') && !shouldRetryWithBackupModel('Bad prompt'), 'Unrelated failures must not trigger a backup')
+  assert(!shouldUseExplicitBackupModelRetry({ backupModel: 'openai/gpt-5', backupProvider: 'openai', rawError: 'timeout', hadVisibleOutput: true }), 'Visible output must not be retried')
+  assert(shouldUseExplicitBackupModelRetry({ backupModel: 'openai/gpt-5', backupProvider: 'openai', rawError: 'timeout' }), 'Clean timeout should permit explicit backup')
+})
+
+test('model override and session scoping preserve safe provider-specific identities', () => {
+  assert(toExecutionModelOverride('openai-compatible/vendor/model', 'openai-compatible') === 'lmstudio/vendor/model', 'Compatible provider should use native alias')
+  assert(toExecutionModelOverride('gpt-4o-mini', 'openai') === 'openai/gpt-5.4-mini', 'Retired model should map to active fallback')
+  assert(toExecutionModelOverride(' openai/gpt-5 ', 'openai') === 'openai/gpt-5.4-mini', 'Model override should trim before remapping')
+  assert(toExecutionModelOverride('anthropic/claude', 'anthropic') === 'anthropic/claude', 'Other provider should preserve model')
+  assert(toExecutionModelOverride(' ', 'openai') === undefined, 'Blank model should be omitted')
+  assert(scopeSessionIdToModel('  ', undefined) === 'chat', 'Blank session key should use safe fallback')
+  assert(scopeSessionIdToModel('agent:writer/chat', 'openai/gpt-5').includes('openai-gpt-5'), 'Session key should be model-scoped')
+  assert(scopeSessionIdToModel('very-long-session-key-'.repeat(6), 'openai/gpt-5').length <= 48, 'Scoped session key must remain bounded')
+  assert(deriveWorkspaceRootFromAgentWorkspace('/tmp/workspace/AGENTS/writer') === '/tmp/workspace', 'Agent path should return owning workspace')
+  assert(deriveWorkspaceRootFromAgentWorkspace('/tmp/independent') === '/tmp/independent', 'Independent path should remain itself')
+  assert(deriveWorkspaceRootFromAgentWorkspace() === undefined, 'Missing workspace should remain missing')
+})
+
 test('isOpenClawSessionLockError matches lock timeout errors', () => {
   assert(
     isOpenClawSessionLockError(new Error('session file locked (timeout 10000ms)')),
