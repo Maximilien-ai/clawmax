@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { createDocumentPdfSession, type PdfArtifact } from '../lib/documentPdfSession'
+import { isStalePdfAssetError } from '../lib/pdfLoadError'
 
 const buttonClass = 'rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800'
 
@@ -10,6 +11,7 @@ export function MarkdownDocumentViewer({ source, path, onDownloadMarkdown }: { s
   const [artifact, setArtifact] = useState<PdfArtifact | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [staleAssets, setStaleAssets] = useState(false)
   const session = useRef<ReturnType<typeof createDocumentPdfSession> | null>(null)
   useEffect(() => {
     const current = createDocumentPdfSession(async () => {
@@ -23,7 +25,7 @@ export function MarkdownDocumentViewer({ source, path, onDownloadMarkdown }: { s
   async function preparePdf(download = false) {
     const current = session.current
     if (!current) return
-    setBusy(true); setError(null)
+    setBusy(true); setError(null); setStaleAssets(false)
     try {
       const result = await current.get()
       if (!result || session.current !== current) return
@@ -34,8 +36,14 @@ export function MarkdownDocumentViewer({ source, path, onDownloadMarkdown }: { s
         a.download = (path.split('/').pop() || 'document.md').replace(/\.md$/i, '') + '.pdf'
         document.body.appendChild(a); a.click(); a.remove()
       }
-    } catch {
-      if (session.current === current) setError('PDF generation failed. Retry, or download the original Markdown.')
+    } catch (cause) {
+      if (session.current === current) {
+        const stale = isStalePdfAssetError(cause)
+        setStaleAssets(stale)
+        setError(stale
+          ? 'This dashboard was updated while the page was open. Reload the page to restore PDF preview and download.'
+          : 'PDF generation failed. Retry, or download the original Markdown.')
+      }
     } finally {
       if (session.current === current) setBusy(false)
     }
@@ -58,7 +66,9 @@ export function MarkdownDocumentViewer({ source, path, onDownloadMarkdown }: { s
       </details>
     </div>
     {busy && <p role="status" className="text-sm text-gray-600 dark:text-gray-300">Preparing PDF locally…</p>}
-    {error && <div role="alert" className="rounded border border-red-300 p-3 text-sm text-red-700 dark:text-red-300">{error} <button className={buttonClass} onClick={() => void preparePdf()}>Retry PDF</button></div>}
+    {error && <div role="alert" className="rounded border border-red-300 p-3 text-sm text-red-700 dark:text-red-300">{error} {staleAssets
+      ? <button className={buttonClass} onClick={() => window.location.reload()}>Reload dashboard</button>
+      : <button className={buttonClass} onClick={() => void preparePdf()}>Retry PDF</button>}</div>}
     {artifact && artifact.warnings.length > 0 && <div role="status" className="rounded border border-amber-300 p-3 text-sm text-amber-800 dark:text-amber-200">{artifact.warnings.join(' ')}</div>}
     {view === 'preview' && <div className="prose max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{source.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim()}</ReactMarkdown></div>}
     {view === 'markdown' && <pre className="whitespace-pre-wrap break-words rounded bg-gray-50 p-4 text-sm text-gray-800 dark:bg-gray-900 dark:text-gray-200">{source}</pre>}

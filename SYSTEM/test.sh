@@ -2518,11 +2518,12 @@ else
   fail "Stability foundations"
 fi
 npx ts-node --transpileOnly client/src/lib/markdownPdf.test.ts > /tmp/clawmax-markdown-pdf.out 2>&1 || true
+npx ts-node --transpileOnly client/src/lib/pdfLoadError.test.ts > /tmp/clawmax-pdf-load-error.out 2>&1 || true
 npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/MarkdownDocumentViewer.test.tsx > /tmp/clawmax-markdown-viewer.out 2>&1 || true
-if grep -q "markdownPdf.test.ts: passed" /tmp/clawmax-markdown-pdf.out && grep -q "MarkdownDocumentViewer.test.tsx: passed" /tmp/clawmax-markdown-viewer.out; then
+if grep -q "markdownPdf.test.ts: passed" /tmp/clawmax-markdown-pdf.out && grep -q "pdfLoadError.test.ts: 7 tests passed" /tmp/clawmax-pdf-load-error.out && grep -q "MarkdownDocumentViewer.test.tsx: passed" /tmp/clawmax-markdown-viewer.out; then
   pass "Markdown PDF rendering, artifact lifecycle, and viewer tests"
 else
-  cat /tmp/clawmax-markdown-pdf.out /tmp/clawmax-markdown-viewer.out
+  cat /tmp/clawmax-markdown-pdf.out /tmp/clawmax-pdf-load-error.out /tmp/clawmax-markdown-viewer.out
   fail "Markdown PDF rendering, artifact lifecycle, and viewer tests"
 fi
 
