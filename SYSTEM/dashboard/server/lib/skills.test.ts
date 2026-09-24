@@ -557,6 +557,56 @@ install:
   deleteWorkspaceSkill('test-registry-linux-install-skill')
 })
 
+test('registry metadata stamping preserves upstream fields and omits absent optional claims', () => {
+  const workspaceSkillsDir = getWorkspaceSkillsDir()
+  const absentDir = path.join(workspaceSkillsDir, 'test-registry-absent-markdown')
+  fs.mkdirSync(absentDir, { recursive: true })
+  stampImportedRegistrySkillMetadata(absentDir, { provider: 'clawhub', registryName: 'fixture/absent' })
+  assertEqual(fs.readdirSync(absentDir).length, 0, 'Missing skill markdown must stay untouched')
+
+  const cases = [
+    {
+      id: 'test-registry-minimal-metadata',
+      content: '---\nname: minimal\ndescription: Minimal registry skill\n---\n\n# Minimal\n',
+      metadata: { provider: 'clawhub', registryName: 'fixture/minimal' },
+      expectedEmoji: undefined,
+      expectedHomepage: undefined,
+      expectedVersion: undefined,
+    },
+    {
+      id: 'test-registry-full-metadata',
+      content: '---\nname: full\ndescription: Full registry skill\nemoji: 🧰\nhomepage: https://upstream.example\ntags:\n  - existing\nmetadata:\n  openclaw:\n    customFlag: retained\n---\n\n# Full\n',
+      metadata: {
+        provider: 'tessl', registryName: 'fixture/full', installName: 'fixture/install',
+        emoji: '🔧', homepage: 'https://registry.example', version: '2.0.0',
+        downloadsWeekly: 0, categories: ['developer-tools'],
+      },
+      expectedEmoji: '🧰',
+      expectedHomepage: 'https://upstream.example',
+      expectedVersion: '2.0.0',
+    },
+  ]
+  for (const fixture of cases) {
+    const skillDir = path.join(workspaceSkillsDir, fixture.id)
+    fs.mkdirSync(skillDir, { recursive: true })
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'), fixture.content)
+    stampImportedRegistrySkillMetadata(skillDir, fixture.metadata)
+    const content = getSkillContent(fixture.id)
+    assert(content, `Expected ${fixture.id} to remain readable`)
+    assertEqual(content!.skill.emoji, fixture.expectedEmoji, 'Existing emoji must win over registry suggestion')
+    assertEqual(content!.skill.homepage, fixture.expectedHomepage, 'Existing homepage must win over registry suggestion')
+    assertEqual(content!.skill.registryVersion, fixture.expectedVersion, 'Optional version must be exact')
+    assertEqual(content!.skill.registryName, fixture.metadata.registryName, 'Registry name must be stamped')
+    if (fixture.id === 'test-registry-full-metadata') {
+      assertEqual(content!.skill.registryDownloadsWeekly, 0, 'Zero downloads is a valid count')
+      assert(content!.skill.tags?.includes('existing'), 'Explicit upstream tags must remain')
+      assert(fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8').includes('customFlag: retained'), 'Unrelated metadata must remain')
+    }
+    deleteWorkspaceSkill(fixture.id)
+  }
+  fs.rmdirSync(absentDir)
+})
+
 test('workspace skills expose setup requirement metadata when present', () => {
   const workspaceSkillsDir = getWorkspaceSkillsDir()
   const skillDir = path.join(workspaceSkillsDir, 'test-setup-skill')
