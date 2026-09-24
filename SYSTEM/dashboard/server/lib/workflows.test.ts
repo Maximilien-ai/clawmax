@@ -310,6 +310,34 @@ test('parseWorkflowMd returns null for invalid content', () => {
   assert(parseWorkflowMd('') === null, 'Empty should fail')
 })
 
+test('workflow markdown defaults sparse fields and preserves extended portable fields', () => {
+  const sparse = parseWorkflowMd('---\nname: Sparse\n---\n\n# Work')
+  assert(sparse?.name === 'Sparse', 'Sparse workflow should parse')
+  assert(sparse?.schedule === 'manual' && sparse.timezone === 'UTC', 'Sparse workflow should use safe scheduling defaults')
+  assert(sparse?.enabled === true && sparse.executionMode === 'automated', 'Sparse workflow should remain enabled with automated mode')
+  assert(sparse?.targeting.teamIds?.length === 0, 'Sparse targeting should default to empty teams')
+  assert(sparse?.maxRuns === 0 && sparse.runCount === 0, 'Sparse counters should default to zero')
+  const namedById = parseWorkflowMd('---\ndescription: No name\nenabled: false\n---\n', 'external-id')
+  assert(namedById?.name === 'external-id' && namedById.id === 'external-id', 'Explicit ID should allow unnamed legacy markdown')
+  assert(namedById?.enabled === false, 'Explicit disabled state should remain disabled')
+  assert(parseWorkflowMd('---\nname: [broken\n---\n') === null, 'Malformed YAML must fail closed')
+
+  const full = {
+    ...sparse!, id: 'full', name: 'Full', owner: 'lead', maxRuns: 3, runCount: 1,
+    secretRequirements: [{ key: 'API_KEY', required: true }],
+    outputDefinitions: [{ key: 'report', label: 'Report', type: 'markdown' }],
+    inputRefs: [{ key: 'source', value: 'workspace:notes' }],
+  } as any
+  const markdown = workflowToMarkdown(full)
+  assert(markdown.includes('owner: lead'), 'Owner should be exported')
+  assert(markdown.includes('maxRuns: 3'), 'Run limit should be exported')
+  assert(markdown.includes('secretRequirements:'), 'Secret requirements should be exported')
+  assert(markdown.includes('outputDefinitions:'), 'Output definitions should be exported')
+  assert(markdown.includes('inputRefs:'), 'Input references should be exported')
+  const parsed = parseWorkflowMd(markdown)
+  assert(parsed?.owner === 'lead' && parsed.maxRuns === 3, 'Extended fields should round-trip')
+})
+
 test('workflowToMarkdown round-trips', () => {
   const wf = getWorkflow(createdIds[0])!
   const md = workflowToMarkdown(wf)
