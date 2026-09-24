@@ -1311,6 +1311,45 @@ test('validateTemplateReferences catches workflow targets that exclude the targe
   assert(result.warnings.some((w: string) => w.includes('without a matching targeted group/community')), 'Should warn about targeted-agent communication mismatch')
 })
 
+test('validateTemplateReferences reports duplicate agents and broken channel and team links together', () => {
+  const { validateTemplateReferences } = require('./templates')
+  const result = validateTemplateReferences({
+    type: 'organization', name: 'Broken links', agents: [
+      { id: 'lead', role: 'Lead', communities: ['Missing Community'], groups: ['Missing Group'] },
+      { id: 'lead', role: 'Duplicate' },
+    ],
+    communities: [{ name: 'Known Community' }],
+    groups: [{ name: 'Known Group', community: 'Missing Community' }],
+    teams: [{ id: 'known-team', name: 'Known Team' }],
+    workflows: [{ id: 'review', name: 'Review', targeting: {
+      agents: ['unknown'], groups: ['Missing Group'], teamIds: ['missing-team'], communities: ['Known Community'], tags: [],
+    } }],
+  } as any)
+  assert(!result.valid, 'Broken references must fail cross-validation')
+  for (const fragment of [
+    'Duplicate agent ID: lead', 'unknown community "Missing Community"', 'unknown group "Missing Group"',
+    'targets unknown agent "unknown"', 'targets unknown group "Missing Group"', 'targets unknown team "missing-team"',
+  ]) {
+    assert(result.warnings.some((warning: string) => warning.includes(fragment)), `Expected warning for ${fragment}`)
+  }
+})
+
+test('validateTemplateReferences accepts a matching community target and ignores non-organization templates', () => {
+  const { validateTemplateReferences } = require('./templates')
+  const matched = validateTemplateReferences({
+    type: 'organization', name: 'Community target',
+    agents: [{ id: 'lead', role: 'Lead', communities: ['Research'], groups: [] }],
+    communities: [{ name: 'Research' }], groups: [],
+    teams: [{ id: 'research-team', name: 'Research Team' }],
+    workflows: [{ id: 'review', name: 'Review', targeting: {
+      agents: ['lead'], groups: [], teamIds: ['research-team'], communities: ['Research'], tags: [],
+    } }],
+  } as any)
+  assert(matched.valid && matched.warnings.length === 0, 'Matching community and team targets should be valid')
+  const agent = validateTemplateReferences({ type: 'agent', agents: [{ id: 'writer' }] } as any)
+  assert(agent.valid && agent.warnings.length === 0, 'Agent templates have no organization reference graph')
+})
+
 test('System templates pass cross-validation (excluding test fixtures)', () => {
   const { validateTemplateReferences } = require('./templates')
   const templates = listTemplates('organization')
