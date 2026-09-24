@@ -44,6 +44,7 @@ import {
   persistWorkflowExecutionOutputArtifacts,
   resolveTargetTeamAgentIds,
   extractWorkflowAgentResultPayload,
+  parseWorkflowAgentResultPayload,
   isBenignOpenClawRuntimeWarning,
   stripBenignOpenClawRuntimeWarnings,
   summarizeAgentInputRequest,
@@ -103,6 +104,38 @@ test('validateCron returns human-readable description', () => {
   const result = validateCron('0 9 * * *')
   assert(result.humanReadable !== undefined, 'Should have humanReadable')
   assert(result.humanReadable!.toLowerCase().includes('9'), 'Should mention 9')
+})
+
+test('workflow agent payload parsing preserves raw text, nested metadata, and retry errors', () => {
+  const raw = parseWorkflowAgentResultPayload('plain response')
+  assert(raw.text === 'plain response', 'Plain runtime output should remain visible')
+  assert(raw.durationMs === 0, 'Plain output should have no invented duration')
+  const cases = [
+    { payloads: [{ text: 'top-level' }], meta: { durationMs: 14, agentMeta: { model: 'fast' } } },
+    { result: { payloads: [{ text: 'nested' }], meta: { durationMs: 22, agentMeta: { model: 'backup' } } } },
+    { result: { payloads: [{ text: '' }] } },
+    { payloads: [], result: { payloads: [{ text: 'fallback' }] }, meta: {} },
+  ]
+  const expected = [
+    { text: 'top-level', durationMs: 14, model: 'fast' },
+    { text: 'nested', durationMs: 22, model: 'backup' },
+    { text: '', durationMs: 0, model: undefined },
+    { text: 'fallback', durationMs: 0, model: undefined },
+  ]
+  for (const [index, payload] of cases.entries()) {
+    const result = parseWorkflowAgentResultPayload(JSON.stringify(payload))
+    assert(result.text === expected[index].text, `Payload ${index} text should be exact`)
+    assert(result.durationMs === expected[index].durationMs, `Payload ${index} duration should be exact`)
+    assert(result.meta.model === expected[index].model, `Payload ${index} model should be exact`)
+  }
+  for (const output of [
+    'session file locked by another process',
+    JSON.stringify({ payloads: [{ text: 'session file locked by another process' }] }),
+  ]) {
+    let threw = false
+    try { parseWorkflowAgentResultPayload(output) } catch { threw = true }
+    assert(threw, 'Lock failures should propagate for retry rather than becoming successful text')
+  }
 })
 
 test('extractWorkflowAgentResultPayload falls back to stderr json when stdout is empty', () => {
