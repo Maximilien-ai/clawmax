@@ -2013,6 +2013,34 @@ async function run() {
     }
   })
 
+  await test('validate-provision retains pinned CLI models when provider discovery fails', async () => {
+    let discoveryCalls = 0
+    await withModelDiscoveryStubs({
+      discoverModels: async () => { discoveryCalls++; throw new Error('Synthetic provider outage') },
+      getAvailableModels: () => ['openai/gpt-5.4-mini'],
+    }, () => withAgentRuntimeStubs({
+      listRuntimeModels: async (runtime: string) => runtime === 'droid' ? ['droid-fast'] : [],
+    }, async () => {
+      const handler = getRouteHandler('post', '/validate-provision')
+      const pinned = makeRes()
+      await handler(makeReq({ body: {
+        name: 'pinned-cli-agent', model: 'droid-fast', runtime: 'droid',
+        openai: 'synthetic-key', anthropic: 42, gemini: 42, openrouter: 42,
+        xai: 42, ollamaBaseUrl: 42, openaiCompatibleApiKey: 42,
+        openaiCompatibleBaseUrl: 42, openaiCompatibleDefaultModel: 42,
+      } }), pinned)
+      assert.strictEqual(pinned.statusCode, 200)
+      assert.strictEqual(pinned.jsonBody.valid, true)
+      assert(!(pinned.jsonBody.warnings || []).some((warning: string) => /may fall back during provisioning/i.test(warning)))
+      assert.strictEqual(discoveryCalls, 1)
+
+      const uncatalogued = makeRes()
+      await handler(makeReq({ body: { name: 'uncatalogued-agent', model: 'droid-missing', runtime: 'droid' } }), uncatalogued)
+      assert.strictEqual(uncatalogued.statusCode, 200)
+      assert((uncatalogued.jsonBody.warnings || []).some((warning: string) => /may fall back during provisioning/i.test(warning)))
+    }))
+  })
+
   await test('chat messages route falls back to the newest explicit session file when the legacy dashboard mapping is missing', async () => {
     writeAgent(workspacePath, 'history-agent', [
       '# IDENTITY.md',
