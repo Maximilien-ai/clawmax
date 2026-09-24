@@ -57,6 +57,9 @@ assert(!indexSource.includes("app.use('/api/workspace-dashboards', workspaceDash
 assert(!indexSource.includes('origin: true'), 'Credentialed CORS must never reflect arbitrary origins')
 assert(indexSource.includes("app.disable('x-powered-by')"), 'Express framework disclosure must be disabled')
 assert(!indexSource.includes("removeHeader('X-Content-Type-Options')"), 'Static responses must retain nosniff protection')
+assert(indexSource.indexOf("app.get('/assets/*'") < indexSource.indexOf("app.get('*'"), 'Missing hashed assets must not fall through to SPA HTML')
+assert(indexSource.includes("res.status(404).type('text/plain').send('Dashboard asset not found."), 'Missing hashed assets must return a non-HTML 404')
+assert(indexSource.includes("res.setHeader('Cache-Control', 'no-store')\n    res.sendFile(path.join(earlyClientDist, 'index.html'))"), 'SPA HTML must not be cached across image upgrades')
 
 const matrixKeys = API_AUTHORIZATION_MATRIX.map((entry) => `${entry.methods} ${entry.path}`)
 assert.equal(new Set(matrixKeys).size, matrixKeys.length, 'Authorization matrix entries must be unique')

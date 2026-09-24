@@ -805,7 +805,12 @@ function resolveClientDist(): string | null {
 // SPA fallback for client-side routing (static files already mounted above CORS)
 if (earlyClientDist) {
   console.log(`[Static] Serving dashboard client from ${earlyClientDist}`)
+  app.get('/assets/*', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
+    res.status(404).type('text/plain').send('Dashboard asset not found. Reload the page to use the current version.')
+  })
   app.get('*', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
     res.sendFile(path.join(earlyClientDist, 'index.html'))
   })
 } else if (shouldServeBuiltClient) {
