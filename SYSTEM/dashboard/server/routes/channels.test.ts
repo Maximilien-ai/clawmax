@@ -11,6 +11,7 @@ import assert from 'assert'
 import { EventEmitter } from 'events'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 import { callAgent } from './channels'
+import { createWorkflow, getWorkflow } from '../lib/workflows'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -515,6 +516,43 @@ async function run() {
       body: { members: [] },
     }), res)
     assert.strictEqual(res.statusCode, 404, 'Expected missing group member update to return HTTP 404')
+  })
+
+  await test('community cascade removes its group and workflow while preserving unrelated channels', async () => {
+    const createCommunity = getRouteHandler('post', '/communities')
+    const createGroup = getRouteHandler('post', '/groups')
+    const deleteCommunity = getRouteHandler('delete', '/communities/:name')
+    let res = makeRes()
+    await createCommunity(makeReq({ body: { name: 'Cascade Community', description: 'Cascade target' } }), res)
+    assert.equal(res.statusCode, 200)
+    res = makeRes()
+    await createGroup(makeReq({ body: { name: 'Cascade Group', description: 'Child group', community: 'Cascade Community' } }), res)
+    assert.equal(res.statusCode, 200)
+    res = makeRes()
+    await createCommunity(makeReq({ body: { name: 'Preserved Community', description: 'Must remain' } }), res)
+    assert.equal(res.statusCode, 200)
+    const created = createWorkflow({
+      name: 'Cascade Workflow', description: 'Should follow its target', schedule: 'manual',
+      content: '# Work\nComplete task', executionMode: 'managed', owner: 'cascade-owner',
+      targeting: { agents: [], groups: ['Cascade Group'], communities: [], tags: [] },
+    })
+    assert(created.success && !!created.id, `Expected fixture workflow: ${created.error}`)
+
+    res = makeRes()
+    await deleteCommunity(makeReq({ params: { name: encodeURIComponent('Cascade Community') }, query: { cascade: 'true' } }), res)
+    assert.equal(res.statusCode, 200, `Expected verified cascade: ${JSON.stringify(res.jsonBody)}`)
+    assert.equal(res.jsonBody.ok, true)
+    assert(res.jsonBody.deleted.groups.includes('Cascade Group'), 'Expected child group to be removed')
+    assert(res.jsonBody.deleted.workflows.includes(created.id), 'Expected targeted workflow to be removed')
+    assert.equal(getWorkflow(created.id!), null, 'Expected workflow to be absent afterward')
+    const communities = makeRes()
+    await getRouteHandler('get', '/communities')(makeReq(), communities)
+    assert(communities.jsonBody.communities.some((entry: any) => entry.name === 'Preserved Community'), 'Unrelated community must remain')
+    assert(!communities.jsonBody.communities.some((entry: any) => entry.name === 'Cascade Community'), 'Target community must be absent')
+
+    const missing = makeRes()
+    await deleteCommunity(makeReq({ params: { name: encodeURIComponent('Cascade Community') }, query: { cascade: '1' } }), missing)
+    assert.equal(missing.statusCode, 404, 'Repeated cascade must report missing target')
   })
 
   await test('group and community message routes validate missing content and expose empty reads', async () => {
