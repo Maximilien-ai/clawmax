@@ -12,6 +12,7 @@ const BUNDLE_KIND = 'clawmax-onprem-data'
 const MIN_FREE_RESERVE = 256 * 1024 * 1024
 const OPENCLAW_ARCHIVE = 'openclaw.tar.gz'
 const MANIFEST = 'manifest.json'
+const RESTORE_RECEIPT = '.clawmax-offline-restore.json'
 
 export class OfflineBackupError extends Error {
   constructor(code, message) {
@@ -52,7 +53,7 @@ function sha256(file) {
   return hash.digest('hex')
 }
 
-function nativeOpenClaw(args, home, openclawBin = 'openclaw') {
+function nativeOpenClaw(args, home, openclawBin = 'openclaw', failureCode = 'openclaw_backup_failed') {
   const result = spawnSync(openclawBin, args, {
     encoding: 'utf8',
     timeout: 10 * 60 * 1000,
@@ -66,9 +67,16 @@ function nativeOpenClaw(args, home, openclawBin = 'openclaw') {
   })
   if (result.status !== 0) {
     const code = /database is locked|SQLITE_BUSY|\bbusy\b|owner lock/i.test(`${result.stderr || ''}\n${result.stdout || ''}`)
-      ? 'sqlite_busy' : 'openclaw_backup_failed'
+      ? 'sqlite_busy' : failureCode
     throw new OfflineBackupError(code, 'OpenClaw offline backup or verification failed; keep the source stopped and inspect private local diagnostics')
   }
+  return result.stdout
+}
+
+function isMountedAt(target) {
+  if (process.platform !== 'linux' || !fs.existsSync('/proc/self/mountinfo')) return false
+  const escaped = target.replace(/ /g, '\\040')
+  return fs.readFileSync('/proc/self/mountinfo', 'utf8').split('\n').some(line => line.split(' ')[4] === escaped)
 }
 
 function collectData(source, destination, entries, directories, relative = '') {
@@ -116,6 +124,8 @@ function validateManifest(manifest) {
   }
   assert(manifest.openclaw?.archive === OPENCLAW_ARCHIVE && Number.isSafeInteger(manifest.openclaw.bytes)
     && /^[a-f0-9]{64}$/.test(manifest.openclaw.sha256), 'invalid_manifest', 'Missing OpenClaw archive inventory')
+  assert(typeof manifest.sourceDataRoot === 'string' && path.isAbsolute(manifest.sourceDataRoot)
+    && typeof manifest.nestedStateMount === 'boolean', 'invalid_manifest', 'Missing source mount inventory')
 }
 
 export function verifyBundle(bundle, { home, openclawBin = 'openclaw' } = {}) {
@@ -190,6 +200,7 @@ export function createBundle({ dataRoot, output, writersStopped = false, opencla
       dashboardVersion: String(process.env.CLAWMAX_VERSION || 'unknown'),
       openclawVersion: String(process.env.OPENCLAW_VERSION || 'unknown'),
       sourceLayout: 'single-data-root-v1', sourceDataRoot: source,
+      nestedStateMount: isMountedAt(state),
       openclaw: { archive: OPENCLAW_ARCHIVE, bytes: archiveStat.size, sha256: sha256(archive) },
       directories, files,
     }
@@ -201,6 +212,139 @@ export function createBundle({ dataRoot, output, writersStopped = false, opencla
   } catch (error) {
     fs.rmSync(staging, { recursive: true, force: true })
     throw error
+  }
+}
+
+function assertEmptyCandidate(candidate, nestedStateMount) {
+  assert(path.isAbsolute(candidate) && fs.existsSync(candidate) && fs.lstatSync(candidate).isDirectory(),
+    'invalid_candidate', 'Candidate must be an existing directory')
+  const home = path.join(candidate, '.home')
+  const state = path.join(home, '.openclaw')
+  const entries = fs.readdirSync(candidate)
+  assert(entries.length === 0 || (entries.length === 1 && entries[0] === '.home'
+    && fs.lstatSync(home).isDirectory()
+    && fs.readdirSync(home).every(name => name === '.openclaw')
+    && (!fs.existsSync(state) || (fs.lstatSync(state).isDirectory() && fs.readdirSync(state).length === 0))),
+  'candidate_not_empty', 'Candidate contains existing data')
+  assert(!nestedStateMount || (fs.existsSync(state) && isMountedAt(state)),
+    'mount_mismatch', 'Candidate is missing the required nested OpenClaw state mount')
+}
+
+function copyRestoredTree(source, destination) {
+  const stat = fs.lstatSync(source)
+  assert(!stat.isSymbolicLink(), 'unsupported_symlink', 'Restored asset contains a symlink requiring operator review')
+  if (stat.isDirectory()) {
+    if (fs.existsSync(destination)) assert(fs.lstatSync(destination).isDirectory(), 'conflicting_asset', 'Restored assets conflict')
+    else fs.mkdirSync(destination, { mode: 0o700 })
+    for (const name of fs.readdirSync(source)) copyRestoredTree(path.join(source, name), path.join(destination, name))
+    return
+  }
+  assert(stat.isFile(), 'unsupported_file', 'Restored asset contains a special file')
+  if (fs.existsSync(destination)) {
+    assert(fs.lstatSync(destination).isFile() && sha256(source) === sha256(destination),
+      'conflicting_asset', 'Dashboard and OpenClaw archives contain different versions of one file')
+    return
+  }
+  fs.mkdirSync(path.dirname(destination), { recursive: true, mode: 0o700 })
+  fs.copyFileSync(source, destination, fs.constants.COPYFILE_EXCL)
+  fs.chmodSync(destination, 0o600)
+}
+
+function findOpenClawExtraction(staging) {
+  const roots = fs.readdirSync(staging, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && fs.existsSync(path.join(staging, entry.name, MANIFEST)))
+  assert(roots.length === 1, 'invalid_openclaw_archive', 'OpenClaw restore did not produce one archive root')
+  const root = path.join(staging, roots[0].name)
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, MANIFEST), 'utf8'))
+  assert(manifest.schemaVersion === 1 && manifest.archiveRoot === roots[0].name && Array.isArray(manifest.assets),
+    'invalid_openclaw_archive', 'OpenClaw archive manifest is not supported')
+  return { root, manifest }
+}
+
+function assertNativePathsMapped(manifest, candidate) {
+  const paths = manifest.paths || {}
+  const declared = [paths.stateDir, paths.configPath, paths.oauthDir,
+    ...(Array.isArray(paths.workspaceDirs) ? paths.workspaceDirs : []),
+    ...(Array.isArray(paths.agentRoots) ? paths.agentRoots.map(entry => entry?.sourcePath) : []),
+    ...(Array.isArray(manifest.skipped) ? manifest.skipped.map(entry => entry?.sourcePath) : []),
+  ].filter(value => value !== undefined && value !== null)
+  for (const value of declared) {
+    assert(typeof value === 'string' && path.isAbsolute(value) && inside(candidate, value),
+      'external_path_unmapped', 'OpenClaw references a path outside the candidate data mount')
+  }
+}
+
+function legacyMigrationSources(state) {
+  const agents = path.join(state, 'agents')
+  if (!fs.existsSync(agents)) return []
+  const pending = []
+  for (const entry of fs.readdirSync(agents, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    for (const relative of ['agent/auth-profiles.json', 'sessions/sessions.json']) {
+      if (fs.existsSync(path.join(agents, entry.name, relative))) pending.push(`${entry.name}/${relative}`)
+    }
+  }
+  return pending
+}
+
+export function restoreBundle({ bundle, candidateRoot, writersStopped = false, openclawBin = 'openclaw' }) {
+  assert(writersStopped, 'writers_not_confirmed', 'Stop all state writers before candidate restore')
+  const verified = verifyBundle(bundle, { openclawBin })
+  const bundleRoot = fs.realpathSync(bundle)
+  const manifest = JSON.parse(fs.readFileSync(path.join(bundleRoot, MANIFEST), 'utf8'))
+  const candidate = fs.realpathSync(candidateRoot)
+  assert(candidate === manifest.sourceDataRoot, 'mount_mismatch', 'Candidate must be mounted at the source canonical data path')
+  assertEmptyCandidate(candidate, manifest.nestedStateMount)
+  const free = fs.statfsSync(candidate)
+  assert(Number(free.bavail) * Number(free.bsize) >= verified.assets.bytes + MIN_FREE_RESERVE,
+    'insufficient_space', 'Candidate does not have enough free space for restore and migration')
+
+  // Native extraction is outside the candidate data root. It is not a running
+  // OpenClaw state store, and failure leaves only a disposable candidate.
+  const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-openclaw-restore-'))
+  fs.chmodSync(staging, 0o700)
+  try {
+    nativeOpenClaw(['backup', 'restore', path.join(bundleRoot, OPENCLAW_ARCHIVE), '--target', staging, '--json'],
+      path.join(candidate, '.home'), openclawBin, 'openclaw_restore_failed')
+    const { root, manifest: nativeManifest } = findOpenClawExtraction(staging)
+    assertNativePathsMapped(nativeManifest, candidate)
+    const mapped = nativeManifest.assets.map(asset => {
+      assert(typeof asset?.sourcePath === 'string' && path.isAbsolute(asset.sourcePath) && inside(candidate, asset.sourcePath),
+        'external_path_unmapped', 'OpenClaw archive refers to a path outside the candidate data mount')
+      const archivePath = safeRelative(asset.archivePath)
+      assert(archivePath.startsWith(`${nativeManifest.archiveRoot}/payload/`),
+        'invalid_openclaw_archive', 'OpenClaw asset path is outside its payload')
+      const from = path.join(staging, archivePath)
+      assert(inside(root, from) && fs.existsSync(from), 'invalid_openclaw_archive', 'OpenClaw asset is missing')
+      return { from, to: path.join(candidate, path.relative(candidate, asset.sourcePath)) }
+    })
+
+    for (const name of manifest.directories) fs.mkdirSync(path.join(candidate, name), { recursive: true, mode: 0o700 })
+    for (const entry of manifest.files) copyRestoredTree(path.join(bundleRoot, 'dashboard', entry.path), path.join(candidate, entry.path))
+    for (const asset of mapped) copyRestoredTree(asset.from, asset.to)
+
+    const state = path.join(candidate, '.home', '.openclaw')
+    assert(fs.existsSync(path.join(state, 'openclaw.json')), 'verification_failed', 'Restored OpenClaw config is missing')
+    nativeOpenClaw(['doctor', '--fix', '--non-interactive', '--yes'], path.join(candidate, '.home'), openclawBin, 'migration_failed')
+    assert(legacyMigrationSources(state).length === 0, 'migration_failed', 'Legacy auth or session index remains after migration')
+    for (const entry of manifest.files) {
+      const restored = path.join(candidate, entry.path)
+      assert(fs.existsSync(restored) && fs.lstatSync(restored).isFile()
+        && fs.statSync(restored).size === entry.bytes && sha256(restored) === entry.sha256,
+      'verification_failed', 'Dashboard asset failed post-migration verification')
+    }
+    const receipt = {
+      apiVersion: API_VERSION, kind: 'candidate-restore', bundleId: manifest.bundleId,
+      migratedAt: new Date().toISOString(), dashboardVersion: String(process.env.CLAWMAX_VERSION || 'unknown'),
+      openclawArchiveVerified: true, legacySourcesRemaining: 0,
+      dashboardFilesVerified: manifest.files.length,
+    }
+    fs.writeFileSync(path.join(candidate, RESTORE_RECEIPT), `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600, flag: 'wx' })
+    return { apiVersion: API_VERSION, operation: 'restore', status: 'restored', bundleId: manifest.bundleId,
+      checks: { bundle: 'passed', migration: 'passed', dashboardFiles: 'passed', legacySources: 'absent' },
+      assets: { files: manifest.files.length } }
+  } finally {
+    fs.rmSync(staging, { recursive: true, force: true })
   }
 }
 
@@ -220,8 +364,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   let operation = process.argv[2] || ''
   try {
     const options = parseOptions(process.argv.slice(3))
-    assert(operation === 'backup' || operation === 'verify', 'invalid_request', 'Expected backup or verify operation')
-    const result = operation === 'backup' ? createBundle(options) : verifyBundle(options.bundle)
+    assert(['backup', 'verify', 'restore'].includes(operation), 'invalid_request', 'Expected backup, verify, or restore operation')
+    const result = operation === 'backup' ? createBundle(options)
+      : operation === 'verify' ? verifyBundle(options.bundle) : restoreBundle(options)
     process.stdout.write(`${JSON.stringify(result)}\n`)
   } catch (error) {
     const code = error instanceof OfflineBackupError ? error.code : 'operation_failed'

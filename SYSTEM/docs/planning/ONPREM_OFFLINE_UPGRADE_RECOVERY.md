@@ -1,8 +1,10 @@
 # On-prem offline upgrade recovery (RC86 planning)
 
-Status: `backup` and `verify` implemented in source; **restore, migration,
-candidate verification, and the M4 rehearsal are not yet implemented or
+Status: `backup`, `verify`, and candidate-only `restore` implemented in source;
+**the M4 RC57→RC85 rehearsal and end-to-end promotion/rollback are not yet
 approved**. Do not use the source commands as a complete upgrade procedure.
+Focused synthetic tests include a candidate migration using pinned OpenClaw
+2026.9.5; they do not establish compatibility with the M4's private RC57 state.
 Owner: Dashboard for backup/restore/verify; local app and agent for writer shutdown,
 volume selection, free-space checks, promotion, and rollback.
 
@@ -28,7 +30,7 @@ selected persisted roots must be reported as `external_path_unmapped` until
 the local agent supplies an explicit mount mapping. The image's packaged
 templates, skills, plugins, and dashboard code are not user-data sources.
 
-## Versioned offline contract (proposed `clawmax.offline-backup/v1`)
+## Versioned offline contract (`clawmax.offline-backup/v1`)
 
 The new image should expose `backup`, `verify`, and `restore` through a
 standalone executable that bypasses the normal entrypoint, so neither the
@@ -47,7 +49,7 @@ session text, or config contents.
 - `verify` (source implementation available): independently validates the manifest, exact asset inventory,
   digests, OpenClaw archive, and supported schema version without changing the
   bundle or source. A manifest alone is not proof of SQLite consistency.
-- `restore`: verifies before writing, refuses a nonempty candidate, and never
+- `restore` (source implementation available): verifies before writing, refuses a nonempty candidate, and never
   writes into the source. It restores Dashboard-owned files and the OpenClaw
   archive into the canonical paths of the isolated candidate mount, runs the
   required OpenClaw offline migration there, then verifies the migrated state.
@@ -55,16 +57,19 @@ session text, or config contents.
   version, integrity outcome, and counts—not secrets. A failed/interrupted
   candidate is not reused; retry starts with another empty candidate.
 
-The current source-only invocation is
-`node /app/SYSTEM/dashboard/offline-backup.mjs backup --data-root /app/DATA --output /private-backups/<new-name> --writers-stopped`
-or `verify --bundle /private-backups/<name>`. Run the image with its entrypoint
-overridden; **do not** start the normal entrypoint. `--writers-stopped` is an
-operator assertion, not a process-lock proof. A future release gate must prove
-that the local agent actually stopped every writer. No restore command is
-exposed yet.
+The current source-only invocations are
+`node /app/SYSTEM/dashboard/offline-backup.mjs backup --data-root /app/DATA --output /private-backups/<new-name> --writers-stopped`,
+`verify --bundle /private-backups/<name>`, and
+`restore --bundle /private-backups/<name> --candidate-root /app/DATA --writers-stopped`.
+Run the image with its entrypoint overridden; **do not** start the normal
+entrypoint. `--writers-stopped` is an operator assertion, not a process-lock
+proof. A future release gate must prove the local agent stopped every writer.
+The candidate must appear at the same canonical data-root path as the source
+did when backed up, but it must be a distinct empty volume; the source volume
+must not be mounted in the restore container.
 
-Example successful response (fields are stable; the final fixture must be
-confirmed with the CLI team before implementation):
+Example successful verify response (shape is tested; the private M4 fixture
+must still be confirmed with the CLI team):
 
 ```json
 {
@@ -74,13 +79,13 @@ confirmed with the CLI team before implementation):
   "bundleId": "uuid",
   "dashboardVersion": "2.0.0-test-rc85",
   "openclawVersion": "2026.9.5",
-  "assets": { "files": 0, "bytes": 0, "workspaces": 0, "agents": 0 },
+  "assets": { "files": 0, "bytes": 0 },
   "checks": { "manifest": "passed", "hashes": "passed", "openclaw": "passed" }
 }
 ```
 
 Failure responses use `status: "blocked"` and a stable `code`, e.g.
-`writers_active`, `sqlite_busy`, `insufficient_space`, `external_path_unmapped`,
+`writers_not_confirmed`, `sqlite_busy`, `insufficient_space`, `external_path_unmapped`,
 `unsupported_bundle_version`, `integrity_failed`, `candidate_not_empty`,
 `migration_failed`, or `verification_failed`. They identify a safe next action
 without including credentials, transcript data, or raw config content.
