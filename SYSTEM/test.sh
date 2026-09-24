@@ -2790,6 +2790,14 @@ else
   fi
 fi
 
+echo -e "${YELLOW}→ Running offline on-prem backup contract tests...${NC}"
+if node --test "$SYSTEM_DIR/dashboard/offline-backup.test.mjs" > /tmp/clawmax-offline-backup.out 2>&1; then
+  pass "Offline on-prem backup contract tests"
+else
+  cat /tmp/clawmax-offline-backup.out
+  fail "Offline on-prem backup contract tests"
+fi
+
 echo -e "${YELLOW}→ Running Docker entrypoint gateway tests...${NC}"
 if [ "$SKIP_CI_QUARANTINED_TESTS" = "true" ]; then
   warn "Skipping Docker entrypoint gateway tests in required CI lane (still covered locally and in quarantined CI)"

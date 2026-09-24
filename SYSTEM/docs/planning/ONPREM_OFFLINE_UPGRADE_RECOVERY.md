@@ -1,6 +1,8 @@
 # On-prem offline upgrade recovery (RC86 planning)
 
-Status: design contract; **not yet an implemented or approved recovery command**.
+Status: `backup` and `verify` implemented in source; **restore, migration,
+candidate verification, and the M4 rehearsal are not yet implemented or
+approved**. Do not use the source commands as a complete upgrade procedure.
 Owner: Dashboard for backup/restore/verify; local app and agent for writer shutdown,
 volume selection, free-space checks, promotion, and rollback.
 
@@ -14,9 +16,11 @@ agent promotes the candidate only after offline migration, integrity checks,
 Dashboard health, and populated-data checks pass. On failure, it keeps the
 original volume unchanged and reports the phase and actionable reason.
 
-The initial supported layout is the on-prem single data mount:
+The initial source layout is the on-prem data root:
 `CLAWMAX_DATA_ROOT=/app/DATA`, `HOME=/app/DATA/.home`, and OpenClaw state at
-`/app/DATA/.home/.openclaw`. A legacy installation with separate
+`/app/DATA/.home/.openclaw`. The M4 has a distinct nested mount at that
+OpenClaw state path; both mounts must be present during backup, and the
+candidate must have the same two-mount topology before restore. A legacy installation with separate
 `/app/WORKSPACES` or `/app/.openclaw` mounts must be inventoried and handled
 explicitly; silently omitting either mount is not a successful backup.
 Configured OpenClaw `$include`, `agentDir`, or workspace paths outside the
@@ -30,17 +34,17 @@ The new image should expose `backup`, `verify`, and `restore` through a
 standalone executable that bypasses the normal entrypoint, so neither the
 Dashboard server nor Gateway starts. Each operation emits exactly one JSON
 result on stdout and exits nonzero for a blocked/failed result. Diagnostics
-go to stderr without credential values, raw paths outside the mounted roots,
+  must avoid credential values, raw paths outside the mounted roots,
 session text, or config contents.
 
-- `backup`: requires stopped writers and a private output directory outside
+- `backup` (source implementation available): requires stopped writers and a private output directory outside
   all source mounts. It creates an immutable, versioned bundle through a
   private temporary directory and publishes it only after verification.
   Existing output is never overwritten. The manifest records bundle/schema
   version, source Dashboard/OpenClaw versions, source layout, required mounts,
   logical assets, byte lengths, SHA-256 digests, and creation time. It never
   contains resolved credentials or transcript text.
-- `verify`: independently validates the manifest, exact asset inventory,
+- `verify` (source implementation available): independently validates the manifest, exact asset inventory,
   digests, OpenClaw archive, and supported schema version without changing the
   bundle or source. A manifest alone is not proof of SQLite consistency.
 - `restore`: verifies before writing, refuses a nonempty candidate, and never
@@ -50,6 +54,14 @@ session text, or config contents.
   A durable receipt records the source bundle ID, target version, migration
   version, integrity outcome, and counts—not secrets. A failed/interrupted
   candidate is not reused; retry starts with another empty candidate.
+
+The current source-only invocation is
+`node /app/SYSTEM/dashboard/offline-backup.mjs backup --data-root /app/DATA --output /private-backups/<new-name> --writers-stopped`
+or `verify --bundle /private-backups/<name>`. Run the image with its entrypoint
+overridden; **do not** start the normal entrypoint. `--writers-stopped` is an
+operator assertion, not a process-lock proof. A future release gate must prove
+that the local agent actually stopped every writer. No restore command is
+exposed yet.
 
 Example successful response (fields are stable; the final fixture must be
 confirmed with the CLI team before implementation):
