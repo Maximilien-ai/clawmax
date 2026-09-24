@@ -150,6 +150,19 @@ async function withModelDiscoveryStubs<T>(overrides: Record<string, any>, fn: ()
   }
 }
 
+async function withAgentRuntimeStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
+  const runtime = require('../lib/agent-runtime')
+  const originals = Object.fromEntries(Object.keys(overrides).map((key) => [key, runtime[key]]))
+  Object.assign(runtime, overrides)
+  delete require.cache[require.resolve('./agents')]
+  try {
+    return await fn()
+  } finally {
+    Object.assign(runtime, originals)
+    delete require.cache[require.resolve('./agents')]
+  }
+}
+
 async function withWhatsAppDependencyStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
   delete require.cache[whatsappDependenciesModulePath]
   const whatsappDependencies = require('../lib/whatsapp-dependencies')
@@ -493,6 +506,40 @@ async function run() {
       )
       assert(/not a quality or cost measurement/i.test(res.jsonBody?.disclaimer || ''), 'Expected advisory limitation')
     })
+  })
+
+  await test('model fit handles empty prompts and scopes pinned CLI models after BYOK discovery failure', async () => {
+    await withModelDiscoveryStubs({
+      getAvailableModelsCached: () => ['openai/gpt-5.4-mini'],
+      discoverModels: async () => { throw new Error('Synthetic provider outage') },
+    }, () => withAgentRuntimeStubs({
+      listRuntimeModels: async (runtime: string) => runtime === 'droid' ? ['droid-fast', 'droid-reasoner'] : [],
+    }, async () => {
+      const handler = getRouteHandler('post', '/model-fit')
+      const missing = makeRes()
+      await handler(makeReq({ body: { description: '   ' } }), missing)
+      assert.strictEqual(missing.statusCode, 400)
+      assert.strictEqual(missing.jsonBody.error, 'description is required')
+
+      const pinned = makeRes()
+      await handler(makeReq({ body: {
+        description: 'Summarize a report quickly',
+        runtime: 'droid',
+        preference: 'unsupported',
+        byokKeys: { openai: 'synthetic-key' },
+        availableModels: ['openai/gpt-5.4-mini', 'droid-fast', 'not-installed'],
+      } }), pinned)
+      assert.strictEqual(pinned.statusCode, 200)
+      assert.deepStrictEqual(pinned.jsonBody.candidates.map((candidate: any) => candidate.model), ['droid-fast'])
+
+      const fallback = makeRes()
+      await handler(makeReq({ body: {
+        description: 'Write a short answer', runtime: 'droid',
+        availableModels: ['not-installed'],
+      } }), fallback)
+      assert.strictEqual(fallback.statusCode, 200)
+      assert(fallback.jsonBody.candidates.every((candidate: any) => candidate.model.startsWith('droid-')))
+    }))
   })
 
   await test('generate returns AI-suggested names, tags, models, and skills for new agents', async () => {
