@@ -937,6 +937,25 @@ async function run() {
     assert(context.communities.includes('Research'), 'Expected plugin context to expose communities')
   })
 
+  await test('fixed evaluator records passed and failed comparisons without fabricated usage', () => {
+    const plugin = getPluginBySlug('plugin-evals')!
+    for (const [name, fixedMatch, candidateOutput, expectedOutput, fixedCaseSensitive, score, summaryPart] of [
+      ['Contains insensitive', 'contains', 'Ready for RELEASE', 'release', false, 100, 'passed'],
+      ['Contains sensitive', 'contains', 'Ready for RELEASE', 'release', true, 0, 'failed'],
+      ['Regex insensitive', 'regex', 'Release 85', '^release 85$', false, 100, 'passed'],
+    ] as const) {
+      const created = upsertPluginRecord(plugin, {
+        name, target: { type: 'agent', ids: ['analyst'] },
+        experiment: { input: 'Check output', candidateOutput, expectedOutput, judge: 'fixed', fixedMatch, fixedCaseSensitive, iterations: 2 },
+      } as any)
+      const evaluated = runPluginEval(plugin, created.id)
+      assert.strictEqual(evaluated?.lastRun?.score, score, name)
+      assert(evaluated?.lastRun?.summary.includes(summaryPart), name)
+      assert.strictEqual(evaluated?.lastRun?.totalCases, 1, 'The one retained trial case determines progress')
+      assert.strictEqual(evaluated?.lastRun?.costUsd, 0, 'Fixed evaluation must not invent spend')
+    }
+  })
+
   await test('eval runs reject incomplete or disabled configurations', async () => {
     const plugin = getPluginBySlug('plugin-evals')
     assert(plugin, 'Expected evals test plugin manifest to load')
