@@ -1193,6 +1193,48 @@ async function run() {
     assert.deepStrictEqual(guards[0].appliesTo.communities, ['Research'])
   })
 
+  await test('plugin suggestion bundles normalize sparse items and reject malformed entries', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-suggestion-bundle-'))
+    const previousPluginPaths = process.env.CLAWMAX_PLUGIN_PATHS
+    const source = getPluginBySlug('plugin-review-notes')!
+    const plugin = { ...source, id: 'suggestion-fixture', slug: 'suggestion-fixture' }
+    const templateDir = path.join(root, 'templates')
+    try {
+      fs.mkdirSync(templateDir, { recursive: true })
+      fs.writeFileSync(path.join(root, 'clawmax-plugin.json'), JSON.stringify(plugin))
+      fs.writeFileSync(path.join(templateDir, 'bundle.json'), JSON.stringify({
+        id: 'release-checks', release: '2.0.0-test-rc86', tags: ['release'],
+        defaults: { enabled: false, tags: ['default'], fields: { completed: false, area: 'regression' } },
+        items: [
+          null,
+          { id: 'a', name: 'Architecture', description: 'Inspect boundary', tags: ['security'], fields: { notes: 'Retained' } },
+          { id: 'b', name: 'Browser', recommended: false, enabled: true, fields: { area: 'browser' } },
+          { id: 'blank', name: '' },
+        ],
+      }))
+      fs.writeFileSync(path.join(templateDir, 'single.json'), JSON.stringify({
+        id: 'single', name: 'Single', record: { fields: { release: '2.0.0-test-rc86' } },
+      }))
+      fs.writeFileSync(path.join(templateDir, 'invalid.json'), '{invalid')
+      process.env.CLAWMAX_PLUGIN_PATHS = root
+      clearPluginTemplateCache(plugin)
+      const suggestions = listPluginTemplates(plugin, { forceRefresh: true })
+      assert.deepStrictEqual(suggestions.map((entry) => entry.id), ['release-checks:a', 'release-checks:b', 'single'])
+      assert.deepStrictEqual(suggestions[0].tags, ['release', 'security'])
+      assert.deepStrictEqual((suggestions[0].payload as any).tags, ['release', 'default', 'security'])
+      assert.strictEqual((suggestions[0].payload as any).fields.release, '2.0.0-test-rc86')
+      assert.strictEqual((suggestions[0].payload as any).fields.notes, 'Retained')
+      assert.strictEqual(suggestions[1].recommended, false)
+      assert.strictEqual((suggestions[1].payload as any).enabled, true)
+      assert.strictEqual((suggestions[1].payload as any).fields.area, 'browser')
+    } finally {
+      clearPluginTemplateCache(plugin)
+      if (previousPluginPaths === undefined) delete process.env.CLAWMAX_PLUGIN_PATHS
+      else process.env.CLAWMAX_PLUGIN_PATHS = previousPluginPaths
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
   if (typeof originalHome === 'undefined') delete process.env.HOME
