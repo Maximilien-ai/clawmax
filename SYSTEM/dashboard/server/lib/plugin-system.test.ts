@@ -1152,6 +1152,47 @@ async function run() {
     assert.strictEqual(note.fields.completed, false, 'Only an explicit true enables a persisted check')
   })
 
+  await test('legacy plugin records retain alternative targets, trial history, and review state', () => {
+    const evalPlugin = { ...getPluginBySlug('plugin-evals')!, id: 'eval-history-fixture', slug: 'eval-history-fixture' }
+    const guardPlugin = { ...getPluginBySlug('plugin-guardrails')!, id: 'guard-history-fixture', slug: 'guard-history-fixture' }
+    const writeRecords = (plugin: any, records: any[]) => {
+      const storage = path.join(tempWorkspace, 'SYSTEM', 'plugins', plugin.slug)
+      fs.mkdirSync(storage, { recursive: true })
+      fs.writeFileSync(path.join(storage, 'items.json'), JSON.stringify(records))
+      return listPluginRecords(plugin)
+    }
+    const evaluations = writeRecords(evalPlugin, [
+      { id: 'group-eval', name: 'Group Eval', target: { type: 'group', ids: ['Research Ops'] },
+        experiment: { input: 'Question', expectedOutput: 'Answer', judge: 'human', iterations: -2,
+          fixedMatch: 'regex', fixedCaseSensitive: true, humanReviewerEmail: ' REVIEW@EXAMPLE.COM ' },
+        runs: [{ id: 'run-group', score: 0.8, summary: ' Retained ', judgeMode: 'human',
+          casesCompleted: -1, totalCases: 0, tokensIn: 3, tokensOut: 2, costUsd: 0.01,
+          createdAt: '2026-01-02T00:00:00Z' }],
+        humanReview: { status: 'completed', reviewerName: ' Reviewer ', completedAt: '2026-01-03T00:00:00Z' } },
+      { id: 'workflow-eval', name: 'Workflow Eval', target: { type: 'workflow', ids: ['research-sweep'] },
+        experiment: { cases: [{ input: { value: 'Only input' } }, { expected: { value: 'Only expected' } }, {}] },
+        runs: 'bad' },
+    ]) as any[]
+    assert.strictEqual(evaluations[0].target.type, 'group')
+    assert.strictEqual(evaluations[0].experiment.iterations, 1)
+    assert.strictEqual(evaluations[0].experiment.fixedMatch, 'regex')
+    assert.strictEqual(evaluations[0].experiment.humanReviewerEmail, 'review@example.com')
+    assert.strictEqual(evaluations[0].runs[0].casesCompleted, 0)
+    assert.strictEqual(evaluations[0].runs[0].totalCases, 1)
+    assert.strictEqual(evaluations[0].humanReview.status, 'completed')
+    assert.strictEqual(evaluations[1].target.type, 'workflow')
+    assert.strictEqual(evaluations[1].experiment.cases.length, 2, 'Empty trial cases should be removed')
+    assert.strictEqual(evaluations[1].runs.length, 0)
+
+    const guards = writeRecords(guardPlugin, [{ id: 'guard-history', name: 'Historical Guard',
+      appliesTo: { workflows: ['research-sweep'], groups: ['Research Ops'], communities: ['Research'] },
+      controls: { blockWeb: true, blockExternalDocs: true, allowedSkills: ['github', 'github'] },
+      history: [{ id: 'retained', action: 'blocked', summary: 'Blocked', createdAt: '2026-01-01' }] }]) as any[]
+    assert.strictEqual(guards[0].history[0].action, 'blocked')
+    assert.deepStrictEqual(guards[0].controls.allowedSkills, ['github'])
+    assert.deepStrictEqual(guards[0].appliesTo.communities, ['Research'])
+  })
+
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
   if (typeof originalHome === 'undefined') delete process.env.HOME
