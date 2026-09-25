@@ -1,7 +1,7 @@
 # Dev host Agent Skill authority query
 
-Status: isolated Mac dev only. Dashboard commit `8bffdbd5` adds a read-only query;
-it does not execute Collector, deliver credentials, or enable Groups/Workflows.
+Status: isolated Mac dev only. Dashboard provides a generic read-only authority
+query; it does not execute Agents, deliver credentials, or enable Groups/Workflows.
 The sign-in popup remains presentation-only. The host must authenticate to this
 query and independently verify its local Skill file and signed macOS CLI.
 
@@ -16,7 +16,6 @@ authority. The endpoint accepts loopback peers only and is disabled unless all
 of these server-owned settings are present:
 
 - `CLAWMAX_DEV_HOST_SKILL_AUTHORITY=1`
-- `CLAWMAX_DEV_MAXIMILIEN_AUTH_BRIDGE=1`
 - `DASHBOARD_APP_URL=http://localhost:5174`
 - `NODE_ENV` is not `production`
 - `CLAWMAX_DEV_HOST_AUTH_KEY` is the shared 64-character hex secret
@@ -29,16 +28,21 @@ of these server-owned settings are present:
 
 The request body is exactly the CLI's
 `clawmax.credential-broker-agent-skill/v1alpha1` `AgentSkillExecutionRequest`
-fixture, at most 4 KiB. No extra fields. For this dev contract, the only
-operation is `maximilien.snapshot.v1`, the only Skill is `maximilien`, and the
-only credential name is `MAXIMILIEN_ACCESS_TOKEN`. The issued-to-expiry window
-must be live and no longer than 60 seconds. The host retains its own durable
-one-shot reservation; this read-only query is not a replay ledger.
+fixture, at most 4 KiB. No extra fields. `skillName` and `operation` are
+bounded identifiers; `credentialNames` is a sorted, unique list of up to eight
+names that must exactly match the Agent's current binding. Dashboard validates
+the Skill and credential binding, **not** a command-by-command approval list.
+Once the Agent's installed Skill is bound and the user is authenticated, the
+Agent may use the full capability described by that Skill. The host uses the
+signed, installed Skill/CLI contract to interpret operations; a request may
+not replace the executable with arbitrary shell text. The issued-to-expiry
+window must be live and no longer than 60 seconds. This read-only query is not
+a replay ledger.
 
 Successful response:
 
 ```json
-{"apiVersion":"clawmax.host-agent-skill-authority/v1alpha1","kind":"HostAgentSkillAuthority","requestId":"<same request ID>","instanceKey":"<exact dev instance>","workspaceId":"<exact isolated workspace>","workspaceRevisionId":"<current revision>","agentId":"<Collector resource ID>","actorId":"<dev owner ID>","skillName":"maximilien","skillDigest":"sha256:<installed SKILL.md SHA-256>","credentialNames":["MAXIMILIEN_ACCESS_TOKEN"],"connected":true,"ownerAuthorized":true,"skillInstalled":true}
+{"apiVersion":"clawmax.host-agent-skill-authority/v1alpha1","kind":"HostAgentSkillAuthority","requestId":"<same request ID>","instanceKey":"<exact dev instance>","workspaceId":"<exact isolated workspace>","workspaceRevisionId":"<current revision>","agentId":"<revision-owned Agent ID>","actorId":"<dev owner ID>","skillName":"<bound Skill name>","skillDigest":"sha256:<installed SKILL.md SHA-256>","credentialNames":["<exact bound name>"],"connected":true,"ownerAuthorized":true,"skillInstalled":true}
 ```
 
 The Dashboard rereads the revision and operator-owned authority registry,
@@ -59,6 +63,10 @@ Errors are `no-store` JSON `{apiVersion,kind:"Error",code}`. Stable codes:
 CLI must wire a host-initiated client and its current-authority resolver to
 this endpoint, using the connected instance and private host key rather than
 browser input. Agree on secure dev-key provisioning and the matching macOS
-Skill file. Then run cancellation, replay/crash, revocation between each host
-check, failed refresh, non-owner, wrong instance, tampering, and no-secret-egress
-tests. Do not expose a live action until those tests pass.
+Skill file. The installed Skill contract, not a caller-controlled flag, classifies operations:
+read-only operations may be retried with a **fresh** request ID after a timeout,
+while mutating operations need durable replay/uncertain-outcome protection.
+Do not recycle a request ID or skip current-authority checks on either path.
+Then run cancellation, replay/crash, revocation between host checks, failed
+refresh, non-owner, wrong instance, tampering, and no-secret-egress tests. Do
+not expose a live action until those tests pass.
