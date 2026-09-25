@@ -19,6 +19,7 @@ async function main() {
   }
   assert.equal(await runDevHostSkillAgent({ message: 'status?', skillName: 'maximilien', skillInstructions: '# Skill', apiKey: 'test-key', client, invoke }), 'Collector is ready.')
   assert.equal(invoked, 1)
+  assert(String(calls[0].messages[0].content).includes('never the binary name or a path'))
   assert.equal(calls[1].messages.at(-1).role, 'tool')
   assert(!JSON.stringify(calls).includes('test-key'))
   assert(!JSON.stringify(calls).includes('MAXIMILIEN_ACCESS_TOKEN'))
