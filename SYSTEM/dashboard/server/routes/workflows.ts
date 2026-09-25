@@ -26,15 +26,16 @@ import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
-import { devRunAsExecution, getDevTemplateWorkflowRun, isDevTemplateWorkflowId, listDevTemplateWorkflowRuns, startDevTemplateWorkflow } from './dev-template-workflow'
+import { admitDevWorkflowReadRequest, devRunAsExecution, getDevTemplateWorkflowRun, isDevTemplateWorkflowId, listDevTemplateWorkflowRuns, startDevTemplateWorkflow } from './dev-template-workflow'
 import { devHostSkillChatEnabled } from './dev-host-skill-chat'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 
 const router = Router()
 
 function devManualWorkflowRequest(req: any, id: string): boolean {
+  const admitted = admitDevWorkflowReadRequest(req)
   return isDevTemplateWorkflowId(id)
-    && devHostSkillChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)
+    && devHostSkillChatEnabled(process.env, admitted.get('Origin'), admitted.socket.remoteAddress)
 }
 
 function resolveSessionAuthor(req: any): string | undefined {

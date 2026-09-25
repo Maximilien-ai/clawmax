@@ -1,7 +1,7 @@
 import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
-import { captureDevWorkflowAdmission, devRunAsExecution, formatDevWorkflowHandoff, getDevTemplateWorkflowRun, listDevTemplateWorkflowRuns, settleInterruptedDevRun, startDevTemplateWorkflow } from './dev-template-workflow'
+import { admitDevWorkflowReadRequest, captureDevWorkflowAdmission, devRunAsExecution, formatDevWorkflowHandoff, getDevTemplateWorkflowRun, listDevTemplateWorkflowRuns, settleInterruptedDevRun, startDevTemplateWorkflow } from './dev-template-workflow'
 
 const unauthorized = { get: () => undefined, socket: { remoteAddress: '192.0.2.1' } } as any
 assert.throws(() => startDevTemplateWorkflow(unauthorized, 'tr-1234567890abcdef-workflow-123456789abc'), /unavailable/)
@@ -19,6 +19,12 @@ const captured = captureDevWorkflowAdmission({ get: () => 'http://localhost:5174
 socketAddress = undefined
 assert.equal(captured.get('Origin'), 'http://localhost:5174')
 assert.equal(captured.socket.remoteAddress, '127.0.0.1', 'Background admission must survive response socket closure')
+const browserGet = { method: 'GET', get: (header: string) => ({ 'Sec-Fetch-Site': 'same-origin', Referer: 'http://localhost:5174/workflows' })[header], socket: { remoteAddress: '127.0.0.1' } } as any
+assert.equal(admitDevWorkflowReadRequest(browserGet).get('Origin'), 'http://localhost:5174')
+const crossSiteGet = { ...browserGet, get: (header: string) => ({ 'Sec-Fetch-Site': 'cross-site', Referer: 'http://evil.invalid/' })[header] }
+assert.equal(admitDevWorkflowReadRequest(crossSiteGet as any).get('Origin'), undefined)
+assert.equal(admitDevWorkflowReadRequest({ ...browserGet, method: 'POST' } as any).get('Origin'), undefined)
+assert.equal(admitDevWorkflowReadRequest({ ...browserGet, get: (header: string) => ({ 'Sec-Fetch-Site': 'same-origin', Referer: 'http://localhost:5174.evil.invalid/' })[header] } as any).get('Origin'), undefined)
 const execution = devRunAsExecution({ ...running, status: 'completed', stage: 'completed', collectorId: 'collector', specialistId: 'specialist' })
 assert.equal(execution.participants.length, 2)
 assert.deepEqual(execution.participants.map(item => item.status), ['completed', 'completed'])
@@ -36,6 +42,8 @@ assert(routes.includes("router.get('/:id/dev-runs/:runId'"))
 assert(routes.includes('listDevTemplateWorkflowRuns(req, id, limit).map(devRunAsExecution)'),
   'Manual dev runs must appear in normal Workflow execution history')
 assert(routes.includes('devRunAsExecution(devRun)'), 'Manual dev run details must remain inspectable')
+const vite = fs.readFileSync(path.join(__dirname, '../../vite.config.ts'), 'utf8')
+assert(vite.includes('target: `http://127.0.0.1:${backendPort}`'), 'Dev proxy must target the IPv4 address bound by the API')
 const client = fs.readFileSync(path.join(__dirname, '../../client/src/pages/Workflows.tsx'), 'utf8')
 assert(client.includes('▶ Run once (dev)'))
 const trigger = client.slice(client.indexOf('async function startWorkflowTrigger('), client.indexOf('const hasSecrets = (workflow.secretRequirements'))
@@ -43,6 +51,12 @@ assert(trigger.indexOf("if (/^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(workf
   'Paused schedule must not block an explicitly requested manual dev Workflow run')
 assert(client.includes('manualRunStatuses={new Map(') && client.includes('runningWorkflowIds={runningWorkflows}'),
   'Workflow graph must receive live manual-run status')
+assert(client.includes('Execution history is unavailable. Choose Refresh to retry.')
+  && client.includes('onClick={() => fetchWorkflowDetails(selectedWorkflow.id)}'),
+  'Transient history failures must be visible and retryable instead of showing a false empty state')
+assert(client.includes('{!selectedIsDevManual && <div className="rounded-lg border border-amber-200')
+  && client.includes('Manual run participants (2)'),
+  'Dev manual workflows must not offer the unsupported edited-values path or claim zero target Agents')
 assert(client.includes("workflow.status === 'running' || runningWorkflows.has(workflow.id)"),
   'Header running count must include active manual runs')
 const graph = fs.readFileSync(path.join(__dirname, '../../client/src/components/WorkflowDAG.tsx'), 'utf8')

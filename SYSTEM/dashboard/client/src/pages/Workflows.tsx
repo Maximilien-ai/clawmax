@@ -406,6 +406,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [updatingPipelineState, setUpdatingPipelineState] = useState(false)
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDetails | null>(null)
   const [executions, setExecutions] = useState<WorkflowExecution[]>([])
+  const [executionHistoryError, setExecutionHistoryError] = useState(false)
   const [loading, setLoading] = useState(true)
   const [agentCosts, setAgentCosts] = useState<Record<string, number>>({})
   const [costTrackingEnabled, setCostTrackingEnabled] = useState(true)
@@ -583,6 +584,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   }
 
   const selectedWorkflowTargeting = selectedWorkflow?.targeting || { communities: [], groups: [], tags: [], agents: [] }
+  const selectedIsDevManual = Boolean(selectedWorkflow && config?.hostAuthBridgeReady
+    && /^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(selectedWorkflow.id))
   const executionWorkflowTargeting = executionWorkflow?.targeting || { communities: [], groups: [], tags: [], agents: [] }
   const workflowNameById = useMemo(
     () => new Map(workflows.map((workflow) => [workflow.id, workflow.name])),
@@ -942,6 +945,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
   const fetchWorkflowDetails = async (id: string) => {
     if (Date.now() < rateLimitedUntil) return
+    setExecutionHistoryError(false)
     try {
       const [workflowResp, executionsResp] = await Promise.all([
         fetch(`/api/workflows/${id}`),
@@ -985,10 +989,12 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
       setSelectedWorkflow(workflow)
       setExecutions(sortedExecutions)
+      setExecutionHistoryError(false)
       initializeWorkflowRunForm(workflow, lastExecutionInputs)
       setShowDetailPanel(true)
       setShowExecutionPanel(false) // Close execution panel when viewing workflow
     } catch (err) {
+      setExecutionHistoryError(true)
       showError('Failed to load workflow details')
     }
   }
@@ -2099,7 +2105,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     Dev run: {devWorkflowRuns.get(selectedWorkflow.id)?.status}. Review the linked Group in Communications.
                   </span>
                 )}
-                {selectedWorkflowHasEditableInputs && (
+                {selectedWorkflowHasEditableInputs && !selectedIsDevManual && (
                   <button
                     onClick={() => initializeWorkflowRunForm(selectedWorkflow)}
                     className="px-3 py-1.5 text-sm font-medium text-amber-700 hover:text-amber-800 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition-colors"
@@ -2316,7 +2322,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 </div>
               )}
 
-              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/10 p-4 space-y-4">
+              {!selectedIsDevManual && <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/10 p-4 space-y-4">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Run Inputs</h3>
@@ -2453,10 +2459,15 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       Run With Edited Values
                     </button>
                   </div>
-                </div>
+                </div>}
 
               {/* Participants */}
-              <div>
+              {selectedIsDevManual ? (
+                <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/80 dark:bg-sky-900/10 p-4">
+                  <h3 className="text-sm font-semibold text-sky-900 dark:text-sky-100">Manual run participants (2)</h3>
+                  <p className="mt-1 text-sm text-sky-800 dark:text-sky-200">Collector hands off to the specialist through the linked Group. One-off inputs and schedules remain off in this dev run.</p>
+                </div>
+              ) : <div>
                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">
                   Target Agents ({selectedWorkflow.participantCount})
                 </h3>
@@ -2535,7 +2546,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     <p className="text-sm text-gray-500">No agents match the targeting criteria</p>
                   )}
                 </div>
-              </div>
+              </div>}
 
               {/* Content */}
               <div>
@@ -2550,6 +2561,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Recent Executions</h3>
+                    <button
+                      onClick={() => fetchWorkflowDetails(selectedWorkflow.id)}
+                      className="px-2 py-0.5 text-xs text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 rounded border border-sky-200 dark:border-sky-700"
+                      title="Refresh execution history"
+                    >
+                      Refresh
+                    </button>
                     <button
                       onClick={() => fetchArchivedExecutions(selectedWorkflow.id)}
                       className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:bg-gray-800 rounded border border-gray-300 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
@@ -2581,7 +2599,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     </div>
                   )}
                 </div>
-                {executions.length === 0 ? (
+                {executionHistoryError ? (
+                  <p className="text-sm text-amber-700 dark:text-amber-300" role="alert">Execution history is unavailable. Choose Refresh to retry.</p>
+                ) : executions.length === 0 ? (
                   <p className="text-sm text-gray-500">No execution history</p>
                 ) : (
                   <div className="space-y-2">

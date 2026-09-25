@@ -54,6 +54,18 @@ export function captureDevWorkflowAdmission(req: Request): Request {
   } as Request
 }
 
+/** Same-origin browser GETs omit Origin. Require both browser fetch metadata
+ * and the exact local app referrer before admitting a read-only history call. */
+export function admitDevWorkflowReadRequest(req: Request): Request {
+  if (req.get('Origin') || req.method !== 'GET'
+    || req.get('Sec-Fetch-Site') !== 'same-origin'
+    || !/^http:\/\/localhost:5174(?:\/|$)/.test(req.get('Referer') || '')) return req
+  return {
+    get: (header: string) => header.toLowerCase() === 'origin' ? 'http://localhost:5174' : req.get(header),
+    socket: { remoteAddress: req.socket.remoteAddress },
+  } as Request
+}
+
 function readSidecar(root: string, relative: string): any {
   const file = templateStoragePath(root, relative)
   const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK)
@@ -114,7 +126,7 @@ function persist(root: string, run: DevTemplateWorkflowRun): void {
 
 export function getDevTemplateWorkflowRun(req: Request, workflowId: string, runId: string): DevTemplateWorkflowRun | null {
   if (!/^[a-f0-9-]{36}$/.test(runId)) return null
-  const context = resolve(req, workflowId)
+  const context = resolve(admitDevWorkflowReadRequest(req), workflowId)
   try {
     const run = readSidecar(context.root, `SYSTEM/dev-template-workflow-runs/${runId}.json`) as DevTemplateWorkflowRun
     if (run.runId !== runId || run.workflowId !== workflowId) return null
@@ -125,7 +137,7 @@ export function getDevTemplateWorkflowRun(req: Request, workflowId: string, runI
 }
 
 export function listDevTemplateWorkflowRuns(req: Request, workflowId: string, limit: number): DevTemplateWorkflowRun[] {
-  const context = resolve(req, workflowId)
+  const context = resolve(admitDevWorkflowReadRequest(req), workflowId)
   const directory = templateStoragePath(context.root, 'SYSTEM/dev-template-workflow-runs')
   let names: string[]
   try { names = fs.readdirSync(directory) } catch (error: any) {
