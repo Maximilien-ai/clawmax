@@ -12,6 +12,7 @@ async function main() {
   const zipPath = process.argv[2]
   const expectedZipSha256 = process.argv[3]
   const expectedSkillSha256 = process.argv[4]
+  const keepPreview = process.argv[5] === '--keep-preview'
   if (!zipPath || !/^[a-f0-9]{64}$/.test(expectedZipSha256 || '') || !/^[a-f0-9]{64}$/.test(expectedSkillSha256 || '')) throw new Error('Usage: ts-node template-local-rehearsal.ts <private-zip> <zip-sha256> <skill-md-sha256>')
   const bytes = fs.readFileSync(zipPath)
   assert.equal(sha256(bytes), expectedZipSha256, 'Private ZIP does not match the handoff digest')
@@ -66,14 +67,16 @@ async function main() {
     const collector = applied.revision.resources.agents.collector
     assert(collector)
     await assert.rejects(service.coordinator.verifyStagedExecution('rehearsal-actor', applied.revision.id, collector, service.authority, service.policies), /policy is unavailable/, 'Skill-bearing Agent must remain non-executable')
-    const cleanupPlan = service.store.planCleanup('rehearsal-actor', applied.revision.id, applied.revision.id, () => {})
-    const cleaned = await service.coordinator.cleanup('rehearsal-actor', applied.revision.id, applied.revision.id, cleanupPlan.planDigest, () => {})
-    assert(cleaned.removed)
-    assert(!fs.existsSync(installedSkill))
-    assert.equal(Object.keys(gateway.entries).length, 0)
-    console.log(JSON.stringify({ result: 'pass', templateSha256: expectedZipSha256, revisionId: applied.revision.id, resources: Object.fromEntries(Object.entries(applied.revision.resources).map(([kind, ids]) => [kind, Object.keys(ids).length])), skillInstalledThenCleaned: true, executionBlocked: true }))
+    if (!keepPreview) {
+      const cleanupPlan = service.store.planCleanup('rehearsal-actor', applied.revision.id, applied.revision.id, () => {})
+      const cleaned = await service.coordinator.cleanup('rehearsal-actor', applied.revision.id, applied.revision.id, cleanupPlan.planDigest, () => {})
+      assert(cleaned.removed)
+      assert(!fs.existsSync(installedSkill))
+      assert.equal(Object.keys(gateway.entries).length, 0)
+    }
+    console.log(JSON.stringify({ result: 'pass', templateSha256: expectedZipSha256, revisionId: applied.revision.id, resources: Object.fromEntries(Object.entries(applied.revision.resources).map(([kind, ids]) => [kind, Object.keys(ids).length])), skillInstalled: true, executionBlocked: true, ...(keepPreview ? { previewWorkspace: workspace } : { cleaned: true }) }))
   } finally {
-    fs.rmSync(root, { recursive: true, force: true })
+    if (!keepPreview) fs.rmSync(root, { recursive: true, force: true })
   }
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })
