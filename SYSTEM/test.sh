@@ -3642,6 +3642,14 @@ else
   fail "Agent chat stream safety tests"
 fi
 
+echo -e "${YELLOW}→ Running dev host Skill chat presentation tests...${NC}"
+if npx ts-node --transpileOnly client/src/DevHostSkillChatPresentation.test.ts > /tmp/clawmax-dev-host-skill-presentation.out 2>&1; then
+  pass "Dev host Skill chat presentation tests"
+else
+  cat /tmp/clawmax-dev-host-skill-presentation.out
+  fail "Dev host Skill chat presentation tests"
+fi
+
 echo -e "${YELLOW}→ Running Chat composer multiline regression tests...${NC}"
 npx ts-node --transpileOnly client/src/ChatComposerMultiline.test.ts > /tmp/clawmax-chat-composer-multiline.out 2>&1 || true
 if grep -q "ChatComposerMultiline.test.ts: 12 assertions passed" /tmp/clawmax-chat-composer-multiline.out; then

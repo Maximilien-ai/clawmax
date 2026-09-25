@@ -194,7 +194,10 @@ function cleanMessageContent(content: string): string {
 export default function AgentChatPanel({ agentId, agentName, agentStatus, agentGeneration, onClose, onSuccess, onNavigateToDoc }: Props) {
   const { config } = useAuth()
   const { showSuccess, showError } = useToast()
-  const browserChatEnabled = hasChatExecutionAccess(config)
+  // Staged Template Agents can only chat when their server-owned dev runtime
+  // passes readiness. Do not infer access from browser BYOK or expose a key.
+  const stagedTemplateAgent = /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(agentId)
+  const browserChatEnabled = hasChatExecutionAccess(config) || stagedTemplateAgent
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [rawViewIds, setRawViewIds] = useState<Set<string>>(new Set())
@@ -213,7 +216,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [error, setError] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string>(() => buildPersistentDashboardChatSessionId(agentId))
   const [gatewayAvailable, setGatewayAvailable] = useState<boolean | null>(null)
-  const [chatEnabled, setChatEnabled] = useState(browserChatEnabled)
+  const [chatEnabled, setChatEnabled] = useState(browserChatEnabled && !stagedTemplateAgent)
   const [resettingSession, setResettingSession] = useState(false)
   const [forwardTargetMsgId, setForwardTargetMsgId] = useState<string | null>(null)
   const [forwardGroups, setForwardGroups] = useState<GroupTarget[]>([])
@@ -578,7 +581,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
         setError(data.error)
       }
     } catch {
-      setChatEnabled(browserChatEnabled)
+      setChatEnabled(browserChatEnabled && !stagedTemplateAgent)
     }
   }
 
