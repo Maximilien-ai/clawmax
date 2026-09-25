@@ -2075,6 +2075,15 @@ else
   fail "Agent card presentation helper tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent grid responsive tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentGridResponsive.test.ts > /tmp/clawmax-agent-grid-responsive.out 2>&1 || true
+if grep -q "agentGridResponsive.test.ts: passed" /tmp/clawmax-agent-grid-responsive.out; then
+  pass "Agent grid responsive tests"
+else
+  cat /tmp/clawmax-agent-grid-responsive.out
+  fail "Agent grid responsive tests"
+fi
+
 echo -e "${YELLOW}→ Running Maximilien host-auth message boundary tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/maximilienHostAuth.test.ts > /tmp/clawmax-maximilien-host-auth.out 2>&1 || true
 if grep -q "maximilienHostAuth.test.ts: passed" /tmp/clawmax-maximilien-host-auth.out; then

@@ -1703,7 +1703,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       </button>
                     )}
                   </div>
-                  <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                  <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                     {primaryAgents.map(agent => (
                       <AgentGridCard
                         key={`${tag}-${agent.id}`}
@@ -1755,7 +1755,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         {isExpanded ? '▼' : '▶'} Additional agents ({secondaryAgentsNotShown.length})
                       </button>
                       {isExpanded && (
-                        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 mt-2">
+                        <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 mt-2">
                           {secondaryAgentsNotShown.map(agent => (
                             <AgentGridCard
                               key={`${tag}-secondary-${agent.id}`}
@@ -1859,7 +1859,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         )}
                       </div>
                     )}
-                    <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                    <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                       {userAgents.map(agent => (
             <AgentGridCard
               key={agent.id}
@@ -1913,7 +1913,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         </button>
                       )}
                     </div>
-                    <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                    <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                       {builtInAgents.map(agent => (
                         <AgentGridCard
                           key={agent.id}
