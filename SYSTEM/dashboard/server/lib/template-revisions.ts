@@ -142,13 +142,13 @@ export class TemplateRevisionStore {
     const groupWrite = prepared.compiled.mutations.find(item => item.path === 'ORG/GROUPS.md')
     const groupUndo = undo.find(item => item.path === 'ORG/GROUPS.md')
     const groupBase = groupUndo?.content ?? '# Organization\n'
-    if (Object.keys(revision.resources.groups).length && groupWrite?.content?.startsWith(`${groupBase}\n## Groups\n\n`)) {
+    if (Object.keys(revision.resources.groups).length && typeof groupWrite?.content === 'string' && groupWrite.content.startsWith(`${groupBase}\n## Groups\n\n`)) {
       revision.groupAppend = groupWrite.content.slice(groupBase.length)
     }
     const communityWrite = prepared.compiled.mutations.find(item => item.path === 'ORG/COMMUNITIES.md')
     const communityUndo = undo.find(item => item.path === 'ORG/COMMUNITIES.md')
     const communityBase = communityUndo?.content ?? '# Communities\n'
-    if (Object.keys(revision.resources.communities).length && communityWrite?.content?.startsWith(`${communityBase}\n## Communities\n\n`)) {
+    if (Object.keys(revision.resources.communities).length && typeof communityWrite?.content === 'string' && communityWrite.content.startsWith(`${communityBase}\n## Communities\n\n`)) {
       revision.communityAppend = communityWrite.content.slice(communityBase.length)
     }
     const next: RevisionState = { version: 1, current: revision.id, revisions: [...prepared.state.revisions, revision] }
