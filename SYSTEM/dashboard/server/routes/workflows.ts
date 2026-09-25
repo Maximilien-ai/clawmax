@@ -26,6 +26,7 @@ import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
+import { getDevTemplateWorkflowRun, startDevTemplateWorkflow } from './dev-template-workflow'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 
 const router = Router()
@@ -300,6 +301,27 @@ router.get('/:id', (req, res) => {
   } catch (error: any) {
     console.error('Error getting workflow:', error)
     res.status(500).json({ error: 'Failed to get workflow', message: error.message })
+  }
+})
+
+/** Explicit manual rehearsal. It never enables schedules or starts the
+ * imported Group runner; the Group is the durable Agent handoff channel. */
+router.post('/:id/dev-run', (req, res) => {
+  try {
+    if (getWorkflowPipelineState().paused) return res.status(423).json({ error: 'Workflow pipeline is paused' })
+    const run = startDevTemplateWorkflow(req, req.params.id)
+    return res.status(202).json(run)
+  } catch {
+    return res.status(409).json({ error: 'Dev Workflow run unavailable or already running' })
+  }
+})
+
+router.get('/:id/dev-runs/:runId', (req, res) => {
+  try {
+    const run = getDevTemplateWorkflowRun(req, req.params.id, req.params.runId)
+    return run ? res.json(run) : res.status(404).json({ error: 'Dev Workflow run not found' })
+  } catch {
+    return res.status(409).json({ error: 'Dev Workflow authority unavailable' })
   }
 })
 

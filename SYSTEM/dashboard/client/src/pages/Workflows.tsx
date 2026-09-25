@@ -432,6 +432,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [workflowRunInputFields, setWorkflowRunInputFields] = useState<StructuredWorkflowInputField[]>([])
   const [workflowRunInstructions, setWorkflowRunInstructions] = useState('')
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
+  const [devWorkflowRuns, setDevWorkflowRuns] = useState<Map<string, { status: string; groupId: string; error?: string }>>(new Map())
   const [latestExecutionStatuses, setLatestExecutionStatuses] = useState<Record<string, WorkflowExecution['status'] | undefined>>({})
   const [selectedExecution, setSelectedExecution] = useState<WorkflowExecutionDetails | null>(null)
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
@@ -685,6 +686,32 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }
     if (runningWorkflows.has(workflow.id) || workflow.status === 'running') {
       showError('Already running. Stop the current run before starting another.')
+      return
+    }
+    if (/^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(workflow.id)) {
+      setRunningWorkflows(previous => new Set(previous).add(workflow.id))
+      try {
+        const response = await fetch(`/api/workflows/${workflow.id}/dev-run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        const started = await response.json()
+        if (!response.ok || !started.runId) throw new Error(started.error || 'Dev Workflow could not start')
+        setDevWorkflowRuns(previous => new Map(previous).set(workflow.id, { status: 'running', groupId: started.groupId }))
+        for (let attempt = 0; attempt < 90; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          const poll = await fetch(`/api/workflows/${workflow.id}/dev-runs/${started.runId}`)
+          const run = await poll.json()
+          if (!poll.ok) throw new Error(run.error || 'Dev Workflow status unavailable')
+          if (run.status === 'running') continue
+          setDevWorkflowRuns(previous => new Map(previous).set(workflow.id, { status: run.status, groupId: run.groupId, error: run.error }))
+          if (run.status !== 'completed') throw new Error(run.error || 'Dev Workflow failed')
+          showSuccess(`${workflow.name} completed. Review the Group conversation in Communications.`)
+          return
+        }
+        showError(`${workflow.name} is still running. Review its Group conversation in Communications.`)
+      } catch (error: any) {
+        showError(error?.message || 'Dev Workflow unavailable')
+      } finally {
+        setRunningWorkflows(previous => { const next = new Set(previous); next.delete(workflow.id); return next })
+      }
       return
     }
     const hasSecrets = (workflow.secretRequirements || []).length > 0
@@ -2052,8 +2079,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   title={runningWorkflows.has(selectedWorkflow.id) || selectedWorkflow.status === 'running' ? 'Already running. Stop the current run to start another.' : 'Run workflow now'}
                   className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  ▶ Run Now
+                  {/^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(selectedWorkflow.id) ? '▶ Run once (dev)' : '▶ Run Now'}
                 </button>
+                {devWorkflowRuns.get(selectedWorkflow.id) && (
+                  <span className="text-xs text-gray-600 dark:text-gray-300" role="status">
+                    Dev run: {devWorkflowRuns.get(selectedWorkflow.id)?.status}. Review the linked Group in Communications.
+                  </span>
+                )}
                 {selectedWorkflowHasEditableInputs && (
                   <button
                     onClick={() => initializeWorkflowRunForm(selectedWorkflow)}
