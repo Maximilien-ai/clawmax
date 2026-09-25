@@ -340,7 +340,6 @@ app.get('/api/auth/config', (_req, res) => {
   const devHostAuthReady = process.env.CLAWMAX_DEV_MAXIMILIEN_AUTH_BRIDGE === '1'
     && process.env.DASHBOARD_APP_URL === 'http://localhost:5174'
     && process.env.NODE_ENV !== 'production'
-    && _req.get('host') === 'localhost:5174'
     && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(process.env.CLAWMAX_INSTANCE_KEY || '')
   const hasHostedExecutionPath = !!(executionKeys.openai || executionKeys.anthropic || executionKeys.gemini || executionKeys.openrouter || executionKeys.xai)
   res.json({
