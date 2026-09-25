@@ -1,6 +1,7 @@
 import React from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { maximilienHostAuthUrl, readMaximilienHostAuthMessage } from '../lib/maximilienHostAuth'
+import { readHostCredentialConfirmation, saveHostCredentialConfirmation } from '../lib/hostCredentialStatus'
 
 /** Built-in, trusted host adapters. Portable Skills may declare a credential
  * name, but cannot choose an executable, endpoint, or browser URL. */
@@ -10,12 +11,18 @@ const hostAdapters = {
 
 export default function HostCredentialPill({ credentialName }: { credentialName: string }) {
   const { config } = useAuth()
-  const [state, setState] = React.useState<'required' | 'waiting' | 'signed-in' | 'not-owner'>('required')
+  const [state, setState] = React.useState<'required' | 'waiting' | 'signed-in' | 'previously-signed-in' | 'not-owner'>('required')
   const [error, setError] = React.useState<string | null>(null)
   const opened = React.useRef<Window | null>(null)
   const instanceKey = config?.instanceKey || ''
   const adapter = hostAdapters[credentialName as keyof typeof hostAdapters]
   const bridgeReady = config?.hostAuthBridgeReady === true && Boolean(adapter) && window.location.origin === 'http://localhost:5174'
+
+  React.useEffect(() => {
+    if (bridgeReady && readHostCredentialConfirmation(window.localStorage, instanceKey, credentialName)) {
+      setState(current => current === 'required' ? 'previously-signed-in' : current)
+    }
+  }, [bridgeReady, instanceKey, credentialName])
 
   React.useEffect(() => {
     if (!adapter) return
@@ -24,6 +31,7 @@ export default function HostCredentialPill({ credentialName }: { credentialName:
       if (!status) return
       opened.current = null
       setError(null)
+      saveHostCredentialConfirmation(window.localStorage, instanceKey, credentialName, status.signedIn && !status.reauthRequired && status.isOwner)
       setState(status.reauthRequired || !status.signedIn ? 'required' : status.isOwner ? 'signed-in' : 'not-owner')
     }
     window.addEventListener('message', onMessage)
@@ -49,8 +57,8 @@ export default function HostCredentialPill({ credentialName }: { credentialName:
   }
 
   return <div className="mt-2" data-testid="host-credential-pill">
-    <button type="button" onClick={start} disabled={!bridgeReady} title={!adapter ? 'No approved host sign-in adapter is available yet' : !bridgeReady ? 'Waiting for the signed Mac host bridge and its security checks' : undefined} className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${state === 'signed-in' ? 'border-green-300 bg-green-50 text-green-800' : 'border-amber-300 bg-amber-50 text-amber-900'} disabled:cursor-not-allowed disabled:opacity-60`}>
-      {state === 'signed-in' ? `${adapter?.label || credentialName} signed in · staged` : state === 'not-owner' ? `${adapter?.label || credentialName} owner required · Retry` : state === 'waiting' ? 'Waiting for Mac sign-in…' : `${adapter?.label || credentialName} sign-in required${bridgeReady ? '' : ' · unavailable'}`}
+    <button type="button" onClick={start} disabled={!bridgeReady} title={!adapter ? 'No approved host sign-in adapter is available yet' : !bridgeReady ? 'Waiting for the signed Mac host bridge and its security checks' : undefined} className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${state === 'signed-in' || state === 'previously-signed-in' ? 'border-green-300 bg-green-50 text-green-800' : 'border-amber-300 bg-amber-50 text-amber-900'} disabled:cursor-not-allowed disabled:opacity-60`}>
+      {state === 'signed-in' ? `${adapter?.label || credentialName} signed in · staged` : state === 'previously-signed-in' ? `${adapter?.label || credentialName} previously signed in · rechecked on use` : state === 'not-owner' ? `${adapter?.label || credentialName} owner required · Retry` : state === 'waiting' ? 'Waiting for Mac sign-in…' : `${adapter?.label || credentialName} sign-in required${bridgeReady ? '' : ' · unavailable'}`}
     </button>
     {error && <p role="alert" className="mt-1 max-w-sm text-xs text-red-700">{error}</p>}
   </div>
