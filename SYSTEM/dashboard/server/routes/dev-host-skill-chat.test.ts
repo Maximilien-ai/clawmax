@@ -1,4 +1,6 @@
 import assert from 'assert'
+import fs from 'fs'
+import path from 'path'
 import { devHostSkillChatEnabled } from './dev-host-skill-chat'
 
 const env = {
@@ -18,4 +20,7 @@ assert(!allowed({ ...env, CLAWMAX_DEV_HOST_AUTH_KEY: 'bad' }))
 assert(!allowed({ ...env, CLAWMAX_CLI_LOCAL_ACTOR_ID: 'different' }))
 assert(!allowed(env, 'http://evil.example'))
 assert(!allowed(env, 'http://localhost:5174', '192.168.1.1'))
+const source = fs.readFileSync(path.join(__dirname, 'dev-host-skill-chat.ts'), 'utf8')
+assert(source.includes('const openaiKey = getSystemProviderKeys().openai'))
+assert(!source.includes('req.body.byok.openai'))
 console.log('dev-host-skill-chat.test.ts: passed')

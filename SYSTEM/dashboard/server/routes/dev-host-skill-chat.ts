@@ -86,8 +86,9 @@ export async function executeDevHostSkillChat(req: Request, res: Response): Prom
   const { id: agentId } = req.params
   if (!enabled(req) || !agentIdPattern.test(agentId)) { res.status(404).json({ error: 'Dev Agent chat unavailable' }); return }
   const message = req.body?.message
-  if (typeof message !== 'string' || !message.trim() || Buffer.byteLength(message) > 16 * 1024
-    || req.body?.byok && Object.values(req.body.byok).some(Boolean)) {
+  // The existing chat composer may include BYOK fields. This dev path ignores
+  // them entirely and always uses the configured server-owned model key.
+  if (typeof message !== 'string' || !message.trim() || Buffer.byteLength(message) > 16 * 1024) {
     res.status(400).json({ error: 'Invalid dev Agent chat request' }); return
   }
   const openaiKey = getSystemProviderKeys().openai
