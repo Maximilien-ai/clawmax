@@ -7,7 +7,7 @@ export interface MaximilienHostAuthStatus {
   isOwner: boolean
 }
 
-export const MAXIMILIEN_HOST_AUTH_ORIGIN = 'http://127.0.0.1:3203'
+export const MAXIMILIEN_HOST_AUTH_ORIGIN = 'http://localhost:43203'
 
 export function maximilienHostAuthUrl(instanceKey: string): string | null {
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(instanceKey)) return null

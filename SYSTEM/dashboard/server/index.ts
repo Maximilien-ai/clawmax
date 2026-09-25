@@ -337,6 +337,11 @@ app.get('/api/auth/config', (_req, res) => {
   const integrationConfig = readWorkspaceIntegrationConfig()
   const managedRuntime = isManagedRuntime(rawEnv)
   const deploymentKind = getDashboardDeploymentKind(rawEnv)
+  const devHostAuthReady = process.env.CLAWMAX_DEV_MAXIMILIEN_AUTH_BRIDGE === '1'
+    && process.env.DASHBOARD_APP_URL === 'http://localhost:5174'
+    && process.env.NODE_ENV !== 'production'
+    && _req.get('host') === 'localhost:5174'
+    && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(process.env.CLAWMAX_INSTANCE_KEY || '')
   const hasHostedExecutionPath = !!(executionKeys.openai || executionKeys.anthropic || executionKeys.gemini || executionKeys.openrouter || executionKeys.xai)
   res.json({
     githubEnabled: isGitHubAuthConfigured(),
@@ -344,6 +349,8 @@ app.get('/api/auth/config', (_req, res) => {
     authMode: process.env.DASHBOARD_AUTH_MODE || 'github_oauth',
     authDisabled: isDashboardAuthBypassAllowed(process.env),
     deploymentKind,
+    hostAuthBridgeReady: devHostAuthReady,
+    instanceKey: devHostAuthReady ? process.env.CLAWMAX_INSTANCE_KEY : null,
     instanceLabel: getDashboardInstanceLabel(rawEnv),
     resourceLimits: getTenantResourceLimits(rawEnv),
     resourceLimitConfig: getTenantResourceLimitConfig(rawEnv),

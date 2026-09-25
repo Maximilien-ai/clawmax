@@ -15,7 +15,7 @@ export default function HostCredentialPill({ credentialName }: { credentialName:
   const opened = React.useRef<Window | null>(null)
   const instanceKey = config?.instanceKey || ''
   const adapter = hostAdapters[credentialName as keyof typeof hostAdapters]
-  const bridgeReady = config?.hostAuthBridgeReady === true && Boolean(adapter)
+  const bridgeReady = config?.hostAuthBridgeReady === true && Boolean(adapter) && window.location.origin === 'http://localhost:5174'
 
   React.useEffect(() => {
     if (!adapter) return
@@ -33,7 +33,7 @@ export default function HostCredentialPill({ credentialName }: { credentialName:
   const start = () => {
     setError(null)
     if (!adapter) { setError(`No approved Mac sign-in flow is available for ${credentialName}.`); return }
-    if (config?.deploymentKind !== 'onprem') { setError('Sign in from the Mac connected to this on-prem ClawMax instance.'); return }
+    if (!bridgeReady) { setError('Mac sign-in is available only in the approved local dev session.'); return }
     const url = adapter.url(instanceKey)
     if (!url) { setError('This instance has no valid Mac sign-in identity.'); return }
     const popup = window.open(url, `clawmax-host-auth-${credentialName}`, 'popup,width=540,height=700')
