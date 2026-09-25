@@ -325,7 +325,6 @@ app.use('/api/cli/v1', instanceCliRouter)
 // sign-in popup never authorize execution; production leaves this unmounted.
 app.use('/api/dev/host-agent-skill', createHostAgentSkillAuthorityRouter({
   enabled: () => process.env.CLAWMAX_DEV_HOST_SKILL_AUTHORITY === '1'
-    && process.env.CLAWMAX_DEV_MAXIMILIEN_AUTH_BRIDGE === '1'
     && process.env.NODE_ENV !== 'production'
     && process.env.DASHBOARD_APP_URL === 'http://localhost:5174'
     && !!process.env.CLAWMAX_DEV_HOST_ACTOR_ID

@@ -6,6 +6,9 @@ const requestVersion = 'clawmax.credential-broker-agent-skill/v1alpha1'
 const fields = ['apiVersion', 'kind', 'requestId', 'instanceKey', 'workspaceId', 'workspaceRevisionId', 'agentId', 'skillName', 'skillDigest', 'actorId', 'operation', 'credentialNames', 'issuedAt', 'expiresAt'].sort()
 const id = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 const digest = /^sha256:[a-f0-9]{64}$/
+const skillId = /^[a-z0-9][a-z0-9._-]{0,62}$/
+const operationId = /^[a-z][a-z0-9._:-]{0,127}$/
+const credentialId = /^[A-Z][A-Z0-9_]{1,127}$/
 
 export interface HostSkillAuthorityEvidence {
   workspaceId: string; workspaceRevisionId: string; agentId: string; actorId: string
@@ -41,10 +44,13 @@ export function createHostAgentSkillAuthorityRouter(options: {
       || typeof body.workspaceId !== 'string' || !id.test(body.workspaceId)
       || typeof body.workspaceRevisionId !== 'string' || !id.test(body.workspaceRevisionId)
       || typeof body.agentId !== 'string' || !id.test(body.agentId)
-      || body.skillName !== 'maximilien' || typeof body.skillDigest !== 'string' || !digest.test(body.skillDigest)
+      || typeof body.skillName !== 'string' || !skillId.test(body.skillName)
+      || typeof body.skillDigest !== 'string' || !digest.test(body.skillDigest)
       || typeof body.actorId !== 'string' || !id.test(body.actorId)
-      || body.operation !== 'maximilien.snapshot.v1'
-      || !Array.isArray(body.credentialNames) || body.credentialNames.length !== 1 || body.credentialNames[0] !== 'MAXIMILIEN_ACCESS_TOKEN') return fail(400, 'invalid_request')
+      || typeof body.operation !== 'string' || !operationId.test(body.operation)
+      || !Array.isArray(body.credentialNames) || body.credentialNames.length > 8
+      || body.credentialNames.some((name: unknown) => typeof name !== 'string' || !credentialId.test(name))
+      || JSON.stringify(body.credentialNames) !== JSON.stringify([...new Set(body.credentialNames)].sort())) return fail(400, 'invalid_request')
     if (typeof body.issuedAt !== 'string' || typeof body.expiresAt !== 'string'
       || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(body.issuedAt)
       || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(body.expiresAt)) return fail(400, 'invalid_request')

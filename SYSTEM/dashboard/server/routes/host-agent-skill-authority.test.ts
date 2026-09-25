@@ -8,12 +8,14 @@ async function main() {
   app.use(express.json())
   let enabled = true
   let currentDigest = `sha256:${'b'.repeat(64)}`
+  let currentSkill = 'maximilien'
+  let currentCredentials = ['MAXIMILIEN_ACCESS_TOKEN']
   let calls = 0
   const key = 'a'.repeat(64)
   app.use('/api/dev/host-agent-skill', createHostAgentSkillAuthorityRouter({
     enabled: () => enabled, secret: () => key, instanceKey: () => 'dev-instance',
     actorId: () => 'owner', workspaceId: () => 'isolated', now: () => Date.parse('2026-09-25T12:00:15Z'),
-    inspect: input => { calls++; return { ...input, skillDigest: currentDigest, credentialNames: ['MAXIMILIEN_ACCESS_TOKEN'] } },
+    inspect: input => { calls++; return { ...input, skillName: currentSkill, skillDigest: currentDigest, credentialNames: currentCredentials } },
   }))
   const server = http.createServer(app)
   try {
@@ -43,10 +45,17 @@ async function main() {
     assert.equal(admitted.body.ownerAuthorized, true)
     assert(!JSON.stringify(admitted.body).includes('skillPath'))
     assert(!JSON.stringify(admitted.body).includes('token'))
-    for (const invalid of [{ ...request, extra: true }, { ...request, operation: 'maximilien.write.v1' },
-      { ...request, credentialNames: [] }, { ...request, issuedAt: 1 }, { ...request, expiresAt: '2026-09-25T12:00:01Z' }]) {
+    for (const invalid of [{ ...request, extra: true }, { ...request, operation: 'bad operation' },
+      { ...request, credentialNames: ['MAXIMILIEN_ACCESS_TOKEN', 'MAXIMILIEN_ACCESS_TOKEN'] },
+      { ...request, credentialNames: ['lowercase'] }, { ...request, issuedAt: 1 }, { ...request, expiresAt: '2026-09-25T12:00:01Z' }]) {
       assert.notEqual((await call(invalid)).status, 200)
     }
+    currentSkill = 'another-cli'
+    currentCredentials = []
+    assert.equal((await call({ ...request, skillName: currentSkill, operation: 'another.read.v1', credentialNames: [] })).status, 200,
+      'A second CLI Skill and read-only operation use the same authority contract')
+    currentSkill = 'maximilien'
+    currentCredentials = ['MAXIMILIEN_ACCESS_TOKEN']
     assert.equal((await call({ ...request, instanceKey: 'other' })).status, 403)
     currentDigest = `sha256:${'d'.repeat(64)}`
     assert.equal((await call()).body.code, 'authority_revoked')
