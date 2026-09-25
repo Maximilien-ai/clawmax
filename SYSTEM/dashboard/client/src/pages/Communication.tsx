@@ -17,6 +17,7 @@ import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 
 interface GroupEntry {
   name: string
+  displayName?: string
   description: string | null
   tags: string[]
   community: string | null
@@ -58,6 +59,7 @@ type ChannelSortColumn = 'name' | 'type' | 'community' | 'members' | 'tags'
 
 interface Channel {
   name: string
+  displayName?: string
   description: string | null
   tags: string[]
   type: ChannelType
@@ -426,6 +428,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       if (!channelMap.has(key)) {
         channelMap.set(key, {
           name: group.name,
+          displayName: group.displayName,
           description: group.description,
           tags: group.tags || [],
           channels: group.channels || [],
@@ -462,6 +465,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         if (!channelMap.has(key)) {
           channelMap.set(key, {
             name: g.name,
+            displayName: g.displayName,
             description: g.description,
             tags: g.tags,
             channels: g.channels,
@@ -549,6 +553,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         // Match against channel name, description, tags, or member names
         return (
           regex.test(channel.name.toLowerCase()) ||
+          (channel.displayName && regex.test(channel.displayName.toLowerCase())) ||
           (channel.description && regex.test(channel.description.toLowerCase())) ||
           channel.tags.some(tag => regex.test(tag.toLowerCase())) ||
           channel.members.some(m =>
@@ -589,7 +594,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     channels.sort((a, b) => {
       switch (sortColumn) {
         case 'name':
-          return a.name.localeCompare(b.name) * direction
+          return (a.displayName || a.name).localeCompare(b.displayName || b.name) * direction
         case 'type':
           return a.type.localeCompare(b.type) * direction
         case 'community':
@@ -1489,7 +1494,7 @@ function CommunicationTable({
                   <td className="px-4 py-3">
                     <button onClick={() => onOpenChat(channel)} className="text-left">
                       <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                        <span>{channel.name}</span>
+                        <span>{channel.displayName || channel.name}</span>
                         {unreadCount > 0 && (
                           <span className="min-w-[18px] h-[18px] rounded-full bg-red-50 dark:bg-red-900/200 text-white text-[10px] font-bold flex items-center justify-center px-1">
                             {unreadCount > 99 ? '99+' : unreadCount}
@@ -1597,7 +1602,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Members</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 inline-flex items-center gap-2">
           <ProductIconCell iconName={channel.type === 'community' ? 'community' : 'group'} label={channel.type === 'community' ? 'Community' : 'Group'} size="sm" className="border-transparent bg-transparent text-current" />
-          {channel.name}
+          {channel.displayName || channel.name}
         </p>
         <p className="text-xs text-gray-500 mb-4">
           {selectedMembers.size} member{selectedMembers.size !== 1 ? 's' : ''} selected
@@ -1748,7 +1753,7 @@ function TagManageModal({ channel, onClose, onSave }: { channel: Channel; onClos
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Tags</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 inline-flex items-center gap-2">
           <ProductIconCell iconName={channel.type === 'community' ? 'community' : 'group'} label={channel.type === 'community' ? 'Community' : 'Group'} size="sm" className="border-transparent bg-transparent text-current" />
-          {channel.name}
+          {channel.displayName || channel.name}
         </p>
         <p className="text-xs text-gray-500 mb-4">Drag to reorder • First tag is primary</p>
 
@@ -2018,7 +2023,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate dark:text-gray-100">{channel.name}</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate dark:text-gray-100">{channel.displayName || channel.name}</h3>
             {unreadCount > 0 && (
               <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 dark:bg-red-500 text-white text-[10px] font-bold shrink-0 shadow-sm">
                 {unreadCount > 99 ? '99+' : unreadCount}
@@ -2374,7 +2379,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
             <div className="flex items-center gap-3 mb-4">
               <span className="text-2xl">{channel.type === 'community' ? '🏘' : '👥'}</span>
               <div>
-                <p className="font-semibold text-gray-800 dark:text-gray-200">{channel.name}</p>
+                <p className="font-semibold text-gray-800 dark:text-gray-200">{channel.displayName || channel.name}</p>
                 <p className="text-xs text-gray-400">This action is permanent and cannot be undone.</p>
               </div>
             </div>
@@ -2466,7 +2471,7 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode,
       )}
       <div className="flex items-center gap-1.5 mb-2">
         <ProductIconCell iconName={channel.type === 'community' ? 'community' : 'group'} label={channel.type === 'community' ? 'Community' : 'Group'} size="sm" />
-        <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100">{channel.name}</span>
+        <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100">{channel.displayName || channel.name}</span>
         {unreadCount > 0 && (
           <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 dark:bg-red-500 text-white text-[10px] font-bold shrink-0 shadow-sm">
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -2548,7 +2553,7 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode,
             <div className="flex items-center gap-3 mb-4">
               <span className="text-2xl">{channel.type === 'community' ? '🏘' : '👥'}</span>
               <div>
-                <p className="font-semibold text-gray-800 dark:text-gray-200">{channel.name}</p>
+                <p className="font-semibold text-gray-800 dark:text-gray-200">{channel.displayName || channel.name}</p>
                 <p className="text-xs text-gray-400">This action is permanent and cannot be undone.</p>
               </div>
             </div>

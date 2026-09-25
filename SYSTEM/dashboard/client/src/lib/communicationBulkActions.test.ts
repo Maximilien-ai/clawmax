@@ -4,6 +4,8 @@ import {
   getCommunicationChannelKey,
   type CommunicationBulkChannel,
 } from './communicationBulkActions'
+import fs from 'fs'
+import path from 'path'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -36,6 +38,13 @@ const channels: CommunicationBulkChannel[] = [
   { type: 'group', name: 'Content Creation' },
   { type: 'group', name: 'Quality Control' },
 ]
+
+test('Communication shows authored Group names but keeps resource IDs for actions', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../pages/Communication.tsx'), 'utf8')
+  assert(source.includes('displayName: group.displayName'), 'Workspace group labels must reach channel cards')
+  assert(source.includes('{channel.displayName || channel.name}'), 'Cards and lists must prefer authored names')
+  assert(source.includes('encodeURIComponent(channel.name)'), 'API actions must keep immutable group IDs')
+})
 
 test('getCommunicationChannelKey returns stable type-prefixed keys', () => {
   assert(getCommunicationChannelKey(channels[0]) === 'community:CW Team', 'Expected community key')

@@ -94,7 +94,26 @@ router.get('/groups', (req, res) => {
     }
     const content = fs.readFileSync(groupsPath, 'utf-8')
     const { groups } = parseGroupsWithMembers(content)
-    res.json({ groups })
+    const templateGroupsDir = path.join(getWorkspacePath(), 'ORG', 'template-groups')
+    const safeTemplateDir = fs.existsSync(templateGroupsDir) && fs.lstatSync(templateGroupsDir).isDirectory()
+    res.json({ groups: groups.map(group => {
+      if (!safeTemplateDir || !/^tr-[a-z0-9-]+$/.test(group.name)) return group
+      try {
+        const filename = path.join(templateGroupsDir, `${group.name}.json`)
+        const fd = fs.openSync(filename, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
+        try {
+          if (!fs.fstatSync(fd).isFile()) return group
+          const metadata = JSON.parse(fs.readFileSync(fd, 'utf-8'))
+          if (metadata.id !== group.name || typeof metadata.name !== 'string') return group
+          const displayName = metadata.name.trim()
+          return displayName && displayName.length <= 160 ? { ...group, displayName } : group
+        } finally {
+          fs.closeSync(fd)
+        }
+      } catch {
+        return group
+      }
+    }) })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }

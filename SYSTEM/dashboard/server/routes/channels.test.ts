@@ -134,6 +134,34 @@ async function run() {
   process.env.CLAWMAX_TEST_WORKSPACE = workspacePath
   resetWorkspaceManagerForTests()
 
+  await test('template groups expose authored display names without changing resource IDs', async () => {
+    const groupId = 'tr-test-group-123'
+    const groupsFile = path.join(workspacePath, 'ORG', 'GROUPS.md')
+    const metadataDir = path.join(workspacePath, 'ORG', 'template-groups')
+    const metadataFile = path.join(metadataDir, `${groupId}.json`)
+    fs.mkdirSync(metadataDir, { recursive: true })
+    fs.writeFileSync(groupsFile, `# Groups\n\n## Groups\n\n### ${groupId}\n- **Description:** authored group\n`)
+    fs.writeFileSync(metadataFile, JSON.stringify({ id: groupId, name: 'Daily Site Health' }))
+    const list = getRouteHandler('get', '/groups')
+    const result = makeRes()
+    list(makeReq(), result)
+    assert.equal(result.jsonBody.groups[0].name, groupId)
+    assert.equal(result.jsonBody.groups[0].displayName, 'Daily Site Health')
+
+    fs.writeFileSync(metadataFile, JSON.stringify({ id: 'another-group', name: 'Wrong name' }))
+    const mismatch = makeRes()
+    list(makeReq(), mismatch)
+    assert.equal(mismatch.jsonBody.groups[0].displayName, undefined)
+
+    fs.unlinkSync(metadataFile)
+    fs.symlinkSync(groupsFile, metadataFile)
+    const linked = makeRes()
+    list(makeReq(), linked)
+    assert.equal(linked.jsonBody.groups[0].displayName, undefined)
+    fs.unlinkSync(metadataFile)
+    fs.writeFileSync(groupsFile, '# Groups\n\n## Groups\n\n')
+  })
+
   await test('community and group creation reject missing names', async () => {
     const createCommunity = getRouteHandler('post', '/communities')
     const createGroup = getRouteHandler('post', '/groups')
