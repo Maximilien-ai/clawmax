@@ -26,6 +26,18 @@ export function verifyTemplateExecutionPolicies(authority: TemplateAuthorityEvid
   verifyTemplateStagingPolicies(authority, source)
 }
 
+/** A mixed revision may contain a credentialed Agent. That must not turn an
+ * unrelated, no-tools Agent into a credentialed execution, nor block its
+ * independently authorized no-tools eligibility. This check is only policy
+ * validation; it never grants runtime admission by itself. */
+export function verifyTemplateNoToolsAgentPolicy(authority: TemplateAuthorityEvidence, artifactId: string, source: TemplateExecutionPolicySource): void {
+  verifyTemplateStagingPolicies(authority, source)
+  const matches = authority.bindings.filter(binding => binding.artifactId === artifactId)
+  if (matches.length !== 1 || matches[0].skills.length || matches[0].credentials.length) {
+    throw new PortableTemplateError('template_policy_unavailable', 'Committed Template execution policy is unavailable or unsupported', 409)
+  }
+}
+
 /** Staging keeps the no-tools gateway policy while recording Skill and named
  * credential requirements. It does not authorize a model or Skill invocation. */
 export function verifyTemplateStagingPolicies(authority: TemplateAuthorityEvidence, source: TemplateExecutionPolicySource): void {

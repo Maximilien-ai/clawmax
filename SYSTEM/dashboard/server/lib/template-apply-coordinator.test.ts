@@ -13,7 +13,7 @@ import { TemplateGatewayTransaction, TemplateGatewayTransport } from './template
 import { TemplateApplyCoordinator } from './template-apply-coordinator'
 import { recoverTemplatesBeforeStartup } from './template-startup-recovery'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
-import { noToolsTemplatePolicy, verifyTemplateExecutionPolicies } from './template-execution-policy'
+import { noToolsTemplatePolicy, verifyTemplateExecutionPolicies, verifyTemplateNoToolsAgentPolicy } from './template-execution-policy'
 import { createConfiguredTemplateResolver } from './template-service'
 
 function components(root: string, options: { checkpoint?: (phase: string) => void; afterPatch?: () => void; beforeSnapshot?: () => void } = {}) {
@@ -195,9 +195,14 @@ async function main() {
     const addedCredential = structuredClone(stagedRevision.authority!)
     addedCredential.bindings[0].credentials = [{ name: 'API_KEY', reference: 'collector', revision: 'v1' }]
     assert.throws(() => verifyTemplateExecutionPolicies(addedCredential, policies), /policy is unavailable/)
+    const noToolsSibling = addedCredential.bindings[1].artifactId
+    assert.doesNotThrow(() => verifyTemplateNoToolsAgentPolicy(addedCredential, noToolsSibling, policies), 'A credentialed Collector must not block an unrelated no-tools Agent')
+    assert.throws(() => verifyTemplateNoToolsAgentPolicy(addedCredential, addedCredential.bindings[0].artifactId, policies), /policy is unavailable/)
+    assert.throws(() => verifyTemplateNoToolsAgentPolicy(addedCredential, 'missing', policies), /policy is unavailable/)
     const addedSkill = structuredClone(stagedRevision.authority!)
     addedSkill.bindings[0].skills = [{ name: 'collector', sha256: 'c'.repeat(64), platform: 'linux/amd64' }]
     assert.throws(() => verifyTemplateExecutionPolicies(addedSkill, policies), /policy is unavailable/)
+    assert.throws(() => verifyTemplateNoToolsAgentPolicy(addedSkill, addedSkill.bindings[0].artifactId, policies), /policy is unavailable/)
     assert.throws(() => verifyTemplateExecutionPolicies(stagedRevision.authority!, { read: () => { throw new Error('private path') } }), error => error instanceof Error && !error.message.includes('private path'))
     duringSnapshot = () => { policy = null }
     await assert.rejects(check(), /policy is unavailable/)
