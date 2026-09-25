@@ -1,9 +1,12 @@
 # Dev host Agent Skill authority query
 
 Status: isolated Mac dev only. Dashboard provides a generic read-only authority
-query; it does not execute Agents, deliver credentials, or enable Groups/Workflows.
-The sign-in popup remains presentation-only. The host must authenticate to this
-query and independently verify its local Skill file and signed macOS CLI.
+query and an opt-in, individual-Agent dev chat path. The chat path uses the
+configured OpenAI model, so prompts and completed Skill business JSON are sent
+to OpenAI for answers. It does not deliver credentials or enable Groups or
+Workflows. The sign-in popup remains presentation-only. The host must
+authenticate to this query and independently verify its local Skill file and
+signed macOS CLI.
 
 ## Transport
 
@@ -58,12 +61,31 @@ Errors are `no-store` JSON `{apiVersion,kind:"Error",code}`. Stable codes:
 `invalid_or_expired_request` (400), `authority_revoked` (403), and
 `authority_unavailable` (403). Errors contain no private paths or values.
 
+## Isolated individual-Agent chat
+
+Set `CLAWMAX_DEV_HOST_SKILL_CHAT=1` alongside the authority settings above,
+`CLAWMAX_DEV_HOST_TEMPLATE_PLATFORM=linux/arm64` for a Linux-staged rehearsal
+on a Mac dev server, and a configured system OpenAI key. This path additionally
+requires a localhost:5174 browser Origin, loopback peer, dev auth bypass, and
+the active isolated workspace. The browser sends only a prompt; Dashboard
+resolves the current revision, actor, Agent, and installed Skill itself. It
+passes only the model-selected CLI argument vector to the private host client.
+The host key and credential values never reach the browser or model.
+
+The Skill-bearing Agent can use documented **read-only** business commands in
+this rehearsal. Writes remain blocked without the separate exact-target user
+approval and intent flow. Agents with no Skill can chat using their authored
+identity and role but have no live tools. The chat is single-turn/stateless;
+Groups and Workflows remain stopped/disabled, and the staged Gateway status may
+still show these Agents as offline. This is a dev demo, not production runtime
+admission or a release gate.
+
 ## Remaining joint gate
 
-CLI must wire a host-initiated client and its current-authority resolver to
+CLI has wired the host-initiated client and its current-authority resolver to
 this endpoint, using the connected instance and private host key rather than
-browser input. Agree on secure dev-key provisioning and the matching macOS
-Skill file. The installed Skill contract, not a caller-controlled flag, classifies operations:
+browser input. Before production, agree on secure key provisioning and the
+matching macOS Skill file. The installed Skill contract, not a caller-controlled flag, classifies operations:
 read-only operations may be retried with a **fresh** request ID after a timeout,
 while mutating operations need durable replay/uncertain-outcome protection.
 Do not recycle a request ID or skip current-authority checks on either path.
