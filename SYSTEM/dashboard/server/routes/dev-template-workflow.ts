@@ -135,8 +135,7 @@ export function startDevTemplateWorkflow(req: Request, workflowId: string): DevT
       run.error = 'Dev Workflow run failed. Check Collector sign-in, Agent authority, and Group transcript.'
     } finally {
       run.completedAt = new Date().toISOString()
-      persist(context.root, run)
-      active.delete(workflowId)
+      try { persist(context.root, run) } finally { active.delete(workflowId) }
     }
   })()
   return run

@@ -2066,6 +2066,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between dark:border-gray-700">
               <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{selectedWorkflow.name}</h2>
               <div className="flex items-center gap-3">
+                {/^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(selectedWorkflow.id) && config?.hostAuthBridgeReady && (
+                  <span className="text-xs text-amber-700 dark:text-amber-300">Schedule off · manual dev run available</span>
+                )}
                 <button
                   onClick={async () => {
                     try {
