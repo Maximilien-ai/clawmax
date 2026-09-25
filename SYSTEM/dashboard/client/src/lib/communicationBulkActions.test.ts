@@ -46,6 +46,11 @@ test('Communication shows authored Group names but keeps resource IDs for action
   assert(source.includes('encodeURIComponent(channel.name)'), 'API actions must keep immutable group IDs')
 })
 
+test('temporary chat renders Agent names while retaining Agent IDs in messages', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../components/GroupChatPanel.tsx'), 'utf8')
+  assert(source.includes('channel.members.find(agent => agent.id === msg.from)?.name || msg.from'), 'Replies should show the selected Agent name')
+})
+
 test('getCommunicationChannelKey returns stable type-prefixed keys', () => {
   assert(getCommunicationChannelKey(channels[0]) === 'community:CW Team', 'Expected community key')
   assert(getCommunicationChannelKey(channels[1]) === 'group:Content Creation', 'Expected group key')

@@ -988,7 +988,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
             return (
               <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5 dark:bg-gray-800">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{channel.members.find(agent => agent.id === msg.from)?.name || msg.from}</span>
                   <span className="text-xs text-gray-400">
                     {formatChatTime(msg.timestamp, row.showDate)}
                   </span>
@@ -1371,7 +1371,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                 return (
                   <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5 dark:bg-gray-800">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{channel.members.find(agent => agent.id === msg.from)?.name || msg.from}</span>
                       <span className="text-xs text-gray-400">
                         {formatChatTime(msg.timestamp, shouldShowCalendarDate(msg.timestamp))}
                       </span>
