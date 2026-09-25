@@ -39,6 +39,9 @@ interface WorkflowDAGProps {
   onRemoveDependency?: (fromId: string, toId: string) => void
   onTogglePipelineSelect?: (workflowIds: string[]) => void
   pluginRelationships?: Record<string, PluginRelationship[]>
+  manualRunStatuses?: ReadonlyMap<string, string>
+  manualRunEnabled?: boolean
+  runningWorkflowIds?: ReadonlySet<string>
 }
 
 function inferPipelineLabel(workflows: Workflow[]): { title: string; subtitle?: string } {
@@ -234,6 +237,9 @@ export default function WorkflowDAG({
   onToggleEnabled,
   onTogglePipelineSelect,
   pluginRelationships = {},
+  manualRunStatuses,
+  manualRunEnabled = false,
+  runningWorkflowIds,
 }: WorkflowDAGProps) {
   const forests = useMemo(() => findForests(workflows), [workflows])
   const forestLayouts = useMemo(() => forests.map(f => ({ workflows: f, ...layoutDAG(f) })), [forests])
@@ -504,6 +510,9 @@ export default function WorkflowDAG({
 
                       {lane.map((wf) => {
                         const status = wf.status || 'idle'
+                        const isDevManual = manualRunEnabled && /^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(wf.id)
+                        const manualStatus = isDevManual ? manualRunStatuses?.get(wf.id) : undefined
+                        const isManualRunning = isDevManual && (manualStatus === 'running' || runningWorkflowIds?.has(wf.id))
                         const colors = STATUS_COLORS[status] || STATUS_COLORS.idle
                         const isSelected = selectionMode ? selectedWorkflowIds?.has(wf.id) : selectedId === wf.id
 
@@ -567,17 +576,19 @@ export default function WorkflowDAG({
                               {!selectionMode && onTrigger && status !== 'running' && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); onTrigger(wf.id) }}
-                                  className={`ml-auto inline-flex items-center justify-center rounded-full w-9 h-9 text-sm font-semibold transition-colors ${
+                                  disabled={isManualRunning}
+                                  className={`ml-auto inline-flex items-center justify-center rounded-full w-9 h-9 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                                     status === 'completed'
                                       ? 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50'
                                       : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50'
                                   }`}
-                                  title={status === 'completed' ? 'Re-run workflow' : 'Run workflow'}
+                                  title={isManualRunning ? 'Manual run in progress' : isDevManual ? 'Run once (dev); schedule remains off' : status === 'completed' ? 'Re-run workflow' : 'Run workflow'}
+                                  aria-label={isManualRunning ? `Manual run in progress: ${wf.name}` : isDevManual ? `Run once (dev): ${wf.name}` : `Run workflow: ${wf.name}`}
                                 >
-                                  {status === 'completed' ? '↻' : '▶'}
+                                  {isManualRunning ? '…' : status === 'completed' ? '↻' : '▶'}
                                 </button>
                               )}
-                              {!selectionMode && onEditRun && status !== 'running' && (
+                              {!selectionMode && onEditRun && status !== 'running' && !isDevManual && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); onEditRun(wf.id) }}
                                   className="inline-flex items-center justify-center rounded-full w-9 h-9 text-sm font-semibold transition-colors bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
@@ -623,7 +634,11 @@ export default function WorkflowDAG({
 
                             <div className="flex items-center justify-between mt-1.5">
                               <div className="flex items-center gap-1.5">
-                                {status !== 'idle' && (
+                                {isDevManual ? (
+                                  <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                                    Schedule off · manual {isManualRunning ? 'running' : manualStatus || 'ready'}
+                                  </span>
+                                ) : status !== 'idle' && (
                                   <span className={`text-[10px] font-medium ${colors.text} capitalize`}>{status}</span>
                                 )}
                                 {(wf.runCount || 0) > 0 && (

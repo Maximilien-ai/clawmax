@@ -28,4 +28,11 @@ assert(client.includes('▶ Run once (dev)'))
 const trigger = client.slice(client.indexOf('async function startWorkflowTrigger('), client.indexOf('const hasSecrets = (workflow.secretRequirements'))
 assert(trigger.indexOf("if (/^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(workflow.id))") < trigger.indexOf('if (pipelineState.paused)'),
   'Paused schedule must not block an explicitly requested manual dev Workflow run')
+assert(client.includes('manualRunStatuses={new Map(') && client.includes('runningWorkflowIds={runningWorkflows}'),
+  'Workflow graph must receive live manual-run status')
+assert(client.includes("workflow.status === 'running' || runningWorkflows.has(workflow.id)"),
+  'Header running count must include active manual runs')
+const graph = fs.readFileSync(path.join(__dirname, '../../client/src/components/WorkflowDAG.tsx'), 'utf8')
+assert(graph.includes('disabled={isManualRunning}') && graph.includes("Schedule off · manual {isManualRunning ? 'running' : manualStatus || 'ready'}"),
+  'Manual-run cards must block duplicate clicks and distinguish schedule state from run state')
 console.log('dev-template-workflow.test.ts: passed')

@@ -1563,7 +1563,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const selectedWorkflows = workflows.filter(workflow => selectedWorkflowIds.has(workflow.id))
   const selectedEnabledCount = selectedWorkflows.filter(workflow => workflow.enabled).length
   const selectedDisabledCount = selectedWorkflows.filter(workflow => !workflow.enabled).length
-  const runningWorkflowCount = workflows.filter((workflow) => workflow.status === 'running').length
+  const runningWorkflowCount = workflows.filter((workflow) => workflow.status === 'running' || runningWorkflows.has(workflow.id)).length
 
   const selectVisibleWorkflows = () => {
     setSelectedWorkflowIds(new Set(sortedWorkflows.map(w => w.id)))
@@ -1913,6 +1913,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             <div className="max-w-full overflow-x-auto">
               <WorkflowDAG
               workflows={sortedWorkflows}
+              manualRunStatuses={new Map(Array.from(devWorkflowRuns, ([id, run]) => [id, run.status]))}
+              manualRunEnabled={Boolean(config?.hostAuthBridgeReady)}
+              runningWorkflowIds={runningWorkflows}
               selectedId={selectedWorkflow?.id}
               selectionMode={selectionMode}
               selectedWorkflowIds={selectedWorkflowIds}
