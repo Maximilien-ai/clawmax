@@ -14,6 +14,7 @@ export async function runTemplateHostSkillRead(input: {
   skillName: string
   arguments: string[]
   hostKey: string
+  signal?: AbortSignal
   store: Pick<TemplateRevisionStore, 'workspaceId' | 'workspacePath' | 'verifyExecutionResources'>
   authority: TemplateAuthoritySource
   assertAuthorized: () => void
@@ -29,7 +30,7 @@ export async function runTemplateHostSkillRead(input: {
     revisionId: input.revisionId, agentId: input.agentId, skillName: input.skillName })
   input.assertAuthorized()
   const result = await (input.invoke || executeHostAgentSkillRead)({
-    scope: { instanceKey: input.instanceKey, ...evidence }, arguments: input.arguments, hostKey: input.hostKey,
+    scope: { instanceKey: input.instanceKey, ...evidence }, arguments: input.arguments, hostKey: input.hostKey, signal: input.signal,
   })
   input.assertAuthorized()
   if (result.status !== 'completed') return result

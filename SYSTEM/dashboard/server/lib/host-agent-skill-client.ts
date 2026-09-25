@@ -38,7 +38,7 @@ function safeBusinessDocument(value: unknown, depth = 0): boolean {
  * It never logs the key, arguments, or business response. */
 export async function executeHostAgentSkillRead(input: {
   scope: HostAgentSkillScope; arguments: string[]; hostKey: string
-  fetcher?: typeof fetch; now?: () => Date
+  fetcher?: typeof fetch; now?: () => Date; signal?: AbortSignal
 }): Promise<HostAgentSkillResult> {
   if (!/^[a-f0-9]{64}$/.test(input.hostKey) || !input.scope || !Object.values(input.scope).every(value => Array.isArray(value) || typeof value === 'string')
     || ![input.scope.instanceKey, input.scope.workspaceId, input.scope.workspaceRevisionId, input.scope.agentId,
@@ -62,7 +62,8 @@ export async function executeHostAgentSkillRead(input: {
   if (Buffer.byteLength(JSON.stringify(body)) > 16 * 1024) throw new Error('Host Skill invocation exceeds its bound')
   const response = await (input.fetcher || fetch)(endpoint, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ClawMax-Host-Key': input.hostKey },
-    body: JSON.stringify(body), signal: AbortSignal.timeout(60_000),
+    body: JSON.stringify(body), signal: input.signal
+      ? AbortSignal.any([input.signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000),
   })
   const bytes = Buffer.from(await response.arrayBuffer())
   if (bytes.length < 1 || bytes.length > 64 * 1024) throw new Error('Host Skill response is unavailable or oversized')

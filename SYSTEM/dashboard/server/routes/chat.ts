@@ -40,6 +40,7 @@ import { appendBoundedOutput } from '../lib/stream-bounds'
 import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '../lib/process-tree'
 import { isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
 import { assertTemplateRuntimeAdmitted } from '../lib/template-runtime-admission'
+import { executeDevHostSkillChat, isDevHostSkillChatReady } from './dev-host-skill-chat'
 
 const router = Router()
 const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
@@ -765,6 +766,7 @@ router.get('/:id/gateway', (req, res) => {
 
 router.post('/:id/chat/readiness', (req, res) => {
   const { id } = req.params
+  if (isDevHostSkillChatReady(req, id)) return res.json({ available: true, devHostSkill: true })
   const { byok } = req.body as {
     byok?: ChatByokPayload
   }
@@ -1488,6 +1490,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
 }
 
 router.post('/:id/chat', (req, res, next) => {
+  if (isDevHostSkillChatReady(req, req.params.id)) return executeDevHostSkillChat(req, res).catch(next)
   return executeAgentChat(req, res).catch(next)
 })
 
