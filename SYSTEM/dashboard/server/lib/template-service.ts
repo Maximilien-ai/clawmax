@@ -56,12 +56,23 @@ export function createConfiguredTemplateResolver(options: {
   }
 }
 
+export function configuredTemplateRuntimePlatform(env: NodeJS.ProcessEnv = process.env): string {
+  const localPlatform = `${process.platform}/${process.arch === 'x64' ? 'amd64' : process.arch}`
+  return env.NODE_ENV !== 'production'
+    && env.CLAWMAX_DEV_HOST_SKILL_AUTHORITY === '1'
+    && env.DASHBOARD_APP_URL === 'http://localhost:5174'
+    && env.CLAWMAX_DEV_HOST_TEMPLATE_PLATFORM === 'linux/arm64'
+      ? 'linux/arm64' : localPlatform
+}
+
 export function configuredTemplateResolverFromEnv() {
   const authorityDirectory = process.env.CLAWMAX_TEMPLATE_AUTHORITY_DIR
   if (!authorityDirectory) return undefined
+  // A Mac dev host may inspect a Linux-staged Template while the signed Mac
+  // CLI executes separately. This does not admit the Template Agent runtime.
   return createConfiguredTemplateResolver({ authorityDirectory,
     agentStateRoot: path.join(os.homedir(), '.openclaw', 'agents'),
-    runtime: { platform: `${process.platform}/${process.arch === 'x64' ? 'amd64' : process.arch}`, revision: process.env.CLAWMAX_TEMPLATE_RUNTIME_REVISION || '' },
+    runtime: { platform: configuredTemplateRuntimePlatform(), revision: process.env.CLAWMAX_TEMPLATE_RUNTIME_REVISION || '' },
     client: {
       getConfig: () => getGatewayClient().getConfig(),
       patchTemplateAgentEntriesAtRevision: (entries, hash) => getGatewayClient().patchTemplateAgentEntriesAtRevision(entries, hash),
