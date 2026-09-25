@@ -15,6 +15,7 @@ export default function HostCredentialPill({ credentialName }: { credentialName:
   const opened = React.useRef<Window | null>(null)
   const instanceKey = config?.instanceKey || ''
   const adapter = hostAdapters[credentialName as keyof typeof hostAdapters]
+  const bridgeReady = config?.hostAuthBridgeReady === true && Boolean(adapter)
 
   React.useEffect(() => {
     if (!adapter) return
@@ -48,8 +49,8 @@ export default function HostCredentialPill({ credentialName }: { credentialName:
   }
 
   return <div className="mt-2" data-testid="host-credential-pill">
-    <button type="button" onClick={start} className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${state === 'signed-in' ? 'border-green-300 bg-green-50 text-green-800' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
-      {state === 'signed-in' ? `${adapter?.label || credentialName} signed in · staged` : state === 'not-owner' ? `${adapter?.label || credentialName} owner required · Retry` : state === 'waiting' ? 'Waiting for Mac sign-in…' : `${adapter?.label || credentialName} sign-in required`}
+    <button type="button" onClick={start} disabled={!bridgeReady} title={!adapter ? 'No approved host sign-in adapter is available yet' : !bridgeReady ? 'Waiting for the signed Mac host bridge and its security checks' : undefined} className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${state === 'signed-in' ? 'border-green-300 bg-green-50 text-green-800' : 'border-amber-300 bg-amber-50 text-amber-900'} disabled:cursor-not-allowed disabled:opacity-60`}>
+      {state === 'signed-in' ? `${adapter?.label || credentialName} signed in · staged` : state === 'not-owner' ? `${adapter?.label || credentialName} owner required · Retry` : state === 'waiting' ? 'Waiting for Mac sign-in…' : `${adapter?.label || credentialName} sign-in required${bridgeReady ? '' : ' · unavailable'}`}
     </button>
     {error && <p role="alert" className="mt-1 max-w-sm text-xs text-red-700">{error}</p>}
   </div>

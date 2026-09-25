@@ -53,6 +53,7 @@ interface AuthConfig {
   recommendedModel?: string
   costEfficientModel?: string
   instanceKey?: string | null
+  hostAuthBridgeReady?: boolean
   machineId?: string | null
   machineName?: string | null
   templateRegistryWriteEnabled?: boolean

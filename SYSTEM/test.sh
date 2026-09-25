@@ -2084,6 +2084,15 @@ else
   fail "Maximilien host-auth message boundary tests"
 fi
 
+echo -e "${YELLOW}→ Running host credential pill admission tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/hostCredentialPill.test.ts > /tmp/clawmax-host-credential-pill.out 2>&1 || true
+if grep -q "hostCredentialPill.test.ts: passed" /tmp/clawmax-host-credential-pill.out; then
+  pass "Host credential pill admission tests"
+else
+  cat /tmp/clawmax-host-credential-pill.out
+  fail "Host credential pill admission tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace agent file seeding unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-agent-files.test.ts > /tmp/clawmax-workspace-agent-files.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-agent-files.out; then
