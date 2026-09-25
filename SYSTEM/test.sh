@@ -3202,6 +3202,15 @@ else
   fail "Workspace order unit tests"
 fi
 
+echo -e "${YELLOW}→ Running workspace switcher search tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workspaceSearch.test.ts > /tmp/clawmax-workspace-search.out 2>&1 || true
+if grep -q "workspaceSearch.test.ts: passed" /tmp/clawmax-workspace-search.out; then
+  pass "Workspace switcher search tests"
+else
+  cat /tmp/clawmax-workspace-search.out
+  fail "Workspace switcher search tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Agent config validation unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/agent-config-validation.test.ts > /tmp/clawmax-agent-config-validation.out 2>&1 || true
