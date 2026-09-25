@@ -17,11 +17,11 @@ function target(root: string, relative: string): string {
   if (typeof relative !== 'string' || !/^(?:AGENTS|ORG|WORKFLOWS|SYSTEM|SKILLS\/custom)\/[A-Za-z0-9._/-]+$/.test(relative) || relative.split('/').some(part => !part || part === '.' || part === '..')) throw new PortableTemplateError('invalid_plan', 'Unsafe resource path')
   return templateStoragePath(root, relative)
 }
-const maxBytes = (relative: string) => relative.startsWith('SKILLS/custom/') ? 16 * 1024 * 1024 : 2 * 1024 * 1024
+export const maxWorkspaceResourceBytes = (relative: string) => relative.startsWith('SKILLS/custom/') ? 16 * 1024 * 1024 : 2 * 1024 * 1024
 function read(file: string, relative: string): Buffer | null {
   try {
     const stat = fs.statSync(file)
-    if (!stat.isFile() || stat.size > maxBytes(relative)) throw new PortableTemplateError('resource_conflict', 'Resource is not a bounded regular file', 409)
+    if (!stat.isFile() || stat.size > maxWorkspaceResourceBytes(relative)) throw new PortableTemplateError('resource_conflict', 'Resource is not a bounded regular file', 409)
     return fs.readFileSync(file)
   } catch (error: any) { if (error.code === 'ENOENT') return null; throw error }
 }
@@ -57,7 +57,7 @@ export function recoverWorkspaceFileTransaction(root: string): void {
   let journal: Journal
   try { journal = JSON.parse(bytes.toString('utf8')) } catch { throw new PortableTemplateError('workspace_recovery_required', 'Transaction journal is unreadable', 503) }
   if (![1, 2].includes(journal.version) || !['prepared', 'committed'].includes(journal.state) || !Array.isArray(journal.entries) || journal.entries.length > 1024 || journal.entries.some(entry => typeof entry.path !== 'string' || (entry.before !== null && typeof entry.before !== 'string') || (entry.after !== null && typeof entry.after !== 'string') || (entry.beforeMode !== undefined && entry.beforeMode !== null && (!Number.isInteger(entry.beforeMode) || entry.beforeMode < 0 || entry.beforeMode > 0o777)) || (entry.afterMode !== undefined && entry.afterMode !== null && ![0o600, 0o700].includes(entry.afterMode)))) throw new PortableTemplateError('workspace_recovery_required', 'Invalid transaction journal', 503)
-  if (journal.entries.some(entry => (entry.before !== null && decoded(entry.before)!.length > maxBytes(entry.path)) || (entry.after !== null && decoded(entry.after)!.length > maxBytes(entry.path)))) throw new PortableTemplateError('workspace_recovery_required', 'Transaction journal contains an oversized resource', 503)
+  if (journal.entries.some(entry => (entry.before !== null && decoded(entry.before)!.length > maxWorkspaceResourceBytes(entry.path)) || (entry.after !== null && decoded(entry.after)!.length > maxWorkspaceResourceBytes(entry.path)))) throw new PortableTemplateError('workspace_recovery_required', 'Transaction journal contains an oversized resource', 503)
   for (const entry of journal.entries) {
     const current = encoded(read(target(root, entry.path), entry.path))
     if (current !== entry.after && (journal.state === 'committed' || current !== entry.before)) throw new PortableTemplateError('workspace_recovery_required', 'A transaction resource changed outside the recorded revision', 503)
@@ -79,7 +79,7 @@ export function commitWorkspaceFiles(rootInput: string, mutations: WorkspaceFile
     const file = target(root, item.path)
     const before = read(file, item.path)
     if ((before === null ? null : digest(before)) !== item.expectedSha256) throw new PortableTemplateError('stale_plan', 'Workspace resources changed after planning', 409)
-    if (item.content !== null && Buffer.byteLength(item.content) > maxBytes(item.path)) throw new PortableTemplateError('invalid_plan', 'Resource content is oversized')
+    if (item.content !== null && Buffer.byteLength(item.content) > maxWorkspaceResourceBytes(item.path)) throw new PortableTemplateError('invalid_plan', 'Resource content is oversized')
     if (item.mode !== undefined && ![0o600, 0o700].includes(item.mode)) throw new PortableTemplateError('invalid_plan', 'Invalid resource mode')
     const beforeMode = before === null ? null : fs.statSync(file).mode & 0o777
     const afterMode = item.content === null ? null : item.mode ?? (beforeMode === 0o700 ? 0o700 : 0o600)

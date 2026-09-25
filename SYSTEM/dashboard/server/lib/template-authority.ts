@@ -62,7 +62,6 @@ export function assertTemplateLifecycleAuthority(context: TemplateAuthorityConte
   const registry = readAuthorizedRegistry(context, source)
   if (!registry.bindings.some(binding => !binding.disabled && binding.actorIds.includes(context.actorId)
     && binding.runtime.platform === source.runtime.platform && binding.runtime.revision === source.runtime.revision
-    && binding.skills.length === 0 && binding.credentials.length === 0
     && binding.policy.sha256 === sha256(JSON.stringify(noToolsTemplatePolicy(binding.policy.id))))) {
     fail('No supported lifecycle authority is available for this actor and runtime')
   }

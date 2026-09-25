@@ -101,7 +101,8 @@ async function main() {
         if (mutation === 'disabled') binding.disabled = true
       }
       writeAtomicJson(registryFile, unsupported)
-      assert.throws(() => service.assertStagingAvailable!(), /authority/, mutation)
+      if (mutation === 'skills' || mutation === 'credentials') service.assertStagingAvailable!()
+      else assert.throws(() => service.assertStagingAvailable!(), /authority/, mutation)
       await assert.rejects(service.store.plan('actor', configured.request), mutation)
     }
     writeAtomicJson(registryFile, supportedRegistry)

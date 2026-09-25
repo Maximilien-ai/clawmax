@@ -3,7 +3,7 @@ import path from 'path'
 import os from 'os'
 import { sha256 } from './portable-template'
 import { readTemplateAuthorityRegistry, assertTemplateLifecycleAuthority } from './template-authority'
-import { noToolsTemplatePolicy, verifyTemplateExecutionPolicies } from './template-execution-policy'
+import { noToolsTemplatePolicy, verifyTemplateStagingPolicies } from './template-execution-policy'
 import { createTemplateResourceFileCompiler } from './template-resource-files'
 import { TemplateRevisionStore } from './template-revisions'
 import { TemplateApplyCoordinator } from './template-apply-coordinator'
@@ -39,7 +39,10 @@ export function createConfiguredTemplateResolver(options: {
     const store = new TemplateRevisionStore(context.workspacePath, context.workspaceId, (...args) => {
       const compiled = compile(...args)
       if (!compiled.authority) throw new Error('Template authority is unavailable')
-      verifyTemplateExecutionPolicies(compiled.authority, { read: noToolsTemplatePolicy })
+      verifyTemplateStagingPolicies(compiled.authority, { read: noToolsTemplatePolicy })
+      // Planning and stopped gateway registration do not grant execution.
+      // Skill/credential-bearing revisions remain blocked by the separate
+      // runtime policy checks in TemplateApplyCoordinator.
       return compiled
     })
     const coordinator = new TemplateApplyCoordinator(store,

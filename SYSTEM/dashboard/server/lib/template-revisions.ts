@@ -3,7 +3,7 @@ import path from 'path'
 import { InstanceTemplateCatalog, validResourceId } from './instance-template-catalog'
 import { PortableTemplate, sha256 } from './portable-template'
 import { PortableTemplateError } from './portable-template-zip'
-import { commitWorkspaceFiles, WorkspaceFileMutation } from './workspace-file-transaction'
+import { commitWorkspaceFiles, WorkspaceFileMutation, maxWorkspaceResourceBytes } from './workspace-file-transaction'
 import { templateStoragePath } from './template-storage-path'
 import type { resolveTemplateAuthority } from './template-authority'
 import { assertTemplateExecutionsSettled } from './template-execution-receipts'
@@ -239,7 +239,7 @@ export class TemplateRevisionStore {
       const file = templateStoragePath(this.workspacePath, item.path)
       if (fs.existsSync(file)) {
         const stat = fs.statSync(file)
-        if (!stat.isFile() || stat.size > 2 * 1024 * 1024) throw new PortableTemplateError('resource_conflict', 'Revision-owned resource is not a bounded regular file', 409)
+        if (!stat.isFile() || stat.size > maxWorkspaceResourceBytes(item.path)) throw new PortableTemplateError('resource_conflict', 'Revision-owned resource is not a bounded regular file', 409)
       }
       const digest = fs.existsSync(file) ? sha256(fs.readFileSync(file)) : null
       if (digest !== item.expectedSha256) throw new PortableTemplateError('resource_conflict', 'Revision-owned resources changed; cleanup requires inspection', 409)

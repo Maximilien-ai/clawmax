@@ -7,6 +7,7 @@ import { sha256 } from './portable-template'
 import { templateStoragePath } from './template-storage-path'
 import { WorkspaceFileMutation } from './workspace-file-transaction'
 import { resolveTemplateAuthority, TemplateAuthoritySource } from './template-authority'
+import { compileTemplateSkillMutations } from './template-skill-package'
 
 const line = (value: string) => value.replace(/[\r\n\u2028\u2029]/g, ' ').replace(/\*\*/g, '').trim()
 
@@ -18,16 +19,16 @@ const line = (value: string) => value.replace(/[\r\n\u2028\u2029]/g, ' ').replac
  */
 export function createTemplateResourceFileCompiler(workspacePath: string, authoritySource?: TemplateAuthoritySource): TemplateCompiler {
   return (bundle, request, prefix, context) => {
-    if (bundle.artifacts.some(item => [...(item.files?.keys() || [])].some(file => file.startsWith('content/skills/')))) {
-      throw new PortableTemplateError('template_authority_unavailable', 'Embedded Skill files require a verified package installer', 409)
-    }
+    const hasEmbeddedSkills = bundle.artifacts.some(item => [...(item.files?.keys() || [])].some(file => file.startsWith('content/skills/')))
     if (!authoritySource && (Object.keys(request.bindings).length || bundle.manifest.secretRequirements.length || bundle.artifacts.some(item => item.kind === 'agent' && item.definition.skills.length))) {
       throw new PortableTemplateError('template_authority_unavailable', 'Skill, policy, and credential bindings require server-owned authority admission', 409)
     }
     if (authoritySource && !context) throw new PortableTemplateError('template_authority_unavailable', 'Server actor and workspace context are required', 409)
     const authority = authoritySource ? resolveTemplateAuthority(bundle, request.bindings, context!, authoritySource) : undefined
+    if (hasEmbeddedSkills && !authority) throw new PortableTemplateError('template_authority_unavailable', 'Embedded Skill files require server-owned authority admission', 409)
     const graph = compileTemplateResourceGraph(bundle, prefix)
     const mutations: WorkspaceFileMutation[] = []
+    if (authority) mutations.push(...compileTemplateSkillMutations(bundle, authority, workspacePath))
     const create = (relative: string, content: string) => {
       const file = templateStoragePath(workspacePath, relative)
       if (fs.existsSync(file)) throw new PortableTemplateError('resource_conflict', 'Template resource already exists', 409)
