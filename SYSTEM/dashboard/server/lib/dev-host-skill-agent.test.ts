@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { runDevHostSkillAgent } from './dev-host-skill-agent'
+import { runDevHostSkillAgent, runDevNoToolAgent } from './dev-host-skill-agent'
 
 async function main() {
   const calls: any[] = []
@@ -19,11 +19,18 @@ async function main() {
   }
   assert.equal(await runDevHostSkillAgent({ message: 'status?', skillName: 'maximilien', skillInstructions: '# Skill', apiKey: 'test-key', client, invoke }), 'Collector is ready.')
   assert.equal(invoked, 1)
+  const aborted = new AbortController(); aborted.abort()
+  const noToolClient = { chat: { completions: { create: async (request: any) => {
+    assert.equal(request.tools, undefined)
+    assert(String(request.messages[0].content).includes('no executable tools'))
+    return { choices: [{ message: { content: 'I am the Account Analyst.' } }] }
+  } } } } as any
+  assert.equal(await runDevNoToolAgent({ message: 'Who are you?', instructions: 'Account Analyst', apiKey: 'test-key', client: noToolClient }), 'I am the Account Analyst.')
+  await assert.rejects(runDevNoToolAgent({ message: 'Who are you?', instructions: 'Account Analyst', apiKey: 'test-key', client: noToolClient, signal: aborted.signal }), /cancelled/)
   assert(String(calls[0].messages[0].content).includes('never the binary name or a path'))
   assert.equal(calls[1].messages.at(-1).role, 'tool')
   assert(!JSON.stringify(calls).includes('test-key'))
   assert(!JSON.stringify(calls).includes('MAXIMILIEN_ACCESS_TOKEN'))
-  const aborted = new AbortController(); aborted.abort()
   await assert.rejects(runDevHostSkillAgent({ message: 'status?', skillName: 'maximilien', skillInstructions: '# Skill', apiKey: 'test-key', client, invoke, signal: aborted.signal }), /cancelled/)
   assert.equal(invoked, 1)
   const invalid = { chat: { completions: { create: async () => ({ choices: [{ message: { role: 'assistant', tool_calls: [{ id: 'tool-2', type: 'function', function: { name: 'run_skill', arguments: '{"argv":["snapshot"]}' } }] } }] }) } } } as any

@@ -3,6 +3,21 @@ import type { HostAgentSkillResult } from './host-agent-skill-client'
 
 type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam
 
+export async function runDevNoToolAgent(input: {
+  message: string; instructions: string; apiKey: string; signal?: AbortSignal
+  client?: Pick<OpenAI, 'chat'>
+}): Promise<string> {
+  if (!input.message.trim() || Buffer.byteLength(input.message) > 16 * 1024
+    || !input.instructions.trim() || Buffer.byteLength(input.instructions) > 64 * 1024 || !input.apiKey) throw new Error('Dev Agent request unavailable')
+  const client = input.client || new OpenAI({ apiKey: input.apiKey, timeout: 45_000, maxRetries: 0 })
+  if (input.signal?.aborted) throw new Error('Dev Agent turn cancelled')
+  const completion = await client.chat.completions.create({ model: 'gpt-5.4-mini', max_completion_tokens: 1200,
+    messages: [{ role: 'system', content: `${input.instructions}\n\nYou have no executable tools in this dev session. Never claim to have checked live data, run a Skill, or completed an action. Answer concisely from your identity and the user's message.` }, { role: 'user', content: input.message }] }, { signal: input.signal })
+  const text = completion.choices[0]?.message?.content?.trim()
+  if (!text || Buffer.byteLength(text) > 64 * 1024 || input.signal?.aborted) throw new Error('Dev Agent reply unavailable')
+  return text
+}
+
 /** Dev-only model/tool loop. The model selects arguments, but never receives
  * the host key, a credential, an executable path, or authority identifiers. */
 export async function runDevHostSkillAgent(input: {
