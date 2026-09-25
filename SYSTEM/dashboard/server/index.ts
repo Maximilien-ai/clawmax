@@ -30,6 +30,9 @@ import aiBuilderRouter from './routes/ai-builder'
 import templateRegistryRouter from './routes/template-registry'
 import activityExportRouter from './routes/activity-export'
 import instanceCliRouter from './routes/instance-cli'
+import { createHostAgentSkillAuthorityRouter } from './routes/host-agent-skill-authority'
+import { configuredTemplateResolverFromEnv } from './lib/template-service'
+import { inspectTemplateHostSkill } from './lib/template-host-skill-inspection'
 import { startActivityExportWorker, stopActivityExportWorker } from './lib/activity-export-worker'
 import { isTemplateRegistryWriteEnabled } from './lib/template-registry'
 import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity, isManagedAgentWorkspaceDir } from './lib/workspace'
@@ -318,6 +321,30 @@ app.get('/api/health', createHealthHandler({
 // boundary so requests can never fall through to the browser SPA shell.
 app.use('/api', auditLog)
 app.use('/api/cli/v1', instanceCliRouter)
+// Private, host-initiated dev admission probe. A browser session and the
+// sign-in popup never authorize execution; production leaves this unmounted.
+app.use('/api/dev/host-agent-skill', createHostAgentSkillAuthorityRouter({
+  enabled: () => process.env.CLAWMAX_DEV_HOST_SKILL_AUTHORITY === '1'
+    && process.env.CLAWMAX_DEV_MAXIMILIEN_AUTH_BRIDGE === '1'
+    && process.env.NODE_ENV !== 'production'
+    && process.env.DASHBOARD_APP_URL === 'http://localhost:5174'
+    && !!process.env.CLAWMAX_DEV_HOST_ACTOR_ID
+    && process.env.CLAWMAX_DEV_HOST_ACTOR_ID === process.env.CLAWMAX_CLI_LOCAL_ACTOR_ID
+    && !!process.env.CLAWMAX_DEV_HOST_WORKSPACE_ID,
+  secret: () => process.env.CLAWMAX_DEV_HOST_AUTH_KEY || '',
+  instanceKey: () => process.env.CLAWMAX_INSTANCE_KEY || '',
+  actorId: () => process.env.CLAWMAX_DEV_HOST_ACTOR_ID || '',
+  workspaceId: () => process.env.CLAWMAX_DEV_HOST_WORKSPACE_ID || '',
+  inspect: input => {
+    const workspace = getWorkspaceManager().getWorkspace(input.workspaceId)
+    if (!workspace) throw new Error('Workspace unavailable')
+    const resolver = configuredTemplateResolverFromEnv()
+    if (!resolver) throw new Error('Template authority unavailable')
+    const service = resolver({ workspaceId: workspace.id, workspacePath: workspace.path, actorId: input.actorId })
+    return inspectTemplateHostSkill({ store: service.store, authority: service.authority,
+      actorId: input.actorId, revisionId: input.workspaceRevisionId, agentId: input.agentId, skillName: input.skillName })
+  },
+}))
 
 // Auth verification (public, legacy)
 app.post('/api/auth/verify', verifyToken)
