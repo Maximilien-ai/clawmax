@@ -25,4 +25,7 @@ assert(routes.includes("router.post('/:id/dev-run'"))
 assert(routes.includes("router.get('/:id/dev-runs/:runId'"))
 const client = fs.readFileSync(path.join(__dirname, '../../client/src/pages/Workflows.tsx'), 'utf8')
 assert(client.includes('▶ Run once (dev)'))
+const trigger = client.slice(client.indexOf('async function startWorkflowTrigger('), client.indexOf('const hasSecrets = (workflow.secretRequirements'))
+assert(trigger.indexOf("if (/^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(workflow.id))") < trigger.indexOf('if (pipelineState.paused)'),
+  'Paused schedule must not block an explicitly requested manual dev Workflow run')
 console.log('dev-template-workflow.test.ts: passed')

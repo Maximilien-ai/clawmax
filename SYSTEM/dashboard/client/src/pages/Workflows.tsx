@@ -680,10 +680,6 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   }
 
   async function startWorkflowTrigger(workflow: Workflow) {
-    if (pipelineState.paused) {
-      showError('Workflow pipeline is paused. Resume it before starting new runs.')
-      return
-    }
     if (runningWorkflows.has(workflow.id) || workflow.status === 'running') {
       showError('Already running. Stop the current run before starting another.')
       return
@@ -712,6 +708,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       } finally {
         setRunningWorkflows(previous => { const next = new Set(previous); next.delete(workflow.id); return next })
       }
+      return
+    }
+    if (pipelineState.paused) {
+      showError('Workflow pipeline is paused. Resume it before starting new runs.')
       return
     }
     const hasSecrets = (workflow.secretRequirements || []).length > 0
