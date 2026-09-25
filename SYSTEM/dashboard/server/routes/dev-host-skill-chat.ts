@@ -82,6 +82,34 @@ export function isDevHostSkillChatReady(req: Request, agentId: string): boolean 
   try { return !!resolve(agentId) && !!getSystemProviderKeys().openai } catch { return false }
 }
 
+/** Reused by individual chat and temporary, explicitly selected multi-Agent chat.
+ * Every invocation resolves current authority; no browser-supplied Skill scope is trusted. */
+export async function runDevHostSkillChatTurn(req: Request, agentId: string, message: string, signal: AbortSignal): Promise<string> {
+  if (!enabled(req) || typeof message !== 'string' || !message.trim() || Buffer.byteLength(message) > 16 * 1024) {
+    throw new Error('Dev Agent chat unavailable')
+  }
+  const openaiKey = getSystemProviderKeys().openai
+  const context = resolve(agentId)
+  if (!openaiKey || !context) throw new Error('Dev Agent authority unavailable')
+  const text = context.skillName ? await runDevHostSkillAgent({ message, skillName: context.skillName,
+    skillInstructions: context.skillInstructions, apiKey: openaiKey, signal,
+    invoke: async argv => {
+      const fresh = resolve(agentId)
+      if (!fresh || fresh.revisionId !== context.revisionId || fresh.skillName !== context.skillName) throw new Error('Dev Agent authority changed')
+      if (!fresh.skillName) throw new Error('Dev Agent Skill unavailable')
+      return runTemplateHostSkillRead({ instanceKey: process.env.CLAWMAX_INSTANCE_KEY || '',
+        workspaceId: fresh.workspaceId, actorId: fresh.actorId, revisionId: fresh.revisionId,
+        agentId, skillName: fresh.skillName, arguments: argv,
+        hostKey: process.env.CLAWMAX_DEV_HOST_AUTH_KEY || '', signal,
+        store: fresh.service.store, authority: fresh.service.authority,
+        assertAuthorized: () => { if (signal.aborted || !enabled(req) || getWorkspaceManager().getActiveWorkspaceId() !== fresh.workspaceId) throw new Error('Dev Agent authority revoked') },
+      })
+    },
+  }) : await runDevNoToolAgent({ message, instructions: context.skillInstructions, apiKey: openaiKey, signal })
+  if (signal.aborted || !resolve(agentId)) throw new Error('Dev Agent authority revoked')
+  return text
+}
+
 export async function executeDevHostSkillChat(req: Request, res: Response): Promise<void> {
   const { id: agentId } = req.params
   if (!enabled(req) || !agentIdPattern.test(agentId)) { res.status(404).json({ error: 'Dev Agent chat unavailable' }); return }
@@ -93,11 +121,8 @@ export async function executeDevHostSkillChat(req: Request, res: Response): Prom
   }
   const openaiKey = getSystemProviderKeys().openai
   if (!openaiKey) { res.status(503).json({ error: 'Configured OpenAI model unavailable' }); return }
-  let context: NonNullable<ReturnType<typeof resolve>>
   try {
-    const resolved = resolve(agentId)
-    if (!resolved) { res.status(409).json({ error: 'Dev Agent authority unavailable' }); return }
-    context = resolved
+    if (!resolve(agentId)) { res.status(409).json({ error: 'Dev Agent authority unavailable' }); return }
   } catch { res.status(409).json({ error: 'Dev Agent authority unavailable' }); return }
   const sessionId = typeof req.body?.sessionId === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(req.body.sessionId)
     ? req.body.sessionId : `dev-${crypto.randomUUID()}`
@@ -106,22 +131,7 @@ export async function executeDevHostSkillChat(req: Request, res: Response): Prom
   await withRegisteredTurn(agentId, async turn => {
     send('start', { sessionId, turnId: turn.turnId })
     try {
-      const text = context.skillName ? await runDevHostSkillAgent({ message, skillName: context.skillName,
-        skillInstructions: context.skillInstructions, apiKey: openaiKey, signal: turn.signal,
-        invoke: async argv => {
-          const fresh = resolve(agentId)
-          if (!fresh || fresh.revisionId !== context.revisionId || fresh.skillName !== context.skillName) throw new Error('Dev Agent authority changed')
-          if (!fresh.skillName) throw new Error('Dev Agent Skill unavailable')
-          return runTemplateHostSkillRead({ instanceKey: process.env.CLAWMAX_INSTANCE_KEY || '',
-            workspaceId: fresh.workspaceId, actorId: fresh.actorId, revisionId: fresh.revisionId,
-            agentId, skillName: fresh.skillName, arguments: argv,
-            hostKey: process.env.CLAWMAX_DEV_HOST_AUTH_KEY || '', signal: turn.signal,
-            store: fresh.service.store, authority: fresh.service.authority,
-            assertAuthorized: () => { if (turn.signal.aborted || !enabled(req) || getWorkspaceManager().getActiveWorkspaceId() !== fresh.workspaceId) throw new Error('Dev Agent authority revoked') },
-          })
-        },
-      }) : await runDevNoToolAgent({ message, instructions: context.skillInstructions, apiKey: openaiKey, signal: turn.signal })
-      if (turn.signal.aborted || !resolve(agentId)) throw new Error('Dev Agent authority revoked')
+      const text = await runDevHostSkillChatTurn(req, agentId, message, turn.signal)
       send('delta', { text })
       send('complete', { text })
     } catch { send('error', { message: 'Dev Agent chat unavailable. Verify the host bridge, Skill sign-in, and current workspace.' }) }

@@ -27,6 +27,7 @@ import { deriveChatError } from './chat'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 import { cancelProcessTree, detachProcessStreams } from '../lib/process-tree'
+import { isDevHostSkillChatReady, runDevHostSkillChatTurn } from './dev-host-skill-chat'
 
 const router = Router()
 
@@ -962,6 +963,15 @@ router.post('/groups/:name/messages', async (req, res) => {
 
   const decodedName = decodeURIComponent(name)
   const session = getAuthenticatedSession(req)
+  const templateMentions = Array.isArray(mentions) && mentions.some(id => typeof id === 'string' && /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(id))
+  const devTemporaryChat = templateMentions && /^bulk-chat-\d{13}$/.test(decodedName)
+    && mentions.length >= 1 && mentions.length <= 8
+    && new Set(mentions).size === mentions.length
+    && mentions.every(id => typeof id === 'string' && isDevHostSkillChatReady(req, id))
+  if (templateMentions && !devTemporaryChat) {
+    res.status(409).json({ ok: false, error: 'Template Agents require the admitted local dev chat path' })
+    return
+  }
 
   // Save message (use provided 'from' or default to 'User')
   const message = addMessage('group', decodedName, {
@@ -974,6 +984,20 @@ router.post('/groups/:name/messages', async (req, res) => {
   appendActivityExportEventsForActiveConsents({ source: 'group-chat', workspaceId: activityWorkspaceId, userId: activityUserId, subjectId: decodedName, content })
 
   res.json({ ok: true, message })
+
+  if (devTemporaryChat) {
+    // Temporary chat is an explicit multi-Agent conversation, not a Group
+    // activation. Each Agent and Skill scope is revalidated per turn.
+    void Promise.all(mentions!.map(async agentId => {
+      try {
+        const response = await withRegisteredTurn(agentId, turn => runDevHostSkillChatTurn(req, agentId, content, turn.signal))
+        addMessage('group', decodedName, { from: agentId, content: response, mentions: [] })
+      } catch {
+        addMessage('group', decodedName, { from: agentId, content: '**Error:** Dev Agent chat unavailable. Check sign-in and current workspace.', mentions: [] })
+      }
+    }))
+    return
+  }
 
   // Call mentioned agents asynchronously (don't block response)
   if (mentions && mentions.length > 0) {

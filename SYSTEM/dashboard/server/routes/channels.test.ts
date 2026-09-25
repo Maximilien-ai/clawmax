@@ -162,6 +162,34 @@ async function run() {
     fs.writeFileSync(groupsFile, '# Groups\n\n## Groups\n\n')
   })
 
+  await test('temporary Template chat replies through admitted dev Agents without starting a Group', async () => {
+    const dev = require('./dev-host-skill-chat')
+    const originalReady = dev.isDevHostSkillChatReady
+    const originalRun = dev.runDevHostSkillChatTurn
+    const agentId = 'tr-1234567890abcdef-agent-123456789abc'
+    const channelName = `bulk-chat-${Date.now()}`
+    try {
+      dev.isDevHostSkillChatReady = () => true
+      dev.runDevHostSkillChatTurn = async (_req: any, id: string) => `Reply from ${id}`
+      const send = getRouteHandler('post', '/groups/:name/messages')
+      const result = makeRes()
+      await send(makeReq({ params: { name: channelName }, body: { content: 'status?', mentions: [agentId] } }), result)
+      assert.equal(result.jsonBody.ok, true)
+      await new Promise(resolve => setTimeout(resolve, 20))
+      const { getMessages } = require('../lib/messages')
+      const messages = getMessages('group', channelName)
+      assert.equal(messages.length, 2)
+      assert.equal(messages[1].content, `Reply from ${agentId}`)
+
+      const blocked = makeRes()
+      await send(makeReq({ params: { name: 'not-a-temporary-group' }, body: { content: 'status?', mentions: [agentId] } }), blocked)
+      assert.equal(blocked.statusCode, 409)
+    } finally {
+      dev.isDevHostSkillChatReady = originalReady
+      dev.runDevHostSkillChatTurn = originalRun
+    }
+  })
+
   await test('community and group creation reject missing names', async () => {
     const createCommunity = getRouteHandler('post', '/communities')
     const createGroup = getRouteHandler('post', '/groups')
