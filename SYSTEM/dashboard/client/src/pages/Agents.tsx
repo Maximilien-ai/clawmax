@@ -38,6 +38,7 @@ import { getAttachmentFilename } from '../lib/downloadFilename'
 import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelationship } from '../lib/pluginRelationships'
 import { PluginRelationshipPills } from '../components/PluginRelationshipSummary'
 import ModelFitRecommendationPanel from '../components/ModelFitRecommendationPanel'
+import HostCredentialPill from '../components/HostCredentialPill'
 import { enabledRuntimeIds, modelAfterRuntimeChange, modelFitCandidates, parseRuntimeCatalog, runtimeAcceptsModel, runtimeLabelFor, runtimeModelsFor, stripModelProvider, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
 import {
   buildAgentModelFitDescription,
@@ -82,6 +83,7 @@ interface Agent {
   groups: GroupEntry[]
   tags: string[]
   skills?: string[]
+  hostCredentialRequirements?: string[]
   validationWarnings?: string[]
   archived?: boolean
   archiveMetadata?: { reason?: string; timestamp?: string }
@@ -3905,6 +3907,7 @@ const AgentCard = React.memo(function AgentCard({
             {agent.name}
           </div>
           <div className="text-xs text-gray-400 font-mono mb-3">{agent.id}</div>
+          {agent.hostCredentialRequirements?.map(name => <div key={name} onClick={event => event.stopPropagation()}><HostCredentialPill credentialName={name} /></div>)}
           <div id={`doctor-status-${agent.id}`} />
 
           <div className="space-y-1.5 text-sm text-gray-600 dark:text-gray-400">
@@ -4249,6 +4252,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
         text={agent.id}
         className="mb-1 block text-[10px] font-mono text-gray-400 truncate"
       />
+      {agent.hostCredentialRequirements?.map(name => <div key={name} onClick={event => event.stopPropagation()}><HostCredentialPill credentialName={name} /></div>)}
       {/* Line 3: quick actions + cost */}
       <div className="flex items-center gap-2 mb-1">
         <div className="flex items-center gap-2 shrink-0">

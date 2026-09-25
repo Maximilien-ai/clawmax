@@ -12,6 +12,7 @@ import { getPausedAgents } from './agent-state'
 import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
 import { REPO_ROOT } from './paths'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
+import { listTemplateHostCredentialRequirements } from './template-agent-auth'
 
 // Legacy constant for backward compatibility
 export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
@@ -1239,6 +1240,7 @@ export interface AgentInfo {
   groups: GroupEntry[]
   tags: string[]
   skills?: string[] // Skills assigned from openclaw.json
+  hostCredentialRequirements?: string[]
   validationWarnings?: string[] // Warnings from schema validation
   archived?: boolean // Derived from tags (true if 'archived' tag present)
   archiveMetadata?: { reason?: string; timestamp?: string } // From IDENTITY.md Archive section
@@ -2343,6 +2345,7 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     groups,
     tags,
     skills: skills || [],
+    hostCredentialRequirements: listTemplateHostCredentialRequirements(agentDir),
     validationWarnings: warnings.length > 0 ? warnings : undefined,
     archived: isArchived,
     archiveMetadata: isArchived ? archiveMetadata : undefined,

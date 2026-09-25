@@ -2075,6 +2075,15 @@ else
   fail "Agent card presentation helper tests"
 fi
 
+echo -e "${YELLOW}→ Running Maximilien host-auth message boundary tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/maximilienHostAuth.test.ts > /tmp/clawmax-maximilien-host-auth.out 2>&1 || true
+if grep -q "maximilienHostAuth.test.ts: passed" /tmp/clawmax-maximilien-host-auth.out; then
+  pass "Maximilien host-auth message boundary tests"
+else
+  cat /tmp/clawmax-maximilien-host-auth.out
+  fail "Maximilien host-auth message boundary tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace agent file seeding unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-agent-files.test.ts > /tmp/clawmax-workspace-agent-files.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-agent-files.out; then
@@ -2512,7 +2521,7 @@ if node "$SYSTEM_DIR/patch-openclaw-roster-removal.test.mjs"; then
 else
   fail "OpenClaw explicit roster-removal patch"
 fi
-for template_suite in server/lib/portable-template-zip.test.ts server/lib/portable-template.test.ts server/routes/instance-templates.test.ts server/routes/instance-template-lifecycle.test.ts server/lib/messages-workspace-isolation.test.ts server/lib/messages-archive-boundary.test.ts server/lib/workspace-file-transaction.test.ts server/lib/template-revisions.test.ts server/lib/template-resource-graph.test.ts server/lib/template-resource-files.test.ts server/lib/template-skill-package.test.ts server/lib/template-community.test.ts server/lib/template-authority.test.ts server/lib/template-authority-revalidation.test.ts server/lib/template-gateway-transaction.test.ts server/lib/template-apply-coordinator.test.ts server/lib/workspace-agent-registration.test.ts server/lib/workspace-recovery-admission.test.ts server/lib/template-recovery-worker.test.ts server/lib/recovery-serving-gate.test.ts server/lib/recovery-serving-http.test.ts; do
+for template_suite in server/lib/portable-template-zip.test.ts server/lib/portable-template.test.ts server/routes/instance-templates.test.ts server/routes/instance-template-lifecycle.test.ts server/lib/messages-workspace-isolation.test.ts server/lib/messages-archive-boundary.test.ts server/lib/workspace-file-transaction.test.ts server/lib/template-revisions.test.ts server/lib/template-resource-graph.test.ts server/lib/template-resource-files.test.ts server/lib/template-skill-package.test.ts server/lib/template-agent-auth.test.ts server/lib/template-community.test.ts server/lib/template-authority.test.ts server/lib/template-authority-revalidation.test.ts server/lib/template-gateway-transaction.test.ts server/lib/template-apply-coordinator.test.ts server/lib/workspace-agent-registration.test.ts server/lib/workspace-recovery-admission.test.ts server/lib/template-recovery-worker.test.ts server/lib/recovery-serving-gate.test.ts server/lib/recovery-serving-http.test.ts; do
   if npx ts-node --transpileOnly "$template_suite" > /tmp/clawmax-portable-template-suite.out 2>&1; then
     pass "Portable Template contract: $template_suite"
   else
