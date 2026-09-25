@@ -26,10 +26,16 @@ import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
-import { getDevTemplateWorkflowRun, startDevTemplateWorkflow } from './dev-template-workflow'
+import { devRunAsExecution, getDevTemplateWorkflowRun, isDevTemplateWorkflowId, listDevTemplateWorkflowRuns, startDevTemplateWorkflow } from './dev-template-workflow'
+import { devHostSkillChatEnabled } from './dev-host-skill-chat'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 
 const router = Router()
+
+function devManualWorkflowRequest(req: any, id: string): boolean {
+  return isDevTemplateWorkflowId(id)
+    && devHostSkillChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)
+}
 
 function resolveSessionAuthor(req: any): string | undefined {
   const session = getAuthenticatedSession(req)
@@ -557,7 +563,9 @@ router.get('/:id/executions', (req, res) => {
       return res.status(404).json({ error: 'Workflow not found', workflowId: id })
     }
 
-    const executions = listExecutions(id, limit)
+    const executions = devManualWorkflowRequest(req, id)
+      ? listDevTemplateWorkflowRuns(req, id, limit).map(devRunAsExecution)
+      : listExecutions(id, limit)
 
     // Simplify execution data for list view
     const simplifiedExecutions = executions.map(exec => ({
@@ -742,7 +750,11 @@ router.get('/:id/executions/:executionId', (req, res) => {
       return res.status(404).json({ error: 'Workflow not found', workflowId: id })
     }
 
-    const execution = getExecution(id, executionId)
+    const isDevManual = devManualWorkflowRequest(req, id)
+    const devRun = isDevManual ? getDevTemplateWorkflowRun(req, id, executionId) : null
+    const execution = isDevManual
+      ? devRun ? devRunAsExecution(devRun) : null
+      : getExecution(id, executionId)
     if (!execution) {
       return res.status(404).json({ error: 'Execution not found', executionId })
     }

@@ -19,6 +19,7 @@ import {
 import { ProductIconCell } from '../lib/productIcons'
 import TruncatedText from '../components/TruncatedText'
 import { getWorkflowDisplayName } from '../lib/workflowDisplay'
+import { readDevWorkflowResponse } from '../lib/devWorkflowResponse'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
@@ -688,13 +689,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       setRunningWorkflows(previous => new Set(previous).add(workflow.id))
       try {
         const response = await fetch(`/api/workflows/${workflow.id}/dev-run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-        const started = await response.json()
+        const started = await readDevWorkflowResponse(response)
         if (!response.ok || !started.runId) throw new Error(started.error || 'Dev Workflow could not start')
         setDevWorkflowRuns(previous => new Map(previous).set(workflow.id, { status: 'running', groupId: started.groupId }))
         for (let attempt = 0; attempt < 90; attempt++) {
           await new Promise(resolve => setTimeout(resolve, 2000))
           const poll = await fetch(`/api/workflows/${workflow.id}/dev-runs/${started.runId}`)
-          const run = await poll.json()
+          const run = await readDevWorkflowResponse(poll)
           if (!poll.ok) throw new Error(run.error || 'Dev Workflow status unavailable')
           if (run.status === 'running') continue
           setDevWorkflowRuns(previous => new Map(previous).set(workflow.id, { status: run.status, groupId: run.groupId, error: run.error }))
@@ -704,6 +705,12 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         }
         showError(`${workflow.name} is still running. Review its Group conversation in Communications.`)
       } catch (error: any) {
+        setDevWorkflowRuns(previous => {
+          const current = previous.get(workflow.id)
+          return current?.status === 'running'
+            ? new Map(previous).set(workflow.id, { ...current, status: 'check Executions' })
+            : previous
+        })
         showError(error?.message || 'Dev Workflow unavailable')
       } finally {
         setRunningWorkflows(previous => { const next = new Set(previous); next.delete(workflow.id); return next })

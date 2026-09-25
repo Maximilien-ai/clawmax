@@ -1,11 +1,12 @@
 import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
-import { formatDevWorkflowHandoff, getDevTemplateWorkflowRun, settleInterruptedDevRun, startDevTemplateWorkflow } from './dev-template-workflow'
+import { captureDevWorkflowAdmission, devRunAsExecution, formatDevWorkflowHandoff, getDevTemplateWorkflowRun, listDevTemplateWorkflowRuns, settleInterruptedDevRun, startDevTemplateWorkflow } from './dev-template-workflow'
 
 const unauthorized = { get: () => undefined, socket: { remoteAddress: '192.0.2.1' } } as any
 assert.throws(() => startDevTemplateWorkflow(unauthorized, 'tr-1234567890abcdef-workflow-123456789abc'), /unavailable/)
 assert.throws(() => getDevTemplateWorkflowRun(unauthorized, 'tr-1234567890abcdef-workflow-123456789abc', '12345678-1234-1234-1234-123456789abc'), /unavailable/)
+assert.throws(() => listDevTemplateWorkflowRuns(unauthorized, 'tr-1234567890abcdef-workflow-123456789abc', 10), /unavailable/)
 assert.equal(getDevTemplateWorkflowRun(unauthorized, 'tr-1234567890abcdef-workflow-123456789abc', '../bad'), null)
 assert.equal(formatDevWorkflowHandoff('Hello Group'), 'Hello Group')
 assert.equal(formatDevWorkflowHandoff('{"kind":"Report","count":2}'), 'Collector structured report:\n> {"kind":"Report","count":2}')
@@ -13,6 +14,15 @@ assert.throws(() => formatDevWorkflowHandoff('  '), /unavailable/)
 const running = { runId: 'run', workflowId: 'workflow', groupId: 'group', status: 'running' as const, createdAt: 'earlier' }
 assert.equal(settleInterruptedDevRun(running, true, 'now'), running)
 assert.deepEqual(settleInterruptedDevRun(running, false, 'now'), { ...running, status: 'failed', completedAt: 'now', error: 'Dev Workflow was interrupted before completion. Review its Group transcript before retrying.' })
+let socketAddress: string | undefined = '127.0.0.1'
+const captured = captureDevWorkflowAdmission({ get: () => 'http://localhost:5174', socket: { get remoteAddress() { return socketAddress } } } as any)
+socketAddress = undefined
+assert.equal(captured.get('Origin'), 'http://localhost:5174')
+assert.equal(captured.socket.remoteAddress, '127.0.0.1', 'Background admission must survive response socket closure')
+const execution = devRunAsExecution({ ...running, status: 'completed', stage: 'completed', collectorId: 'collector', specialistId: 'specialist' })
+assert.equal(execution.participants.length, 2)
+assert.deepEqual(execution.participants.map(item => item.status), ['completed', 'completed'])
+assert.equal(execution.triggerType, 'manual')
 
 const source = fs.readFileSync(path.join(__dirname, 'dev-template-workflow.ts'), 'utf8')
 assert(source.includes("workflow.enabled !== false"), 'Manual rehearsal must not enable imported schedules')
@@ -23,6 +33,9 @@ assert(source.includes('service.store.verifyExecutionResources(actorId, revision
 const routes = fs.readFileSync(path.join(__dirname, 'workflows.ts'), 'utf8')
 assert(routes.includes("router.post('/:id/dev-run'"))
 assert(routes.includes("router.get('/:id/dev-runs/:runId'"))
+assert(routes.includes('listDevTemplateWorkflowRuns(req, id, limit).map(devRunAsExecution)'),
+  'Manual dev runs must appear in normal Workflow execution history')
+assert(routes.includes('devRunAsExecution(devRun)'), 'Manual dev run details must remain inspectable')
 const client = fs.readFileSync(path.join(__dirname, '../../client/src/pages/Workflows.tsx'), 'utf8')
 assert(client.includes('▶ Run once (dev)'))
 const trigger = client.slice(client.indexOf('async function startWorkflowTrigger('), client.indexOf('const hasSecrets = (workflow.secretRequirements'))

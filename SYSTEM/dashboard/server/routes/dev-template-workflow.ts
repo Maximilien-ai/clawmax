@@ -18,8 +18,11 @@ type DevRunStatus = 'running' | 'completed' | 'failed'
 export interface DevTemplateWorkflowRun {
   runId: string; workflowId: string; groupId: string; status: DevRunStatus
   createdAt: string; completedAt?: string; error?: string
+  collectorId?: string; specialistId?: string; stage?: 'collector' | 'handoff' | 'specialist' | 'completed'
 }
 const active = new Set<string>()
+
+export function isDevTemplateWorkflowId(id: string): boolean { return workflowIdPattern.test(id) }
 
 export function settleInterruptedDevRun(run: DevTemplateWorkflowRun, isActive: boolean, now: string): DevTemplateWorkflowRun {
   if (run.status !== 'running' || isActive) return run
@@ -40,6 +43,15 @@ export function formatDevWorkflowHandoff(text: string): string {
 
 function allowed(req: Request): boolean {
   return devHostSkillChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)
+}
+
+export function captureDevWorkflowAdmission(req: Request): Request {
+  const origin = req.get('Origin')
+  const remoteAddress = req.socket.remoteAddress
+  return {
+    get: (header: string) => header.toLowerCase() === 'origin' ? origin : undefined,
+    socket: { remoteAddress },
+  } as Request
 }
 
 function readSidecar(root: string, relative: string): any {
@@ -112,27 +124,74 @@ export function getDevTemplateWorkflowRun(req: Request, workflowId: string, runI
   } catch { return null }
 }
 
+export function listDevTemplateWorkflowRuns(req: Request, workflowId: string, limit: number): DevTemplateWorkflowRun[] {
+  const context = resolve(req, workflowId)
+  const directory = templateStoragePath(context.root, 'SYSTEM/dev-template-workflow-runs')
+  let names: string[]
+  try { names = fs.readdirSync(directory) } catch (error: any) {
+    if (error?.code === 'ENOENT') return []
+    throw error
+  }
+  return names.filter(name => /^[a-f0-9-]{36}\.json$/.test(name))
+    .map(name => getDevTemplateWorkflowRun(req, workflowId, name.slice(0, -5)))
+    .filter((run): run is DevTemplateWorkflowRun => run !== null)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, Math.max(1, Math.min(limit, 20)))
+}
+
+export function devRunAsExecution(run: DevTemplateWorkflowRun) {
+  const collectorStatus = run.status === 'completed' ? 'completed'
+    : run.status === 'failed' && (!run.stage || run.stage === 'collector') ? 'failed'
+    : run.stage === 'handoff' || run.stage === 'specialist' ? 'completed' : 'running'
+  const specialistStatus = run.status === 'completed' ? 'completed'
+    : run.status === 'failed' && run.stage === 'specialist' ? 'failed'
+    : run.status === 'running' && run.stage === 'specialist' ? 'running' : 'pending'
+  const participants = [
+    run.collectorId && { agentId: run.collectorId, agentName: 'Collector', status: collectorStatus },
+    run.specialistId && { agentId: run.specialistId, agentName: 'Specialist', status: specialistStatus },
+  ].filter((item): item is { agentId: string; agentName: string; status: string } => !!item)
+  return {
+    id: run.runId, workflowId: run.workflowId, startedAt: run.createdAt, completedAt: run.completedAt,
+    status: run.status, triggerType: 'manual', triggeredBy: 'Dev Workspace', participants, inputs: undefined,
+    logs: ['Dev-only manual Template run; schedule remained off.', `Linked Group: ${run.groupId}`,
+      ...(run.error ? [run.error] : [])],
+  }
+}
+
 export function startDevTemplateWorkflow(req: Request, workflowId: string): DevTemplateWorkflowRun {
   const context = resolve(req, workflowId)
+  // The HTTP socket may close as soon as the 202 response is sent. Capture
+  // the already-admitted loopback origin before starting background work;
+  // each turn still rechecks live environment, Workspace and Skill authority.
+  const admittedRequest = captureDevWorkflowAdmission(req)
   if (active.has(workflowId)) throw new Error('Dev Workflow is already running')
   const run: DevTemplateWorkflowRun = { runId: crypto.randomUUID(), workflowId, groupId: context.groupId,
+    collectorId: context.collectorId, specialistId: context.specialistId, stage: 'collector',
     status: 'running', createdAt: new Date().toISOString() }
   persist(context.root, run)
   active.add(workflowId)
   void (async () => {
+    let stage = 'Collector turn'
     try {
       const collectorPrompt = `${context.workflow.steps[0].objective}\nUse your assigned read-only Skill and return a concise report for the linked Group. This is a manual dev Workflow run.`
-      const collected = await withRegisteredTurn(context.collectorId, turn => runDevHostSkillChatTurn(req, context.collectorId, collectorPrompt, turn.signal))
-      resolve(req, workflowId)
+      const collected = await withRegisteredTurn(context.collectorId, turn => runDevHostSkillChatTurn(admittedRequest, context.collectorId, collectorPrompt, turn.signal))
+      resolve(admittedRequest, workflowId)
+      stage = 'Group handoff'
+      run.stage = 'handoff'
+      persist(context.root, run)
       addMessage('group', context.groupId, { from: context.collectorId, content: formatDevWorkflowHandoff(collected), mentions: [context.specialistId] })
+      stage = 'Specialist turn'
+      run.stage = 'specialist'
+      persist(context.root, run)
       const specialistPrompt = `${context.workflow.steps[1].objective}\nYou are reviewing the Collector's report in your assigned Group. Do not claim to run a Skill or perform writes. Collector report:\n${collected}`
-      const reviewed = await withRegisteredTurn(context.specialistId, turn => runDevHostSkillChatTurn(req, context.specialistId, specialistPrompt, turn.signal))
-      resolve(req, workflowId)
+      const reviewed = await withRegisteredTurn(context.specialistId, turn => runDevHostSkillChatTurn(admittedRequest, context.specialistId, specialistPrompt, turn.signal))
+      resolve(admittedRequest, workflowId)
       addMessage('group', context.groupId, { from: context.specialistId, content: reviewed, mentions: [context.collectorId] })
       run.status = 'completed'
+      run.stage = 'completed'
     } catch {
       run.status = 'failed'
-      run.error = 'Dev Workflow run failed. Check Collector sign-in, Agent authority, and Group transcript.'
+      run.error = `${stage} failed. Check Agent sign-in and current authority; review the linked Group transcript before retrying.`
     } finally {
       run.completedAt = new Date().toISOString()
       try { persist(context.root, run) } finally { active.delete(workflowId) }
