@@ -317,6 +317,33 @@ async function run() {
     assert.strictEqual(matches.length, 1, `Expected one active artifact notification, got ${matches.length}`)
   })
 
+  await test('imported channel notifications resolve saved names without changing routing IDs', async () => {
+    const { createNotification, getActiveNotifications } = require('../lib/notifications')
+    const { channelDisplayName } = require('../lib/channel-display-name')
+    for (const type of ['group', 'community']) {
+      const id = `tr-test-${type}`
+      const dir = path.join(tmpWorkspace, 'ORG', `template-${type === 'group' ? 'groups' : 'communities'}`)
+      fs.mkdirSync(dir, { recursive: true })
+      const file = path.join(dir, `${id}.json`)
+      fs.writeFileSync(file, JSON.stringify({ id, name: 'Readable Operations' }))
+      createNotification({ type: 'channel-activity', title: `New messages in ${id}`, message: `1 agent message in ${type} "${id}".`, entityId: id, entityType: 'channel', fingerprint: `channel-activity:${type}:${id}` })
+      const notification = getActiveNotifications().find((n: any) => n.entityId === id)
+      assert.strictEqual(notification.title, 'New messages in Readable Operations')
+      assert.strictEqual(notification.message, `1 agent message in ${type} "Readable Operations".`)
+      assert.strictEqual(notification.entityId, id)
+      fs.writeFileSync(file, JSON.stringify({ id: 'wrong', name: 'Wrong name' }))
+      assert.strictEqual(channelDisplayName(tmpWorkspace, type, id), id)
+      fs.writeFileSync(file, '{broken')
+      assert.strictEqual(channelDisplayName(tmpWorkspace, type, id), id)
+      fs.unlinkSync(file)
+      fs.symlinkSync(path.join(tmpWorkspace, 'SYSTEM', 'notifications.json'), file)
+      assert.strictEqual(channelDisplayName(tmpWorkspace, type, id), id)
+      fs.unlinkSync(file)
+      assert.strictEqual(channelDisplayName(tmpWorkspace, type, id), id)
+    }
+    assert.strictEqual(channelDisplayName(tmpWorkspace, 'group', 'Ordinary group'), 'Ordinary group')
+  })
+
   await test('channel activity dedupes active notifications by channel and refreshes the message', async () => {
     const { createNotification, getActiveNotifications } = require('../lib/notifications')
 

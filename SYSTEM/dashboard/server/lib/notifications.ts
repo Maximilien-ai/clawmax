@@ -8,6 +8,7 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { getAgentsDir, getWorkspacePath, getWorkspaceActivity, listAgents, parseGroups, isManagedAgentWorkspaceDir } from './workspace'
+import { channelDisplayName } from './channel-display-name'
 import { formatParticipantFailure, getLatestExecution, listWorkflows, WorkflowExecution } from './workflows'
 import { getBudgetStatus } from './budget'
 import { getMessages } from './messages'
@@ -113,6 +114,13 @@ function saveNotifications(notifications: Notification[]): void {
 export function getActiveNotifications(): Notification[] {
   return loadNotifications()
     .filter(n => !n.dismissedAt && !n.resolvedAt)
+    .map(n => {
+      if (n.type !== 'channel-activity' || !n.entityId) return n
+      const type = n.fingerprint?.startsWith('channel-activity:community:') ? 'community' : 'group'
+      const name = channelDisplayName(getWorkspacePath(), type, n.entityId)
+      if (name === n.entityId) return n
+      return { ...n, title: `New messages in ${name}`, message: n.message.replace(`"${n.entityId}"`, `"${name}"`) }
+    })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 }
 
@@ -932,10 +940,11 @@ async function runMonitorScan(): Promise<void> {
           const recentMessages = messages.slice(-checkCount)
           const agentMessages = recentMessages.filter(m => m.from !== 'user' && m.from !== 'dr.max' && m.from !== 'User')
           if (agentMessages.length > 0) {
+            const displayName = channelDisplayName(getWorkspacePath(), ch.type, ch.name)
             createNotification({
               type: 'channel-activity',
-              title: `New messages in ${ch.name}`,
-              message: `${agentMessages.length} agent message${agentMessages.length !== 1 ? 's' : ''} in ${ch.type} "${ch.name}".`,
+              title: `New messages in ${displayName}`,
+              message: `${agentMessages.length} agent message${agentMessages.length !== 1 ? 's' : ''} in ${ch.type} "${displayName}".`,
               entityId: ch.name,
               entityType: 'channel',
               fingerprint: fp,
