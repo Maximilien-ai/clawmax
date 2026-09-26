@@ -689,17 +689,29 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       return
     }
     if (/^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(workflow.id)) {
+      if (!config?.hostAuthBridgeReady) { showError('Manual dev Workflow runner is unavailable'); return }
+      const devWorkflowApi = `http://127.0.0.1:3001/api/workflows/${workflow.id}`
       setRunningWorkflows(previous => new Set(previous).add(workflow.id))
       try {
-        const response = await fetch(`/api/workflows/${workflow.id}/dev-run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        const response = await fetch(`${devWorkflowApi}/dev-run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
         const started = await readDevWorkflowResponse(response)
         if (!response.ok || !started.runId) throw new Error(started.error || 'Dev Workflow could not start')
         setDevWorkflowRuns(previous => new Map(previous).set(workflow.id, { status: 'running', groupId: started.groupId }))
+        let statusFailures = 0
         for (let attempt = 0; attempt < 90; attempt++) {
           await new Promise(resolve => setTimeout(resolve, 2000))
-          const poll = await fetch(`/api/workflows/${workflow.id}/dev-runs/${started.runId}`)
-          const run = await readDevWorkflowResponse(poll)
-          if (!poll.ok) throw new Error(run.error || 'Dev Workflow status unavailable')
+          let run: Record<string, any>
+          try {
+            const poll = await fetch(`${devWorkflowApi}/dev-runs/${started.runId}`)
+            run = await readDevWorkflowResponse(poll)
+            if (!poll.ok) throw new Error(run.error || 'Dev Workflow status unavailable')
+            statusFailures = 0
+          } catch (error) {
+            // A transient dev-network reset must not turn an admitted run into
+            // a false failure. Keep its exact runId and retry the status read.
+            if (++statusFailures < 5) continue
+            throw error
+          }
           if (run.status === 'running') continue
           setDevWorkflowRuns(previous => new Map(previous).set(workflow.id, { status: run.status, groupId: run.groupId, error: run.error }))
           if (run.status !== 'completed') throw new Error(run.error || 'Dev Workflow failed')
