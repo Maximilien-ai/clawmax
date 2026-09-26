@@ -37,6 +37,7 @@ import { startActivityExportWorker, stopActivityExportWorker } from './lib/activ
 import { isTemplateRegistryWriteEnabled } from './lib/template-registry'
 import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity, isManagedAgentWorkspaceDir } from './lib/workspace'
 import { getSchedulerDiagnostics, startScheduler, stopScheduler } from './lib/scheduler'
+import { startDevBriefDeliveryWorker } from './lib/dev-brief-delivery-worker'
 import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
 import notificationsRouter from './routes/notifications'
 import { initOpikTracing, shutdownOpik, isOpikEnabled, getRequestDashboardInstanceId, getRuntimeInstanceIdentity } from './lib/opik'
@@ -181,6 +182,7 @@ function startBackgroundServices() {
 
     try {
       startScheduler()
+      startDevBriefDeliveryWorker()
     } catch (err) {
       logToFile(`Scheduler start failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
     }
