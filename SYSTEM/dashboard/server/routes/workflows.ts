@@ -28,6 +28,7 @@ import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 import { admitDevWorkflowReadRequest, devRunAsExecution, getDevTemplateWorkflowRun, isDevTemplateWorkflowId, listDevTemplateWorkflowRuns, startDevTemplateWorkflow } from './dev-template-workflow'
 import { devHostSkillChatEnabled } from './dev-host-skill-chat'
+import { getDevWorkflowConfiguration, updateDevWorkflowConfiguration } from './dev-template-workflow'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 
 const router = Router()
@@ -213,6 +214,9 @@ router.get('/', (req, res) => {
     const agents = listAgents()
     const pipelinePaused = getWorkflowPipelineState().paused
     const workflowsWithCounts = workflows.map(workflow => {
+      if (devManualWorkflowRequest(req, workflow.id)) {
+        workflow = { ...workflow, ...getDevWorkflowConfiguration(req, workflow.id) }
+      }
       const participants = resolveParticipants(workflow, agents)
       const cronInfo = validateCron(workflow.schedule)
       return {
@@ -297,11 +301,13 @@ router.get('/:id', (req, res) => {
       return res.status(400).json({ error: 'Invalid workflow ID' })
     }
 
-    const workflow = getWorkflow(id)
+    let workflow = getWorkflow(id)
 
     if (!workflow) {
       return res.status(404).json({ error: 'Workflow not found', workflowId: id })
     }
+
+    if (devManualWorkflowRequest(req, id)) workflow = { ...workflow, ...getDevWorkflowConfiguration(req, id) }
 
     // Include cron human-readable description and resolved participants
     const cronValidation = validateCron(workflow.schedule)
@@ -327,7 +333,6 @@ router.get('/:id', (req, res) => {
  * imported Group runner; the Group is the durable Agent handoff channel. */
 router.post('/:id/dev-run', (req, res) => {
   try {
-    if (getWorkflowPipelineState().paused) return res.status(423).json({ error: 'Workflow pipeline is paused' })
     const run = startDevTemplateWorkflow(req, req.params.id)
     return res.status(202).json(run)
   } catch {
@@ -476,6 +481,14 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ error: 'Invalid workflow ID' })
     }
 
+    if (isDevTemplateWorkflowId(id)) {
+      if (!devManualWorkflowRequest(req, id)) return res.status(409).json({ error: 'Template editing requires an admitted runtime or a revised Template' })
+      try {
+        updateDevWorkflowConfiguration(req, id, req.body)
+        syncAllWorkflows({ syncCronRegistrations: false })
+        return res.json({ message: 'Workflow settings saved; original Template preserved' })
+      } catch (error: any) { return res.status(400).json({ error: 'Workflow settings not saved', details: error.message }) }
+    }
     const result = updateWorkflow(id, req.body)
 
     if (!result.success) {

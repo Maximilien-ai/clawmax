@@ -11,6 +11,7 @@ import { addMessage } from '../lib/messages'
 import { withRegisteredTurn } from '../lib/agent-turns'
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { saveWorkflowBrief } from '../lib/workflow-brief'
+import { readDevWorkflowSettings, writeDevWorkflowSettings } from '../lib/dev-workflow-settings'
 
 const workflowIdPattern = /^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/
 const agentIdPattern = /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/
@@ -21,6 +22,7 @@ export interface DevTemplateWorkflowRun {
   createdAt: string; completedAt?: string; error?: string
   collectorId?: string; specialistId?: string; stage?: 'collector' | 'handoff' | 'specialist' | 'completed'
   brief?: { title: string; content: string; artifactPath: string }
+  triggerType?: 'manual' | 'scheduled'
 }
 const active = new Set<string>()
 
@@ -111,7 +113,47 @@ function resolve(req: Request, workflowId: string) {
       && Object.values(revision.resources.agents).includes(id))) throw new Error('Dev Workflow Group unavailable')
   const specialistId = members.find((id: string) => id !== collectorId) as string
   if (!isDevHostSkillChatReady(req, collectorId) || !isDevHostSkillChatReady(req, specialistId)) throw new Error('Dev Workflow Agents unavailable')
-  return { root: workspace.path, workflow, group, collectorId, specialistId, groupId, revisionId: revision.id }
+  return { root: workspace.path, workflow, group, collectorId, specialistId, groupId, revisionId: revision.id, actorId }
+}
+
+export function getDevWorkflowConfiguration(req: Request, id: string) {
+  const context = resolve(admitDevWorkflowReadRequest(req), id)
+  const saved = readDevWorkflowSettings(context.root, id, context.revisionId, context.actorId)
+  const workflow = context.workflow
+  return {
+    name: workflow.name, description: workflow.description, content: workflow.objective,
+    schedule: workflow.schedule?.type === 'cron' ? workflow.schedule.cron : 'manual',
+    timezone: workflow.schedule?.timeZone || 'UTC', enabled: false,
+    ...saved,
+    targeting: { agents: [context.collectorId, context.specialistId], groups: [context.groupId], communities: [], tags: [], teamIds: [] },
+    participantCount: 2,
+  }
+}
+
+export function updateDevWorkflowConfiguration(req: Request, id: string, body: any) {
+  const context = resolve(req, id)
+  if (active.has(id)) throw new Error('Wait for the active run before editing this workflow')
+  const current = getDevWorkflowConfiguration(req, id)
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('Invalid workflow settings')
+  const accepted = new Set(['name', 'description', 'content', 'schedule', 'timezone', 'enabled', 'targeting', 'executionMode', 'owner', 'maxRuns', 'outputDefinitions', 'inputRefs'])
+  if (Object.keys(body).some(key => !accepted.has(key))) throw new Error('Unsupported workflow field')
+  if (body.targeting && Object.keys(current.targeting).some(key => JSON.stringify([...(body.targeting[key] || [])].sort()) !== JSON.stringify([...(current.targeting as any)[key]].sort()))) throw new Error('Template participants are bound to its revision. Reapply a revised Template to change participants.')
+  if (body.executionMode && body.executionMode !== 'automated' || body.owner || body.maxRuns || body.inputRefs?.length || body.outputDefinitions?.length) throw new Error('This dev runtime supports the bound two-stage workflow and its automatic brief only')
+  return writeDevWorkflowSettings(context.root, id, context.revisionId, context.actorId, { ...current, ...body })
+}
+
+/** Internal dev scheduler context, never derived from browser-supplied identity.
+ * All execution still passes live workspace/revision/Skill authority checks. */
+export function devWorkflowSchedulerRequest(): Request {
+  return { get: (name: string) => name.toLowerCase() === 'origin' ? 'http://localhost:5174' : undefined, socket: { remoteAddress: '127.0.0.1' } } as Request
+}
+
+export function startScheduledDevWorkflow(id: string) {
+  const req = devWorkflowSchedulerRequest()
+  const configuration = getDevWorkflowConfiguration(req, id)
+  const { getWorkflowPipelineState } = require('../lib/workflows')
+  if (!configuration.enabled || configuration.schedule === 'manual' || getWorkflowPipelineState().paused) throw new Error('Workflow schedule is paused or disabled')
+  return startDevTemplateWorkflow(req, id, 'scheduled')
 }
 
 function runFile(root: string, runId: string): string {
@@ -166,15 +208,16 @@ export function devRunAsExecution(run: DevTemplateWorkflowRun) {
   ].filter((item): item is { agentId: string; agentName: string; status: string } => !!item)
   return {
     id: run.runId, workflowId: run.workflowId, startedAt: run.createdAt, completedAt: run.completedAt,
-    status: run.status, triggerType: 'manual', triggeredBy: 'Dev Workspace', participants, inputs: undefined,
+    status: run.status, triggerType: run.triggerType || 'manual', triggeredBy: 'Dev Workspace', participants, inputs: undefined,
     brief: run.brief,
-    logs: ['Dev-only manual Template run; schedule remained off.', `Linked Group: ${run.groupId}`,
+    logs: [`Dev-only ${run.triggerType || 'manual'} Template run.`, `Linked Group: ${run.groupId}`,
       ...(run.error ? [run.error] : [])],
   }
 }
 
-export function startDevTemplateWorkflow(req: Request, workflowId: string): DevTemplateWorkflowRun {
+export function startDevTemplateWorkflow(req: Request, workflowId: string, triggerType: 'manual' | 'scheduled' = 'manual'): DevTemplateWorkflowRun {
   const context = resolve(req, workflowId)
+  const configuration = getDevWorkflowConfiguration(req, workflowId)
   // The HTTP socket may close as soon as the 202 response is sent. Capture
   // the already-admitted loopback origin before starting background work;
   // each turn still rechecks live environment, Workspace and Skill authority.
@@ -182,13 +225,13 @@ export function startDevTemplateWorkflow(req: Request, workflowId: string): DevT
   if (active.has(workflowId)) throw new Error('Dev Workflow is already running')
   const run: DevTemplateWorkflowRun = { runId: crypto.randomUUID(), workflowId, groupId: context.groupId,
     collectorId: context.collectorId, specialistId: context.specialistId, stage: 'collector',
-    status: 'running', createdAt: new Date().toISOString() }
+    status: 'running', triggerType, createdAt: new Date().toISOString() }
   persist(context.root, run)
   active.add(workflowId)
   void (async () => {
     let stage = 'Collector turn'
     try {
-      const collectorPrompt = `${context.workflow.steps[0].objective}\nUse your assigned read-only Skill and return a concise report for the linked Group. This is a manual dev Workflow run.`
+      const collectorPrompt = `${context.workflow.steps[0].objective}\nWorkflow instructions: ${configuration.content}\nUse your assigned read-only Skill and return a concise report for the linked Group. This is a ${triggerType} dev Workflow run.`
       const collected = await withRegisteredTurn(context.collectorId, turn => runDevHostSkillChatTurn(admittedRequest, context.collectorId, collectorPrompt, turn.signal))
       resolve(admittedRequest, workflowId)
       stage = 'Group handoff'
@@ -203,7 +246,7 @@ export function startDevTemplateWorkflow(req: Request, workflowId: string): DevT
       resolve(admittedRequest, workflowId)
       addMessage('group', context.groupId, { from: context.specialistId, content: reviewed, mentions: [context.collectorId] })
       stage = 'Brief persistence'
-      run.brief = saveWorkflowBrief(context.root, workflowId, context.workflow.name, run.runId, reviewed)
+      run.brief = saveWorkflowBrief(context.root, workflowId, configuration.name, run.runId, reviewed)
       run.status = 'completed'
       run.stage = 'completed'
     } catch {

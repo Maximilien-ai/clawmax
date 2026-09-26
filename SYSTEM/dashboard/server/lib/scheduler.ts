@@ -11,6 +11,24 @@ interface ScheduledJob {
 }
 
 const activeJobs = new Map<string, ScheduledJob>()
+const isTemplateWorkflow = (id: string) => /^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(id)
+
+export function scheduledWorkflowConfiguration(workflow: any) {
+  if (!isTemplateWorkflow(workflow.id)) return workflow
+  if (process.env.CLAWMAX_DEV_HOST_SKILL_CHAT !== '1') return null
+  try {
+    const runtime = require('../routes/dev-template-workflow')
+    return { ...workflow, ...runtime.getDevWorkflowConfiguration(runtime.devWorkflowSchedulerRequest(), workflow.id) }
+  } catch { return null }
+}
+
+export function triggerScheduledWorkflow(workflowId: string): { success: boolean; executionId?: string; error?: string } {
+  if (!isTemplateWorkflow(workflowId)) return triggerWorkflow(workflowId, { manual: false })
+  try {
+    const run = require('../routes/dev-template-workflow').startScheduledDevWorkflow(workflowId)
+    return { success: true, executionId: run.runId }
+  } catch { return { success: false, error: 'Template schedule unavailable, paused, running, or no longer authorized' } }
+}
 export const DEFAULT_WORKFLOW_TIMEZONE = 'UTC'
 export const GATEWAY_CRON_READY_TIMEOUT_MS = 120000
 export const GATEWAY_CRON_READY_POLL_MS = 1000
@@ -93,6 +111,7 @@ export async function syncGatewayCronRegistrations(): Promise<SchedulerDiagnosti
   const failures: Array<{ workflowId: string; error: string }> = []
 
   for (const workflow of workflows) {
+    if (isTemplateWorkflow(workflow.id)) continue // Host-bound dev execution must never register a Gateway cron.
     if (workflow.enabled && workflow.schedule !== 'manual' && !cron.validate(workflow.schedule)) {
       failures.push({ workflowId: workflow.id, error: `Invalid cron schedule: ${workflow.schedule}` })
       continue
@@ -133,9 +152,11 @@ export function syncAllWorkflows(options: { syncCronRegistrations?: boolean } = 
   // Track which workflows are still active
   const activeIds = new Set<string>()
 
-  for (const workflow of workflows) {
+  for (const storedWorkflow of workflows) {
+    const workflow = scheduledWorkflowConfiguration(storedWorkflow)
+    if (!workflow) { unscheduleWorkflow(storedWorkflow.id); continue }
     const hasValidSchedule = workflow.schedule === 'manual' || cron.validate(workflow.schedule)
-    if (shouldSyncCronRegistrations) {
+    if (shouldSyncCronRegistrations && !isTemplateWorkflow(workflow.id)) {
       if (!hasValidSchedule) {
         console.warn(`[Scheduler] Skipping invalid gateway cron for ${workflow.id}: ${workflow.schedule}`)
       } else {
@@ -188,7 +209,7 @@ function scheduleWorkflow(workflowId: string, schedule: string, timezone?: strin
   const task = cron.schedule(schedule, () => {
     console.log(`[Scheduler] Triggering workflow: ${workflowId}`)
     // Note: cron triggers don't have BYOK keys — they use system/user-default keys from .env
-    const result = triggerWorkflow(workflowId, { manual: false })
+    const result = triggerScheduledWorkflow(workflowId)
     if (result.success) {
       console.log(`[Scheduler] Workflow ${workflowId} triggered, execution: ${result.executionId}`)
     } else {
