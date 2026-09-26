@@ -1,11 +1,19 @@
 import { getWorkspaceManager } from './workspace-manager'
 import { getAgentSkills } from './skills'
-import { deliverAvailableBriefs } from './brief-delivery'
+import { deliverAvailableBriefs, readBriefDeliveryConfig } from './brief-delivery'
 import { executeClawmaxResendSend } from './clawmax-resend-command'
+import { getWorkspaceResendApiKey } from './resend-partner'
 import { createNotification } from './notifications'
 
 let timer: NodeJS.Timeout | undefined
 let busy = false
+export function devBriefReporterAvailable(root: string, agentId: string): boolean {
+  if (process.env.NODE_ENV === 'production' || process.env.CLAWMAX_DEV_HOST_SKILL_CHAT !== '1') return false
+  try {
+    const config = readBriefDeliveryConfig(root)
+    return !!config?.enabled && config.reporterId === agentId && getAgentSkills(agentId).includes('clawmax-resend') && !!getWorkspaceResendApiKey()
+  } catch { return false }
+}
 export function startDevBriefDeliveryWorker() {
   if (timer || process.env.CLAWMAX_DEV_HOST_SKILL_CHAT !== '1') return
   timer = setInterval(() => { void tick() }, 15_000)
@@ -22,6 +30,7 @@ async function tick() {
       const workspace = manager.getWorkspace(id)
       if (!workspace) return
       try { await deliverAvailableBriefs(workspace.path, {
+        isWorkflowActive: workflowId => require('../routes/dev-template-workflow').isDevWorkflowActive(workflowId),
         authorize: config => {
           if (!getAgentSkills(config.reporterId).includes('clawmax-resend')) throw new Error('Reporter Skill unavailable')
         },

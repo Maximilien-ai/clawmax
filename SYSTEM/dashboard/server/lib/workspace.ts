@@ -2255,6 +2255,11 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
       status = devHostSkillAgentAvailable(id) ? 'online' : 'offline'
     } catch { status = 'offline' }
   }
+  if (process.env.CLAWMAX_DEV_HOST_SKILL_CHAT === '1') {
+    try {
+      if (require('./dev-brief-delivery-worker').devBriefReporterAvailable(getWorkspacePath(), id)) status = 'online'
+    } catch { /* Preserve the normal runtime status when no reporting adapter is available. */ }
+  }
 
   // Read whatsapp number from IDENTITY.md
   let whatsapp: string | null = null

@@ -44,6 +44,7 @@ function persist(root: string, receipt: DeliveryReceipt, exclusive = false) {
 // ambiguous provider failure. Inspect the provider before explicitly retrying.
 export async function deliverAvailableBriefs(root: string, deps: {
   now?: number
+  isWorkflowActive?: (workflowId: string) => boolean
   authorize: (config: BriefDeliveryConfig) => void
   send: (config: BriefDeliveryConfig, body: string, batchId: string) => Promise<{ id?: string }>
   notify: (receipt: DeliveryReceipt) => void
@@ -60,10 +61,9 @@ export async function deliverAvailableBriefs(root: string, deps: {
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   if (!pending.length) return null
   const newest = Math.max(...pending.map(r => Date.parse(r.completedAt || r.createdAt)))
-  const oldest = Math.min(...pending.map(r => Date.parse(r.completedAt || r.createdAt)))
   // Coalesce concurrent workflows, but never wait indefinitely for a failed,
   // interrupted, or weekly run. Unfinished runs contribute no content.
-  if (!Number.isFinite(newest) || now - newest < 60_000 || (runs.some(r => r.status === 'running') && now - oldest < 300_000)) return null
+  if (!Number.isFinite(newest) || now - newest < 60_000 || config.workflowIds.some(id => deps.isWorkflowActive ? deps.isWorkflowActive(id) : runs.some(r => r.workflowId === id && r.status === 'running'))) return null
   const body = pending.map(r => `# ${r.brief!.title}\n\nCompleted: ${r.completedAt || r.createdAt}\n\n${r.brief!.content}`).join('\n\n---\n\n')
   if (Buffer.byteLength(body) > 256 * 1024) throw new Error('Combined brief is too large; review delivery')
   const receipt: DeliveryReceipt = { version: 1, id: crypto.randomUUID(), runIds: pending.map(r => r.runId), recipient: config.recipient, reporterId: config.reporterId, status: 'sending', createdAt: new Date(now).toISOString() }

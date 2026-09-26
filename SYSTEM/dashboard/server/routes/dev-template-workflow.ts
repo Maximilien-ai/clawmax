@@ -25,6 +25,7 @@ export interface DevTemplateWorkflowRun {
   triggerType?: 'manual' | 'scheduled'
 }
 const active = new Set<string>()
+export function isDevWorkflowActive(workflowId: string): boolean { return active.has(workflowId) }
 
 export function isDevTemplateWorkflowId(id: string): boolean { return workflowIdPattern.test(id) }
 

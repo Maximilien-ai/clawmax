@@ -35,12 +35,13 @@ async function main() {
     assert.equal(await deliverAvailableBriefs(root, deps), null)
     run(5); run(6, 'running')
     assert.equal(await deliverAvailableBriefs(root, deps), null)
-    assert.equal((await deliverAvailableBriefs(root, { ...deps, now: Date.parse('2026-01-02T10:10:00Z') }))?.runIds.length, 1)
+    assert.equal(await deliverAvailableBriefs(root, { ...deps, now: Date.parse('2026-01-02T10:10:00Z'), isWorkflowActive: () => true }), null)
+    assert.equal((await deliverAvailableBriefs(root, { ...deps, isWorkflowActive: () => false }))?.runIds.length, 1)
     run(7)
     fs.writeFileSync(path.join(root, 'SYSTEM/brief-deliveries/dispatch.lock'), '')
-    await assert.rejects(deliverAvailableBriefs(root, { ...deps, now: Date.parse('2026-01-02T10:10:00Z') }), /lock needs review/)
+    await assert.rejects(deliverAvailableBriefs(root, { ...deps, isWorkflowActive: () => false }), /lock needs review/)
     assert(!fs.readFileSync(path.join(root, 'SYSTEM/brief-deliveries', `${uncertain!.id}.json`), 'utf8').includes('private provider error'))
-    console.log('Brief delivery: combined batches, quiet window, failed runs, persistence, opt-out, revocation, uncertain sends, bounded wait and crash lock passed')
+    console.log('Brief delivery: combined batches, quiet window, failed runs, persistence, opt-out, revocation, uncertain sends, active-workflow wait and crash lock passed')
   } finally { fs.rmSync(root, { recursive: true, force: true }) }
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })
