@@ -2547,6 +2547,14 @@ for template_suite in server/lib/portable-template-zip.test.ts server/lib/portab
     fail "Portable Template contract: $template_suite"
   fi
 done
+for workflow_suite in server/routes/dev-template-workflow.test.ts server/routes/dev-workflow-summary.test.ts server/lib/workflow-brief.test.ts client/src/lib/devWorkflowResponse.test.ts; do
+  if npx ts-node --transpileOnly "$workflow_suite" > /tmp/clawmax-workflow-contract.out 2>&1; then
+    pass "Workflow contract: $workflow_suite"
+  else
+    cat /tmp/clawmax-workflow-contract.out
+    fail "Workflow contract: $workflow_suite"
+  fi
+done
 if grep -q "stability-foundations.test.ts: passed" /tmp/clawmax-stability-foundations.out; then
   pass "Stability foundations: concurrent workspace isolation and repeated gateway health recovery"
 else

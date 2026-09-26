@@ -20,7 +20,7 @@ interface Workflow {
     required?: boolean
   }>
   progress?: number
-  status?: 'idle' | 'running' | 'completed' | 'blocked'
+  status?: 'idle' | 'running' | 'completed' | 'blocked' | 'failed'
   runCount?: number
 }
 
@@ -216,6 +216,7 @@ function layoutDAG(workflows: Workflow[]): { lanes: Workflow[][]; edges: Array<{
 }
 
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
+  failed: { bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-300 dark:border-red-700', text: 'text-red-700 dark:text-red-300', dot: 'bg-red-500' },
   idle: { bg: 'bg-gray-50 dark:bg-gray-800', border: 'border-gray-200 dark:border-gray-700', text: 'text-gray-700 dark:text-gray-300', dot: 'bg-gray-400' },
   running: { bg: 'bg-sky-50 dark:bg-sky-900/20', border: 'border-sky-300 dark:border-sky-700', text: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500 animate-pulse' },
   completed: { bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-300 dark:border-emerald-700', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
@@ -509,9 +510,9 @@ export default function WorkflowDAG({
                       </div>
 
                       {lane.map((wf) => {
-                        const status = wf.status || 'idle'
                         const isDevManual = manualRunEnabled && /^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(wf.id)
-                        const manualStatus = isDevManual ? manualRunStatuses?.get(wf.id) : undefined
+                        const manualStatus = isDevManual ? manualRunStatuses?.get(wf.id) || wf.status : undefined
+                        const status = manualStatus === 'completed' || manualStatus === 'running' || manualStatus === 'failed' ? manualStatus : wf.status || 'idle'
                         const isManualRunning = isDevManual && (manualStatus === 'running' || runningWorkflowIds?.has(wf.id))
                         const colors = STATUS_COLORS[status] || STATUS_COLORS.idle
                         const isSelected = selectionMode ? selectedWorkflowIds?.has(wf.id) : selectedId === wf.id
@@ -635,7 +636,7 @@ export default function WorkflowDAG({
                             <div className="flex items-center justify-between mt-1.5">
                               <div className="flex items-center gap-1.5">
                                 {isDevManual ? (
-                                  <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                                  <span className={`text-[10px] font-medium ${colors.text}`}>
                                     Schedule off · manual {isManualRunning ? 'running' : manualStatus || 'ready'}
                                   </span>
                                 ) : status !== 'idle' && (

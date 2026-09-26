@@ -10,6 +10,7 @@ import { devHostSkillChatEnabled, isDevHostSkillChatReady, runDevHostSkillChatTu
 import { addMessage } from '../lib/messages'
 import { withRegisteredTurn } from '../lib/agent-turns'
 import { normalizeChatMessage } from '../lib/chat-normalization'
+import { saveWorkflowBrief } from '../lib/workflow-brief'
 
 const workflowIdPattern = /^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/
 const agentIdPattern = /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/
@@ -19,6 +20,7 @@ export interface DevTemplateWorkflowRun {
   runId: string; workflowId: string; groupId: string; status: DevRunStatus
   createdAt: string; completedAt?: string; error?: string
   collectorId?: string; specialistId?: string; stage?: 'collector' | 'handoff' | 'specialist' | 'completed'
+  brief?: { title: string; content: string; artifactPath: string }
 }
 const active = new Set<string>()
 
@@ -165,6 +167,7 @@ export function devRunAsExecution(run: DevTemplateWorkflowRun) {
   return {
     id: run.runId, workflowId: run.workflowId, startedAt: run.createdAt, completedAt: run.completedAt,
     status: run.status, triggerType: 'manual', triggeredBy: 'Dev Workspace', participants, inputs: undefined,
+    brief: run.brief,
     logs: ['Dev-only manual Template run; schedule remained off.', `Linked Group: ${run.groupId}`,
       ...(run.error ? [run.error] : [])],
   }
@@ -195,10 +198,12 @@ export function startDevTemplateWorkflow(req: Request, workflowId: string): DevT
       stage = 'Specialist turn'
       run.stage = 'specialist'
       persist(context.root, run)
-      const specialistPrompt = `${context.workflow.steps[1].objective}\nYou are reviewing the Collector's report in your assigned Group. Do not claim to run a Skill or perform writes. Collector report:\n${collected}`
+      const specialistPrompt = `${context.workflow.steps[1].objective}\nWrite the final Markdown brief for ${context.workflow.name}, with findings, limitations, risks, and recommended next steps. Base claims only on the Collector report; clearly identify missing data. The Dashboard will save this brief and update the latest brief after success. You are reviewing the Collector's report in your assigned Group. Do not claim to run a Skill or perform writes. Collector report:\n${collected}`
       const reviewed = await withRegisteredTurn(context.specialistId, turn => runDevHostSkillChatTurn(admittedRequest, context.specialistId, specialistPrompt, turn.signal))
       resolve(admittedRequest, workflowId)
       addMessage('group', context.groupId, { from: context.specialistId, content: reviewed, mentions: [context.collectorId] })
+      stage = 'Brief persistence'
+      run.brief = saveWorkflowBrief(context.root, workflowId, context.workflow.name, run.runId, reviewed)
       run.status = 'completed'
       run.stage = 'completed'
     } catch {

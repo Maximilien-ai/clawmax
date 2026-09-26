@@ -29,6 +29,8 @@ const execution = devRunAsExecution({ ...running, status: 'completed', stage: 'c
 assert.equal(execution.participants.length, 2)
 assert.deepEqual(execution.participants.map(item => item.status), ['completed', 'completed'])
 assert.equal(execution.triggerType, 'manual')
+const brief = { title: 'Daily brief', content: 'Run-specific report', artifactPath: 'ORG/reports/daily/latest-brief.md' }
+assert.deepEqual(devRunAsExecution({ ...running, status: 'completed', brief }).brief, brief)
 
 const source = fs.readFileSync(path.join(__dirname, 'dev-template-workflow.ts'), 'utf8')
 assert(source.includes("workflow.enabled !== false"), 'Manual rehearsal must not enable imported schedules')

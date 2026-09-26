@@ -33,9 +33,19 @@ import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../li
 const router = Router()
 
 function devManualWorkflowRequest(req: any, id: string): boolean {
+  if (!isDevTemplateWorkflowId(id)) return false
   const admitted = admitDevWorkflowReadRequest(req)
   return isDevTemplateWorkflowId(id)
     && devHostSkillChatEnabled(process.env, admitted.get('Origin'), admitted.socket.remoteAddress)
+}
+
+export function devWorkflowSummary(req: any, id: string) {
+  if (!devManualWorkflowRequest(req, id)) return {}
+  try {
+    const runs = listDevTemplateWorkflowRuns(req, id, 20)
+    const latest = runs[0]
+    return latest ? { status: latest.status, lastRun: latest.createdAt, lastExecutionId: latest.runId } : {}
+  } catch { return { status: 'blocked' } }
 }
 
 function resolveSessionAuthor(req: any): string | undefined {
@@ -228,6 +238,7 @@ router.get('/', (req, res) => {
         secretRequirements: workflow.secretRequirements,
         outputDefinitions: workflow.outputDefinitions,
         inputRefs: workflow.inputRefs,
+        ...devWorkflowSummary(req, workflow.id),
       }
     })
 
@@ -298,6 +309,7 @@ router.get('/:id', (req, res) => {
     const participants = resolveParticipants(workflow, agents)
     const response = {
       ...workflow,
+      ...devWorkflowSummary(req, id),
       scheduleHuman: cronValidation.humanReadable || workflow.schedule,
       nextRunAt: workflow.enabled && !getWorkflowPipelineState().paused ? getNextCronRun(workflow.schedule, new Date(), workflow.timezone || 'UTC')?.toISOString() || null : null,
       participantCount: participants.length,

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import ReactMarkdown from 'react-markdown'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import PromptQualityPanel from '../components/PromptQualityPanel'
 import { useToast } from '../components/Toast'
@@ -61,8 +62,9 @@ interface Workflow {
   targeting: AgentTargeting
   maxRuns?: number
   runCount?: number
+  lastRun?: string
   progress?: number
-  status?: 'idle' | 'running' | 'completed' | 'blocked'
+  status?: 'idle' | 'running' | 'completed' | 'blocked' | 'failed'
   dependsOn?: string[]
   secretRequirements?: SecretRequirement[]
   outputDefinitions?: Array<{
@@ -111,6 +113,7 @@ interface WorkflowExecutionParticipant {
 }
 
 interface WorkflowExecutionDetails {
+  brief?: { title: string; content: string; artifactPath: string }
   id: string
   workflowId: string
   startedAt: string
@@ -738,7 +741,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           if (run.status === 'running') continue
           setDevWorkflowRuns(previous => new Map(previous).set(workflow.id, { status: run.status, groupId: run.groupId, error: run.error }))
           if (run.status !== 'completed') throw new Error(run.error || 'Dev Workflow failed')
-          showSuccess(`${workflow.name} completed. Review the Group conversation in Communications.`)
+          fetchWorkflows(true)
+          if (selectedWorkflowRef.current?.id === workflow.id) void fetchWorkflowDetails(workflow.id)
+          showSuccess(`${workflow.name} completed. Open its execution to read the brief.`)
           return
         }
         showError(`${workflow.name} is still running. Review its Group conversation in Communications.`)
@@ -2221,7 +2226,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   </p>
                 ) : (
                   <p className="text-xs text-gray-400 mt-1">
-                    {(selectedWorkflow.runCount || 0) > 0 ? `${selectedWorkflow.runCount} run${selectedWorkflow.runCount === 1 ? '' : 's'} completed` : 'No runs yet'} · Unlimited
+                    {selectedIsDevManual && selectedWorkflow.lastRun
+                      ? `Last run: ${selectedWorkflow.status} · ${new Date(selectedWorkflow.lastRun).toLocaleString()}`
+                      : `${(selectedWorkflow.runCount || 0) > 0 ? `${selectedWorkflow.runCount} run${selectedWorkflow.runCount === 1 ? '' : 's'} completed` : 'No runs yet'} · Unlimited`}
                   </p>
                 )}
               </div>
@@ -2908,6 +2915,16 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               </div>
 
               {/* Logs */}
+              {selectedExecution.brief && (
+                <section className="min-w-0 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                  <h3 className="font-semibold">{selectedExecution.brief.title}</h3>
+                  <p className="text-xs text-gray-500 mb-3">Saved output from this run. The latest brief is updated only after a successful run.</p>
+                  <button className="text-sky-600 hover:underline mb-3" onClick={() => onNavigateToDoc?.(selectedExecution.brief!.artifactPath)}>Open latest brief</button>
+                  <div className="prose dark:prose-invert max-w-none break-words overflow-x-auto">
+                    <ReactMarkdown components={{ img: () => null }}>{selectedExecution.brief.content}</ReactMarkdown>
+                  </div>
+                </section>
+              )}
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">Execution Logs</h3>
                 {selectedExecution.logs.length === 0 ? (
