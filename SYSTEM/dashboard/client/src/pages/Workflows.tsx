@@ -19,7 +19,7 @@ import {
 import { ProductIconCell } from '../lib/productIcons'
 import TruncatedText from '../components/TruncatedText'
 import { getWorkflowDisplayName } from '../lib/workflowDisplay'
-import { readDevWorkflowResponse } from '../lib/devWorkflowResponse'
+import { devWorkflowErrorMessage, readDevWorkflowResponse } from '../lib/devWorkflowResponse'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
@@ -690,7 +690,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }
     if (/^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(workflow.id)) {
       if (!config?.hostAuthBridgeReady) { showError('Manual dev Workflow runner is unavailable'); return }
-      const devWorkflowApi = `http://127.0.0.1:3001/api/workflows/${workflow.id}`
+      const devWorkflowApi = `/api/workflows/${workflow.id}`
       setRunningWorkflows(previous => new Set(previous).add(workflow.id))
       try {
         const response = await fetch(`${devWorkflowApi}/dev-run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
@@ -710,7 +710,17 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             // A transient dev-network reset must not turn an admitted run into
             // a false failure. Keep its exact runId and retry the status read.
             if (++statusFailures < 5) continue
-            throw error
+            try {
+              const historyResponse = await fetch(`/api/workflows/${workflow.id}/executions?limit=20`, { cache: 'no-store' })
+              if (!historyResponse.ok) throw error
+              const history = await readDevWorkflowResponse(historyResponse)
+              const recorded = Array.isArray(history.executions)
+                ? history.executions.find((execution: any) => execution.id === started.runId)
+                : null
+              if (recorded?.status !== 'completed' && recorded?.status !== 'failed') throw error
+              run = { status: recorded.status, groupId: started.groupId,
+                error: recorded.status === 'failed' ? 'Dev Workflow failed. Review its Execution and linked Group before retrying.' : undefined }
+            } catch { throw error }
           }
           if (run.status === 'running') continue
           setDevWorkflowRuns(previous => new Map(previous).set(workflow.id, { status: run.status, groupId: run.groupId, error: run.error }))
@@ -726,7 +736,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             ? new Map(previous).set(workflow.id, { ...current, status: 'check Executions' })
             : previous
         })
-        showError(error?.message || 'Dev Workflow unavailable')
+        showError(devWorkflowErrorMessage(error))
       } finally {
         setRunningWorkflows(previous => { const next = new Set(previous); next.delete(workflow.id); return next })
       }

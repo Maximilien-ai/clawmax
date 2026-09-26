@@ -42,9 +42,8 @@ assert(routes.includes("router.get('/:id/dev-runs/:runId'"))
 assert(routes.includes('listDevTemplateWorkflowRuns(req, id, limit).map(devRunAsExecution)'),
   'Manual dev runs must appear in normal Workflow execution history')
 assert(routes.includes('devRunAsExecution(devRun)'), 'Manual dev run details must remain inspectable')
-assert(routes.includes("res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5174')")
-  && routes.includes("devHostSkillChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)"),
-  'Direct dev runner CORS must remain exact-origin and loopback gated')
+assert(!routes.includes("res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5174')"),
+  'Dev workflow endpoints must not add a cross-origin browser path')
 const vite = fs.readFileSync(path.join(__dirname, '../../vite.config.ts'), 'utf8')
 assert(vite.includes('target: `http://127.0.0.1:${backendPort}`'), 'Dev proxy must target the IPv4 address bound by the API')
 const client = fs.readFileSync(path.join(__dirname, '../../client/src/pages/Workflows.tsx'), 'utf8')
@@ -54,11 +53,13 @@ assert(trigger.indexOf("if (/^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(workf
   'Paused schedule must not block an explicitly requested manual dev Workflow run')
 assert(client.includes('manualRunStatuses={new Map(') && client.includes('runningWorkflowIds={runningWorkflows}'),
   'Workflow graph must receive live manual-run status')
-assert(client.includes('http://127.0.0.1:3001/api/workflows/${workflow.id}')
+assert(client.includes('const devWorkflowApi = `/api/workflows/${workflow.id}`')
   && client.includes('if (!config?.hostAuthBridgeReady)'),
-  'Dev manual start and status polling must bypass the flaky Vite proxy only when dev mode is enabled')
+  'Dev manual start and status polling must stay on the same-origin route')
 assert(client.includes('if (++statusFailures < 5) continue'),
   'Transient status connection failures must retry the admitted run rather than report it failed')
+assert(client.includes('execution.id === started.runId'),
+  'Status recovery must only accept the exact admitted run from durable Execution history')
 assert(client.includes('Execution history is unavailable. Choose Refresh to retry.')
   && client.includes('onClick={() => fetchWorkflowDetails(selectedWorkflow.id)}'),
   'Transient history failures must be visible and retryable instead of showing a false empty state')

@@ -9,3 +9,8 @@ export async function readDevWorkflowResponse(response: Pick<Response, 'text' | 
   }
   return parsed as Record<string, any>
 }
+
+export function devWorkflowErrorMessage(error: unknown): string {
+  if (error instanceof TypeError) return 'Workflow connection unavailable. Check Executions before retrying.'
+  return error instanceof Error && error.message ? error.message : 'Dev Workflow unavailable. Check Executions before retrying.'
+}

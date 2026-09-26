@@ -32,20 +32,6 @@ import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../li
 
 const router = Router()
 
-// The isolated dev runner bypasses Vite's proxy so an admitted run can be
-// polled even when the dev proxy resets a connection. Never expose this CORS
-// allowance outside the exact loopback/Origin development gate.
-router.use((req, res, next) => {
-  if (!/^\/[^/]+\/dev-runs?(?:\/|$)/.test(req.path)
-    || !devHostSkillChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)) return next()
-  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5174')
-  res.setHeader('Vary', 'Origin')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-  if (req.method === 'OPTIONS') return res.status(204).end()
-  next()
-})
-
 function devManualWorkflowRequest(req: any, id: string): boolean {
   const admitted = admitDevWorkflowReadRequest(req)
   return isDevTemplateWorkflowId(id)
