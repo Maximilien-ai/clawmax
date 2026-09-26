@@ -32,6 +32,11 @@ function test(name: string, fn: () => void) {
 
 console.log(`\n${YELLOW}=== Organization Team Synthesis Test Suite ===${RESET}\n`)
 
+test('derived teams show authored Group labels without changing stable IDs', () => {
+  const teams = buildOrganizationDisplayTeams({ agents: [{ id: 'a', name: 'Agent A' }, { id: 'b', name: 'Agent B' }, { id: 'c', name: 'Agent C' }], groups: [{ name: 'opaque-group', displayName: 'Readable Group', members: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] }] })
+  assert(teams.some(team => team.name === 'Readable Group'), 'Expected readable group label')
+})
+
 test('buildOrganizationDisplayTeams preserves persisted teams', () => {
   const teams = buildOrganizationDisplayTeams({
     persistedTeams: [
