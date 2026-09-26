@@ -6,6 +6,7 @@ import { buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, buildSharedIn
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import {
   buildCommunicationCacheKey,
+  communicationTitle,
   mergeTypingAgents,
   removeRespondedAgentsFromPending,
   resolveCommunicationDocPath,
@@ -33,6 +34,7 @@ interface Agent {
 
 interface Channel {
   name: string
+  displayName?: string
   description: string | null
   tags: string[]
   type: 'community' | 'group'
@@ -872,7 +874,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                     className="shrink-0 border-transparent bg-transparent text-current"
                   />
                   <span className="truncate">
-                    {channel.tags?.includes('bulk-chat') && channel.description ? channel.description : channel.name}
+                    {communicationTitle(channel)}
                   </span>
                 </span>
               </h2>
@@ -1331,7 +1333,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                     const url = URL.createObjectURL(blob)
                     const a = document.createElement('a')
                     a.href = url
-                    a.download = `${channel.name}_${new Date(parseInt(viewingArchive.filename.match(/_(\d+)\.json$/)?.[1] || '0')).toISOString().split('T')[0]}.txt`
+                    a.download = `${communicationTitle(channel).replace(/[^a-z0-9_-]+/gi, '-')}_${new Date(parseInt(viewingArchive.filename.match(/_(\d+)\.json$/)?.[1] || '0')).toISOString().split('T')[0]}.txt`
                     a.click()
                     URL.revokeObjectURL(url)
                   }}
