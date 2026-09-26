@@ -637,7 +637,7 @@ export default function WorkflowDAG({
                               <div className="flex items-center gap-1.5">
                                 {isDevManual ? (
                                   <span className={`text-[10px] font-medium ${colors.text}`}>
-                                    Schedule off · manual {isManualRunning ? 'running' : manualStatus || 'ready'}
+                                    Schedule {wf.enabled ? 'on' : 'off'} · last run {isManualRunning ? 'running' : manualStatus || 'ready'}
                                   </span>
                                 ) : status !== 'idle' && (
                                   <span className={`text-[10px] font-medium ${colors.text} capitalize`}>{status}</span>

@@ -1313,6 +1313,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           name: data.name,
           description: data.description,
           schedule: data.schedule,
+          timezone: data.timezone,
           enabled: data.enabled,
           targeting: data.targeting,
           author: 'dashboard',
@@ -1346,6 +1347,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           name: data.name,
           description: data.description,
           schedule: data.schedule,
+          timezone: data.timezone,
           enabled: data.enabled,
           targeting: data.targeting,
           executionMode: data.executionMode,
@@ -2123,7 +2125,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{selectedWorkflow.name}</h2>
               <div className="flex items-center gap-3">
                 {/^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(selectedWorkflow.id) && config?.hostAuthBridgeReady && (
-                  <span className="text-xs text-amber-700 dark:text-amber-300">Schedule off · manual dev run available</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-300">Schedule {selectedWorkflow.enabled ? 'on' : 'off'} · manual dev run available</span>
                 )}
                 <button
                   onClick={async () => {
@@ -3301,17 +3303,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           isOpen={!!editingWorkflow}
           onClose={() => setEditingWorkflow(null)}
           onSave={handleEditWorkflow}
-          initialData={{
-            name: editingWorkflow.name,
-            description: editingWorkflow.description,
-            schedule: editingWorkflow.schedule,
-            enabled: editingWorkflow.enabled,
-            executionMode: editingWorkflow.executionMode,
-            owner: editingWorkflow.owner,
-            targeting: editingWorkflow.targeting,
-            content: editingWorkflow.content,
-            maxRuns: editingWorkflow.maxRuns
-          }}
+          initialData={editingWorkflow}
           mode="edit"
         />
       )}
