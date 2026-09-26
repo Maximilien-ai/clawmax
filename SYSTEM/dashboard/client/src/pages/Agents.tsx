@@ -1,3 +1,4 @@
+import { channelLabel } from '../lib/channelLabel'
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
 import { AgentAttention } from '../components/AgentAttention'
@@ -4007,7 +4008,7 @@ const AgentCard = React.memo(function AgentCard({
                     onClick={e => { e.stopPropagation(); if (onNavigateToGroup) onNavigateToGroup(c.name); }}
                     className="text-xs px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-medium hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors cursor-pointer"
                   >
-                    {c.name}
+                    {channelLabel(c)}
                   </button>
                 ))}
                 {agent.groups.map(g => (
@@ -4017,7 +4018,7 @@ const AgentCard = React.memo(function AgentCard({
                     onClick={e => { e.stopPropagation(); if (onNavigateToGroup) onNavigateToGroup(g.name); }}
                     className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors cursor-pointer"
                   >
-                    {g.name}
+                    {channelLabel(g)}
                   </button>
                 ))}
               </div>
@@ -4829,8 +4830,8 @@ const AgentTableView = React.memo(function AgentTableView({
               <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                 <div className="flex flex-wrap gap-1 max-w-xs">
                   {agent.groups.slice(0, 3).map(g => (
-                    <span key={g.name} className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded truncate max-w-[100px] dark:bg-gray-800 dark:text-gray-300" title={g.name}>
-                      {g.name}
+                    <span key={g.name} className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded truncate max-w-[100px] dark:bg-gray-800 dark:text-gray-300" title={channelLabel(g)}>
+                      {channelLabel(g)}
                     </span>
                   ))}
                   {agent.groups.length > 3 && (

@@ -1,3 +1,4 @@
+import { channelLabel } from '../lib/channelLabel'
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import SaveAsOrgTemplateModal from '../components/SaveAsOrgTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
@@ -12,6 +13,7 @@ import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 
 interface GroupEntry {
   name: string
+  displayName?: string
   description: string | null
   tags: string[]
   community: string | null
@@ -65,6 +67,7 @@ interface OrganizationsProps {
 }
 
 interface Community {
+  displayName?: string
   name: string
   description: string | null
   tags: string[]
@@ -73,6 +76,7 @@ interface Community {
 }
 
 interface Group {
+  displayName?: string
   name: string
   description: string | null
   tags: string[]
@@ -750,7 +754,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     for (const c of workspaceCommunities) {
       if (!communityMap.has(c.name)) {
         communityMap.set(c.name, {
-          name: c.name,
+          name: c.name, displayName: c.displayName,
           description: c.description,
           tags: c.tags || [],
           channels: c.channels || [],
@@ -763,7 +767,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     for (const g of workspaceGroups) {
       if (!groupMap.has(g.name)) {
         groupMap.set(g.name, {
-          name: g.name,
+          name: g.name, displayName: g.displayName,
           description: g.description,
           tags: g.tags || [],
           channels: g.channels || [],
@@ -778,7 +782,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       for (const c of agent.communities || []) {
         if (!communityMap.has(c.name)) {
           communityMap.set(c.name, {
-            name: c.name,
+            name: c.name, displayName: c.displayName,
             description: c.description,
             tags: c.tags,
             channels: c.channels,
@@ -794,7 +798,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       for (const g of agent.groups) {
         if (!groupMap.has(g.name)) {
           groupMap.set(g.name, {
-            name: g.name,
+            name: g.name, displayName: g.displayName,
             description: g.description,
             tags: g.tags,
             channels: g.channels,
@@ -1989,7 +1993,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                             className="font-semibold text-gray-900 text-sm hover:text-purple-600 hover:underline transition-colors dark:text-gray-100"
                             title="View chat in Communication page"
                           >
-                            {community.name}
+                            {channelLabel(community)}
                           </button>
                           <span className="text-xs text-gray-400">
                             ({community.members.length} member{community.members.length !== 1 ? 's' : ''})
@@ -2187,7 +2191,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                             className="font-semibold text-gray-900 text-sm hover:text-indigo-600 hover:underline transition-colors dark:text-gray-100"
                             title="View chat in Communication page"
                           >
-                            {group.name}
+                            {channelLabel(group)}
                           </button>
                           <span className="text-xs text-gray-400">
                             ({group.members.length} member{group.members.length !== 1 ? 's' : ''})
@@ -2501,7 +2505,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                   >
                     <option value="">No community</option>
                     {workspaceCommunities.map(c => (
-                      <option key={c.name} value={c.name}>{c.name}</option>
+                      <option key={c.name} value={c.name}>{channelLabel(c)}</option>
                     ))}
                   </select>
                 ) : (
@@ -2682,7 +2686,7 @@ function RenameCommunityModal({
 
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
-            Current name: <span className="font-medium text-purple-600">{community.name}</span>
+            Current name: <span className="font-medium text-purple-600">{channelLabel(community)}</span>
           </label>
           <input
             type="text"
@@ -2761,7 +2765,7 @@ function RenameGroupModal({
 
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
-            Current name: <span className="font-medium text-indigo-600">{group.name}</span>
+            Current name: <span className="font-medium text-indigo-600">{channelLabel(group)}</span>
           </label>
           <input
             type="text"

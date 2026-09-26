@@ -1,3 +1,4 @@
+import { channelLabel } from '../lib/channelLabel'
 import React, { useState, useEffect, useMemo } from 'react'
 import AIPromptEditorModal from './AIPromptEditorModal'
 import { formatAgentOptionLabel } from '../lib/agentLabels'
@@ -916,7 +917,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                           }}
                           className="rounded"
                         />
-                        <span className="text-sm text-gray-700 dark:text-gray-300">{community.name}</span>
+                        <span className="text-sm text-gray-700 dark:text-gray-300">{channelLabel(community)}</span>
                       </label>
                     ))}
                   </div>

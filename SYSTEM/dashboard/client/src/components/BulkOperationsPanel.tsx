@@ -1,3 +1,4 @@
+import { channelLabel } from '../lib/channelLabel'
 import React, { useState } from 'react'
 import { fetchModelsWithByok } from '../lib/byok'
 import { ProductIconCell, resolveSkillVisual } from '../lib/productIcons'
@@ -390,7 +391,7 @@ export default function BulkOperationsPanel({
                         className="mt-1"
                       />
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-gray-100">{c.name}</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{channelLabel(c)}</div>
                         {c.description && <div className="text-sm text-gray-500 dark:text-gray-400">{c.description}</div>}
                       </div>
                     </label>
@@ -413,7 +414,7 @@ export default function BulkOperationsPanel({
                         className="mt-1"
                       />
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-gray-100">{g.name}</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{channelLabel(g)}</div>
                         {g.description && <div className="text-sm text-gray-500 dark:text-gray-400">{g.description}</div>}
                       </div>
                     </label>

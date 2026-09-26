@@ -82,6 +82,13 @@ export function isDevHostSkillChatReady(req: Request, agentId: string): boolean 
   try { return !!resolve(agentId) && !!getSystemProviderKeys().openai } catch { return false }
 }
 
+/** Availability of the on-demand dev runtime, not a running Agent process.
+ * Kept separate from HTTP admission: this grants no execution authority. */
+export function devHostSkillAgentAvailable(agentId: string): boolean {
+  if (!devHostSkillChatEnabled(process.env, 'http://localhost:5174', '127.0.0.1')) return false
+  try { return !!resolve(agentId) && !!getSystemProviderKeys().openai } catch { return false }
+}
+
 /** Reused by individual chat and temporary, explicitly selected multi-Agent chat.
  * Every invocation resolves current authority; no browser-supplied Skill scope is trusted. */
 export async function runDevHostSkillChatTurn(req: Request, agentId: string, message: string, signal: AbortSignal): Promise<string> {

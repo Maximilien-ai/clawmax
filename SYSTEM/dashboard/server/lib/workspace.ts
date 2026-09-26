@@ -13,6 +13,7 @@ import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, get
 import { REPO_ROOT } from './paths'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { listTemplateHostCredentialRequirements } from './template-agent-auth'
+import { channelDisplayName } from './channel-display-name'
 
 // Legacy constant for backward compatibility
 export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
@@ -849,10 +850,16 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
 
 export interface GroupEntry {
   name: string
+  displayName?: string
   description: string | null
   tags: string[]
   community: string | null  // For groups only - which community they belong to
   channels: string[]  // Communication channels: 'whatsapp', 'slack', 'discord', etc.
+}
+
+function withChannelDisplayName<T extends GroupEntry>(entry: T, type: 'group' | 'community'): T {
+  const displayName = channelDisplayName(getWorkspacePath(), type, entry.name)
+  return displayName === entry.name ? entry : { ...entry, displayName }
 }
 
 /** Update tags for a community or group in its markdown file (verbose format only).
@@ -1376,7 +1383,7 @@ export function parseGroupsWithMembers(content: string): { communities: GroupWit
   }
 
   flushEntry()
-  return { communities, groups }
+  return { communities: communities.map(c => withChannelDisplayName(c, 'community')), groups: groups.map(g => withChannelDisplayName(g, 'group')) }
 }
 
 export function parseGroups(content: string): { communities: GroupEntry[]; groups: GroupEntry[] } {
@@ -1530,7 +1537,7 @@ export function parseGroups(content: string): { communities: GroupEntry[]; group
   }
 
   flushEntry() // Flush last entry
-  return { communities, groups }
+  return { communities: communities.map(c => withChannelDisplayName(c, 'community')), groups: groups.map(g => withChannelDisplayName(g, 'group')) }
 }
 
 /** Parse Tags from IDENTITY.md **Tags:** field.
@@ -2238,6 +2245,15 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
 
     // Update cache with fresh status
     statusCache.set(id, { status, lastHeartbeat, timestamp: now })
+  }
+
+  // These dev Agents run on demand through the admitted host adapter, not a
+  // persistent Gateway. Revalidate availability outside the heartbeat cache.
+  if (process.env.CLAWMAX_DEV_HOST_SKILL_CHAT === '1' && /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(id)) {
+    try {
+      const { devHostSkillAgentAvailable } = require('../routes/dev-host-skill-chat')
+      status = devHostSkillAgentAvailable(id) ? 'online' : 'offline'
+    } catch { status = 'offline' }
   }
 
   // Read whatsapp number from IDENTITY.md

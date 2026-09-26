@@ -326,6 +326,13 @@ async function run() {
       fs.mkdirSync(dir, { recursive: true })
       const file = path.join(dir, `${id}.json`)
       fs.writeFileSync(file, JSON.stringify({ id, name: 'Readable Operations' }))
+      const { parseGroupsWithMembers, parseGroups } = require('../lib/workspace')
+      const source = `# ${type === 'group' ? 'Groups' : 'Communities'}\n\n### ${id}\n- **Description:** Test\n`
+      for (const parse of [parseGroups, parseGroupsWithMembers]) {
+        const parsed = parse(source)[type === 'group' ? 'groups' : 'communities'][0]
+        assert.strictEqual(parsed.name, id)
+        assert.strictEqual(parsed.displayName, 'Readable Operations')
+      }
       createNotification({ type: 'channel-activity', title: `New messages in ${id}`, message: `1 agent message in ${type} "${id}".`, entityId: id, entityType: 'channel', fingerprint: `channel-activity:${type}:${id}` })
       const notification = getActiveNotifications().find((n: any) => n.entityId === id)
       assert.strictEqual(notification.title, 'New messages in Readable Operations')

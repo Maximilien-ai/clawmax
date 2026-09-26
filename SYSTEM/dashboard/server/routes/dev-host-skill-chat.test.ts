@@ -1,7 +1,7 @@
 import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
-import { devHostSkillChatEnabled } from './dev-host-skill-chat'
+import { devHostSkillChatEnabled, devHostSkillAgentAvailable } from './dev-host-skill-chat'
 
 const env = {
   NODE_ENV: 'development', CLAWMAX_DEV_HOST_SKILL_CHAT: '1', CLAWMAX_DEV_HOST_SKILL_AUTHORITY: '1',
@@ -23,4 +23,8 @@ assert(!allowed(env, 'http://localhost:5174', '192.168.1.1'))
 const source = fs.readFileSync(path.join(__dirname, 'dev-host-skill-chat.ts'), 'utf8')
 assert(source.includes('const openaiKey = getSystemProviderKeys().openai'))
 assert(!source.includes('req.body.byok.openai'))
+assert.equal(devHostSkillAgentAvailable('not-an-admitted-template-agent'), false)
+const workspaceSource = fs.readFileSync(path.join(__dirname, '../lib/workspace.ts'), 'utf8')
+assert(workspaceSource.includes("status = devHostSkillAgentAvailable(id) ? 'online' : 'offline'"))
+assert(workspaceSource.indexOf('devHostSkillAgentAvailable(id)') > workspaceSource.indexOf('statusCache.set(id')))
 console.log('dev-host-skill-chat.test.ts: passed')
