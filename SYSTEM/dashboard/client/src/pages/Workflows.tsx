@@ -610,8 +610,20 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       fetchWorkflows()
       void fetchPipelineState()
     }
-    if (Object.keys(agentCosts).length > 0 || !costTrackingEnabled) return
-    fetch(buildWorkspaceScopedPath('/api/metering', activeWorkspace?.id)).then(r => r.ok ? r.json() : null).then(d => {
+  }, [activeWorkspace?.id, isActive, rateLimitedUntil, fetchPipelineState])
+
+  // Empty costs are a valid result, not a signal to fetch again. Keep response
+  // state out of this effect's dependencies and discard obsolete workspace reads.
+  useEffect(() => {
+    if (!isActive) return
+    const controller = new AbortController()
+    setAgentCosts({})
+    setCostTrackingEnabled(true)
+    fetch(buildWorkspaceScopedPath('/api/metering', activeWorkspace?.id), { signal: controller.signal }).then(r => {
+      if (!r.ok) throw new Error('Metering unavailable')
+      return r.json()
+    }).then(d => {
+      if (controller.signal.aborted) return
       if (d && d.enabled === false) {
         setCostTrackingEnabled(false)
         setAgentCosts({})
@@ -622,7 +634,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       setCostTrackingEnabled(true)
       setAgentCosts(costs)
     }).catch(() => {})
-  }, [activeWorkspace?.id, isActive, rateLimitedUntil, agentCosts, costTrackingEnabled, fetchPipelineState])
+    return () => controller.abort()
+  }, [activeWorkspace?.id, isActive])
 
   // Use refs to access latest values without re-creating interval
   const workflowsRef = useRef(workflows)
