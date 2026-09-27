@@ -2,7 +2,21 @@
 
 ## Provisional candidate
 
-Candidate tag: `1.9.10-test-cognee1`; source tag: `v1.9.10-test-cognee1`.
+Candidate tag: `1.9.10-test-cognee2`; source tag: `v1.9.10-test-cognee2`.
+This successor bundles `@cognee/cognee-openclaw@2026.9.2` with npm integrity
+locking under `/opt/clawmax-cognee`, outside persistent workspace mounts.
+Install scripts and automatic peer installation are disabled. Startup adds the
+image-owned plugin load path and defaults its entry to disabled. Explicit
+enablement/configuration, deny/allow policies, and existing recorded plugin
+installations are preserved. No API key, automatic memory capture, or service
+connection is supplied by the image. Enable only after configuring the service
+and authorizing memory access. For a manually preloaded installation without an
+OpenClaw install record, inspect duplicate plugin discovery before enablement.
+
+Candidate-2 tests: entrypoint suite, migration/enablement preservation tests,
+and actual OpenClaw discovery of the integrity-locked package as inactive.
+CI repeats package/version/discovery checks on both image architectures and
+registry pulls. These checks do not establish live Cognee API functionality.
 The operator authorized a provisional image before the full integration/coverage
 gate. This is not the stable `1.9.10` image, must not become the CLI default, and
 does not establish that authenticated Cognee operations work.
@@ -10,11 +24,11 @@ OpenAI model selection is limited to GPT-5.4, mini, nano, and pro, including
 show-all. Saved Agent configurations are not rewritten.
 
 Wait for both architectures and registry smoke checks to pass before using:
-`ghcr.io/maximilien-ai/clawmax-dashboard:1.9.10-test-cognee1`.
+`ghcr.io/maximilien-ai/clawmax-dashboard:1.9.10-test-cognee2`.
 Record its digest, preserve the original image digest and volume backup, then
 update only the designated test instance. Do not change workspace/PVC bindings,
 credentials, placement, other instances, or shared infrastructure.
-Set `CLAWMAX_VERSION=1.9.10-test-cognee1` where the deployment overrides the
+Set `CLAWMAX_VERSION=1.9.10-test-cognee2` where the deployment overrides the
 image version; use the explicit cleanup option below for the legacy deny.
 Browser BYOK keys must be supplied by the testing browser; a server-only probe
 cannot verify chat using that browser's stored key.
