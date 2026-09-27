@@ -4,6 +4,7 @@ import os from 'os'
 import path from 'path'
 import { ACTIVITY_EXPORT_VERSION, appendActivityExportEvent, flushActivityExportOutbox,
   revokeActivityExportDestinationConsent, saveActivityExportConsent,
+  revokeActivityExportConsent, revokeActivityExportEnrollment,
   type ActivityExportConsent } from './activity-export'
 
 async function main() {
@@ -38,7 +39,26 @@ async function main() {
       assert.equal(state.outbox[0].attempts, 0)
       assert.equal(fs.readFileSync(otherPath, 'utf8'), '{"untouched":true}')
     }
-    console.log('Activity export settlement: success/failure preserve revocation, concurrent enqueue, and state-path isolation')
+    for (const mode of ['all', 'destination', 'disconnect']) {
+      const statePath = path.join(root, `purge-${mode}.json`)
+      process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = statePath
+      const consent: ActivityExportConsent = { receiptId: 'one', version: ACTIVITY_EXPORT_VERSION,
+        destinationId: 'agentforge', workspaceId: 'workspace', userId: 'user', scopes: ['agent-chat'],
+        active: true, consentedAt: new Date().toISOString() }
+      for (const receiptId of ['one', 'two']) saveActivityExportConsent({ ...consent, receiptId })
+      saveActivityExportConsent({ ...consent, receiptId: 'other-user', userId: 'another-user' })
+      const revoke = () => mode === 'all' ? revokeActivityExportConsent('user', 'workspace')
+        : mode === 'disconnect' ? revokeActivityExportEnrollment('user', 'workspace', 'agentforge')
+          : revokeActivityExportDestinationConsent('user', 'workspace', 'agentforge')
+      revoke()
+      revoke()
+      const state = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+      assert.equal(state.consents.one.active, false)
+      assert.equal(state.consents.two.active, false)
+      assert.equal(state.consents['other-user'].active, true)
+      assert.deepEqual(state.purges.map((entry: any) => entry.receiptId).sort(), ['one', 'two'])
+    }
+    console.log('Activity export settlement and revocation paths passed')
   } finally {
     if (previous === undefined) delete process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH
     else process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = previous

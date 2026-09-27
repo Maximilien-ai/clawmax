@@ -190,11 +190,14 @@ export function saveActivityExportEnrollment(enrollment: ActivityExportEnrollmen
 }
 
 export function revokeActivityExportEnrollment(userId: string, workspaceId: string, destinationId: string): boolean {
+  // Disconnection must revoke the same grants and schedule the same remote purge
+  // as the explicit consent action, even if the enrollment was already removed.
+  const revokedConsent = revokeActivityExportDestinationConsent(userId, workspaceId, destinationId)
   const state = readState()
   const entries = Object.values(state.enrollments).filter((entry) => (
     entry.userId === userId && entry.workspaceId === workspaceId && entry.destinationId === destinationId && entry.status === 'active'
   ))
-  if (entries.length === 0) return false
+  if (entries.length === 0) return revokedConsent
   entries.forEach((entry) => { entry.status = 'revoked' })
   writeState(state)
   return true
@@ -205,10 +208,21 @@ export function revokeActivityExportConsent(userId: string, workspaceId: string)
   const receipts = Object.values(state.consents).filter((entry) => entry.userId === userId && entry.workspaceId === workspaceId && entry.active)
   if (receipts.length === 0) return false
   const receiptIds = new Set(receipts.map((consent) => consent.receiptId))
-  receipts.forEach((consent) => { consent.active = false })
+  revokeReceiptsInState(state, receipts)
   state.outbox = state.outbox.filter((event) => !receiptIds.has(event.consentReceiptId))
   writeState(state)
+  activityExportQueueListener?.()
   return true
+}
+
+function revokeReceiptsInState(state: ActivityExportState, receipts: ActivityExportConsent[]): void {
+  for (const consent of receipts) {
+    consent.active = false
+    if (consent.destinationId !== 'agentforge') continue
+    if (state.purges.some(entry => entry.receiptId === consent.receiptId && entry.destinationId === consent.destinationId)) continue
+    state.purges.push({ receiptId: consent.receiptId, destinationId: consent.destinationId,
+      requestedAt: new Date().toISOString(), attempts: 0 })
+  }
 }
 
 export function revokeActivityExportDestinationConsent(userId: string, workspaceId: string, destinationId: string): boolean {
@@ -216,9 +230,10 @@ export function revokeActivityExportDestinationConsent(userId: string, workspace
   const receipts = Object.values(state.consents).filter((entry) => entry.userId === userId && entry.workspaceId === workspaceId && entry.destinationId === destinationId && entry.active)
   if (receipts.length === 0) return false
   const receiptIds = new Set(receipts.map((consent) => consent.receiptId))
-  receipts.forEach((consent) => { consent.active = false })
+  revokeReceiptsInState(state, receipts)
   state.outbox = state.outbox.filter((event) => !receiptIds.has(event.consentReceiptId))
   writeState(state)
+  activityExportQueueListener?.()
   return true
 }
 

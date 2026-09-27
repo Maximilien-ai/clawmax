@@ -6,14 +6,12 @@ import { getResolvedWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets 
 import {
   ACTIVITY_EXPORT_VERSION,
   appendActivityExportEventsForActiveConsents,
-  enqueueActivityExportPurge,
   getActivityExportConsent,
   getActivityExportEnrollment,
   getOpaqueActivityUserId,
   getOpaqueActivityWorkspaceId,
   flushActivityExportOutbox,
   listActivityExportConsents,
-  recordActivityExportPurgeResult,
   listActivityExportOutbox,
   listReceivedActivityExportEvents,
   receiveActivityExportBatch,
@@ -30,11 +28,9 @@ import {
   AGENTFORGE_PURPOSE,
   AGENTFORGE_RETENTION_DAYS,
   AGENTFORGE_SUPPORTED_SCOPES,
-  agentForgePurgeCompleted,
   exchangeAgentForgeEnrollment,
   getAgentForgeRuntimeConfig,
   registerAgentForgeConsent,
-  revokeAgentForgeConsent,
 } from '../lib/agentforge-activity-export'
 
 const router = Router()
@@ -171,29 +167,15 @@ router.post('/consent', async (req, res) => {
   res.status(201).json({ ok: true, consent: { receiptId: consent.receiptId, destinationId: consent.destinationId, scopes: consent.scopes, consentedAt: consent.consentedAt } })
 })
 
-router.delete('/consent', async (req, res) => {
+router.delete('/consent', (req, res) => {
   const { userId, workspaceId } = actor(req)
   const destinationId = typeof req.body?.destinationId === 'string' ? req.body.destinationId.trim() : ''
-  const remoteConsent = destinationId === AGENTFORGE_DESTINATION_ID
-    ? listActivityExportConsents(userId, workspaceId).find((entry) => entry.destinationId === AGENTFORGE_DESTINATION_ID)
-    : undefined
-  if (remoteConsent) enqueueActivityExportPurge(remoteConsent.receiptId, AGENTFORGE_DESTINATION_ID)
   const revoked = destinationId
     ? revokeActivityExportDestinationConsent(userId, workspaceId, destinationId)
     : revokeActivityExportConsent(userId, workspaceId)
-  if (remoteConsent) {
-    try {
-      const remote = await revokeAgentForgeConsent(remoteConsent.receiptId)
-      const verified = agentForgePurgeCompleted(remote, remoteConsent.receiptId)
-      recordActivityExportPurgeResult(remoteConsent.receiptId, AGENTFORGE_DESTINATION_ID, {
-        completed: verified, error: verified ? undefined : 'Purge completion not yet verified.',
-      })
-      return res.status(202).json({ ok: true, revoked, remote })
-    } catch (error: any) {
-      recordActivityExportPurgeResult(remoteConsent.receiptId, AGENTFORGE_DESTINATION_ID, { completed: false, error: error?.message || 'AgentForge purge request failed.' })
-      return res.status(202).json({ ok: true, revoked, remote: { purgeStatus: 'needs-retry', error: error?.message || 'AgentForge purge request failed.' } })
-    }
-  }
+  // Durable purge jobs are created atomically with local revocation. Never wait
+  // for the partner before acknowledging that local sharing has stopped.
+  void flushActivityExportWorker().catch(() => {})
   res.json({ ok: true, revoked })
 })
 
