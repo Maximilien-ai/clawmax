@@ -8,6 +8,7 @@ import {
   appendActivityExportEventsForActiveConsents,
   getActivityExportConsent,
   getActivityExportEnrollment,
+  getActivityExportConsentFence,
   getOpaqueActivityUserId,
   getOpaqueActivityWorkspaceId,
   flushActivityExportOutbox,
@@ -77,16 +78,17 @@ router.get('/status', (req, res) => {
 
 router.post('/agentforge/enrollment', async (req, res) => {
   const { userId, workspaceId } = actor(req)
-  const connectionCode = typeof req.body?.connectionCode === 'string' ? req.body.connectionCode.trim().toUpperCase() : ''
+  const connectionCode = typeof req.body?.connectionCode === 'string' ? req.body.connectionCode.trim() : ''
   if (!connectionCode) return res.status(400).json({ error: 'The AgentForge enrollment handoff is missing or expired.' })
   const config = getAgentForgeRuntimeConfig()
   if (!config) return res.status(503).json({ error: 'The operator has not configured AgentForge delivery.' })
   const receiverBinding = agentForgeReceiverBinding(config)
+  const fence = getActivityExportConsentFence(userId, workspaceId, AGENTFORGE_DESTINATION_ID)
   const externalWorkspaceId = getOpaqueActivityWorkspaceId(workspaceId)
   const externalUserId = getOpaqueActivityUserId(userId, workspaceId, AGENTFORGE_DESTINATION_ID)
   try {
     const remote = await exchangeAgentForgeEnrollment({ connectionCode, workspaceId: externalWorkspaceId, userId: externalUserId }, { config })
-    if (currentAgentForgeReceiverBinding(workspaceId) !== receiverBinding) return res.status(409).json({ error: 'AgentForge configuration changed. Reconnect before sharing.' })
+    if (currentAgentForgeReceiverBinding(workspaceId) !== receiverBinding || getActivityExportConsentFence(userId, workspaceId, AGENTFORGE_DESTINATION_ID) !== fence) return res.status(409).json({ error: 'AgentForge configuration or authorization changed. Reconnect before sharing.' })
     const enrollment = saveActivityExportEnrollment({
       enrollmentId: remote.enrollmentId,
       destinationId: AGENTFORGE_DESTINATION_ID,
@@ -139,6 +141,7 @@ router.post('/consent', async (req, res) => {
     const consentedAt = new Date().toISOString()
     const expiresAt = new Date(Date.now() + AGENTFORGE_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
     const receiptId = `consent_${randomUUID()}`
+    const fence = getActivityExportConsentFence(userId, workspaceId, destinationId)
     try {
       await registerAgentForgeConsent({
         receiptId,
@@ -153,6 +156,7 @@ router.post('/consent', async (req, res) => {
       return res.status(502).json({ error: error?.message || 'AgentForge could not register the consent receipt.' })
     }
     if (currentAgentForgeReceiverBinding(workspaceId) !== receiverBinding ||
+        getActivityExportConsentFence(userId, workspaceId, destinationId) !== fence ||
         getActivityExportEnrollment(userId, workspaceId, AGENTFORGE_DESTINATION_ID)?.enrollmentId !== enrollment.enrollmentId) {
       return res.status(409).json({ error: 'AgentForge configuration or enrollment changed. Reconnect before sharing.' })
     }

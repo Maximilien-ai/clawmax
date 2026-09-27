@@ -76,6 +76,7 @@ export interface ActivityExportEvent extends ActivityExportEventInput {
 }
 
 interface ActivityExportState {
+  revocations: Record<string, string>
   consents: Record<string, ActivityExportConsent>
   enrollments: Record<string, ActivityExportEnrollment>
   purges: ActivityExportPurgeEntry[]
@@ -122,6 +123,7 @@ function readState(filePath = getActivityExportStatePath()): ActivityExportState
   try {
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'))
     return {
+      revocations: parsed?.revocations && typeof parsed.revocations === 'object' ? parsed.revocations : {},
       consents: parsed?.consents && typeof parsed.consents === 'object' ? parsed.consents : {},
       enrollments: parsed?.enrollments && typeof parsed.enrollments === 'object' ? parsed.enrollments : {},
       purges: Array.isArray(parsed?.purges) ? parsed.purges : [],
@@ -132,7 +134,7 @@ function readState(filePath = getActivityExportStatePath()): ActivityExportState
       received: parsed?.received && typeof parsed.received === 'object' ? parsed.received : {},
     }
   } catch {
-    return { consents: {}, enrollments: {}, purges: [], outbox: [], received: {} }
+    return { revocations: {}, consents: {}, enrollments: {}, purges: [], outbox: [], received: {} }
   }
 }
 
@@ -219,8 +221,9 @@ export function revokeActivityExportEnrollment(userId: string, workspaceId: stri
 
 export function revokeActivityExportConsent(userId: string, workspaceId: string): boolean {
   const state = readState()
+  state.revocations[JSON.stringify([userId, workspaceId, '*'])] = randomUUID()
   const receipts = Object.values(state.consents).filter((entry) => entry.userId === userId && entry.workspaceId === workspaceId && entry.active)
-  if (receipts.length === 0) return false
+  if (receipts.length === 0) { writeState(state); return false }
   const receiptIds = new Set(receipts.map((consent) => consent.receiptId))
   revokeReceiptsInState(state, receipts)
   state.outbox = state.outbox.filter((event) => !receiptIds.has(event.consentReceiptId))
@@ -242,14 +245,28 @@ function revokeReceiptsInState(state: ActivityExportState, receipts: ActivityExp
 
 export function revokeActivityExportDestinationConsent(userId: string, workspaceId: string, destinationId: string): boolean {
   const state = readState()
+  state.revocations[JSON.stringify([userId, workspaceId, destinationId])] = randomUUID()
   const receipts = Object.values(state.consents).filter((entry) => entry.userId === userId && entry.workspaceId === workspaceId && entry.destinationId === destinationId && entry.active)
-  if (receipts.length === 0) return false
+  if (receipts.length === 0) { writeState(state); return false }
   const receiptIds = new Set(receipts.map((consent) => consent.receiptId))
   revokeReceiptsInState(state, receipts)
   state.outbox = state.outbox.filter((event) => !receiptIds.has(event.consentReceiptId))
   writeState(state)
   activityExportQueueListener?.()
   return true
+}
+
+export function getActivityExportConsentFence(userId: string, workspaceId: string, destinationId: string): string {
+  const { revocations } = readState()
+  return JSON.stringify([revocations[JSON.stringify([userId, workspaceId, '*'])], revocations[JSON.stringify([userId, workspaceId, destinationId])]])
+}
+
+/** A receiver/configuration edit permanently revokes its existing grants. */
+export function revokeActivityExportWorkspaceDestination(workspaceId: string, destinationId: string): void {
+  const state = readState()
+  const users = new Set([...Object.values(state.consents), ...Object.values(state.enrollments)]
+    .filter(entry => entry.workspaceId === workspaceId && entry.destinationId === destinationId).map(entry => entry.userId))
+  for (const userId of users) revokeActivityExportEnrollment(userId, workspaceId, destinationId)
 }
 
 export function appendActivityExportEvent(input: ActivityExportEventInput, consent: ActivityExportConsent): ActivityExportEvent | null {
@@ -397,6 +414,7 @@ function hasActiveConsent(consent: ActivityExportConsent, input: ActivityExportE
   if (consent.destinationId.length === 0 || consent.receiptId.length === 0) return false
   if (consent.workspaceId !== input.workspaceId || consent.userId !== input.userId) return false
   if (!consent.scopes.includes(input.source)) return false
+  if (input.occurredAt && (!Number.isFinite(Date.parse(consent.consentedAt)) || Date.parse(input.occurredAt) < Date.parse(consent.consentedAt))) return false
   if (!hasCurrentReceiver(consent)) return false
   if (consent.expiresAt !== undefined && (!Number.isFinite(Date.parse(consent.expiresAt)) || Date.parse(consent.expiresAt) <= Date.now())) return false
   return true
@@ -472,6 +490,8 @@ export async function deliverActivityExportBatch(
   try {
     const response = await (options.fetchImpl || fetch)(endpoint, {
       method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
