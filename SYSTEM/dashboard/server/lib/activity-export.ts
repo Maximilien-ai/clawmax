@@ -319,6 +319,7 @@ export async function flushActivityExportOutbox(
   const maxEvents = Math.max(1, Math.min(options.maxEvents || ACTIVITY_EXPORT_BATCH_LIMIT, ACTIVITY_EXPORT_BATCH_LIMIT))
   const candidates = state.outbox.filter((entry) =>
     !entry.deliveredAt &&
+    queueEntryHasConsent(entry, state.consents[entry.consentReceiptId]) &&
     (!options.userId || (!!options.workspaceId && entry.userId === getOpaqueActivityUserId(options.userId, options.workspaceId, entry.destinationId))) &&
     (!options.workspaceId || entry.workspaceId === getOpaqueActivityWorkspaceId(options.workspaceId)) &&
     (!options.destinationId || entry.destinationId === options.destinationId),
@@ -380,8 +381,16 @@ function hasActiveConsent(consent: ActivityExportConsent, input: ActivityExportE
   if (consent.destinationId.length === 0 || consent.receiptId.length === 0) return false
   if (consent.workspaceId !== input.workspaceId || consent.userId !== input.userId) return false
   if (!consent.scopes.includes(input.source)) return false
-  if (consent.expiresAt && Date.parse(consent.expiresAt) <= Date.now()) return false
+  if (consent.expiresAt !== undefined && (!Number.isFinite(Date.parse(consent.expiresAt)) || Date.parse(consent.expiresAt) <= Date.now())) return false
   return true
+}
+
+/** Recheck authority at delivery, not only when content entered the outbox. */
+function queueEntryHasConsent(entry: ActivityExportQueueEntry, consent: ActivityExportConsent | undefined): boolean {
+  if (!consent || entry.destinationId !== consent.destinationId || entry.consentReceiptId !== consent.receiptId) return false
+  if (entry.workspaceId !== getOpaqueActivityWorkspaceId(consent.workspaceId) ||
+      entry.userId !== getOpaqueActivityUserId(consent.userId, consent.workspaceId, consent.destinationId)) return false
+  return hasActiveConsent(consent, { source: entry.source, workspaceId: consent.workspaceId, userId: consent.userId })
 }
 
 export function createActivityExportEvent(input: ActivityExportEventInput, consent: ActivityExportConsent): ActivityExportEvent | null {

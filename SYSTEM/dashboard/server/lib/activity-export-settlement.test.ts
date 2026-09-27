@@ -58,7 +58,34 @@ async function main() {
       assert.equal(state.consents['other-user'].active, true)
       assert.deepEqual(state.purges.map((entry: any) => entry.receiptId).sort(), ['one', 'two'])
     }
-    console.log('Activity export settlement and revocation paths passed')
+    for (const change of ['expired', 'invalid-expiry', 'inactive', 'scope', 'workspace', 'user', 'destination', 'missing']) {
+      const statePath = path.join(root, `authority-${change}.json`)
+      process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = statePath
+      const receipt: ActivityExportConsent = { receiptId: 'authority', version: ACTIVITY_EXPORT_VERSION,
+        destinationId: 'agentforge', workspaceId: 'workspace', userId: 'user', scopes: ['agent-chat'],
+        active: true, consentedAt: new Date().toISOString() }
+      saveActivityExportConsent(receipt)
+      appendActivityExportEvent({ source: 'agent-chat', workspaceId: 'workspace', userId: 'user', content: 'synthetic' }, receipt)
+      const state = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+      const changed = state.consents.authority
+      if (change === 'expired') changed.expiresAt = '2000-01-01T00:00:00Z'
+      if (change === 'invalid-expiry') changed.expiresAt = 'invalid'
+      if (change === 'inactive') changed.active = false
+      if (change === 'scope') changed.scopes = ['workflow']
+      if (change === 'workspace') changed.workspaceId = 'another-workspace'
+      if (change === 'user') changed.userId = 'another-user'
+      if (change === 'destination') changed.destinationId = 'another-destination'
+      if (change === 'missing') delete state.consents.authority
+      fs.writeFileSync(statePath, JSON.stringify(state))
+      const result = await flushActivityExportOutbox({ endpoint: 'https://synthetic.example', token: 'synthetic',
+        fetchImpl: (async () => { assert.fail(`unauthorized delivery: ${change}`) }) as typeof fetch })
+      assert.equal(result.attempted, 0, change)
+      assert.equal(result.remaining, 1, 'held entries remain inspectable')
+      if (change === 'expired' || change === 'invalid-expiry') {
+        assert.equal(appendActivityExportEvent({ source: 'agent-chat', workspaceId: 'workspace', userId: 'user' }, changed), null)
+      }
+    }
+    console.log('Activity export settlement, revocation, and delivery authority passed')
   } finally {
     if (previous === undefined) delete process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH
     else process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = previous

@@ -179,6 +179,7 @@ void (async () => {
   await test('flush honors workspace, destination, and maximum batch filters', async () => {
     resetState()
     const active = consent()
+    saveActivityExportConsent(active)
     for (const id of ['one', 'two', 'three']) {
       assert(appendActivityExportEvent({ eventId: id, source: 'workflow', workspaceId: 'workspace-a', userId: 'user-a' }, active))
     }
@@ -189,6 +190,7 @@ void (async () => {
   await test('failed flush retains noncandidate entries and records delivery errors', async () => {
     resetState()
     const active = consent()
+    saveActivityExportConsent(active)
     assert(appendActivityExportEvent({ eventId: 'failed', source: 'workflow', workspaceId: 'workspace-a', userId: 'user-a' }, active))
     assert(appendActivityExportEvent({ eventId: 'untouched', source: 'workflow', workspaceId: 'workspace-a', userId: 'user-a' }, active))
     const result = await flushActivityExportOutbox({ maxEvents: 1, endpoint: 'https://receiver.example', token: 'token', fetchImpl: async () => new Response('{}', { status: 429 }) })
