@@ -39,6 +39,8 @@ void (async () => {
   const enrollment = await exchangeAgentForgeEnrollment({ connectionCode: 'CODE123', workspaceId: 'ws_opaque', userId: 'usr_opaque' }, { config, fetchImpl: fetchImpl as typeof fetch })
   assert.strictEqual(enrollment.enrollmentId, 'enrollment_1')
   const exchangeRequest = requests[0]
+  assert.strictEqual(exchangeRequest.init?.redirect, 'error')
+  assert(exchangeRequest.init?.signal instanceof AbortSignal)
   assert.strictEqual(exchangeRequest.url, 'https://agentforge.example/api/v1/clawmax/enrollments/exchange')
   assert.strictEqual((exchangeRequest.init?.headers as Record<string, string>).Authorization, 'Bearer partner-secret')
   assert.strictEqual(JSON.parse(String(exchangeRequest.init?.body)).destinationId, AGENTFORGE_DESTINATION_ID)
@@ -56,8 +58,27 @@ void (async () => {
   await assert.rejects(() => exchangeAgentForgeEnrollment({ connectionCode: 'BAD', workspaceId: 'ws', userId: 'usr' }, {
     config,
     fetchImpl: (async () => new Response(JSON.stringify({ error: 'Connection code is invalid.' }), { status: 404 })) as typeof fetch,
-  }), /Connection code is invalid/)
-  console.log('agentforge-activity-export.test.ts: ok (19 assertions)')
+  }), /AgentForge rejected the request \(404\)/)
+  for (const payload of [null, {}, { enrollmentId: '', status: 'active' }, { enrollmentId: 'one', status: 'pending' }]) {
+    await assert.rejects(() => exchangeAgentForgeEnrollment({ connectionCode: 'CODE', workspaceId: 'ws', userId: 'usr' }, {
+      config, fetchImpl: (async () => new Response(JSON.stringify(payload), { status: 201 })) as typeof fetch,
+    }), /invalid enrollment acknowledgment/)
+  }
+  for (const payload of [null, {}, { receiptId: 'wrong', status: 'active', scopes: ['agent-chat'] },
+    { receiptId: 'one', status: 'pending', scopes: ['agent-chat'] },
+    { receiptId: 'one', status: 'active', scopes: ['workflow'] },
+    { receiptId: 'one', status: 'active', scopes: ['agent-chat', 'agent-chat'] }]) {
+    await assert.rejects(() => registerAgentForgeConsent({ receiptId: 'one', enrollmentId: 'enrollment', workspaceId: 'ws',
+      userId: 'usr', scopes: ['agent-chat'], consentedAt: '2026-09-04T12:00:00Z', expiresAt: '2026-10-04T12:00:00Z' }, {
+      config, fetchImpl: (async () => new Response(JSON.stringify(payload), { status: 201 })) as typeof fetch,
+    }), /invalid consent acknowledgment/)
+  }
+  for (const apiUrl of ['https://user:secret@receiver.example', 'https://receiver.example?token=secret', 'https://receiver.example#fragment', 'http://remote.example']) {
+    await assert.rejects(() => exchangeAgentForgeEnrollment({ connectionCode: 'CODE', workspaceId: 'ws', userId: 'usr' }, {
+      config: { ...config, apiUrl }, fetchImpl: (async () => { assert.fail('invalid URL must not be fetched') }) as typeof fetch,
+    }), /Invalid AgentForge API URL/)
+  }
+  console.log('AgentForge adapter contract tests passed')
 })().catch((error) => {
   console.error(error)
   process.exitCode = 1
