@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useWorkspace } from '../contexts/WorkspaceContext'
+import { MobileSafeDialog } from './MobileSafeDialog'
 
 type Status = {
   agentforge: { configured: boolean; connected: boolean; purpose?: string; privacyUrl?: string; retentionDays?: number }
@@ -87,11 +88,13 @@ export function AgentForgeSharing() {
       className="fixed bottom-3 right-3 z-40 max-w-[calc(100vw-1.5rem)] rounded-full border bg-white px-3 py-2 text-xs text-gray-900 shadow dark:bg-gray-900 dark:text-white">
       {active ? 'Sharing activity with AgentForge · Manage' : 'AgentForge sharing off · Review'}
     </button>}
-    {open && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-3" role="presentation">
-      <section role="dialog" aria-modal="true" aria-labelledby="agentforge-sharing-title"
-        className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5 text-gray-900 shadow-xl dark:bg-gray-900 dark:text-white">
-        <div className="flex items-start justify-between gap-3"><h2 id="agentforge-sharing-title" className="text-lg font-semibold">AgentForge activity sharing</h2>
-          <button type="button" aria-label="Close sharing settings" onClick={() => setOpen(false)}>Close</button></div>
+    {open && <MobileSafeDialog ariaLabelledBy="agentforge-sharing-title" panelClassName="max-w-lg text-gray-900 dark:text-white" onClose={() => setOpen(false)}
+      header={<div className="flex items-start justify-between gap-3"><h2 id="agentforge-sharing-title" className="text-lg font-semibold">AgentForge activity sharing</h2>
+        <button type="button" aria-label="Close sharing settings" onClick={() => setOpen(false)}>Close</button></div>}
+      footer={active
+        ? <button type="button" disabled={busy} onClick={() => void changeConsent(true)} className="rounded border border-red-600 px-4 py-2 text-red-600 disabled:opacity-50">Revoke sharing</button>
+        : <button type="button" disabled={busy || !confirmed || !scopes.length || !status?.agentforge.connected || !status?.agentforge.configured}
+            onClick={() => void changeConsent(false)} className="rounded bg-violet-700 px-4 py-2 text-white disabled:opacity-50">{busy ? 'Working…' : 'Enable sharing'}</button>}>
         <p className="mt-2 break-words text-sm">Workspace: {activeWorkspace?.name || 'Loading…'}</p>
         {error && <p role="alert" className="mt-3 break-words text-sm text-red-600">{error}</p>}
         {!status ? <p className="mt-3">Loading sharing status…</p> : <>
@@ -103,7 +106,6 @@ export function AgentForgeSharing() {
           {active ? <>
             <p className="mt-3 break-words text-sm">Sharing: {active.scopes.join(', ')}. Queued events: {status.queuedEvents}.</p>
             <p className="mt-2 text-sm">Revoke stops new capture immediately, removes unsent events, and queues deletion requests for delivered activity.</p>
-            <button type="button" disabled={busy} onClick={() => void changeConsent(true)} className="mt-4 rounded border border-red-600 px-4 py-2 text-red-600 disabled:opacity-50">Revoke sharing</button>
           </> : <>
             <fieldset disabled={busy || !status.agentforge.connected} className="mt-4 space-y-2">
               <legend className="mb-2 font-medium">Choose what to share</legend>
@@ -112,12 +114,9 @@ export function AgentForgeSharing() {
                   onChange={event => { setConfirmed(false); setScopes(previous => event.target.checked ? [...previous, scope] : previous.filter(value => value !== scope)) }} />{label}</label>)}
               <label className="flex items-start gap-2 pt-2 text-sm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />I agree to share these categories with AgentForge for the purpose above.</label>
             </fieldset>
-            <button type="button" disabled={busy || !confirmed || !scopes.length || !status.agentforge.connected || !status.agentforge.configured}
-              onClick={() => void changeConsent(false)} className="mt-4 rounded bg-violet-700 px-4 py-2 text-white disabled:opacity-50">{busy ? 'Working…' : 'Enable sharing'}</button>
           </>}
           {status.delivery?.retry?.lastError && <p className="mt-3 break-words text-sm">Delivery pending: {status.delivery.retry.lastError}</p>}
         </>}
-      </section>
-    </div>}
+    </MobileSafeDialog>}
   </>
 }
