@@ -107,9 +107,9 @@ export function getActivityExportStatePath(): string {
   return process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH?.trim() || path.join(os.homedir(), '.openclaw', 'activity-export.json')
 }
 
-function readState(): ActivityExportState {
+function readState(filePath = getActivityExportStatePath()): ActivityExportState {
   try {
-    const parsed = JSON.parse(fs.readFileSync(getActivityExportStatePath(), 'utf8'))
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'))
     return {
       consents: parsed?.consents && typeof parsed.consents === 'object' ? parsed.consents : {},
       enrollments: parsed?.enrollments && typeof parsed.enrollments === 'object' ? parsed.enrollments : {},
@@ -125,8 +125,7 @@ function readState(): ActivityExportState {
   }
 }
 
-function writeState(state: ActivityExportState): void {
-  const filePath = getActivityExportStatePath()
+function writeState(state: ActivityExportState, filePath = getActivityExportStatePath()): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, JSON.stringify(state, null, 2), { encoding: 'utf8', mode: 0o600 })
   try { fs.chmodSync(filePath, 0o600) } catch {}
@@ -300,7 +299,8 @@ export async function flushActivityExportOutbox(
     fetchImpl?: typeof fetch
   } = {},
 ): Promise<ActivityExportFlushResult> {
-  const state = readState()
+  const statePath = getActivityExportStatePath()
+  let state = readState(statePath)
   const maxEvents = Math.max(1, Math.min(options.maxEvents || ACTIVITY_EXPORT_BATCH_LIMIT, ACTIVITY_EXPORT_BATCH_LIMIT))
   const candidates = state.outbox.filter((entry) =>
     !entry.deliveredAt &&
@@ -311,10 +311,14 @@ export async function flushActivityExportOutbox(
   if (candidates.length === 0) return { attempted: 0, delivered: 0, remaining: state.outbox.filter((entry) => !entry.deliveredAt).length }
 
   const result = await deliverActivityExportBatch(candidates, options)
+  // Network completion must not overwrite revocation, new events, or purge
+  // evidence persisted while the request was in flight. No await occurs between
+  // this reload and settlement, so same-process state mutations cannot interleave.
+  state = readState(statePath)
   if (result.delivered) {
     const deliveredIds = new Set(candidates.map((entry) => entry.eventId))
     state.outbox = state.outbox.filter((entry) => !deliveredIds.has(entry.eventId))
-    writeState(state)
+    writeState(state, statePath)
     return { attempted: candidates.length, delivered: candidates.length, remaining: state.outbox.length }
   }
 
@@ -322,7 +326,7 @@ export async function flushActivityExportOutbox(
   state.outbox = state.outbox.map((entry) => failedIds.has(entry.eventId)
     ? { ...entry, attempts: entry.attempts + 1, lastError: result.error || `HTTP ${result.status || 'unknown'}` }
     : entry)
-  writeState(state)
+  writeState(state, statePath)
   return {
     attempted: candidates.length,
     delivered: 0,
