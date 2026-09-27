@@ -15,14 +15,14 @@ async function main() {
       const statePath = path.join(root, `${status}.json`)
       process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = statePath
       const receipt: ActivityExportConsent = { receiptId: 'revoked', version: ACTIVITY_EXPORT_VERSION,
-        destinationId: 'agentforge', workspaceId: 'workspace', userId: 'user', scopes: ['agent-chat'],
+        destinationId: 'synthetic', workspaceId: 'workspace', userId: 'user', scopes: ['agent-chat'],
         active: true, consentedAt: new Date().toISOString() }
       saveActivityExportConsent(receipt)
       appendActivityExportEvent({ source: 'agent-chat', workspaceId: 'workspace', userId: 'user', content: 'synthetic' }, receipt)
       let settle!: (response: Response) => void
       const pending = flushActivityExportOutbox({ endpoint: 'https://synthetic.example', token: 'synthetic',
         fetchImpl: (() => new Promise<Response>(resolve => { settle = resolve })) as typeof fetch })
-      revokeActivityExportDestinationConsent('user', 'workspace', 'agentforge')
+      revokeActivityExportDestinationConsent('user', 'workspace', 'synthetic')
       const newer = { ...receipt, receiptId: 'new-user', userId: 'another-user' }
       saveActivityExportConsent(newer)
       const queued = appendActivityExportEvent({ source: 'agent-chat', workspaceId: 'workspace', userId: 'another-user', content: 'new synthetic' }, newer)!
@@ -62,7 +62,7 @@ async function main() {
       const statePath = path.join(root, `authority-${change}.json`)
       process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = statePath
       const receipt: ActivityExportConsent = { receiptId: 'authority', version: ACTIVITY_EXPORT_VERSION,
-        destinationId: 'agentforge', workspaceId: 'workspace', userId: 'user', scopes: ['agent-chat'],
+        destinationId: 'synthetic', workspaceId: 'workspace', userId: 'user', scopes: ['agent-chat'],
         active: true, consentedAt: new Date().toISOString() }
       saveActivityExportConsent(receipt)
       appendActivityExportEvent({ source: 'agent-chat', workspaceId: 'workspace', userId: 'user', content: 'synthetic' }, receipt)

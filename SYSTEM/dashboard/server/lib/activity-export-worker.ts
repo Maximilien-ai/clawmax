@@ -1,6 +1,8 @@
 import { flushActivityExportOutbox, listActivityExportPurges, listAllActivityExportOutbox, recordActivityExportPurgeResult, setActivityExportQueueListener, type ActivityExportFlushResult } from './activity-export'
 import { getResolvedWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets } from './workspace-integrations'
 import { AGENTFORGE_DESTINATION_ID, agentForgeActivityEndpoint, agentForgePurgeCompleted, getAgentForgeRuntimeConfig, revokeAgentForgeConsent } from './agentforge-activity-export'
+import { agentForgeReceiverBinding } from './agentforge-activity-export'
+import { getWorkspacePath } from './workspace'
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000
 let timer: ReturnType<typeof setInterval> | null = null
@@ -19,6 +21,11 @@ async function flushAgentForgePurgeQueue(): Promise<typeof lastPurgeResult> {
   let error: string | undefined
   for (const entry of pending) {
     try {
+      if (entry.workspaceId !== getWorkspacePath() || !entry.receiverBinding || entry.receiverBinding !== agentForgeReceiverBinding(config)) {
+        error = 'Purge requires the original workspace and receiver configuration.'
+        recordActivityExportPurgeResult(entry.receiptId, entry.destinationId, { completed: false, error })
+        continue
+      }
       const remote = await revokeAgentForgeConsent(entry.receiptId, { config })
       const verified = agentForgePurgeCompleted(remote, entry.receiptId)
       recordActivityExportPurgeResult(entry.receiptId, entry.destinationId, {
@@ -53,7 +60,7 @@ export async function flushActivityExportWorker(): Promise<ActivityExportFlushRe
     for (const destinationId of destinations) {
       const delivery = destinationCredentials(destinationId)
       if (!delivery) continue
-      const result = await flushActivityExportOutbox({ destinationId, endpoint: delivery.endpoint, token: delivery.token })
+      const result = await flushActivityExportOutbox({ destinationId, workspaceId: getWorkspacePath(), endpoint: delivery.endpoint, token: delivery.token })
       combined = combined ? {
         attempted: combined.attempted + result.attempted,
         delivered: combined.delivered + result.delivered,

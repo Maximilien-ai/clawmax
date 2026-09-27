@@ -39,6 +39,7 @@ export interface ActivityExportConsent {
   purpose?: string
   privacyUrl?: string
   retentionUntil?: string
+  receiverBinding?: string
 }
 
 export interface ActivityExportEnrollment {
@@ -50,6 +51,7 @@ export interface ActivityExportEnrollment {
   externalUserId: string
   status: 'active' | 'revoked'
   connectedAt: string
+  receiverBinding?: string
 }
 
 export interface ActivityExportEventInput {
@@ -101,6 +103,15 @@ export interface ActivityExportPurgeEntry {
   attempts: number
   lastError?: string
   completedAt?: string
+  workspaceId?: string
+  receiverBinding?: string
+}
+
+function hasCurrentReceiver(record: { destinationId: string; workspaceId: string; receiverBinding?: string }): boolean {
+  if (record.destinationId !== 'agentforge') return true
+  // Resolve lazily to keep pure contract helpers independent of workspace startup.
+  const { currentAgentForgeReceiverBinding } = require('./agentforge-activity-export') as typeof import('./agentforge-activity-export')
+  return Boolean(record.receiverBinding && record.receiverBinding === currentAgentForgeReceiverBinding(record.workspaceId))
 }
 
 export function getActivityExportStatePath(): string {
@@ -136,7 +147,8 @@ export function getActivityExportConsent(userId: string, workspaceId: string): A
 }
 
 export function listActivityExportConsents(userId: string, workspaceId: string): ActivityExportConsent[] {
-  return Object.values(readState().consents).filter((consent) => consent.userId === userId && consent.workspaceId === workspaceId && consent.active)
+  return Object.values(readState().consents).filter((consent) => consent.userId === userId && consent.workspaceId === workspaceId && consent.active &&
+    hasCurrentReceiver(consent) && (!consent.expiresAt || Date.parse(consent.expiresAt) > Date.now()))
 }
 
 export function saveActivityExportConsent(consent: ActivityExportConsent): ActivityExportConsent {
@@ -150,7 +162,9 @@ export function enqueueActivityExportPurge(receiptId: string, destinationId: str
   const state = readState()
   const existing = state.purges.find((entry) => entry.receiptId === receiptId && entry.destinationId === destinationId)
   if (existing) return existing
-  const entry: ActivityExportPurgeEntry = { receiptId, destinationId, requestedAt: new Date().toISOString(), attempts: 0 }
+  const consent = state.consents[receiptId]
+  const entry: ActivityExportPurgeEntry = { receiptId, destinationId, requestedAt: new Date().toISOString(), attempts: 0,
+    workspaceId: consent?.workspaceId, receiverBinding: consent?.receiverBinding }
   state.purges.push(entry)
   writeState(state)
   activityExportQueueListener?.()
@@ -173,7 +187,7 @@ export function recordActivityExportPurgeResult(receiptId: string, destinationId
 
 export function getActivityExportEnrollment(userId: string, workspaceId: string, destinationId: string): ActivityExportEnrollment | null {
   return Object.values(readState().enrollments).find((entry) => (
-    entry.userId === userId && entry.workspaceId === workspaceId && entry.destinationId === destinationId && entry.status === 'active'
+    entry.userId === userId && entry.workspaceId === workspaceId && entry.destinationId === destinationId && entry.status === 'active' && hasCurrentReceiver(entry)
   )) || null
 }
 
@@ -221,6 +235,7 @@ function revokeReceiptsInState(state: ActivityExportState, receipts: ActivityExp
     if (consent.destinationId !== 'agentforge') continue
     if (state.purges.some(entry => entry.receiptId === consent.receiptId && entry.destinationId === consent.destinationId)) continue
     state.purges.push({ receiptId: consent.receiptId, destinationId: consent.destinationId,
+      workspaceId: consent.workspaceId, receiverBinding: consent.receiverBinding,
       requestedAt: new Date().toISOString(), attempts: 0 })
   }
 }
@@ -320,6 +335,7 @@ export async function flushActivityExportOutbox(
   const candidates = state.outbox.filter((entry) =>
     !entry.deliveredAt &&
     queueEntryHasConsent(entry, state.consents[entry.consentReceiptId]) &&
+    (entry.destinationId !== 'agentforge' || agentForgeDeliveryMatches(options)) &&
     (!options.userId || (!!options.workspaceId && entry.userId === getOpaqueActivityUserId(options.userId, options.workspaceId, entry.destinationId))) &&
     (!options.workspaceId || entry.workspaceId === getOpaqueActivityWorkspaceId(options.workspaceId)) &&
     (!options.destinationId || entry.destinationId === options.destinationId),
@@ -381,8 +397,15 @@ function hasActiveConsent(consent: ActivityExportConsent, input: ActivityExportE
   if (consent.destinationId.length === 0 || consent.receiptId.length === 0) return false
   if (consent.workspaceId !== input.workspaceId || consent.userId !== input.userId) return false
   if (!consent.scopes.includes(input.source)) return false
+  if (!hasCurrentReceiver(consent)) return false
   if (consent.expiresAt !== undefined && (!Number.isFinite(Date.parse(consent.expiresAt)) || Date.parse(consent.expiresAt) <= Date.now())) return false
   return true
+}
+
+function agentForgeDeliveryMatches(options: { endpoint?: string; token?: string }): boolean {
+  const { getAgentForgeRuntimeConfig, agentForgeActivityEndpoint } = require('./agentforge-activity-export') as typeof import('./agentforge-activity-export')
+  const config = getAgentForgeRuntimeConfig()
+  return Boolean(config && options.endpoint === agentForgeActivityEndpoint(config) && options.token === config.apiKey)
 }
 
 /** Recheck authority at delivery, not only when content entered the outbox. */

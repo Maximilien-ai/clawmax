@@ -69,10 +69,10 @@ assert.strictEqual(validateActivityExportBatch([]).ok, false, 'empty batches mus
 const previousStatePath = process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH
 const statePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-activity-export-')), 'state.json')
 process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = statePath
-saveActivityExportEnrollment({ enrollmentId: 'enrollment_demo', destinationId: 'agentforge', workspaceId: 'workspace_demo', userId: 'user_demo', externalWorkspaceId: getOpaqueActivityWorkspaceId('workspace_demo'), externalUserId: getOpaqueActivityUserId('user_demo', 'workspace_demo', 'agentforge'), status: 'active', connectedAt: new Date().toISOString() })
-assert.strictEqual(getActivityExportEnrollment('user_demo', 'workspace_demo', 'agentforge')?.enrollmentId, 'enrollment_demo')
-assert.strictEqual(revokeActivityExportEnrollment('user_demo', 'workspace_demo', 'agentforge'), true)
-assert.strictEqual(getActivityExportEnrollment('user_demo', 'workspace_demo', 'agentforge'), null)
+saveActivityExportEnrollment({ enrollmentId: 'enrollment_demo', destinationId: 'synthetic', workspaceId: 'workspace_demo', userId: 'user_demo', externalWorkspaceId: getOpaqueActivityWorkspaceId('workspace_demo'), externalUserId: getOpaqueActivityUserId('user_demo', 'workspace_demo', 'synthetic'), status: 'active', connectedAt: new Date().toISOString() })
+assert.strictEqual(getActivityExportEnrollment('user_demo', 'workspace_demo', 'synthetic')?.enrollmentId, 'enrollment_demo')
+assert.strictEqual(revokeActivityExportEnrollment('user_demo', 'workspace_demo', 'synthetic'), true)
+assert.strictEqual(getActivityExportEnrollment('user_demo', 'workspace_demo', 'synthetic'), null)
 assert.strictEqual(enqueueActivityExportPurge('consent_remote', 'agentforge').attempts, 0)
 assert.strictEqual(enqueueActivityExportPurge('consent_remote', 'agentforge').receiptId, 'consent_remote', 'purge enqueue must be idempotent')
 recordActivityExportPurgeResult('consent_remote', 'agentforge', { completed: false, error: 'offline' })

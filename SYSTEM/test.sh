@@ -1057,6 +1057,14 @@ else
   fail "Activity Export contract unit tests"
 fi
 echo -e "${YELLOW}→ Running Activity Export edge-case unit tests...${NC}"
+for export_contract in server/lib/agentforge-activity-export.test.ts server/lib/activity-export-binding.test.ts; do
+  if npx ts-node --transpileOnly "$export_contract" > /tmp/clawmax-activity-export-contract.out 2>&1; then
+    pass "Activity Export contract: $export_contract"
+  else
+    cat /tmp/clawmax-activity-export-contract.out
+    fail "Activity Export contract: $export_contract"
+  fi
+done
 if npx ts-node --transpileOnly server/lib/activity-export-settlement.test.ts > /tmp/clawmax-activity-export-settlement.out 2>&1; then
   pass "Activity Export settlement race regression"
 else

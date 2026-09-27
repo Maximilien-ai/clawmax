@@ -1,4 +1,6 @@
 import { getResolvedWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets } from './workspace-integrations'
+import { createHash } from 'crypto'
+import { getWorkspacePath } from './workspace'
 
 export const AGENTFORGE_DESTINATION_ID = 'agentforge'
 export const AGENTFORGE_CONSENT_VERSION = 'activity-export-consent/v1'
@@ -16,6 +18,20 @@ export interface AgentForgeRuntimeConfig {
   apiUrl: string
   apiKey: string
   privacyUrl: string
+}
+
+/** Opaque binding; rotating a tenant credential requires fresh enrollment and consent. */
+export function agentForgeReceiverBinding(config: AgentForgeRuntimeConfig): string {
+  return createHash('sha256').update(JSON.stringify([
+    AGENTFORGE_DESTINATION_ID, config.apiUrl, config.privacyUrl, AGENTFORGE_PURPOSE,
+    AGENTFORGE_CONSENT_VERSION, AGENTFORGE_SUPPORTED_SCOPES, 'opaque-workspace-user/v1', config.apiKey,
+  ])).digest('hex')
+}
+
+export function currentAgentForgeReceiverBinding(workspaceId: string): string | null {
+  if (getWorkspacePath() !== workspaceId) return null
+  const config = getAgentForgeRuntimeConfig()
+  return config ? agentForgeReceiverBinding(config) : null
 }
 
 function validApiUrl(value: string): boolean {

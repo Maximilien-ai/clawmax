@@ -1,4 +1,5 @@
 import assert from 'assert'
+import { getWorkspacePath } from './workspace'
 
 const activityExportPath = require.resolve('./activity-export')
 const integrationsPath = require.resolve('./workspace-integrations')
@@ -29,7 +30,7 @@ let flushImpl: (options: any) => Promise<any> = async () => ({ attempted: 0, del
 let integrationConfig: any = {}
 let integrationSecrets: any = {}
 let queueListener: (() => void) | null = null
-let purges: Array<{ receiptId: string; destinationId: string; attempts: number; completedAt?: string }> = []
+let purges: Array<{ receiptId: string; destinationId: string; attempts: number; completedAt?: string; workspaceId?: string; receiverBinding?: string }> = []
 let recordedPurges: Array<{ receiptId: string; destinationId: string; completed: boolean; error?: string }> = []
 let revokeImpl: (receiptId: string) => Promise<any> = async (receiptId) => ({ receiptId, status: 'revoked', purgeStatus: 'pending' })
 
@@ -136,6 +137,8 @@ void (async () => {
     recordedPurges = []
     integrationConfig = { partners: { agentforge: { apiUrl: 'https://agentforge.example', privacyUrl: 'https://agentforge.example/privacy' } } }
     integrationSecrets = { partners: { agentforge: { apiKey: 'agentforge-token' } } }
+    purges[0].workspaceId = getWorkspacePath()
+    purges[0].receiverBinding = agentforge.agentForgeReceiverBinding(agentforge.getAgentForgeRuntimeConfig())
     revokeImpl = async () => { throw new Error('purge receiver offline') }
     assert.deepStrictEqual(await worker.flushActivityExportWorker(), { attempted: 0, delivered: 0, remaining: 0, error: 'purge receiver offline' })
     assert.strictEqual(recordedPurges[0].completed, false)

@@ -31,6 +31,8 @@ import {
   exchangeAgentForgeEnrollment,
   getAgentForgeRuntimeConfig,
   registerAgentForgeConsent,
+  agentForgeReceiverBinding,
+  currentAgentForgeReceiverBinding,
 } from '../lib/agentforge-activity-export'
 
 const router = Router()
@@ -77,11 +79,14 @@ router.post('/agentforge/enrollment', async (req, res) => {
   const { userId, workspaceId } = actor(req)
   const connectionCode = typeof req.body?.connectionCode === 'string' ? req.body.connectionCode.trim().toUpperCase() : ''
   if (!connectionCode) return res.status(400).json({ error: 'The AgentForge enrollment handoff is missing or expired.' })
-  if (!getAgentForgeRuntimeConfig()) return res.status(503).json({ error: 'The operator has not configured AgentForge delivery.' })
+  const config = getAgentForgeRuntimeConfig()
+  if (!config) return res.status(503).json({ error: 'The operator has not configured AgentForge delivery.' })
+  const receiverBinding = agentForgeReceiverBinding(config)
   const externalWorkspaceId = getOpaqueActivityWorkspaceId(workspaceId)
   const externalUserId = getOpaqueActivityUserId(userId, workspaceId, AGENTFORGE_DESTINATION_ID)
   try {
-    const remote = await exchangeAgentForgeEnrollment({ connectionCode, workspaceId: externalWorkspaceId, userId: externalUserId })
+    const remote = await exchangeAgentForgeEnrollment({ connectionCode, workspaceId: externalWorkspaceId, userId: externalUserId }, { config })
+    if (currentAgentForgeReceiverBinding(workspaceId) !== receiverBinding) return res.status(409).json({ error: 'AgentForge configuration changed. Reconnect before sharing.' })
     const enrollment = saveActivityExportEnrollment({
       enrollmentId: remote.enrollmentId,
       destinationId: AGENTFORGE_DESTINATION_ID,
@@ -91,6 +96,7 @@ router.post('/agentforge/enrollment', async (req, res) => {
       externalUserId,
       status: 'active',
       connectedAt: new Date().toISOString(),
+      receiverBinding,
     })
     return res.status(201).json({ ok: true, enrollment: { enrollmentId: enrollment.enrollmentId, status: enrollment.status } })
   } catch (error: any) {
@@ -122,7 +128,9 @@ router.post('/consent', async (req, res) => {
     }
   }
   if (destinationId === AGENTFORGE_DESTINATION_ID) {
-    if (!getAgentForgeRuntimeConfig()) return res.status(400).json({ error: 'The operator must configure the AgentForge API, privacy URL, and Partner API key first.' })
+    const config = getAgentForgeRuntimeConfig()
+    if (!config) return res.status(400).json({ error: 'The operator must configure the AgentForge API, privacy URL, and Partner API key first.' })
+    const receiverBinding = agentForgeReceiverBinding(config)
     const unsupported = scopes.filter((scope: ActivityExportScope) => !(AGENTFORGE_SUPPORTED_SCOPES as readonly string[]).includes(scope))
     if (unsupported.length > 0) return res.status(400).json({ error: `AgentForge does not support the selected launch scope: ${unsupported.join(', ')}.` })
     const enrollment = getActivityExportEnrollment(userId, workspaceId, AGENTFORGE_DESTINATION_ID)
@@ -140,11 +148,14 @@ router.post('/consent', async (req, res) => {
         scopes,
         consentedAt,
         expiresAt,
-      })
+      }, { config })
     } catch (error: any) {
       return res.status(502).json({ error: error?.message || 'AgentForge could not register the consent receipt.' })
     }
-    const config = getAgentForgeRuntimeConfig()!
+    if (currentAgentForgeReceiverBinding(workspaceId) !== receiverBinding ||
+        getActivityExportEnrollment(userId, workspaceId, AGENTFORGE_DESTINATION_ID)?.enrollmentId !== enrollment.enrollmentId) {
+      return res.status(409).json({ error: 'AgentForge configuration or enrollment changed. Reconnect before sharing.' })
+    }
     const consent = saveActivityExportConsent({
       receiptId,
       version: ACTIVITY_EXPORT_VERSION,
@@ -159,6 +170,7 @@ router.post('/consent', async (req, res) => {
       purpose: AGENTFORGE_PURPOSE,
       privacyUrl: config.privacyUrl,
       retentionUntil: expiresAt,
+      receiverBinding,
     })
     return res.status(201).json({ ok: true, consent: { receiptId: consent.receiptId, destinationId: consent.destinationId, scopes: consent.scopes, consentedAt: consent.consentedAt, expiresAt: consent.expiresAt } })
   }
