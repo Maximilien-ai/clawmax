@@ -4,6 +4,7 @@ import {
   AGENTFORGE_DESTINATION_ID,
   AGENTFORGE_SUPPORTED_SCOPES,
   agentForgeActivityEndpoint,
+  agentForgePurgeCompleted,
   exchangeAgentForgeEnrollment,
   registerAgentForgeConsent,
   revokeAgentForgeConsent,
@@ -27,6 +28,11 @@ const fetchImpl = async (url: string | URL | Request, init?: RequestInit) => {
 
 void (async () => {
   assert.strictEqual(AGENTFORGE_DESTINATION_ID, 'agentforge')
+  for (const value of [null, {}, { receiptId: 'consent_1', status: 'revoked', purgeStatus: 'pending' },
+    { receiptId: 'wrong', status: 'revoked', purgeStatus: 'completed' }]) {
+    assert.strictEqual(agentForgePurgeCompleted(value, 'consent_1'), false)
+  }
+  assert.strictEqual(agentForgePurgeCompleted({ receiptId: 'consent_1', status: 'revoked', purgeStatus: 'completed' }, 'consent_1'), true)
   assert.deepStrictEqual(AGENTFORGE_SUPPORTED_SCOPES, ['agent-chat', 'workflow', 'builder'])
   assert.strictEqual(agentForgeActivityEndpoint(config), 'https://agentforge.example/api/v1/clawmax/activity-events')
 
@@ -51,7 +57,7 @@ void (async () => {
     config,
     fetchImpl: (async () => new Response(JSON.stringify({ error: 'Connection code is invalid.' }), { status: 404 })) as typeof fetch,
   }), /Connection code is invalid/)
-  console.log('agentforge-activity-export.test.ts: ok (14 assertions)')
+  console.log('agentforge-activity-export.test.ts: ok (19 assertions)')
 })().catch((error) => {
   console.error(error)
   process.exitCode = 1

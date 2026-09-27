@@ -30,6 +30,7 @@ import {
   AGENTFORGE_PURPOSE,
   AGENTFORGE_RETENTION_DAYS,
   AGENTFORGE_SUPPORTED_SCOPES,
+  agentForgePurgeCompleted,
   exchangeAgentForgeEnrollment,
   getAgentForgeRuntimeConfig,
   registerAgentForgeConsent,
@@ -183,7 +184,10 @@ router.delete('/consent', async (req, res) => {
   if (remoteConsent) {
     try {
       const remote = await revokeAgentForgeConsent(remoteConsent.receiptId)
-      recordActivityExportPurgeResult(remoteConsent.receiptId, AGENTFORGE_DESTINATION_ID, { completed: true })
+      const verified = agentForgePurgeCompleted(remote, remoteConsent.receiptId)
+      recordActivityExportPurgeResult(remoteConsent.receiptId, AGENTFORGE_DESTINATION_ID, {
+        completed: verified, error: verified ? undefined : 'Purge completion not yet verified.',
+      })
       return res.status(202).json({ ok: true, revoked, remote })
     } catch (error: any) {
       recordActivityExportPurgeResult(remoteConsent.receiptId, AGENTFORGE_DESTINATION_ID, { completed: false, error: error?.message || 'AgentForge purge request failed.' })

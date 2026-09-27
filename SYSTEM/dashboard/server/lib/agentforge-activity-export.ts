@@ -6,6 +6,12 @@ export const AGENTFORGE_PURPOSE = 'Provide event-scoped learning support, progre
 export const AGENTFORGE_SUPPORTED_SCOPES = ['agent-chat', 'workflow', 'builder'] as const
 export const AGENTFORGE_RETENTION_DAYS = 30
 
+export function agentForgePurgeCompleted(value: unknown, receiptId: string): boolean {
+  if (!value || typeof value !== 'object') return false
+  const result = value as Record<string, unknown>
+  return result.receiptId === receiptId && result.status === 'revoked' && result.purgeStatus === 'completed'
+}
+
 export interface AgentForgeRuntimeConfig {
   apiUrl: string
   apiKey: string

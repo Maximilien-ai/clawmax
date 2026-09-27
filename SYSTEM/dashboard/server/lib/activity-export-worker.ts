@@ -1,6 +1,6 @@
 import { flushActivityExportOutbox, listActivityExportPurges, listAllActivityExportOutbox, recordActivityExportPurgeResult, setActivityExportQueueListener, type ActivityExportFlushResult } from './activity-export'
 import { getResolvedWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets } from './workspace-integrations'
-import { AGENTFORGE_DESTINATION_ID, agentForgeActivityEndpoint, getAgentForgeRuntimeConfig, revokeAgentForgeConsent } from './agentforge-activity-export'
+import { AGENTFORGE_DESTINATION_ID, agentForgeActivityEndpoint, agentForgePurgeCompleted, getAgentForgeRuntimeConfig, revokeAgentForgeConsent } from './agentforge-activity-export'
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000
 let timer: ReturnType<typeof setInterval> | null = null
@@ -19,9 +19,12 @@ async function flushAgentForgePurgeQueue(): Promise<typeof lastPurgeResult> {
   let error: string | undefined
   for (const entry of pending) {
     try {
-      await revokeAgentForgeConsent(entry.receiptId, { config })
-      recordActivityExportPurgeResult(entry.receiptId, entry.destinationId, { completed: true })
-      completed += 1
+      const remote = await revokeAgentForgeConsent(entry.receiptId, { config })
+      const verified = agentForgePurgeCompleted(remote, entry.receiptId)
+      recordActivityExportPurgeResult(entry.receiptId, entry.destinationId, {
+        completed: verified, error: verified ? undefined : 'Purge completion not yet verified.',
+      })
+      if (verified) completed += 1
     } catch (cause: any) {
       error = cause?.message || String(cause)
       recordActivityExportPurgeResult(entry.receiptId, entry.destinationId, { completed: false, error })
