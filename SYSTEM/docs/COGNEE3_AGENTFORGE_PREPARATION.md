@@ -1,7 +1,55 @@
 # 1.9.10-test-cognee3: AgentForge image preparation
 
-Status: preparation only. No cognee3 tag, image, merge, or deployment authorized
-by this document. Keep cognee2 available and do not change CLI defaults.
+Status: provisional Event 5 canary authorized by the user on September 27.
+Build `1.9.10-test-cognee3` from the 1.9.9-derived maintenance branch only.
+Keep cognee2 available and do not change CLI defaults or other event instances.
+
+## Current implementation and acceptance evidence
+
+- Maintenance branch: `fix-1.9.10-cognee-policy`, worktree
+  `/private/tmp/clawmax-1.9.10-cognee`. Main remains on the 2.0 line.
+- Foundation backport: `d3b86f09`; pending-grant revocation fences and permanent
+  configuration-change revocation: `af18ac17`; UI/runtime wiring: `893a16b1`.
+- Backend typecheck and production build pass using this branch's lockfile.
+  Focused export, receiver-binding, settlement, purge, consent-race, partner,
+  chat, Builder, and workspace-integration tests pass.
+- Synthetic Chromium fixture passes at 1440px and 390px: enrollment without
+  implied consent, unchecked categories/confirmation, explicit enable, visible
+  failure, sharing indicator, revoke, and no horizontal overflow. No real
+  participant data or partner credentials were used.
+- Live receiver enrollment/delivery/deletion and full integration/validation/
+  coverage remain outstanding. The user approved a provisional image while
+  normal tag CI runs. This is not a fully validated release.
+- This maintenance UI offers chat and Builder recommendation capture. It does
+  not claim automated workflow capture or backfill old activity. Do not enable
+  broader scopes in deployment guidance without implementing their capture.
+- The consent receipt binds the receiver URL, privacy URL, disclosure/purpose,
+  identity scheme, and credential fingerprint; configuration changes revoke
+  existing grants. No credential value is stored in receipts.
+- Purge jobs require their original workspace/receiver configuration; a changed
+  or unavailable receiver leaves deletion unresolved, never falsely completed.
+
+## CLI Event 5 handoff (only after image digest exists)
+
+Target: `cld-event-5-2cbf80e368f4`, namespace
+`clawmax-cld-event-5-2cbf80e368f4`, context `clawmax-cloud-nyc1-2`.
+Pin the new image by digest; retain the PVC, credentials, placement and access
+policy. Rollback remains Cognee2 digest
+`sha256:2c6bd5d5faff2bf75dce77b10ef16ff2481bd8642a1f1952320e0ba55cba0585`.
+
+Set `CLAWMAX_VERSION=1.9.10-test-cognee3` and retain the already-authorized
+`CLAWMAX_REMOVE_LEGACY_COGNEE_DENY=true` migration flag where needed.
+If `WORKSPACES_INTEGRATIONS_THIRD_PARTIES` is explicitly set, append `agentforge`
+to that allowlist without dropping existing partners. The allowlist is respected,
+not silently expanded. Cognee remains packaged but requires explicit enablement.
+
+Operator: configure AgentForge API base URL, privacy URL, and server-stored API
+key in Partners. Participant: open the enrollment handoff from AgentForge,
+review the destination/purpose/categories, and explicitly enable sharing.
+Use a synthetic chat for the canary and verify its arrival with Yuxin. Revoke,
+verify capture stops, and verify remote deletion evidence before broader rollout.
+Configuring a partner or enrolling is not consent. Do not put API keys in this
+handoff or build logs. Never make this candidate the provisioning default yet.
 
 ## Sources
 
@@ -31,7 +79,7 @@ unrelated Windows CLI changes unless they are necessary for the integration.
 
 ## Required gates before the functional image
 
-### September 27 review results: build held
+### Earlier September 27 review results (historical blockers, now regression-tested)
 
 Inspected the exact PR head above in a detached review worktree. TypeScript,
 the AgentForge adapter test (14 assertions), activity-export tests (36), and
