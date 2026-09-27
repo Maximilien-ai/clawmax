@@ -1,5 +1,24 @@
 # Cognee policy fix for 1.9.10
 
+## Provisional candidate
+
+Candidate tag: `1.9.10-test-cognee1`; source tag: `v1.9.10-test-cognee1`.
+The operator authorized a provisional image before the full integration/coverage
+gate. This is not the stable `1.9.10` image, must not become the CLI default, and
+does not establish that authenticated Cognee operations work.
+OpenAI model selection is limited to GPT-5.4, mini, nano, and pro, including
+show-all. Saved Agent configurations are not rewritten.
+
+Wait for both architectures and registry smoke checks to pass before using:
+`ghcr.io/maximilien-ai/clawmax-dashboard:1.9.10-test-cognee1`.
+Record its digest, preserve the original image digest and volume backup, then
+update only the designated test instance. Do not change workspace/PVC bindings,
+credentials, placement, other instances, or shared infrastructure.
+Set `CLAWMAX_VERSION=1.9.10-test-cognee1` where the deployment overrides the
+image version; use the explicit cleanup option below for the legacy deny.
+Browser BYOK keys must be supplied by the testing browser; a server-only probe
+cannot verify chat using that browser's stored key.
+
 Base: `v1.9.9` / `release-1.9.9` (`381f4ff9`). This is a candidate fix,
 not a published 1.9.10 image or completed live upgrade acceptance.
 
