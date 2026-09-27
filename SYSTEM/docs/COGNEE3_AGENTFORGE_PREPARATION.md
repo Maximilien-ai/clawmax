@@ -29,7 +29,25 @@ Keep cognee2 available and do not change CLI defaults or other event instances.
 - Purge jobs require their original workspace/receiver configuration; a changed
   or unavailable receiver leaves deletion unresolved, never falsely completed.
 
-## CLI Event 5 handoff (only after image digest exists)
+## CLI Event 5 canary handoff
+
+Event 5 was upgraded successfully on September 27 to the public Cognee3 image:
+`ghcr.io/maximilien-ai/clawmax-dashboard@sha256:474c519e27fcd6a0fac2b3457ed1f1d7c01ea85796f48aa6e0e4d24a48939d6d`.
+Both architecture builds and registry smoke passed; anonymous manifest access
+was verified. Health, system, integration-status, and activity-status endpoints
+returned HTTP 200; system reported `1.9.10-test-cognee3`, AgentForge was present,
+and sharing was off. The pod was ready with zero restarts.
+
+PVC UID remained `28b2afc2-8854-48c7-a0df-9cd2bcac74be` (Bound). A deployment-spec
+fingerprint excluding only image/version was identical before and after rollout.
+No other instance or provisioning default changed.
+
+The original tag CI failed seven export invocations due to the runner working
+directory and the mobile-dialog source audit. Follow-up commits `c8ff59be` and
+`05f4b6d4` fix those issues; all seven suites, typecheck, build, dialog audit and
+desktop/mobile browser checks pass locally. They are NOT in the already-published
+Cognee3 image. Maintenance-branch CI is enabled by `c8c91170`; await its result and
+a separately tagged image before claiming those fixes deployed or full readiness.
 
 Build source: `9d1e78d03589a1d93f3b98b389590abd90afe740`, immutable tag
 `v1.9.10-test-cognee3`.
