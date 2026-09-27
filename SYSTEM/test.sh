@@ -766,6 +766,14 @@ echo "Section 0: TypeScript & Skills Tests"
 echo "========================================="
 echo ""
 
+for export_contract in server/lib/activity-export.test.ts server/lib/activity-export-edges.test.ts server/lib/activity-export-worker-edges.test.ts server/lib/activity-export-settlement.test.ts server/lib/activity-export-binding.test.ts server/lib/agentforge-activity-export.test.ts server/routes/activity-export.test.ts; do
+  if npx ts-node --transpileOnly "$export_contract" > /tmp/clawmax-activity-export-contract.out 2>&1; then
+    pass "Activity Export contract: $export_contract"
+  else
+    cat /tmp/clawmax-activity-export-contract.out
+    fail "Activity Export contract: $export_contract"
+  fi
+done
 echo -e "${YELLOW}→ Running TypeScript type check...${NC}"
 cd dashboard
 npm run typecheck > /tmp/clawmax-typecheck.out 2>&1

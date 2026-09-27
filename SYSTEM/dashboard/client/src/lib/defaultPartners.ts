@@ -20,9 +20,19 @@ export type DefaultPartnerDefinition = {
   fields?: DefaultPartnerFieldDefinition[]
 }
 
-export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee'] as const
+export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'agentforge'] as const
 
 export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
+  {
+    slug: 'agentforge', name: 'NYU - AgentForge', category: 'monitoring', categories: ['monitoring', 'context'], enabledByDefault: true,
+    website: 'https://agentforge-hackathon-os.yr2110.chatgpt.site/',
+    description: 'Opt-in participant learning support and activity evidence. Configuration is not consent.',
+    fields: [
+      { key: 'apiKey', label: 'Partner API key', type: 'password', secret: true, storage: 'server' },
+      { key: 'apiUrl', label: 'AgentForge API base URL', type: 'text', storage: 'server' },
+      { key: 'privacyUrl', label: 'AgentForge privacy URL', type: 'text', storage: 'server' },
+    ],
+  },
   {
     slug: 'github',
     name: 'GitHub',

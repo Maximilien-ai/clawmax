@@ -11,6 +11,8 @@ import {
   setRequestByokKeys,
 } from '../lib/ai-generator'
 import { getAuthenticatedSession } from '../lib/github-auth'
+import { getWorkspacePath } from '../lib/workspace'
+import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 import {
   isAiBuilderShareEnabled,
   shareAiBuilderFeedback,
@@ -37,6 +39,8 @@ function withAiBuilderTimeout<T>(promise: Promise<T>, timeoutMs: number): Promis
 }
 
 router.post('/recommend', async (req, res) => {
+  const occurredAt = new Date().toISOString()
+  const activityWorkspace = getWorkspacePath()
   const prompt = `${req.body?.prompt || ''}`.trim()
   const byokKeys = req.body?.byokKeys && typeof req.body.byokKeys === 'object'
     ? req.body.byokKeys
@@ -87,6 +91,11 @@ router.post('/recommend', async (req, res) => {
       actorEmail: session?.email || null,
       dashboardInstanceId: getRequestDashboardInstanceId(req),
     })
+    try {
+      appendActivityExportEventsForActiveConsents({ source: 'builder', workspaceId: activityWorkspace,
+        userId: session?.userId || session?.login || 'dashboard-user', occurredAt,
+        content: `Prompt:\n${prompt}\n\nRecommendation:\n${recommendation.summary}` })
+    } catch { console.warn('[Activity Export] Could not queue consented builder activity; request continues.') }
     res.json({ ok: true, recommendation })
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Failed to build recommendation' })

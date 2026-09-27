@@ -1,4 +1,6 @@
 import './lib/dashboard-env'
+import activityExportRouter from './routes/activity-export'
+import { startActivityExportWorker, stopActivityExportWorker } from './lib/activity-export-worker'
 import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
@@ -122,6 +124,7 @@ function healOpenClawConfigOnStartup(): void {
 }
 
 function startBackgroundServices() {
+  startActivityExportWorker()
   setImmediate(() => {
     try {
       healOpenClawConfigOnStartup()
@@ -704,6 +707,7 @@ app.use('/api/ai-builder', protect, aiBuilderRouter)
 app.use('/api/workspaces', protect, workspacesRouter)
 app.use('/api/notifications', protect, notificationsRouter)
 app.use('/api/integrations', protect, integrationsRouter)
+app.use('/api/activity-export', protect, activityExportRouter)
 app.use('/api/plugins', protect, pluginsRouter)
 app.use('/api/teams', protect, teamsRouter)
 app.use('/api', protect, channelsRouter)
@@ -748,5 +752,5 @@ app.listen(PORT, HOST, () => {
 })
 
 // Graceful shutdown
-process.on('SIGTERM', () => { stopScheduler(); stopNotificationMonitor(); shutdownOpik() })
-process.on('SIGINT', () => { stopScheduler(); stopNotificationMonitor(); shutdownOpik() })
+process.on('SIGTERM', () => { stopActivityExportWorker(); stopScheduler(); stopNotificationMonitor(); shutdownOpik() })
+process.on('SIGINT', () => { stopActivityExportWorker(); stopScheduler(); stopNotificationMonitor(); shutdownOpik() })

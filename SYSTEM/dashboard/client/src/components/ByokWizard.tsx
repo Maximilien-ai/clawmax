@@ -2730,6 +2730,7 @@ export function ByokWizard({
                 <div className="mt-5 space-y-4">
                   {(currentPartner.fields || []).map((field) => renderPartnerField(currentPartner, field))}
                   {currentPartner.slug === 'resend' && renderResendTestEmailPanel()}
+                  {currentPartner.slug === 'agentforge' && <button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => window.dispatchEvent(new Event('open-agentforge-sharing'))}>Review participant sharing consent</button>}
                   {currentPartner.validation && currentPartner.slug !== 'github' && renderPartnerValidation(currentPartner)}
                   {currentPartner.slug === 'opik' && (
                     <div className="flex justify-end">

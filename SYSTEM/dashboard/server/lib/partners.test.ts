@@ -37,7 +37,7 @@ const previous = process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
 test('getEnabledPartnerSlugs defaults to current partner parity set', () => {
   delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
   const slugs = getEnabledPartnerSlugs()
-  assert(slugs.join(',') === 'senso,opik,github,resend,cognee', `Unexpected default partner slugs: ${slugs.join(',')}`)
+  assert(slugs.join(',') === 'senso,opik,github,resend,cognee,agentforge', `Unexpected default partner slugs: ${slugs.join(',')}`)
 })
 
 test('listPartnerDefinitions respects configured allowlist', () => {
@@ -45,6 +45,15 @@ test('listPartnerDefinitions respects configured allowlist', () => {
   const partners = listPartnerDefinitions()
   const slugs = partners.map((partner) => partner.slug)
   assert(slugs.join(',') === 'github,senso,opik,resend,cognee', `Unexpected visible partners: ${slugs.join(',')}`)
+})
+
+test('AgentForge exposes server-managed configuration without enabling activity sharing', () => {
+  process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'agentforge'
+  const partner = listPartnerDefinitions()[0]
+  assert(partner.slug === 'agentforge', 'Expected AgentForge catalog definition')
+  assert(partner.fields?.some(field => field.key === 'apiKey' && field.secret && field.storage === 'server') === true, 'API key must stay server-managed')
+  assert(partner.fields?.some(field => field.key === 'privacyUrl') === true, 'Privacy notice must be configurable')
+  assert(partner.validation?.helperText?.includes('consent') === true, 'Configuration must not imply consent')
 })
 
 test('resend partner exposes server-stored API key field and skill catalog', () => {

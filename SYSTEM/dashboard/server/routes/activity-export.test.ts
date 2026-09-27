@@ -7,12 +7,15 @@ import * as partner from '../lib/agentforge-activity-export'
 import * as activity from '../lib/activity-export'
 import { writeWorkspaceIntegrationConfig, writeWorkspaceIntegrationSecrets } from '../lib/workspace-integrations'
 import router from './activity-export'
+import * as worker from '../lib/activity-export-worker'
 
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentforge-route-'))
   const env = { workspace: process.env.CLAWMAX_TEST_WORKSPACE, state: process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH }
   const originalAuth = auth.getAuthenticatedSession
   const originalRegister = partner.registerAgentForgeConsent
+  const originalStart = worker.startActivityExportWorker
+  ;(worker as any).startActivityExportWorker = () => {}
   process.env.CLAWMAX_TEST_WORKSPACE = root
   process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = path.join(root, 'export.json')
   ;(auth as any).getAuthenticatedSession = () => ({ userId: 'user', login: 'user', name: null })
@@ -48,6 +51,7 @@ async function main() {
   } finally {
     ;(auth as any).getAuthenticatedSession = originalAuth
     ;(partner as any).registerAgentForgeConsent = originalRegister
+    ;(worker as any).startActivityExportWorker = originalStart
     if (env.workspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
     else process.env.CLAWMAX_TEST_WORKSPACE = env.workspace
     if (env.state === undefined) delete process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH

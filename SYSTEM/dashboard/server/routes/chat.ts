@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 import WebSocket from 'ws'
 import { spawn } from 'child_process'
 import fs from 'fs'
@@ -905,6 +906,11 @@ router.post('/:id/chat', async (req, res) => {
   }).then((attemptResult) => {
     clearInterval(keepalive)
     if (attemptResult.completionText) {
+      try {
+        appendActivityExportEventsForActiveConsents({ source: 'agent-chat', workspaceId: effectiveWorkspaceRoot,
+          userId: session?.userId || session?.login || 'dashboard-user', occurredAt: new Date(chatStartedAt).toISOString(),
+          subjectId: id, content: `User:\n${message}\n\nAssistant:\n${attemptResult.completionText}` })
+      } catch { console.warn('[Activity Export] Could not queue consented chat; chat continues.') }
       traceAgentChat(id, message, attemptResult.completionText, {
         model: attemptResult.usage?.model || attemptResult.model,
         provider: attemptResult.usage?.provider || attemptResult.provider || undefined,

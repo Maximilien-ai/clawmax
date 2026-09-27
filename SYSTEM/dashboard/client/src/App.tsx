@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { AgentForgeSharing } from './components/AgentForgeSharing'
 import Builder from './pages/Builder'
 import Agents from './pages/Agents'
 import DocHub from './pages/DocHub'
@@ -702,6 +703,7 @@ export default function App() {
         <AuthGate>
         <ToastProvider>
         <WorkspaceProvider>
+          <AgentForgeSharing />
           <ConnectionStatus />
           <WorkspaceDialog
             isOpen={showWorkspaceDialog}

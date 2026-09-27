@@ -23,7 +23,7 @@ import {
   saveActivityExportEnrollment,
   type ActivityExportScope,
 } from '../lib/activity-export'
-import { flushActivityExportWorker, getActivityExportWorkerStatus } from '../lib/activity-export-worker'
+import { flushActivityExportWorker, getActivityExportWorkerStatus, startActivityExportWorker } from '../lib/activity-export-worker'
 import {
   AGENTFORGE_DESTINATION_ID,
   AGENTFORGE_PURPOSE,
@@ -176,6 +176,7 @@ router.post('/consent', async (req, res) => {
       retentionUntil: expiresAt,
       receiverBinding,
     })
+    startActivityExportWorker()
     return res.status(201).json({ ok: true, consent: { receiptId: consent.receiptId, destinationId: consent.destinationId, scopes: consent.scopes, consentedAt: consent.consentedAt, expiresAt: consent.expiresAt } })
   }
   if (scopes.length === 0) return res.status(400).json({ error: 'Select at least one activity scope.' })
