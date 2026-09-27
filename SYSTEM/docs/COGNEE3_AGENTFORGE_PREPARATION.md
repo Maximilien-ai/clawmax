@@ -31,6 +31,22 @@ Keep cognee2 available and do not change CLI defaults or other event instances.
 
 ## CLI Event 5 handoff (only after image digest exists)
 
+Build source: `9d1e78d03589a1d93f3b98b389590abd90afe740`, immutable tag
+`v1.9.10-test-cognee3`.
+
+- Public image build: https://github.com/Maximilien-ai/clawmax/actions/runs/36333402234
+- Tag CI: https://github.com/Maximilien-ai/clawmax/actions/runs/36333354581
+- Matching private-image gate:
+  https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/36333486290
+  failed runtime acceptance: current private plugins require a newer generic host
+  API than 1.9.10 provides. Its build/smoke jobs were skipped. Do not claim combined
+  image readiness or deploy that combination to this canary.
+- Synthetic loopback HTTP rehearsal passed enrollment, default-off behavior,
+  explicit consent, redacted delivery, revocation, and verified purge receipt.
+  This is not a live AgentForge receiver test.
+- Read-only Event 5 preflight found no AgentForge API URL, privacy URL, or stored
+  credential. These must be configured by the operator before live acceptance.
+
 Target: `cld-event-5-2cbf80e368f4`, namespace
 `clawmax-cld-event-5-2cbf80e368f4`, context `clawmax-cloud-nyc1-2`.
 Pin the new image by digest; retain the PVC, credentials, placement and access
