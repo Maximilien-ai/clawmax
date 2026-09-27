@@ -168,8 +168,8 @@ rm -f "$HOME/.openclaw/openclaw.json"
 sync_gateway_config
 assert_contains '"port": 19999' "$HOME/.openclaw/openclaw.json"
 assert_contains '"token": "host-token"' "$HOME/.openclaw/openclaw.json"
-assert_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
-assert_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '"allow": [' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
 
@@ -184,8 +184,8 @@ cat > "$HOME/.openclaw/openclaw.json" <<'EOF'
 }
 EOF
 sync_gateway_config
-assert_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
-assert_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '"allow": [' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
 
@@ -200,7 +200,7 @@ rm -f "$HOME/.openclaw/openclaw.json"
 sync_gateway_config
 assert_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
 assert_contains '"custom-plugin"' "$HOME/.openclaw/openclaw.json"
-assert_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
 
 cat > "$TMP_DIR/host-openclaw.json" <<'EOF'
@@ -225,4 +225,5 @@ assert_contains '"allowConversationAccess": true' "$HOME/.openclaw/openclaw.json
 assert_not_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
 
+node "$ROOT_DIR/dashboard/cognee-policy.test.cjs"
 echo "docker-entrypoint gateway tests passed"
