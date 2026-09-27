@@ -1,5 +1,27 @@
 # 1.9.10-test-cognee3: AgentForge image preparation
 
+## Cognee4 configuration-crash follow-up — September 27
+
+Event 5 is now on `1.9.10-test-cognee4`, source `d3d8199a`, immutable
+tag `v1.9.10-test-cognee4`. This fixes missing validation-state handling for
+catalog partners and removes legacy key validation for status-only partners.
+It also includes the previously documented runner and mobile-dialog fixes.
+
+- Image digest: `sha256:e8d5a0e715f3b3fc7bc3b8c4b4f5a162c437b54afb7eb41a0fca9a0e01bc48bb`.
+- Both architectures and registry smoke passed:
+  https://github.com/Maximilien-ai/clawmax/actions/runs/36336575531
+- Maintenance CI passed:
+  https://github.com/Maximilien-ai/clawmax/actions/runs/36336362225
+- Event 5 rollout completed; health returned 200. Unauthenticated system access
+  correctly returned 401. Deployment spec excluding image/version retained hash
+  `3cfb197d1b79bcd7e3e54db8dd04347d6310b36de1a01c74da51799af3a6dd4e`.
+- Only Event 5 changed. No deployment defaults or other instances changed.
+- Pending user acceptance: reload, open NYU AgentForge configuration, edit/save,
+  then test enrollment and explicit consent against the actual receiver. Passing
+  build/health checks is not evidence of real AgentForge delivery.
+- Rollback remains the Cognee3 digest recorded below. This remains a public
+  canary, not a validated combined/private image.
+
 Status: provisional Event 5 canary authorized by the user on September 27.
 Build `1.9.10-test-cognee3` from the 1.9.9-derived maintenance branch only.
 Keep cognee2 available and do not change CLI defaults or other event instances.
