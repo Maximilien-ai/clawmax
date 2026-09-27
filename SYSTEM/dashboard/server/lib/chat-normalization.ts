@@ -115,6 +115,8 @@ function isToolArtifactLine(trimmed: string): boolean {
 }
 
 function isBenignPluginRuntimeWarningLine(trimmed: string): boolean {
+  if (/^[|│].*plugins\.deny:\s*plugin not found:.*[|│]$/.test(trimmed)) return true
+  if (/^[|│].*ignored;\s*remove it from plugins config.*[|│]$/.test(trimmed)) return true
   if (trimmed === 'plugin runtime config.loadConfig() is deprecated (runtime-config-load-write); use config.current().') return true
   if (/^\[provider-transport-fetch\]\s+\[model-fetch\]\s+(start|response)\s+provider=/i.test(trimmed)) return true
   if (/\[plugins\]\s+plugins\.allow is empty; discovered non-bundled plugins may auto-load:/i.test(trimmed)) return true
