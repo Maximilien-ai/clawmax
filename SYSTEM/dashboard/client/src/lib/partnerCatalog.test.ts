@@ -1,4 +1,6 @@
 import assert from 'assert'
+import fs from 'fs'
+import path from 'path'
 import { filterPartnersByCategory, formatPartnerCategoryLabel, getPartnerCategories, getPartnerLogoClass, groupPartnersByCategory, listPartnerCategoryTabs } from './partnerCatalog'
 
 function test(name: string, fn: () => void) {
@@ -61,6 +63,17 @@ test('partner logo chips stay readable in dark mode for dark wordmarks', () => {
   assert(getPartnerLogoClass('opik').includes('dark:bg-white'), 'Expected default partner logos to render on a white chip in dark mode')
   assert(getPartnerLogoClass('resend').includes('dark:bg-white'), 'Expected Resend logo to render on a white chip in dark mode')
   assert(getPartnerLogoClass('opik', 'hero').includes('dark:bg-white'), 'Expected hero partner logos to render on a white chip in dark mode')
+})
+
+test('catalog configuration tolerates missing provider validation state', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../components/ByokWizard.tsx'), 'utf8')
+  const prelude = source.split('const renderValidation = (key: keyof ValidationState) => {')[1].split('const className =')[0]
+  const renderUnvalidated = new Function('validation', 'key', `${prelude}; throw new Error('Unexpected validation render')`)
+  assert.equal(renderUnvalidated({}, 'agentforge'), null)
+  assert.equal(renderUnvalidated({}, 'future-catalog-partner'), null)
+  assert.equal(renderUnvalidated({ cognee: { status: 'idle', message: '' } }, 'cognee'), null)
+  assert(source.includes("currentPartner.validation.mode !== 'status'"), 'Status-only partners must not invoke legacy key validation')
+  assert(source.includes('Review participant sharing consent'), 'AgentForge retains its dedicated consent/status action')
 })
 
 console.log('partnerCatalog.test.ts: ok')

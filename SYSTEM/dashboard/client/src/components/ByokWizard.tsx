@@ -1440,7 +1440,8 @@ export function ByokWizard({
 
   const renderValidation = (key: keyof ValidationState) => {
     const entry = validation[key]
-    if (entry.status === 'idle') return null
+    // Catalog partners need not have a legacy provider-validation entry.
+    if (!entry || entry.status === 'idle') return null
     const className =
       entry.status === 'valid'
         ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
@@ -2747,7 +2748,7 @@ export function ByokWizard({
                 <div className="mt-6 flex items-center justify-between gap-3">
                   <button onClick={goToPreviousStep} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
                   <div className="flex items-center gap-2">
-                    {currentPartner.validation && currentPartner.slug !== 'github' && (
+                    {currentPartner.validation && currentPartner.validation.mode !== 'status' && currentPartner.slug !== 'github' && (
                       <button onClick={() => runValidation('current-partner')} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-60">
                         {validating ? 'Checking…' : currentPartner.validation.label || 'Check Keys'}
                       </button>
