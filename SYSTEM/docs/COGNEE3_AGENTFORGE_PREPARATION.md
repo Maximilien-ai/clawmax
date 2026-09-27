@@ -31,6 +31,45 @@ unrelated Windows CLI changes unless they are necessary for the integration.
 
 ## Required gates before the functional image
 
+### September 27 review results: build held
+
+Inspected the exact PR head above in a detached review worktree. TypeScript,
+the AgentForge adapter test (14 assertions), activity-export tests (36), and
+worker edge tests (9) passed. These are focused checks, not full integration.
+
+A synthetic, network-free concurrency reproduction failed:
+
+1. Save an active AgentForge receipt and queue one synthetic chat event.
+2. Begin an outbox flush with an unresolved mocked fetch.
+3. Revoke destination consent: persisted receipt becomes inactive and outbox empty.
+4. Resolve that fetch with HTTP 503.
+5. Observe persisted receipt becomes active again and the event returns to outbox.
+
+Observed result:
+```json
+{"activeAfterRevocation":false,"queuedAfterRevocation":0,"activeAfterFailedDeliverySettles":true,"queuedAfterFailedDeliverySettles":1}
+```
+
+Root cause: `flushActivityExportOutbox` writes the state snapshot captured before
+the asynchronous network request, overwriting subsequent consent revocation.
+Fix with a concurrency-safe settlement transaction that preserves current state,
+never revives removed events, and revalidates current consent before dispatch.
+Test both success/failure settlement, concurrent enqueue, expiry, and revocation.
+
+Additional source-review findings requiring tests:
+
+- Receipts do not bind the configured endpoint; the worker resolves the current
+  endpoint at delivery time. Configuration changes must invalidate old consent
+  rather than redirect queued participant content to a new receiver.
+- Purge worker and delete-consent route mark a successful HTTP response complete
+  without checking `purgeStatus`; the adapter fixture explicitly returns
+  `purgeStatus: pending`. Preserve pending state until verified completion.
+- Enrollment disconnection and revoke-all paths need receipt-linked purge checks;
+  they currently bypass the destination-specific remote purge path.
+
+No partner service was contacted and no real participant data was used. No
+cognee3 image or source tag was created. Keep cognee2 as the current candidate.
+
 1. Confirm receiver endpoint/auth contract, destination/purpose identity,
    participant/workspace enrollment mapping, receipt schema, and executable
    request/result/error fixtures with Yuxin. No secrets or participant content
