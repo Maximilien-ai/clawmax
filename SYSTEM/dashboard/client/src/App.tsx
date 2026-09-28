@@ -460,6 +460,26 @@ export default function App() {
   ], [navOrder, plugins])
 
   const handleSearchNavigate = useCallback((destination: SearchDestination) => {
+    if (destination.kind === 'partner' && destination.target) {
+      window.dispatchEvent(new CustomEvent('open-partners-wizard', { detail: { step: `partner:${destination.target}` } }))
+      return
+    }
+    if (destination.kind === 'action') {
+      if (destination.target === 'byok') window.dispatchEvent(new CustomEvent('open-byok-wizard'))
+      if (destination.target === 'partners') window.dispatchEvent(new CustomEvent('open-partners-wizard'))
+      if (destination.target === 'create-workspace') setShowWorkspaceDialog(true)
+      if (destination.target === 'terms') setShowTermsOfService(true)
+      if (destination.target === 'create-agent') { setInitialAgentAction('create'); setPage('agents') }
+      if (destination.target === 'create-agent-ai') { setInitialAgentAction('create-ai'); setPage('agents') }
+      if (destination.target === 'import-agent') { setInitialAgentAction('import'); setPage('agents') }
+      return
+    }
+    if (destination.kind === 'subpage' && destination.page === 'keys' && destination.target) {
+      window.localStorage.setItem('clawmax.keys-secrets.active-tab', destination.target)
+      window.dispatchEvent(new CustomEvent('clawmax-open-keys-tab', { detail: { tab: destination.target } }))
+      setPage('keys')
+      return
+    }
     if (destination.kind === 'agent' && destination.target) setInitialAgentId(destination.target)
     if (destination.kind === 'workflow' && destination.target) {
       setInitialWorkflowId(destination.target)

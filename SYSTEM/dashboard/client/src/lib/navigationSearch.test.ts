@@ -15,6 +15,7 @@ const entries = buildNavigationDestinations({
     { name: 'Invalid', type: 'unknown' },
   ],
   skills: [{ name: 'web-search', description: 'Find sources' }],
+  partners: [{ slug: 'cognee', name: 'Cognee', description: 'Memory and semantic context for agents' }],
 })
 
 assert.deepEqual(searchNavigationDestinations(entries, '').map((entry) => entry.title), ['Agents', 'Workflows', 'Review'])
@@ -27,4 +28,8 @@ assert.equal(searchNavigationDestinations(entries, 'create chat')[0]?.page, 'age
 assert.equal(searchNavigationDestinations(entries, 'old analyst').length, 0)
 assert.equal(searchNavigationDestinations(entries, 'invalid').length, 0)
 assert.equal(searchNavigationDestinations(buildNavigationDestinations({ pages: [{ page: 'workflows', title: 'Workflows', terms: pageSearchTerms('workflows') }] }), 'run workflow')[0]?.page, 'workflows')
-console.log('navigationSearch.test.ts: 9 tests passed')
+assert.equal(searchNavigationDestinations(entries, 'How do I connect Cognee memory to my agent?')[0]?.target, 'cognee')
+assert.equal(searchNavigationDestinations(entries, 'set up partner integrations')[0]?.target, 'partners')
+assert.equal(searchNavigationDestinations(entries, 'where are my workspace api keys?')[0]?.target, 'workspace')
+assert.equal(searchNavigationDestinations(entries, 'create a new agent')[0]?.target, 'create-agent')
+console.log('navigationSearch.test.ts: 13 tests passed')
