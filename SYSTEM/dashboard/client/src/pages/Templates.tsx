@@ -674,7 +674,7 @@ function toTemplateSlug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-export default function Templates() {
+export default function Templates({ searchSelection }: { searchSelection?: { key: string } } = {}) {
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
   const templateRegistryWriteEnabled = Boolean(config?.templateRegistryWriteEnabled)
@@ -685,6 +685,17 @@ export default function Templates() {
   const [feedbackSummaries, setFeedbackSummaries] = useState<FeedbackSummaryMap>({})
   const [loading, setLoading] = useState(true)
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+  useEffect(() => {
+    if (!searchSelection) return
+    const [type, source, ...idParts] = searchSelection.key.split(':')
+    const id = idParts.join(':')
+    const candidates = type === 'agent' ? agentTemplates : type === 'organization' ? orgTemplates : workflowTemplates
+    const match = candidates.find((template) => {
+      const templateId = template.type === 'workflow' ? template.id : template.slug
+      return templateId === id && (!source || template.source === source)
+    })
+    if (match) setSelectedTemplate(match)
+  }, [searchSelection, agentTemplates, orgTemplates, workflowTemplates])
   const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
   const [applyingAgentTemplate, setApplyingAgentTemplate] = useState<AgentTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')

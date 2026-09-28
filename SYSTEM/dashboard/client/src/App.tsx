@@ -20,6 +20,8 @@ import { WorkspaceProvider } from './contexts/WorkspaceContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './pages/Login'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
+import { NavigationSearch } from './components/NavigationSearch'
+import type { SearchDestination } from './lib/navigationSearch'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
 import { ByokWizard } from './components/ByokWizard'
 import { HostAgentStatusBanner } from './components/HostAgentStatusBanner'
@@ -403,6 +405,7 @@ export default function App() {
   const [initialOpenChatName, setInitialOpenChatName] = useState<string | undefined>(undefined)
   const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
   const [initialSkillsSkill, setInitialSkillsSkill] = useState<string | undefined>(undefined)
+  const [templateSearchSelection, setTemplateSearchSelection] = useState<{ key: string } | undefined>(undefined)
   const [initialWorkflowId, setInitialWorkflowId] = useState<string | undefined>(undefined)
   const [initialWorkflowExecutionId, setInitialWorkflowExecutionId] = useState<string | undefined>(undefined)
   const [initialCommunityName, setInitialCommunityName] = useState<string | undefined>(undefined)
@@ -451,6 +454,25 @@ export default function App() {
   const navAfterPlugins = pluginAnchorIndex >= 0 ? coreUserNav.slice(pluginAnchorIndex + 1) : []
   const navIndexById = new Map(navOrder.map((item, index) => [item.id, index]))
   const pluginPageBySlug = useMemo(() => new Map(plugins.map((plugin) => [plugin.slug, buildPluginPage(plugin.slug)])), [plugins])
+  const searchPages = useMemo(() => [
+    ...navOrder.map((item) => ({ page: item.id as Page, title: item.label })),
+    ...plugins.map((plugin) => ({ page: buildPluginPage(plugin.slug) as Page, title: plugin.name })),
+  ], [navOrder, plugins])
+
+  const handleSearchNavigate = useCallback((destination: SearchDestination) => {
+    if (destination.kind === 'agent' && destination.target) setInitialAgentId(destination.target)
+    if (destination.kind === 'workflow' && destination.target) {
+      setInitialWorkflowId(destination.target)
+      setInitialWorkflowExecutionId(undefined)
+    }
+    if (destination.kind === 'skill' && destination.target) {
+      setInitialSkillsAgent(undefined)
+      setInitialSkillsSkill(destination.target)
+    }
+    if (destination.kind === 'template' && destination.target) setTemplateSearchSelection({ key: destination.target })
+    setPage(destination.page)
+    setMobileNavOpen(false)
+  }, [])
 
   // Apply dark mode class to document
   useEffect(() => {
@@ -921,6 +943,8 @@ export default function App() {
             {/* Top bar */}
             <TopBar
               system={system}
+              searchPages={searchPages}
+              onSearchNavigate={handleSearchNavigate}
               onMobileMenuToggle={() => setMobileNavOpen(true)}
               onOpenWorkspaceDialog={() => setShowWorkspaceDialog(true)}
               runningWorkflowsCount={runningWorkflowsCount}
@@ -1006,7 +1030,7 @@ export default function App() {
             {visitedPages.has('templates') && (
             <div className={`flex-1 overflow-auto ${page === 'templates' ? '' : 'hidden'}`}>
               <WorkspaceScoped pageKey="templates">
-                <Templates />
+                <Templates searchSelection={templateSearchSelection} />
               </WorkspaceScoped>
             </div>
             )}
@@ -1121,8 +1145,10 @@ export default function App() {
   )
 }
 
-function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToChannel, onNavigateToDoc, onOpenAgentCreate, onOpenAgentCreateAI, onOpenAgentImport, onOpenAgentChat, onOpenBuilder, onOpenByok, onOpenPartners }: {
+function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToChannel, onNavigateToDoc, onOpenAgentCreate, onOpenAgentCreateAI, onOpenAgentImport, onOpenAgentChat, onOpenBuilder, onOpenByok, onOpenPartners }: {
   system: SystemInfo | null
+  searchPages: Array<{ page: Page; title: string; terms?: string }>
+  onSearchNavigate: (destination: SearchDestination) => void
   onMobileMenuToggle?: () => void
   onOpenWorkspaceDialog?: () => void
   runningWorkflowsCount?: number
@@ -1213,7 +1239,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           setWorkspaceTourVisible(false)
         }}
       />
-      <div className="min-h-11 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2 shrink-0 dark:border-gray-700 dark:bg-gray-800 md:min-h-14 md:px-5 md:py-2">
+      <div className="relative z-30 min-h-11 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2 shrink-0 dark:border-gray-700 dark:bg-gray-800 md:min-h-14 md:px-5 md:py-2">
       <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-4">
         {/* Mobile menu button */}
         <button
@@ -1263,6 +1289,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         </div>
       </div>
       <div className="flex w-full items-center justify-end gap-2 md:w-auto md:gap-3">
+        <NavigationSearch pages={searchPages} onNavigate={onSearchNavigate} />
         <div data-tour="notifications">
           <NotificationCenter
             onNavigateToAgent={onNavigateToAgent}
