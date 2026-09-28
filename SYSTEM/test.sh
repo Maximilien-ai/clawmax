@@ -1802,6 +1802,14 @@ else
   fail "Navigation helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running dashboard navigation search tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/navigationSearch.test.ts > /tmp/clawmax-navigation-search.out 2>&1; then
+  pass "Dashboard navigation search tests (8 tests)"
+else
+  cat /tmp/clawmax-navigation-search.out
+  fail "Dashboard navigation search tests"
+fi
+
 echo -e "${YELLOW}→ Running Navigation edge-case unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/navigationEdges.test.ts > /tmp/clawmax-navigation-edges.out 2>&1 || true
 if grep -q "navigationEdges.test.ts: ok" /tmp/clawmax-navigation-edges.out; then

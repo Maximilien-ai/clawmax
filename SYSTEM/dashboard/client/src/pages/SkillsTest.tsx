@@ -1434,6 +1434,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }
 
   useEffect(() => {
+    setDidHandleInitialSkillName(false)
+  }, [initialSkillName])
+
+  useEffect(() => {
     if (!initialSkillName || didHandleInitialSkillName || allSkills.length === 0) return
     const matchedSkill = allSkills.find((skill) => skill.name === initialSkillName)
     if (!matchedSkill) return
