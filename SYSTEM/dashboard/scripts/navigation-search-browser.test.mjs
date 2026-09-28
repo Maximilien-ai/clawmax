@@ -51,6 +51,7 @@ try {
     await input.fill('starter analyst')
     await dialog.getByRole('option', { name: /Starter Analyst/ }).click()
     await page.waitForURL('**/templates')
+    await page.getByRole('heading', { name: 'Starter Analyst', exact: true }).last().waitFor()
     await page.screenshot({ path: `/private/tmp/clawmax-navigation-search-${width}.png` })
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false)
     failSkills = true
