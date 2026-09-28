@@ -510,9 +510,10 @@ export function ByokWizard({
       if (partnerSlug) setSelectedPartners((current) => Array.from(new Set([...current, partnerSlug])))
       setOpen(true)
       setStep(detail.step || initialStep)
-      if (detail.provider && ['openai', 'anthropic', 'gemini', 'openrouter', 'xai'].includes(detail.provider)) {
-        setModelTab(detail.provider as ModelTab)
-        window.setTimeout(() => document.getElementById(`byok-${detail.provider}`)?.focus(), 100)
+      const modelProvider = detail.provider === 'openai-compatible' ? 'openaiCompatible' : detail.provider
+      if (modelProvider && ['openai', 'anthropic', 'gemini', 'openrouter', 'xai', 'ollama', 'openaiCompatible'].includes(modelProvider)) {
+        setModelTab(modelProvider as ModelTab)
+        window.setTimeout(() => document.getElementById(`byok-${modelProvider}`)?.focus(), 100)
       }
       if (detail.focus === 'preferred-model') {
         setHighlightPreferredModel(true)

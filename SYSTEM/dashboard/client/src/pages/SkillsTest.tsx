@@ -633,6 +633,19 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }, [allSkills])
 
   useEffect(() => {
+    const openSearchedImport = (source: string | undefined) => {
+      if (!source || !['local', 'github', 'registry', 'partner', 'ai'].includes(source)) return
+      window.sessionStorage.removeItem('clawmax-skill-import-source')
+      openImportDialog(source as 'local' | 'github' | 'registry' | 'partner' | 'ai')
+    }
+    const pending = window.sessionStorage.getItem('clawmax-skill-import-source')
+    openSearchedImport(pending || undefined)
+    const onOpen = (event: Event) => openSearchedImport((event as CustomEvent<{ source?: string }>).detail?.source)
+    window.addEventListener('clawmax-open-skill-import', onOpen)
+    return () => window.removeEventListener('clawmax-open-skill-import', onOpen)
+  }, [])
+
+  useEffect(() => {
     const handleBuilderCreateSkill = (event: Event) => {
       const detail = (event as CustomEvent<{ prompt?: string; agentId?: string }>).detail
       if (typeof detail?.prompt === 'string') {

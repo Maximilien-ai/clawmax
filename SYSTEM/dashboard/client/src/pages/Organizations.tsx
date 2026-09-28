@@ -1096,6 +1096,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     if (initialCommunityName && communities.length > 0) {
       const community = communities.find(c => c.name === initialCommunityName)
       if (community) {
+        setCommunitiesSectionCollapsed(false)
         setExpandedCommunities(prev => new Set(prev).add(initialCommunityName))
         setHighlightedCommunity(initialCommunityName)
         setTimeout(() => setHighlightedCommunity(null), 2000)
@@ -1115,6 +1116,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     if (initialGroupName && groups.length > 0) {
       const group = groups.find(g => g.name === initialGroupName)
       if (group) {
+        setGroupsSectionCollapsed(false)
         setExpandedGroups(prev => new Set(prev).add(initialGroupName))
         setHighlightedGroup(initialGroupName)
         setTimeout(() => setHighlightedGroup(null), 2000)
