@@ -166,6 +166,21 @@ expanding scope.
 
 ## Documentation Maintenance
 
+- Every Sunday PM or Monday AM, write a concise weekly recap in
+  `SYSTEM/docs/recap/YYYY-MM-DD_WEEKLY_RECAP.md`, using the Monday that starts
+  the reviewed week. Keep it to two or three readable pages. Summarize verified
+  outcomes, what went well (WWR), what went wrong (WWW), lessons, open evidence,
+  and a short, explicitly soft plan for the coming week. Link separate event or
+  hackathon recaps instead of repeating them. Check commits, release evidence,
+  active backlog, and known issues; distinguish source completion, CI/image
+  validation, deployment, and user acceptance. Do not infer current runtime
+  state from an old handoff.
+- At each month end, add `SYSTEM/docs/recap/YYYY-MM_MONTHLY_RECAP.md` to
+  synthesize that month's weekly recaps, trend in outcomes and WWR/WWW, unresolved
+  patterns, and a few process changes for the next month. Keep the recap index
+  ordered by date, newest first. Treat plans as suggestions that can change with
+  meetings, testing, and new priorities.
+
 - Audit active documentation when a stable release is promoted, a major release
   changes phase, or release feedback materially changes the roadmap.
 - Keep `README.md`, `CHANGELOG.md`, `SYSTEM/docs/STATUS.md`,

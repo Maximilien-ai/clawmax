@@ -12,6 +12,7 @@ acceptance remain pending. Start with the [current release gate](planning/RC85_R
 |----------|-------------|
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
 | [LESSONS_LEARNED_2026-09-27.md](LESSONS_LEARNED_2026-09-27.md) | Hackathon recap, Cognee4 canary evidence, pending branches and next-day owners |
+| [recap/](recap/) | Dated weekly and month-end recaps, lessons, and soft plans |
 | [planning/RC85_RELEASE_GATE_2026-09-23.md](planning/RC85_RELEASE_GATE_2026-09-23.md) | RC85 candidate scope, engineering gate and Mike acceptance |
 | [planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md) | RC83 branch coverage, isolated runtime validation, image and acceptance gates |
 | [planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md](planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md) | Published RC82 evidence and unresolved installed-instance deployment blockers |
