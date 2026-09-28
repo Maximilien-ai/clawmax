@@ -15,6 +15,24 @@ type Template = Named & { slug?: unknown; type?: unknown; source?: unknown }
 
 const name = (value: unknown) => typeof value === 'string' ? value.trim() : ''
 
+const PAGE_ACTION_TERMS: Partial<Record<DashboardPage, string>> = {
+  builder: 'create build agent assistant',
+  agents: 'create agent chat use assistant',
+  workflows: 'create run execute workflow automation',
+  templates: 'browse use apply agent organization workflow template',
+  skills: 'find use assign skill',
+  organizations: 'create manage organization team',
+  activity: 'view history runs progress',
+  communication: 'send message chat',
+  keys: 'manage api key credentials',
+  logs: 'view troubleshoot logs',
+  docs: 'read help documentation',
+}
+
+export function pageSearchTerms(page: DashboardPage): string {
+  return PAGE_ACTION_TERMS[page] || ''
+}
+
 export function buildNavigationDestinations(input: {
   pages: Array<{ page: DashboardPage; title: string; terms?: string }>
   agents?: Named[]

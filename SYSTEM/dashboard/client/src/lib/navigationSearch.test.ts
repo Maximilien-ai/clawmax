@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { buildNavigationDestinations, searchNavigationDestinations } from './navigationSearch'
+import { buildNavigationDestinations, pageSearchTerms, searchNavigationDestinations } from './navigationSearch'
 
 const entries = buildNavigationDestinations({
   pages: [
@@ -26,4 +26,5 @@ assert.equal(searchNavigationDestinations(entries, 'web search')[0]?.page, 'skil
 assert.equal(searchNavigationDestinations(entries, 'create chat')[0]?.page, 'agents')
 assert.equal(searchNavigationDestinations(entries, 'old analyst').length, 0)
 assert.equal(searchNavigationDestinations(entries, 'invalid').length, 0)
-console.log('navigationSearch.test.ts: 8 tests passed')
+assert.equal(searchNavigationDestinations(buildNavigationDestinations({ pages: [{ page: 'workflows', title: 'Workflows', terms: pageSearchTerms('workflows') }] }), 'run workflow')[0]?.page, 'workflows')
+console.log('navigationSearch.test.ts: 9 tests passed')
