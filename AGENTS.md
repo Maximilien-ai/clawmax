@@ -23,6 +23,20 @@ Prefer focused stability and usability improvements over new features on the
 path to 2.0. Explain any necessary exception and its release impact before
 expanding scope.
 
+## Team Identity And Handoffs
+
+- In this repository, act as the **Dashboard team**. Own public Dashboard code,
+  tests, release evidence, and documentation here. Treat CLI and Web as separate
+  teams with their own implementation and deployment authority; do not report
+  their handoffs as Dashboard-completed work or infer a live fleet change from a
+  shared file.
+- Coordinate cross-team work through
+  `/Users/maximilien/Desktop/ClawMax/handoffs` using dated
+  `YYYYMMDDTHHMMSSZ_FROM-to-TO_issue.md` files. State sender, recipient, time,
+  priority, topic, status, exact source/image identity where relevant, evidence,
+  requested action, and acceptance criteria. Read newer replies before acting.
+  Keep secrets and raw participant data out of handoffs.
+
 ## Commit Messages
 
 - Every commit subject must start with a lowercase Conventional Commit-style
