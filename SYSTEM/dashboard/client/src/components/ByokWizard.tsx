@@ -380,12 +380,16 @@ export function ByokWizard({
 
   useEffect(() => {
     const handleOpen = (event: Event) => {
-      const detail = (event as CustomEvent<{ step?: Step; focus?: string }>).detail || {}
+      const detail = (event as CustomEvent<{ step?: Step; focus?: string; provider?: string }>).detail || {}
       const partnerSlug = detail.step?.startsWith('partner:') ? detail.step.slice('partner:'.length) : null
       searchedPartnerRef.current = partnerSlug
       if (partnerSlug) setSelectedPartners((current) => Array.from(new Set([...current, partnerSlug])))
       setOpen(true)
       setStep(detail.step || initialStep)
+      const modelProvider = detail.provider === 'openai-compatible' ? 'openaiCompatible' : detail.provider
+      if (modelProvider && ['openai', 'anthropic', 'gemini', 'openrouter', 'xai', 'ollama', 'openaiCompatible'].includes(modelProvider)) {
+        setModelTab(modelProvider as ModelTab)
+      }
       if (detail.focus === 'preferred-model') {
         setHighlightPreferredModel(true)
         window.setTimeout(() => preferredModelRef.current?.focus(), 50)

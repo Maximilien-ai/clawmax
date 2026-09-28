@@ -661,6 +661,17 @@ router.get('/models', async (req, res) => {
   }
 })
 
+// POST /api/agents/models/discover — BYOK-aware discovery without putting keys in a URL or clearing the model cache.
+router.post('/models/discover', async (req, res) => {
+  try {
+    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+    res.json(await discoverModels(body))
+  } catch (err) {
+    console.error('Model discovery failed:', err)
+    res.status(500).json({ error: 'Failed to discover models' })
+  }
+})
+
 // POST /api/agents/models/refresh — force-clear cache and re-fetch
 router.post('/models/refresh', async (req, res) => {
   clearModelCache()

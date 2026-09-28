@@ -1341,6 +1341,30 @@ async function run() {
     }
   })
 
+  await test('model search discovers configured BYOK models without clearing cache', async () => {
+    const discoveryModule = require('../lib/model-discovery')
+    const originalDiscoverModels = discoveryModule.discoverModels
+    const originalClearModelCache = discoveryModule.clearModelCache
+    let cacheCleared = false
+    try {
+      discoveryModule.clearModelCache = () => { cacheCleared = true }
+      discoveryModule.discoverModels = async (byokKeys: any) => {
+        assert.strictEqual(byokKeys?.openai, 'fixture-openai-key')
+        return { models: ['openai/gpt-6-sol'], modelsByProvider: { openai: { name: 'OpenAI', models: ['openai/gpt-6-sol'] } } }
+      }
+      const handler = getRouteHandler('post', '/models/discover')
+      const res = makeRes()
+      await handler(makeReq({ body: { openai: 'fixture-openai-key' } }), res)
+      assert.strictEqual(res.statusCode, 200)
+      assert.deepStrictEqual(res.jsonBody?.models, ['openai/gpt-6-sol'])
+      assert.strictEqual(cacheCleared, false)
+    } finally {
+      discoveryModule.discoverModels = originalDiscoverModels
+      discoveryModule.clearModelCache = originalClearModelCache
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('models refresh clears cache and forwards local model endpoints', async () => {
     const discoveryModule = require('../lib/model-discovery')
     const originalDiscoverModels = discoveryModule.discoverModels

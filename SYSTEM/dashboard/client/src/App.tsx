@@ -469,6 +469,12 @@ export default function App() {
       if (destination.target === 'partners') window.dispatchEvent(new CustomEvent('open-partners-wizard'))
       if (destination.target === 'create-workspace') setShowWorkspaceDialog(true)
       if (destination.target === 'terms') setShowTermsOfService(true)
+      if (destination.target?.startsWith('skill-import:')) {
+        const source = destination.target.slice('skill-import:'.length)
+        window.sessionStorage.setItem('clawmax-skill-import-source', source)
+        window.dispatchEvent(new CustomEvent('clawmax-open-skill-import', { detail: { source } }))
+        setPage('skills')
+      }
       if (destination.target === 'create-agent') { setInitialAgentAction('create'); setPage('agents') }
       if (destination.target === 'create-agent-ai') { setInitialAgentAction('create-ai'); setPage('agents') }
       if (destination.target === 'import-agent') { setInitialAgentAction('import'); setPage('agents') }
@@ -478,6 +484,28 @@ export default function App() {
       window.localStorage.setItem('clawmax.keys-secrets.active-tab', destination.target)
       window.dispatchEvent(new CustomEvent('clawmax-open-keys-tab', { detail: { tab: destination.target } }))
       setPage('keys')
+      return
+    }
+    if (destination.kind === 'document' && destination.target) {
+      setDocFile(destination.target)
+      setPage('docs')
+      setMobileNavOpen(false)
+      return
+    }
+    if (destination.kind === 'community' && destination.target) {
+      setInitialCommunityName(destination.target)
+      setPage('organizations')
+      setMobileNavOpen(false)
+      return
+    }
+    if (destination.kind === 'group' && destination.target) {
+      setInitialOrgGroupName(destination.target)
+      setPage('organizations')
+      setMobileNavOpen(false)
+      return
+    }
+    if (destination.kind === 'model' && destination.provider) {
+      window.dispatchEvent(new CustomEvent('open-byok-wizard', { detail: { step: 'models', provider: destination.provider, focus: 'preferred-model' } }))
       return
     }
     if (destination.kind === 'agent' && destination.target) setInitialAgentId(destination.target)

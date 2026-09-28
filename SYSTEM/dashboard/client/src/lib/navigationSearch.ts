@@ -2,17 +2,20 @@ import type { DashboardPage } from './navigation'
 
 export type SearchDestination = {
   key: string
-  kind: 'page' | 'agent' | 'workflow' | 'template' | 'skill' | 'action' | 'partner' | 'subpage'
+  kind: 'page' | 'agent' | 'workflow' | 'template' | 'skill' | 'action' | 'partner' | 'subpage' | 'document' | 'community' | 'group' | 'model'
   title: string
   subtitle: string
   page: DashboardPage
   target?: string
+  provider?: string
   terms?: string
 }
 
 type Named = { id?: unknown; name?: unknown; description?: unknown; archived?: unknown }
 type Template = Named & { slug?: unknown; type?: unknown; source?: unknown }
 type Partner = { slug?: unknown; name?: unknown; description?: unknown }
+type Document = { path?: unknown; section?: unknown }
+type ModelProvider = { name?: unknown; models?: unknown }
 
 const name = (value: unknown) => typeof value === 'string' ? value.trim() : ''
 
@@ -21,13 +24,13 @@ const PAGE_ACTION_TERMS: Partial<Record<DashboardPage, string>> = {
   agents: 'create agent chat use assistant',
   workflows: 'create run execute workflow automation',
   templates: 'browse use apply agent organization workflow template',
-  skills: 'find use assign skill',
+  skills: 'find use assign skill registry registries catalog discover install',
   organizations: 'create manage organization team',
   activity: 'view history runs progress',
   communication: 'send message chat',
   keys: 'manage api key credentials',
   logs: 'view troubleshoot logs',
-  docs: 'read help documentation',
+  docs: 'read help documentation file document generated uploaded workflow output agent',
 }
 
 export function pageSearchTerms(page: DashboardPage): string {
@@ -38,9 +41,13 @@ export function buildNavigationDestinations(input: {
   pages: Array<{ page: DashboardPage; title: string; terms?: string }>
   agents?: Named[]
   workflows?: Named[]
+  communities?: Named[]
+  groups?: Named[]
   templates?: Template[]
   skills?: Named[]
   partners?: Partner[]
+  documents?: Document[]
+  modelsByProvider?: Record<string, ModelProvider>
 }): SearchDestination[] {
   const pages: SearchDestination[] = input.pages.map(({ page, title, terms }) => ({
     key: `page:${page}`, kind: 'page', title, subtitle: 'Page', page, terms,
@@ -55,12 +62,22 @@ export function buildNavigationDestinations(input: {
     if (!id) return []
     return [{ key: `workflow:${id}`, kind: 'workflow', title: name(workflow.name) || id, subtitle: 'Workflow', page: 'workflows', target: id, terms: `${id} ${name(workflow.description)}` }]
   })
+  const communities = (input.communities || []).flatMap((community): SearchDestination[] => {
+    const title = name(community.name)
+    if (!title) return []
+    return [{ key: `community:${title}`, kind: 'community', title, subtitle: 'Community · Organization', page: 'organizations', target: title, terms: `${name(community.description)} organization agents` }]
+  })
+  const groups = (input.groups || []).flatMap((group): SearchDestination[] => {
+    const title = name(group.name)
+    if (!title) return []
+    return [{ key: `group:${title}`, kind: 'group', title, subtitle: 'Group · Organization', page: 'organizations', target: title, terms: `${name(group.description)} organization agents communication` }]
+  })
   const templates = (input.templates || []).flatMap((template): SearchDestination[] => {
     const type = name(template.type)
     const id = name(template.slug) || name(template.id)
     if (!id || !['agent', 'organization', 'workflow'].includes(type)) return []
     const source = name(template.source)
-    return [{ key: `template:${type}:${source}:${id}`, kind: 'template', title: name(template.name) || id, subtitle: `${type === 'organization' ? 'Organization' : type === 'agent' ? 'Agent' : 'Workflow'} template${source ? ` · ${source}` : ''}`, page: 'templates', target: `${type}:${source}:${id}`, terms: `${id} ${name(template.description)}` }]
+    return [{ key: `template:${type}:${source}:${id}`, kind: 'template', title: name(template.name) || id, subtitle: `${type === 'organization' ? 'Organization' : type === 'agent' ? 'Agent' : 'Workflow'} template${source ? ` · ${source}` : ''}`, page: 'templates', target: `${type}:${source}:${id}`, terms: `${id} ${name(template.description)} apply use` }]
   })
   const skills = (input.skills || []).flatMap((skill): SearchDestination[] => {
     const id = name(skill.name)
@@ -75,6 +92,9 @@ export function buildNavigationDestinations(input: {
     { key: 'action:import-agent', kind: 'action', title: 'Import agent', subtitle: 'Agents · Dialog', page: 'agents', target: 'import-agent', terms: 'upload add agent' },
     { key: 'action:create-workspace', kind: 'action', title: 'Create workspace', subtitle: 'Workspaces · Dialog', page: 'builder', target: 'create-workspace', terms: 'new workspace' },
     { key: 'action:terms', kind: 'action', title: 'Terms of Service', subtitle: 'Dialog', page: 'docs', target: 'terms', terms: 'legal agreement policy' },
+    { key: 'action:skill-registry', kind: 'action', title: 'Skill Registries', subtitle: 'Skills · Dialog', page: 'skills', target: 'skill-import:registry', terms: 'find discover search browse install skill registry registries clawhub shipables tessl' },
+    { key: 'action:skill-github', kind: 'action', title: 'Import Skill from GitHub', subtitle: 'Skills · Dialog', page: 'skills', target: 'skill-import:github', terms: 'add skill github repository' },
+    { key: 'action:skill-ai', kind: 'action', title: 'Create Skill with AI', subtitle: 'Skills · Dialog', page: 'skills', target: 'skill-import:ai', terms: 'build generate new skill' },
   ]
   const subpages: SearchDestination[] = [
     { key: 'subpage:keys:access', kind: 'subpage', title: 'Agent & Skill Access', subtitle: 'Keys & Secrets · Tab', page: 'keys', target: 'access', terms: 'authorize secret permission credential' },
@@ -87,13 +107,28 @@ export function buildNavigationDestinations(input: {
     if (!slug) return []
     return [{ key: `partner:${slug}`, kind: 'partner', title: name(partner.name) || slug, subtitle: 'Partner setup · Dialog', page: 'builder', target: slug, terms: `${slug} ${name(partner.description)} byok onboarding integration connect configure setup` }]
   })
-  return [...pages, ...actions, ...subpages, ...partners, ...agents, ...workflows, ...templates, ...skills]
+  const documents = (input.documents || []).flatMap((document): SearchDestination[] => {
+    const path = name(document.path)
+    if (!path) return []
+    const title = path.split('/').pop() || path
+    const section = name(document.section)
+    return [{ key: `document:${path}`, kind: 'document', title, subtitle: path, page: 'docs', target: path, terms: `${path} ${section} file document generated created open output` }]
+  })
+  const models = Object.entries(input.modelsByProvider || {}).flatMap(([provider, catalog]): SearchDestination[] => {
+    if (!Array.isArray(catalog.models)) return []
+    return catalog.models.flatMap((value): SearchDestination[] => {
+      const model = name(value)
+      if (!model) return []
+      return [{ key: `model:${model}`, kind: 'model', title: model, subtitle: `${name(catalog.name) || provider} · Available model`, page: 'agents', target: model, provider, terms: `model configure agent ${provider}` }]
+    })
+  })
+  return [...pages, ...actions, ...subpages, ...partners, ...agents, ...workflows, ...communities, ...groups, ...templates, ...skills, ...documents, ...models]
 }
 
-const QUERY_STOP_WORDS = new Set(['a', 'an', 'and', 'can', 'could', 'do', 'does', 'for', 'how', 'i', 'in', 'is', 'me', 'my', 'of', 'on', 'page', 'please', 'the', 'to', 'use', 'want', 'what', 'where', 'with'])
+const QUERY_STOP_WORDS = new Set(['a', 'an', 'and', 'can', 'could', 'do', 'does', 'for', 'from', 'how', 'i', 'in', 'is', 'me', 'my', 'of', 'on', 'page', 'please', 'the', 'to', 'use', 'want', 'what', 'where', 'with'])
 const QUERY_ALIASES: Record<string, string[]> = {
-  add: ['create', 'import'], connect: ['configure', 'integration'], find: ['search', 'browse'], make: ['create'],
-  setup: ['configure'], start: ['run', 'create'], view: ['open', 'inspect'],
+  add: ['create', 'import', 'install'], connect: ['configure', 'integration'], find: ['search', 'browse'], make: ['create'],
+  set: ['configure'], setup: ['configure'], start: ['run', 'create'], view: ['open', 'inspect'],
 }
 
 function queryWords(value: string): string[] {

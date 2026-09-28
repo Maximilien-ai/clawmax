@@ -12,6 +12,7 @@ try {
     await page.addInitScript(() => {
       window.EventSource = class { close() {} }
       for (let version = 1; version <= 10; version++) localStorage.setItem(`clawmax-workspace-tour:disable:v${version}`, 'dismissed')
+      localStorage.setItem('clawmax-byok-preview', JSON.stringify({ openai: 'fixture-openai-key' }))
     })
     let failSkills = false
     await page.route('**/api/**', async route => {
@@ -28,9 +29,14 @@ try {
       else if (path === '/api/templates') json = { agents: [{ type: 'agent', slug: 'starter-analyst', name: 'Starter Analyst', source: 'system', agents: [] }], organizations: [], workflows: [] }
       else if (path === '/api/skills') { if (failSkills) { await route.fulfill({ status: 503, json: {} }); return }; json = { skills: [{ name: 'research-skill', description: 'Research sources' }] } }
       else if (path === '/api/integrations/status') json = { visiblePartners: ['cognee'], partnerDefinitions: [{ slug: 'cognee', name: 'Cognee', description: 'Memory and semantic context for agents', category: 'context', fields: [] }] }
+      else if (path === '/api/agents/models/discover') json = JSON.parse(route.request().postData() || '{}').openai === 'fixture-openai-key'
+        ? { models: ['openai/gpt-6-sol'], modelsByProvider: { openai: { name: 'OpenAI', models: ['openai/gpt-6-sol'] } } }
+        : { models: [], modelsByProvider: {} }
+      else if (path === '/api/docs') json = { entries: [{ path: 'AGENTS/atlas/SOUL.md', section: 'AGENTS', kind: 'markdown', isAgentWorkspace: true }, { path: 'WORKFLOWS/outputs/daily-report.md', section: 'WORKFLOWS', kind: 'markdown' }] }
+      else if (path === '/api/docs/content') json = { kind: 'markdown', content: '# Fixture file' }
       else if (path === '/api/message-counts') json = { counts: {} }
-      else if (path === '/api/groups') json = { groups: [] }
-      else if (path === '/api/communities') json = { communities: [] }
+      else if (path === '/api/groups') json = { groups: [{ name: 'Review Group', members: [] }] }
+      else if (path === '/api/communities') json = { communities: [{ name: 'Research Circle', members: [] }] }
       await route.fulfill({ json })
     })
     await page.goto(`${base}/builder`, { waitUntil: 'domcontentloaded', timeout: 30000 })
@@ -55,7 +61,35 @@ try {
     await page.waitForURL('**/keys')
     await page.getByRole('tab', { name: /Workspace Keys/ }).getAttribute('aria-selected').then(value => assert.equal(value, 'true'))
     await page.keyboard.press(width === 390 ? 'Control+k' : 'Meta+k')
+    await input.fill('How do I set my keys?')
+    await dialog.getByRole('option', { name: /Configure model providers/ }).click()
+    await page.getByText('BYOK & Partner Integrations').last().waitFor()
+    await page.getByRole('button', { name: /close/i }).last().click()
+    await page.keyboard.press(width === 390 ? 'Control+k' : 'Meta+k')
+    await input.fill('skills registries')
+    await dialog.getByRole('option', { name: /Skill Registries/ }).click()
+    await page.waitForURL('**/skills')
+    await page.getByRole('heading', { name: 'Import Custom Skill' }).waitFor()
+    await page.getByRole('button', { name: /Skill Registries/ }).last().getAttribute('class').then(value => assert.match(value || '', /purple/))
+    await page.getByRole('heading', { name: 'Import Custom Skill' }).locator('..').getByRole('button').click()
+    await page.keyboard.press(width === 390 ? 'Control+k' : 'Meta+k')
+    await input.fill('gpt-6-sol')
+    await dialog.getByRole('option', { name: /openai\/gpt-6-sol/ }).click()
+    await page.getByText('BYOK & Partner Integrations').last().waitFor()
+    await page.getByRole('button', { name: /close/i }).last().click()
+    await page.keyboard.press(width === 390 ? 'Control+k' : 'Meta+k')
+    await input.fill('soul.md for atlas')
+    await dialog.getByRole('option', { name: /SOUL.md.*AGENTS\/atlas/ }).click()
+    await page.waitForURL('**/docs')
+    await page.getByRole('heading', { name: 'Fixture file' }).waitFor()
+    await page.keyboard.press(width === 390 ? 'Control+k' : 'Meta+k')
+    await input.fill('review group')
+    await dialog.getByRole('option', { name: /Review Group/ }).click()
+    await page.waitForURL('**/organizations')
+    await page.getByText('Review Group').first().waitFor().catch(async (error) => { console.error((await page.locator('main').innerText()).slice(0, 2000)); throw error })
+    await page.keyboard.press(width === 390 ? 'Control+k' : 'Meta+k')
     await input.fill('atlas')
+    await dialog.getByRole('option', { name: /Atlas Analyst/ }).waitFor()
     await input.press('Enter')
     await page.waitForURL('**/agents')
     await page.keyboard.press(width === 390 ? 'Control+k' : 'Meta+k')
@@ -63,10 +97,15 @@ try {
     await dialog.getByRole('option', { name: /Daily Brief/ }).click()
     await page.waitForURL('**/workflows')
     await page.keyboard.press(width === 390 ? 'Control+k' : 'Meta+k')
-    await input.fill('starter analyst')
+    await input.fill('apply starter analyst template')
     await dialog.getByRole('option', { name: /Starter Analyst/ }).click()
     await page.waitForURL('**/templates')
     await page.getByRole('heading', { name: 'Starter Analyst', exact: true }).last().waitFor()
+    await page.keyboard.press(width === 390 ? 'Control+k' : 'Meta+k')
+    await input.fill('daily report workflow output')
+    await dialog.getByRole('option', { name: /daily-report.md/ }).click()
+    await page.waitForURL('**/docs')
+    await page.getByRole('heading', { name: 'Fixture file' }).waitFor()
     await page.screenshot({ path: `/private/tmp/clawmax-navigation-search-${width}.png` })
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false)
     failSkills = true
@@ -76,7 +115,7 @@ try {
     await dialog.getByRole('option', { name: 'Agents Page' }).waitFor()
     await input.press('Escape')
     assert.equal(await dialog.count(), 0)
-    console.log(`PASS ${width}px: search keyboard, entity navigation, template detail, partial failure, and layout`)
+    console.log(`PASS ${width}px: search keyboard, BYOK, registries, models, files, entities, and layout`)
     await page.close()
   }
 } finally { await browser.close() }

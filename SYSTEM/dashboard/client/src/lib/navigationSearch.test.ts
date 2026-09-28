@@ -9,6 +9,8 @@ const entries = buildNavigationDestinations({
   ],
   agents: [{ id: 'agent-1', name: 'Research Analyst' }, { id: 'archived', name: 'Old Analyst', archived: true }],
   workflows: [{ id: 'wf-1', name: 'Daily Summary', description: 'Summarize findings' }],
+  communities: [{ name: 'Research Circle', description: 'Scientific agents' }],
+  groups: [{ name: 'Review Group', description: 'Peer review' }],
   templates: [
     { slug: 'research-team', name: 'Research Team', type: 'organization', source: 'system' },
     { id: 'workflow-template', name: 'Weekly Plan', type: 'workflow' },
@@ -16,6 +18,8 @@ const entries = buildNavigationDestinations({
   ],
   skills: [{ name: 'web-search', description: 'Find sources' }],
   partners: [{ slug: 'cognee', name: 'Cognee', description: 'Memory and semantic context for agents' }],
+  documents: [{ path: 'AGENTS/atlas/SOUL.md', section: 'AGENTS' }, { path: 'WORKFLOWS/outputs/daily-report.md', section: 'WORKFLOWS' }],
+  modelsByProvider: { openai: { name: 'OpenAI', models: ['openai/gpt-6-sol'] } },
 })
 
 assert.deepEqual(searchNavigationDestinations(entries, '').map((entry) => entry.title), ['Agents', 'Workflows', 'Review'])
@@ -32,4 +36,14 @@ assert.equal(searchNavigationDestinations(entries, 'How do I connect Cognee memo
 assert.equal(searchNavigationDestinations(entries, 'set up partner integrations')[0]?.target, 'partners')
 assert.equal(searchNavigationDestinations(entries, 'where are my workspace api keys?')[0]?.target, 'workspace')
 assert.equal(searchNavigationDestinations(entries, 'create a new agent')[0]?.target, 'create-agent')
-console.log('navigationSearch.test.ts: 13 tests passed')
+assert.equal(searchNavigationDestinations(entries, 'How do I set my keys?')[0]?.target, 'byok')
+assert.equal(searchNavigationDestinations(entries, 'Where can I find skills registries?')[0]?.target, 'skill-import:registry')
+assert.equal(searchNavigationDestinations(entries, 'add skill from github')[0]?.target, 'skill-import:github')
+assert.equal(searchNavigationDestinations(entries, 'open soul.md for atlas')[0]?.target, 'AGENTS/atlas/SOUL.md')
+assert.equal(searchNavigationDestinations(entries, 'find daily report created by workflow')[0]?.target, 'WORKFLOWS/outputs/daily-report.md')
+assert.equal(searchNavigationDestinations(entries, 'apply weekly plan workflow template')[0]?.target, 'workflow::workflow-template')
+assert.equal(searchNavigationDestinations(entries, 'open research circle community')[0]?.target, 'Research Circle')
+assert.equal(searchNavigationDestinations(entries, 'find review group')[0]?.target, 'Review Group')
+assert.equal(searchNavigationDestinations(entries, 'configure gpt-6-sol model')[0]?.target, 'openai/gpt-6-sol')
+assert.equal(searchNavigationDestinations(buildNavigationDestinations({ pages: [] }), 'gpt-6-sol').length, 0)
+console.log('navigationSearch.test.ts: 23 tests passed')

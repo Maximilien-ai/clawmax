@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useWorkspace } from '../contexts/WorkspaceContext'
+import { byokForRequest } from '../lib/byok'
 import { buildNavigationDestinations, searchNavigationDestinations, type SearchDestination } from '../lib/navigationSearch'
 import type { DashboardPage } from '../lib/navigation'
 
@@ -23,7 +24,7 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
   const [selected, setSelected] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
-  const [items, setItems] = useState<{ agents: Record<string, unknown>[]; workflows: Record<string, unknown>[]; templates: Record<string, unknown>[]; skills: Record<string, unknown>[]; partners: Record<string, unknown>[] }>({ agents: [], workflows: [], templates: [], skills: [], partners: [] })
+  const [items, setItems] = useState<{ agents: Record<string, unknown>[]; workflows: Record<string, unknown>[]; communities: Record<string, unknown>[]; groups: Record<string, unknown>[]; templates: Record<string, unknown>[]; skills: Record<string, unknown>[]; partners: Record<string, unknown>[]; documents: Record<string, unknown>[]; modelsByProvider: Record<string, { name?: unknown; models?: unknown }> }>({ agents: [], workflows: [], communities: [], groups: [], templates: [], skills: [], partners: [], documents: [], modelsByProvider: {} })
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const workspaceKey = activeWorkspace?.id || activeWorkspace?.path || ''
@@ -45,7 +46,7 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
     const controller = new AbortController()
     setLoading(true)
     setError(false)
-    setItems({ agents: [], workflows: [], templates: [], skills: [], partners: [] })
+    setItems({ agents: [], workflows: [], communities: [], groups: [], templates: [], skills: [], partners: [], documents: [], modelsByProvider: {} })
     const load = async () => {
       const responses = await Promise.allSettled([
         readList('/api/agents', 'agents', controller.signal),
@@ -62,6 +63,17 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
           const visible = new Set(Array.isArray(data.visiblePartners) ? data.visiblePartners : [])
           return (Array.isArray(data.partnerDefinitions) ? data.partnerDefinitions : []).filter((partner: Record<string, unknown>) => visible.has(partner.slug))
         }),
+        readList('/api/docs', 'entries', controller.signal),
+        readList('/api/communities', 'communities', controller.signal),
+        readList('/api/groups', 'groups', controller.signal),
+        fetch('/api/agents/models/discover', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(byokForRequest()), signal: controller.signal,
+        }).then(async (response) => {
+          if (!response.ok) throw new Error(`models: HTTP ${response.status}`)
+          const data = await response.json()
+          return data?.modelsByProvider && typeof data.modelsByProvider === 'object' ? data.modelsByProvider : {}
+        }),
       ])
       if (controller.signal.aborted) return
       setItems({
@@ -70,6 +82,10 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
         templates: responses[2].status === 'fulfilled' ? responses[2].value : [],
         skills: responses[3].status === 'fulfilled' ? responses[3].value : [],
         partners: responses[4].status === 'fulfilled' ? responses[4].value : [],
+        documents: responses[5].status === 'fulfilled' ? responses[5].value : [],
+        communities: responses[6].status === 'fulfilled' ? responses[6].value : [],
+        groups: responses[7].status === 'fulfilled' ? responses[7].value : [],
+        modelsByProvider: responses[8].status === 'fulfilled' ? responses[8].value : {},
       })
       setError(responses.some((response) => response.status === 'rejected'))
       setLoading(false)
@@ -103,7 +119,7 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
             if (event.key === 'ArrowDown') { event.preventDefault(); setSelected((current) => Math.min(current + 1, results.length - 1)) }
             if (event.key === 'ArrowUp') { event.preventDefault(); setSelected((current) => Math.max(0, current - 1)) }
             if (event.key === 'Enter' && results[selected]) { event.preventDefault(); choose(results[selected]) }
-          }} aria-label="Search pages, actions, agents, workflows, templates, skills, and partners" aria-controls="clawmax-navigation-results" aria-activedescendant={results[selected] ? `clawmax-search-${selected}` : undefined} role="combobox" aria-expanded="true" autoComplete="off" placeholder="Search pages, actions, agents, workflows, templates, skills…" className="min-w-0 flex-1 bg-transparent px-1 py-1 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100" />
+          }} aria-label="Search pages, actions, agents, workflows, templates, skills, partners, files, and models" aria-controls="clawmax-navigation-results" aria-activedescendant={results[selected] ? `clawmax-search-${selected}` : undefined} role="combobox" aria-expanded="true" autoComplete="off" placeholder="Search pages, agents, workflows, files, models…" className="min-w-0 flex-1 bg-transparent px-1 py-1 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100" />
           <button type="button" onClick={() => setOpen(false)} aria-label="Close search" className="rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Esc</button>
         </div>
         <div id="clawmax-navigation-results" role="listbox" className="min-h-0 overflow-y-auto overscroll-contain p-2">
@@ -111,7 +127,7 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
           {error && <p role="status" className="px-3 py-2 text-sm text-amber-700 dark:text-amber-300">Some workspace items could not load. Page results remain available.</p>}
           {results.length === 0 && !loading && <p className="px-3 py-4 text-sm text-gray-500">No results in this workspace.</p>}
           {results.map((entry, index) => <button id={`clawmax-search-${index}`} role="option" aria-selected={selected === index} key={entry.key} type="button" onMouseEnter={() => setSelected(index)} onClick={() => choose(entry)} className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm ${selected === index ? 'bg-sky-50 text-sky-900 dark:bg-sky-900/40 dark:text-sky-100' : 'text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-700'}`}>
-            <span className="min-w-0 truncate">{entry.title}</span><span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{entry.subtitle}</span>
+            <span className="min-w-0 truncate">{entry.title}</span><span className="min-w-0 max-w-[45%] truncate text-right text-xs text-gray-500 dark:text-gray-400">{entry.subtitle}</span>
           </button>)}
         </div>
         <div className="border-t border-gray-200 px-3 py-2 text-xs text-gray-500 dark:border-gray-700">↑↓ Select · Enter Open · Esc Close</div>
