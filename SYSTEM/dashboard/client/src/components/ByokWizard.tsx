@@ -324,6 +324,7 @@ export function ByokWizard({
   const [mailOAuthError, setMailOAuthError] = useState<string | null>(null)
   const mailOAuthPopupRef = useRef<Window | null>(null)
   const preferredModelRef = useRef<HTMLSelectElement | null>(null)
+  const searchedPartnerRef = useRef<string | null>(null)
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
@@ -504,6 +505,9 @@ export function ByokWizard({
   useEffect(() => {
     const handleOpen = (event: Event) => {
       const detail = (event as CustomEvent<{ step?: Step; focus?: string; provider?: string }>).detail || {}
+      const partnerSlug = detail.step?.startsWith('partner:') ? detail.step.slice('partner:'.length) : null
+      searchedPartnerRef.current = partnerSlug
+      if (partnerSlug) setSelectedPartners((current) => Array.from(new Set([...current, partnerSlug])))
       setOpen(true)
       setStep(detail.step || initialStep)
       if (detail.provider && ['openai', 'anthropic', 'gemini', 'openrouter', 'xai'].includes(detail.provider)) {
@@ -606,14 +610,17 @@ export function ByokWizard({
             ...(workspaceConfig.githubDefaultRepo ? { defaultRepo: workspaceConfig.githubDefaultRepo } : {}),
           },
         }))
-        setSelectedPartners(resolveSelectedPartnersForWorkspace({
+        const configuredPartners = resolveSelectedPartnersForWorkspace({
           enabledPartners: Array.isArray(workspaceConfig.enabledPartners) ? workspaceConfig.enabledPartners : [],
           lockedPartnerSlugs: [
             ...(config?.opikRuntimeConfigured ? ['opik'] : []),
             ...(config?.resendRuntimeConfigured ? ['resend'] : []),
             ...(config?.cogneeRuntimeConfigured ? ['cognee'] : []),
           ],
-        }))
+        })
+        setSelectedPartners(searchedPartnerRef.current
+          ? Array.from(new Set([...configuredPartners, searchedPartnerRef.current]))
+          : configuredPartners)
       })
       .catch(() => {})
   }, [activeWorkspace?.id, config?.cogneeRuntimeConfigured, config?.defaultOllamaBaseUrl, config?.opikRuntimeConfigured, config?.resendRuntimeConfigured, defaultOllamaBaseUrl, hydrated, managedRuntime])
@@ -714,10 +721,11 @@ export function ByokWizard({
   )
 
   useEffect(() => {
+    if (step.startsWith('partner:') && !integrationStatus) return
     if (!stepOrder.includes(step)) {
       setStep('models')
     }
-  }, [step, stepOrder])
+  }, [integrationStatus, step, stepOrder])
 
   useEffect(() => {
     if (!ollamaEnabled && modelTab === 'ollama') {

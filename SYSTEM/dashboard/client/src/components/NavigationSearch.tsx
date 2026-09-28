@@ -23,7 +23,7 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
   const [selected, setSelected] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
-  const [items, setItems] = useState<{ agents: Record<string, unknown>[]; workflows: Record<string, unknown>[]; templates: Record<string, unknown>[]; skills: Record<string, unknown>[] }>({ agents: [], workflows: [], templates: [], skills: [] })
+  const [items, setItems] = useState<{ agents: Record<string, unknown>[]; workflows: Record<string, unknown>[]; templates: Record<string, unknown>[]; skills: Record<string, unknown>[]; partners: Record<string, unknown>[] }>({ agents: [], workflows: [], templates: [], skills: [], partners: [] })
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const workspaceKey = activeWorkspace?.id || activeWorkspace?.path || ''
@@ -45,7 +45,7 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
     const controller = new AbortController()
     setLoading(true)
     setError(false)
-    setItems({ agents: [], workflows: [], templates: [], skills: [] })
+    setItems({ agents: [], workflows: [], templates: [], skills: [], partners: [] })
     const load = async () => {
       const responses = await Promise.allSettled([
         readList('/api/agents', 'agents', controller.signal),
@@ -56,6 +56,12 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
           return [...(Array.isArray(data.agents) ? data.agents : []), ...(Array.isArray(data.organizations) ? data.organizations : []), ...(Array.isArray(data.workflows) ? data.workflows : [])]
         }),
         readList('/api/skills', 'skills', controller.signal),
+        fetch('/api/integrations/status', { signal: controller.signal }).then(async (response) => {
+          if (!response.ok) throw new Error(`partners: HTTP ${response.status}`)
+          const data = await response.json()
+          const visible = new Set(Array.isArray(data.visiblePartners) ? data.visiblePartners : [])
+          return (Array.isArray(data.partnerDefinitions) ? data.partnerDefinitions : []).filter((partner: Record<string, unknown>) => visible.has(partner.slug))
+        }),
       ])
       if (controller.signal.aborted) return
       setItems({
@@ -63,6 +69,7 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
         workflows: responses[1].status === 'fulfilled' ? responses[1].value : [],
         templates: responses[2].status === 'fulfilled' ? responses[2].value : [],
         skills: responses[3].status === 'fulfilled' ? responses[3].value : [],
+        partners: responses[4].status === 'fulfilled' ? responses[4].value : [],
       })
       setError(responses.some((response) => response.status === 'rejected'))
       setLoading(false)
@@ -96,7 +103,7 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
             if (event.key === 'ArrowDown') { event.preventDefault(); setSelected((current) => Math.min(current + 1, results.length - 1)) }
             if (event.key === 'ArrowUp') { event.preventDefault(); setSelected((current) => Math.max(0, current - 1)) }
             if (event.key === 'Enter' && results[selected]) { event.preventDefault(); choose(results[selected]) }
-          }} aria-label="Search pages, agents, workflows, templates, and skills" aria-controls="clawmax-navigation-results" aria-activedescendant={results[selected] ? `clawmax-search-${selected}` : undefined} role="combobox" aria-expanded="true" autoComplete="off" placeholder="Search pages, agents, workflows, templates, skills…" className="min-w-0 flex-1 bg-transparent px-1 py-1 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100" />
+          }} aria-label="Search pages, actions, agents, workflows, templates, skills, and partners" aria-controls="clawmax-navigation-results" aria-activedescendant={results[selected] ? `clawmax-search-${selected}` : undefined} role="combobox" aria-expanded="true" autoComplete="off" placeholder="Search pages, actions, agents, workflows, templates, skills…" className="min-w-0 flex-1 bg-transparent px-1 py-1 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100" />
           <button type="button" onClick={() => setOpen(false)} aria-label="Close search" className="rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Esc</button>
         </div>
         <div id="clawmax-navigation-results" role="listbox" className="min-h-0 overflow-y-auto overscroll-contain p-2">

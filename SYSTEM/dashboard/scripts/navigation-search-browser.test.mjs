@@ -27,6 +27,7 @@ try {
       else if (path === '/api/workflows') json = { workflows: [{ id: 'daily-brief', name: 'Daily Brief', description: 'Daily operations' }] }
       else if (path === '/api/templates') json = { agents: [{ type: 'agent', slug: 'starter-analyst', name: 'Starter Analyst', source: 'system', agents: [] }], organizations: [], workflows: [] }
       else if (path === '/api/skills') { if (failSkills) { await route.fulfill({ status: 503, json: {} }); return }; json = { skills: [{ name: 'research-skill', description: 'Research sources' }] } }
+      else if (path === '/api/integrations/status') json = { visiblePartners: ['cognee'], partnerDefinitions: [{ slug: 'cognee', name: 'Cognee', description: 'Memory and semantic context for agents', category: 'context', fields: [] }] }
       else if (path === '/api/message-counts') json = { counts: {} }
       else if (path === '/api/groups') json = { groups: [] }
       else if (path === '/api/communities') json = { communities: [] }
@@ -43,6 +44,17 @@ try {
     await page.screenshot({ path: `/private/tmp/clawmax-navigation-search-dialog-${width}.png` })
     await input.fill('run workflow')
     await dialog.getByRole('option', { name: /Workflows/ }).waitFor()
+    await input.fill('How do I connect Cognee memory to my agent?')
+    await dialog.getByRole('option', { name: /Cognee/ }).click()
+    await page.getByText('BYOK & Partner Integrations').last().waitFor()
+    await page.getByText('Cognee status').waitFor()
+    await page.getByRole('button', { name: /close/i }).last().click()
+    await page.keyboard.press(width === 390 ? 'Control+k' : 'Meta+k')
+    await input.fill('workspace api keys')
+    await dialog.getByRole('option', { name: /Workspace Keys/ }).click()
+    await page.waitForURL('**/keys')
+    await page.getByRole('tab', { name: /Workspace Keys/ }).getAttribute('aria-selected').then(value => assert.equal(value, 'true'))
+    await page.keyboard.press(width === 390 ? 'Control+k' : 'Meta+k')
     await input.fill('atlas')
     await input.press('Enter')
     await page.waitForURL('**/agents')
@@ -61,7 +73,7 @@ try {
     await page.keyboard.press(width === 390 ? 'Control+k' : 'Meta+k')
     await input.fill('agents')
     await dialog.getByRole('status').getByText('Some workspace items could not load. Page results remain available.').waitFor()
-    await dialog.getByRole('option', { name: /Agents/ }).waitFor()
+    await dialog.getByRole('option', { name: 'Agents Page' }).waitFor()
     await input.press('Escape')
     assert.equal(await dialog.count(), 0)
     console.log(`PASS ${width}px: search keyboard, entity navigation, template detail, partial failure, and layout`)
