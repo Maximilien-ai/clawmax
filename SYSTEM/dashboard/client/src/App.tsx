@@ -21,7 +21,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './pages/Login'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
 import { NavigationSearch } from './components/NavigationSearch'
-import type { SearchDestination } from './lib/navigationSearch'
+import { pageSearchTerms, type SearchDestination } from './lib/navigationSearch'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
 import { ByokWizard } from './components/ByokWizard'
 import { HostAgentStatusBanner } from './components/HostAgentStatusBanner'
@@ -455,7 +455,7 @@ export default function App() {
   const navIndexById = new Map(navOrder.map((item, index) => [item.id, index]))
   const pluginPageBySlug = useMemo(() => new Map(plugins.map((plugin) => [plugin.slug, buildPluginPage(plugin.slug)])), [plugins])
   const searchPages = useMemo(() => [
-    ...navOrder.map((item) => ({ page: item.id as Page, title: item.label })),
+    ...navOrder.map((item) => ({ page: item.id as Page, title: item.label, terms: pageSearchTerms(item.id as Page) })),
     ...plugins.map((plugin) => ({ page: buildPluginPage(plugin.slug) as Page, title: plugin.name })),
   ], [navOrder, plugins])
 
