@@ -11,6 +11,7 @@ acceptance remain pending. Start with the [current release gate](planning/RC85_R
 | Document | Description |
 |----------|-------------|
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
+| [planning/PRE_RC89_MAINTENANCE_PARITY_2026-09-29.md](planning/PRE_RC89_MAINTENANCE_PARITY_2026-09-29.md) | 1.9.10 feature reconciliation into 2.0, focused evidence and pre-RC89 acceptance |
 | [LESSONS_LEARNED_2026-09-27.md](LESSONS_LEARNED_2026-09-27.md) | Hackathon recap, Cognee4 canary evidence, pending branches and next-day owners |
 | [recap/](recap/) | Dated weekly and month-end recaps, lessons, and soft plans |
 | [planning/WEEK_2026-09-28.md](planning/WEEK_2026-09-28.md) | Soft Dashboard priorities for 1.9.10 search, AI guide, Google sign-in, and PR triage |
