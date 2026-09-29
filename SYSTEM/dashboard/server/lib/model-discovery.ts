@@ -73,14 +73,6 @@ export const FALLBACK_OPENAI = [
   'openai/gpt-5.4',
   'openai/gpt-5.4-nano',
   'openai/gpt-5.4-pro',
-  'openai/gpt-5.3-chat-latest',
-  'openai/gpt-5.3-codex',
-  'openai/gpt-5.5',
-  'openai/gpt-5.5-pro',
-  'openai/o1',
-  'openai/o3',
-  'openai/o3-mini',
-  'openai/o4-mini',
 ]
 
 export const FALLBACK_GEMINI = [
@@ -113,6 +105,9 @@ const COMPATIBLE_MODELS: Record<Exclude<ProviderId, 'ollama'>, string[]> = {
 }
 
 function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[], showAll = false): string[] {
+  // Product selection policy, not a claim that other models are retired.
+  // Apply before show-all and to cached discovery results as well.
+  if (provider === 'openai') return models.filter(model => FALLBACK_OPENAI.includes(model))
   if (showAll || provider === 'ollama') return models
   if (provider === 'openai-compatible') {
     return models.filter((model) => isOpenAICompatibleChatModel(model.replace(/^openai-compatible\//, '')))

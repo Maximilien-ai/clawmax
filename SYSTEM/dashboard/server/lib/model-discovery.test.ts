@@ -1,4 +1,4 @@
-import { __test, clearModelCache, discoverModels } from './model-discovery'
+import { __test, clearModelCache, discoverModels, FALLBACK_OPENAI } from './model-discovery'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -42,13 +42,16 @@ test('OpenAI discovery follows the pinned OpenClaw runtime catalog', () => {
   assert(filtered.includes('openai/gpt-5.4-mini'), 'Expected runtime-supported gpt-5.4-mini')
 })
 
-test('Show-all mode preserves provider models without compatibility filtering', () => {
-  const filtered = __test.filterCompatibleDiscoveredModels('openai', [
-    'openai/gpt-5',
-    'openai/gpt-5.4-mini',
-  ], true)
-  assert(filtered.includes('openai/gpt-5'), 'Expected gpt-5 to remain visible')
-  assert(filtered.includes('openai/gpt-5.4-mini'), 'Expected show-all mode to preserve unsupported-looking models')
+test('OpenAI selection allows only approved GPT-5.4 variants including show-all', () => {
+  const approved = ['openai/gpt-5.4-mini', 'openai/gpt-5.4', 'openai/gpt-5.4-nano', 'openai/gpt-5.4-pro']
+  assert(JSON.stringify(FALLBACK_OPENAI) === JSON.stringify(approved), 'Fallback must only offer GPT-5.4 variants')
+  for (const showAll of [false, true]) {
+    const filtered = __test.filterCompatibleDiscoveredModels('openai', [
+      ...approved, 'openai/gpt-5.3-chat-latest', 'openai/gpt-5.3-codex',
+      'openai/gpt-5.5', 'openai/o3', 'openai/gpt-5.40', 'openai/gpt-5',
+    ], showAll)
+    assert(JSON.stringify(filtered) === JSON.stringify(approved), 'Discovery must not restore excluded models')
+  }
 })
 
 test('Ollama models are never compatibility filtered', () => {
