@@ -156,6 +156,18 @@ async function run() {
         const again = makeRes()
         await getDoctorHandler()(makeReq({ fix: true, agentId: 'repair-me' }), again)
         assert(!again.jsonBody.results[0].checks.some((c: any) => c.check === 'config-repair'))
+        const identityPath = path.join(agentsDir, 'repair-me', 'IDENTITY.md')
+        fs.renameSync(identityPath, `${identityPath}.saved`)
+        fs.symlinkSync(path.join(agentsDir, 'leave-me', 'IDENTITY.md'), identityPath)
+        const linked = makeRes()
+        await getDoctorHandler()(makeReq({ fix: true, agentId: 'repair-me' }), linked)
+        assert(linked.jsonBody.results[0].checks.some((c: any) => c.check === 'config-validation' && c.status === 'fail'))
+        assert.equal(fs.readFileSync(path.join(agentsDir, 'leave-me', 'IDENTITY.md'), 'utf-8'), '# Identity\n')
+        for (const [agentId, status] of [['../escape', 400], ['does-not-exist', 404]] as const) {
+          const invalid = makeRes()
+          await getDoctorHandler()(makeReq({ fix: true, agentId }), invalid)
+          assert.equal(invalid.statusCode, status)
+        }
       })
     })
   })
