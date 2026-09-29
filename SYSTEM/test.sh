@@ -1078,6 +1078,7 @@ for activity_suite in \
   server/lib/activity-export-worker.test.ts \
   server/lib/activity-export-worker-edges.test.ts \
   server/lib/activity-export-binding.test.ts \
+  server/lib/activity-export-capture.test.ts \
   server/lib/activity-export-settlement.test.ts \
   server/lib/agentforge-activity-export.test.ts \
   server/routes/activity-export.test.ts; do

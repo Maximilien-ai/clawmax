@@ -35,7 +35,7 @@ import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange } from '../lib/runtime-transcripts'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
-import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
+import { captureConsentedActivity as appendActivityExportEventsForActiveConsents } from '../lib/activity-export-capture'
 import { appendBoundedOutput } from '../lib/stream-bounds'
 import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '../lib/process-tree'
 import { isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
@@ -1081,6 +1081,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
             // matched on exact userId + workspaceId, so recording the active workspace here would
             // check consent against a workspace that did not run the turn.
             workspaceId: effectiveWorkspaceRoot,
+            occurredAt: new Date(chatStartedAt).toISOString(),
             userId: session?.userId || session?.login || 'dashboard-user',
             sessionId: executionSessionId,
             subjectId: id,
@@ -1430,10 +1431,10 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
             dashboardInstanceId: getRequestDashboardInstanceId(req),
           })
           const activityUserId = session?.userId || session?.login || 'dashboard-user'
-          const activityWorkspaceId = getWorkspacePath()
           appendActivityExportEventsForActiveConsents({
             source: 'agent-chat',
-            workspaceId: activityWorkspaceId,
+            workspaceId: effectiveWorkspaceRoot,
+            occurredAt: new Date(chatStartedAt).toISOString(),
             userId: activityUserId,
             sessionId: attemptResult.sessionId,
             subjectId: id,
