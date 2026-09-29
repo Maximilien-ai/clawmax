@@ -30,25 +30,26 @@ function assert(condition: boolean, message: string) {
 
 console.log(`\n${YELLOW}=== Model Discovery Test Suite ===${RESET}\n`)
 
-test('OpenAI discovery follows the pinned OpenClaw runtime catalog', () => {
+test('OpenAI discovery follows explicit product admission', () => {
   const filtered = __test.filterCompatibleDiscoveredModels('openai', [
     'openai/gpt-5',
-    'openai/gpt-5.4-mini',
+    'openai/gpt-5.5',
     'openai/gpt-4.1',
     'openai/gpt-4o-mini',
   ])
   assert(!filtered.includes('openai/gpt-5'), 'Did not expect unsupported gpt-5 alias')
   assert(!filtered.includes('openai/gpt-4.1'), 'Did not expect unsupported gpt-4.1 alias')
-  assert(filtered.includes('openai/gpt-5.4-mini'), 'Expected runtime-supported gpt-5.4-mini')
+  assert(filtered.includes('openai/gpt-5.5'), 'Expected approved gpt-5.5')
 })
 
-test('OpenAI selection allows only approved GPT-5.4 variants including show-all', () => {
-  const approved = ['openai/gpt-5.4-mini', 'openai/gpt-5.4', 'openai/gpt-5.4-nano', 'openai/gpt-5.4-pro']
-  assert(JSON.stringify(FALLBACK_OPENAI) === JSON.stringify(approved), 'Fallback must only offer GPT-5.4 variants')
+test('OpenAI selection rejects models below GPT-5.5 and unapproved aliases including show-all', () => {
+  const approved = ['openai/gpt-5.5']
+  assert(JSON.stringify(FALLBACK_OPENAI) === JSON.stringify(approved), 'Fallback must only offer approved GPT-5.5')
   for (const showAll of [false, true]) {
     const filtered = __test.filterCompatibleDiscoveredModels('openai', [
       ...approved, 'openai/gpt-5.3-chat-latest', 'openai/gpt-5.3-codex',
-      'openai/gpt-5.5', 'openai/o3', 'openai/gpt-5.40', 'openai/gpt-5',
+      'openai/gpt-5.4', 'openai/gpt-5.4-mini', 'openai/gpt-5.4-nano', 'openai/gpt-5.4-pro',
+      'openai/gpt-5.5-invented', 'openai/o3', 'openai/gpt-5.40', 'openai/gpt-5',
     ], showAll)
     assert(JSON.stringify(filtered) === JSON.stringify(approved), 'Discovery must not restore excluded models')
   }
@@ -236,7 +237,7 @@ test('all providers recover from HTTP, malformed JSON and empty discovery result
       }) as any
       const result = await discoverModels(keys, { showAll: true })
       assert(calls === 7, `Expected all seven isolated provider requests for ${mode}, got ${calls}`)
-      assert(result.models.includes('openai/gpt-5.4-mini'), `Expected OpenAI fallback for ${mode}`)
+      assert(result.models.includes('openai/gpt-5.5'), `Expected OpenAI fallback for ${mode}`)
       assert(!result.models.some(model => model.startsWith('ollama/') || model.startsWith('openai-compatible/')), 'Failed local/compatible discovery must not invent models')
     }
   } finally {
@@ -260,7 +261,7 @@ test('provider discovery caches valid catalogs and filters malformed optional mo
     const body = url.includes('anthropic') ? { data: [{ id: 'claude-sonnet-4-6' }] }
       : url.includes('generativelanguage') ? { models: [{ name: 'models/gemini-2.5-flash' }, { name: 'models/embedding-001' }] }
       : url.includes('ollama') ? { models: [{}, { name: ' fixture-model ' }] }
-      : url.includes('api.openai.com') ? { data: [{ id: 'gpt-5.4-mini' }, { id: 'text-embedding-3-small' }] }
+      : url.includes('api.openai.com') ? { data: [{ id: 'gpt-5.5' }, { id: 'gpt-5.4-mini' }, { id: 'text-embedding-3-small' }] }
       : { data: [{}, { id: ' fixture-model ' }, { id: 'grok-4' }] }
     return { ok: true, status: 200, json: async () => body }
   }) as any
@@ -268,6 +269,8 @@ test('provider discovery caches valid catalogs and filters malformed optional mo
     const first = await discoverModels(keys, { showAll: true })
     assert(first.models.includes('ollama/fixture-model'), 'Expected trimmed Ollama model')
     assert(first.models.includes('openai-compatible/fixture-model'), 'Expected compatible model')
+    assert(first.models.includes('openai/gpt-5.5'), 'Expected approved OpenAI model')
+    assert(!first.models.includes('openai/gpt-5.4-mini'), 'Older OpenAI models must remain hidden')
     const firstCalls = calls
     await discoverModels(keys, { showAll: true })
     assert(calls === firstCalls, 'Valid provider catalogs should be cached')

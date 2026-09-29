@@ -66,13 +66,11 @@ export const FALLBACK_ANTHROPIC = [
   'anthropic/claude-3-5-haiku-20241022',
 ]
 
-// Models advertised by the OpenClaw runtime pinned for ClawMax 1.9.9.
-// Provider APIs can return aliases that OpenClaw itself does not recognize.
+// Explicit product admission, not evidence of a successful provider request.
+// GPT-5.5 is the minimum approved OpenAI generation; do not widen this list
+// from discovery alone. Track live verification separately from availability.
 export const FALLBACK_OPENAI = [
-  'openai/gpt-5.4-mini',
-  'openai/gpt-5.4',
-  'openai/gpt-5.4-nano',
-  'openai/gpt-5.4-pro',
+  'openai/gpt-5.5',
 ]
 
 export const FALLBACK_GEMINI = [
