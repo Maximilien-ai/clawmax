@@ -1730,6 +1730,10 @@ export function ByokWizard({
 
     // Only adopt the saved runtime value and clear dirty if the PUT actually persisted. On a failed
     // save the edit stays dirty so it isn't silently marked clean / lost.
+    if (!putOk) {
+      showWarning('Workspace integration settings could not be saved. Your edits remain open; retry when the server is available.')
+      return
+    }
     if (putOk) {
       setEnabledRuntimes(enabledRuntimesToSave)
       enabledRuntimesDirtyRef.current = false
@@ -2303,8 +2307,9 @@ export function ByokWizard({
 
     return (
       <div key={`${partner.slug}-${field.key}`}>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{field.label}</label>
+        <label htmlFor={`partner-${partner.slug}-${field.key}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{field.label}</label>
         <input
+          id={`partner-${partner.slug}-${field.key}`}
           type={field.type === 'password' ? 'password' : 'text'}
           value={value}
           onChange={(e) => setPartnerField(partner.slug, field.key, e.target.value, field.secret)}
@@ -2370,7 +2375,7 @@ export function ByokWizard({
                 <button onClick={goToPreviousStep} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">&larr; Back</button>
               ) : null}
               <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                {currentPartner?.validation && currentPartner.slug !== 'github' && !isMailOAuthProvider(currentPartner.slug) && (
+                {currentPartner?.validation && currentPartner.validation.mode !== 'status' && currentPartner.slug !== 'github' && !isMailOAuthProvider(currentPartner.slug) && (
                   <button onClick={() => runValidation('current-partner')} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-60">
                     {validating ? 'Checking…' : currentPartner.validation.label || 'Check Keys'}
                   </button>
@@ -3510,6 +3515,7 @@ export function ByokWizard({
                     </div>
                   )}
                   {currentPartner.slug === 'resend' && renderResendTestEmailPanel()}
+                  {currentPartner.slug === 'agentforge' && <button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => window.dispatchEvent(new Event('open-agentforge-sharing'))}>Review participant sharing consent</button>}
                   {currentPartner.validation && currentPartner.slug !== 'github' && !isMailOAuthProvider(currentPartner.slug) && renderPartnerValidation(currentPartner)}
                   {currentPartner.slug === 'opik' && (
                     <div className="flex justify-end">

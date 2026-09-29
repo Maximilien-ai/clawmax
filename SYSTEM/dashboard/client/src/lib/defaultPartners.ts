@@ -248,10 +248,15 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
     logoUrl: 'https://agentforge-hackathon-os.yr2110.chatgpt.site/favicon.svg',
     website: 'https://agentforge-hackathon-os.yr2110.chatgpt.site/',
     docsUrl: 'https://github.com/Maximilien-ai/clawmax/blob/main/PARTNERS/agentforge/PARTNER.md',
-    description: 'Planned opt-in learning support, Prompt evidence, and progress tracking for personal-agent hackathons.',
+    description: 'Opt-in participant learning support and activity evidence. Configuration is not consent.',
     category: 'monitoring',
     categories: ['monitoring', 'context'],
     enabledByDefault: true,
+    fields: [
+      { key: 'apiKey', label: 'Partner API key', type: 'password', secret: true, storage: 'server' },
+      { key: 'apiUrl', label: 'AgentForge API base URL', type: 'text', storage: 'server' },
+      { key: 'privacyUrl', label: 'AgentForge privacy URL', type: 'text', storage: 'server' },
+    ],
   },
 ]
 
