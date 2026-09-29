@@ -147,6 +147,11 @@ export function writeWorkspaceIntegrationConfig(input: WorkspaceIntegrationConfi
   }
 
   const filePath = getWorkspaceIntegrationsPath()
+  const previousAgentForge = readWorkspaceIntegrationConfig().partners?.agentforge
+  if (JSON.stringify(previousAgentForge) !== JSON.stringify(next.partners?.agentforge)) {
+    const { revokeActivityExportWorkspaceDestination } = require('./activity-export') as typeof import('./activity-export')
+    revokeActivityExportWorkspaceDestination(getWorkspacePath(), 'agentforge')
+  }
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, JSON.stringify(next, null, 2), 'utf-8')
   return next
@@ -183,6 +188,10 @@ export function writeWorkspaceIntegrationSecrets(input: WorkspaceIntegrationSecr
   }
 
   const filePath = getWorkspaceIntegrationSecretsPath()
+  if (readWorkspaceIntegrationSecrets().partners?.agentforge?.apiKey !== next.partners?.agentforge?.apiKey) {
+    const { revokeActivityExportWorkspaceDestination } = require('./activity-export') as typeof import('./activity-export')
+    revokeActivityExportWorkspaceDestination(getWorkspacePath(), 'agentforge')
+  }
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, JSON.stringify(next, null, 2), { encoding: 'utf-8', mode: 0o600 })
   return next

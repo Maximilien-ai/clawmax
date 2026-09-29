@@ -11,6 +11,7 @@ import {
   deliverActivityExportBatch,
   flushActivityExportOutbox,
   getActivityExportConsent,
+  getOpaqueActivityUserId,
   getOpaqueActivityWorkspaceId,
   listActivityExportConsents,
   listActivityExportOutbox,
@@ -63,7 +64,7 @@ const event = (overrides: Partial<ActivityExportEvent> = {}): ActivityExportEven
   source: 'agent-chat',
   occurredAt: '2026-08-28T00:00:00.000Z',
   workspaceId: getOpaqueActivityWorkspaceId('workspace-a'),
-  userId: 'user-a',
+  userId: getOpaqueActivityUserId('user-a', 'workspace-a', 'destination-a'),
   ...overrides,
 })
 
@@ -178,6 +179,7 @@ void (async () => {
   await test('flush honors workspace, destination, and maximum batch filters', async () => {
     resetState()
     const active = consent()
+    saveActivityExportConsent(active)
     for (const id of ['one', 'two', 'three']) {
       assert(appendActivityExportEvent({ eventId: id, source: 'workflow', workspaceId: 'workspace-a', userId: 'user-a' }, active))
     }
@@ -188,6 +190,7 @@ void (async () => {
   await test('failed flush retains noncandidate entries and records delivery errors', async () => {
     resetState()
     const active = consent()
+    saveActivityExportConsent(active)
     assert(appendActivityExportEvent({ eventId: 'failed', source: 'workflow', workspaceId: 'workspace-a', userId: 'user-a' }, active))
     assert(appendActivityExportEvent({ eventId: 'untouched', source: 'workflow', workspaceId: 'workspace-a', userId: 'user-a' }, active))
     const result = await flushActivityExportOutbox({ maxEvents: 1, endpoint: 'https://receiver.example', token: 'token', fetchImpl: async () => new Response('{}', { status: 429 }) })

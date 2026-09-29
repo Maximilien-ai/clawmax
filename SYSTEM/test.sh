@@ -1072,38 +1072,22 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}→ Running Activity Export contract unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/activity-export.test.ts > /tmp/clawmax-activity-export.out 2>&1 || true
-if grep -q "Activity export tests: 26 passed" /tmp/clawmax-activity-export.out; then
-  pass "Activity Export contract unit tests (26 tests)"
-else
-  cat /tmp/clawmax-activity-export.out
-  fail "Activity Export contract unit tests"
-fi
-echo -e "${YELLOW}→ Running Activity Export edge-case unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/activity-export-edges.test.ts > /tmp/clawmax-activity-export-edges.out 2>&1 || true
-if grep -q "activity-export-edges.test.ts: ok (13 tests)" /tmp/clawmax-activity-export-edges.out; then
-  pass "Activity Export edge-case unit tests (13 tests)"
-else
-  cat /tmp/clawmax-activity-export-edges.out
-  fail "Activity Export edge-case unit tests"
-fi
-echo -e "${YELLOW}→ Running Activity Export worker tests...${NC}"
-npx ts-node --transpileOnly server/lib/activity-export-worker.test.ts > /tmp/clawmax-activity-export-worker.out 2>&1 || true
-if grep -q "Activity export worker tests: 2 passed" /tmp/clawmax-activity-export-worker.out; then
-  pass "Activity Export worker tests (2 tests)"
-else
-  cat /tmp/clawmax-activity-export-worker.out
-  fail "Activity Export worker tests"
-fi
-echo -e "${YELLOW}→ Running Activity Export worker edge-case tests...${NC}"
-npx ts-node --transpileOnly server/lib/activity-export-worker-edges.test.ts > /tmp/clawmax-activity-export-worker-edges.out 2>&1 || true
-if grep -q "activity-export-worker-edges.test.ts: ok (7 tests)" /tmp/clawmax-activity-export-worker-edges.out; then
-  pass "Activity Export worker edge-case tests (7 tests)"
-else
-  cat /tmp/clawmax-activity-export-worker-edges.out
-  fail "Activity Export worker edge-case tests"
-fi
+for activity_suite in \
+  server/lib/activity-export.test.ts \
+  server/lib/activity-export-edges.test.ts \
+  server/lib/activity-export-worker.test.ts \
+  server/lib/activity-export-worker-edges.test.ts \
+  server/lib/activity-export-binding.test.ts \
+  server/lib/activity-export-settlement.test.ts \
+  server/lib/agentforge-activity-export.test.ts \
+  server/routes/activity-export.test.ts; do
+  if npx ts-node --transpileOnly "$activity_suite" > /tmp/clawmax-activity-export.out 2>&1; then
+    pass "Activity Export contract: $activity_suite"
+  else
+    cat /tmp/clawmax-activity-export.out
+    fail "Activity Export contract: $activity_suite"
+  fi
+done
 
 echo ""
 echo -e "${YELLOW}→ Running Plugin system contract unit tests...${NC}"
