@@ -633,6 +633,7 @@ Detailed setup and troubleshooting:
 ## 📖 Documentation
 
 ### User Guides
+- **[First Agent Tutorial](SYSTEM/docs/FIRST_AGENT_TUTORIAL.md)** - Define, create, test, and improve a first ClawMax agent
 - **[Release Status](SYSTEM/docs/STATUS.md)** - Stable version, current 2.0 candidate, and remaining release gates
 - **[Testing Guide](SYSTEM/docs/TESTING_GUIDE.md)** - Unit, API, integration, and manual testing
 - **[Release Checklist](SYSTEM/docs/RELEASE_CHECKLIST.md)** - Final pre-release validation

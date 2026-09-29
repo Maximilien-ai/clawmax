@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: September 23, 2026
+> Last updated: September 26, 2026
 
 Active development: RC85 preparation / OpenClaw `2026.9.5`; stable remains
 `v1.9.9`. RC84 image checks passed. RC85 validation, images and installed-instance
@@ -10,6 +10,7 @@ acceptance remain pending. Start with the [current release gate](planning/RC85_R
 
 | Document | Description |
 |----------|-------------|
+| [FIRST_AGENT_TUTORIAL.md](FIRST_AGENT_TUTORIAL.md) | Low-code guide to define, create, test, and improve a first ClawMax agent |
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
 | [LESSONS_LEARNED_2026-09-27.md](LESSONS_LEARNED_2026-09-27.md) | Hackathon recap, Cognee4 canary evidence, pending branches and next-day owners |
 | [recap/](recap/) | Dated weekly and month-end recaps, lessons, and soft plans |
