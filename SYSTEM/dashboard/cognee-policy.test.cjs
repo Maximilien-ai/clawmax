@@ -15,10 +15,11 @@ const original = {
   gateway: { auth: { token: 'synthetic-only' } },
   models: { providers: { example: { apiKey: 'synthetic-key' } } },
 }
-function run(remove = false, strict = true) {
+function run(remove = false, strict = true, bundle) {
   vm.runInNewContext(source, { require, process: { env: {
     WORKING_CONFIG: configPath, HOST_CONFIG: hostPath,
     STRICT_PLUGIN_POLICY: String(strict), CLAWMAX_REMOVE_LEGACY_COGNEE_DENY: String(remove),
+    CLAWMAX_BUNDLED_COGNEE_PATH: bundle,
   } } })
   return JSON.parse(fs.readFileSync(configPath, 'utf8'))
 }
@@ -48,6 +49,26 @@ try {
   fs.writeFileSync(configPath, '{malformed')
   assert.throws(() => run(true))
   assert.equal(fs.readFileSync(configPath, 'utf8'), '{malformed')
+  const bundle = path.join(root, 'bundle')
+  fs.mkdirSync(bundle)
+  fs.writeFileSync(path.join(bundle, 'openclaw.plugin.json'), JSON.stringify({ id: 'cognee-openclaw' }))
+  fs.writeFileSync(configPath, JSON.stringify(original))
+  const bundled = run(false, true, bundle)
+  assert.equal(bundled.plugins.entries['cognee-openclaw'].enabled, false)
+  assert.deepEqual(bundled.plugins.deny, original.plugins.deny)
+  assert.deepEqual(bundled.agents, original.agents)
+  assert.deepEqual(bundled.gateway, original.gateway)
+  assert.deepEqual(run(false, true, bundle), bundled, 'bundle registration is idempotent')
+  bundled.plugins.entries['cognee-openclaw'] = { enabled: true, config: { synthetic: true } }
+  fs.writeFileSync(configPath, JSON.stringify(bundled))
+  assert.deepEqual(run(false, true, bundle), bundled, 'preserve explicit enablement and configuration')
+  const customInstall = { agents: {}, plugins: { installs: { 'cognee-openclaw': { installPath: '/custom/plugin' } } } }
+  fs.writeFileSync(configPath, JSON.stringify(customInstall))
+  assert.deepEqual(run(false, true, bundle), customInstall, 'do not shadow existing installations')
+  fs.writeFileSync(configPath, '{}')
+  fs.writeFileSync(path.join(bundle, 'openclaw.plugin.json'), JSON.stringify({ id: 'wrong-plugin' }))
+  assert.throws(() => run(false, true, bundle))
+  assert.equal(fs.readFileSync(configPath, 'utf8'), '{}')
   console.log('Cognee policy migration tests passed')
 } finally {
   fs.rmSync(root, { recursive: true, force: true })

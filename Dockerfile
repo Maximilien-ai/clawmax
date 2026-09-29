@@ -243,6 +243,13 @@ RUN export HOME=/app \
 COPY --from=builder /app/SYSTEM/dashboard/dist ./dist
 COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas
 
+# Optional memory integration: immutable image-owned files, no install scripts
+# or peer OpenClaw runtime. Startup registers it disabled by default.
+COPY SYSTEM/cognee-bundle/package*.json /opt/clawmax-cognee/
+COPY SYSTEM/cognee-bundle/smoke.cjs /opt/clawmax-cognee/smoke.cjs
+RUN npm ci --prefix /opt/clawmax-cognee --omit=dev --ignore-scripts --legacy-peer-deps
+ENV CLAWMAX_BUNDLED_COGNEE_PATH=/opt/clawmax-cognee/node_modules/@cognee/cognee-openclaw
+
 WORKDIR /app
 
 COPY TEMPLATES ./TEMPLATES

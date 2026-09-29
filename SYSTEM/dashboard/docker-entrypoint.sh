@@ -46,7 +46,7 @@ const tryReadJson = (targetPath) => {
 const host = tryReadJson(hostPath)
 const working = tryReadJson(workingPath) || {}
 
-if (removeLegacyCogneeDeny && fs.existsSync(workingPath)) {
+if ((removeLegacyCogneeDeny || process.env.CLAWMAX_BUNDLED_COGNEE_PATH) && fs.existsSync(workingPath)) {
   // Refuse destructive recovery of malformed config during an opted-in upgrade.
   JSON.parse(fs.readFileSync(workingPath, 'utf8'))
 }
@@ -107,6 +107,21 @@ const agentCount = working.agents.entries && typeof working.agents.entries === '
 if (agentCount > 1) working.agents.ownership = 'explicit'
 if (working.commands && typeof working.commands === 'object' && !Array.isArray(working.commands)) {
   delete working.commands.ownerDisplay
+}
+
+const bundledCogneePath = process.env.CLAWMAX_BUNDLED_COGNEE_PATH
+if (bundledCogneePath && !working.plugins?.installs?.['cognee-openclaw']) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(bundledCogneePath, 'openclaw.plugin.json'), 'utf8'))
+  if (manifest.id !== 'cognee-openclaw') throw new Error('Invalid bundled Cognee manifest')
+  working.plugins = working.plugins || {}
+  working.plugins.load = working.plugins.load || {}
+  const paths = working.plugins.load.paths || []
+  if (!Array.isArray(paths)) throw new Error('Invalid plugin load paths')
+  working.plugins.load.paths = Array.from(new Set([...paths, bundledCogneePath]))
+  working.plugins.entries = working.plugins.entries || {}
+  const entry = working.plugins.entries['cognee-openclaw'] || {}
+  // Presence of a key or partner selection is not memory-access consent.
+  working.plugins.entries['cognee-openclaw'] = { ...entry, enabled: entry.enabled === true }
 }
 
 if (strictPluginPolicy) {
