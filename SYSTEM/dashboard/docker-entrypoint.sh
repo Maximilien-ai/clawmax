@@ -26,7 +26,9 @@ const path = require('path')
 const hostPath = process.env.HOST_CONFIG
 const workingPath = process.env.WORKING_CONFIG
 const strictPluginPolicy = !/^false$/i.test(String(process.env.STRICT_PLUGIN_POLICY || 'true').trim())
-const DEFAULT_DENIED_NON_BUNDLED_PLUGINS = ['cognee-openclaw']
+// Legacy generated deny entries have no ownership marker. Removal therefore
+// requires operator opt-in; never guess whether an existing deny was deliberate.
+const removeLegacyCogneeDeny = process.env.CLAWMAX_REMOVE_LEGACY_COGNEE_DENY === 'true'
 const DEPRECATED_ALLOW_SENTINELS = new Set([
   '__clawmax_no_non_bundled_plugins__',
   'clawmax_no_non_bundled_plugins'
@@ -43,6 +45,11 @@ const tryReadJson = (targetPath) => {
 
 const host = tryReadJson(hostPath)
 const working = tryReadJson(workingPath) || {}
+
+if (removeLegacyCogneeDeny && fs.existsSync(workingPath)) {
+  // Refuse destructive recovery of malformed config during an opted-in upgrade.
+  JSON.parse(fs.readFileSync(workingPath, 'utf8'))
+}
 
 if (host?.gateway) {
   const token = host.gateway?.auth?.token || host.gateway?.remote?.token || ''
@@ -65,6 +72,18 @@ if (host?.gateway) {
 
 if (host?.plugins && typeof host.plugins === 'object') {
   working.plugins = JSON.parse(JSON.stringify(host.plugins))
+}
+
+if (removeLegacyCogneeDeny && Array.isArray(working.plugins?.deny)
+    && working.plugins.deny.includes('cognee-openclaw')) {
+  fs.mkdirSync(path.dirname(workingPath), { recursive: true })
+  try {
+    fs.writeFileSync(`${workingPath}.pre-cognee-policy.json`, JSON.stringify(working, null, 2), { flag: 'wx', mode: 0o600 })
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error
+  }
+  working.plugins.deny = working.plugins.deny.filter(id => id !== 'cognee-openclaw')
+  if (working.plugins.deny.length === 0) delete working.plugins.deny
 }
 
 working.agents = working.agents && typeof working.agents === 'object' && !Array.isArray(working.agents)
@@ -103,9 +122,8 @@ if (strictPluginPolicy) {
 
   if (explicitAllow.length === 0) {
     delete working.plugins.allow
-    const deny = new Set(explicitDeny)
-    for (const pluginId of DEFAULT_DENIED_NON_BUNDLED_PLUGINS) deny.add(pluginId)
-    working.plugins.deny = Array.from(deny)
+    if (explicitDeny.length > 0) working.plugins.deny = explicitDeny
+    else delete working.plugins.deny
   } else {
     working.plugins.allow = explicitAllow
     if (explicitDeny.length > 0) {
