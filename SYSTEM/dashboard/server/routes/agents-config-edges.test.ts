@@ -162,6 +162,23 @@ async function run() {
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
 
+  await test('Doctor repairs the supplied draft without writing files and rejects invalid requests', async () => {
+    const target = path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md')
+    const before = fs.readFileSync(target, 'utf-8')
+    const handler = getRouteHandler('post', '/:id/config/repair')
+    const res = makeRes()
+    await handler(makeReq({ params: { id: 'plain-agent' }, body: { identity: '# My unsaved draft', soul: '# Soul\nKeep this text.', tools: '' } }), res)
+    assert.equal(res.statusCode, 200)
+    assert(res.jsonBody.config.identity.includes('# My unsaved draft'))
+    assert(res.jsonBody.config.identity.includes('**Name:** plain-agent'))
+    assert.equal(fs.readFileSync(target, 'utf-8'), before)
+    for (const [id, body, expected] of [['../escape', {}, 400], ['absent-agent', {}, 404], ['plain-agent', { identity: 1 }, 400]] as const) {
+      const failure = makeRes()
+      await handler(makeReq({ params: { id }, body }), failure)
+      assert.equal(failure.statusCode, expected)
+    }
+  })
+
   await test('model policy rejection prevents partial primary or backup saves', async () => {
     const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
     const original = fs.readFileSync(configPath, 'utf-8')
