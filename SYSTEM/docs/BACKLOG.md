@@ -1,9 +1,47 @@
 # Backlog
 
-> Last updated: September 24, 2026
+> Last updated: September 29, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Mini Sprint
+
+### RC89 blockers — stability, complete search, and installed-instance recovery
+
+This is the immediate priority over older RC headings below. Older incomplete
+checks remain historical/open evidence, not a claim that RC89 is ready.
+Execution plan: [September 29–30 stabilization](planning/RC89_STABILIZATION_2026-09-29.md).
+
+- [ ] **Dev responsiveness and BYOK save** — remove synchronous runtime probes
+  from request-critical paths; decouple credential save from catalog discovery;
+  bound requests and show pending/failure states. Diagnose gateway heap growth
+  without discarding sessions or masking it by merely raising memory limits.
+- [ ] **Rotated credentials** — verify effective Resend/Opik source precedence
+  and current protected-store revision, reload affected consumers, verify bounded
+  provider acceptance, and coordinate revocation. Never inspect/log raw values.
+  Metering failures must show unavailable/stale, not authoritative zero usage.
+- [ ] **Local-model admission and gateway recovery** — coordinate CLI's handoff:
+  budget complete prompts/tools/history/reserve before dispatch, avoid unchanged
+  oversized retries, persist terminal states, serialize drain/lease-aware recovery,
+  and refresh readiness after recovery. Do not start competing gateways.
+- [ ] **Agent Skills defaults to Available** — agent-origin navigation opens
+  Available, while explicit Assigned navigation remains usable; test agent switches,
+  deep links, empty/error states, and mobile.
+- [ ] **Complete live workspace search (MUST before RC89)** — authorized workspace
+  names, agents, workflows, groups, communities, skills, templates, and public host
+  plugin objects. Progressive independent results, complete pagination, explicit
+  source errors, stale-response fencing across workspace switches, correct links.
+- [ ] **Responsive search trigger** — full Search + Ctrl/Cmd+K when the header has
+  room; accessible loupe-only when constrained. Verify desktop/mobile, long workspace
+  names, zoom, keyboard opening, focus restoration, and no header overflow.
+- [ ] **Installed 2.0 RC recovery: Mike on-prem and owner's Mac mini** — separate
+  evidence/targets, exact image/runtime/architecture, preserved volumes, rollback,
+  upgrade, restart, chat, skills, workflow/history/brief and metering acceptance.
+  Keep MBP14 evidence separate; its recovery does not validate those targets.
+- [ ] **Joint CLI operations acceptance** — Maximilien-AI and AuctionsMax-AI:
+  validate/plan/apply/inspect/retry/cleanup, supported skill/auth flow, Agent and
+  Group chat, manual/scheduled workflows, briefs/reporting, persistence, and exact
+  cleanup in isolated workspaces. Freeze scope to stability, simpler interactions,
+  consistent status, and execution latency before RC89 image gates.
 
 - [ ] **RC86 on-prem offline upgrade recovery** — implement the versioned
   Dashboard backup/verify/restore contract, using OpenClaw's verified native
