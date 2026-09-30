@@ -119,6 +119,38 @@ async function run() {
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
 
+  await test('saving unrelated settings preserves effective runtimes without CLI discovery', async () => {
+    const previousKind = process.env.DASHBOARD_DEPLOYMENT_KIND
+    const previousRuntimes = process.env.WORKSPACES_INTEGRATIONS_RUNTIMES
+    const runtime = require('../lib/agent-runtime')
+    const oldDetect = runtime.detectRuntimeStatuses
+    const oldModels = runtime.listRuntimeModels
+    try {
+      process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
+      process.env.WORKSPACES_INTEGRATIONS_RUNTIMES = 'claude'
+      runtime.detectRuntimeStatuses = () => { throw new Error('Save must not discover CLIs') }
+      runtime.listRuntimeModels = () => { throw new Error('Save must not discover models') }
+      const handler = getRouteHandler('put', '/config')
+      const config = require('../lib/workspace-integrations')
+      config.writeWorkspaceIntegrationConfig({})
+      await handler(makeReq({ body: { opikProject: 'synthetic' } }), makeRes())
+      assert.deepStrictEqual(config.readWorkspaceIntegrationConfig().enabledRuntimes, ['claude'])
+      await handler(makeReq({ body: { enabledRuntimes: ['droid'] } }), makeRes())
+      await handler(makeReq({ body: { opikProject: 'updated' } }), makeRes())
+      assert.deepStrictEqual(config.readWorkspaceIntegrationConfig().enabledRuntimes, ['droid'])
+      await handler(makeReq({ body: { enabledRuntimes: [] } }), makeRes())
+      await handler(makeReq({ body: {} }), makeRes())
+      assert.deepStrictEqual(config.readWorkspaceIntegrationConfig().enabledRuntimes, [])
+    } finally {
+      runtime.detectRuntimeStatuses = oldDetect
+      runtime.listRuntimeModels = oldModels
+      if (previousKind === undefined) delete process.env.DASHBOARD_DEPLOYMENT_KIND
+      else process.env.DASHBOARD_DEPLOYMENT_KIND = previousKind
+      if (previousRuntimes === undefined) delete process.env.WORKSPACES_INTEGRATIONS_RUNTIMES
+      else process.env.WORKSPACES_INTEGRATIONS_RUNTIMES = previousRuntimes
+    }
+  })
+
   await test('status omits ollama provider on cloud runtimes', async () => {
     process.env.DASHBOARD_DEPLOYMENT_KIND = 'cloud'
     delete process.env.DASHBOARD_ENABLE_OLLAMA

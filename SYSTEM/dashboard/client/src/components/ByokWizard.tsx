@@ -1680,25 +1680,13 @@ export function ByokWizard({
     }, currentSharedSecrets)
     writeSharedSecrets(nextSharedSecrets, { scope: 'global' })
 
-    // The PUT below replaces the whole config, so every field must carry a fresh value. If the user
-    // never toggled a CLI in this wizard instance, re-read the server's current enabledRuntimes so a
-    // stale instance (e.g. Partners, opened before Runtime enabled a CLI) can't clobber it.
-    // Read the server's RESOLVED enabled set (config OR env default) so a non-editing instance
-    // sends the effective value instead of clobbering it with a blind [] — critically, this
-    // preserves a WORKSPACES_INTEGRATIONS_RUNTIMES default that was never written to config.
-    let enabledRuntimesToSave = enabledRuntimes
-    if (!isCloud && !enabledRuntimesDirtyRef.current) {
-      try {
-        const latest = await fetch('/api/integrations/runtimes').then((r) => (r.ok ? r.json() : null))
-        const serverList = latest?.enabledRuntimes
-        if (Array.isArray(serverList)) {
-          enabledRuntimesToSave = serverList.filter(isSelectableRuntimeId)
-        }
-      } catch { /* keep local value on fetch failure */ }
-    }
+    // Omission preserves the server's current effective selection atomically.
+    // Saving keys must never wait for CLI discovery or overwrite unseen runtime edits.
+    const enabledRuntimesToSave = enabledRuntimesDirtyRef.current ? enabledRuntimes : undefined
 
     const putOk = await fetch('/api/integrations/config', {
       method: 'PUT',
+      signal: AbortSignal.timeout(15_000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         preferredModel: preferredModel || undefined,
@@ -1735,7 +1723,7 @@ export function ByokWizard({
       return
     }
     if (putOk) {
-      setEnabledRuntimes(enabledRuntimesToSave)
+      if (enabledRuntimesToSave !== undefined) setEnabledRuntimes(enabledRuntimesToSave)
       enabledRuntimesDirtyRef.current = false
     }
 
