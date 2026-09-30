@@ -1208,9 +1208,9 @@ test('importAgentFromTemplate resolves a real default model when no override is 
     const configYaml = fs.readFileSync(configYamlPath, 'utf-8')
 
     assert(registered !== undefined, 'Expected imported agent to be registered in openclaw.json')
-    assertEqual(registered.model, 'openai/gpt-5.4-mini', 'Expected template import without override to resolve the pinned runtime default model')
+    assertEqual(registered.model, 'openai/gpt-5.5', 'Expected template import without override to resolve the pinned runtime default model')
     assertEqual(JSON.stringify(registered.skills), JSON.stringify(['github']), 'Expected template skills to persist after agent registration')
-    assert(configYaml.includes('model: openai/gpt-5.4-mini'), 'Expected runtime config.yaml to contain the pinned runtime default model')
+    assert(configYaml.includes('model: openai/gpt-5.5'), 'Expected runtime config.yaml to contain the pinned runtime default model')
   } finally {
     if (typeof originalHome === 'undefined') delete process.env.HOME
     else process.env.HOME = originalHome
@@ -1771,7 +1771,7 @@ test('importOrganizationTemplate creates nested teams and workflow handoff metad
     const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
     const config = readMaterializedConfig(configPath)
     const demoMarketingLead = config?.agents?.list?.find((agent: any) => agent.id === 'demo-marketing-lead' && agent.workspace === path.join(tempWorkspace, 'AGENTS', 'demo-marketing-lead'))
-    assert(demoMarketingLead?.model === 'openai/gpt-5.4-mini', `Expected imported live config model to use the pinned runtime default model, got ${demoMarketingLead?.model || 'missing'}`)
+    assert(demoMarketingLead?.model === 'openai/gpt-5.5', `Expected imported live config model to use the pinned runtime default model, got ${demoMarketingLead?.model || 'missing'}`)
     assertEqual(demoMarketingLead?.name, 'Marketing Lead', 'Expected organization import to preserve the Agent display name')
     const marketingIdentity = fs.readFileSync(path.join(tempWorkspace, 'AGENTS', 'demo-marketing-lead', 'IDENTITY.md'), 'utf-8')
     assert(marketingIdentity.includes('# Marketing Lead'), 'Expected organization Agent identity heading to preserve its display name')
