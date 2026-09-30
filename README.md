@@ -12,6 +12,25 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 Latest Stable Release: v1.9.9
 
+### Choose the correct OSS image
+
+For a stable open-source installation, use the public image:
+
+```text
+ghcr.io/maximilien-ai/clawmax-dashboard:v1.9.9
+```
+
+See the [verified 1.9.9 release](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.9.9)
+for its multi-architecture promotion and registry smoke-test evidence.
+The public Dashboard image does not require access to the private combined-plugin
+image repository. Private combined images are not the OSS installation path.
+
+As verified on September 29, 2026, stable `v1.9.10` has not been published.
+`1.9.10-test-cognee*` and `2.0.0-test-rc*` are test candidates, not stable release
+recommendations. GitHub currently labels `v1.9.10-test-cognee4` as “Latest”; do not
+use that label as the stable-release selector. Use the explicit stable tag above
+and the pinned installer links below until a validated stable promotion is published.
+
 Development is preparing RC85 on OpenClaw `2026.9.5` and Node `24.19.0`.
 RC84 public and combined image checks passed; RC85 validation and installed-instance
 acceptance remain pending. See the [current release gate](SYSTEM/docs/planning/RC85_RELEASE_GATE_2026-09-23.md).
@@ -172,16 +191,16 @@ You do **not** need to pre-install OpenClaw or add model API keys before setup.
 
 If you do not want to clone the repository first, you can install from public release assets instead.
 
-Latest release:
+Stable release (pinned explicitly; not GitHub's latest test-release assets):
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/download/v1.9.9/install.sh | bash -s -- v1.9.9
 ```
 
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.9.9
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/download/v1.9.9/install.sh | bash -s -- v1.9.9
 ```
 
 What it does:
@@ -211,7 +230,7 @@ You can also bootstrap directly with the checked-in wrapper:
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.9.9 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/download/v1.9.9/install.sh | bash -s -- v1.9.9 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.
