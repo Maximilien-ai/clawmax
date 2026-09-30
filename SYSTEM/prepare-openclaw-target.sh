@@ -82,6 +82,29 @@ sanitize_ref() {
   printf '%s' "$1" | tr '/:@' '---'
 }
 
+clone_target() {
+  local work_root="$1" src_dir="$2" attempt staging
+  for attempt in 1 2 3; do
+    staging="$(mktemp -d "${work_root}/clone.XXXXXX")"
+    echo "Cloning pinned OpenClaw ${CLAWMAX_OPENCLAW_TARGET} (attempt ${attempt}/3, HTTP/1.1)..." >&2
+    # Command-local transport selection avoids HTTP/2 stream cancellation without
+    # changing the user's global Git settings. Never clone into the usable cache.
+    if git -c http.version=HTTP/1.1 clone --depth 1 --single-branch --branch "$CLAWMAX_OPENCLAW_TARGET" https://github.com/openclaw/openclaw.git "$staging/src" >&2; then
+      if [ -e "$src_dir" ] || [ -L "$src_dir" ]; then
+        echo "OpenClaw source cache appeared during clone; refusing to overwrite it. Retry preparation." >&2
+        return 1
+      fi
+      mv "$staging/src" "$src_dir"
+      rmdir "$staging"
+      return 0
+    fi
+    # Keep failed transfer artifacts isolated for inspection; never mark ready.
+    echo "OpenClaw clone failed; incomplete transfer retained at $staging" >&2
+  done
+  echo "Unable to clone pinned OpenClaw after 3 attempts; no fallback runtime was selected." >&2
+  return 1
+}
+
 prepare_checkout() {
   local sanitized_ref cache_root work_root src_dir current_tag prepared_stamp current_commit
   sanitized_ref="$(sanitize_ref "$CLAWMAX_OPENCLAW_TARGET")"
@@ -97,7 +120,7 @@ prepare_checkout() {
   fi
 
   if [ ! -d "$src_dir/.git" ]; then
-    git clone --depth 1 --branch "$CLAWMAX_OPENCLAW_TARGET" https://github.com/openclaw/openclaw.git "$src_dir" >&2
+    clone_target "$work_root" "$src_dir"
   fi
 
   (

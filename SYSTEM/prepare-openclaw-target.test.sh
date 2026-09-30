@@ -54,6 +54,8 @@ fi
 if grep -q 'Prepared OpenClaw' "$failure_root/output"; then
   fail "target preparation must not report success after a failed clone"
 fi
+[ "$(grep -c 'attempt [123]/3' "$failure_root/output")" -eq 3 ] || fail "expected exactly three bounded clone attempts"
+[ -z "$(find "$failure_root/cache" -name .prepared-commit -print)" ] || fail "failed clones must not mark the cache ready"
 
 corepack_root="$failure_root/corepack-only"
 cache_root="$corepack_root/cache"
@@ -65,6 +67,22 @@ printf '{}\n' > "$source_root/package.json"
 cat > "$corepack_root/bin/git" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in
+  -c)
+    [ "$2" = 'http.version=HTTP/1.1' ] || exit 41
+    [ "$3" = 'clone' ] && [ "$4" = '--depth' ] && [ "$5" = '1' ] || exit 42
+    [ "$6" = '--single-branch' ] && [ "$7" = '--branch' ] && [ "$8" = "$CLAWMAX_OPENCLAW_TARGET" ] || exit 43
+    attempt=0
+    [ ! -f "$CLONE_TEST_COUNTER" ] || attempt="$(cat "$CLONE_TEST_COUNTER")"
+    attempt=$((attempt + 1))
+    printf '%s\n' "$attempt" > "$CLONE_TEST_COUNTER"
+    destination="${10}"
+    mkdir -p "$destination/.git"
+    printf '{}\n' > "$destination/package.json"
+    if [ "$attempt" -lt 3 ]; then
+      printf 'partial\n' > "$destination/partial-transfer"
+      exit 23
+    fi
+    ;;
   describe)
     printf '%s\n' "${CLAWMAX_OPENCLAW_TARGET:?}"
     ;;
@@ -120,5 +138,18 @@ fi
 
 [ -x "$cache_root/$target_dir/bin/pnpm" ] || fail "expected a scoped pnpm shim for corepack-only builds"
 [ -x "$cache_root/$target_dir/bin/openclaw" ] || fail "expected OpenClaw wrapper after corepack-only build"
+
+retry_cache="$failure_root/retry-cache"
+if ! PATH="$corepack_root/bin:/usr/bin:/bin" \
+  CLONE_TEST_COUNTER="$failure_root/clone-attempts" \
+  CLAWMAX_OPENCLAW_CACHE_DIR="$retry_cache" \
+  bash "$script_file" --print-bin > "$failure_root/retry-output" 2>&1; then
+  cat "$failure_root/retry-output" >&2
+  fail "expected preparation to recover after interrupted clone transfers"
+fi
+[ "$(cat "$failure_root/clone-attempts")" -eq 3 ] || fail "expected recovery on third clone attempt"
+[ ! -f "$retry_cache/$target_dir/src/partial-transfer" ] || fail "partial clone must not contaminate promoted source"
+[ -f "$retry_cache/$target_dir/.prepared-commit" ] || fail "successful preparation must write readiness stamp"
+[ -x "$retry_cache/$target_dir/bin/openclaw" ] || fail "successful preparation must provide pinned wrapper"
 
 pass "prepare-openclaw-target.sh uses the branch target Node/PNPM OpenClaw build flow"
