@@ -1524,6 +1524,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running BYOK helper unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/workspaceSwitchResponse.test.ts; then
+  pass "Workspace switch unavailable-response tests"
+else
+  fail "Workspace switch unavailable-response tests"
+fi
 if npx ts-node --transpileOnly client/src/lib/integrationValidationResponse.test.ts; then
   pass "Integration validation unavailable-response tests"
 else
