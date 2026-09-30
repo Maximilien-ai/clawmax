@@ -54,6 +54,50 @@ The current GPT-5.5-only picker is temporary and does not meet this revised poli
 
 ## Handoffs and release gates
 
+### P0 — September 29 late CLI handoff: template apply split state
+
+Private source: `20260930T052000Z_CLI-to-Dashboard_mbp14-template-apply-split-state.md`
+under the owner's Desktop/ClawMax/handoffs directory. This is a separate blocker
+from the gateway stall/watchdog handoff below. CLI reports MBP14 repaired in place,
+without restarting the Gateway/container; the Dashboard product fix is not complete.
+
+Reported sequence on RC87/OpenClaw 2026.9.5: native registration committed nine
+agents; direct config WebSocket lacked administrative scope; paired CLI fallback
+rejected a persisted `__OPENCLAW_REDACTED__` remote-token sentinel; import cleanup
+deleted workspace directories without compensating committed registrations.
+Recovery health incorrectly reported complete. Installation and roster visibility
+were verified after repair, but no paid model reply was tested.
+
+Required engineering work:
+
+- Trace the sentinel writer. Never round-trip resolved/redacted presentation config
+  into authored config; mutations must use source configuration and allowlisted
+  patches. Test that read-then-mutate cannot persist a sentinel anywhere.
+- Offer audited, backed-up native repair only for an invalid sentinel in the unused
+  remote-token field of a confirmed local-only Gateway, with no remote URL and valid
+  local authentication. Real remote credentials require explicit repair, not deletion
+  by inference. Do not use private operator backups as fixtures or application input.
+- Journal before the first mutation across both stores. Re-read the roster after
+  timeout/lost responses. Restart recovery must reach verified commit on both sides
+  or verified rollback of exactly this apply's resources; preserve unrelated data.
+  Expose recovery-required health and fence conflicting reapply until reconciled.
+- Make scoped WebSocket versus paired-CLI transport deliberate. Successful fallback
+  is success; errors expose bounded code/phase, never raw commands, patches, hashes,
+  credentials, or config payloads.
+
+RC89 acceptance on clean and upgraded RC87-style disposable fixtures:
+
+1. Apply the nine-agent Marketing Strategy Team with prefix and 2/2/2 parameter
+   expansion; verify exact roster/filesystem names, models, and Skill allowlists.
+2. Exercise scope rejection with successful paired-CLI fallback, local sentinel
+   repair, committed mutation with lost response, and post-registration patch failure.
+3. Interrupt between registration and workspace commit; restart and verify recovery
+   of both stores, including with unrelated pre-existing resources.
+4. Repeat the same request without duplicated agents, groups, workflows, or schedules.
+   Restart the successful deployment and verify persistence and agent usability.
+5. Verify truthful UI success/failure/recovery states and absence of sensitive error
+   payloads. Record a synthetic model response separately from roster visibility.
+
 ### Next-session checks — September 29 dev restart
 
 - Rotated Resend and Opik keys were synchronized into the ignored local Dashboard

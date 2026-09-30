@@ -11,6 +11,14 @@ This is the immediate priority over older RC headings below. Older incomplete
 checks remain historical/open evidence, not a claim that RC89 is ready.
 Execution plan: [September 29–30 stabilization](planning/RC89_STABILIZATION_2026-09-29.md).
 
+- [ ] **P0: Template apply split-state and persisted redaction sentinel** — CLI
+  repaired MBP14's nine-agent apply, but the product defect remains. Prevent
+  presentation/redacted config from entering authored config; journal filesystem
+  and native-registration mutations before execution; reconcile ambiguous commits
+  and exact owned rollback after failures/restarts. Never delete workspace files
+  while leaving committed registrations behind. Require clean and upgraded RC87
+  fixtures, scoped config fallback, bounded UI errors, and restart/idempotency tests.
+  See the stabilization plan's September 29 late handoff and acceptance gates.
 - [ ] **Dev responsiveness and BYOK save** — remove synchronous runtime probes
   from request-critical paths; decouple credential save from catalog discovery;
   bound requests and show pending/failure states. Diagnose gateway heap growth
