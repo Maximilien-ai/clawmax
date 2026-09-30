@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: September 29, 2026
+> Last updated: September 30, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Mini Sprint
@@ -112,6 +112,26 @@ Execution plan: [September 29–30 stabilization](planning/RC89_STABILIZATION_20
   during manual and AI-assisted agent creation, and repair the LM Studio model
   authorization regression reported in issue #189. Plan:
   [MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md).
+
+## Future RC — OpenClaw follow-up (after today's stabilization)
+
+Explicitly deferred: do not change today's pinned OpenClaw runtime or interrupt
+the current integration/validation/coverage run for this work.
+
+- [ ] **Follow up upstream reports** — check the previously submitted OpenClaw
+  issue and fix, starting with the recorded [issue #152047](https://github.com/openclaw/openclaw/issues/152047)
+  and [PR #152052](https://github.com/openclaw/openclaw/pull/152052), and correlate
+  any later reports from the CLI handoffs. Record actual merge/release status;
+  submission alone is not evidence that a released version contains the fix.
+- [ ] **Evaluate newer runtime releases** — review release notes and known
+  regressions against our current pin. Identify a candidate with evidence of
+  improved stability; newer alone does not mean more stable.
+- [ ] **Run an isolated upgrade qualification for a later RC** — test preserved
+  state/schema compatibility, restore/rollback, plugin loading, template apply and
+  recovery, Agent/Group chat, workflows, local-model limits, gateway memory/restart
+  behavior, and CLI compatibility. Run full integration/validation/coverage and
+  cloud/on-prem acceptance before proposing a pin change. Retire compatibility
+  patches only after the upstream fix is verified in the candidate.
 
 ## Release Tracks
 
