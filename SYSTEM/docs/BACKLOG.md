@@ -125,7 +125,12 @@ the current integration/validation/coverage run for this work.
   submission alone is not evidence that a released version contains the fix.
 - [ ] **Evaluate newer runtime releases** — review release notes and known
   regressions against our current pin. Identify a candidate with evidence of
-  improved stability; newer alone does not mean more stable.
+  improved stability; newer alone does not mean more stable. Prioritize credible
+  upstream hints that address issues we actually experienced: gateway heap growth,
+  oversized local-model requests/retries, drain/lease/watchdog races, config hot
+  reload/cron recovery, redaction placeholders, and partial native registration.
+  Map each claimed fix to its issue/PR, released version, and our reproducer;
+  treat release-note hints as reasons to test, not proof of resolution.
 - [ ] **Run an isolated upgrade qualification for a later RC** — test preserved
   state/schema compatibility, restore/rollback, plugin loading, template apply and
   recovery, Agent/Group chat, workflows, local-model limits, gateway memory/restart
