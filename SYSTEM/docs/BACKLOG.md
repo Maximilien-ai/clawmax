@@ -50,6 +50,11 @@ Execution plan: [September 29–30 stabilization](planning/RC89_STABILIZATION_20
   Group chat, manual/scheduled workflows, briefs/reporting, persistence, and exact
   cleanup in isolated workspaces. Freeze scope to stability, simpler interactions,
   consistent status, and execution latency before RC89 image gates.
+  September 30 CLI reply: approved pre-created fixtures support Agent/Group chat
+  and Workflow execution; exact workspace cleanup and public Template lifecycle
+  contracts remain blockers. Dashboard process observation is implemented in
+  `7b8347d2` ([contract](planning/INSTANCE_RUNTIME_OBSERVATION_V1.md)); CLI
+  consumption and real single-target restart acceptance are still pending.
 
 - [ ] **RC86 on-prem offline upgrade recovery** — implement the versioned
   Dashboard backup/verify/restore contract, using OpenClaw's verified native
