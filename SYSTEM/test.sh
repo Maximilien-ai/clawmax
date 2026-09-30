@@ -771,6 +771,11 @@ test_validation() {
 # Section 0: TypeScript & Unit Tests
 . "$SYSTEM_DIR/test-unit-environment.sh"
 clawmax_enter_unit_environment
+if node --test "$SYSTEM_DIR/test-provider-keys.test.cjs"; then
+  pass "Integration provider credential parsing"
+else
+  fail "Integration provider credential parsing"
+fi
 if bash "$SYSTEM_DIR/test-unit-environment.test.sh"; then
   pass "Unit/live environment separation"
 else
@@ -5524,14 +5529,13 @@ fi
 # Step 6: Test 1-1 agent chat
 echo ""
 echo -e "${YELLOW}→ Testing agent chat...${NC}"
-BYOK_OPENAI=$(grep -m1 '^SYSTEM_OPENAI_API_KEY=' "dashboard/.env" 2>/dev/null | cut -d= -f2-)
-BYOK_ANTHROPIC=$(grep -m1 '^SYSTEM_ANTHROPIC_API_KEY=' "dashboard/.env" 2>/dev/null | cut -d= -f2-)
-BYOK_GEMINI=$(grep -m1 '^SYSTEM_GEMINI_API_KEY=' "dashboard/.env" 2>/dev/null | cut -d= -f2-)
-BYOK_JSON=$(jq -nc \
-  --arg openai "$BYOK_OPENAI" \
-  --arg anthropic "$BYOK_ANTHROPIC" \
-  --arg gemini "$BYOK_GEMINI" \
-  '{} + (if $openai != "" then {openai: $openai} else {} end) + (if $anthropic != "" then {anthropic: $anthropic} else {} end) + (if $gemini != "" then {gemini: $gemini} else {} end)')
+BYOK_JSON=$(node "$SYSTEM_DIR/test-provider-keys.cjs" "dashboard/.env") || {
+  fail "Could not load integration provider credentials"
+  BYOK_JSON='{}'
+}
+BYOK_OPENAI=$(printf '%s' "$BYOK_JSON" | jq -r '.openai // ""')
+BYOK_ANTHROPIC=$(printf '%s' "$BYOK_JSON" | jq -r '.anthropic // ""')
+BYOK_GEMINI=$(printf '%s' "$BYOK_JSON" | jq -r '.gemini // ""')
 if [ "$BYOK_JSON" = "{}" ]; then
   PERF_CHAT_NOTE="skipped:no-api-key"
   warn "Agent chat skipped (no supported system provider key configured)"
@@ -5539,8 +5543,8 @@ else
   chat_payload=$(jq -nc \
     --arg message "Say HELLO in exactly one word." \
     --arg sessionId "integration-test" \
-    --argjson byok "$BYOK_JSON" \
-    '{message: $message, sessionId: $sessionId, byok: $byok}')
+    --slurpfile byok <(printf '%s' "$BYOK_JSON") \
+    '{message: $message, sessionId: $sessionId, byok: $byok[0]}')
   chat_started_ms=$(now_ms)
   chat_result=$(apicurl_chat -X POST "$API_BASE/api/agents/test-lead/chat" \
     -H 'Content-Type: application/json' \
