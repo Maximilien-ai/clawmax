@@ -78,6 +78,23 @@ EOF
   exit 1
 }
 
+ensure_corepack_ready() {
+  local work_root="$1"
+  command -v corepack >/dev/null 2>&1 || return 0
+  if corepack pnpm --version >&2; then
+    return 0
+  fi
+  # A stale Corepack install marker can survive missing package files. Probe
+  # before dependency installation and retry once in a fresh task-owned cache.
+  # Preserve the old cache (including an explicitly configured shared cache).
+  export COREPACK_HOME="$(mktemp -d "${work_root}/corepack-recovery.XXXXXX")"
+  echo "pnpm startup failed; retrying with isolated Corepack cache $COREPACK_HOME" >&2
+  if ! corepack pnpm --version >&2; then
+    echo "Pinned pnpm is still unavailable; refusing to install or build OpenClaw." >&2
+    return 1
+  fi
+}
+
 sanitize_ref() {
   printf '%s' "$1" | tr '/:@' '---'
 }
@@ -147,6 +164,7 @@ prepare_checkout() {
     (
       cd "$src_dir"
       export COREPACK_HOME="${COREPACK_HOME:-${work_root}/corepack}"
+      ensure_corepack_ready "$work_root"
       ensure_pnpm_on_path "${work_root}/bin"
       run_pnpm install --frozen-lockfile --ignore-scripts >&2
       node "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs" "$src_dir" >&2

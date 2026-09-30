@@ -105,6 +105,13 @@ set -euo pipefail
 [ "${1:-}" = "pnpm" ] || exit 31
 shift
 case "${1:-}" in
+  --version)
+    [ "${PREP_TEST_COREPACK_BROKEN:-}" != 'always' ] || exit 45
+    if [ "${PREP_TEST_COREPACK_BROKEN:-}" = 'original' ] && [[ "$COREPACK_HOME" != */corepack-recovery.* ]]; then
+      exit 45
+    fi
+    printf '12.4.0\n'
+    ;;
   plugins:assets:copy)
     exit 0
     ;;
@@ -151,5 +158,26 @@ fi
 [ ! -f "$retry_cache/$target_dir/src/partial-transfer" ] || fail "partial clone must not contaminate promoted source"
 [ -f "$retry_cache/$target_dir/.prepared-commit" ] || fail "successful preparation must write readiness stamp"
 [ -x "$retry_cache/$target_dir/bin/openclaw" ] || fail "successful preparation must provide pinned wrapper"
+
+# Force a rebuild to exercise a corrupt Corepack cache without a live download.
+rm "$source_root/dist/index.js" "$cache_root/$target_dir/.prepared-commit"
+if ! PATH="$corepack_root/bin:/usr/bin:/bin" \
+  PREP_TEST_COREPACK_BROKEN=original \
+  CLAWMAX_OPENCLAW_CACHE_DIR="$cache_root" \
+  bash "$script_file" --print-bin > "$failure_root/corepack-recovery-output" 2>&1; then
+  fail "expected a broken Corepack cache to recover in an isolated cache"
+fi
+grep -q 'retrying with isolated Corepack cache' "$failure_root/corepack-recovery-output" || fail "expected explicit recovery diagnostic"
+[ -f "$cache_root/$target_dir/.prepared-commit" ] || fail "expected prepared stamp after Corepack recovery"
+
+rm "$source_root/dist/index.js" "$cache_root/$target_dir/.prepared-commit"
+if PATH="$corepack_root/bin:/usr/bin:/bin" \
+  PREP_TEST_COREPACK_BROKEN=always \
+  CLAWMAX_OPENCLAW_CACHE_DIR="$cache_root" \
+  bash "$script_file" --print-bin > "$failure_root/corepack-failed-output" 2>&1; then
+  fail "expected persistent pnpm failure to stop preparation"
+fi
+[ ! -f "$cache_root/$target_dir/.prepared-commit" ] || fail "pnpm failure must not stamp cache readiness"
+[ ! -f "$source_root/dist/index.js" ] || fail "pnpm failure must not proceed to build"
 
 pass "prepare-openclaw-target.sh uses the branch target Node/PNPM OpenClaw build flow"
