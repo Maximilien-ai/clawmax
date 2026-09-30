@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { readIntegrationValidationResponse } from '../lib/integrationValidationResponse'
 import { createPortal } from 'react-dom'
 import { MobileSafeDialog } from './MobileSafeDialog'
 import { CLOUD_LOCAL_EXECUTION_NOTICE, cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
@@ -1425,27 +1426,9 @@ export function ByokWizard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scopedPayload),
+        signal: AbortSignal.timeout(30000),
       })
-      const contentType = res.headers.get('content-type') || ''
-      if (!contentType.includes('application/json')) {
-        setValidation({
-          openai: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          openaiCompatible: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          anthropic: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          gemini: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          openrouter: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          xai: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          ollama: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          opik: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          senso: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          cognee: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          digo: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-        })
-        showInfo('Integration validation is unavailable on the current server build. Saving local settings without blocking.')
-        return true
-      }
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to validate integrations')
+      const data = await readIntegrationValidationResponse(res)
       const nextState: ValidationState = {
         openai: { status: data.openai?.status || 'idle', message: data.openai?.message || '' },
         openaiCompatible: { status: data.openaiCompatible?.status || 'idle', message: data.openaiCompatible?.message || '' },
@@ -1500,7 +1483,12 @@ export function ByokWizard({
       )
       return true
     } catch (err: any) {
-      showWarning(err.message || 'Failed to validate integrations')
+      const message = 'Integration validation unavailable. Settings may be saved, but are not verified. Retry validation when the service is ready.'
+      const affected = (key: string) => providerScope ? key === providerScope : scope === 'current-partner' ? key === currentPartnerSlug : true
+      setValidation(current => Object.fromEntries(Object.entries(current).map(([key, entry]) =>
+        [key, affected(key) ? { status: 'error', message } : entry])) as ValidationState)
+      updateStoredVerification(current => Object.fromEntries(Object.entries(current).filter(([key]) => !affected(key))))
+      showWarning(message)
       return false
     } finally {
       setValidating(false)
