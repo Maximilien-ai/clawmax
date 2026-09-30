@@ -18,6 +18,7 @@ import { createInstanceWorkflowsRouter } from './instance-workflows'
 import { createInstanceGroupsRouter } from './instance-groups'
 import { configuredTemplateResolverFromEnv } from '../lib/template-service'
 import { PortableTemplateError } from '../lib/portable-template-zip'
+import { dashboardBootObservation } from '../lib/runtime-observation'
 
 const API_VERSION = 'clawmax.instance/v1'
 const WORKSPACE_SCOPES = ['agents.read', 'agents.chat', 'workflows.run']
@@ -406,6 +407,17 @@ export function createInstanceCliRouter(options: {
       email: actor.email,
       displayName: actor.displayName,
       memberships: actor.memberships,
+    })
+  })
+
+  router.get('/runtime', requireCliAuth, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
+    res.setHeader('Vary', 'Authorization, Cookie')
+    res.json({
+      apiVersion: API_VERSION,
+      kind: 'RuntimeObservation',
+      instanceId: instanceId(),
+      ...dashboardBootObservation,
     })
   })
 
