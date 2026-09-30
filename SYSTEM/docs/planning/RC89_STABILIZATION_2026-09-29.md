@@ -54,6 +54,25 @@ The current GPT-5.5-only picker is temporary and does not meet this revised poli
 
 ## Handoffs and release gates
 
+### Next-session checks — September 29 dev restart
+
+- Rotated Resend and Opik keys were synchronized into the ignored local Dashboard
+  environment from the owner-designated protected source, without printing values.
+  A read-only Opik request returned HTTP 200. This verifies authentication for that
+  request, not tracing, metering correctness, or resolution of the resource issue.
+- Dashboard health returned HTTP 200; Astro chat remains unverified and was reported
+  unavailable. The initial isolation restart deliberately omitted gateway bootstrap.
+  A subsequent pinned gateway start had not opened port 18789 at the last check.
+  Inspect existing processes before restarting; avoid duplicate gateway starts.
+- Compare gateway startup, memory growth, oversized local-model prompts, drain/lease
+  handling, and stale readiness with the CLI handoff below. Do not attribute Astro's
+  failure to either the key or that handoff without reproducing it.
+- Check workspace-specific Resend overrides, real Opik tracing/metering, and BYOK
+  save responsiveness. Invalid/expired/revoked keys must yield actionable partner
+  authentication errors without blocking Dashboard or chat; distinguish transport
+  failures, preserve last verified usage as stale, and never report failed email as
+  sent. Add bounded-timeout and failure/recovery tests before claiming this fixed.
+
 Read private coordination files under the owner's Desktop/ClawMax/handoffs folder.
 Current relevant CLI source: `20260930T000500Z_CLI-to-Dashboard_mbp14-gateway-stall-watchdog-race.md`.
 Dashboard owns public UI/server/watchdog and release evidence; CLI owns target
