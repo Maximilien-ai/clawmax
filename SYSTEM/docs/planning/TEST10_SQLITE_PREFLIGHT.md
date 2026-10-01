@@ -34,9 +34,19 @@ reported Agent IDs against databases in the conventional state-directory agent
 inventory and refuses omitted targets. Six focused tests and the real pinned
 runtime fixture test passed; both current and schema-19 database bytes were
 unchanged. The schema-19 fixture follows the upstream historical fixture shape.
-This proves refusal/preservation, **not successful schema migration**. Custom
+That checkpoint proved refusal/preservation, not successful schema migration. Custom
 database locations and complete registered inventory still need qualification;
 the session validation command alone is insufficient for general startup gating.
+
+Migration follow-up (`8291cf07`): the opt-in synthetic test now invokes the
+pinned upstream maintenance API under its real maintenance lease. Schema 19
+migrates to schema 21; session nodes, windows and transcript events are preserved
+across database reopen. The deliberately rebuilt `entry_valid` projection is
+checked separately. A forced schema-publication failure rolls both version
+markers back to 19 and preserves history. TypeScript passed. This is upstream
+API qualification, **not a packaged CLI/container migration implementation**;
+process interruption, active-owner refusal, full inventory and live restart
+acceptance still remain.
 
 The opt-in persisted test is
 `SYSTEM/dashboard/scripts/sqlite-preflight-persisted.test.mjs`. Supply
