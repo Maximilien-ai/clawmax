@@ -47,6 +47,23 @@ try {
     assert.doesNotMatch(result.stdout, succeeds ? /RESULT_FAIL/ : /RESULT_PASS/)
   }
   console.log('Plugin schema runner: 5 count/exit-status cases passed')
+  const readinessStart = source.indexOf('if npx ts-node --transpileOnly server/lib/startup-readiness.test.ts')
+  assert(readinessStart >= 0, 'Readiness must use exit status, not a fixed assertion count')
+  const readinessEnd = source.indexOf('\nfi', readinessStart)
+  assert(readinessEnd > readinessStart)
+  const readinessBlock = source.slice(readinessStart, readinessEnd + 3).replaceAll('/tmp/clawmax-startup-readiness.out', path.join(directory, 'readiness.out'))
+  for (const [exitCode, count] of [[0, 20], [0, 25], [1, 20], [137, 20]]) {
+    const result = spawnSync('bash', ['-c', `
+      npx() { echo 'startup-readiness.test.ts: ${count} tests passed'; return ${exitCode}; }
+      pass() { echo 'RESULT_PASS'; }
+      fail() { echo 'RESULT_FAIL'; }
+      ${readinessBlock}
+    `], { encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, exitCode === 0 ? /RESULT_PASS/ : /RESULT_FAIL/)
+    assert.doesNotMatch(result.stdout, exitCode === 0 ? /RESULT_FAIL/ : /RESULT_PASS/)
+  }
+  console.log('Readiness runner: 4 count/exit-status cases passed')
 } finally {
   fs.rmSync(directory, { recursive: true, force: true })
 }

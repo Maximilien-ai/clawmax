@@ -3315,9 +3315,8 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Startup readiness unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/startup-readiness.test.ts > /tmp/clawmax-startup-readiness.out 2>&1 || true
-if grep -q "startup-readiness.test.ts: 15 tests passed" /tmp/clawmax-startup-readiness.out; then
-  pass "Startup readiness unit tests (15 tests)"
+if npx ts-node --transpileOnly server/lib/startup-readiness.test.ts > /tmp/clawmax-startup-readiness.out 2>&1; then
+  pass "Startup readiness unit tests"
 else
   cat /tmp/clawmax-startup-readiness.out
   fail "Startup readiness unit tests"
