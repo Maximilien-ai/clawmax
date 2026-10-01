@@ -12,11 +12,14 @@ checks remain historical/open evidence, not a claim that RC89 is ready.
 Execution plan: [September 29–30 stabilization](planning/RC89_STABILIZATION_2026-09-29.md).
 
 - [ ] **Clear Personal workspace without deleting it** — source implementation
-  pushed (`d8c1145c`, `e39ef8b5`, `bc81b8e0`); full/live acceptance pending.
+  pushed (`d8c1145c`, `e39ef8b5`, `bc81b8e0`, `90b9adf5`); full/live acceptance pending.
   Two confirmations, scoped inventory, runtime cleanup, durable failure/retry and
-  workspace identity preservation are implemented. OpenClaw refuses its final
-  configured agent and shared-credential owners: preflight refuses those cases
-  before mutation. Runtime-only keeper/credential-ownership design remains open.
+  workspace identity preservation are implemented. An owned runtime-only keeper
+  now supports clearing the final Personal agent on explicit keyed rosters.
+  Shared-credential owners and legacy/ambiguous ownership still refuse cleanup.
+  Native validation is blocked by missing dependencies in the local pinned
+  OpenClaw cache; repair it before full/native acceptance. Credential relocation
+  remains separate work, not implicitly authorized by keeper creation.
   Acceptance: [Personal workspace clearing](planning/PERSONAL_WORKSPACE_CLEAR_ACCEPTANCE.md).
   Current ordinary deletion only unregisters a workspace despite its permanent
   content-deletion warning; do not reuse that handler as a successful clear.

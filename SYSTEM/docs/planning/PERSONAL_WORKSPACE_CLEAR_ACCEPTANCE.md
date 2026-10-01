@@ -83,9 +83,8 @@ request does not authorize changing other workspaces or deleting real user data.
   non-JSON failure, visible actions and final irreversible warning. Browser
   responses were mocked; this is not native gateway or provider acceptance.
 
-Still open: agreement and implementation for the all-agents-in-Personal case
-(a runtime-only keeper outside Personal is one option), shared credential owner
-handling, full integration/coverage, and native clear/restart/new-agent chat
+Still open: shared credential owner handling, full integration/coverage, and
+native clear/restart/new-agent chat
 acceptance on an explicitly disposable instance. Until then do not describe the
 feature as unrestricted or release-qualified. Active work must finish first;
 other Dashboard operations pause during cleanup and pending recovery.
@@ -94,3 +93,35 @@ Browser test: run `node scripts/workspace-clear-browser.test.mjs` from
 `SYSTEM/dashboard`; supply `CLAWMAX_TEST_PLAYWRIGHT_PATH` when Playwright is not
 locally installed and optionally `CLAWMAX_TEST_CHROME_PATH` for an existing
 Chrome executable. The test starts its own loopback fixture with mocked APIs.
+
+## Runtime keeper checkpoint — October 1, 2026 (Pacific)
+
+User approved a runtime-only keeper outside Personal, preserving shared
+credentials. Implementation: `90b9adf5`.
+
+- For explicit keyed OpenClaw rosters, confirmed clearing creates
+  `clawmax-runtime-keeper` only when all configured agents are being removed.
+  A revision-bound patch adds only that entry. No credential copying, changes
+  to defaults/bindings, or unrelated-agent rewrites are performed.
+- Its reserved workspace is under runtime state, outside every registered
+  workspace. Heartbeat is set to `0m`, skills empty, and tools deny `*`.
+  This is a retained runtime registration, not a Personal user agent; it is not
+  a claim that administrators cannot explicitly invoke it through OpenClaw.
+- Private ownership reservation plus exact registration/path checks prevent
+  adopting name collisions. Ambiguous committed RPC results can be retried
+  without creating another keeper. Linked, overlapping, modified, and legacy
+  ownership configurations fail closed. Shared-auth owners still refuse cleanup.
+- Passed: keeper safety/RPC patch tests, runtime cleanup/admission retry tests
+  (including empty Personal agent listing), 10 coordinator safety tests,
+  TypeScript, lint, shell syntax, and diff whitespace validation.
+- Native schema validation attempted against pinned OpenClaw 2026.9.5 but could
+  not start: cached `tsx` and `@openclaw/fs-safe` dependency files are missing.
+  `--version` succeeding does not qualify this installation. Repair the pinned
+  cache and rerun full integration/coverage plus disposable native acceptance.
+  No real Personal data was cleared and no image was built.
+
+Additional disposable acceptance: clear a Personal workspace whose non-auth-owner
+agent is the entire runtime roster; verify the keeper remains outside Personal,
+Personal lists zero agents, settings/credentials and a second workspace remain
+unchanged, then restart and create/chat with a new Personal agent. Do not treat
+mocked runtime tests as completion of this gate.
