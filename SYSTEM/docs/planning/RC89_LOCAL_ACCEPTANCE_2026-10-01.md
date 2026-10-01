@@ -27,7 +27,24 @@ not a declaration that RC89 is qualified or its images exist.
   post-restart Jarvis still failed with missing-provider-auth in 8,143 ms. A plain
   restart is not sufficient. Next: trace provider auth resolution/native profile
   registration without weakening remote-provider authentication. Ollama agents
-  remain blocked; do not request another full-group acceptance yet.
+  remained blocked at that checkpoint.
+- Follow-up recovery: added native `ollama:local` API-key profiles containing only
+  the documented non-secret local marker for the three affected agents, preserving
+  existing profiles and private backups. Config/model-file markers alone had not
+  restored execution. Gateway `secrets.reload` reported success in its server log
+  after 17,844 ms, although the CLI caller timed out after 10 seconds.
+- After native-profile publication and refresh, exact synthetic direct replies
+  passed for Jarvis (12,187 ms), competitor-research-assistant (10,885 ms), and
+  competitor-research-assistant1 (15,425 ms). This sequence does not isolate which
+  credential route was selected; do not claim config-marker resolution is fixed.
+  Three-agent temporary group also passed: all three exact replies, observed at
+  10 / 20 / 30 seconds respectively, no error replies. Diagnostic group:
+  `bulk-chat-rc89-ollama-1790884481751`. A fresh owner-run 20-agent browser group
+  remains the next acceptance check; this is not blanket all-agent qualification.
+- Remaining engineering work: automate safe local-provider auth setup without
+  treating remote endpoints as unauthenticated; test credential snapshot refresh
+  completion beyond caller timeouts; cover the complete provider matrix. Dev
+  recovery is not a packaged permanent migration fix. Memory warnings persist.
 
 ### Dev-only 2026.9.7 migration checkpoint (October 1, late morning Pacific)
 
