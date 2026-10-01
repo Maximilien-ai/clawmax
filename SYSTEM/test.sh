@@ -1524,6 +1524,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running BYOK helper unit tests...${NC}"
+if node --test scripts/sqlite-preflight.test.cjs; then
+  pass "SQLite preflight bounded report tests"
+else
+  fail "SQLite preflight bounded report tests"
+fi
 if npx ts-node --transpileOnly client/src/lib/workspaceSwitchResponse.test.ts; then
   pass "Workspace switch unavailable-response tests"
 else
