@@ -309,6 +309,15 @@ test('deriveChatError hides raw missing-provider credential strings', () => {
   assert(!/provider "openai"/i.test(message), 'Expected raw provider string to be hidden')
 })
 
+test('deriveChatError reports model policy rejection instead of gateway failure', () => {
+  for (const provider of ['ollama', 'openai-compatible'] as const) {
+    const message = deriveChatError(`Gateway error: Model override "${provider}/local-model" is not allowed by agents.defaults.modelPolicy.allow`, provider)
+    assert(/model is blocked/i.test(message), 'Expected actionable policy rejection')
+    assert(!/could not reach/i.test(message), 'Must not misreport gateway connectivity')
+    assert(!message.includes('local-model'), 'Must not echo raw runtime details')
+  }
+})
+
 test('deriveChatError surfaces provider quota and rate limits clearly', () => {
   const message = deriveChatError(
     'Error: 429 insufficient_quota: You exceeded your current quota. Too many requests.',

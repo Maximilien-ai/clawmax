@@ -524,6 +524,9 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
   if (/Gateway is running for this state directory/i.test(text) && /Run without --local/i.test(text)) {
     return 'OpenClaw refused local execution because the healthy Gateway owns this state directory. ClawMax could not complete its Gateway retry; verify Gateway readiness and retry.'
   }
+  if (/modelPolicy\.allow/i.test(text) && /not allowed|blocked/i.test(text)) {
+    return 'The selected model is blocked by this instance or agent model policy. Ask the instance owner to review the allowed models, or choose an allowed model. This is not a gateway connectivity failure.'
+  }
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
   if (/timeout/i.test(text)) {
     const modelDetail = context?.model ? ` \`${context.model}\`` : 'The selected model'
