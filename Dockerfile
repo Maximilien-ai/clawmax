@@ -9,8 +9,10 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG OPENCLAW_GIT_REF
 
+# OpenClaw's metadata renderer uses procps ps to distinguish exited zombie
+# process groups from live descendants. Slim images omit it; cleanup then fails.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends git ca-certificates python3 make g++ \
+  && apt-get install -y --no-install-recommends git ca-certificates python3 make g++ procps \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/openclaw-src
@@ -51,6 +53,7 @@ RUN retry() { \
     else \
       retry 3 5 npm install --legacy-peer-deps --ignore-scripts; \
     fi
+RUN command -v ps && ps -s 1 -L -o pgid=,state= >/dev/null
 RUN npm run build:docker
 RUN node /tmp/patch-openclaw-fs-safe.mjs /opt/openclaw-src
 # Match the local/CI preparation path: install the bundled plugin payloads
