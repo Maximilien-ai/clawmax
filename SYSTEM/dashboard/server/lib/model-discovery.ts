@@ -66,9 +66,8 @@ export const FALLBACK_ANTHROPIC = [
   'anthropic/claude-3-5-haiku-20241022',
 ]
 
-// Explicit product admission, not evidence of a successful provider request.
-// GPT-5.5 is the minimum approved OpenAI generation; do not widen this list
-// from discovery alone. Track live verification separately from availability.
+// Offline fallback only, never an admission policy for discovered models.
+// Discovery is not evidence of successful inference or runtime compatibility.
 export const FALLBACK_OPENAI = [
   'openai/gpt-5.5',
 ]
@@ -93,20 +92,13 @@ export const FALLBACK_XAI = [
   'xai/grok-code-fast-1',
 ]
 
-const COMPATIBLE_MODELS: Record<Exclude<ProviderId, 'ollama'>, string[]> = {
-  openai: FALLBACK_OPENAI,
-  anthropic: FALLBACK_ANTHROPIC,
-  gemini: FALLBACK_GEMINI,
-  openrouter: FALLBACK_OPENROUTER,
-  xai: FALLBACK_XAI,
-  'openai-compatible': [],
-}
-
 function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[], showAll = false): string[] {
-  // Product selection policy, not a claim that other models are retired.
-  // Apply before show-all and to cached discovery results as well.
-  if (provider === 'openai') return models.filter(model => FALLBACK_OPENAI.includes(model))
+  // Provider catalogs determine availability. Never intersect them with static
+  // fallback lists; retain only modality filtering for the normal chat picker.
   if (showAll || provider === 'ollama') return models
+  if (provider === 'openai') return models.filter(model => isOpenAIChatModel(model.replace(/^openai\//, '')))
+  if (provider === 'anthropic') return models.filter(model => isAnthropicChatModel(model.replace(/^anthropic\//, '')))
+  if (provider === 'gemini') return models.filter(model => isGeminiApiTextModel(model.replace(/^google\//, '')))
   if (provider === 'openai-compatible') {
     return models.filter((model) => isOpenAICompatibleChatModel(model.replace(/^openai-compatible\//, '')))
   }
@@ -114,11 +106,9 @@ function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[]
     return models.filter((model) => isOpenAICompatibleChatModel(model.replace(/^openrouter\//, '')))
   }
   if (provider === 'xai') {
-    const compatible = new Set(FALLBACK_XAI)
-    return models.filter((model) => compatible.has(model))
+    return models.filter(model => isOpenAICompatibleChatModel(model.replace(/^xai\//, '')))
   }
-  const compatible = new Set(COMPATIBLE_MODELS[provider as keyof typeof COMPATIBLE_MODELS] || [])
-  return models.filter((model) => compatible.has(model))
+  return models
 }
 
 // ── Model name filters (skip embedding, tts, whisper, dall-e, etc.) ────────
@@ -300,8 +290,7 @@ async function fetchXaiModels(apiKey: string): Promise<string[]> {
       .filter((id) => id.toLowerCase().startsWith('grok-'))
       .sort()
       .map((id) => `xai/${id}`)
-    const runtimeCompatible = discovered.filter((model) => FALLBACK_XAI.includes(model))
-    const resolved = Array.from(new Set([...FALLBACK_XAI, ...runtimeCompatible]))
+    const resolved = Array.from(new Set(discovered.length ? discovered : FALLBACK_XAI))
     setCache('xai', resolved)
     return resolved
   } catch (err) {

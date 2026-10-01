@@ -30,19 +30,19 @@ function assert(condition: boolean, message: string) {
 
 console.log(`\n${YELLOW}=== Model Discovery Test Suite ===${RESET}\n`)
 
-test('OpenAI discovery follows explicit product admission', () => {
+test('OpenAI discovery preserves older and newer provider-advertised chat models', () => {
   const filtered = __test.filterCompatibleDiscoveredModels('openai', [
     'openai/gpt-5',
     'openai/gpt-5.5',
     'openai/gpt-4.1',
     'openai/gpt-4o-mini',
   ])
-  assert(!filtered.includes('openai/gpt-5'), 'Did not expect unsupported gpt-5 alias')
-  assert(!filtered.includes('openai/gpt-4.1'), 'Did not expect unsupported gpt-4.1 alias')
+  assert(filtered.includes('openai/gpt-5'), 'Expected discovered gpt-5 alias')
+  assert(filtered.includes('openai/gpt-4.1'), 'Expected discovered gpt-4.1 alias')
   assert(filtered.includes('openai/gpt-5.5'), 'Expected approved gpt-5.5')
 })
 
-test('OpenAI selection rejects models below GPT-5.5 and unapproved aliases including show-all', () => {
+test('OpenAI discovery never treats the offline fallback as an allowlist, including show-all', () => {
   const approved = ['openai/gpt-5.5']
   assert(JSON.stringify(FALLBACK_OPENAI) === JSON.stringify(approved), 'Fallback must only offer approved GPT-5.5')
   for (const showAll of [false, true]) {
@@ -51,7 +51,7 @@ test('OpenAI selection rejects models below GPT-5.5 and unapproved aliases inclu
       'openai/gpt-5.4', 'openai/gpt-5.4-mini', 'openai/gpt-5.4-nano', 'openai/gpt-5.4-pro',
       'openai/gpt-5.5-invented', 'openai/o3', 'openai/gpt-5.40', 'openai/gpt-5',
     ], showAll)
-    assert(JSON.stringify(filtered) === JSON.stringify(approved), 'Discovery must not restore excluded models')
+    assert(filtered.length === 11, 'All supplied chat model ids must remain selectable without hardcoded admission')
   }
 })
 
@@ -169,7 +169,7 @@ test('discoverModels loads native OpenRouter model ids from its hosted catalog',
   assert(!result.modelsByProvider.openrouter?.models.includes('openrouter/openai/text-embedding-3-small'), 'Expected embedding-only OpenRouter model hidden')
 })
 
-test('xAI discovery only exposes models supported by the pinned OpenClaw runtime', async () => {
+test('xAI discovery preserves newly advertised chat models without a static allowlist', async () => {
   clearModelCache()
   global.fetch = (async (url: string) => {
     if (url === 'https://api.openai.com/v1/models') {
@@ -193,7 +193,7 @@ test('xAI discovery only exposes models supported by the pinned OpenClaw runtime
 
   assert(models.includes('xai/grok-3'), 'Expected compatible Grok model')
   assert(models.includes('xai/grok-4.3'), 'Expected compatible Grok 4.3 model')
-  assert(!models.includes('xai/grok-4.5'), 'Did not expect Grok 4.5 before pinned runtime support')
+  assert(models.includes('xai/grok-4.5'), 'Expected provider-advertised Grok 4.5')
   assert(!models.includes('xai/v1'), 'Did not expect non-Grok endpoint id')
 })
 
@@ -261,7 +261,7 @@ test('provider discovery caches valid catalogs and filters malformed optional mo
     const body = url.includes('anthropic') ? { data: [{ id: 'claude-sonnet-4-6' }] }
       : url.includes('generativelanguage') ? { models: [{ name: 'models/gemini-2.5-flash' }, { name: 'models/embedding-001' }] }
       : url.includes('ollama') ? { models: [{}, { name: ' fixture-model ' }] }
-      : url.includes('api.openai.com') ? { data: [{ id: 'gpt-5.5' }, { id: 'gpt-5.4-mini' }, { id: 'text-embedding-3-small' }] }
+      : new URL(url).hostname === 'api.openai.com' ? { data: [{ id: 'gpt-5.5' }, { id: 'gpt-5.4-mini' }, { id: 'text-embedding-3-small' }] }
       : { data: [{}, { id: ' fixture-model ' }, { id: 'grok-4' }] }
     return { ok: true, status: 200, json: async () => body }
   }) as any
@@ -270,7 +270,7 @@ test('provider discovery caches valid catalogs and filters malformed optional mo
     assert(first.models.includes('ollama/fixture-model'), 'Expected trimmed Ollama model')
     assert(first.models.includes('openai-compatible/fixture-model'), 'Expected compatible model')
     assert(first.models.includes('openai/gpt-5.5'), 'Expected approved OpenAI model')
-    assert(!first.models.includes('openai/gpt-5.4-mini'), 'Older OpenAI models must remain hidden')
+    assert(first.models.includes('openai/gpt-5.4-mini'), 'Older discovered OpenAI models must remain available')
     const firstCalls = calls
     await discoverModels(keys, { showAll: true })
     assert(calls === firstCalls, 'Valid provider catalogs should be cached')
