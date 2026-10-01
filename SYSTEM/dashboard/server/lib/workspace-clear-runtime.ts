@@ -27,6 +27,13 @@ function inspect(root: string, agents: string[]) {
   if (getWorkspaceManager().getActiveWorkspaceId() !== 'default') throw new WorkspaceClearError('Switch to Personal before clearing it')
   if (listActiveTurns().length || getSchedulerDiagnostics().status === 'running') throw new WorkspaceClearError('Wait for active chats and scheduler synchronization to finish before clearing Personal')
   const records = roster()
+  if (records.length && records.every(record => agents.includes(record.id))) {
+    throw new WorkspaceClearError('OpenClaw must retain a runtime agent outside Personal. Clearing would remove its entire roster; no content was cleared. Configure a runtime-only keeper before retrying.')
+  }
+  const config = fs.existsSync(configPath()) ? JSON.parse(fs.readFileSync(configPath(), 'utf8')) : {}
+  if (agents.includes('main') || agents.includes(config.agents?.defaults?.authInheritance?.agentId)) {
+    throw new WorkspaceClearError('Personal contains a possible shared-credential owner. Shared credentials must be safely relocated and verified before clearing; no content was cleared.')
+  }
   for (const record of records) {
     const workspace = path.resolve(record.workspace || '/')
     if (workspace.startsWith(root + path.sep) && (!agents.includes(record.id) || workspace !== path.join(root, 'AGENTS', record.id))) {

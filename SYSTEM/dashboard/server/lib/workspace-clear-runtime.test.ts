@@ -13,7 +13,8 @@ async function main() {
     fs.mkdirSync(path.join(root, 'AGENTS', 'sample'), { recursive: true })
     fs.mkdirSync(path.join(state, 'agents', 'sample', 'agent'), { recursive: true })
     fs.writeFileSync(path.join(root, 'AGENTS', 'sample', 'IDENTITY.md'), '**Name:** Sample\n')
-    const config = { agents: { entries: { sample: { workspace: path.join(root, 'AGENTS', 'sample'), agentDir: path.join(state, 'agents', 'sample', 'agent') } } }, syntheticCredential: 'preserve' }
+    const keeper = { workspace: path.join(base, 'runtime-only') }
+    const config = { agents: { entries: { main: keeper, sample: { workspace: path.join(root, 'AGENTS', 'sample'), agentDir: path.join(state, 'agents', 'sample', 'agent') } } }, syntheticCredential: 'preserve' }
     fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify(config))
     const manager = require('./workspace-manager')
     manager.resetWorkspaceManagerForTests()
@@ -38,10 +39,14 @@ async function main() {
         assert.equal(id, 'sample'); assert.equal(deleteFiles, false)
         calls.push('agents.delete')
         if (failNative) throw new Error('synthetic refusal')
-        fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify({ ...config, agents: { entries: {} } }))
+        fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify({ ...config, agents: { entries: { main: keeper } } }))
       },
     })
     const { personalWorkspaceClear } = require('./workspace-clear-runtime')
+    fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify({ ...config, agents: { entries: { sample: config.agents.entries.sample } } }))
+    assert.throws(() => personalWorkspaceClear.preview('owner'), /entire roster/)
+    assert(!fs.existsSync(path.join(root, '.clawmax-workspace-clear.json')))
+    fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify(config))
     const { workspaceClearRequestGate, clearPending } = require('./workspace-clear-http')
     const gate = workspaceClearRequestGate()
     const response = () => Object.assign(new EventEmitter(), { statusCode: 200, status(code: number) { this.statusCode = code; return this }, json() { return this } })
