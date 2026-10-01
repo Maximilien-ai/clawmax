@@ -3158,6 +3158,11 @@ if npx ts-node --transpile-only server/lib/workspace-clear.test.ts; then
 else
   fail "Personal workspace clear safety tests"
 fi
+if npx ts-node --transpile-only server/lib/workspace-clear-keeper.test.ts; then
+  pass "Personal workspace runtime keeper tests"
+else
+  fail "Personal workspace runtime keeper tests"
+fi
 if npx ts-node --transpile-only server/lib/workspace-clear-runtime.test.ts; then
   pass "Personal workspace clear runtime tests"
 else

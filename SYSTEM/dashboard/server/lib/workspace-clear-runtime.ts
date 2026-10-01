@@ -12,6 +12,7 @@ import { listWorkflows, listExecutions } from './workflows'
 import { getSchedulerDiagnostics, unscheduleWorkflow } from './scheduler'
 import { clearPinnedOpenClawWorkspaceState } from './openclaw-workspace-state'
 import { REPO_ROOT } from './paths'
+import { ensureClearKeeper, inspectClearKeeper, KEEPER_ID } from './workspace-clear-keeper'
 
 const stateRoot = () => path.resolve(process.env.OPENCLAW_STATE_DIR || path.join(os.homedir(), '.openclaw'))
 const configPath = () => process.env.OPENCLAW_CONFIG_PATH || path.join(stateRoot(), 'openclaw.json')
@@ -27,12 +28,13 @@ function inspect(root: string, agents: string[]) {
   if (getWorkspaceManager().getActiveWorkspaceId() !== 'default') throw new WorkspaceClearError('Switch to Personal before clearing it')
   if (listActiveTurns().length || getSchedulerDiagnostics().status === 'running') throw new WorkspaceClearError('Wait for active chats and scheduler synchronization to finish before clearing Personal')
   const records = roster()
-  if (records.length && records.every(record => agents.includes(record.id))) {
-    throw new WorkspaceClearError('OpenClaw must retain a runtime agent outside Personal. Clearing would remove its entire roster; no content was cleared. Configure a runtime-only keeper before retrying.')
-  }
   const config = fs.existsSync(configPath()) ? JSON.parse(fs.readFileSync(configPath(), 'utf8')) : {}
+  if (agents.includes(KEEPER_ID)) throw new WorkspaceClearError('A Personal agent uses the reserved runtime keeper ID; rename it before clearing')
   if (agents.includes('main') || agents.includes(config.agents?.defaults?.authInheritance?.agentId)) {
     throw new WorkspaceClearError('Personal contains a possible shared-credential owner. Shared credentials must be safely relocated and verified before clearing; no content was cleared.')
+  }
+  if (records.some(record => record.id === KEEPER_ID) || (records.length && records.every(record => agents.includes(record.id)))) {
+    inspectClearKeeper(stateRoot(), config, getWorkspaceManager().loadRegistry().workspaces.map(workspace => path.resolve(workspace.path)))
   }
   for (const record of records) {
     const workspace = path.resolve(record.workspace || '/')
@@ -74,6 +76,15 @@ export const personalWorkspaceClear = new WorkspaceClearService({
       }
       const workflows = scoped(root, () => listWorkflows())
       const gateway = () => getGatewayClient()
+      if (roster().length && roster().every(record => agents.includes(record.id))) {
+        await ensureClearKeeper({
+          state: stateRoot(),
+          workspaceRoots: getWorkspaceManager().loadRegistry().workspaces.map(workspace => path.resolve(workspace.path)),
+          readConfig: () => JSON.parse(fs.readFileSync(configPath(), 'utf8')),
+          revision: async () => (await gateway().getConfig()).hash,
+          create: (entry, revision) => gateway().createWorkspaceClearKeeper(entry, revision),
+        })
+      }
       const cronIds = new Set(workflows.flatMap(workflow => (workflow.cronJobId || '').split(',').map(value => value.trim()).filter(Boolean)))
       if (cronIds.size || agents.length) {
         const page = await gateway().call<any>('cron.list', { includeDisabled: true, limit: 200 })

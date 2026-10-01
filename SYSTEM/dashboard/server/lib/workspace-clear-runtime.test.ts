@@ -14,7 +14,7 @@ async function main() {
     fs.mkdirSync(path.join(state, 'agents', 'sample', 'agent'), { recursive: true })
     fs.writeFileSync(path.join(root, 'AGENTS', 'sample', 'IDENTITY.md'), '**Name:** Sample\n')
     const keeper = { workspace: path.join(base, 'runtime-only') }
-    const config = { agents: { entries: { main: keeper, sample: { workspace: path.join(root, 'AGENTS', 'sample'), agentDir: path.join(state, 'agents', 'sample', 'agent') } } }, syntheticCredential: 'preserve' }
+    const config = { agents: { ownership: 'explicit', entries: { main: keeper, sample: { workspace: path.join(root, 'AGENTS', 'sample'), agentDir: path.join(state, 'agents', 'sample', 'agent') } } }, syntheticCredential: 'preserve' }
     fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify(config))
     const manager = require('./workspace-manager')
     manager.resetWorkspaceManagerForTests()
@@ -30,6 +30,14 @@ async function main() {
     let failNative = true
     let jobs = [{ id: 'fixture-cron', effectiveAgentId: 'sample', state: {} }]
     require('./gateway-rpc').getGatewayClient = () => ({
+      async getConfig() { return { hash: 'fixture-revision' } },
+      async createWorkspaceClearKeeper(entry: any, revision: string) {
+        assert.equal(revision, 'fixture-revision')
+        calls.push('keeper.create')
+        const current = JSON.parse(fs.readFileSync(process.env.OPENCLAW_CONFIG_PATH!, 'utf8'))
+        current.agents.entries['clawmax-runtime-keeper'] = entry
+        fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify(current))
+      },
       async call(method: string) {
         calls.push(method)
         if (method === 'cron.remove') { jobs = []; return { removed: true } }
@@ -39,14 +47,18 @@ async function main() {
         assert.equal(id, 'sample'); assert.equal(deleteFiles, false)
         calls.push('agents.delete')
         if (failNative) throw new Error('synthetic refusal')
-        fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify({ ...config, agents: { entries: { main: keeper } } }))
+        const current = JSON.parse(fs.readFileSync(process.env.OPENCLAW_CONFIG_PATH!, 'utf8'))
+        delete current.agents.entries[id]
+        fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify(current))
       },
     })
     const { personalWorkspaceClear } = require('./workspace-clear-runtime')
-    fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify({ ...config, agents: { entries: { sample: config.agents.entries.sample } } }))
-    assert.throws(() => personalWorkspaceClear.preview('owner'), /entire roster/)
+    fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify({ ...config, agents: { ...config.agents, defaults: { authInheritance: { agentId: 'sample' } } } }))
+    assert.throws(() => personalWorkspaceClear.preview('owner'), /shared-credential owner/)
+    fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify({ ...config, agents: { ownership: 'explicit', entries: { sample: config.agents.entries.sample } } }))
+    personalWorkspaceClear.preview('owner')
     assert(!fs.existsSync(path.join(root, '.clawmax-workspace-clear.json')))
-    fs.writeFileSync(process.env.OPENCLAW_CONFIG_PATH!, JSON.stringify(config))
+    assert(!fs.existsSync(path.join(state, 'workspace-clear-keeper')))
     const { workspaceClearRequestGate, clearPending } = require('./workspace-clear-http')
     const gate = workspaceClearRequestGate()
     const response = () => Object.assign(new EventEmitter(), { statusCode: 200, status(code: number) { this.statusCode = code; return this }, json() { return this } })
@@ -74,6 +86,10 @@ async function main() {
     assert.equal(manager.getWorkspaceManager().getActiveWorkspaceId(), 'default')
     assert(calls.includes('agents.delete'))
     assert(calls.includes('cron.remove'))
+    assert.equal(calls.filter(call => call === 'keeper.create').length, 1)
+    const remaining = JSON.parse(fs.readFileSync(process.env.OPENCLAW_CONFIG_PATH!, 'utf8'))
+    assert.deepEqual(Object.keys(remaining.agents.entries), ['clawmax-runtime-keeper'])
+    assert.deepEqual(require('./workspace').listAgents(), [])
     console.log('Personal clear runtime and HTTP admission tests passed: native failure, retry, registration/state cleanup, credentials, request fencing')
   } finally {
     for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key]
