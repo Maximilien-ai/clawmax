@@ -135,10 +135,13 @@ export default function AIPromptEditorModal({
       className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4"
     >
       <div
-        className="relative flex h-[78vh] w-[75vw] min-h-[420px] min-w-[320px] max-h-[90vh] max-w-[90vw] resize flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-gray-800"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="relative flex h-[90dvh] w-full min-w-0 max-h-[90dvh] max-w-[90vw] resize flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-gray-800 sm:h-[78dvh] sm:w-[75vw]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
           <button
             type="button"
@@ -151,9 +154,9 @@ export default function AIPromptEditorModal({
             ✕
           </button>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
-          <div className="space-y-4 overflow-y-auto pr-1">
-          <div className="flex items-center justify-between">
+        <div className="flex min-h-0 flex-1 flex-col px-4 py-3 sm:px-5">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
               AI Editor
             </div>
@@ -239,10 +242,11 @@ export default function AIPromptEditorModal({
               ) : null}
               <textarea
                 value={draft}
+                aria-label="Prompt"
                 onChange={(e) => setDraft(e.target.value)}
-                rows={rows}
+                rows={Math.min(rows, 6)}
                 placeholder={placeholder}
-                className={`min-h-[200px] max-h-[42vh] w-full resize-y rounded-lg border bg-white px-4 py-3 text-sm text-gray-900 transition-[border-color,box-shadow,background-color] duration-300 focus:ring-2 focus:ring-purple-500 dark:bg-gray-900 dark:text-gray-100 ${
+                className={`h-[clamp(96px,16dvh,160px)] min-h-[96px] max-h-[32dvh] w-full resize-y rounded-lg border bg-white px-4 py-3 text-sm text-gray-900 transition-[border-color,box-shadow,background-color] duration-300 focus:ring-2 focus:ring-purple-500 dark:bg-gray-900 dark:text-gray-100 ${
                   expandedFlash
                     ? 'border-emerald-300 bg-emerald-50/50 shadow-[0_0_0_3px_rgba(16,185,129,0.18)] dark:border-emerald-700 dark:bg-emerald-950/20'
                     : 'border-gray-200 dark:border-gray-700'
@@ -275,22 +279,25 @@ export default function AIPromptEditorModal({
             ) : null}
           </div>
           <PromptQualityPanel prompt={draft} domain={qualityDomain} />
+          </div>
           {onExpandWithAi ? (
-            <div className="space-y-3">
+            <div className="shrink-0 space-y-2 border-t border-gray-200 pt-3 dark:border-gray-700">
               <div className="space-y-1">
                 <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   Improvement Direction
                 </label>
                 <input
                   type="text"
+                  aria-label="Improvement Direction"
                   value={expandGuidance}
                   onChange={(e) => setExpandGuidance(e.target.value)}
                   placeholder="Optional: make it shorter, bias toward workflows, keep the tone friendly..."
                   className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                 />
               </div>
-              <div className="flex items-center justify-start gap-3">
+              <div className="flex flex-wrap items-center justify-start gap-2">
                 <select
+                  aria-label="Expansion format"
                   value={expandFormat}
                   onChange={(e) => setExpandFormat(e.target.value as PromptExpandFormat)}
                   className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
@@ -336,14 +343,13 @@ export default function AIPromptEditorModal({
                 </button>
               </div>
               {expandError ? (
-                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                <div role="alert" className="max-h-20 overflow-y-auto break-words rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
                   {expandError}
                 </div>
               ) : null}
             </div>
           ) : null}
-          </div>
-          <div className="mt-4 flex shrink-0 justify-between gap-2 border-t border-gray-200 pt-4 dark:border-gray-700">
+          <div className="mt-3 flex shrink-0 flex-wrap justify-between gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
             <button
               type="button"
               onClick={() => {
