@@ -682,6 +682,9 @@ async function run() {
     const childProcess = require('child_process')
     const originalSpawn = childProcess.spawn
     const originalFetch = global.fetch
+    const cliResolver = require('../lib/openclaw-cli')
+    const originalResolveCli = cliResolver.resolveOpenClawCliPath
+    cliResolver.resolveOpenClawCliPath = () => '/synthetic/pinned/openclaw'
 
     const openclawDir = path.join(tmpHome, '.openclaw')
     const agentWorkspace = path.join(workspacePath, 'AGENTS', 'double-agent')
@@ -723,6 +726,7 @@ async function run() {
     }) as any
 
     childProcess.spawn = (_cmd: string, args: string[]) => {
+      assert.strictEqual(_cmd, '/synthetic/pinned/openclaw', 'Group chat must use the selected runtime, never global PATH')
       spawnCalls.push(args)
       const proc = new EventEmitter() as any
       proc.stdout = new EventEmitter()
@@ -783,7 +787,11 @@ async function run() {
       const modelArgIndex = agentSpawn!.indexOf('--model')
       assert(modelArgIndex >= 0, `Expected group chat to pass --model, got: ${agentSpawn!.join(' ')}`)
       assert.strictEqual(agentSpawn![modelArgIndex + 1], 'lmstudio/qwen/qwen3.6-27b', 'Expected openai-compatible model to be passed as lmstudio execution model')
+      const saved = JSON.parse(fs.readFileSync(path.join(openclawDir, 'openclaw.json'), 'utf8'))
+      const entry = saved.agents?.entries?.['double-agent'] || saved.agents?.list?.find((entry: any) => entry.id === 'double-agent')
+      assert.strictEqual(entry.model, 'openai-compatible/qwen/qwen3.6-27b', 'Group chat must not temporarily rewrite the selected agent model')
     } finally {
+      cliResolver.resolveOpenClawCliPath = originalResolveCli
       childProcess.spawn = originalSpawn
       global.fetch = originalFetch
     }
