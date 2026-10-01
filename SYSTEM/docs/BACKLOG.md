@@ -11,6 +11,14 @@ This is the immediate priority over older RC headings below. Older incomplete
 checks remain historical/open evidence, not a claim that RC89 is ready.
 Execution plan: [September 29–30 stabilization](planning/RC89_STABILIZATION_2026-09-29.md).
 
+- [ ] **Clear Personal workspace without deleting it** — pending implementation
+  and acceptance; keep the default workspace identity and registry entry. Add an
+  explicit destructive content-reset operation with two confirmations, an accurate
+  impact preview, runtime quiescence, bounded progress/errors and persistent outcome.
+  Acceptance: [Personal workspace clearing](planning/PERSONAL_WORKSPACE_CLEAR_ACCEPTANCE.md).
+  Current ordinary deletion only unregisters a workspace despite its permanent
+  content-deletion warning; do not reuse that handler as a successful clear.
+
 - [ ] **P0: Template apply split-state and persisted redaction sentinel** — CLI
   repaired MBP14's nine-agent apply, but the product defect remains. Prevent
   presentation/redacted config from entering authored config; journal filesystem
