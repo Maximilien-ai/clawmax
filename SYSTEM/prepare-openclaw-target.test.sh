@@ -15,6 +15,8 @@ pass() {
   echo "PASS: $*"
 }
 
+bash "$repo_root/SYSTEM/openclaw-cache-guard.test.sh"
+
 [ -f "$script_file" ] || fail "expected prepare-openclaw-target.sh to exist"
 
 grep -q 'openclaw-version.sh' "$script_file" || fail "expected script to source openclaw-version.sh"
@@ -134,7 +136,11 @@ case "${1:-}" in
 esac
 EOF
 
-chmod +x "$corepack_root/bin/git" "$corepack_root/bin/node" "$corepack_root/bin/corepack"
+cat > "$corepack_root/bin/lsof" <<'EOF'
+#!/usr/bin/env bash
+printf 'n/unrelated-test-workspace\n'
+EOF
+chmod +x "$corepack_root/bin/git" "$corepack_root/bin/node" "$corepack_root/bin/corepack" "$corepack_root/bin/lsof"
 
 if ! PATH="$corepack_root/bin:/usr/bin:/bin" \
   CLAWMAX_OPENCLAW_CACHE_DIR="$cache_root" \

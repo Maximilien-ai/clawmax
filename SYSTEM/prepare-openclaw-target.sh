@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 . "$SCRIPT_DIR/openclaw-version.sh"
+. "$SCRIPT_DIR/openclaw-cache-guard.sh"
 
 PREPARED_WORK_ROOT=""
 
@@ -131,8 +132,13 @@ prepare_checkout() {
   prepared_stamp="${work_root}/.prepared-commit"
 
   mkdir -p "$work_root"
+  work_root="$(cd "$work_root" && pwd -P)"
+  src_dir="${work_root}/src"
+  prepared_stamp="${work_root}/.prepared-commit"
+  clawmax_cache_lock "$work_root"
 
   if [ -d "$src_dir" ] && [ ! -f "$src_dir/package.json" ]; then
+    clawmax_cache_assert_idle "$work_root"
     rm -rf "$src_dir"
   fi
 
@@ -140,14 +146,15 @@ prepare_checkout() {
     clone_target "$work_root" "$src_dir"
   fi
 
-  (
-    cd "$src_dir"
-    current_tag="$(git describe --tags --exact-match HEAD 2>/dev/null || true)"
-    if [ "$current_tag" != "$CLAWMAX_OPENCLAW_TARGET" ]; then
+  current_tag="$(cd "$src_dir" && git describe --tags --exact-match HEAD 2>/dev/null || true)"
+  if [ "$current_tag" != "$CLAWMAX_OPENCLAW_TARGET" ]; then
+    clawmax_cache_assert_idle "$work_root"
+    (
+      cd "$src_dir"
       git fetch --depth 1 --tags --force origin "$CLAWMAX_OPENCLAW_TARGET" >&2
       git checkout --force "$CLAWMAX_OPENCLAW_TARGET" >&2
-    fi
-  )
+    )
+  fi
 
   ensure_supported_node
 
@@ -161,6 +168,7 @@ prepare_checkout() {
   current_commit="${current_commit}:$(cksum < "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs")"
   current_commit="${current_commit}:source-plugins-v1:$(cksum < "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs")"
   if [ ! -f "${src_dir}/dist/index.js" ] || [ ! -f "$prepared_stamp" ] || [ "$(cat "$prepared_stamp" 2>/dev/null || true)" != "$current_commit" ] || ! node "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs" "$src_dir" >&2; then
+    clawmax_cache_assert_idle "$work_root"
     (
       cd "$src_dir"
       export COREPACK_HOME="${COREPACK_HOME:-${work_root}/corepack}"
@@ -197,12 +205,19 @@ EOF
   cat >"${work_root}/bin/openclaw" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$src_dir"
+. "$SCRIPT_DIR/openclaw-cache-guard.sh"
+clawmax_cache_lock "$work_root"
+clawmax_cache_register_runtime "$work_root"
+clawmax_cache_unlock
+# Never inherit a removable cache/workspace as the process working directory.
+cd /
+export OPENCLAW_NO_RESPAWN=1
 exec node "$src_dir/openclaw.mjs" "\$@"
 EOF
   chmod +x "${work_root}/bin/openclaw"
 
   PREPARED_WORK_ROOT="$work_root"
+  clawmax_cache_unlock
 }
 
 main() {
