@@ -5,6 +5,7 @@ import {
   AGENTFORGE_SUPPORTED_SCOPES,
   agentForgeActivityEndpoint,
   agentForgePurgeCompleted,
+  agentForgeReceiverBinding,
   exchangeAgentForgeEnrollment,
   registerAgentForgeConsent,
   revokeAgentForgeConsent,
@@ -27,6 +28,13 @@ const fetchImpl = async (url: string | URL | Request, init?: RequestInit) => {
 }
 
 void (async () => {
+  const binding = agentForgeReceiverBinding(config)
+  assert.match(binding, /^[a-f0-9]{64}$/)
+  assert.strictEqual(agentForgeReceiverBinding({ ...config }), binding)
+  for (const change of [{ apiKey: 'rotated-secret' }, { apiUrl: 'https://other.example' }, { privacyUrl: 'https://agentforge.example/privacy-v2' }]) {
+    assert.notStrictEqual(agentForgeReceiverBinding({ ...config, ...change }), binding)
+  }
+  assert(!binding.includes(config.apiKey))
   assert.strictEqual(AGENTFORGE_DESTINATION_ID, 'agentforge')
   for (const value of [null, {}, { receiptId: 'consent_1', status: 'revoked', purgeStatus: 'pending' },
     { receiptId: 'wrong', status: 'revoked', purgeStatus: 'completed' }]) {

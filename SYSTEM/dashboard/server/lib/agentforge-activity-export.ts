@@ -1,5 +1,5 @@
 import { getResolvedWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets } from './workspace-integrations'
-import { createHash } from 'crypto'
+import { createHmac } from 'crypto'
 import { getWorkspacePath } from './workspace'
 
 export const AGENTFORGE_DESTINATION_ID = 'agentforge'
@@ -22,9 +22,9 @@ export interface AgentForgeRuntimeConfig {
 
 /** Opaque binding; rotating a tenant credential requires fresh enrollment and consent. */
 export function agentForgeReceiverBinding(config: AgentForgeRuntimeConfig): string {
-  return createHash('sha256').update(JSON.stringify([
+  return createHmac('sha256', config.apiKey).update(JSON.stringify([
     AGENTFORGE_DESTINATION_ID, config.apiUrl, config.privacyUrl, AGENTFORGE_PURPOSE,
-    AGENTFORGE_CONSENT_VERSION, AGENTFORGE_SUPPORTED_SCOPES, 'opaque-workspace-user/v1', config.apiKey,
+    AGENTFORGE_CONSENT_VERSION, AGENTFORGE_SUPPORTED_SCOPES, 'opaque-workspace-user/v1',
   ])).digest('hex')
 }
 
