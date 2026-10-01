@@ -83,6 +83,7 @@ if (process.env.CLAWMAX_TEST_PACKAGED_STARTUP === 'true') {
     cwd: root, detached: true, stdio: ['ignore', log, log],
   })
   let spawnError
+  let forcedStop = false
   gateway.on('error', error => { spawnError = error })
   try {
     let ready = false
@@ -101,11 +102,12 @@ if (process.env.CLAWMAX_TEST_PACKAGED_STARTUP === 'true') {
       while (gateway.exitCode === null && gateway.signalCode === null && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100))
       if (gateway.exitCode === null && gateway.signalCode === null) {
         process.kill(-gateway.pid, 'SIGKILL')
-        throw new Error('Isolated gateway did not settle after graceful stop')
+        forcedStop = true
       }
     }
     fs.closeSync(log)
   }
+  assert(!forcedStop, 'Isolated gateway did not settle after graceful stop')
   const db = new DatabaseSync(databasePath, { readOnly: true })
   try {
     assert.equal(db.prepare('PRAGMA user_version').get().user_version, 19)
