@@ -13,6 +13,9 @@ const { preflight } = require('./sqlite-preflight.cjs')
 const source = process.env.CLAWMAX_TEST_OPENCLAW_PACKAGE_ROOT
 assert(source, 'Explicit pinned runtime source required')
 assert(process.env.OPENCLAW_BIN, 'Explicit pinned runtime binary required')
+// Upstream maintenance heartbeat workers resolve workspace package aliases from
+// their working directory as well as the parent loader's tsconfig.
+process.chdir(source)
 const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-sqlite-persisted-')))
 const state = path.join(root, 'state')
 const config = path.join(root, 'openclaw.json')
@@ -37,11 +40,61 @@ const legacy = new DatabaseSync(databasePath)
 fixtures.removeCanonicalValidationFromHistoricalAgentFixture(legacy)
 legacy.exec(`DROP TABLE session_transcript_cold_archives;
   PRAGMA user_version = 19;
-  UPDATE schema_meta SET schema_version = 19 WHERE meta_key = 'primary';`)
+  UPDATE schema_meta SET schema_version = 19 WHERE meta_key = 'primary';
+  INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at)
+    VALUES ('agent:fixture-agent:history', 'fixture-window', '{"sessionId":"fixture-window","updatedAt":20}', 20);
+  INSERT INTO session_windows (session_id, session_key, created_at, updated_at)
+    VALUES ('fixture-window', 'agent:fixture-agent:history', 10, 20);
+  INSERT INTO transcript_events (session_id, seq, event_json, created_at)
+    VALUES ('fixture-window', 1, '{"type":"message","text":"synthetic preservation check"}', 11);`)
+const tables = ['session_nodes', 'session_windows', 'transcript_events']
+// Schema 21 deliberately rebuilds entry_valid, a derived validation projection.
+// Preserve every other column and assert the rebuilt projection separately.
+const snapshot = database => tables.map(table => database.prepare(`SELECT * FROM ${table}`).all().map(row => {
+  const copy = { ...row }
+  if (table === 'session_nodes') delete copy.entry_valid
+  return copy
+}))
+const retained = snapshot(legacy)
 legacy.close()
 const legacyBefore = hash()
 const old = preflight()
 assert.equal(old.ready, false, 'Historical schema must not receive successful qualification')
 assert.equal(hash(), legacyBefore, 'Refused historical schema must remain unchanged')
 console.log('PASS: historical schema refused and unchanged')
+const { OPENCLAW_AGENT_SCHEMA_VERSION } = await load('src/state/openclaw-agent-db-contract.ts')
+await agent.withAgentDatabaseMaintenanceLease({ env: process.env }, async maintenance => {
+  await agent.migrateOpenClawAgentDatabaseForMaintenance({ agentId: 'fixture-agent', pathname: databasePath }, maintenance)
+})
+const migrated = agent.openOpenClawAgentDatabase({ agentId: 'fixture-agent', env: process.env })
+assert.equal(migrated.db.prepare('PRAGMA user_version').get().user_version, OPENCLAW_AGENT_SCHEMA_VERSION)
+assert.equal(migrated.db.prepare('SELECT entry_valid FROM session_nodes').get().entry_valid, 1)
+assert.deepEqual(snapshot(migrated.db), retained, 'Migration must preserve synthetic history exactly')
+agent.closeOpenClawAgentDatabasesForTest()
+shared.closeOpenClawStateDatabaseForTest()
+const reopened = agent.openOpenClawAgentDatabase({ agentId: 'fixture-agent', env: process.env })
+assert.deepEqual(snapshot(reopened.db), retained, 'Preserved history must survive reopening')
+agent.closeOpenClawAgentDatabasesForTest()
+shared.closeOpenClawStateDatabaseForTest()
+console.log('PASS: upstream leased schema migration preserves history across database reopen')
+const failing = new DatabaseSync(databasePath)
+fixtures.removeCanonicalValidationFromHistoricalAgentFixture(failing)
+failing.exec(`DROP TABLE session_transcript_cold_archives;
+  PRAGMA user_version = 19;
+  UPDATE schema_meta SET schema_version = 19 WHERE meta_key = 'primary';
+  CREATE TRIGGER reject_fixture_migration BEFORE UPDATE ON schema_meta
+  WHEN NEW.schema_version = ${OPENCLAW_AGENT_SCHEMA_VERSION}
+  BEGIN SELECT RAISE(ABORT, 'synthetic schema publication failure'); END;`)
+const failureHistory = snapshot(failing)
+failing.close()
+await assert.rejects(agent.withAgentDatabaseMaintenanceLease({ env: process.env }, async maintenance => {
+  await agent.migrateOpenClawAgentDatabaseForMaintenance({ agentId: 'fixture-agent', pathname: databasePath }, maintenance)
+}), /synthetic schema publication failure/)
+const afterFailure = new DatabaseSync(databasePath, { readOnly: true })
+assert.equal(afterFailure.prepare('PRAGMA user_version').get().user_version, 19)
+assert.equal(afterFailure.prepare('SELECT schema_version FROM schema_meta').get().schema_version, 19)
+assert.deepEqual(snapshot(afterFailure), failureHistory)
+afterFailure.close()
+shared.closeOpenClawStateDatabaseForTest()
+console.log('PASS: failed schema publication rolls back version markers and preserves history')
 console.log('Synthetic fixture retained for migration qualification:', root)
