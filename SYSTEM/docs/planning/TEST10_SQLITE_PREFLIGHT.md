@@ -1,7 +1,8 @@
 # Test10 SQLite preflight qualification
 
-Status: read-only diagnostic checkpoint; automatic migration/startup wiring is
-not qualified. Dashboard owns the remaining implementation and image gate.
+Status: conventional agent-schema startup refusal is implemented; automatic
+migration and container acceptance remain unqualified. Dashboard owns the
+remaining implementation and image gate.
 
 The candidate helper is `SYSTEM/dashboard/scripts/sqlite-preflight.cjs`.
 It invokes `openclaw doctor --session-sqlite validate
@@ -66,3 +67,32 @@ disposable synthetic state directory; it does not use an installed workspace.
 
 The shared handoff remains `CLI-WEB-DASHBOARD-01` /
 `test10-storage-and-fleet-rotation`. No image or deployment authority is granted.
+
+## Packaged health false-positive and startup refusal
+
+Source checkpoint `2a0fc6f3`: a disposable packaged OpenClaw 2026.9.5 gateway
+returned authenticated health success while leaving schema-19 storage unchanged
+and reporting unavailable sessions. Health success alone cannot qualify storage.
+The optional `CLAWMAX_TEST_PACKAGED_STARTUP=true` fixture now reproduces that
+limitation, gracefully stops its gateway, and checks the new refusal gate.
+
+`openclaw-schema-gate.cjs` is packaged in the image and runs before gateway and
+Dashboard startup. It reads conventional `agents/*/agent/openclaw-agent.sqlite`
+stores without repair, requiring both schema markers to equal pinned version 21.
+Old/newer/mismatched markers, corrupt databases and linked inventory entries
+refuse startup with bounded codes. It never removes leases or runs repair.
+Existing legacy JSON migration still precedes this gate; that existing repair
+path is not covered by the read-only guarantee.
+
+Focused evidence: 54 synthetic current-schema stores accepted with identical
+database bytes; old/newer/mismatched/corrupt/linked stores refused; entrypoint
+tests prove schema failure starts neither gateway nor Dashboard. Dockerfile
+contracts, shutdown tests and TypeScript passed. Real leased migration and
+forced rollback/history-preservation checks passed after reproducing the health
+gap. This is not a 54-agent authenticated gateway or built-container test.
+
+Limits: this is a schema-marker guard, not integrity validation, custom-path
+inventory discovery, credential validation or a stopped-runtime migration tool.
+Those acceptance gates remain open. The schema constant must track the pinned
+runtime; the opt-in real fixture asserts that alignment. The user's preceding
+green full-suite report predates this checkpoint and is not acceptance of it.
