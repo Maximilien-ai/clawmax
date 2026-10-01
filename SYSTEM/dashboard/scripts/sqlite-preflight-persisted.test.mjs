@@ -7,8 +7,11 @@ import { pathToFileURL } from 'node:url'
 import { createHash } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import { createRequire } from 'node:module'
+import { spawn, spawnSync } from 'node:child_process'
+import net from 'node:net'
 const require = createRequire(import.meta.url)
 const { preflight } = require('./sqlite-preflight.cjs')
+const { checkSchemas, EXPECTED_AGENT_SCHEMA } = require('../openclaw-schema-gate.cjs')
 
 const source = process.env.CLAWMAX_TEST_OPENCLAW_PACKAGE_ROOT
 assert(source, 'Explicit pinned runtime source required')
@@ -63,11 +66,61 @@ assert.equal(old.ready, false, 'Historical schema must not receive successful qu
 assert.equal(hash(), legacyBefore, 'Refused historical schema must remain unchanged')
 console.log('PASS: historical schema refused and unchanged')
 const { OPENCLAW_AGENT_SCHEMA_VERSION } = await load('src/state/openclaw-agent-db-contract.ts')
+if (process.env.CLAWMAX_TEST_PACKAGED_STARTUP === 'true') {
+  const reservation = net.createServer()
+  await new Promise(resolve => reservation.listen(0, '127.0.0.1', resolve))
+  const port = reservation.address().port
+  await new Promise(resolve => reservation.close(resolve))
+  const token = 'synthetic-isolated-gateway-token'
+  const cfg = JSON.parse(fs.readFileSync(config, 'utf8'))
+  cfg.gateway = { mode: 'local', bind: 'loopback', port, auth: { mode: 'token', token }, controlUi: { enabled: false } }
+  cfg.agents.defaults = { workspace: path.join(root, 'workspace'), heartbeat: { every: '0m' } }
+  cfg.cron = { enabled: false }
+  fs.writeFileSync(config, JSON.stringify(cfg), { mode: 0o600 })
+  const log = fs.openSync(path.join(root, 'gateway.log'), 'w', 0o600)
+  const gateway = spawn(process.env.OPENCLAW_BIN, ['gateway', 'run', '--port', String(port), '--bind', 'loopback'], {
+    env: { ...process.env, OPENCLAW_NO_RESPAWN: '1', OPENCLAW_SKIP_CHANNELS: '1', OPENCLAW_DISABLE_BONJOUR: '1' },
+    cwd: root, detached: true, stdio: ['ignore', log, log],
+  })
+  let spawnError
+  gateway.on('error', error => { spawnError = error })
+  try {
+    let ready = false
+    const deadline = Date.now() + 180000
+    while (Date.now() < deadline) {
+      assert(!spawnError && gateway.exitCode === null && gateway.signalCode === null, 'Isolated gateway exited before authenticated readiness')
+      const probe = spawnSync(process.env.OPENCLAW_BIN, ['gateway', 'call', 'health', '--json', '--timeout', '3000', '--url', `ws://127.0.0.1:${port}`, '--token', token], { env: process.env, encoding: 'utf8', timeout: 10000, maxBuffer: 1024 * 1024 })
+      if (probe.status === 0) { ready = true; break }
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+    assert(ready, 'Packaged runtime failed authenticated startup within 180 seconds')
+  } finally {
+    if (gateway.pid && gateway.exitCode === null && gateway.signalCode === null) {
+      process.kill(-gateway.pid, 'SIGTERM')
+      const deadline = Date.now() + 30000
+      while (gateway.exitCode === null && gateway.signalCode === null && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100))
+      if (gateway.exitCode === null && gateway.signalCode === null) {
+        process.kill(-gateway.pid, 'SIGKILL')
+        throw new Error('Isolated gateway did not settle after graceful stop')
+      }
+    }
+    fs.closeSync(log)
+  }
+  const db = new DatabaseSync(databasePath, { readOnly: true })
+  try {
+    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 19)
+    assert.deepEqual(snapshot(db), retained)
+  } finally { db.close() }
+  assert.equal(checkSchemas(state).code, 'agent_schema_maintenance_required')
+  console.log('PASS: schema gate rejects legacy storage despite authenticated gateway health; history preserved')
+}
 await agent.withAgentDatabaseMaintenanceLease({ env: process.env }, async maintenance => {
   await agent.migrateOpenClawAgentDatabaseForMaintenance({ agentId: 'fixture-agent', pathname: databasePath }, maintenance)
 })
 const migrated = agent.openOpenClawAgentDatabase({ agentId: 'fixture-agent', env: process.env })
 assert.equal(migrated.db.prepare('PRAGMA user_version').get().user_version, OPENCLAW_AGENT_SCHEMA_VERSION)
+assert.equal(EXPECTED_AGENT_SCHEMA, OPENCLAW_AGENT_SCHEMA_VERSION, 'Startup gate must match the pinned runtime schema')
+assert.deepEqual(checkSchemas(state), { ready: true, checked: 1 })
 assert.equal(migrated.db.prepare('SELECT entry_valid FROM session_nodes').get().entry_valid, 1)
 assert.deepEqual(snapshot(migrated.db), retained, 'Migration must preserve synthetic history exactly')
 agent.closeOpenClawAgentDatabasesForTest()

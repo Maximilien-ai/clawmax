@@ -195,7 +195,7 @@ unset GATEWAY_HEALTH_EXIT_CODE
 # The real main path must not start Dashboard config writers before gateway
 # migration/authenticated readiness, and must fail closed on readiness errors.
 : > "$LOG_FILE"
-for readiness_exit in 0 1; do
+for readiness_exit in 0 1 2; do
   : > "$LOG_FILE"
   if READINESS_EXIT="$readiness_exit" sh -c '
     . "$1"
@@ -205,6 +205,7 @@ for readiness_exit in 0 1; do
     ensure_openclaw_cli() { :; }
     sync_gateway_config() { :; }
     migrate_openclaw_2_state() { :; }
+    verify_persisted_agent_schemas() { [ "$READINESS_EXIT" != 2 ]; }
     ensure_gateway_auth_token() { :; }
     get_gateway_port() { echo 18789; }
     gateway_authenticated_ready() { return 1; }
@@ -222,9 +223,10 @@ for readiness_exit in 0 1; do
     [ "$readiness_exit" = 0 ] || { echo "Dashboard started after failed gateway readiness" >&2; exit 1; }
     [ "$(cat "$LOG_FILE")" = "$(printf 'gateway-start\ngateway-ready\nwatchdog-start\ndashboard-start')" ]
   else
-    [ "$readiness_exit" = 1 ] || { echo "Dashboard did not start after gateway readiness" >&2; exit 1; }
+    [ "$readiness_exit" != 0 ] || { echo "Dashboard did not start after gateway readiness" >&2; exit 1; }
     assert_not_contains "dashboard-start" "$LOG_FILE"
     assert_not_contains "watchdog-start" "$LOG_FILE"
+    if [ "$readiness_exit" = 2 ]; then assert_not_contains "gateway-start" "$LOG_FILE"; fi
   fi
 done
 

@@ -518,6 +518,13 @@ shutdown_children() {
   done
 }
 
+verify_persisted_agent_schemas() {
+  if ! node /app/SYSTEM/dashboard/openclaw-schema-gate.cjs "${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"; then
+    echo "[startup] Persisted agent schema inspection failed. Keep the runtime stopped, back up its state, and complete qualified offline OpenClaw maintenance before restarting. No leases or databases were repaired by this check." >&2
+    return 1
+  fi
+}
+
 main() {
   # Keep an init for adopted children and a supervisor that waits for every
   # owned service's graceful shutdown, including gateway lease release.
@@ -532,6 +539,7 @@ main() {
   ensure_openclaw_cli
   sync_gateway_config
   migrate_openclaw_2_state
+  verify_persisted_agent_schemas
   ensure_gateway_auth_token
 
   gateway_port="$(get_gateway_port)"

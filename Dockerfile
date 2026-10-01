@@ -265,6 +265,7 @@ COPY SKILLS/custom/clawmax-mail ./SKILLS/custom/clawmax-mail
 COPY SYSTEM/schemas ./SYSTEM/schemas
 COPY SYSTEM/dashboard/.env.example ./SYSTEM/dashboard/.env.example
 COPY SYSTEM/dashboard/docker-entrypoint.sh ./SYSTEM/dashboard/docker-entrypoint.sh
+COPY SYSTEM/dashboard/openclaw-schema-gate.cjs ./SYSTEM/dashboard/openclaw-schema-gate.cjs
 COPY SYSTEM/dashboard/openclaw-auth-store.mjs ./SYSTEM/dashboard/openclaw-auth-store.mjs
 COPY SYSTEM/dashboard/openclaw-workspace-state.mjs ./SYSTEM/dashboard/openclaw-workspace-state.mjs
 COPY SYSTEM/dashboard/offline-backup.mjs ./SYSTEM/dashboard/offline-backup.mjs

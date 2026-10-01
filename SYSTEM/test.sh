@@ -1524,6 +1524,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running BYOK helper unit tests...${NC}"
+if node --test scripts/openclaw-schema-gate.test.cjs; then
+  pass "Persisted agent schema startup gate"
+else
+  fail "Persisted agent schema startup gate"
+fi
 if node --test scripts/sqlite-preflight.test.cjs; then
   pass "SQLite preflight bounded report tests"
 else
