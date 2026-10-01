@@ -1,7 +1,8 @@
 # Personal workspace clearing — acceptance
 
-Requested September 30, 2026. Status: pending implementation; not part of the
-preceding green test result. Owner: Dashboard. Never exercise against a user's
+Requested September 30, 2026. Status: source implementation with bounded safety
+refusals; full/live acceptance pending. Not part of the preceding green test
+result. Owner: Dashboard. Never exercise against a user's
 real Personal workspace without separate explicit destructive-test approval.
 
 ## Product contract
@@ -61,3 +62,35 @@ remove content. The switcher nevertheless says content is permanently deleted.
 Do not call that handler to implement clearing or claim it provides cleanup.
 Ordinary-workspace deletion semantics need a separate focused correction; this
 request does not authorize changing other workspaces or deleting real user data.
+
+## Implementation checkpoint — September 30 (Pacific)
+
+- `d8c1145c`: preview-bound confirmation, retained Personal registry/root,
+  native registration/schedule cleanup before file deletion, durable failure
+  fencing and retry. Only conventional, exclusively owned runtime paths are
+  supported; linked/custom/profile/shared agent storage refuses cleanup.
+- `e39ef8b5`: switcher action and two-step dialog; typed `CLEAR PERSONAL`,
+  cancellation, bounded errors, pending/success presentation and focus handling.
+- `bc81b8e0`: preflight refuses removal of the entire configured runtime roster
+  and possible shared-auth owners (`main` and configured auth-inheritance owner).
+  OpenClaw 2026.9.5 `agents.delete` explicitly forbids deleting its sole agent.
+  No keeper agent or credential relocation has been silently introduced.
+- Focused verification passed: 10 filesystem/coordinator tests, mocked runtime
+  and HTTP-admission tests, 10 existing workspace route tests, recovery admission
+  and recovery-serving tests, TypeScript, lint and shell syntax.
+- Disposable browser tests and screenshots passed at 1440px and 390px: cancel
+  both steps, incorrect phrase refusal, exact confirmation payload, success,
+  non-JSON failure, visible actions and final irreversible warning. Browser
+  responses were mocked; this is not native gateway or provider acceptance.
+
+Still open: agreement and implementation for the all-agents-in-Personal case
+(a runtime-only keeper outside Personal is one option), shared credential owner
+handling, full integration/coverage, and native clear/restart/new-agent chat
+acceptance on an explicitly disposable instance. Until then do not describe the
+feature as unrestricted or release-qualified. Active work must finish first;
+other Dashboard operations pause during cleanup and pending recovery.
+
+Browser test: run `node scripts/workspace-clear-browser.test.mjs` from
+`SYSTEM/dashboard`; supply `CLAWMAX_TEST_PLAYWRIGHT_PATH` when Playwright is not
+locally installed and optionally `CLAWMAX_TEST_CHROME_PATH` for an existing
+Chrome executable. The test starts its own loopback fixture with mocked APIs.
