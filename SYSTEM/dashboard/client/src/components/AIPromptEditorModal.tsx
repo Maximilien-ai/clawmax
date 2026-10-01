@@ -155,8 +155,8 @@ export default function AIPromptEditorModal({
           </button>
         </div>
         <div className="flex min-h-0 flex-1 flex-col px-4 py-3 sm:px-5">
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
               AI Editor
             </div>
@@ -208,7 +208,7 @@ export default function AIPromptEditorModal({
             </div>
           </div>
           {effectiveAttachments.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex shrink-0 flex-wrap gap-2">
               {effectiveAttachments.map((attachment) => (
                 <div key={attachment.id} className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
                   <span>{attachment.isImage ? 'Image' : 'File'}: {attachment.name}</span>
@@ -231,10 +231,10 @@ export default function AIPromptEditorModal({
           ) : null}
           <div
             ref={splitContainerRef}
-            className={`grid min-h-0 gap-4 ${showPreview ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_12px_minmax(280px,var(--ai-preview-width,380px))]' : 'grid-cols-1'}`}
+            className={`grid min-h-[96px] flex-1 gap-4 ${showPreview ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_12px_minmax(280px,var(--ai-preview-width,380px))]' : 'grid-cols-1'}`}
             style={showPreview ? ({ ['--ai-preview-width' as string]: `${previewWidth}px` }) : undefined}
           >
-            <div className="relative">
+            <div className="relative flex min-h-[96px]">
               {expandedFlash ? (
                 <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950 dark:text-emerald-200">
                   AI expanded
@@ -246,7 +246,7 @@ export default function AIPromptEditorModal({
                 onChange={(e) => setDraft(e.target.value)}
                 rows={Math.min(rows, 6)}
                 placeholder={placeholder}
-                className={`h-[clamp(96px,16dvh,160px)] min-h-[96px] max-h-[32dvh] w-full resize-y rounded-lg border bg-white px-4 py-3 text-sm text-gray-900 transition-[border-color,box-shadow,background-color] duration-300 focus:ring-2 focus:ring-purple-500 dark:bg-gray-900 dark:text-gray-100 ${
+                className={`min-h-[96px] w-full flex-1 resize-none rounded-lg border bg-white px-4 py-3 text-sm text-gray-900 transition-[border-color,box-shadow,background-color] duration-300 focus:ring-2 focus:ring-purple-500 dark:bg-gray-900 dark:text-gray-100 ${
                   expandedFlash
                     ? 'border-emerald-300 bg-emerald-50/50 shadow-[0_0_0_3px_rgba(16,185,129,0.18)] dark:border-emerald-700 dark:bg-emerald-950/20'
                     : 'border-gray-200 dark:border-gray-700'
@@ -278,7 +278,7 @@ export default function AIPromptEditorModal({
               </div>
             ) : null}
           </div>
-          <PromptQualityPanel prompt={draft} domain={qualityDomain} />
+          <div className="shrink-0 pb-1"><PromptQualityPanel prompt={draft} domain={qualityDomain} /></div>
           </div>
           {onExpandWithAi ? (
             <div className="shrink-0 space-y-2 border-t border-gray-200 pt-3 dark:border-gray-700">

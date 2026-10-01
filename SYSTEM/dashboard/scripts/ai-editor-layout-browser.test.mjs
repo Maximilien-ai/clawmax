@@ -16,7 +16,8 @@ await server.listen()
 let browser
 try {
   browser = await chromium.launch({ headless: true, ...(process.env.CLAWMAX_TEST_CHROME_PATH ? { executablePath: process.env.CLAWMAX_TEST_CHROME_PATH } : {}) })
-  for (const [width, height] of [[1440, 900], [1280, 720], [390, 844], [320, 568]]) {
+  let desktopPromptHeight = 0
+  for (const [width, height] of [[1440, 900], [1440, 1100], [1280, 720], [390, 844], [320, 568]]) {
     const page = await browser.newPage({ viewport: { width, height } })
     await page.route('**/api/**', route => route.fulfill({ json: {} }))
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/test-fixtures/ai-editor.html`)
@@ -36,8 +37,10 @@ try {
     }
     await expand.waitFor()
     await visibleWithoutScroll()
-    assert((await prompt.boundingBox()).height <= 180)
-    await page.screenshot({ path: path.join(artifacts, `${width}-initial.png`) })
+    const promptHeight = (await prompt.boundingBox()).height
+    if (width === 1440 && height === 900) desktopPromptHeight = promptHeight
+    if (width === 1440 && height === 1100) assert(promptHeight > desktopPromptHeight + 100, 'Prompt must grow into available vertical space')
+    await page.screenshot({ path: path.join(artifacts, `${width}-${height}-initial.png`) })
     await direction.fill('concise')
     await expand.click()
     await page.getByText('AI expanded', { exact: true }).waitFor()
@@ -57,5 +60,5 @@ try {
     await visibleWithoutScroll()
     await page.close()
   }
-  console.log(`AI editor layout passed: four desktop/mobile sizes, no-scroll actions, expansion/save, long draft/preview, error and empty states. Screenshots: ${artifacts}`)
+  console.log(`AI editor layout passed: five desktop/mobile sizes, growing prompt area, no-scroll actions, expansion/save, long draft/preview, error and empty states. Screenshots: ${artifacts}`)
 } finally { await browser?.close(); await server.close() }
