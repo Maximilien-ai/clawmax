@@ -53,7 +53,7 @@ RUN retry() { \
     else \
       retry 3 5 npm install --legacy-peer-deps --ignore-scripts; \
     fi
-RUN command -v ps && ps -s 1 -L -o pgid=,state= >/dev/null
+RUN command -v ps && ps -eL -o pgid=,state= >/dev/null
 RUN npm run build:docker
 RUN node /tmp/patch-openclaw-fs-safe.mjs /opt/openclaw-src
 # Match the local/CI preparation path: install the bundled plugin payloads
