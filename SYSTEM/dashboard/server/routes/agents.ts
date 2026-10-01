@@ -2,6 +2,7 @@ import express, { Router } from 'express'
 import { execFileSync, execSync, spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
+import { hasAgentDirectory } from '../lib/agent-directory'
 import os from 'os'
 import { streamZipExport } from '../lib/zip-export'
 import { hasNativeChatStore, readNativeChatTranscript } from '../lib/native-chat-history'
@@ -1384,7 +1385,7 @@ router.post('/doctor', async (req, res) => {
   if (requestedAgentId !== undefined && (typeof requestedAgentId !== 'string' || !/^[a-z][a-z0-9_-]*$/.test(requestedAgentId))) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
-  if (requestedAgentId && !fs.existsSync(path.join(getAgentsDir(), requestedAgentId))) {
+  if (requestedAgentId && !hasAgentDirectory(getAgentsDir(), requestedAgentId)) {
     return res.status(404).json({ error: 'Agent not found' })
   }
   const results: Array<{ id: string; checks: Array<{ check: string; status: 'pass' | 'fail' | 'fixed' | 'warn'; message: string }> }> = []
@@ -3201,7 +3202,7 @@ router.get('/:id/config', (req, res) => {
 router.post('/:id/config/repair', (req, res) => {
   const { id } = req.params
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) return res.status(400).json({ error: 'Invalid agent id' })
-  if (!fs.existsSync(path.join(getAgentsDir(), id))) return res.status(404).json({ error: 'Agent not found' })
+  if (!hasAgentDirectory(getAgentsDir(), id)) return res.status(404).json({ error: 'Agent not found' })
   const { identity, soul, tools } = req.body || {}
   if ([identity, soul, tools].some(value => typeof value !== 'string')) return res.status(400).json({ error: 'All three config sections must be strings' })
   // Draft-only: preserve unsaved edits and use the normal save path for persistence.
