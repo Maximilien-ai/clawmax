@@ -28,6 +28,23 @@ Evidence on September 30, 2026:
 
 Still required before startup integration or image qualification:
 
+Persisted-fixture follow-up (`37794e13`): the pinned session validation command
+returned zero targets for a current SQLite-only agent. The wrapper now compares
+reported Agent IDs against databases in the conventional state-directory agent
+inventory and refuses omitted targets. Six focused tests and the real pinned
+runtime fixture test passed; both current and schema-19 database bytes were
+unchanged. The schema-19 fixture follows the upstream historical fixture shape.
+This proves refusal/preservation, **not successful schema migration**. Custom
+database locations and complete registered inventory still need qualification;
+the session validation command alone is insufficient for general startup gating.
+
+The opt-in persisted test is
+`SYSTEM/dashboard/scripts/sqlite-preflight-persisted.test.mjs`. Supply
+`CLAWMAX_TEST_OPENCLAW_PACKAGE_ROOT`, `OPENCLAW_BIN`, and
+`TSX_TSCONFIG_PATH` pointing to the pinned source `tsconfig.json`, and run Node
+with `--import <pinned-source>/scripts/tsx.mjs`. It creates and retains only a
+disposable synthetic state directory; it does not use an installed workspace.
+
 - Representative current and older-schema databases with synthetic data; prove
   all expected stores are discovered and unchanged by read-only validation.
 - Safe stopped-runtime migration and verified post-migration reads, including
