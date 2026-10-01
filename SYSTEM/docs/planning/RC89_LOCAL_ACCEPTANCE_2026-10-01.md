@@ -5,6 +5,30 @@ not a declaration that RC89 is qualified or its images exist.
 
 ## Engineering gate
 
+### Twenty-agent browser group diagnosis (October 1, afternoon Pacific)
+
+- Owner observed successful replies interspersed with four apparent gateway
+  failures. Correlated runtime logs identified model-policy rejection for CEO
+  (LM Studio) and competitor-research-assistant, competitor-research-assistant1,
+  Jarvis (Ollama), not a connectivity failure for those four requests.
+- Under the owner's earlier unrestricted-model instruction, dev's default
+  allowlist was cleared with a private config backup. Per-agent policies and
+  selected models were preserved. This is an explicit dev-owner action, not an
+  automatic permission-widening migration for other instances.
+- Error presentation now prioritizes model-policy rejection over gateway wrapper
+  text, including repeated client presentation. Focused suites: 13 client and 40
+  server tests passed; TypeScript passed. Fix commit: `77cb9911`.
+- CEO's synthetic LM Studio retry returned exactly LOCAL_OK in 58,498 ms.
+  The three Ollama agents instead exposed missing-provider-auth errors. Both local
+  servers answer model-list requests and the selected models exist; discovery is
+  not inference acceptance. The documented non-secret local auth marker was
+  configured only for the verified loopback Ollama endpoint, but hot-reload
+  retries still failed. A controlled idle gateway restart reported ready;
+  post-restart Jarvis still failed with missing-provider-auth in 8,143 ms. A plain
+  restart is not sufficient. Next: trace provider auth resolution/native profile
+  registration without weakening remote-provider authentication. Ollama agents
+  remain blocked; do not request another full-group acceptance yet.
+
 ### Dev-only 2026.9.7 migration checkpoint (October 1, late morning Pacific)
 
 - Owner authorized backed-up, stopped-runtime `doctor --fix --non-interactive`.
