@@ -19,6 +19,23 @@ const fixture = `const configHandlers = {
   "config.apply": async () => ({ writeOptions }),
 }; globalThis.handlers = configHandlers;`
 const patched = patchRosterRemoval(fixture)
+const restartFixture = `const configHandlers = {
+  "config.patch": async () => {
+    await commitConfigRestartWrite({
+      requestParams: params,
+      mode: "config.patch",
+      writeSnapshot,
+      writeConfig,
+    });
+  },
+  "config.apply": async () => ({ writeOptions }),
+}; globalThis.handlers = configHandlers;`
+const restartPatched = patchRosterRemoval(restartFixture)
+assert.equal(patchRosterRemoval(restartPatched), restartPatched)
+assert.throws(() => patchRosterRemoval(restartFixture.replace('      writeSnapshot,', '      writeSnapshot: changed,')), /Unsupported/)
+const bundledRestart = restartFixture.replace(/^      /gm, '\t\t\t').replace(/^    /gm, '\t\t').replace(/^  /gm, '\t')
+const bundledRestartPatched = patchBundledRosterRemoval(bundledRestart)
+assert.equal(patchBundledRosterRemoval(bundledRestartPatched), bundledRestartPatched)
 const bundledFixture = fixture.replace(/^      /gm, '\t\t\t').replace(/^    /gm, '\t\t').replace(/^  /gm, '\t')
 const bundled = patchBundledRosterRemoval(bundledFixture)
 assert.equal(patchBundledRosterRemoval(bundled), bundled)
@@ -53,8 +70,11 @@ for (const scenario of [
   { entries: {}, expected: [] },
   { entries: { first: null }, hashless: true, expected: [] },
 ]) {
-  for (const candidate of [patched, bundled]) {
+  for (const candidate of [patched, bundled, restartPatched, bundledRestartPatched]) {
+    let restartResult
     const context = vm.createContext({
+      params: {}, writeSnapshot: { snapshot: {}, writeOptions: { expectedHash: 'revision', allowedAgentRosterRemovals: ['must-not-leak'] } },
+      commitConfigRestartWrite: async value => { restartResult = value.writeSnapshot },
       snapshot: {}, writeOptions: { expectedHash: 'revision', allowedAgentRosterRemovals: ['must-not-leak'] },
       writeConfig: {}, hashlessPatch: scenario.hashless || false,
       normalizedPatch: { agents: { entries: scenario.entries } },
@@ -62,7 +82,8 @@ for (const scenario of [
       commitGatewayConfigWriteOrRespond: async value => value,
     })
     vm.runInContext(candidate, context)
-    const result = await context.handlers['config.patch']()
+    const directResult = await context.handlers['config.patch']()
+    const result = restartResult || directResult
     assert.deepEqual(Array.from(result.writeOptions.allowedAgentRosterRemovals), scenario.expected)
     assert.equal(result.writeOptions.expectedHash, 'revision')
     assert.deepEqual((await context.handlers['config.apply']()).writeOptions.allowedAgentRosterRemovals, ['must-not-leak'])
