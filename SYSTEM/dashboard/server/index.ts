@@ -17,6 +17,7 @@ import skillsRouter from './routes/skills'
 import skillSecretBrokerRouter, { skillSecretBrokerRuntimeRouter } from './routes/skill-secret-broker'
 import mailOAuthRouter, { createMailRuntimeRouter } from './routes/mail-oauth'
 import workspacesRouter from './routes/workspaces'
+import { clearPending, isClearRoute, isClearRecoveryRead, workspaceClearRequestGate } from './lib/workspace-clear-http'
 import workspaceDashboardsRouter from './routes/workspace-dashboards'
 import chatRouter from './routes/chat'
 import logsRouter from './routes/logs'
@@ -304,7 +305,16 @@ const authLimiter = rateLimit({
 })
 app.use('/api', globalLimiter)
 app.use('/api/auth', authLimiter)
-app.use('/api', recoveryRequestGate(() => recoveryServingGate.ready))
+app.use('/api', workspaceClearRequestGate())
+app.use('/api', recoveryRequestGate(() => recoveryServingGate.ready, (pathname, method) => clearPending() && (isClearRoute(pathname) || (method === 'GET' && isClearRecoveryRead(pathname)))))
+app.use('/api/workspaces/default/clear', (_req, res, next) => {
+  res.once('finish', () => {
+    if (!recoveryServingGate.ready && !clearPending()) {
+      try { recoveryServingGate.resume() } catch { /* Other recovery still pending. */ }
+    }
+  })
+  next()
+})
 app.get('/api/health/live', (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json({ alive: true }) })
 app.get('/api/recovery', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store')

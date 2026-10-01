@@ -3153,6 +3153,16 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Workspace manager unit tests...${NC}"
+if npx ts-node --transpile-only server/lib/workspace-clear.test.ts; then
+  pass "Personal workspace clear safety tests"
+else
+  fail "Personal workspace clear safety tests"
+fi
+if npx ts-node --transpile-only server/lib/workspace-clear-runtime.test.ts; then
+  pass "Personal workspace clear runtime tests"
+else
+  fail "Personal workspace clear runtime tests"
+fi
 npx ts-node --transpileOnly server/lib/workspace-manager.test.ts > /tmp/clawmax-workspace-manager.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-manager.out; then
   workspace_manager_count=$(grep "Tests passed:" /tmp/clawmax-workspace-manager.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
