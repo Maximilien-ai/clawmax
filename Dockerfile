@@ -22,6 +22,8 @@ RUN git clone https://github.com/openclaw/openclaw.git . \
 COPY SYSTEM/patch-openclaw-fs-safe.mjs /tmp/patch-openclaw-fs-safe.mjs
 COPY SYSTEM/patch-openclaw-roster-removal.mjs /tmp/patch-openclaw-roster-removal.mjs
 RUN node /tmp/patch-openclaw-roster-removal.mjs /opt/openclaw-src
+COPY SYSTEM/configure-openclaw-packaging.mjs /tmp/configure-openclaw-packaging.mjs
+RUN node /tmp/configure-openclaw-packaging.mjs /opt/openclaw-src
 
 RUN openclaw_pnpm_version="$(node -p "String(require('./package.json').packageManager || '').match(/^pnpm@([^+]+)/)?.[1] || ''")" \
   && test -n "${openclaw_pnpm_version}" \

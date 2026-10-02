@@ -47,6 +47,8 @@ assert_contains "COPY SYSTEM/patch-openclaw-roster-removal.mjs /tmp/patch-opencl
 assert_contains "RUN node /tmp/patch-openclaw-roster-removal.mjs /opt/openclaw-src"
 assert_contains "RUN node /tmp/patch-openclaw-fs-safe.mjs /opt/openclaw-src"
 assert_contains "RUN pnpm --config.ignore-scripts=true pack"
+assert_contains "COPY SYSTEM/configure-openclaw-packaging.mjs /tmp/configure-openclaw-packaging.mjs"
+assert_contains "RUN node /tmp/configure-openclaw-packaging.mjs /opt/openclaw-src"
 assert_contains "COPY SYSTEM/ensure-openclaw-default-plugins.sh /tmp/ensure-openclaw-default-plugins.sh"
 assert_contains "HOME=/app /tmp/ensure-openclaw-default-plugins.sh"
 assert_contains "RUN node scripts/postinstall-bundled-plugins.mjs \\"
@@ -131,4 +133,5 @@ assert_contains 'actual_sha="$(sha256sum /tmp/droid | awk '"'"'{print $1}'"'"')"
 assert_contains '[ -n "$droid_expected_sha" ] && [ "$actual_sha" = "$droid_expected_sha" ]'
 assert_contains 'droid" --version | grep -F "${FACTORY_DROID_VERSION}"'
 
+node "$ROOT_DIR/SYSTEM/configure-openclaw-packaging.test.mjs"
 echo "dockerfile openclaw builder tests passed"
