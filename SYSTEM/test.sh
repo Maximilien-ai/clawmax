@@ -2358,9 +2358,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running dynamic API security boundary tests...${NC}"
-npx ts-node --transpileOnly server/lib/security-boundaries-dynamic.test.ts > /tmp/clawmax-security-boundaries-dynamic.out 2>&1 || true
-if grep -q "security-boundaries-dynamic.test.ts: 15 tests passed" /tmp/clawmax-security-boundaries-dynamic.out; then
-  pass "Dynamic API security boundary tests (15 tests)"
+npx ts-node --transpileOnly server/lib/security-boundaries-dynamic.test.ts > /tmp/clawmax-security-boundaries-dynamic.out 2>&1
+security_dynamic_status=$?
+if [ "$security_dynamic_status" -eq 0 ] && grep -Eq "security-boundaries-dynamic.test.ts: [0-9]+ tests passed" /tmp/clawmax-security-boundaries-dynamic.out; then
+  security_dynamic_count=$(sed -n 's/.*security-boundaries-dynamic.test.ts: \([0-9][0-9]*\) tests passed.*/\1/p' /tmp/clawmax-security-boundaries-dynamic.out | tail -n 1)
+  pass "Dynamic API security boundary tests (${security_dynamic_count} tests)"
 else
   cat /tmp/clawmax-security-boundaries-dynamic.out
   fail "Dynamic API security boundary tests"

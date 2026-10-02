@@ -679,6 +679,11 @@ async function run() {
   })
 
   await test('group mentions surface runtime fs errors instead of generic no-response placeholders', async () => {
+    const originalPackageRoot = process.env.OPENCLAW_PACKAGE_ROOT
+    const fixturePackageRoot = path.join(tmpHome, 'synthetic-openclaw')
+    fs.mkdirSync(path.join(fixturePackageRoot, 'dist'), { recursive: true })
+    // This test mocks execution, so never borrow the host runtime's auth bridge.
+    process.env.OPENCLAW_PACKAGE_ROOT = fixturePackageRoot
     const childProcess = require('child_process')
     const originalSpawn = childProcess.spawn
     const originalFetch = global.fetch
@@ -791,6 +796,8 @@ async function run() {
       const entry = saved.agents?.entries?.['double-agent'] || saved.agents?.list?.find((entry: any) => entry.id === 'double-agent')
       assert.strictEqual(entry.model, 'openai-compatible/qwen/qwen3.6-27b', 'Group chat must not temporarily rewrite the selected agent model')
     } finally {
+      if (originalPackageRoot === undefined) delete process.env.OPENCLAW_PACKAGE_ROOT
+      else process.env.OPENCLAW_PACKAGE_ROOT = originalPackageRoot
       cliResolver.resolveOpenClawCliPath = originalResolveCli
       childProcess.spawn = originalSpawn
       global.fetch = originalFetch
