@@ -271,6 +271,7 @@ COPY SYSTEM/schemas ./SYSTEM/schemas
 COPY SYSTEM/dashboard/.env.example ./SYSTEM/dashboard/.env.example
 COPY SYSTEM/dashboard/docker-entrypoint.sh ./SYSTEM/dashboard/docker-entrypoint.sh
 COPY SYSTEM/dashboard/openclaw-schema-gate.cjs ./SYSTEM/dashboard/openclaw-schema-gate.cjs
+RUN node ./SYSTEM/dashboard/openclaw-schema-gate.cjs --verify-runtime /usr/local/lib/node_modules/openclaw
 COPY SYSTEM/dashboard/openclaw-auth-store.mjs ./SYSTEM/dashboard/openclaw-auth-store.mjs
 COPY SYSTEM/dashboard/openclaw-workspace-state.mjs ./SYSTEM/dashboard/openclaw-workspace-state.mjs
 COPY SYSTEM/dashboard/offline-backup.mjs ./SYSTEM/dashboard/offline-backup.mjs

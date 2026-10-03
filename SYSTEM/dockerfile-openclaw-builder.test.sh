@@ -47,6 +47,7 @@ assert_contains "COPY SYSTEM/patch-openclaw-roster-removal.mjs /tmp/patch-opencl
 assert_contains "RUN node /tmp/patch-openclaw-roster-removal.mjs /opt/openclaw-src"
 assert_contains "RUN node /tmp/patch-openclaw-fs-safe.mjs /opt/openclaw-src"
 assert_contains "RUN pnpm --config.ignore-scripts=true pack"
+assert_contains "RUN node ./SYSTEM/dashboard/openclaw-schema-gate.cjs --verify-runtime /usr/local/lib/node_modules/openclaw"
 assert_contains "COPY SYSTEM/configure-openclaw-packaging.mjs /tmp/configure-openclaw-packaging.mjs"
 assert_contains "RUN node /tmp/configure-openclaw-packaging.mjs /opt/openclaw-src"
 assert_contains "COPY SYSTEM/ensure-openclaw-default-plugins.sh /tmp/ensure-openclaw-default-plugins.sh"
