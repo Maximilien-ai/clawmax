@@ -2347,6 +2347,12 @@ else
 fi
 
 echo -e "${YELLOW}→ Running API security boundary tests...${NC}"
+if node --test scripts/security-audit.test.js >/tmp/clawmax-security-audit-contract.out 2>&1; then
+  pass "Dependency audit exception contract tests"
+else
+  cat /tmp/clawmax-security-audit-contract.out
+  fail "Dependency audit exception contract tests"
+fi
 npx ts-node --transpileOnly server/lib/security-boundaries.test.ts > /tmp/clawmax-security-boundaries.out 2>&1
 security_boundaries_status=$?
 if [ "$security_boundaries_status" -eq 0 ] && grep -Eq "security-boundaries.test.ts: [0-9]+ tests passed" /tmp/clawmax-security-boundaries.out; then
