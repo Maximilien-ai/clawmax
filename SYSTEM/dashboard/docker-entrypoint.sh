@@ -439,7 +439,7 @@ start_gateway_with_lease_recovery() {
     fi
     if [ -n "${gateway_pid:-}" ]; then wait "$gateway_pid" 2>/dev/null || true; fi
     if ! tail -c "+$((lease_log_offset + 1))" "$CLAWMAX_GATEWAY_LOG" 2>/dev/null \
-      | grep -F 'Gateway failed to start: Another Gateway owner lease is still active for this state directory.' >/dev/null; then
+      | grep -F 'Another Gateway owner lease is still active for this state directory' >/dev/null; then
       return 1
     fi
     if [ "$(date +%s)" -ge "$lease_deadline" ]; then

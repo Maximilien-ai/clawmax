@@ -460,7 +460,7 @@ fi
   sleep() { recovery_now=$((recovery_now + 5)); }
   gateway_port_listening() { return 1; }
   wait_for_gateway_ready() { return 0; }
-  lease_error() { echo 'Gateway failed to start: Another Gateway owner lease is still active for this state directory.' >> "$CLAWMAX_GATEWAY_LOG"; }
+  lease_error() { echo 'Gateway failed to start: failed to acquire gateway state ownership | Another Gateway owner lease is still active for this state directory' >> "$CLAWMAX_GATEWAY_LOG"; }
   start_gateway_run() {
     recovery_attempts=$((recovery_attempts + 1))
     if [ "$recovery_attempts" -lt 3 ]; then lease_error; return 1; fi
