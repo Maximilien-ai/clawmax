@@ -1,6 +1,11 @@
 # Backlog
 
-> Last updated: September 30, 2026
+- [ ] **RC89 development dependency advisory** — Dashboard: replace or update
+  the Tailwind 3 `braces@3.0.3` chain when a maintained fix is available,
+  remove the exact internal-RC audit exception, and verify full and production
+  audits by October 17, 2026 UTC. Keep customer distribution gated on review.
+
+> Last updated: October 3, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Mini Sprint
