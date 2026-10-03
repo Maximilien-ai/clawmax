@@ -225,7 +225,7 @@ function scheduleWorkflow(workflowId: string, schedule: string, timezone?: strin
   console.log(`[Scheduler] Scheduled ${workflowId}: ${schedule} (${normalizedTimezone})`)
 }
 
-function unscheduleWorkflow(workflowId: string) {
+export function unscheduleWorkflow(workflowId: string) {
   const existing = activeJobs.get(workflowId)
   if (existing) {
     existing.task.stop()

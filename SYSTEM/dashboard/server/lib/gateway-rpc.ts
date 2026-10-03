@@ -659,6 +659,15 @@ export class GatewayRPCClient {
     }
   }
 
+  /** Revision-bound creation of the non-workspace runtime keeper. */
+  async createWorkspaceClearKeeper(entry: Record<string, unknown>, baseHash: string): Promise<void> {
+    if (!baseHash) throw new Error('A runtime configuration revision is required')
+    await this.callConfig('config.patch', {
+      raw: JSON.stringify({ agents: { entries: { 'clawmax-runtime-keeper': entry } } }),
+      baseHash,
+    })
+  }
+
   /** Compare-and-swap a scoped Template roster patch; never retry without the
    * original revision. The transaction coordinator reconciles ambiguous writes.
    */

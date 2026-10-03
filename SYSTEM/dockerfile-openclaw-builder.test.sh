@@ -40,11 +40,16 @@ assert_contains "retry() { \\"
 assert_contains "retry 3 5 pnpm install --frozen-lockfile --ignore-scripts;"
 assert_contains "retry 3 5 npm ci --legacy-peer-deps --ignore-scripts;"
 assert_contains "RUN npm run build:docker"
+assert_contains "git ca-certificates python3 make g++ procps"
+assert_contains "RUN command -v ps && ps -eL -o pgid=,state= >/dev/null"
 assert_contains "COPY SYSTEM/patch-openclaw-fs-safe.mjs /tmp/patch-openclaw-fs-safe.mjs"
 assert_contains "COPY SYSTEM/patch-openclaw-roster-removal.mjs /tmp/patch-openclaw-roster-removal.mjs"
 assert_contains "RUN node /tmp/patch-openclaw-roster-removal.mjs /opt/openclaw-src"
 assert_contains "RUN node /tmp/patch-openclaw-fs-safe.mjs /opt/openclaw-src"
 assert_contains "RUN pnpm --config.ignore-scripts=true pack"
+assert_contains "RUN node ./SYSTEM/dashboard/openclaw-schema-gate.cjs --verify-runtime /usr/local/lib/node_modules/openclaw"
+assert_contains "COPY SYSTEM/configure-openclaw-packaging.mjs /tmp/configure-openclaw-packaging.mjs"
+assert_contains "RUN node /tmp/configure-openclaw-packaging.mjs /opt/openclaw-src"
 assert_contains "COPY SYSTEM/ensure-openclaw-default-plugins.sh /tmp/ensure-openclaw-default-plugins.sh"
 assert_contains "HOME=/app /tmp/ensure-openclaw-default-plugins.sh"
 assert_contains "RUN node scripts/postinstall-bundled-plugins.mjs \\"
@@ -60,7 +65,7 @@ assert_contains "ARG TARGETARCH"
 assert_contains '    tini \'
 grep -Fq 'exec /usr/bin/tini -- "$0" "$@"' "$ROOT_DIR/SYSTEM/dashboard/docker-entrypoint.sh" \
   || { echo "Expected wrapped container entrypoints to install a child-reaping init" >&2; exit 1; }
-assert_contains "ARG OPENCLAW_CODEX_APP_SERVER_VERSION=0.154.0"
+assert_contains "ARG OPENCLAW_CODEX_APP_SERVER_VERSION=0.158.0"
 assert_contains 'npm install -g --include=optional "@openai/codex@${OPENCLAW_CODEX_APP_SERVER_VERSION}"'
 assert_contains "require('/usr/local/lib/node_modules/@openai/codex/package.json').version"
 assert_contains 'codex --version | grep -F "${OPENCLAW_CODEX_APP_SERVER_VERSION}"'
@@ -95,7 +100,7 @@ grep -Fq 'CLAWMAX_ENABLED_PLUGINS=clawmax-lifecycle,plugin-review-notes' "$TEST_
   || { echo "Expected public test images to enable only public product plugins" >&2; exit 1; }
 grep -Fq 'test "$OPENCLAW_CODEX_APP_SERVER_BIN" = /usr/local/bin/codex' "$TEST_IMAGE_WORKFLOW" \
   || { echo "Expected public image validation to exercise the configured Codex app-server binary" >&2; exit 1; }
-test "$(grep -Fc '*0.154.0*)' "$TEST_IMAGE_WORKFLOW")" -eq 2 \
+test "$(grep -Fc '*0.158.0*)' "$TEST_IMAGE_WORKFLOW")" -eq 2 \
   || { echo "Expected public image validation to enforce the pinned Codex app-server version" >&2; exit 1; }
 
 assert_not_contains() {
@@ -129,4 +134,5 @@ assert_contains 'actual_sha="$(sha256sum /tmp/droid | awk '"'"'{print $1}'"'"')"
 assert_contains '[ -n "$droid_expected_sha" ] && [ "$actual_sha" = "$droid_expected_sha" ]'
 assert_contains 'droid" --version | grep -F "${FACTORY_DROID_VERSION}"'
 
+node "$ROOT_DIR/SYSTEM/configure-openclaw-packaging.test.mjs"
 echo "dockerfile openclaw builder tests passed"

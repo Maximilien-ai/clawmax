@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { readIntegrationValidationResponse } from '../lib/integrationValidationResponse'
 import { createPortal } from 'react-dom'
 import { MobileSafeDialog } from './MobileSafeDialog'
 import { CLOUD_LOCAL_EXECUTION_NOTICE, cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
@@ -1425,27 +1426,9 @@ export function ByokWizard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scopedPayload),
+        signal: AbortSignal.timeout(30000),
       })
-      const contentType = res.headers.get('content-type') || ''
-      if (!contentType.includes('application/json')) {
-        setValidation({
-          openai: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          openaiCompatible: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          anthropic: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          gemini: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          openrouter: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          xai: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          ollama: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          opik: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          senso: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          cognee: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-          digo: { status: 'skipped', message: 'Validation unavailable from the current server build' },
-        })
-        showInfo('Integration validation is unavailable on the current server build. Saving local settings without blocking.')
-        return true
-      }
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to validate integrations')
+      const data = await readIntegrationValidationResponse(res)
       const nextState: ValidationState = {
         openai: { status: data.openai?.status || 'idle', message: data.openai?.message || '' },
         openaiCompatible: { status: data.openaiCompatible?.status || 'idle', message: data.openaiCompatible?.message || '' },
@@ -1500,7 +1483,12 @@ export function ByokWizard({
       )
       return true
     } catch (err: any) {
-      showWarning(err.message || 'Failed to validate integrations')
+      const message = 'Integration validation unavailable. Settings may be saved, but are not verified. Retry validation when the service is ready.'
+      const affected = (key: string) => providerScope ? key === providerScope : scope === 'current-partner' ? key === currentPartnerSlug : true
+      setValidation(current => Object.fromEntries(Object.entries(current).map(([key, entry]) =>
+        [key, affected(key) ? { status: 'error', message } : entry])) as ValidationState)
+      updateStoredVerification(current => Object.fromEntries(Object.entries(current).filter(([key]) => !affected(key))))
+      showWarning(message)
       return false
     } finally {
       setValidating(false)
@@ -1680,25 +1668,13 @@ export function ByokWizard({
     }, currentSharedSecrets)
     writeSharedSecrets(nextSharedSecrets, { scope: 'global' })
 
-    // The PUT below replaces the whole config, so every field must carry a fresh value. If the user
-    // never toggled a CLI in this wizard instance, re-read the server's current enabledRuntimes so a
-    // stale instance (e.g. Partners, opened before Runtime enabled a CLI) can't clobber it.
-    // Read the server's RESOLVED enabled set (config OR env default) so a non-editing instance
-    // sends the effective value instead of clobbering it with a blind [] — critically, this
-    // preserves a WORKSPACES_INTEGRATIONS_RUNTIMES default that was never written to config.
-    let enabledRuntimesToSave = enabledRuntimes
-    if (!isCloud && !enabledRuntimesDirtyRef.current) {
-      try {
-        const latest = await fetch('/api/integrations/runtimes').then((r) => (r.ok ? r.json() : null))
-        const serverList = latest?.enabledRuntimes
-        if (Array.isArray(serverList)) {
-          enabledRuntimesToSave = serverList.filter(isSelectableRuntimeId)
-        }
-      } catch { /* keep local value on fetch failure */ }
-    }
+    // Omission preserves the server's current effective selection atomically.
+    // Saving keys must never wait for CLI discovery or overwrite unseen runtime edits.
+    const enabledRuntimesToSave = enabledRuntimesDirtyRef.current ? enabledRuntimes : undefined
 
     const putOk = await fetch('/api/integrations/config', {
       method: 'PUT',
+      signal: AbortSignal.timeout(15_000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         preferredModel: preferredModel || undefined,
@@ -1730,8 +1706,12 @@ export function ByokWizard({
 
     // Only adopt the saved runtime value and clear dirty if the PUT actually persisted. On a failed
     // save the edit stays dirty so it isn't silently marked clean / lost.
+    if (!putOk) {
+      showWarning('Workspace integration settings could not be saved. Your edits remain open; retry when the server is available.')
+      return
+    }
     if (putOk) {
-      setEnabledRuntimes(enabledRuntimesToSave)
+      if (enabledRuntimesToSave !== undefined) setEnabledRuntimes(enabledRuntimesToSave)
       enabledRuntimesDirtyRef.current = false
     }
 
@@ -2303,8 +2283,9 @@ export function ByokWizard({
 
     return (
       <div key={`${partner.slug}-${field.key}`}>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{field.label}</label>
+        <label htmlFor={`partner-${partner.slug}-${field.key}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{field.label}</label>
         <input
+          id={`partner-${partner.slug}-${field.key}`}
           type={field.type === 'password' ? 'password' : 'text'}
           value={value}
           onChange={(e) => setPartnerField(partner.slug, field.key, e.target.value, field.secret)}
@@ -2370,7 +2351,7 @@ export function ByokWizard({
                 <button onClick={goToPreviousStep} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">&larr; Back</button>
               ) : null}
               <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                {currentPartner?.validation && currentPartner.slug !== 'github' && !isMailOAuthProvider(currentPartner.slug) && (
+                {currentPartner?.validation && currentPartner.validation.mode !== 'status' && currentPartner.slug !== 'github' && !isMailOAuthProvider(currentPartner.slug) && (
                   <button onClick={() => runValidation('current-partner')} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-60">
                     {validating ? 'Checking…' : currentPartner.validation.label || 'Check Keys'}
                   </button>
@@ -3510,6 +3491,7 @@ export function ByokWizard({
                     </div>
                   )}
                   {currentPartner.slug === 'resend' && renderResendTestEmailPanel()}
+                  {currentPartner.slug === 'agentforge' && <button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => window.dispatchEvent(new Event('open-agentforge-sharing'))}>Review participant sharing consent</button>}
                   {currentPartner.validation && currentPartner.slug !== 'github' && !isMailOAuthProvider(currentPartner.slug) && renderPartnerValidation(currentPartner)}
                   {currentPartner.slug === 'opik' && (
                     <div className="flex justify-end">

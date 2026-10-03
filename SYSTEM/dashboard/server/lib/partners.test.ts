@@ -99,14 +99,15 @@ test('digo partner exposes server API key and HTTPS ingestion URL fields', () =>
   assert(/consent/i.test(partner.validation?.helperText || ''), 'Expected Digo readiness copy to mention consent')
 })
 
-test('agentforge partner is honest about its catalog-only Activity Export boundary', () => {
+test('agentforge exposes server-managed setup without implying participant consent', () => {
   process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'agentforge'
   const partner = listPartnerDefinitions()[0]
   assert(partner.slug === 'agentforge', 'Expected agentforge partner')
   assert(partner.name === 'NYU - AgentForge', 'Expected NYU - AgentForge display name')
-  assert((partner.fields || []).length === 0, 'Catalog-only AgentForge entry must not expose inactive export configuration fields')
-  assert(!partner.validation, 'Catalog-only AgentForge entry must not imply that connection validation is available')
-  assert(/planned opt-in/i.test(partner.description), 'Expected AgentForge description to disclose planned status')
+  assert(partner.fields?.some(field => field.key === 'apiKey' && field.secret && field.storage === 'server') === true, 'API key must stay server-managed')
+  assert(partner.fields?.some(field => field.key === 'privacyUrl') === true, 'Privacy notice must be configurable')
+  assert(partner.validation?.mode === 'status', 'Do not imply a legacy provider key validator')
+  assert(partner.validation?.helperText?.includes('consent') === true, 'Configuration is not consent')
   assert(partner.docsUrl === 'https://github.com/Maximilien-ai/clawmax/blob/main/PARTNERS/agentforge/PARTNER.md', 'Expected a specific public setup document')
 })
 

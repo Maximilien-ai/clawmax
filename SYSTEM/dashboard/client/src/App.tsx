@@ -16,6 +16,7 @@ import { ToastProvider } from './components/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { WorkspaceProvider } from './contexts/WorkspaceContext'
+import { AgentForgeSharing } from './components/AgentForgeSharing'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { AuthGate } from './components/AuthGate'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
@@ -844,6 +845,7 @@ export default function App() {
         <AuthGate>
         <ToastProvider>
         <WorkspaceProvider>
+          <AgentForgeSharing />
         <AgentReadinessProvider>
           <ConnectionStatus />
           <WorkspaceDialog

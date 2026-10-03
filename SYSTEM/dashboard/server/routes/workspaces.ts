@@ -1,4 +1,7 @@
 import express from 'express'
+import crypto from 'crypto'
+import { personalWorkspaceClear } from '../lib/workspace-clear-runtime'
+import { WorkspaceClearError } from '../lib/workspace-clear'
 import { getWorkspaceManager } from '../lib/workspace-manager'
 import path from 'path'
 import { streamZipExport } from '../lib/zip-export'
@@ -21,6 +24,20 @@ import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../li
 
 const router = express.Router()
 const workspaceManager = getWorkspaceManager()
+
+// Parent mounting retains Dashboard authentication; confirmations bind to the
+// authenticated browser credential, not a caller-supplied actor or workspace.
+const clearActor = (req: express.Request) => crypto.createHash('sha256').update(String(req.headers.authorization || req.headers.cookie || 'local-auth-bypass')).digest('hex')
+router.post('/default/clear/preview', (req, res) => {
+  try { res.setHeader('Cache-Control', 'no-store'); res.json(personalWorkspaceClear.preview(clearActor(req))) }
+  catch (error) { res.status(error instanceof WorkspaceClearError ? error.status : 503).json({ error: error instanceof WorkspaceClearError ? error.message : 'Personal inventory is unavailable; nothing was cleared' }) }
+})
+router.post('/default/clear', async (req, res) => {
+  try {
+    if (!req.body || Object.keys(req.body).some(key => !['token', 'confirmation', 'acknowledged'].includes(key))) return res.status(400).json({ error: 'Invalid clear confirmation' })
+    res.json(await personalWorkspaceClear.clear(clearActor(req), req.body))
+  } catch (error) { res.status(error instanceof WorkspaceClearError ? error.status : 503).json({ error: error instanceof WorkspaceClearError ? error.message : 'Personal clearing is unavailable; review its status before retrying' }) }
+})
 
 // GET /api/workspaces - List all workspaces
 router.get('/', (req, res) => {

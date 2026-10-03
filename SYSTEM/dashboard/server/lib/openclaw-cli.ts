@@ -7,7 +7,7 @@ import { REPO_ROOT } from './paths'
 function isExecutable(filePath: string): boolean {
   try {
     fs.accessSync(filePath, fs.constants.X_OK)
-    return true
+    return fs.statSync(filePath).isFile()
   } catch {
     return false
   }
@@ -28,7 +28,9 @@ function resolveFromPath(): string | null {
 
 export function resolveOpenClawCliPath(): string | null {
   const override = String(process.env.OPENCLAW_BIN || '').trim()
-  if (override && isExecutable(override)) return override
+  // An explicit pin is authoritative. Falling back can run an older executable
+  // against a newer state database and make readiness/partner results disagree.
+  if (override) return isExecutable(override) ? override : null
 
   const fromPath = resolveFromPath()
   if (fromPath && isExecutable(fromPath)) return fromPath

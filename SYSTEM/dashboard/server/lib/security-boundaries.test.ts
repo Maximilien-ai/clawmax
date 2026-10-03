@@ -179,4 +179,25 @@ try {
   Object.assign(process.env, originalEnv)
 }
 
+const { browserMutationGuard } = require('./http-security')
+for (const scenario of [
+  { method: 'POST', headers: { Origin: 'https://dashboard.example.com', Cookie: 'session=fixture' }, allowed: true },
+  { method: 'POST', headers: { Origin: 'http://localhost:5174', Cookie: 'session=fixture' }, allowed: true },
+  { method: 'POST', headers: { Origin: 'https://attacker.example', Cookie: 'session=fixture' }, allowed: false },
+  { method: 'DELETE', headers: { Origin: 'https://dashboard.example.com.attacker.example' }, allowed: false },
+  { method: 'POST', headers: { Origin: 'null' }, allowed: false },
+  { method: 'PATCH', headers: { Cookie: 'session=fixture' }, allowed: false },
+  { method: 'POST', headers: { Referer: 'https://dashboard.example.com/agents', Cookie: 'session=fixture' }, allowed: true },
+  { method: 'POST', headers: { 'Sec-Fetch-Site': 'cross-site' }, allowed: false },
+  { method: 'POST', headers: { 'Sec-Fetch-Site': 'same-site' }, allowed: false },
+  { method: 'POST', headers: { Authorization: 'Bearer fixture' }, allowed: true },
+  { method: 'GET', headers: { Cookie: 'session=fixture' }, allowed: true },
+]) {
+  let allowed = false, status = 0
+  browserMutationGuard(['http://localhost:5174'])({ method: scenario.method, protocol: 'https',
+    get: (name: string) => name === 'host' ? 'dashboard.example.com' : (scenario.headers as Record<string, string | undefined>)[name],
+  }, { status: (value: number) => { status = value; return { json: () => {} } } }, () => { allowed = true })
+  assert(allowed === scenario.allowed, 'Browser mutation origin admission must match expected policy')
+  assert(allowed || status === 403, 'Rejected mutations must return 403 before execution')
+}
 console.log(`security-boundaries.test.ts: ${assertionsRun} tests passed`)

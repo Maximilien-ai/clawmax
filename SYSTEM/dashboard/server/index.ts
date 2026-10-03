@@ -17,6 +17,7 @@ import skillsRouter from './routes/skills'
 import skillSecretBrokerRouter, { skillSecretBrokerRuntimeRouter } from './routes/skill-secret-broker'
 import mailOAuthRouter, { createMailRuntimeRouter } from './routes/mail-oauth'
 import workspacesRouter from './routes/workspaces'
+import { clearPending, isClearRoute, isClearRecoveryRead, workspaceClearRequestGate } from './lib/workspace-clear-http'
 import workspaceDashboardsRouter from './routes/workspace-dashboards'
 import chatRouter from './routes/chat'
 import logsRouter from './routes/logs'
@@ -56,7 +57,7 @@ import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
 import { detectRuntimeStatuses, resolveEnabledRuntimes, resolveWorkspaceRuntime } from './lib/agent-runtime'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
-import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins, resolveDashboardBindHost } from './lib/http-security'
+import { browserMutationGuard, applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins, resolveDashboardBindHost } from './lib/http-security'
 import { getTenantResourceLimitConfig, getTenantResourceLimits } from './lib/tenant-resource-limits'
 import { reconcileInterruptedWorkflowExecutions } from './lib/workflows'
 import { startPluginUsageMonitor, stopPluginUsageMonitor } from './lib/plugin-usage-monitor'
@@ -278,6 +279,7 @@ app.use(cors({
 }))
 app.use(express.json())
 app.use(cookieParser())
+app.use('/api', browserMutationGuard(allowedCorsOrigins))
 
 // Rate limiting — global: 1000 req/min, auth: 20 req/min
 const authBypassMode = isDashboardAuthBypassAllowed(process.env)
@@ -304,7 +306,16 @@ const authLimiter = rateLimit({
 })
 app.use('/api', globalLimiter)
 app.use('/api/auth', authLimiter)
-app.use('/api', recoveryRequestGate(() => recoveryServingGate.ready))
+app.use('/api', workspaceClearRequestGate())
+app.use('/api', recoveryRequestGate(() => recoveryServingGate.ready, (pathname, method) => clearPending() && (isClearRoute(pathname) || (method === 'GET' && isClearRecoveryRead(pathname)))))
+app.use('/api/workspaces/default/clear', (_req, res, next) => {
+  res.once('finish', () => {
+    if (!recoveryServingGate.ready && !clearPending()) {
+      try { recoveryServingGate.resume() } catch { /* Other recovery still pending. */ }
+    }
+  })
+  next()
+})
 app.get('/api/health/live', (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json({ alive: true }) })
 app.get('/api/recovery', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store')

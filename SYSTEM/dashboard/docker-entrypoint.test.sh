@@ -195,7 +195,7 @@ unset GATEWAY_HEALTH_EXIT_CODE
 # The real main path must not start Dashboard config writers before gateway
 # migration/authenticated readiness, and must fail closed on readiness errors.
 : > "$LOG_FILE"
-for readiness_exit in 0 1; do
+for readiness_exit in 0 1 2; do
   : > "$LOG_FILE"
   if READINESS_EXIT="$readiness_exit" sh -c '
     . "$1"
@@ -205,6 +205,7 @@ for readiness_exit in 0 1; do
     ensure_openclaw_cli() { :; }
     sync_gateway_config() { :; }
     migrate_openclaw_2_state() { :; }
+    verify_persisted_agent_schemas() { [ "$READINESS_EXIT" != 2 ]; }
     ensure_gateway_auth_token() { :; }
     get_gateway_port() { echo 18789; }
     gateway_authenticated_ready() { return 1; }
@@ -222,9 +223,10 @@ for readiness_exit in 0 1; do
     [ "$readiness_exit" = 0 ] || { echo "Dashboard started after failed gateway readiness" >&2; exit 1; }
     [ "$(cat "$LOG_FILE")" = "$(printf 'gateway-start\ngateway-ready\nwatchdog-start\ndashboard-start')" ]
   else
-    [ "$readiness_exit" = 1 ] || { echo "Dashboard did not start after gateway readiness" >&2; exit 1; }
+    [ "$readiness_exit" != 0 ] || { echo "Dashboard did not start after gateway readiness" >&2; exit 1; }
     assert_not_contains "dashboard-start" "$LOG_FILE"
     assert_not_contains "watchdog-start" "$LOG_FILE"
+    if [ "$readiness_exit" = 2 ]; then assert_not_contains "gateway-start" "$LOG_FILE"; fi
   fi
 done
 
@@ -325,8 +327,8 @@ rm -f "$HOME/.openclaw/openclaw.json"
 sync_gateway_config
 assert_contains '"port": 19999' "$HOME/.openclaw/openclaw.json"
 assert_contains '"token": "host-token"' "$HOME/.openclaw/openclaw.json"
-assert_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
-assert_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '"allow": [' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
 
@@ -341,8 +343,8 @@ cat > "$HOME/.openclaw/openclaw.json" <<'EOF'
 }
 EOF
 sync_gateway_config
-assert_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
-assert_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '"allow": [' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
 
@@ -357,7 +359,7 @@ rm -f "$HOME/.openclaw/openclaw.json"
 sync_gateway_config
 assert_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
 assert_contains '"custom-plugin"' "$HOME/.openclaw/openclaw.json"
-assert_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
 
 cat > "$TMP_DIR/host-openclaw.json" <<'EOF'
@@ -458,7 +460,7 @@ fi
   sleep() { recovery_now=$((recovery_now + 5)); }
   gateway_port_listening() { return 1; }
   wait_for_gateway_ready() { return 0; }
-  lease_error() { echo 'Gateway failed to start: Another Gateway owner lease is still active for this state directory.' >> "$CLAWMAX_GATEWAY_LOG"; }
+  lease_error() { echo 'Gateway failed to start: failed to acquire gateway state ownership | Another Gateway owner lease is still active for this state directory' >> "$CLAWMAX_GATEWAY_LOG"; }
   start_gateway_run() {
     recovery_attempts=$((recovery_attempts + 1))
     if [ "$recovery_attempts" -lt 3 ]; then lease_error; return 1; fi
@@ -492,4 +494,5 @@ fi
 )
 
 node --test "$ROOT_DIR/dashboard/scripts/entrypoint-shutdown.test.cjs"
+node "$ROOT_DIR/dashboard/cognee-policy.test.cjs"
 echo "docker-entrypoint gateway tests passed"
