@@ -19,6 +19,26 @@ clawmax_cache_lock() {
   CLAWMAX_CACHE_GATE_OWNER="${BASHPID:-$$}:${BASH_SUBSHELL:-0}"
   trap clawmax_cache_unlock EXIT
 }
+clawmax_cache_lock_wait() {
+  local root="$1" max_wait_sec="${2:-10}" deadline
+  case "$max_wait_sec" in
+    ''|*[!0-9]*) echo 'Invalid OpenClaw cache wait budget.' >&2; return 1 ;;
+  esac
+  [ "$max_wait_sec" -le 30 ] || max_wait_sec=30
+  deadline=$(( $(date +%s) + max_wait_sec ))
+  while true; do
+    # Runtime registration is brief, but parallel agent commands can overlap.
+    # Wait only for the owner to release the gate; never remove its lock.
+    if clawmax_cache_lock "$root" 2>/dev/null; then
+      return 0
+    fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      echo 'OpenClaw cache remains busy after a bounded wait. Inspect the owner or stale preparation lock; no cache files were changed.' >&2
+      return 1
+    fi
+    sleep 0.1
+  done
+}
 clawmax_cache_assert_idle() {
   local root="$1" lease pid listing
   for lease in "$root"/.runtime-leases/*; do
