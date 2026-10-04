@@ -12,6 +12,7 @@ export CLAWMAX_GATEWAY_WATCHDOG="${CLAWMAX_GATEWAY_WATCHDOG:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC="${CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC:-30}"
 # Existing rosters need time for SQLite integrity validation on cold startup.
 export CLAWMAX_GATEWAY_READY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_READY_TIMEOUT_SEC:-120}"
+export CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC="${CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC:-15}"
 export CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC:-330}"
 export CLAWMAX_GATEWAY_LOG="${CLAWMAX_GATEWAY_LOG:-/tmp/openclaw-gateway.log}"
 export CLAWMAX_HOST_OPENCLAW_CONFIG="${CLAWMAX_HOST_OPENCLAW_CONFIG:-/root/.openclaw/openclaw.json}"
@@ -363,11 +364,24 @@ gateway_authenticated_ready() {
   port="$1"
   gateway_token="$(get_gateway_auth_token)"
   [ -n "$gateway_token" ] || return 1
-  openclaw gateway call health \
+  probe_timeout_sec="$(gateway_probe_timeout_seconds)"
+  # OpenClaw's --timeout covers the RPC, not CLI startup. A wedged CLI must
+  # not prevent the owner-lease recovery loop from reaching its next attempt.
+  timeout -k 2s "${probe_timeout_sec}s" openclaw gateway call health \
     --json \
     --timeout 3000 \
     --url "ws://127.0.0.1:${port}" \
     --token "$gateway_token" >/dev/null 2>&1
+}
+
+gateway_probe_timeout_seconds() {
+  probe_budget="${CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC:-15}"
+  case "$probe_budget" in
+    ''|*[!0-9]*) probe_budget=15 ;;
+  esac
+  [ "$probe_budget" -gt 0 ] || probe_budget=1
+  [ "$probe_budget" -le 30 ] || probe_budget=30
+  printf '%s\n' "$probe_budget"
 }
 
 gateway_ready_timeout_seconds() {
