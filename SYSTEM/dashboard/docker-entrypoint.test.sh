@@ -143,6 +143,10 @@ export CLAWMAX_HOST_OPENCLAW_CONFIG="$TMP_DIR/host-openclaw.json"
 [ "$(CLAWMAX_GATEWAY_READY_TIMEOUT_SEC=invalid gateway_ready_timeout_seconds)" = 120 ]
 [ "$(CLAWMAX_GATEWAY_READY_TIMEOUT_SEC=45 gateway_ready_timeout_seconds)" = 45 ]
 [ "$(CLAWMAX_GATEWAY_READY_TIMEOUT_SEC=0 gateway_ready_timeout_seconds)" = 1 ]
+[ "$(CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC= gateway_probe_timeout_seconds)" = 15 ]
+[ "$(CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC=invalid gateway_probe_timeout_seconds)" = 15 ]
+[ "$(CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC=0 gateway_probe_timeout_seconds)" = 1 ]
+[ "$(CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC=90 gateway_probe_timeout_seconds)" = 30 ]
 
 [ "$NPM_CONFIG_CACHE" = "/tmp/clawmax-npm-cache" ] || {
   echo "Expected runtime npm cache to default to ephemeral storage" >&2
@@ -172,6 +176,19 @@ printf '%s\n' '{"gateway":{"auth":{"token":"real-gateway-token"}}}' > "$HOME/.op
 }
 printf '%s\n' "$generated_gateway_token" > "$GATEWAY_AUTH_TOKEN_FILE"
 printf '{"gateway":{"auth":{"token":"%s"}}}\n' "$generated_gateway_token" > "$HOME/.openclaw/openclaw.json"
+
+# A CLI bootstrap that hangs longer than its RPC timeout must not block lease
+# recovery. The outer probe deadline remains bounded even when OpenClaw sleeps.
+probe_started_at="$(date +%s)"
+if CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC=1 GATEWAY_HEALTH_DELAY_SEC=5 gateway_authenticated_ready "18789"; then
+  echo "Expected a slow gateway health CLI to time out" >&2
+  exit 1
+fi
+probe_elapsed="$(( $(date +%s) - probe_started_at ))"
+[ "$probe_elapsed" -le 3 ] || {
+  echo "Gateway health probe exceeded its outer deadline (${probe_elapsed}s)" >&2
+  exit 1
+}
 
 : > "$LOG_FILE"
 export SS_OUTPUT=""

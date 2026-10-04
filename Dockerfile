@@ -114,6 +114,7 @@ ARG QBO_LINUX_ARM64_SHA256=150cdb50c2dacc8c990c3594b358dcd84f2336de31cad73de266b
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates \
+    coreutils \
     curl \
     gh \
     git \
