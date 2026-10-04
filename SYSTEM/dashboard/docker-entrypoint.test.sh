@@ -180,7 +180,9 @@ printf '{"gateway":{"auth":{"token":"%s"}}}\n' "$generated_gateway_token" > "$HO
 # A CLI bootstrap that hangs longer than its RPC timeout must not block lease
 # recovery. The outer probe deadline remains bounded even when OpenClaw sleeps.
 probe_started_at="$(date +%s)"
-if CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC=1 GATEWAY_HEALTH_DELAY_SEC=5 gateway_authenticated_ready "18789"; then
+# macOS /bin/sh retains assignments made before shell-function calls. Isolate
+# this deliberately slow probe so later readiness cases use their normal timing.
+if (CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC=1 GATEWAY_HEALTH_DELAY_SEC=5 gateway_authenticated_ready "18789"); then
   echo "Expected a slow gateway health CLI to time out" >&2
   exit 1
 fi
