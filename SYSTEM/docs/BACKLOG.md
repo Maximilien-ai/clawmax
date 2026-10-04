@@ -1,9 +1,78 @@
 # Backlog
 
-> Last updated: September 24, 2026
+- [ ] **RC89 development dependency advisory** — Dashboard: replace or update
+  the Tailwind 3 `braces@3.0.3` chain when a maintained fix is available,
+  remove the exact internal-RC audit exception, and verify full and production
+  audits by October 17, 2026 UTC. Keep customer distribution gated on review.
+
+> Last updated: October 3, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Mini Sprint
+
+### RC89 blockers — stability, complete search, and installed-instance recovery
+
+This is the immediate priority over older RC headings below. Older incomplete
+checks remain historical/open evidence, not a claim that RC89 is ready.
+Execution plan: [September 29–30 stabilization](planning/RC89_STABILIZATION_2026-09-29.md).
+
+- [ ] **Clear Personal workspace without deleting it** — source implementation
+  pushed (`d8c1145c`, `e39ef8b5`, `bc81b8e0`, `90b9adf5`); full/live acceptance pending.
+  Two confirmations, scoped inventory, runtime cleanup, durable failure/retry and
+  workspace identity preservation are implemented. An owned runtime-only keeper
+  now supports clearing the final Personal agent on explicit keyed rosters.
+  Shared-credential owners and legacy/ambiguous ownership still refuse cleanup.
+  Native validation is blocked by missing dependencies in the local pinned
+  OpenClaw cache; repair it before full/native acceptance. Credential relocation
+  remains separate work, not implicitly authorized by keeper creation.
+  Acceptance: [Personal workspace clearing](planning/PERSONAL_WORKSPACE_CLEAR_ACCEPTANCE.md).
+  Current ordinary deletion only unregisters a workspace despite its permanent
+  content-deletion warning; do not reuse that handler as a successful clear.
+
+- [ ] **P0: Template apply split-state and persisted redaction sentinel** — CLI
+  repaired MBP14's nine-agent apply, but the product defect remains. Prevent
+  presentation/redacted config from entering authored config; journal filesystem
+  and native-registration mutations before execution; reconcile ambiguous commits
+  and exact owned rollback after failures/restarts. Never delete workspace files
+  while leaving committed registrations behind. Require clean and upgraded RC87
+  fixtures, scoped config fallback, bounded UI errors, and restart/idempotency tests.
+  See the stabilization plan's September 29 late handoff and acceptance gates.
+- [ ] **Dev responsiveness and BYOK save** — remove synchronous runtime probes
+  from request-critical paths; decouple credential save from catalog discovery;
+  bound requests and show pending/failure states. Diagnose gateway heap growth
+  without discarding sessions or masking it by merely raising memory limits.
+- [ ] **Rotated credentials** — verify effective Resend/Opik source precedence
+  and current protected-store revision, reload affected consumers, verify bounded
+  provider acceptance, and coordinate revocation. Never inspect/log raw values.
+  Metering failures must show unavailable/stale, not authoritative zero usage.
+- [ ] **Local-model admission and gateway recovery** — coordinate CLI's handoff:
+  budget complete prompts/tools/history/reserve before dispatch, avoid unchanged
+  oversized retries, persist terminal states, serialize drain/lease-aware recovery,
+  and refresh readiness after recovery. Do not start competing gateways.
+- [ ] **Agent Skills defaults to Available** — agent-origin navigation opens
+  Available, while explicit Assigned navigation remains usable; test agent switches,
+  deep links, empty/error states, and mobile.
+- [ ] **Complete live workspace search (MUST before RC89)** — authorized workspace
+  names, agents, workflows, groups, communities, skills, templates, and public host
+  plugin objects. Progressive independent results, complete pagination, explicit
+  source errors, stale-response fencing across workspace switches, correct links.
+- [ ] **Responsive search trigger** — full Search + Ctrl/Cmd+K when the header has
+  room; accessible loupe-only when constrained. Verify desktop/mobile, long workspace
+  names, zoom, keyboard opening, focus restoration, and no header overflow.
+- [ ] **Installed 2.0 RC recovery: Mike on-prem and owner's Mac mini** — separate
+  evidence/targets, exact image/runtime/architecture, preserved volumes, rollback,
+  upgrade, restart, chat, skills, workflow/history/brief and metering acceptance.
+  Keep MBP14 evidence separate; its recovery does not validate those targets.
+- [ ] **Joint CLI operations acceptance** — Maximilien-AI and AuctionsMax-AI:
+  validate/plan/apply/inspect/retry/cleanup, supported skill/auth flow, Agent and
+  Group chat, manual/scheduled workflows, briefs/reporting, persistence, and exact
+  cleanup in isolated workspaces. Freeze scope to stability, simpler interactions,
+  consistent status, and execution latency before RC89 image gates.
+  September 30 CLI reply: approved pre-created fixtures support Agent/Group chat
+  and Workflow execution; exact workspace cleanup and public Template lifecycle
+  contracts remain blockers. Dashboard process observation is implemented in
+  `7b8347d2` ([contract](planning/INSTANCE_RUNTIME_OBSERVATION_V1.md)); CLI
+  consumption and real single-target restart acceptance are still pending.
 
 - [ ] **RC86 on-prem offline upgrade recovery** — implement the versioned
   Dashboard backup/verify/restore contract, using OpenClaw's verified native
@@ -61,6 +130,31 @@
   during manual and AI-assisted agent creation, and repair the LM Studio model
   authorization regression reported in issue #189. Plan:
   [MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md).
+
+## Future RC — OpenClaw follow-up (after today's stabilization)
+
+Explicitly deferred: do not change today's pinned OpenClaw runtime or interrupt
+the current integration/validation/coverage run for this work.
+
+- [ ] **Follow up upstream reports** — check the previously submitted OpenClaw
+  issue and fix, starting with the recorded [issue #152047](https://github.com/openclaw/openclaw/issues/152047)
+  and [PR #152052](https://github.com/openclaw/openclaw/pull/152052), and correlate
+  any later reports from the CLI handoffs. Record actual merge/release status;
+  submission alone is not evidence that a released version contains the fix.
+- [ ] **Evaluate newer runtime releases** — review release notes and known
+  regressions against our current pin. Identify a candidate with evidence of
+  improved stability; newer alone does not mean more stable. Prioritize credible
+  upstream hints that address issues we actually experienced: gateway heap growth,
+  oversized local-model requests/retries, drain/lease/watchdog races, config hot
+  reload/cron recovery, redaction placeholders, and partial native registration.
+  Map each claimed fix to its issue/PR, released version, and our reproducer;
+  treat release-note hints as reasons to test, not proof of resolution.
+- [ ] **Run an isolated upgrade qualification for a later RC** — test preserved
+  state/schema compatibility, restore/rollback, plugin loading, template apply and
+  recovery, Agent/Group chat, workflows, local-model limits, gateway memory/restart
+  behavior, and CLI compatibility. Run full integration/validation/coverage and
+  cloud/on-prem acceptance before proposing a pin change. Retire compatibility
+  patches only after the upstream fix is verified in the candidate.
 
 ## Release Tracks
 

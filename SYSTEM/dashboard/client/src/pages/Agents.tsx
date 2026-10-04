@@ -2791,6 +2791,10 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [validationErrors, setValidationErrors] = React.useState<string[]>([])
   const [validating, setValidating] = React.useState(false)
   const [validationRequestError, setValidationRequestError] = React.useState<string | null>(null)
+  const [repairing, setRepairing] = React.useState(false)
+  const [repairResult, setRepairResult] = React.useState<string | null>(null)
+  const repairDraftRef = React.useRef({ identity, soul, tools })
+  repairDraftRef.current = { identity, soul, tools }
   const [modelPreference, setModelPreference] = React.useState<ModelFitPreference>('balanced')
   const [modelRecommendation, setModelRecommendation] = React.useState<ModelFitRecommendation | null>(null)
   const [modelRecommendationLoading, setModelRecommendationLoading] = React.useState(false)
@@ -3109,6 +3113,35 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-3 text-sm text-amber-800 dark:text-amber-300 whitespace-pre-line">
               <div className="font-medium mb-1">Validation service warning</div>
               {validationRequestError}
+            </div>
+          )}
+
+          {!loading && (validationErrors.length > 0 || warnings.length > 0 || repairResult) && (
+            <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950 dark:text-cyan-100">
+              <button type="button" disabled={repairing || saving} className="font-medium underline disabled:opacity-50" onClick={async () => {
+                setRepairing(true)
+                setRepairResult(null)
+                const submittedDraft = JSON.stringify({ identity, soul, tools })
+                try {
+                  const response = await fetch(`/api/agents/${agent.id}/config/repair`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: submittedDraft,
+                  })
+                  const result = await response.json()
+                  if (!response.ok) throw new Error(result.error || 'Doctor could not repair this draft')
+                  if (JSON.stringify(repairDraftRef.current) !== submittedDraft) throw new Error('Your draft changed during repair. Nothing was replaced; run Doctor again.')
+                  setIdentity(result.config.identity)
+                  setSoul(result.config.soul)
+                  setTools(result.config.tools)
+                  setValidationErrors(result.errors)
+                  setWarnings(result.warnings)
+                  setRepairResult(result.changes.length ? `${result.changes.join('; ')}. Review and Save to apply.` : 'No safe automatic changes found. Review the remaining guidance below; optional fields do not block saving.')
+                } catch (err: any) {
+                  setRepairResult(err.message || 'Doctor request failed. Your draft is unchanged.')
+                } finally { setRepairing(false) }
+              }}>{repairing ? 'Doctor is checking…' : 'Doctor — fix draft'}</button>
+              <p className="mt-1">Repairs missing names and document headings without changing tools, credentials, or permissions. Your edits are not saved until you choose Save.</p>
+              {repairResult && <p role="status" className="mt-2 break-words">{repairResult}</p>}
             </div>
           )}
 
@@ -3810,22 +3843,26 @@ const AgentCard = React.memo(function AgentCard({
                                 const resp = await fetch('/api/agents/doctor', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ fix: true }),
+                                  body: JSON.stringify({ fix: true, agentId: agent.id }),
                                 })
                                 const data = await resp.json()
+                                if (!resp.ok) throw new Error(data.error || 'Doctor request failed')
                                 const agentResult = data.results?.find((r: any) => r.id === agent.id)
+                                if (!agentResult) throw new Error('Doctor returned no result for this agent')
                                 if (agentResult) {
-                                  const fails = agentResult.checks.filter((c: any) => c.status === 'fail')
+                                  const fails = agentResult.checks.filter((c: any) => c.status === 'fail' || c.status === 'warn')
                                   const fixed = agentResult.checks.filter((c: any) => c.status === 'fixed')
                                   const pass = agentResult.checks.filter((c: any) => c.status === 'pass')
                                   const statusEl = document.getElementById(`doctor-status-${agent.id}`)
                                   if (statusEl) {
                                     statusEl.textContent = fails.length ? `✗ ${fails.map((f: any) => f.message).join('; ')}` : `✓ ${pass.length} passed${fixed.length ? `, ${fixed.length} fixed` : ''}`
                                     statusEl.className = `text-xs mt-1 ${fails.length ? 'text-red-500' : 'text-green-500'}`
-                                    setTimeout(() => { statusEl.textContent = ''; statusEl.className = '' }, 5000)
                                   }
                                 }
-                              } catch {}
+                              } catch (err: any) {
+                                const el = document.getElementById(`doctor-status-${agent.id}`)
+                                if (el) { el.textContent = err.message || 'Doctor failed. Try again.'; el.className = 'text-xs mt-1 text-red-500' }
+                              }
                             }}
                             className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors"
                           >
@@ -4488,26 +4525,26 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                           setShowActionsMenu(false)
                           setActionsMenuView('main')
                           try {
-                            const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: true }) })
+                            const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: true, agentId: agent.id }) })
                             const data = await resp.json()
+                            if (!resp.ok) throw new Error(data.error || 'Doctor request failed')
                             const r = (data.results || []).find((r: any) => r.id === agent.id)
+                            if (!r) throw new Error('Doctor returned no result for this agent')
                             if (r) {
-                              const fails = (r.checks || []).filter((c: any) => c.status === 'fail')
+                              const fails = (r.checks || []).filter((c: any) => c.status === 'fail' || c.status === 'warn')
                               const fixed = (r.checks || []).filter((c: any) => c.status === 'fixed')
                               const pass = (r.checks || []).filter((c: any) => c.status === 'pass')
-                              // Restart agent after doctor to revive it
-                              if (fixed.length > 0 || fails.length === 0) {
-                                try { await fetch(`/api/agents/${agent.id}/restart`, { method: 'POST' }) } catch {}
-                              }
                               const el = document.getElementById(`doctor-msg-${agent.id}`)
                               if (el) {
-                                const msg = fails.length ? `✗ ${fails.map((f: any) => f.message).join('; ')}` : `✓ ${pass.length} ok${fixed.length ? `, ${fixed.length} fixed, restarted` : ''}`
+                                const msg = fails.length ? `Needs attention: ${fails.map((f: any) => f.message).join('; ')}` : `✓ ${pass.length} ok${fixed.length ? `, ${fixed.length} fixed` : ''}`
                                 el.textContent = msg
                                 el.className = `text-[10px] mt-1 px-2 py-1 rounded block ${fails.length ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'}`
-                                setTimeout(() => { el.textContent = ''; el.className = '' }, 8000)
                               }
                             }
-                          } catch {}
+                          } catch (err: any) {
+                            const el = document.getElementById(`doctor-msg-${agent.id}`)
+                            if (el) { el.textContent = err.message || 'Doctor failed. Try again.'; el.className = 'text-xs mt-1 text-red-500' }
+                          }
                         }}
                         className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
                       >

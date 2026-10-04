@@ -173,6 +173,14 @@ test('returns empty for runtime status-only output so persisted-answer fallback 
   assert(normalized === '', `Expected status-only output to normalize to empty, got: ${normalized}`)
 })
 
+test('strips boxed stale Cognee deny diagnostics without losing the real reply', () => {
+  const warning = '│ - plugins.deny: plugin not found: cognee-openclaw (stale config entry │ │ ignored; remove it from plugins config) │'
+  assert(normalizeChatMessage(warning) === '', 'A warning alone is not an Agent reply')
+  assert(normalizeChatMessage(`${warning}\nHello from the agent.`) === 'Hello from the agent.', 'Preserve real reply')
+  const wrapped = '│ - plugins.deny: plugin not found: cognee-openclaw (stale config entry │\n│ ignored; remove it from plugins config) │'
+  assert(stripBenignChatRuntimeWarnings(wrapped).trim() === '', 'Strip wrapped diagnostics')
+})
+
 test('strips stale plugin allowlist config warning blocks from chat output', () => {
   const raw = `◇ Config warnings ───────────────────────────────────────────────────────╮ │ - plugins.allow: plugin not found: clawmax_no_non_bundled_plugins │ │ (stale config entry ignored; remove it from plugins config) │
 

@@ -20,6 +20,7 @@ import { extractZipBufferToWorkspace, resolveWorkspacePath } from '../lib/worksp
 import { getCuratedPartnerInstaller, listCuratedPartnerInstallers } from '../lib/partner-installs'
 import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
 import { safeEnv } from '../lib/safe-env'
+import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import {
   buildSkillRegistryInstallCommands,
   buildSkillRegistrySearchCommands,
@@ -212,8 +213,10 @@ type SkillSetupSession = {
 
 async function getCuratedPartnerPluginStatuses() {
   const installers = listCuratedPartnerInstallers()
-  const result: any = await execFileAsync('openclaw', ['plugins', 'list', '--json'], {
-    timeout: 30000,
+  const cli = resolveOpenClawCliPath()
+  if (!cli) throw new Error('OpenClaw CLI unavailable')
+  const result: any = await execFileAsync(cli, ['plugins', 'list', '--json'], {
+    timeout: 10000,
     env: safeEnv(),
     maxBuffer: 1024 * 1024 * 8,
   })
@@ -527,9 +530,11 @@ router.get('/partner-install/status', async (_req, res) => {
   try {
     res.json({ ok: true, statuses: await getCuratedPartnerPluginStatuses() })
   } catch (err: any) {
-    console.error('Curated partner plugin status error:', err.message)
-    res.status(500).json({
-      error: err.message || 'Failed to inspect curated partner plugin status',
+    // CLI failures can contain config paths or provider details. Keep both logs
+    // and the public response bounded, and never interpret failure as absence.
+    console.error('Curated partner plugin status unavailable')
+    res.status(503).json({
+      error: 'Partner plugin status is unavailable. Check the configured OpenClaw runtime and retry.',
       statuses: buildUnknownCuratedPartnerPluginStatuses(),
     })
   }

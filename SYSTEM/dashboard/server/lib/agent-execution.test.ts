@@ -21,6 +21,7 @@ import {
   readLatestAssistantUsageFromPersistedSession,
   resolvePersistedAgentSessionId,
   resolveAgentExecutionConfig,
+  resolvePinnedOpenClawAuthBridge,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
   shouldUpdateNativeAuthStore,
@@ -1813,6 +1814,33 @@ test('withTemporaryAgentAuthProfiles runs the normal openclaw auth-profile flow 
   )
 
   assert(sawAuthProfile, 'Expected auth-profiles.json to be written for the openclaw runtime')
+})
+
+test('pinned auth bridge refuses missing or invalid package roots without global fallback', () => {
+  const previousBin = process.env.OPENCLAW_BIN
+  const previousRoot = process.env.OPENCLAW_PACKAGE_ROOT
+  try {
+    process.env.OPENCLAW_BIN = '/synthetic/pinned/openclaw'
+    delete process.env.OPENCLAW_PACKAGE_ROOT
+    let missingRefused = false
+    try { resolvePinnedOpenClawAuthBridge() } catch (error) {
+      missingRefused = String(error).includes('matching OPENCLAW_PACKAGE_ROOT')
+    }
+    assert(missingRefused, 'A selected CLI must not borrow global storage code')
+    process.env.OPENCLAW_PACKAGE_ROOT = path.join(legacyPackage, 'missing')
+    let invalidRefused = false
+    try { resolvePinnedOpenClawAuthBridge() } catch (error) {
+      invalidRefused = String(error).includes('refusing global')
+    }
+    assert(invalidRefused, 'An unavailable explicit root must fail closed')
+    process.env.OPENCLAW_PACKAGE_ROOT = legacyPackage
+    assert(resolvePinnedOpenClawAuthBridge()?.packageRoot === legacyPackage, 'Use only the selected package')
+  } finally {
+    if (previousBin === undefined) delete process.env.OPENCLAW_BIN
+    else process.env.OPENCLAW_BIN = previousBin
+    if (previousRoot === undefined) delete process.env.OPENCLAW_PACKAGE_ROOT
+    else process.env.OPENCLAW_PACKAGE_ROOT = previousRoot
+  }
 })
 
 test('migrateLegacyOpenClawAuthStore publishes credentials and archives the retired JSON source', () => {

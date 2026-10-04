@@ -10,15 +10,16 @@ const script = fileURLToPath(new URL('./patch-openclaw-fs-safe.mjs', import.meta
 const dependency = path.join(root, 'node_modules/@openclaw/fs-safe')
 const run = () => execFileSync(process.execPath, [script, root], { encoding: 'utf8', stdio: 'pipe' })
 try {
+ for (const [version, dependencyVersion] of [['2026.9.5', '0.13.1'], ['2026.9.7', '0.21.1']]) {
   fs.mkdirSync(path.join(root, 'dist'), { recursive: true })
   fs.mkdirSync(path.join(dependency, 'dist'), { recursive: true })
-  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version: '2026.9.5', dependencies: { '@openclaw/fs-safe': '0.13.1' } }))
-  fs.writeFileSync(path.join(dependency, 'package.json'), JSON.stringify({ version: '0.13.1', type: 'module', main: 'dist/index.js' }))
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version, dependencies: { '@openclaw/fs-safe': dependencyVersion } }))
+  fs.writeFileSync(path.join(dependency, 'package.json'), JSON.stringify({ version: dependencyVersion, type: 'module', main: 'dist/index.js' }))
   fs.writeFileSync(path.join(dependency, 'dist/index.js'), 'export {}')
   const guard = path.join(root, 'dist/private-dir-mode-fixture.mjs')
   const guards = 'if (((await handle.stat()).mode & 511) !== mode) await handle.chmod(mode);\nif ((fs.fstatSync(fd).mode & 511) !== mode) fs.fchmodSync(fd, mode);'
   fs.writeFileSync(guard, guards)
-  const owner = path.join(dependency, 'dist/directory-mode-owner.js')
+  const owner = path.join(dependency, 'dist', version === '2026.9.7' ? 'directory-mode-node.js' : 'directory-mode-owner.js')
   const implementation = `export function ownDirectoryMode(p) { return {
     apply: async (mode) => { if (await p.inspect() !== mode) await p.chmod(mode) },
     close: p.close,
@@ -35,5 +36,6 @@ try {
   fs.writeFileSync(owner, implementation)
   fs.writeFileSync(path.join(dependency, 'package.json'), JSON.stringify({ version: '0.13.2', type: 'module', main: 'dist/index.js' }))
   assert.throws(run, /AssertionError/)
+ }
   console.log('Upstream OpenClaw filesystem verification tests passed')
 } finally { fs.rmSync(root, { recursive: true, force: true }) }

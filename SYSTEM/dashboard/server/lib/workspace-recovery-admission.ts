@@ -2,6 +2,12 @@ import fs from 'fs'
 import path from 'path'
 import { PortableTemplateError } from './portable-template-zip'
 import { templateStoragePath } from './template-storage-path'
+import { AsyncLocalStorage } from 'async_hooks'
+
+const clearOwner = new AsyncLocalStorage<string>()
+export function withWorkspaceClearOwner<T>(root: string, work: () => T): T {
+  return clearOwner.run(path.resolve(root), work)
+}
 
 const recoveringOrFailed = new Set<string>()
 
@@ -17,6 +23,9 @@ export function setWorkspaceRecoveryPending(root: string, pending: boolean): voi
 export function assertWorkspaceRecovered(root: string): void {
   try {
     if (recoveringOrFailed.has(path.resolve(root))) throw new Error('recovery not verified')
+    const clearRecord = templateStoragePath(root, '.clawmax-workspace-clear.json')
+    if (clearOwner.getStore() !== path.resolve(root) && fs.existsSync(clearRecord)
+      && JSON.parse(fs.readFileSync(clearRecord, 'utf8')).state !== 'complete') throw new Error('workspace clearing requires recovery')
     for (const relative of ['.clawmax/template-transaction.json', '.clawmax/template-gateway-transaction.json']) {
       if (fs.existsSync(templateStoragePath(root, relative))) throw new Error('pending recovery')
     }
