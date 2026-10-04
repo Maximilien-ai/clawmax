@@ -206,7 +206,7 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 . "$SCRIPT_DIR/openclaw-cache-guard.sh"
-clawmax_cache_lock "$work_root"
+clawmax_cache_lock_wait "$work_root" 10
 clawmax_cache_register_runtime "$work_root"
 clawmax_cache_unlock
 # Never inherit a removable cache/workspace as the process working directory.
