@@ -89,6 +89,7 @@ console.log(`\n${YELLOW}=== Agent Execution Test Suite ===${RESET}\n`)
 
 const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+const originalDeploymentKind = process.env.DASHBOARD_DEPLOYMENT_KIND
 
 test('resolveAgentExecutionConfig falls back to IDENTITY model when openclaw.json omits model', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
@@ -1583,6 +1584,7 @@ test('withTemporaryAgentAuthProfiles sizes the LM Studio model entry from the co
 
   process.env.HOME = home
   process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
   resetWorkspaceManagerForTests()
   const originalFetch = global.fetch
   clearModelCache()
@@ -1698,6 +1700,7 @@ test('withTemporaryAgentAuthProfiles sizes a keyless endpoint model entry from t
 
   process.env.HOME = home
   process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
   resetWorkspaceManagerForTests()
   const originalFetch = global.fetch
   clearModelCache()
@@ -1814,6 +1817,7 @@ test('withTemporaryAgentAuthProfiles upgrades an already-authorized, already-mat
 
   process.env.HOME = home
   process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
   resetWorkspaceManagerForTests()
   const originalFetch = global.fetch
   clearModelCache()
@@ -1930,6 +1934,7 @@ test('withTemporaryAgentAuthProfiles sizes the entry from the advertised context
 
   process.env.HOME = home
   process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
   resetWorkspaceManagerForTests()
   const originalFetch = global.fetch
   clearModelCache()
@@ -2048,6 +2053,7 @@ test('withTemporaryAgentAuthProfiles replaces a stored context length larger tha
 
   process.env.HOME = home
   process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
   resetWorkspaceManagerForTests()
   const originalFetch = global.fetch
   clearModelCache()
@@ -2164,6 +2170,7 @@ test('withTemporaryAgentAuthProfiles restores the max token limit when the windo
 
   process.env.HOME = home
   process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
   resetWorkspaceManagerForTests()
   const originalFetch = global.fetch
   clearModelCache()
@@ -2280,6 +2287,7 @@ test('withTemporaryAgentAuthProfiles shrinks a default-sized entry to a smaller 
 
   process.env.HOME = home
   process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
   resetWorkspaceManagerForTests()
   const originalFetch = global.fetch
   clearModelCache()
@@ -2864,6 +2872,8 @@ setTimeout(async () => {
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+  if (typeof originalDeploymentKind === 'undefined') delete process.env.DASHBOARD_DEPLOYMENT_KIND
+  else process.env.DASHBOARD_DEPLOYMENT_KIND = originalDeploymentKind
 
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
