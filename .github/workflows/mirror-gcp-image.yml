@@ -1,0 +1,75 @@
+name: Mirror tested image to GCP
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Existing tested GHCR release tag
+        required: true
+      image_digest:
+        description: Approved multiarchitecture index sha256 digest
+        required: true
+  pull_request:
+    paths:
+      - .github/workflows/mirror-gcp-image.yml
+      - SYSTEM/mirror-gcp-image*.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: node --test SYSTEM/mirror-gcp-image.test.mjs
+  mirror:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        region: [us-west1, us-east1]
+    concurrency:
+      group: gcp-mirror-${{ matrix.region }}-${{ inputs.image_tag }}
+      cancel-in-progress: false
+    env:
+      MIRROR_KIND: public
+      MIRROR_REGION: ${{ matrix.region }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      IMAGE_DIGEST: ${{ inputs.image_digest }}
+      REGISTRY_AUTH_FILE: ${{ runner.temp }}/mirror-auth.json
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Validate inputs before requesting credentials
+        run: node --input-type=module -e "import {configuration} from './SYSTEM/mirror-gcp-image.mjs'; configuration(process.env)"
+      - name: Install OCI copy tool
+        run: sudo apt-get update -qq && sudo apt-get install -y skopeo
+      - name: Authenticate keylessly to GCP
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/658757164845/locations/global/workloadIdentityPools/github-image-publishing/providers/github-public
+          service_account: gar-public-publisher@clawmax-ai.iam.gserviceaccount.com
+          token_format: access_token
+          create_credentials_file: false
+      - name: Install ephemeral registry credentials
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GCP_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$GH_TOKEN" | skopeo login --authfile "$REGISTRY_AUTH_FILE" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          printf '%s' "$GCP_TOKEN" | skopeo login --authfile "$REGISTRY_AUTH_FILE" --username oauth2accesstoken --password-stdin "${MIRROR_REGION}-docker.pkg.dev"
+      - name: Copy exact index and verify both platform downloads
+        run: node SYSTEM/mirror-gcp-image.mjs
+      - name: Remove ephemeral auth
+        if: always()
+        run: rm -f -- "$REGISTRY_AUTH_FILE"
