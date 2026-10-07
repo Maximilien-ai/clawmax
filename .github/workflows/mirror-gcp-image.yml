@@ -44,7 +44,7 @@ jobs:
       MIRROR_REGION: ${{ matrix.region }}
       IMAGE_TAG: ${{ inputs.image_tag }}
       IMAGE_DIGEST: ${{ inputs.image_digest }}
-      REGISTRY_AUTH_FILE: ${{ runner.temp }}/mirror-auth.json
+      REGISTRY_AUTH_FILE: /tmp/clawmax-mirror-auth.json
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Validate inputs before requesting credentials
