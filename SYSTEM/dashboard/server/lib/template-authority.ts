@@ -22,6 +22,12 @@ const skillSchema = {
   required: ['name', 'sha256', 'platform'],
   additionalProperties: false,
 }
+const credentialSchema = {
+  oneOf: [
+    object({ name: { type: 'string', pattern: '^[A-Z][A-Z0-9_]{1,127}$' }, reference: identifier, revision: identifier }),
+    object({ name: { type: 'string', pattern: '^[A-Z][A-Z0-9_]{1,127}$' }, state: { const: 'pending-host-login' } }),
+  ],
+}
 const bindingSchema = object({
   id: identifier, revision: identifier, artifactId: identifier,
   artifactDigest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
@@ -30,7 +36,7 @@ const bindingSchema = object({
   policy: object({ id: identifier, sha256: hash }),
   runtime: object({ platform: { type: 'string', enum: ['linux/amd64', 'linux/arm64', 'darwin/amd64', 'darwin/arm64'] }, revision: identifier }),
   skills: array(skillSchema),
-  credentials: array(object({ name: { type: 'string', pattern: '^[A-Z][A-Z0-9_]{1,127}$' }, reference: identifier, revision: identifier })),
+  credentials: array(credentialSchema),
 })
 const validateRegistry = new Ajv().compile<TemplateAuthorityRegistry>(object({
   apiVersion: { const: 'clawmax.template-authority/v1alpha1' }, workspaceId: identifier,
@@ -43,7 +49,7 @@ export interface TemplateAuthorityBinding {
   policy: { id: string; sha256: string }
   runtime: { platform: string; revision: string }
   skills: Array<{ name: string; sha256: string; platform: string; source?: 'packaged'; version?: string; packageSha256?: string }>
-  credentials: Array<{ name: string; reference: string; revision: string }>
+  credentials: Array<{ name: string; reference: string; revision: string } | { name: string; state: 'pending-host-login' }>
 }
 export interface TemplateAuthorityRegistry {
   apiVersion: 'clawmax.template-authority/v1alpha1'

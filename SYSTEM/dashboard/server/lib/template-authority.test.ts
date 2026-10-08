@@ -73,7 +73,7 @@ async function main() {
     const governedResult = resolveTemplateAuthority(governed, selections, context, governedSource)
     assert.equal(governedResult.bindings[0].credentials.length, 1)
     assert.deepEqual(governedResult.bindings[1].credentials, [])
-    governedRegistry.bindings[0].credentials[0].revision = 'credential-v2'
+    if ('revision' in governedRegistry.bindings[0].credentials[0]) governedRegistry.bindings[0].credentials[0].revision = 'credential-v2'
     assert.notEqual(resolveTemplateAuthority(governed, selections, context, governedSource).digest, governedResult.digest)
     governedRegistry.bindings[0].skills.push({ name: 'extra', sha256: 'e'.repeat(64), platform: 'linux/arm64' })
     assert.throws(() => resolveTemplateAuthority(governed, selections, context, governedSource), /exact requested Skills/)
