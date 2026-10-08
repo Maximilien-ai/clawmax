@@ -585,7 +585,7 @@ export function createInstanceCliRouter(options: {
         }
         const assertAuthorized = () => {
           const currentActor = resolveCliActor(req)
-          const currentWorkspace = manager.getWorkspace(workspace.id)
+          const currentWorkspace = manager.getWorkspaceRegistration(workspace.id)
           if (!currentActor || currentActor.actorId !== actor.actorId || !currentWorkspace
             || currentWorkspace.path !== workspace.path || !authorizationFor(currentWorkspace, currentActor, loadState())) {
             throw new PortableTemplateError('workspace_forbidden', 'workspace access denied', 403)
@@ -593,7 +593,7 @@ export function createInstanceCliRouter(options: {
         }
         const assertOwner = () => {
           const currentActor = resolveCliActor(req)
-          const currentWorkspace = manager.getWorkspace(workspace.id)
+          const currentWorkspace = manager.getWorkspaceRegistration(workspace.id)
           const admission = currentActor && currentWorkspace?.path === workspace.path
             ? authorizationFor(currentWorkspace, currentActor, loadState()) : null
           if (!currentActor || currentActor.actorId !== actor.actorId || admission?.role !== 'owner') {
