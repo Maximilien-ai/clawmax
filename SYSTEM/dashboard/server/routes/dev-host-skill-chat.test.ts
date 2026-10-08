@@ -35,6 +35,8 @@ const source = fs.readFileSync(path.join(__dirname, 'dev-host-skill-chat.ts'), '
 assert(source.includes('const openaiKey = getSystemProviderKeys().openai'))
 assert(!source.includes('req.body.byok.openai'))
 assert(source.includes('if (noToolsOnly) return'), 'No-tool Agents must bypass the host Skill resolver')
+assert(source.includes('noToolsOnly ? manager.getActiveWorkspaceId() : process.env.CLAWMAX_DEV_HOST_WORKSPACE_ID'),
+  'No-tool chat must follow only the locally selected workspace while Skill chat stays pinned')
 assert.equal(devHostSkillAgentAvailable('not-an-admitted-template-agent'), false)
 const workspaceSource = fs.readFileSync(path.join(__dirname, '../lib/workspace.ts'), 'utf8')
 assert(workspaceSource.includes("status = devHostSkillAgentAvailable(id) ? 'online' : 'offline'"))

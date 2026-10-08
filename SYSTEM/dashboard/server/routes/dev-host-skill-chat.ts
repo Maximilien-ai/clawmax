@@ -58,9 +58,11 @@ function readBoundFile(file: string, maxBytes: number): string {
 
 function resolve(agentId: string, noToolsOnly = false) {
   if (!agentIdPattern.test(agentId)) return null
-  const workspaceId = process.env.CLAWMAX_DEV_HOST_WORKSPACE_ID || ''
   const actorId = process.env.CLAWMAX_DEV_HOST_ACTOR_ID || ''
   const manager = getWorkspaceManager()
+  // No-tool rehearsal follows the locally selected workspace; the host Skill
+  // bridge remains pinned to its one explicitly configured workspace.
+  const workspaceId = noToolsOnly ? manager.getActiveWorkspaceId() : process.env.CLAWMAX_DEV_HOST_WORKSPACE_ID || ''
   if (manager.getActiveWorkspaceId() !== workspaceId) return null
   const workspace = manager.getWorkspace(workspaceId)
   const resolver = configuredTemplateResolverFromEnv()
