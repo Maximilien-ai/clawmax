@@ -44,6 +44,11 @@ try {
   fs.unlinkSync(path.join(packagedDir, 'alias.ts'))
   const mutations = compileTemplateSkillMutations(bundle, authority, root)
   assert.equal(mutations.length, 4)
+  const licensed = { artifacts: [{ ...bundle.artifacts[0], files: new Map(files) }] } as PortableTemplate
+  licensed.artifacts[0].files!.set('content/skills/maximilien/LICENSE', Buffer.from('License text\n'))
+  assert.equal(compileTemplateSkillMutations(licensed, authority, root).length, 5, 'manifest-pinned license text may be omitted from Skill checksums')
+  licensed.artifacts[0].files!.set('content/skills/maximilien/extra.txt', Buffer.from('unlisted payload'))
+  assert.throws(() => compileTemplateSkillMutations(licensed, authority, root), /checksum inventory/, 'other payloads must remain checksum-listed')
   assert(!fs.existsSync(path.join(root, 'SKILLS')), 'Planning must not install Skill bytes')
   assert.throws(() => compileTemplateSkillMutations(bundle, { ...authority, bindings: [{ ...authority.bindings[0], skills: [{ ...authority.bindings[0].skills[0], sha256: '0'.repeat(64) }] }] }, root), /identity/)
   const wrongPlatform = structuredClone(bundle)

@@ -82,7 +82,9 @@ export function compileTemplateSkillMutations(bundle: PortableTemplate, authorit
         if (!match || !safeSkillFile(match[2]) || checksums.has(match[2])) return fail('Embedded Skill checksum manifest is invalid')
         checksums.set(match[2], match[1])
       }
-      const payloadPaths = files.map(([relative]) => relative).filter(relative => !['SKILL.md', 'SHA256SUMS', 'VERSION'].includes(relative))
+      // License text is pinned by the portable Agent manifest, but is not an
+      // executable payload and is commonly omitted from a Skill's SHA256SUMS.
+      const payloadPaths = files.map(([relative]) => relative).filter(relative => !['SKILL.md', 'SHA256SUMS', 'VERSION', 'LICENSE'].includes(relative))
       if (checksums.size !== payloadPaths.length || payloadPaths.some(relative => checksums.get(relative) !== sha256(content.get(relative)!))) fail('Embedded Skill checksum inventory does not match its files')
       const machine = skill.platform === 'linux/arm64' ? 183 : 62
       for (const [relative, bytes] of files) {
