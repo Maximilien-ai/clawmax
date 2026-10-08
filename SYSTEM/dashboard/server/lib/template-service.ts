@@ -62,6 +62,10 @@ export function createConfiguredTemplateResolver(options: {
 
 export function configuredTemplateRuntimePlatform(env: NodeJS.ProcessEnv = process.env): string {
   const localPlatform = `${process.platform}/${process.arch === 'x64' ? 'amd64' : process.arch}`
+  if (env.NODE_ENV !== 'production' && env.DASHBOARD_APP_URL === 'http://localhost:5174'
+    && ['linux/amd64', 'linux/arm64'].includes(env.CLAWMAX_TEMPLATE_STAGING_PLATFORM || '')) {
+    return env.CLAWMAX_TEMPLATE_STAGING_PLATFORM!
+  }
   return env.NODE_ENV !== 'production'
     && env.CLAWMAX_DEV_HOST_SKILL_AUTHORITY === '1'
     && env.DASHBOARD_APP_URL === 'http://localhost:5174'

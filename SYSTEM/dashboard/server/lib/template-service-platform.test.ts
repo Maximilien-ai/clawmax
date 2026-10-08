@@ -11,4 +11,9 @@ assert.equal(configuredTemplateRuntimePlatform({ ...dev, NODE_ENV: 'production' 
 assert.equal(configuredTemplateRuntimePlatform({ ...dev, CLAWMAX_DEV_HOST_SKILL_AUTHORITY: '0' }), local)
 assert.equal(configuredTemplateRuntimePlatform({ ...dev, DASHBOARD_APP_URL: 'http://localhost:3201' }), local)
 assert.equal(configuredTemplateRuntimePlatform({ ...dev, CLAWMAX_DEV_HOST_TEMPLATE_PLATFORM: 'darwin/arm64' }), local)
+const staged = { NODE_ENV: 'development', DASHBOARD_APP_URL: 'http://localhost:5174', CLAWMAX_TEMPLATE_STAGING_PLATFORM: 'linux/arm64' }
+assert.equal(configuredTemplateRuntimePlatform(staged), 'linux/arm64')
+assert.equal(configuredTemplateRuntimePlatform({ ...staged, NODE_ENV: 'production' }), local)
+assert.equal(configuredTemplateRuntimePlatform({ ...staged, DASHBOARD_APP_URL: 'http://localhost:3201' }), local)
+assert.equal(configuredTemplateRuntimePlatform({ ...staged, CLAWMAX_TEMPLATE_STAGING_PLATFORM: 'darwin/arm64' }), local)
 console.log('template-service-platform.test.ts: passed')
