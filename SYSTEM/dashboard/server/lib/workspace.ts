@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import net from 'net'
+import { createAgentGatewayProbeCache } from './agent-gateway-probe-cache'
 import { parseIdentityTags } from './identity-tags'
 import os from 'os'
 import { createHash, randomUUID } from 'crypto'
@@ -146,6 +147,22 @@ interface StatusCache {
 }
 const statusCache = new Map<string, StatusCache>()
 const STATUS_CACHE_TTL = 5000 // 5 seconds cache
+const probeAgentGateway = createAgentGatewayProbeCache((probePort, hosts) => {
+  const { execSync } = require('child_process')
+  const portChecks: string[] = []
+  if (hosts.includes('127.0.0.1')) portChecks.push(`lsof -ti:${probePort}`)
+  for (const host of hosts) {
+    portChecks.push(`bash -lc 'exec 3<>/dev/tcp/${host}/${probePort}'`)
+    portChecks.push(`curl -fsS -o /dev/null --connect-timeout 1 http://${host}:${probePort}/healthz`)
+  }
+  for (const cmd of portChecks) {
+    try {
+      execSync(cmd, { encoding: 'utf-8', stdio: 'pipe', timeout: 2000 })
+      return true
+    } catch {}
+  }
+  return false
+})
 
 export interface AgentGatewayConfig {
   port: number
@@ -2166,29 +2183,9 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
   } else {
     // Cache miss or expired, check actual status
     const gatewayConfig = getAgentGatewayConfig(id)
-    let gatewayRunning = false
-
     // Check agent-specific port, or fall back to shared gateway (port 18789)
     const probePort = (gatewayConfig && gatewayConfig.port) ? gatewayConfig.port : 18789
-    {
-      const { execSync } = require('child_process')
-      const hosts = getGatewayProbeHosts(gatewayConfig?.host)
-      const portChecks: string[] = []
-      if (hosts.includes('127.0.0.1')) {
-        portChecks.push(`lsof -ti:${probePort}`)
-      }
-      for (const host of hosts) {
-        portChecks.push(`bash -lc 'exec 3<>/dev/tcp/${host}/${probePort}'`)
-        portChecks.push(`curl -fsS -o /dev/null --connect-timeout 1 http://${host}:${probePort}/healthz`)
-      }
-      for (const cmd of portChecks) {
-        try {
-          execSync(cmd, { encoding: 'utf-8', stdio: 'pipe', timeout: 2000 })
-          gatewayRunning = true
-          break
-        } catch {}
-      }
-    }
+    const gatewayRunning = probeAgentGateway(probePort, getGatewayProbeHosts(gatewayConfig?.host))
 
     // Check file activity to determine if agent is active
     // Check BOTH workspace directory AND agent state directory
