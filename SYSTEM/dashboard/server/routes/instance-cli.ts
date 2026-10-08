@@ -591,7 +591,16 @@ export function createInstanceCliRouter(options: {
             throw new PortableTemplateError('workspace_forbidden', 'workspace access denied', 403)
           }
         }
-        return { workspaceId: workspace.id, workspacePath: workspace.path, actorId: actor.actorId, assertAuthorized }
+        const assertOwner = () => {
+          const currentActor = resolveCliActor(req)
+          const currentWorkspace = manager.getWorkspace(workspace.id)
+          const admission = currentActor && currentWorkspace?.path === workspace.path
+            ? authorizationFor(currentWorkspace, currentActor, loadState()) : null
+          if (!currentActor || currentActor.actorId !== actor.actorId || admission?.role !== 'owner') {
+            throw new PortableTemplateError('workspace_forbidden', 'workspace owner access required', 403)
+          }
+        }
+        return { workspaceId: workspace.id, workspacePath: workspace.path, actorId: actor.actorId, assertAuthorized, assertOwner }
       } catch {
         sendError(res, req, 503, 'workspace_store_unavailable', 'workspace storage is unavailable', true)
         return null

@@ -70,10 +70,12 @@ async function main() {
     const store = new TemplateRevisionStore(workspace, 'owned', compiler)
     const coordinator = new TemplateApplyCoordinator(store, new TemplateGatewayTransaction(workspace, transport), path.join(root, 'runtime'))
     const authorize = (req: express.Request, res: express.Response) => {
-      const actorId = req.get('Authorization') === 'Bearer owner-fixture' ? 'actor' : req.get('Authorization') === 'Bearer other-fixture' ? 'other' : null
+      const actorId = req.get('Authorization') === 'Bearer owner-fixture' ? 'actor' : req.get('Authorization') === 'Bearer other-fixture' ? 'other' : req.get('Authorization') === 'Bearer member-fixture' ? 'member' : null
       if (!actorId || req.params.workspaceId !== 'owned') { res.status(actorId ? 403 : 401).json({ kind: 'Error' }); return null }
       return { workspaceId: 'owned', workspacePath: workspace, actorId, assertAuthorized() {
         if (!authorized) throw new PortableTemplateError('workspace_forbidden', 'workspace access denied', 403)
+      }, assertOwner() {
+        if (actorId === 'member') throw new PortableTemplateError('workspace_forbidden', 'workspace owner access required', 403)
       } }
     }
     const dependencies = { authorize, dashboardVersion: () => 'fixture', openClawVersion: () => 'fixture' }
@@ -99,6 +101,8 @@ async function main() {
     const initial = files(root)
     assert.equal((await call('/disabled/owned/capabilities')).body.templates.lifecycle.available, false)
     stagingAvailable = true
+    assert.equal((await call(`${base}/capabilities`, 'GET', undefined, 'member-fixture')).body.templates.lifecycle.available, false)
+    assert.equal((await call(`${base}/package-plans`, 'POST', { templateId: template.id, expectedRevision: null, idempotencyKey: 'member-plan', bindings: {} }, 'member-fixture')).status, 403)
     const capabilities = (await call(`${base}/capabilities`)).body
     assert.deepEqual(capabilities.templates.operations, ['export', 'import', 'list', 'remove', 'show', 'validate', 'versions', ...TEMPLATE_LIFECYCLE_OPERATIONS])
     assert.deepEqual(capabilities.templates.lifecycle, { available: true, mode: 'staged-no-tools', execution: false, scheduling: false, skillInstallation: false, credentialDelivery: false })
@@ -132,6 +136,8 @@ async function main() {
     assert.deepEqual(files(root), initial, 'Planning and rejected requests cannot persist files')
     assert.equal(revision, 0, 'Planning cannot contact the mutating transport')
     const payload = { request, planDigest: planned.body.planDigest }
+    assert.equal((await call(`${base}/revisions`, 'POST', payload, 'member-fixture')).status, 403)
+    assert.equal(revision, 0, 'A non-owner cannot mutate the gateway')
     authorized = false
     assert.equal((await call(`${base}/revisions`, 'POST', payload)).status, 403)
     assert.equal(revision, 0, 'Revoked caller must not mutate gateway')
@@ -169,6 +175,7 @@ async function main() {
     assert.equal(cleanupPlan.status, 200)
     assert.deepEqual(files(root), beforeCleanup)
     const cleanup = { expectedRevision: id, planDigest: cleanupPlan.body.planDigest }
+    assert.equal((await call(`${base}/revisions/${id}/cleanup`, 'POST', cleanup, 'member-fixture')).status, 403)
     assert.equal((await call(`${base}/revisions/${id}/cleanup`, 'POST', cleanup, 'other-fixture')).status, 403)
     running = true
     assert.equal((await call(`${base}/revisions/${id}/cleanup`, 'POST', cleanup)).status, 409)
