@@ -4,7 +4,7 @@ import os from 'os'
 import path from 'path'
 import { PortableTemplate, sha256 } from './portable-template'
 import { TemplateAuthorityEvidence } from './template-authority'
-import { compileTemplateSkillMutations } from './template-skill-package'
+import { compileTemplateSkillMutations, describePackagedTemplateSkill } from './template-skill-package'
 import { commitWorkspaceFiles } from './workspace-file-transaction'
 
 const skill = Buffer.from('# Maximilien\n')
@@ -23,6 +23,25 @@ const bundle = { artifacts: [{ kind: 'agent', id: 'collector', definition: { ski
 const authority = { registryRevision: 'one', workspaceId: 'isolated', bindings: [{ artifactId: 'collector', runtime: { platform: 'linux/arm64' }, skills: [{ name: 'maximilien', sha256: sha256(skill), platform: 'linux/arm64' }] }] } as TemplateAuthorityEvidence
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-template-skill-'))
 try {
+  const packagedRoot = path.join(root, 'packaged')
+  const packagedDir = path.join(packagedRoot, 'clawmax-resend')
+  fs.mkdirSync(packagedDir, { recursive: true })
+  fs.writeFileSync(path.join(packagedDir, 'SKILL.md'), '# Resend\n')
+  fs.writeFileSync(path.join(packagedDir, 'index.ts'), 'export const send = true\n')
+  const packaged = { root: packagedRoot, version: 'rc91' }
+  const identity = describePackagedTemplateSkill(packaged, 'clawmax-resend')
+  const packagedBundle = { artifacts: [...bundle.artifacts, { kind: 'agent', id: 'reporter', definition: { skills: ['clawmax-resend'] }, files: new Map() }] } as PortableTemplate
+  const packagedAuthority = { ...authority, bindings: [...authority.bindings, {
+    artifactId: 'reporter', runtime: { platform: 'linux/arm64' }, skills: [{ name: 'clawmax-resend', platform: 'linux/arm64', source: 'packaged' as const, version: 'rc91', ...identity }],
+  }] } as TemplateAuthorityEvidence
+  assert.equal(compileTemplateSkillMutations(packagedBundle, packagedAuthority, root, packaged).length, 4, 'host-owned Skill must not become a workspace mutation')
+  assert.throws(() => compileTemplateSkillMutations(packagedBundle, packagedAuthority, root, { ...packaged, version: 'rc92' }), /version/)
+  fs.writeFileSync(path.join(packagedDir, 'index.ts'), 'export const send = false\n')
+  assert.throws(() => compileTemplateSkillMutations(packagedBundle, packagedAuthority, root, packaged), /checksum/)
+  fs.writeFileSync(path.join(packagedDir, 'index.ts'), 'export const send = true\n')
+  fs.symlinkSync('index.ts', path.join(packagedDir, 'alias.ts'))
+  assert.throws(() => describePackagedTemplateSkill(packaged, 'clawmax-resend'), /unsafe/)
+  fs.unlinkSync(path.join(packagedDir, 'alias.ts'))
   const mutations = compileTemplateSkillMutations(bundle, authority, root)
   assert.equal(mutations.length, 4)
   assert(!fs.existsSync(path.join(root, 'SKILLS')), 'Planning must not install Skill bytes')

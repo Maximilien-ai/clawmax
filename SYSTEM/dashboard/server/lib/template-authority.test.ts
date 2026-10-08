@@ -85,6 +85,13 @@ async function main() {
     assert.throws(() => resolveTemplateAuthority(governed, selections, context, governedSource), /undeclared credential/)
     governedRegistry.bindings[0].skills[0].platform = 'linux/amd64'
     assert.throws(() => resolveTemplateAuthority(governed, selections, context, governedSource), /Skill platform/)
+    governedRegistry.bindings[0].skills[0].platform = 'linux/arm64'
+    governedRegistry.bindings[0].credentials = [{ name: 'SERVICE_TOKEN', reference: 'service-credential', revision: 'credential-v1' }]
+    governedRegistry.bindings[0].skills[0].source = 'packaged'
+    assert.throws(() => resolveTemplateAuthority(governed, selections, context, governedSource), /Packaged Skill identity/)
+    governedRegistry.bindings[0].skills[0].version = 'rc91'
+    governedRegistry.bindings[0].skills[0].packageSha256 = 'c'.repeat(64)
+    assert.equal(resolveTemplateAuthority(governed, selections, context, governedSource).bindings[0].skills[0].packageSha256, 'c'.repeat(64))
 
     // Read actual server-owned registry files; reject links and sanitize errors.
     const file = path.join(root, 'authority.json')

@@ -10,6 +10,8 @@ import { TemplateApplyCoordinator } from './template-apply-coordinator'
 import { createTemplateGatewayTransport, TemplateGatewayTransaction } from './template-gateway-transaction'
 import { getGatewayClient, type GatewayRPCClient } from './gateway-rpc'
 import { templateStoragePath } from './template-storage-path'
+import { REPO_ROOT } from './paths'
+import { getDashboardVersion } from './workspace'
 import type { TemplateWorkspaceContext } from '../routes/instance-templates'
 import type { CliTemplateExecution } from '../routes/instance-chat'
 
@@ -35,7 +37,9 @@ export function createConfiguredTemplateResolver(options: {
     // Fail at service resolution for missing configuration, without creating
     // workspace state or reaching the gateway.
     authority.read()
-    const compile = createTemplateResourceFileCompiler(context.workspacePath, authority)
+    const compile = createTemplateResourceFileCompiler(context.workspacePath, authority, {
+      root: path.join(REPO_ROOT, 'SKILLS', 'custom'), version: getDashboardVersion(),
+    })
     const store = new TemplateRevisionStore(context.workspacePath, context.workspaceId, (...args) => {
       const compiled = compile(...args)
       if (!compiled.authority) throw new Error('Template authority is unavailable')

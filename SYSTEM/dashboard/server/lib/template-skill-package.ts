@@ -1,4 +1,5 @@
 import fs from 'fs'
+import path from 'path'
 import { PortableTemplate, sha256 } from './portable-template'
 import { PortableTemplateError } from './portable-template-zip'
 import { TemplateAuthorityEvidence } from './template-authority'
@@ -8,10 +9,43 @@ import { WorkspaceFileMutation } from './workspace-file-transaction'
 const fail = (message: string): never => { throw new PortableTemplateError('template_skill_unavailable', message, 409) }
 const safeSkillFile = (relative: string) => relative.split('/').every(part => /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(part) && part !== '..')
 
+export interface PackagedTemplateSkills { root: string; version: string }
+
+/** Pin the complete host-owned package, not only its instructions file. */
+export function describePackagedTemplateSkill(source: PackagedTemplateSkills, name: string) {
+  if (!/^[a-z0-9][a-z0-9._-]{0,62}$/.test(name) || !path.isAbsolute(source.root)) fail('Packaged Skill identity is unsafe')
+  const directory = path.join(source.root, name)
+  try {
+    if (!fs.lstatSync(directory).isDirectory()) return fail('Packaged Skill is unavailable')
+    const files: Array<[string, Buffer]> = []
+    const visit = (relative: string) => {
+      for (const entry of fs.readdirSync(path.join(directory, relative), { withFileTypes: true })) {
+        const next = relative ? `${relative}/${entry.name}` : entry.name
+        if (!safeSkillFile(next) || entry.isSymbolicLink()) return fail('Packaged Skill inventory is unsafe')
+        if (entry.isDirectory()) visit(next)
+        else if (entry.isFile()) {
+          if (files.length >= 128) return fail('Packaged Skill inventory is too large')
+          const bytes = fs.readFileSync(path.join(directory, next))
+          if (bytes.length > 16 * 1024 * 1024) return fail('Packaged Skill file is too large')
+          files.push([next, bytes])
+        } else return fail('Packaged Skill inventory is unsafe')
+      }
+    }
+    visit('')
+    const instructions = files.find(([relative]) => relative === 'SKILL.md')?.[1]
+    if (!instructions) return fail('Packaged Skill instructions are missing')
+    const packageSha256 = sha256(Buffer.concat(files.sort(([a], [b]) => a.localeCompare(b)).flatMap(([relative, bytes]) => [Buffer.from(`${relative}\0`), bytes])))
+    return { sha256: sha256(instructions), packageSha256 }
+  } catch (error) {
+    if (error instanceof PortableTemplateError) throw error
+    return fail('Packaged Skill is unavailable')
+  }
+}
+
 /** Verify bundle-pinned Skill bytes without executing them. Only authority-
  * selected packages become revision-owned workspace files. Runtime admission
  * and token delivery remain separate and blocked for staged Templates. */
-export function compileTemplateSkillMutations(bundle: PortableTemplate, authority: TemplateAuthorityEvidence, workspacePath: string): WorkspaceFileMutation[] {
+export function compileTemplateSkillMutations(bundle: PortableTemplate, authority: TemplateAuthorityEvidence, workspacePath: string, packaged?: PackagedTemplateSkills): WorkspaceFileMutation[] {
   const installed = new Map<string, string>()
   const mutations: WorkspaceFileMutation[] = []
   for (const agent of bundle.artifacts.filter(item => item.kind === 'agent')) {
@@ -26,6 +60,14 @@ export function compileTemplateSkillMutations(bundle: PortableTemplate, authorit
     }
     for (const skill of binding.skills) {
       if (skill.platform !== binding.runtime.platform || !['linux/amd64', 'linux/arm64'].includes(skill.platform)) fail('Skill platform does not match its admitted runtime')
+      if (skill.source === 'packaged') {
+        if (!packaged) return fail('Packaged Skill source is unavailable')
+        if (skill.version !== packaged.version || !skill.packageSha256) fail('Packaged Skill version is unavailable or mismatched')
+        if ([...archives.keys()].some(file => file.startsWith(`content/skills/${skill.name}/`))) fail('Packaged Skill must not also be embedded')
+        const identity = describePackagedTemplateSkill(packaged, skill.name)
+        if (identity.sha256 !== skill.sha256 || identity.packageSha256 !== skill.packageSha256) fail('Packaged Skill checksum does not match authority')
+        continue
+      }
       const prefix = `content/skills/${skill.name}/`
       const files = [...archives.entries()].filter(([file]) => file.startsWith(prefix)).map(([file, bytes]) => [file.slice(prefix.length), bytes] as const)
       if (!files.length || files.some(([relative, bytes]) => !safeSkillFile(relative) || bytes.length > 16 * 1024 * 1024)) fail('Embedded Skill inventory is unsafe or oversized')
