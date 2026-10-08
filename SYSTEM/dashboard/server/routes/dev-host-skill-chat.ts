@@ -15,6 +15,20 @@ import { withRegisteredTurn } from '../lib/agent-turns'
 const agentIdPattern = /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/
 const loopback = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1'])
 
+/** Explicitly scoped local rehearsal for staged Agents. This mode never
+ * opens the host Skill bridge or treats a pending credential as bound. */
+export function devTemplateNoToolChatEnabled(env: NodeJS.ProcessEnv, origin: string | undefined, remoteAddress: string | undefined): boolean {
+  return env.NODE_ENV !== 'production'
+    && env.CLAWMAX_DEV_TEMPLATE_NO_TOOL_CHAT === '1'
+    && env.DASHBOARD_APP_URL === 'http://localhost:5174'
+    && isDashboardAuthBypassAllowed(env)
+    && origin === 'http://localhost:5174'
+    && loopback.has(remoteAddress || '')
+    && !!env.CLAWMAX_DEV_HOST_WORKSPACE_ID
+    && !!env.CLAWMAX_DEV_HOST_ACTOR_ID
+    && env.CLAWMAX_DEV_HOST_ACTOR_ID === env.CLAWMAX_CLI_LOCAL_ACTOR_ID
+}
+
 export function devHostSkillChatEnabled(env: NodeJS.ProcessEnv, origin: string | undefined, remoteAddress: string | undefined): boolean {
   return env.NODE_ENV !== 'production'
     && env.CLAWMAX_DEV_HOST_SKILL_CHAT === '1'
@@ -30,6 +44,7 @@ export function devHostSkillChatEnabled(env: NodeJS.ProcessEnv, origin: string |
 
 function enabled(req: Request): boolean {
   return devHostSkillChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)
+    || devTemplateNoToolChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)
 }
 
 function readBoundFile(file: string, maxBytes: number): string {
@@ -41,7 +56,7 @@ function readBoundFile(file: string, maxBytes: number): string {
   } finally { fs.closeSync(fd) }
 }
 
-function resolve(agentId: string) {
+function resolve(agentId: string, noToolsOnly = false) {
   if (!agentIdPattern.test(agentId)) return null
   const workspaceId = process.env.CLAWMAX_DEV_HOST_WORKSPACE_ID || ''
   const actorId = process.env.CLAWMAX_DEV_HOST_ACTOR_ID || ''
@@ -60,9 +75,12 @@ function resolve(agentId: string) {
   revalidateTemplateAuthority(current.authority, current.authorityDigest, { workspaceId, actorId }, service.authority)
   const artifactId = Object.entries(revision.resources.agents).find(([, id]) => id === agentId)?.[0]
   const binding = revision.authority?.bindings.find(item => item.artifactId === artifactId)
-  if (!binding || binding.skills.length > 1 || !binding.skills.length && binding.credentials.length) return null
+  if (!binding || binding.model.id !== 'openai/gpt-5.4-mini') return null
   const identity = readBoundFile(templateStoragePath(workspace.path, `AGENTS/${agentId}/IDENTITY.md`), 32 * 1024)
   const soul = readBoundFile(templateStoragePath(workspace.path, `AGENTS/${agentId}/SOUL.md`), 32 * 1024)
+  if (noToolsOnly) return { workspaceId, actorId, revisionId: revision.id, agentId,
+    skillName: null, skillInstructions: `${identity}\n\n${soul}`, service }
+  if (binding.skills.length > 1 || !binding.skills.length && binding.credentials.length) return null
   const skillName = binding.skills[0]?.name || null
   let skillInstructions = ''
   if (skillName) {
@@ -75,18 +93,34 @@ function resolve(agentId: string) {
     skillInstructions: `${identity}\n\n${soul}\n\n${skillInstructions}`, service }
 }
 
+function resolveForRequest(req: Request, agentId: string) {
+  if (devHostSkillChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)) {
+    try {
+      const skilled = resolve(agentId)
+      if (skilled) return skilled
+    } catch { /* A revoked Skill may still have an explicitly admitted no-tool mode. */ }
+  }
+  if (devTemplateNoToolChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)) return resolve(agentId, true)
+  return null
+}
+
 /** Browser requests are only prompts. The server resolves immutable identity,
  * authority, Skill bytes, and the host key afresh for every tool call. */
 export function isDevHostSkillChatReady(req: Request, agentId: string): boolean {
   if (!enabled(req)) return false
-  try { return !!resolve(agentId) && !!getSystemProviderKeys().openai } catch { return false }
+  try { return !!resolveForRequest(req, agentId) && !!getSystemProviderKeys().openai } catch { return false }
 }
 
 /** Availability of the on-demand dev runtime, not a running Agent process.
  * Kept separate from HTTP admission: this grants no execution authority. */
 export function devHostSkillAgentAvailable(agentId: string): boolean {
-  if (!devHostSkillChatEnabled(process.env, 'http://localhost:5174', '127.0.0.1')) return false
-  try { return !!resolve(agentId) && !!getSystemProviderKeys().openai } catch { return false }
+  const host = devHostSkillChatEnabled(process.env, 'http://localhost:5174', '127.0.0.1')
+  const noTools = devTemplateNoToolChatEnabled(process.env, 'http://localhost:5174', '127.0.0.1')
+  if (!host && !noTools) return false
+  if (!getSystemProviderKeys().openai) return false
+  if (host) { try { if (resolve(agentId)) return true } catch { /* Check the separately scoped no-tool mode. */ } }
+  if (noTools) { try { return !!resolve(agentId, true) } catch { return false } }
+  return false
 }
 
 /** Reused by individual chat and temporary, explicitly selected multi-Agent chat.
@@ -96,12 +130,12 @@ export async function runDevHostSkillChatTurn(req: Request, agentId: string, mes
     throw new Error('Dev Agent chat unavailable')
   }
   const openaiKey = getSystemProviderKeys().openai
-  const context = resolve(agentId)
+  const context = resolveForRequest(req, agentId)
   if (!openaiKey || !context) throw new Error('Dev Agent authority unavailable')
   const text = context.skillName ? await runDevHostSkillAgent({ message, skillName: context.skillName,
     skillInstructions: context.skillInstructions, apiKey: openaiKey, signal,
     invoke: async argv => {
-      const fresh = resolve(agentId)
+      const fresh = resolveForRequest(req, agentId)
       if (!fresh || fresh.revisionId !== context.revisionId || fresh.skillName !== context.skillName) throw new Error('Dev Agent authority changed')
       if (!fresh.skillName) throw new Error('Dev Agent Skill unavailable')
       return runTemplateHostSkillRead({ instanceKey: process.env.CLAWMAX_INSTANCE_KEY || '',
@@ -113,7 +147,7 @@ export async function runDevHostSkillChatTurn(req: Request, agentId: string, mes
       })
     },
   }) : await runDevNoToolAgent({ message, instructions: context.skillInstructions, apiKey: openaiKey, signal })
-  if (signal.aborted || !resolve(agentId)) throw new Error('Dev Agent authority revoked')
+  if (signal.aborted || !resolveForRequest(req, agentId)) throw new Error('Dev Agent authority revoked')
   return text
 }
 
@@ -129,7 +163,7 @@ export async function executeDevHostSkillChat(req: Request, res: Response): Prom
   const openaiKey = getSystemProviderKeys().openai
   if (!openaiKey) { res.status(503).json({ error: 'Configured OpenAI model unavailable' }); return }
   try {
-    if (!resolve(agentId)) { res.status(409).json({ error: 'Dev Agent authority unavailable' }); return }
+    if (!resolveForRequest(req, agentId)) { res.status(409).json({ error: 'Dev Agent authority unavailable' }); return }
   } catch { res.status(409).json({ error: 'Dev Agent authority unavailable' }); return }
   const sessionId = typeof req.body?.sessionId === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(req.body.sessionId)
     ? req.body.sessionId : `dev-${crypto.randomUUID()}`

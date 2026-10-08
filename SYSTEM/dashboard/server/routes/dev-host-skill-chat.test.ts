@@ -1,7 +1,7 @@
 import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
-import { devHostSkillChatEnabled, devHostSkillAgentAvailable } from './dev-host-skill-chat'
+import { devHostSkillChatEnabled, devHostSkillAgentAvailable, devTemplateNoToolChatEnabled } from './dev-host-skill-chat'
 
 const env = {
   NODE_ENV: 'development', CLAWMAX_DEV_HOST_SKILL_CHAT: '1', CLAWMAX_DEV_HOST_SKILL_AUTHORITY: '1',
@@ -20,9 +20,21 @@ assert(!allowed({ ...env, CLAWMAX_DEV_HOST_AUTH_KEY: 'bad' }))
 assert(!allowed({ ...env, CLAWMAX_CLI_LOCAL_ACTOR_ID: 'different' }))
 assert(!allowed(env, 'http://evil.example'))
 assert(!allowed(env, 'http://localhost:5174', '192.168.1.1'))
+const noTools = { ...env, CLAWMAX_DEV_TEMPLATE_NO_TOOL_CHAT: '1', CLAWMAX_DEV_HOST_WORKSPACE_ID: 'operations',
+  CLAWMAX_DEV_HOST_SKILL_CHAT: '0', CLAWMAX_DEV_HOST_SKILL_AUTHORITY: '0', CLAWMAX_DEV_HOST_AUTH_KEY: '' }
+const noToolAllowed = (candidate: NodeJS.ProcessEnv, origin = 'http://localhost:5174', peer = '127.0.0.1') => devTemplateNoToolChatEnabled(candidate, origin, peer)
+assert(noToolAllowed(noTools), 'No-tool mode must not depend on the host execution secret')
+assert(!noToolAllowed({ ...noTools, NODE_ENV: 'production' }))
+assert(!noToolAllowed({ ...noTools, CLAWMAX_DEV_TEMPLATE_NO_TOOL_CHAT: '0' }))
+assert(!noToolAllowed({ ...noTools, CLAWMAX_DEV_HOST_WORKSPACE_ID: '' }))
+assert(!noToolAllowed({ ...noTools, CLAWMAX_CLI_LOCAL_ACTOR_ID: 'other' }))
+assert(!noToolAllowed({ ...noTools, BYPASS_OAUTH: 'false' }))
+assert(!noToolAllowed(noTools, 'http://evil.example'))
+assert(!noToolAllowed(noTools, 'http://localhost:5174', '192.168.1.1'))
 const source = fs.readFileSync(path.join(__dirname, 'dev-host-skill-chat.ts'), 'utf8')
 assert(source.includes('const openaiKey = getSystemProviderKeys().openai'))
 assert(!source.includes('req.body.byok.openai'))
+assert(source.includes('if (noToolsOnly) return'), 'No-tool Agents must bypass the host Skill resolver')
 assert.equal(devHostSkillAgentAvailable('not-an-admitted-template-agent'), false)
 const workspaceSource = fs.readFileSync(path.join(__dirname, '../lib/workspace.ts'), 'utf8')
 assert(workspaceSource.includes("status = devHostSkillAgentAvailable(id) ? 'online' : 'offline'"))
