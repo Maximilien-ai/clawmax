@@ -59,6 +59,7 @@ import { REPO_ROOT } from '../lib/paths'
 import { buildNamedExportFilename } from '../lib/export-filename'
 import { recordAgentLifecycleAuditEvent } from '../lib/agent-lifecycle-audit'
 import { clearPinnedOpenClawWorkspaceState } from '../lib/openclaw-workspace-state'
+import { isStagedTemplateAgentId } from '../lib/template-runtime-admission'
 import { beginAgentDeletion, finishAgentDeletion, isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 import { listAvailableSkills, setAgentSkills } from '../lib/skills'
@@ -3087,6 +3088,10 @@ router.post('/bulk-model', async (req, res) => {
 
   const results: { id: string; ok: boolean; error?: string }[] = []
   for (const agentId of agentIds) {
+    if (typeof agentId !== 'string' || isStagedTemplateAgentId(agentId)) {
+      results.push({ id: String(agentId), ok: false, error: 'Template Agent model is revision-owned; plan a new revision to change it' })
+      continue
+    }
     try {
       const configUpdate = updateAgentModelInConfig(agentId, normalizedModel)
       if (!configUpdate.ok) {

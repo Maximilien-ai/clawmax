@@ -33,13 +33,17 @@ const digest = (value: unknown): value is string => typeof value === 'string' &&
  */
 export function createInstanceTemplateLifecycleRouter(resolve?: TemplateLifecycleResolver) {
   const router = express.Router({ mergeParams: true })
+  const assertOwner = (context: TemplateWorkspaceContext) => {
+    context.assertAuthorized!()
+    context.assertOwner!()
+  }
   const handle = (fn: (req: Request, res: Response, service: InstanceTemplateLifecycle, context: TemplateWorkspaceContext) => unknown | Promise<unknown>) =>
     (req: Request, res: Response, next: NextFunction) => {
       Promise.resolve().then(async () => {
         if (!resolve) throw new PortableTemplateError('template_lifecycle_unavailable', 'Template lifecycle is unavailable pending server runtime admission', 503)
         const context = res.locals.templateContext as TemplateWorkspaceContext
-        if (!context.assertAuthorized) throw new PortableTemplateError('template_lifecycle_unavailable', 'Live workspace authorization is required', 503)
-        context.assertAuthorized()
+        if (!context.assertAuthorized || !context.assertOwner) throw new PortableTemplateError('template_lifecycle_unavailable', 'Live workspace owner authorization is required', 503)
+        assertOwner(context)
         const service = resolve(context)
         if (service.store.workspaceId !== context.workspaceId || service.store.workspacePath !== context.workspacePath || service.coordinator.workspaceId !== context.workspaceId || service.coordinator.workspacePath !== context.workspacePath) throw new PortableTemplateError('template_lifecycle_unavailable', 'Template lifecycle workspace binding is unavailable', 503)
         return fn(req, res, service, context)
@@ -49,14 +53,14 @@ export function createInstanceTemplateLifecycleRouter(resolve?: TemplateLifecycl
   router.post('/package-plans', json, handle(async (req, res, service, context) => {
     const request = body(req, ['templateId', 'expectedRevision', 'idempotencyKey', 'bindings'])
     const plan = await service.store.plan(context.actorId, request)
-    context.assertAuthorized!()
+    assertOwner(context)
     res.json(plan)
   }))
   router.post('/revisions', json, handle(async (req, res, service, context) => {
     const value = body(req, ['request', 'planDigest'])
     if (!digest(value.planDigest)) throw new PortableTemplateError('invalid_request', 'A valid plan digest is required')
-    const result = await service.coordinator.apply(context.actorId, value.request, value.planDigest, context.assertAuthorized)
-    context.assertAuthorized!()
+    const result = await service.coordinator.apply(context.actorId, value.request, value.planDigest, () => assertOwner(context))
+    assertOwner(context)
     res.status(result.created ? 201 : 200).json({ apiVersion: 'clawmax.instance/v1', kind: 'TemplateApplyResult', workspaceId: context.workspaceId, ...result })
   }))
   router.get('/revisions', handle((_req, res, service, context) => {
@@ -76,8 +80,8 @@ export function createInstanceTemplateLifecycleRouter(resolve?: TemplateLifecycl
   router.post('/revisions/:revisionId/cleanup', json, handle(async (req, res, service, context) => {
     const value = body(req, ['expectedRevision', 'planDigest'])
     if (!validResourceId(req.params.revisionId) || !digest(value.planDigest) || (value.expectedRevision !== null && !validResourceId(value.expectedRevision))) throw new PortableTemplateError('invalid_request', 'Invalid cleanup identity')
-    const result = await service.coordinator.cleanup(context.actorId, req.params.revisionId, value.expectedRevision, value.planDigest, resources => service.assertStopped(resources), context.assertAuthorized)
-    context.assertAuthorized!()
+    const result = await service.coordinator.cleanup(context.actorId, req.params.revisionId, value.expectedRevision, value.planDigest, resources => service.assertStopped(resources), () => assertOwner(context))
+    assertOwner(context)
     res.json({ apiVersion: 'clawmax.instance/v1', kind: 'TemplateCleanupResult', workspaceId: context.workspaceId, ...result })
   }))
   return router

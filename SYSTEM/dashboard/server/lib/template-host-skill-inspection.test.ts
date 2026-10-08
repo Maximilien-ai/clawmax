@@ -45,6 +45,13 @@ async function main() {
     } as unknown as TemplateRevisionStore
     const inspect = () => inspectTemplateHostSkill({ store, authority, actorId: 'owner', revisionId: 'revision-1', agentId, skillName: 'maximilien' })
     assert.deepEqual(inspect(), { workspaceId: 'isolated', workspaceRevisionId: 'revision-1', agentId, actorId: 'owner', skillName: 'maximilien', skillDigest: `sha256:${sha256(skill)}`, credentialNames: ['MAXIMILIEN_ACCESS_TOKEN'] })
+    const pendingRegistry: any = structuredClone(registry)
+    pendingRegistry.bindings[0].credentials = [{ name: 'MAXIMILIEN_ACCESS_TOKEN', state: 'pending-host-login' }]
+    const pendingAuthority = { read: () => pendingRegistry, runtime }
+    const pendingResolved = resolveTemplateAuthority(bundle, selections, { workspaceId: 'isolated', actorId: 'owner' }, pendingAuthority)
+    const { digest: pendingDigest, ...pendingEvidence } = pendingResolved
+    const pendingStore = { ...store, verifyExecutionResources: () => ({ ...revision, authority: pendingEvidence, authorityDigest: pendingDigest }) } as unknown as TemplateRevisionStore
+    assert.throws(() => inspectTemplateHostSkill({ store: pendingStore, authority: pendingAuthority, actorId: 'owner', revisionId: 'revision-1', agentId, skillName: 'maximilien' }), /unavailable/, 'pending host login must not grant Skill execution')
     assert.throws(() => inspectTemplateHostSkill({ store, authority, actorId: 'other', revisionId: 'revision-1', agentId, skillName: 'maximilien' }), /not authorized/)
     assert.throws(() => inspectTemplateHostSkill({ store, authority, actorId: 'owner', revisionId: 'revision-1', agentId, skillName: '../maximilien' }), /unavailable/)
     registry.bindings[0].disabled = true
