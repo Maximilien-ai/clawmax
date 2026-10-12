@@ -5,15 +5,26 @@
   remove the exact internal-RC audit exception, and verify full and production
   audits by October 17, 2026 UTC. Keep customer distribution gated on review.
 
-> Last updated: October 3, 2026
+> Last updated: October 12, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
-## Current Mini Sprint
+## Current Priority: Dashboard 2.0 on MBP14 and test10
+
+Use the [active dual-instance acceptance gate](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md). The next candidate is not ready merely because PR #212 or source CI is green.
+
+- [ ] Close [PR #212](https://github.com/Maximilien-ai/clawmax/pull/212) after required CI/review, keeping owner-scoped staging and dev-only no-tool chat distinct from production Template execution. Record the merge SHA.
+- [ ] Obtain the user's complete post-#212 local integration/validation/coverage result; select and identify the next candidate only after source and runtime issues are resolved.
+- [ ] Diagnose and repair MBP14's installed RC91 Codex plugin-path chat failure with CLI/on-prem ownership; verify the exact affected agent, core/plugin versions, direct chat, restart, and preserved state.
+- [ ] Inventory test10's installed image/runtime and run the same identified next candidate through cloud chat, Group chat, Workflow, restart, and persistence acceptance.
+- [ ] Validate matching public and private candidate images on amd64/arm64, including smoke, packaged identity, plugin discovery, digests, and the actual registry pull path for both targets.
+- [ ] Finish the public, server-owned Template plan/apply/resource lifecycle and prove one authority-bound, read-only Collector Workflow run with idempotent restart and exact cleanup. The inert topology in PR #212 is a useful staging milestone, not completion of this item.
+
+## Earlier RC89 Mini Sprint: Carried-Forward Detail
 
 ### RC89 blockers — stability, complete search, and installed-instance recovery
 
-This is the immediate priority over older RC headings below. Older incomplete
-checks remain historical/open evidence, not a claim that RC89 is ready.
+This section preserves earlier unresolved work; the dual-instance gate above is
+the current priority. Older incomplete checks are not a claim that RC89 is ready.
 Execution plan: [September 29–30 stabilization](planning/RC89_STABILIZATION_2026-09-29.md).
 
 - [ ] **Clear Personal workspace without deleting it** — source implementation
