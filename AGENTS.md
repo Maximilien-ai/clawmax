@@ -31,7 +31,7 @@ expanding scope.
   their handoffs as Dashboard-completed work or infer a live fleet change from a
   shared file.
 - Coordinate cross-team work through
-  `/Users/maximilien/Desktop/Maximilien LLC/docs/handoffs`. Follow the shared
+  `/Users/maximilien/Desktop/Maximilien AI LLC/docs/handoffs`. Follow the shared
   `HANDOFF_CONVENTION.md` and `HANDOFF_TEMPLATE.md` there, using dated
   `YYYYMMDDTHHMMSSZ_From-to-To_issue-id.md` files. State sender, recipient,
   time, priority, topic, status, exact source/image identity where relevant,
@@ -182,7 +182,7 @@ expanding scope.
 ## Documentation Maintenance
 
 - Every Sunday PM or Monday AM, write a concise weekly recap in
-  `/Users/maximilien/Desktop/Maximilien LLC/docs/recaps/YYYY-MM-DD_DASHBOARD_WEEKLY_RECAP.md`,
+  `/Users/maximilien/Desktop/Maximilien AI LLC/docs/recaps/YYYY-MM-DD_DASHBOARD_WEEKLY_RECAP.md`,
   using the Monday that starts the reviewed week. Keep it to two or three
   readable pages. Summarize verified
   outcomes, what went well (WWR), what went wrong (WWW), lessons, open evidence,
@@ -192,7 +192,7 @@ expanding scope.
   validation, deployment, and user acceptance. Do not infer current runtime
   state from an old handoff.
 - At each month end, add
-  `/Users/maximilien/Desktop/Maximilien LLC/docs/recaps/YYYY-MM_DASHBOARD_MONTHLY_RECAP.md`
+  `/Users/maximilien/Desktop/Maximilien AI LLC/docs/recaps/YYYY-MM_DASHBOARD_MONTHLY_RECAP.md`
   to synthesize that month's weekly recaps, trend in outcomes and WWR/WWW, unresolved
   patterns, and a few process changes for the next month. Keep any shared recap
   index ordered by date, newest first. Treat plans as suggestions that can change
