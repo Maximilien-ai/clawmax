@@ -2407,13 +2407,13 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 body: JSON.stringify({ agentIds, model }),
               })
               const data = await resp.json()
-              if (resp.ok) {
+              if (resp.ok && data.ok) {
                 showSuccess(`Updated model to ${model} for ${data.updated} agent${data.updated !== 1 ? 's' : ''}`)
                 fetchAgents()
                 setSelectionMode(false)
                 setSelectedAgentIds(new Set())
               } else {
-                showError(data.error || 'Failed to change model')
+                showError(data.results?.find((result: { ok: boolean; error?: string }) => !result.ok)?.error || data.error || 'Failed to change model')
               }
             }}
             onBulkSkills={async (agentIds, addSkills, removeSkills) => {

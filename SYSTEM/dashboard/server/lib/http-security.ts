@@ -35,6 +35,12 @@ export function parseCorsOrigins(value: string | undefined, fallbackOrigin: stri
     .filter(Boolean)
 }
 
+/** Keep the browser mutation guard aligned with the configured dev frontend.
+ * An explicit CORS_ORIGIN remains authoritative for deployments. */
+export function dashboardCorsOrigins(env: NodeJS.ProcessEnv): string[] {
+  return parseCorsOrigins(env.CORS_ORIGIN, env.DASHBOARD_APP_URL || 'http://localhost:5173')
+}
+
 export function isCorsOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {
   if (!origin) return true
   return allowedOrigins.includes(origin.replace(/\/+$/, ''))

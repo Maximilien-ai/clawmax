@@ -3,9 +3,13 @@ import http from 'http'
 import express from 'express'
 import cors from 'cors'
 import { requireGitHubAuth } from './github-auth'
-import { browserMutationGuard, applyDashboardSecurityHeaders, isCorsOriginAllowed } from './http-security'
+import { browserMutationGuard, applyDashboardSecurityHeaders, dashboardCorsOrigins, isCorsOriginAllowed } from './http-security'
 
 const originalEnv = { ...process.env }
+
+assert.deepEqual(dashboardCorsOrigins({ DASHBOARD_APP_URL: 'http://localhost:5174' }), ['http://localhost:5174'])
+assert.deepEqual(dashboardCorsOrigins({ DASHBOARD_APP_URL: 'http://localhost:5174', CORS_ORIGIN: 'https://dashboard.example.com' }), ['https://dashboard.example.com'])
+assert.deepEqual(dashboardCorsOrigins({}), ['http://localhost:5173'])
 
 async function run() {
   process.env.DASHBOARD_DEPLOYMENT_KIND = 'cloud'

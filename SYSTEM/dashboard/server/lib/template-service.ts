@@ -10,6 +10,8 @@ import { TemplateApplyCoordinator } from './template-apply-coordinator'
 import { createTemplateGatewayTransport, TemplateGatewayTransaction } from './template-gateway-transaction'
 import { getGatewayClient, type GatewayRPCClient } from './gateway-rpc'
 import { templateStoragePath } from './template-storage-path'
+import { REPO_ROOT } from './paths'
+import { getDashboardVersion } from './workspace'
 import type { TemplateWorkspaceContext } from '../routes/instance-templates'
 import type { CliTemplateExecution } from '../routes/instance-chat'
 
@@ -35,7 +37,9 @@ export function createConfiguredTemplateResolver(options: {
     // Fail at service resolution for missing configuration, without creating
     // workspace state or reaching the gateway.
     authority.read()
-    const compile = createTemplateResourceFileCompiler(context.workspacePath, authority)
+    const compile = createTemplateResourceFileCompiler(context.workspacePath, authority, {
+      root: path.join(REPO_ROOT, 'SKILLS', 'custom'), version: getDashboardVersion(),
+    })
     const store = new TemplateRevisionStore(context.workspacePath, context.workspaceId, (...args) => {
       const compiled = compile(...args)
       if (!compiled.authority) throw new Error('Template authority is unavailable')
@@ -58,6 +62,10 @@ export function createConfiguredTemplateResolver(options: {
 
 export function configuredTemplateRuntimePlatform(env: NodeJS.ProcessEnv = process.env): string {
   const localPlatform = `${process.platform}/${process.arch === 'x64' ? 'amd64' : process.arch}`
+  if (env.NODE_ENV !== 'production' && env.DASHBOARD_APP_URL === 'http://localhost:5174'
+    && ['linux/amd64', 'linux/arm64'].includes(env.CLAWMAX_TEMPLATE_STAGING_PLATFORM || '')) {
+    return env.CLAWMAX_TEMPLATE_STAGING_PLATFORM!
+  }
   return env.NODE_ENV !== 'production'
     && env.CLAWMAX_DEV_HOST_SKILL_AUTHORITY === '1'
     && env.DASHBOARD_APP_URL === 'http://localhost:5174'

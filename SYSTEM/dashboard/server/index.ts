@@ -57,7 +57,7 @@ import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
 import { detectRuntimeStatuses, resolveEnabledRuntimes, resolveWorkspaceRuntime } from './lib/agent-runtime'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
-import { browserMutationGuard, applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins, resolveDashboardBindHost } from './lib/http-security'
+import { browserMutationGuard, applyDashboardSecurityHeaders, dashboardCorsOrigins, isCorsOriginAllowed, isDashboardAuthBypassAllowed, resolveDashboardBindHost } from './lib/http-security'
 import { getTenantResourceLimitConfig, getTenantResourceLimits } from './lib/tenant-resource-limits'
 import { reconcileInterruptedWorkflowExecutions } from './lib/workflows'
 import { startPluginUsageMonitor, stopPluginUsageMonitor } from './lib/plugin-usage-monitor'
@@ -255,7 +255,7 @@ const HOST = resolveDashboardBindHost(process.env)
 app.set('trust proxy', process.env.DASHBOARD_TRUST_PROXY === 'true' ? 1 : false)
 app.disable('x-powered-by')
 
-const allowedCorsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN, 'http://localhost:5173')
+const allowedCorsOrigins = dashboardCorsOrigins(process.env)
 const primaryAppOrigin = allowedCorsOrigins[0] || `http://localhost:${PORT}`
 
 const shouldServeBuiltClient = process.env.NODE_ENV === 'production'

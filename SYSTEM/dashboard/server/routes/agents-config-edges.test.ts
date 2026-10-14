@@ -374,6 +374,16 @@ async function run() {
     })
   })
 
+  await test('bulk model update cannot mutate revision-owned Template Agents', async () => {
+    const stagedId = 'tr-2415d9f02f469b2a-agent-032ea6e8176b'
+    const res = makeRes()
+    await getRouteHandler('post', '/bulk-model')(makeReq({ body: { agentIds: [stagedId], model: 'openai/gpt-5.4-mini' } }), res)
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.jsonBody.updated, 0)
+    assert.equal(res.jsonBody.ok, false)
+    assert.match(res.jsonBody.results[0].error, /revision-owned/)
+  })
+
   await test('cost limits reject invalid values and permit explicit removal', async () => {
     const handler = getRouteHandler('put', '/:id/cost-limit')
     for (const limitUsd of ['5', -1, Number.NaN, Number.POSITIVE_INFINITY]) {

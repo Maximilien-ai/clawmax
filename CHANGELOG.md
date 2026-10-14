@@ -4,6 +4,10 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### Current 2.0 development (October 12, 2026)
+- RC91 is a tagged test candidate, not a stable promotion. The active goal is a single identified next candidate accepted on MBP14 and test10; see the [dual-instance gate](SYSTEM/docs/planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md).
+- [PR #212](https://github.com/Maximilien-ai/clawmax/pull/212) adds owner-scoped inert Template staging and dev-only, no-tool chat for staged agents. It remains under review; public Template execution and installed-instance acceptance are separate open gates.
+
 ### RC85 preparation
 - Preserve Builder agent/team scope and handle malformed starter suggestions cleanly.
 - Open Agents after successful template application while keeping failed-apply inputs intact.

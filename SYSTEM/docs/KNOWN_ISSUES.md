@@ -1,10 +1,31 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: October 3, 2026
+**Last Updated**: October 12, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
 ## Active Issues
+
+### RC91 installed chat compatibility on MBP14
+
+An MBP14 agent chat reported `ERR_PACKAGE_PATH_NOT_EXPORTED` while loading a
+captured Codex plugin path. Available evidence suggests a packaged OpenClaw
+core/plugin version mismatch, but the exact affected agent's model and a
+successful installed-instance repair have not been verified. Preserve volumes
+and rollback while CLI/on-prem ownership checks the installed image, core,
+plugin, and affected agent, then repeat direct chat, restart, and persistence
+acceptance. Local dev chat does not close this installed-instance issue. See
+the [active dual-instance gate](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md).
+
+### Template staging is not public Template execution
+
+PR #212 stages inert, owner-scoped Template topology and offers a localhost-only
+no-tool chat path for dev inspection. It does not yet admit the public
+server-owned plan/apply/resource lifecycle or a Collector-backed read-only
+Workflow run. Do not advertise execution, credential delivery, or production
+Template deployment until authority, digest, broker, restart/idempotency, and
+cleanup evidence passes. Test10 deployment and acceptance on the next candidate
+also remain unrecorded.
 
 ### Internal RC89 development dependency advisory
 
