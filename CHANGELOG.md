@@ -12,6 +12,7 @@ All notable changes to ClawMax are documented here.
 - **Scoped Keys & Secrets Navigation** — reorganized the page into persistent Agent & Skill Access, Workspace Keys, Global Keys, and Partners tabs using the dashboard's existing bottom-border tab pattern, with mobile horizontal scrolling and filter pills retained inside key inventories.
 
 ### Fixed
+- **Current Provider Credential Checks** — OpenAI, Anthropic, and xAI validation discovers prompt-capable models from each provider catalog and tries up to three suitable models, avoiding false failures caused by retired fixed model IDs.
 - **Mobile-Safe Workflow Runs** — workflow run dialogs now use the dynamic mobile viewport, keep long forms in an independent scroll region, and keep Cancel/Run actions above iPhone browser chrome and safe areas. A repository-wide dialog audit now prevents new full-panel viewport-scrolling regressions.
 - **Truthful Secret Runtime Availability** — Keys & Secrets distinguishes browser-local vault entries from runtime-managed integration entries and explicitly states that browser-vault values are not available to agents or skills. Runtime-managed entries no longer imply a general agent secret grant.
 - **Pinned OpenAI Model Compatibility** — model discovery and defaults now follow the OpenClaw `v2026.6.11` runtime catalog. Existing agents saved with unsupported `gpt-5`, `gpt-4.1`, or `gpt-4o` aliases execute through `gpt-5.4-mini` without requiring redeployment.
