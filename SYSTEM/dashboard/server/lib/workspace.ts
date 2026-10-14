@@ -1873,7 +1873,7 @@ export function getOrgName(): string | null {
   return null
 }
 
-/** Read the latest semver git tag from the maxclaw repository. Returns null if none. */
+/** Read the latest reachable semver git tag from the ClawMax repository. Returns null if none. */
 export function getLatestTag(): string | null {
   // Start from this file's location and walk up to find the git repo
   // This ensures we read from the dashboard/maxclaw repo, not the workspace repo
@@ -1893,34 +1893,16 @@ export function getLatestTag(): string | null {
 
   if (!gitPath) return null
 
-  const tags: string[] = []
-
-  // Loose refs
   try {
-    tags.push(...fs.readdirSync(path.join(gitPath, 'refs', 'tags')))
-  } catch {}
-
-  // Packed refs (git gc moves tags here)
-  try {
-    const packed = fs.readFileSync(path.join(gitPath, 'packed-refs'), 'utf-8')
-    for (const line of packed.split('\n')) {
-      const m = line.match(/^[0-9a-f]+ refs\/tags\/(.+)$/)
-      if (m && !m[1].endsWith('^{}')) tags.push(m[1])
-    }
-  } catch {}
-
-  if (tags.length === 0) return null
-
-  tags.sort((a, b) => {
-    const av = a.replace(/^v/, '').split('.').map(Number)
-    const bv = b.replace(/^v/, '').split('.').map(Number)
-    for (let i = 0; i < Math.max(av.length, bv.length); i++) {
-      const d = (av[i] ?? 0) - (bv[i] ?? 0)
-      if (d !== 0) return d
-    }
-    return 0
-  })
-  return tags[tags.length - 1]
+    const output = execFileSync('git', ['tag', '--merged', 'HEAD', '--sort=-version:refname'], {
+      cwd: path.dirname(gitPath),
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf-8',
+    })
+    return output.split('\n').map((tag) => tag.trim()).find((tag) => /^v?\d+\.\d+\.\d+(?:[-+].+)?$/.test(tag)) || null
+  } catch {
+    return null
+  }
 }
 
 function isUsableVersion(value: string | null | undefined): value is string {
