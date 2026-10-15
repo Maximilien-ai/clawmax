@@ -7,6 +7,7 @@ import { ProductIconCell } from '../lib/productIcons'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
+import { AgentActivity, normalizeAgentActivity } from '../lib/agentActivity'
 
 interface GroupEntry {
   name: string
@@ -24,20 +25,6 @@ interface Agent {
   groups: GroupEntry[]
   tags: string[]
   workspaceId?: string
-}
-
-interface AgentActivity {
-  recentFiles: { name: string; mtime: string; ageMins: number }[]
-  todos: string | null
-  completed: string | null
-  identity: string | null
-  skills?: string[]
-  liveConfig?: {
-    model: string
-    backupModel?: string
-    workspace: string
-    agentDir: string
-  }
 }
 
 interface WorkspaceBudgetStatus {
@@ -134,6 +121,7 @@ export default function AgentDetailPanel({
 }) {
   const { showError, showSuccess } = useToast()
   const [activity, setActivity] = useState<AgentActivity | null>(null)
+  const [activityError, setActivityError] = useState(false)
   const [docEntries, setDocEntries] = useState<WorkspaceDocEntryRef[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
@@ -164,10 +152,25 @@ export default function AgentDetailPanel({
   }, [handleKey])
 
   const fetchActivity = useCallback(() => {
+    setActivityError(false)
     fetch(`/api/agents/${agent.id}/activity`)
-      .then(r => r.json())
-      .then(d => { setActivity(d); setLoading(false); setLastRefreshed(Date.now()) })
-      .catch(() => setLoading(false))
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const normalized = normalizeAgentActivity(payload)
+        if (!normalized) throw new Error('Invalid activity response')
+        return normalized
+      })
+      .then((nextActivity) => {
+        setActivity(nextActivity)
+        setLoading(false)
+        setLastRefreshed(Date.now())
+      })
+      .catch(() => {
+        setActivity(null)
+        setActivityError(true)
+        setLoading(false)
+      })
   }, [agent.id])
 
   useEffect(() => {
@@ -396,6 +399,12 @@ export default function AgentDetailPanel({
             <p className="text-sm text-gray-400">Loading activity...</p>
           )}
 
+          {!loading && activityError && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+              Agent details are still becoming available. Refresh to try again.
+            </div>
+          )}
+
           {costTrackingEnabled && (
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -465,8 +474,9 @@ export default function AgentDetailPanel({
             <>
               {/* Recent file activity */}
               <Section title="Recent activity" source={relDir + '/'}>
-                <ul className="space-y-1">
-                  {activity.recentFiles.map(f => (
+                {activity.recentFiles.length > 0 ? (
+                  <ul className="space-y-1">
+                    {activity.recentFiles.map(f => (
                     <li key={f.name} className="flex items-center justify-between text-sm">
                       <button
                         type="button"
@@ -482,8 +492,11 @@ export default function AgentDetailPanel({
                       </button>
                       <span className="text-gray-400 text-xs shrink-0 ml-3">{timeAgo(f.ageMins)}</span>
                     </li>
-                  ))}
-                </ul>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-400">No recent activity yet.</p>
+                )}
               </Section>
 
               {/* TODOs */}

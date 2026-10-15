@@ -1735,6 +1735,15 @@ else
   fail "Agent list helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent activity response unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentActivity.test.ts > /tmp/clawmax-agent-activity.out 2>&1 || true
+if grep -q "agentActivity.test.ts: 4 tests passed" /tmp/clawmax-agent-activity.out; then
+  pass "Agent activity response unit tests (4 tests)"
+else
+  cat /tmp/clawmax-agent-activity.out
+  fail "Agent activity response unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Agent card presentation helper tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentCardPresentation.test.ts > /tmp/clawmax-agent-card-presentation.out 2>&1 || true
 if grep -q "tests passed" /tmp/clawmax-agent-card-presentation.out; then
