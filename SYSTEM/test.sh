@@ -3475,21 +3475,32 @@ else
   fi
 fi
 
-# Test skill validation
-response=$(apicurl -X POST "$API_BASE/api/skills/validate" \
-  -H 'Content-Type: application/json' \
-  -d '{"skills":["github","slack","notion"]}')
+# Resolve valid IDs from the runtime catalog instead of assuming every pinned
+# OpenClaw build bundles the same optional skills (for example, slack).
+available_skill_ids=$(apicurl "$API_BASE/api/skills" | jq -c '[.skills[] | (.id // .name) | select(type == "string" and length > 0)] | unique')
+valid_skill_count=$(echo "$available_skill_ids" | jq 'length')
+valid_skill=$(echo "$available_skill_ids" | jq -r '.[0] // empty')
 
-if echo "$response" | jq -e '.valid == true' > /dev/null 2>&1; then
-  pass "Valid skills pass validation"
+# Test skill validation
+if [ "$valid_skill_count" -gt 0 ]; then
+  valid_skills=$(echo "$available_skill_ids" | jq -c '.[0:3]')
+  response=$(apicurl -X POST "$API_BASE/api/skills/validate" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -nc --argjson skills "$valid_skills" '{skills: $skills}')")
+
+  if echo "$response" | jq -e '.valid == true' > /dev/null 2>&1; then
+    pass "Valid skills pass validation"
+  else
+    fail "Valid skills validation failed"
+  fi
 else
-  fail "Valid skills validation failed"
+  warn "No catalog skills found - skipping valid skills validation"
 fi
 
 # Test invalid skill detection
 response=$(apicurl -X POST "$API_BASE/api/skills/validate" \
   -H 'Content-Type: application/json' \
-  -d '{"skills":["github","nonexistent-skill-xyz"]}')
+  -d "$(jq -nc --arg skill "$valid_skill" '{skills: ([$skill, "nonexistent-skill-xyz"] | map(select(length > 0)))}')")
 
 if echo "$response" | jq -e '.valid == false' > /dev/null 2>&1; then
   missing=$(echo "$response" | jq -r '.missing[0]')
@@ -3503,45 +3514,49 @@ else
 fi
 
 # Test skill assignment update (if we have agents)
-if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1; then
+if [ "$valid_skill_count" -gt 0 ] && apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1; then
   first_agent=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[0].id')
 
   # Get current skills
-  current_skills=$(apicurl "$API_BASE/api/skills/agent/$first_agent" | jq -r '.skillIds')
+  current_skills=$(apicurl "$API_BASE/api/skills/agent/$first_agent" | jq -c '.skillIds // []')
 
-  # Try to update (use valid skills: github and slack)
-  test_skills='["github","slack"]'
+  # Try to update using skills advertised by the active runtime catalog.
+  test_skills=$(echo "$available_skill_ids" | jq -c '.[0:2]')
   response=$(apicurl -X PUT "$API_BASE/api/skills/agent/$first_agent" \
     -H 'Content-Type: application/json' \
-    -d "{\"skills\":$test_skills}")
+    -d "$(jq -nc --argjson skills "$test_skills" '{skills: $skills}')")
 
   if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
     pass "Skills assignment update succeeded"
 
     # Verify persistence - check if skills were saved
     sleep 0.5
-    updated_skills=$(apicurl "$API_BASE/api/skills/agent/$first_agent" | jq -r '.skillIds[]')
-    if echo "$updated_skills" | grep -q "github"; then
+    if apicurl "$API_BASE/api/skills/agent/$first_agent" | jq -e --arg skill "$valid_skill" '.skillIds | index($skill) != null' > /dev/null 2>&1; then
       pass "Skills persisted to openclaw.json"
     else
       fail "Skills not persisted correctly"
     fi
+
+    apicurl -X PUT "$API_BASE/api/skills/agent/$first_agent" \
+      -H 'Content-Type: application/json' \
+      -d "$(jq -nc --argjson skills "$current_skills" '{skills: $skills}')" > /dev/null
   else
     fail "Skills assignment update failed"
   fi
 else
-  warn "No agents found for skills assignment test"
+  warn "No catalog skills or agents found for skills assignment test"
 fi
 
 # Test bulk skill assignment
-if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1 && \
+if [ "$valid_skill_count" -gt 0 ] && \
+   apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1 && \
    apicurl "$API_BASE/api/agents" | jq -e '.agents[1].id' > /dev/null 2>&1; then
   agent1=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[0].id')
   agent2=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[1].id')
 
   response=$(apicurl -X POST "$API_BASE/api/skills/bulk-assign" \
     -H 'Content-Type: application/json' \
-    -d "{\"agentIds\":[\"$agent1\",\"$agent2\"],\"addSkills\":[\"github\"]}")
+    -d "$(jq -nc --arg agent1 "$agent1" --arg agent2 "$agent2" --arg skill "$valid_skill" '{agentIds: [$agent1, $agent2], addSkills: [$skill]}')")
 
   if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
     updated=$(echo "$response" | jq -r '.updated')
@@ -3561,7 +3576,7 @@ if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1 && \
     fail "Bulk skill assignment should reject invalid skills"
   fi
 else
-  warn "Need 2+ agents for bulk skill assignment test"
+  warn "Need catalog skills and 2+ agents for bulk skill assignment test"
 fi
 
 echo ""
@@ -4441,7 +4456,7 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "INTEGRATION TESTS — Live Agent Execution"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Model: server-selected cost-efficient default"
+echo "Model: ${CLAWMAX_INTEGRATION_MODEL:-server-selected cost-efficient default}"
 echo ""
 
 INTEGRATION_START=$(date +%s)
@@ -4503,9 +4518,10 @@ for wf_id in $existing_wfs; do
   apicurl -X DELETE "$API_BASE/api/workflows/$wf_id" > /dev/null 2>&1
 done
 
-# Apply system-test template with the server-selected cost-efficient model
+# Apply the system-test template with an explicit test model when supplied;
+# otherwise retain the server-selected cost-efficient hosted default.
 auth_config=$(apicurl "$API_BASE/api/auth/config")
-SYSTEM_TEST_MODEL=$(echo "$auth_config" | jq -r '.costEfficientModel // empty' 2>/dev/null)
+SYSTEM_TEST_MODEL="${CLAWMAX_INTEGRATION_MODEL:-$(echo "$auth_config" | jq -r '.costEfficientModel // empty' 2>/dev/null)}"
 if [ -z "$SYSTEM_TEST_MODEL" ] || [ "$SYSTEM_TEST_MODEL" = "null" ]; then
   SYSTEM_TEST_MODEL="openai/gpt-4o-mini"
 fi
