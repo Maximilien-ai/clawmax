@@ -2067,6 +2067,7 @@ export function triggerWorkflow(workflowId: string, options?: {
                   gemini: executionEnv.GEMINI_API_KEY,
                   openrouter: executionEnv.OPENROUTER_API_KEY,
                   xai: executionEnv.XAI_API_KEY,
+                  ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
                   openaiCompatibleApiKey: attemptProvider === 'openai-compatible' ? executionEnv.OPENAI_API_KEY : undefined,
                   openaiCompatibleBaseUrl: attemptProvider === 'openai-compatible' ? executionEnv.OPENAI_BASE_URL : undefined,
                   openaiCompatibleDefaultModel: attemptProvider === 'openai-compatible'
