@@ -16,6 +16,7 @@ import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocE
 import { formatAgentWorkStatus, summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
 import { INCOMPLETE_AGENT_CHAT_MESSAGE, markIncompleteAgentReply } from '../lib/agentChatStream'
 import { buildAgentChatMarkdown, getAgentChatDownloadState } from '../lib/agentChatExport'
+import { parseAgentChatHistory, reconcileAgentChatHistory } from '../lib/agentChatHistory'
 import { useToast } from './Toast'
 import { AgentAttention } from './AgentAttention'
 
@@ -24,6 +25,10 @@ interface Message {
   content: string
   timestamp: number
   id: string
+  /** Sent or received by this tab and not yet confirmed by the persisted transcript. */
+  pending?: boolean
+  /** For a pending user message: the text the agent received, when it differs from what is shown. */
+  sentContent?: string
 }
 
 interface GroupTarget {
@@ -202,6 +207,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const browserChatEnabled = hasChatExecutionAccess(config) || stagedTemplateAgent
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  // Bumped by every local change a history response already in flight must not overwrite (clear,
+  // reset, restore); such a response describes the conversation as it was before that change.
+  const historyEpochRef = useRef(0)
   const [rawViewIds, setRawViewIds] = useState<Set<string>>(new Set())
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -279,11 +288,17 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const timelineRows = buildAgentChatTimelineRows(messages)
   const timelineMessageMap = new Map(messages.map((message) => [message.id, message]))
 
-  // Poll for new messages (agent-initiated updates)
+  // Keep the panel in step with the persisted transcript: history on open, replies that finished
+  // while another tab or a reload was watching, agent-initiated messages. Paused while this tab is
+  // sending -- its stream owns those bubbles until it settles -- and re-run as soon as it has. A turn
+  // adopted after a reload has no local bubbles, so polling continues and shows it when persisted.
   useEffect(() => {
+    // Set by cleanup, which runs whenever a send starts or ends: a response requested before that
+    // describes the conversation as it was and must not overwrite the bubbles the send created.
+    let superseded = false
     const pollMessages = async () => {
-      // Don't poll while actively streaming
-      if (streaming) return
+      if (sending) return
+      const epoch = historyEpochRef.current
       try {
         const r = await fetch(`/api/agents/${agentId}/chat/messages`, { headers: generationHeaders })
         if (r.status === 404 || r.status === 410) {
@@ -291,27 +306,26 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
           onClose()
           return
         }
-        const data = await r.json()
-        const serverMessages: Message[] = (data.messages || []).map((m: any, i: number) => ({
-          role: m.role,
-          content: m.content,
-          timestamp: m.timestamp || Date.now(),
-          id: m.id || `poll-${i}`
-        }))
-        // Only update if server has more messages than local (agent posted something new)
-        if (serverMessages.length > messages.length) {
-          setMessages(serverMessages)
-        }
-        setLoadingHistory(false)
-      } catch {
-        setLoadingHistory(false)
+        const data = await r.json().catch(() => null)
+        if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`)
+        const serverMessages = parseAgentChatHistory(data)
+        if (superseded || epoch !== historyEpochRef.current) return
+        setMessages(current => reconcileAgentChatHistory(current, serverMessages))
+        setHistoryError(null)
+      } catch (err) {
+        if (!superseded) setHistoryError(err instanceof Error ? err.message : String(err))
+      } finally {
+        if (!superseded) setLoadingHistory(false)
       }
     }
 
-    pollMessages() // Fetch immediately on mount
+    pollMessages() // Fetch immediately on mount, and again the moment a send settles
     const interval = setInterval(pollMessages, 3000)
-    return () => clearInterval(interval)
-  }, [agentId, agentGeneration, messages.length, onClose, streaming])
+    return () => {
+      superseded = true
+      clearInterval(interval)
+    }
+  }, [agentId, agentGeneration, onClose, sending])
 
   // Poll the server's view of what's actually running. This is the only way a turn already in
   // flight ever becomes visible in this tab: `streaming` is local state that a page refresh
@@ -594,6 +608,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       const resp = await fetch(`/api/agents/${agentId}/reset-session`, { method: 'POST', headers: generationHeaders })
       const data = await resp.json().catch(() => ({}))
       if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`)
+      historyEpochRef.current += 1
       setMessages([])
       setInputHistory([])
       setHistoryIndex(-1)
@@ -667,18 +682,22 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       const displayMessage = buildAgentInboxDisplayMessage(textToSend, uploadedAttachments)
       const executionMessage = appendAgentInboxAttachmentContext(textToSend, uploadedAttachments)
 
+      // Pending until the persisted transcript returns them; see reconcileAgentChatHistory.
       const userMsg: Message = {
         role: 'user',
         content: displayMessage,
         timestamp: Date.now(),
-        id: `user-${Date.now()}`
+        id: `user-${Date.now()}`,
+        pending: true,
+        ...(executionMessage !== displayMessage ? { sentContent: executionMessage } : {}),
       }
       assistantId = `assistant-${Date.now()}`
       const assistantMsg: Message = {
         role: 'assistant',
         content: '',
         timestamp: Date.now(),
-        id: assistantId
+        id: assistantId,
+        pending: true,
       }
       setMessages(prev => [...prev, userMsg, assistantMsg])
       if (!messageText) {
@@ -910,6 +929,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       const r = await fetch(`/api/agents/${agentId}/chat/messages`, { method: 'DELETE', headers: generationHeaders })
       const data = await r.json()
       if (data.ok) {
+        historyEpochRef.current += 1
         setMessages([])
         setShowClearConfirm(false)
         setInputHistory([]) // Clear input history when chat is archived
@@ -958,6 +978,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}/restore`, { method: 'POST', headers: generationHeaders })
       const data = await r.json()
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`)
+      historyEpochRef.current += 1
       setMessages(data.messages || [])
       setViewingArchive(null)
       setShowArchives(false)
@@ -1214,7 +1235,15 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
             </div>
           )}
 
-          {!loadingHistory && messages.length === 0 && (
+          {/* A failed load is not an empty conversation: say so instead of inviting a fresh start. */}
+          {historyError && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100" role="alert">
+              <div className="font-medium">Chat history could not be loaded</div>
+              <div className="mt-1 break-words text-xs opacity-90">{stripAnsi(historyError)} Retrying automatically.</div>
+            </div>
+          )}
+
+          {!loadingHistory && !historyError && messages.length === 0 && (
             <div className="text-center py-12 text-gray-400 text-sm">
               <div className="text-4xl mb-3">💬</div>
               <p>Start a conversation with {agentName}</p>
