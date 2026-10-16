@@ -5,7 +5,7 @@ import fs from 'fs'
 import { hasAgentDirectory } from '../lib/agent-directory'
 import os from 'os'
 import { streamZipExport } from '../lib/zip-export'
-import { hasNativeChatStore, readNativeChatTranscript } from '../lib/native-chat-history'
+import { hasNativeChatStore, readNativeChatTranscript, readPersistedChatTranscript } from '../lib/native-chat-history'
 import { listAgents, getActiveAgentLifecycleGeneration, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
 import { generateAgentFiles, generateAgentMeta, generateArchiveTitle, withGenerationAttribution, withGenerationRuntimePin } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
@@ -496,19 +496,44 @@ function extractVisibleChatText(content: unknown): string {
     .join('\n')
 }
 
-function parseVisibleChatMessages(jsonlContent: string): Array<{ role: 'user' | 'assistant'; content: string; timestamp: number }> {
-  const lines = jsonlContent.trim().split('\n').filter((line) => line.trim())
-  const messages: Array<{ role: 'user' | 'assistant'; content: string; timestamp: number }> = []
+/**
+ * OpenClaw's own reset (`/new` or `/reset` through a Gateway, a daily or idle reset) keeps the session
+ * and appends a `reset` event; the agent's context then starts after it, plus whatever events from
+ * `firstKeptEntryId` on it kept. Show that same window, never turns the agent no longer has.
+ */
+function afterLatestResetBoundary(entries: any[]): any[] {
+  let boundary = -1
+  for (let index = entries.length - 1; index >= 0; index--) {
+    if (entries[index]?.type === 'reset') { boundary = index; break }
+  }
+  if (boundary < 0) return entries
+  const firstKeptId = entries[boundary].firstKeptEntryId
+  const firstKept = typeof firstKeptId === 'string' ? entries.findIndex((entry, index) => index < boundary && entry?.id === firstKeptId) : -1
+  return [...(firstKept < 0 ? [] : entries.slice(firstKept, boundary)), ...entries.slice(boundary + 1)]
+}
 
-  for (const line of lines) {
+function parseVisibleChatMessages(jsonlContent: string): Array<{ id?: string; role: 'user' | 'assistant'; content: string; timestamp: number }> {
+  const entries = jsonlContent.trim().split('\n').filter((line) => line.trim()).flatMap((line) => {
     try {
-      const entry = JSON.parse(line)
-      if (entry.type !== 'message' || !entry.message) continue
+      return [JSON.parse(line)]
+    } catch {
+      return []
+    }
+  })
+  const messages: Array<{ id?: string; role: 'user' | 'assistant'; content: string; timestamp: number }> = []
+
+  for (const entry of afterLatestResetBoundary(entries)) {
+    try {
+      if (entry?.type !== 'message' || !entry.message) continue
       const msg = entry.message
       if (!isVisibleChatRole(msg.role)) continue
+      if (isOpenClawInternalPrompt(msg)) continue
       const content = normalizeChatMessage(extractVisibleChatText(msg.content))
       if (!content) continue
       messages.push({
+        // The transcript event id is stable across polls, so the browser can tell a persisted
+        // message it already shows from a new one without comparing text.
+        ...(typeof entry.id === 'string' && entry.id ? { id: entry.id } : {}),
         role: msg.role,
         content,
         timestamp: msg.timestamp || entry.timestamp || Date.now(),
@@ -522,13 +547,7 @@ function parseVisibleChatMessages(jsonlContent: string): Array<{ role: 'user' | 
 }
 
 function readChatSessionMessages(agentId: string, sessionId: string, homeDir: string = process.env.HOME || '') {
-  const nativeTranscript = readNativeChatTranscript(agentId, sessionId, homeDir)
-  if (nativeTranscript !== undefined) return parseVisibleChatMessages(nativeTranscript)
-  const jsonlPath = path.join(getAgentSessionsDir(agentId, homeDir), `${sessionId}.jsonl`)
-  if (!fs.existsSync(jsonlPath)) {
-    return []
-  }
-  return parseVisibleChatMessages(fs.readFileSync(jsonlPath, 'utf-8'))
+  return parseVisibleChatMessages(readPersistedChatTranscript(agentId, sessionId, homeDir) ?? '')
 }
 
 // Merges openclaw's own session JSONL (read above) with the runtime-transcripts store that
@@ -539,7 +558,9 @@ function readChatSessionMessages(agentId: string, sessionId: string, homeDir: st
 function readMergedChatSessionMessages(agentId: string, sessionId: string, homeDir: string = process.env.HOME || '') {
   const openclawMessages = readChatSessionMessages(agentId, sessionId, homeDir)
   const runtimeMessages = readRuntimeTranscript(agentId, sessionId)
-    .map((turn) => ({ role: turn.role, content: turn.content, timestamp: turn.ts }))
+    // Runtime transcripts have no event ids; time plus role stays stable when the merge below
+    // interleaves the two stores, where a position-based id would shift.
+    .map((turn) => ({ id: `runtime-${turn.ts}-${turn.role}`, role: turn.role, content: turn.content, timestamp: turn.ts }))
   if (runtimeMessages.length === 0) return openclawMessages
   return [...openclawMessages, ...runtimeMessages].sort((a, b) => a.timestamp - b.timestamp)
 }
@@ -2894,9 +2915,9 @@ router.post('/:id/chat/messages', async (req, res) => {
     const HOME = process.env.HOME || ''
     const sessionsPath = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'sessions.json')
     const resolvedAgent = resolveAgentExecutionConfig(id)
-    const preferredSessionId = scopeSessionIdToModel(sessionKey, resolvedAgent.model)
-    const persistedSessionId = resolvePersistedAgentSessionId(id, sessionKey, preferredSessionId, HOME)
-    const sessionId = scopeSessionIdToModel(persistedSessionId || sessionKey, resolvedAgent.model)
+    // The dashboard chat's current conversation, the one its history shows. This used to scope an
+    // already scoped id a second time, so these turns ran in a session the chat never displayed.
+    const sessionId = resolveAgentChatSessionId(id, HOME) || scopeSessionIdToModel(sessionKey, resolvedAgent.model)
 
     if (resolvedAgent.runtime !== 'openclaw') {
       // Claude Code / Factory Droid: spawn via the shared runtime adapter instead of the
@@ -3686,7 +3707,7 @@ router.get('/:id/chat/archives', async (req, res) => {
               const obj = JSON.parse(line)
               if (obj.type === 'message' && obj.message) {
                 const msg = obj.message
-                if (!isVisibleChatRole(msg.role)) continue
+                if (!isVisibleChatRole(msg.role) || isOpenClawInternalPrompt(msg)) continue
                 let textContent = ''
 
                 if (Array.isArray(msg.content)) {
@@ -4516,4 +4537,10 @@ router.post('/:id/export-openclaw', async (req, res) => {
 export default router
 function isVisibleChatRole(role: unknown): role is 'user' | 'assistant' {
   return role === 'user' || role === 'assistant'
+}
+
+// OpenClaw's own prompts to the agent (resuming a reply a Gateway restart interrupted, a heartbeat)
+// are user-role turns it marks internal_system. Nobody wrote them in this chat.
+function isOpenClawInternalPrompt(message: { role?: unknown; provenance?: { kind?: unknown } }): boolean {
+  return message.role === 'user' && message.provenance?.kind === 'internal_system'
 }
