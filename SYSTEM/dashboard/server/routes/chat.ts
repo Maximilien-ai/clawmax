@@ -8,6 +8,7 @@ import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunn
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
+import { defaultDashboardChatSeed, readDashboardChatConversations, type DashboardChatConversations } from '../lib/dashboard-chat-conversations'
 import { recoverRejectedGatewayChat } from '../lib/gateway-chat-recovery'
 import { checkBudgetBlock } from '../lib/budget'
 import { createStreamingWarningFilter, normalizeChatMessage, stripBenignChatRuntimeWarnings } from '../lib/chat-normalization'
@@ -856,6 +857,15 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     return reject(400, readiness.error || 'Agent execution is unavailable')
   }
   const resolvedAgent = readiness.resolvedAgent
+  // The browser's seed names "the dashboard chat with this agent", not a session. Which conversation
+  // that is belongs to the server (dashboard-chat-conversations.ts), so a chat cleared in another
+  // tab, or before a reload, never receives another turn.
+  let dashboardConversation: DashboardChatConversations | undefined
+  try {
+    dashboardConversation = sessionId === defaultDashboardChatSeed(id) ? readDashboardChatConversations(id) : undefined
+  } catch (err) {
+    return reject(500, err instanceof Error ? err.message : String(err))
+  }
   const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
   const integrationConfig = readWorkspaceIntegrationConfig()
   const effectiveWorkspaceRoot = deriveWorkspaceRootFromAgentWorkspace(resolvedAgent.workspace) || getWorkspacePath()
@@ -879,7 +889,9 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     executionEnv.CLAWMAX_MAIL_BROKER_TOKEN = brokerCapability
     executionEnv.CLAWMAX_MAIL_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/mail`
   }
-  const sessionSeed = sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace)
+  const sessionSeed = dashboardConversation?.activeSeed || sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace)
+  // A resumed conversation runs its exact session, even if the agent's model has changed since.
+  const resumedSessionId = dashboardConversation?.activeSessionId
 
   console.log(`[Chat Route] Starting CLI chat for agent ${id}`)
 
@@ -904,7 +916,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   }, 2000)
   const chatStartedAt = Date.now()
   const dashboardSessionKey = `agent:${id}:dashboard-chat`
-  let currentSessionId = scopeSessionIdToModel(sessionSeed, resolvedAgent.model)
+  let currentSessionId = resumedSessionId || scopeSessionIdToModel(sessionSeed, resolvedAgent.model)
   let chatSessionRetryAttempt = 0
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
@@ -1134,10 +1146,10 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
         forceGateway = false,
       ) => {
         const attemptSessionSeed = buildDashboardChatRetrySeed(sessionSeed, chatSessionRetryAttempt)
-        const executionSessionId = scopeSessionIdToModel(
-          attemptSessionSeed,
-          attemptModel,
-        )
+        // Recovery and backup-model attempts keep their own sessions, as they always have.
+        const executionSessionId = resumedSessionId && chatSessionRetryAttempt === 0 && attemptModel === resolvedAgent.model
+          ? resumedSessionId
+          : scopeSessionIdToModel(attemptSessionSeed, attemptModel)
         currentSessionId = executionSessionId
         // The reply already persisted before this attempt, so recovery below never mistakes it for
         // this attempt's answer.
@@ -1203,7 +1215,14 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
             proc = spawned
             procExited = false
 
-            send('start', { sessionId: executionSessionId, resumeSessionId: attemptSessionSeed, turnId: turn.turnId })
+            // The panel sends `resumeSessionId` with its next turn. A first attempt hands back what the
+            // panel sent, so a dashboard chat keeps asking for its current conversation; only a
+            // recovery seed (a locked session) is handed out for it to keep.
+            send('start', {
+              sessionId: executionSessionId,
+              resumeSessionId: chatSessionRetryAttempt > 0 ? attemptSessionSeed : (sessionId || attemptSessionSeed),
+              turnId: turn.turnId,
+            })
             invalidateAgentStatusCache(id)
 
             /**
