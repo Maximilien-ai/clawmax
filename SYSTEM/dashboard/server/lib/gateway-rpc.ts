@@ -155,16 +155,18 @@ function parseGatewayConfig(config: any): GatewayConfig | null {
 
 function loadGatewayConfigFromDisk(): GatewayConfig | null {
   try {
-    const explicitConfigPath = String(process.env.OPENCLAW_CONFIG_PATH || '').trim()
-    const stateDir = String(process.env.OPENCLAW_STATE_DIR || '').trim()
-    const configPath = explicitConfigPath
-      || (stateDir ? path.join(stateDir, 'openclaw.json') : path.join(os.homedir(), '.openclaw', 'openclaw.json'))
-    const content = fs.readFileSync(configPath, 'utf-8')
-    const config = JSON.parse(content)
-    return parseGatewayConfig(config)
+    return parseGatewayConfig(readOpenClawConfigFromDisk())
   } catch {
     return null
   }
+}
+
+function readOpenClawConfigFromDisk(): any {
+  const explicitConfigPath = String(process.env.OPENCLAW_CONFIG_PATH || '').trim()
+  const stateDir = String(process.env.OPENCLAW_STATE_DIR || '').trim()
+  const configPath = explicitConfigPath
+    || (stateDir ? path.join(stateDir, 'openclaw.json') : path.join(os.homedir(), '.openclaw', 'openclaw.json'))
+  return JSON.parse(fs.readFileSync(configPath, 'utf-8'))
 }
 
 function buildGatewayCliCallArgs(method: string, params?: any, timeoutMs = 120000): string[] {
@@ -894,12 +896,32 @@ export function isGatewayConfigured(): boolean {
   return !!loadGatewayConfigFromDisk()
 }
 
-export function configuredAutoStartGatewayOwnsState(input: {
-  configured: boolean
-  autoStartSetting?: string
-}): boolean {
-  if (input.autoStartSetting === 'false') return false
-  return input.configured || input.autoStartSetting === 'true'
+export type OpenClawStateOwner = 'deployment' | 'remote' | 'local-gateway' | null
+
+/**
+ * Which Gateway owns this state directory, so a turn belongs on it rather than on `--local`: one the
+ * deployment starts beside the dashboard (the container entrypoint exports
+ * CLAWMAX_AUTO_START_GATEWAY=true), a remote one openclaw.json points at, or a local one whose port is
+ * listening. A local gateway section alone is no owner: setup writes it on hosts where nothing runs
+ * the Gateway, and treating it as running stalled every turn and then failed it.
+ */
+export function openClawStateOwner(): OpenClawStateOwner {
+  if (process.env.CLAWMAX_AUTO_START_GATEWAY === 'true') return 'deployment'
+  let mode: unknown
+  try { mode = readOpenClawConfigFromDisk()?.gateway?.mode } catch { /* no readable config */ }
+  if (mode === 'remote') return 'remote'
+  return isGatewayRunning().running ? 'local-gateway' : null
+}
+
+/**
+ * The readiness wait for agent calls without chat's local-collision retry (group chat, workflows): a
+ * local Gateway that may still be booting gets the default short wait. A remote one, which no local
+ * probe sees, or none at all (no gateway section, or CLAWMAX_AUTO_START_GATEWAY=false) gets one probe.
+ */
+export function readinessWaitWithoutCollisionRetry(owner: OpenClawStateOwner): number | undefined {
+  if (owner === 'remote') return 0
+  if (owner) return undefined
+  return isGatewayConfigured() && process.env.CLAWMAX_AUTO_START_GATEWAY !== 'false' ? undefined : 0
 }
 
 export function getConfiguredGatewayPort(): number | null {

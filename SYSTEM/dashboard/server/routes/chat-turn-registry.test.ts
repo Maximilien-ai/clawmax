@@ -215,6 +215,46 @@ async function run() {
     })
   })
 
+  for (const scenario of [
+    // setup.sh writes a gateway section on hosts where nothing runs the Gateway: no wait, run locally.
+    { name: 'a configured Gateway that is not running is not waited for: the turn runs locally at once', owner: null, waits: [0], local: true },
+    // A local Gateway that owns the state but is busy or booting gets the cold-start window, never --local.
+    { name: 'a local Gateway that owns the state keeps the turn off --local while it is not answering', owner: 'local-gateway', waits: [120000], local: false },
+    // A remote Gateway owns the turn, and no local probe can see it: no wait at all.
+    { name: 'a remote Gateway takes the turn at once, without waiting on a local probe', owner: 'remote', waits: [0], local: false },
+  ]) {
+    await test(scenario.name, async () => {
+      await withScratchHome(async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-fake-openclaw-'))
+        const argsFile = path.join(dir, 'args.json')
+        const cli = writeFakeCli(dir, 'openclaw', `
+          require('fs').writeFileSync(${JSON.stringify(argsFile)}, JSON.stringify(process.argv.slice(2)))
+          process.stdout.write('Reply')
+          process.exit(0)
+        `)
+        const waits: Array<number | undefined> = []
+        try {
+          await withModuleOverrides(require.resolve('../lib/gateway-rpc'), {
+            openClawStateOwner: () => scenario.owner,
+            waitForGatewayResponsive: async (timeoutMs?: number) => { waits.push(timeoutMs); return { running: false, port: 18789 } },
+          }, () => withOpenclawReadiness('gateway-ownership-agent', {}, () =>
+            withModuleOverrides(openclawCliModulePath, { resolveOpenClawCliPath: () => cli }, async () => {
+              const handler = getRouteHandler('post', '/:id/chat')
+              const res = makeSseRes()
+              const req = makeReq({ params: { id: 'gateway-ownership-agent' }, body: { message: 'hi' }, on() {} })
+              await Promise.all([handler(req, res), res.done])
+              assert.deepStrictEqual(waits, scenario.waits, 'Unexpected Gateway readiness wait')
+              assert.strictEqual(JSON.parse(fs.readFileSync(argsFile, 'utf8')).includes('--local'), scenario.local)
+              assert.ok(res.events.some((e) => e.type === 'complete' && e.data?.text === 'Reply'),
+                `Expected the reply, got: ${JSON.stringify(res.events)}`)
+            })))
+        } finally {
+          fs.rmSync(dir, { recursive: true, force: true })
+        }
+      })
+    })
+  }
+
   await test('claude/droid missingCliError still releases the turn', async () => {
     await withScratchHome(async () => {
       await withModuleOverrides(agentExecutionModulePath, {
