@@ -2541,6 +2541,14 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
     errors.push(`Failed to remove workspace: ${e}`)
   }
 
+  // The dashboard chat record names this agent's conversations: a recreated agent with the same id
+  // must not inherit them (dashboard-chat-conversations.ts).
+  try {
+    fs.rmSync(path.join(getWorkspacePath(), 'SYSTEM', 'dashboard-chat', `${id}.json`), { force: true })
+  } catch (e) {
+    errors.push(`Failed to remove dashboard chat record: ${e}`)
+  }
+
   // Remove shared home agent dir (~/.openclaw/agents/<id>)
   try {
     if (hasRemainingWorkspaceCopies) {

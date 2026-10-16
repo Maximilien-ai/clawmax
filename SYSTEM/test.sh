@@ -2985,6 +2985,20 @@ else
   fail "Default OpenClaw plugin shell tests"
 fi
 
+echo -e "${YELLOW}→ Running local Gateway lifecycle tests...${NC}"
+if node --test "$SYSTEM_DIR/local-gateway.test.mjs" > /tmp/clawmax-local-gateway.out 2>&1; then
+  pass "Local Gateway setup, reuse, ownership and fallback tests"
+else
+  cat /tmp/clawmax-local-gateway.out
+  fail "Local Gateway setup, reuse, ownership and fallback tests"
+fi
+if bash "$SYSTEM_DIR/start-gateway.test.sh" > /tmp/clawmax-start-gateway.out 2>&1; then
+  pass "start.sh Gateway and watchdog startup tests"
+else
+  cat /tmp/clawmax-start-gateway.out
+  fail "start.sh Gateway and watchdog startup tests"
+fi
+
 echo -e "${YELLOW}→ Running OpenClaw target prep shell tests...${NC}"
 if node "$SYSTEM_DIR/test-isolated-gateway.test.mjs" > /tmp/clawmax-isolated-gateway.out 2>&1; then
   pass "Isolated gateway startup and cleanup tests"
@@ -3683,11 +3697,45 @@ fi
 
 echo -e "${YELLOW}→ Running Agent chat stream safety tests...${NC}"
 npx ts-node --transpileOnly client/src/AgentChatStreamSafety.test.ts > /tmp/clawmax-agent-chat-stream-safety.out 2>&1 || true
-if grep -q "AgentChatStreamSafety.test.ts: 14 assertions passed" /tmp/clawmax-agent-chat-stream-safety.out; then
-  pass "Agent chat stream safety tests (14 assertions)"
+if grep -q "AgentChatStreamSafety.test.ts: 24 assertions passed" /tmp/clawmax-agent-chat-stream-safety.out; then
+  pass "Agent chat stream safety tests (24 assertions)"
 else
   cat /tmp/clawmax-agent-chat-stream-safety.out
   fail "Agent chat stream safety tests"
+fi
+
+echo -e "${YELLOW}→ Running Agent chat history reconciliation and Forward To tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentChatHistory.test.ts > /tmp/clawmax-agent-chat-history.out 2>&1 \
+  && npx ts-node --transpileOnly client/src/lib/agentChatForward.test.ts >> /tmp/clawmax-agent-chat-history.out 2>&1; then
+  pass "Agent chat history reconciliation and Forward To tests ($(grep -c '^✓ ' /tmp/clawmax-agent-chat-history.out) tests)"
+else
+  cat /tmp/clawmax-agent-chat-history.out
+  fail "Agent chat history reconciliation and Forward To tests"
+fi
+
+echo -e "${YELLOW}→ Running Agent chat scroll-follow and code block Copy tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentChatScroll.test.ts > /tmp/clawmax-agent-chat-scroll-copy.out 2>&1 \
+  && npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/ChatCodeBlock.test.tsx >> /tmp/clawmax-agent-chat-scroll-copy.out 2>&1; then
+  pass "Agent chat scroll-follow and code block Copy tests"
+else
+  cat /tmp/clawmax-agent-chat-scroll-copy.out
+  fail "Agent chat scroll-follow and code block Copy tests"
+fi
+
+echo -e "${YELLOW}→ Running chat route turn lifecycle and live-output tests...${NC}"
+if npx ts-node --transpileOnly server/routes/chat-turn-registry.test.ts > /tmp/clawmax-chat-turn-registry.out 2>&1; then
+  pass "Chat route turn lifecycle and live-output tests"
+else
+  cat /tmp/clawmax-chat-turn-registry.out
+  fail "Chat route turn lifecycle and live-output tests"
+fi
+
+echo -e "${YELLOW}→ Running Gateway chat live-output tests...${NC}"
+if npx ts-node --transpileOnly server/lib/gateway-chat-stream.test.ts > /tmp/clawmax-gateway-chat-stream.out 2>&1; then
+  pass "Gateway chat live-output tests"
+else
+  cat /tmp/clawmax-gateway-chat-stream.out
+  fail "Gateway chat live-output tests"
 fi
 
 echo -e "${YELLOW}→ Running dev host Skill chat presentation tests...${NC}"

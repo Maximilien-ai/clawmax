@@ -1,3 +1,5 @@
+import { createFenceTracker } from '../../../server/lib/chat-normalization'
+
 export function summarizeAgentChatFailure(message: string, options?: { agentId?: string }): string {
   const text = String(message || '').trim()
   if (!text) return 'No reply from agent.'
@@ -46,4 +48,14 @@ export function formatAgentWorkStatus(elapsedMs: number): string {
     ? `${elapsedSeconds}s`
     : `${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`
   return `Agent is working and may be using tools. ${elapsed} elapsed; tool-enabled requests can take up to 3 minutes.`
+}
+
+/**
+ * Whether a message is runtime diagnostic output rather than a reply. Judged on prose only: code an
+ * agent was asked to show (`except ValueError:`) is content, and must not turn the reply red.
+ */
+export function isRuntimeDiagnosticText(content: string): boolean {
+  const isFenced = createFenceTracker()
+  const prose = content.split('\n').filter((line) => !isFenced(line)).join('\n').replace(/`[^`]*`/g, '')
+  return /\[diagnostic\]|lane task error|session file locked|^\s*Error:|\berror="/im.test(prose)
 }

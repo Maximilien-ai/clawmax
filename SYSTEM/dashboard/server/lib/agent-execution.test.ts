@@ -696,6 +696,47 @@ test('readLatestAssistantTextFromPersistedSession extracts assistant text from r
   assert(latest?.content === "I'm the CEO agent.", `Expected assistant text from persisted session, got ${latest?.content}`)
 })
 
+test('readLatestAssistantTextFromPersistedSession recovers a compressed reply from the native agent store', () => {
+  // `openclaw agent --session-id X` records the turn under `agent:<id>:explicit:X` in the native
+  // SQLite store and writes no JSONL file, so a JSONL-only reader could never recover a reply.
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-session-'))
+  try {
+    const storeDir = path.join(home, '.openclaw', 'agents', 'nat', 'agent')
+    fs.mkdirSync(storeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(path.join(storeDir, 'openclaw-agent.sqlite'))
+    db.exec(`
+      CREATE TABLE session_nodes (session_key TEXT PRIMARY KEY, current_session_id TEXT);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, event_zstd BLOB);
+      INSERT INTO session_nodes VALUES ('agent:nat:explicit:nat-chat', 'nat-chat');
+    `)
+    const reply = JSON.stringify({ type: 'message', id: 'evt-reply', message: { role: 'assistant', content: [{ type: 'text', text: `Recovered reply ${'x'.repeat(2000)}` }], usage: { input: 3, output: 5 } } })
+    const zstd = (require('zlib') as { zstdCompressSync: (input: Buffer) => Buffer })
+    const insert = db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?, ?)')
+    insert.run('nat-chat', 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'hi' } }), null)
+    insert.run('nat-chat', 2, null, zstd.zstdCompressSync(Buffer.from(reply)))
+    db.close()
+
+    const latest = readLatestAssistantTextFromPersistedSession('nat', 'agent:nat:dashboard-chat', 'nat-chat', home)
+    assert(latest?.sessionId === 'nat-chat', `Expected the explicit session id, got ${latest?.sessionId}`)
+    assert(latest?.messageId === 'evt-reply', `Expected the reply's event id for turn attribution, got ${latest?.messageId}`)
+    assert(latest?.content?.startsWith('Recovered reply ') === true, `Expected the compressed native reply, got ${latest?.content?.slice(0, 40)}`)
+    const usage = readLatestAssistantUsageFromPersistedSession('nat', 'agent:nat:dashboard-chat', 'nat-chat', home)
+    assert(usage?.outputTokens === 5, `Expected native usage, got ${JSON.stringify(usage)}`)
+
+    // A chat migrated from the legacy index keeps its dashboard-chat key pointing at the old session.
+    // After Clear, the turn runs a new session: recovery must read that one, not the key's.
+    const legacy = new DatabaseSync(path.join(storeDir, 'openclaw-agent.sqlite'))
+    legacy.exec("INSERT INTO session_nodes VALUES ('agent:nat:dashboard-chat', 'old-chat')")
+    legacy.prepare('INSERT INTO transcript_events VALUES (?, ?, ?, ?)').run('old-chat', 1, JSON.stringify({ type: 'message', id: 'evt-old', message: { role: 'assistant', content: 'Old reply' } }), null)
+    legacy.close()
+    assert(readLatestAssistantTextFromPersistedSession('nat', 'agent:nat:dashboard-chat', 'nat-chat', home)?.messageId === 'evt-reply', 'The session the turn ran wins over the legacy key')
+    assert(resolvePersistedAgentSessionId('nat', 'agent:nat:dashboard-chat', 'not-run-yet', home) === 'old-chat', 'Before its first turn, the legacy key still resolves')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
 test('session resolution prefers existing files and recovers from invalid indexes', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-edges-'))
   const sessionsDir = path.join(home, '.openclaw', 'agents', 'writer', 'sessions')

@@ -55,7 +55,7 @@ async function test(name: string, fn: () => Promise<void>) {
 }
 
 function makeReq(overrides: Record<string, any> = {}) {
-  return { params: {}, query: {}, body: {}, headers: {}, ...overrides } as any
+  return { params: {}, query: {}, body: {}, headers: {}, get: () => undefined, socket: {}, ...overrides } as any
 }
 
 /** SSE-flavored res mock: parses the `data: {...}\n\n` frames chat.ts's send() helper writes, and
@@ -208,6 +208,46 @@ async function run() {
     })
   })
 
+  for (const scenario of [
+    // setup.sh writes a gateway section on hosts where nothing runs the Gateway: no wait, run locally.
+    { name: 'a configured Gateway that is not running is not waited for: the turn runs locally at once', owner: null, waits: [0], local: true },
+    // A local Gateway that owns the state but is busy or booting gets the cold-start window, never --local.
+    { name: 'a local Gateway that owns the state keeps the turn off --local while it is not answering', owner: 'local-gateway', waits: [120000], local: false },
+    // A remote Gateway owns the turn, and no local probe can see it: no wait at all.
+    { name: 'a remote Gateway takes the turn at once, without waiting on a local probe', owner: 'remote', waits: [0], local: false },
+  ]) {
+    await test(scenario.name, async () => {
+      await withScratchHome(async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-fake-openclaw-'))
+        const argsFile = path.join(dir, 'args.json')
+        const cli = writeFakeCli(dir, 'openclaw', `
+          require('fs').writeFileSync(${JSON.stringify(argsFile)}, JSON.stringify(process.argv.slice(2)))
+          process.stdout.write('Reply')
+          process.exit(0)
+        `)
+        const waits: Array<number | undefined> = []
+        try {
+          await withModuleOverrides(require.resolve('../lib/gateway-rpc'), {
+            openClawStateOwner: () => scenario.owner,
+            waitForGatewayResponsive: async (timeoutMs?: number) => { waits.push(timeoutMs); return { running: false, port: 18789 } },
+          }, () => withOpenclawReadiness('gateway-ownership-agent', {}, () =>
+            withModuleOverrides(openclawCliModulePath, { resolveOpenClawCliPath: () => cli }, async () => {
+              const handler = getRouteHandler('post', '/:id/chat')
+              const res = makeSseRes()
+              const req = makeReq({ params: { id: 'gateway-ownership-agent' }, body: { message: 'hi' }, on() {} })
+              await Promise.all([handler(req, res), res.done])
+              assert.deepStrictEqual(waits, scenario.waits, 'Unexpected Gateway readiness wait')
+              assert.strictEqual(JSON.parse(fs.readFileSync(argsFile, 'utf8')).includes('--local'), scenario.local)
+              assert.ok(res.events.some((e) => e.type === 'complete' && e.data?.text === 'Reply'),
+                `Expected the reply, got: ${JSON.stringify(res.events)}`)
+            })))
+        } finally {
+          fs.rmSync(dir, { recursive: true, force: true })
+        }
+      })
+    })
+  }
+
   await test('claude/droid missingCliError still releases the turn', async () => {
     await withScratchHome(async () => {
       await withModuleOverrides(agentExecutionModulePath, {
@@ -309,6 +349,195 @@ async function run() {
       fs.rmSync(dir, { recursive: true, force: true })
     })
   })
+
+  await test('a turn that fails with no output reports the failure instead of replaying the previous reply', async () => {
+    await withScratchHome(async (home) => {
+      // The session already holds an earlier exchange; this turn's CLI fails with nothing on stdout.
+      // Reply recovery reads the latest persisted reply, which is the previous turn's.
+      const { DatabaseSync } = require('node:sqlite')
+      const { scopeSessionIdToModel } = require('../lib/agent-execution')
+      const agentId = 'failed-turn-agent'
+      const sessionId = scopeSessionIdToModel('failed-session', 'ollama/llama3')
+      const storePath = path.join(home, '.openclaw', 'agents', agentId, 'agent', 'openclaw-agent.sqlite')
+      fs.mkdirSync(path.dirname(storePath), { recursive: true })
+      const store = new DatabaseSync(storePath)
+      store.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT); CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT)')
+      const insert = store.prepare('INSERT INTO transcript_events VALUES (?, ?, ?)')
+      insert.run(sessionId, 1, JSON.stringify({ type: 'message', id: 'evt-q1', message: { role: 'user', content: 'first question' } }))
+      insert.run(sessionId, 2, JSON.stringify({ type: 'message', id: 'evt-a1', message: { role: 'assistant', content: [{ type: 'text', text: 'Answer to the first question.' }] } }))
+      store.close()
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-fake-openclaw-'))
+      const cli = writeFakeCli(dir, 'openclaw', `
+        process.stderr.write('Error: model provider unavailable\\n')
+        process.exit(1)
+      `)
+      try {
+        await withOpenclawReadiness(agentId, {}, () =>
+          withModuleOverrides(openclawCliModulePath, { resolveOpenClawCliPath: () => cli }, async () => {
+            const res = makeSseRes()
+            const req = makeReq({ params: { id: agentId }, body: { message: 'second question', sessionId: 'failed-session' }, on() {} })
+            await Promise.all([getRouteHandler('post', '/:id/chat')(req, res), res.done])
+            const complete = res.events.find((e) => e.type === 'complete')
+            assert.strictEqual(complete?.data?.text, '', `The failed turn must not complete with the previous reply, got ${JSON.stringify(complete)}`)
+            assert(res.events.some((e) => e.type === 'error'), 'The failure must be reported')
+          }))
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  // The browser names "the dashboard chat", not a session. After Clear (or Continue), the server's
+  // record decides which session a turn runs, so the agent never gets the cleared conversation back.
+  await test('a dashboard chat turn runs the current conversation after Clear and Continue, never the ended one', async () => {
+    await withScratchHome(async (home) => {
+      const workspace = path.join(home, 'workspace')
+      fs.mkdirSync(workspace, { recursive: true })
+      const previousWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+      process.env.CLAWMAX_TEST_WORKSPACE = workspace
+      const agentId = 'conversation-agent'
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-fake-openclaw-'))
+      // Replies with the session it was asked to run.
+      const cli = writeFakeCli(dir, 'openclaw', `
+        process.stdout.write('session=' + process.argv[process.argv.indexOf('--session-id') + 1] + '\\n')
+        process.exit(0)
+      `)
+      try {
+        const conversations = require('../lib/dashboard-chat-conversations')
+        const { scopeSessionIdToModel } = require('../lib/agent-execution')
+        const turn = async () => {
+          const res = makeSseRes()
+          const req = makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: `agent:${agentId}:dashboard-chat` }, on() {} })
+          await Promise.all([getRouteHandler('post', '/:id/chat')(req, res), res.done])
+          const start = res.events.find((e) => e.type === 'start')
+          return { session: String(res.events.find((e) => e.type === 'complete')?.data?.text || '').replace('session=', '').trim(), resume: start?.data?.resumeSessionId }
+        }
+        await withOpenclawReadiness(agentId, {}, () =>
+          withModuleOverrides(openclawCliModulePath, { resolveOpenClawCliPath: () => cli }, async () => {
+            const first = await turn()
+            assert.strictEqual(first.session, scopeSessionIdToModel(`agent:${agentId}:dashboard-chat`, 'ollama/llama3'), 'Before any Clear, the original conversation')
+
+            const cleared = conversations.startNewDashboardConversation(agentId, { sessionId: first.session, seed: `agent:${agentId}:dashboard-chat` })
+            const second = await turn()
+            assert.strictEqual(second.session, scopeSessionIdToModel(cleared.activeSeed, 'ollama/llama3'), 'After Clear, a new session')
+            assert.notStrictEqual(second.session, first.session)
+            assert.strictEqual(second.resume, `agent:${agentId}:dashboard-chat`, 'The panel keeps asking for the dashboard chat, never pinning a conversation')
+
+            conversations.resumeDashboardConversation(agentId, first.session, { sessionId: second.session, seed: cleared.activeSeed })
+            assert.strictEqual((await turn()).session, first.session, 'Continue runs the exact ended session again')
+
+            const other = makeSseRes()
+            await Promise.all([getRouteHandler('post', '/:id/chat')(makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: 'some-other-session' }, on() {} }), other), other.done])
+            assert.match(String(other.events.find((e) => e.type === 'complete')?.data?.text), /session=some-other-session/, 'Other callers keep their own sessions')
+          }))
+      } finally {
+        if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+        else process.env.CLAWMAX_TEST_WORKSPACE = previousWorkspace
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  // `openclaw agent` prints a Gateway-run reply only when the turn ends. The Gateway streams it as
+  // chat events meanwhile; the browser must receive those live, once, then the authoritative
+  // `complete` -- and the public CLI transport must keep its one-shot stdout contract untouched.
+  for (const viaTransport of [false, true]) {
+    await test(viaTransport
+      ? 'the CLI transport keeps its stdout-only contract and never subscribes to Gateway output'
+      : 'a Gateway-run turn streams live deltas to the browser once, then the authoritative complete', async () => {
+      await withScratchHome(async () => {
+        const { WebSocketServer } = require('ws')
+        const { scopeSessionIdToModel } = require('../lib/agent-execution')
+        const agentId = 'live-output-agent'
+        const sessionKey = `agent:${agentId}:explicit:${scopeSessionIdToModel('live-session', 'ollama/llama3')}`
+        const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
+        await new Promise<void>((resolve) => server.once('listening', () => resolve()))
+        const port = server.address().port
+        const observers: any[] = []
+        server.on('connection', (socket: any) => {
+          socket.send(JSON.stringify({ type: 'event', event: 'connect.challenge', payload: { nonce: 'n' } }))
+          socket.on('message', (raw: Buffer) => {
+            const text = raw.toString()
+            if (text === 'run') {
+              // The fake CLI's cue: the Gateway run starts and streams before the CLI prints.
+              const emit = (event: string, payload: object) => observers.forEach((o) => o.send(JSON.stringify({ type: 'event', event, payload })))
+              emit('agent', { runId: 'run-1', sessionKey, stream: 'lifecycle', data: { phase: 'start' } })
+              emit('chat', { runId: 'run-1', sessionKey, state: 'delta', deltaText: 'Hello' })
+              emit('chat', { runId: 'run-1', sessionKey, state: 'delta', deltaText: ', wrld' })
+              emit('chat', { runId: 'run-1', sessionKey, state: 'delta', deltaText: 'Hello, world!', replace: true })
+              setTimeout(() => socket.send('streamed'), 100)
+              return
+            }
+            const frame = JSON.parse(text)
+            if (frame.method !== 'connect') return
+            observers.push(socket)
+            socket.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: { auth: { scopes: ['operator.read'] } } }))
+          })
+        })
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-fake-openclaw-'))
+        const cli = writeFakeCli(dir, 'openclaw', `
+          const ws = new WebSocket('ws://127.0.0.1:${port}')
+          ws.onopen = () => ws.send('run')
+          ws.onmessage = (message) => {
+            if (message.data !== 'streamed') return
+            process.stdout.write('Hello, world!\\n')
+            ws.close()
+            process.exit(0)
+          }
+        `)
+        try {
+          await withOpenclawReadiness(agentId, {}, () =>
+            withModuleOverrides(openclawCliModulePath, { resolveOpenClawCliPath: () => cli }, () =>
+              withModuleOverrides(require.resolve('../lib/gateway-rpc'), {
+                isGatewayRunning: () => ({ running: true, port }),
+                isGatewayConfigured: () => true,
+                waitForGatewayResponsive: async () => ({ running: true, port }),
+                loadGatewayConfigFromDisk: () => ({ port, host: '127.0.0.1', wsUrl: `ws://127.0.0.1:${port}`, auth: { mode: 'token', token: 'fixture-token' } }),
+              }, async () => {
+                // Re-require so the observer module sees this test's Gateway config.
+                delete require.cache[require.resolve('../lib/gateway-chat-stream')]
+                const res = makeSseRes()
+                const req = makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: 'live-session' }, on() {} })
+                const sent: Array<{ type: string; data: any }> = []
+                const transport = {
+                  actor: { userId: 'u', login: 'u', email: null },
+                  open() {},
+                  send(type: string, data: any) { sent.push({ type, data }); if (type === 'complete') res.end() },
+                  reject(status: number, message: string) { throw new Error(`${status} ${message}`) },
+                  assertAuthorized() {},
+                }
+                const { executeAgentChat } = require('./chat')
+                await Promise.all([viaTransport ? executeAgentChat(req, res, transport) : getRouteHandler('post', '/:id/chat')(req, res), res.done])
+                const events = viaTransport ? sent : res.events
+                const deltas = events.filter((e) => e.type === 'delta').map((e) => e.data)
+                const complete = events.find((e) => e.type === 'complete')
+                if (viaTransport) {
+                  assert.deepStrictEqual(deltas, [{ text: 'Hello, world!\n' }], 'The CLI transport receives only the CLI\'s own output')
+                  assert.strictEqual(observers.length, 0, 'No Gateway subscription for the CLI transport')
+                } else {
+                  assert.deepStrictEqual(deltas, [{ text: 'Hello', live: true }, { text: ', wrld', live: true }, { text: 'Hello, world!', replace: true, live: true }],
+                    `Expected the live deltas and not the CLI's one-shot copy, got ${JSON.stringify(deltas)}`)
+                  const lastDelta = events.map((e) => e.type).lastIndexOf('delta')
+                  assert(lastDelta < events.findIndex((e) => e.type === 'complete'), 'Live text arrives before the turn completes')
+                  assert.strictEqual(observers.length, 1)
+                  const deadline = Date.now() + 1000
+                  while (observers[0].readyState !== 3 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10))
+                  assert.strictEqual(observers[0].readyState, 3, 'The Gateway subscription must close once the turn settles')
+                }
+                assert.strictEqual(complete?.data?.text, 'Hello, world!')
+                assert(events.findIndex((e) => e.type === 'start') < events.findIndex((e) => e.type === 'delta'), 'start precedes the first delta')
+                assert.strictEqual(events.find((e) => e.type === 'start')?.data?.liveOutput, !viaTransport,
+                  'start says whether this turn streams live, so the panel never claims it falsely')
+              })))
+        } finally {
+          // A leaked subscription must fail the assertion above, not hang the suite in close().
+          server.clients.forEach((client: any) => client.terminate())
+          await new Promise((resolve) => server.close(resolve))
+          fs.rmSync(dir, { recursive: true, force: true })
+        }
+      })
+    })
+  }
 
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)

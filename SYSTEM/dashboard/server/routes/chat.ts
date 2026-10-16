@@ -4,7 +4,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { getActiveAgentLifecycleGeneration, getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
-import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
+import { openClawStateOwner, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
@@ -41,6 +41,8 @@ import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '.
 import { isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
 import { assertTemplateRuntimeAdmitted } from '../lib/template-runtime-admission'
 import { executeDevHostSkillChat, isDevHostSkillChatReady } from './dev-host-skill-chat'
+import { openGatewayChatLiveOutput, type GatewayChatDeltaObserver } from '../lib/gateway-chat-stream'
+import { defaultDashboardChatSeed, readDashboardChatConversations, type DashboardChatConversations } from '../lib/dashboard-chat-conversations'
 
 const router = Router()
 const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
@@ -277,9 +279,11 @@ export function shouldUseLocalChatExecution(input: {
 }
 
 export function resolveGatewayChatReadinessWait(gatewayOwnsState: boolean): { timeoutMs: number; pollMs: number } {
+  // Without an owning Gateway one probe decides: waiting cannot make one appear, it only delays
+  // the local fallback. A Gateway that starts meanwhile is caught by the local-collision retry.
   return gatewayOwnsState
     ? { timeoutMs: 120_000, pollMs: 1_000 }
-    : { timeoutMs: 8_000, pollMs: 500 }
+    : { timeoutMs: 0, pollMs: 500 }
 }
 
 export function shouldUseManagedSecretStatelessChatSession(_input: {
@@ -378,13 +382,25 @@ function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: string): st
   return `dashboard-${agentId}-${stamp}-chat`
 }
 
+type PersistedAssistantText = { sessionId?: string; content?: string; messageId?: string }
+
+/**
+ * Wait briefly for this turn's reply to reach the transcript. The latest persisted reply belongs to
+ * this turn only if it was not already there when the turn started (`priorMessageId`): a turn that
+ * failed with no output must report its failure, not show the previous question's answer.
+ */
 export async function retryAssistantTextLookup(
-  reader: () => { sessionId?: string; content?: string } | null,
+  reader: () => PersistedAssistantText | null,
   attempts = 4,
-  delayMs = 250
-): Promise<{ sessionId?: string; content?: string } | null> {
-  for (let attempt = 0; attempt < attempts; attempt++) {
+  delayMs = 250,
+  priorMessageId?: string,
+): Promise<PersistedAssistantText | null> {
+  const read = () => {
     const latest = reader()
+    return latest?.messageId && latest.messageId === priorMessageId ? { sessionId: latest.sessionId } : latest
+  }
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const latest = read()
     if (latest?.content) {
       return latest
     }
@@ -392,20 +408,20 @@ export async function retryAssistantTextLookup(
       await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
   }
-  return reader()
+  return read()
 }
 
 async function readLatestAssistantTextWithRetry(
   agentId: string,
   sessionKey: string,
   preferredSessionId: string,
-  attempts = 4,
-  delayMs = 250
-): Promise<{ sessionId?: string; content?: string } | null> {
+  priorMessageId?: string,
+): Promise<PersistedAssistantText | null> {
   return retryAssistantTextLookup(
     () => readLatestAssistantTextFromPersistedSession(agentId, sessionKey, preferredSessionId),
-    attempts,
-    delayMs
+    4,
+    250,
+    priorMessageId,
   )
 }
 
@@ -844,6 +860,15 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     return reject(400, readiness.error || 'Agent execution is unavailable')
   }
   const resolvedAgent = readiness.resolvedAgent
+  // The browser's seed names "the dashboard chat with this agent", not a session. Which conversation
+  // that is belongs to the server (dashboard-chat-conversations.ts), so a chat cleared in another
+  // tab, or before a reload, never receives another turn.
+  let dashboardConversation: DashboardChatConversations | undefined
+  try {
+    dashboardConversation = sessionId === defaultDashboardChatSeed(id) ? readDashboardChatConversations(id) : undefined
+  } catch (err) {
+    return reject(500, err instanceof Error ? err.message : String(err))
+  }
   const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
   const integrationConfig = readWorkspaceIntegrationConfig()
   const effectiveWorkspaceRoot = deriveWorkspaceRootFromAgentWorkspace(resolvedAgent.workspace) || getWorkspacePath()
@@ -867,7 +892,9 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     executionEnv.CLAWMAX_MAIL_BROKER_TOKEN = brokerCapability
     executionEnv.CLAWMAX_MAIL_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/mail`
   }
-  const sessionSeed = sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace)
+  const sessionSeed = dashboardConversation?.activeSeed || sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace)
+  // A resumed conversation runs its exact session, even if the agent's model has changed since.
+  const resumedSessionId = dashboardConversation?.activeSessionId
 
   console.log(`[Chat Route] Starting CLI chat for agent ${id}`)
 
@@ -892,19 +919,16 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   }, 2000)
   const chatStartedAt = Date.now()
   const dashboardSessionKey = `agent:${id}:dashboard-chat`
-  let currentSessionId = scopeSessionIdToModel(sessionSeed, resolvedAgent.model)
+  let currentSessionId = resumedSessionId || scopeSessionIdToModel(sessionSeed, resolvedAgent.model)
   let chatSessionRetryAttempt = 0
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.
   // Gateway + --local are openclaw-only concepts; non-openclaw runtimes spawn their own CLI directly.
-  const gatewayOwnsState = !isNonOpenclawChatRuntime(resolvedAgent.runtime) && (
-    isGatewayRunning().running || configuredAutoStartGatewayOwnsState({
-      configured: isGatewayConfigured(),
-      autoStartSetting: process.env.CLAWMAX_AUTO_START_GATEWAY,
-    })
-  )
-  const gatewayReadinessWait = resolveGatewayChatReadinessWait(gatewayOwnsState)
+  const stateOwner = isNonOpenclawChatRuntime(resolvedAgent.runtime) ? null : openClawStateOwner()
+  const gatewayOwnsState = stateOwner !== null
+  // A remote Gateway cannot answer a local probe: waiting for it only delays the turn.
+  const gatewayReadinessWait = resolveGatewayChatReadinessWait(gatewayOwnsState && stateOwner !== 'remote')
   const gatewayRunning = isNonOpenclawChatRuntime(resolvedAgent.runtime)
     ? false
     : shouldTreatGatewayAsRunning(
@@ -1122,10 +1146,10 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
         forceGateway = false,
       ) => {
         const attemptSessionSeed = buildDashboardChatRetrySeed(sessionSeed, chatSessionRetryAttempt)
-        const executionSessionId = scopeSessionIdToModel(
-          attemptSessionSeed,
-          attemptModel,
-        )
+        // Recovery and backup-model attempts keep their own sessions, as they always have.
+        const executionSessionId = resumedSessionId && chatSessionRetryAttempt === 0 && attemptModel === resolvedAgent.model
+          ? resumedSessionId
+          : scopeSessionIdToModel(attemptSessionSeed, attemptModel)
         currentSessionId = executionSessionId
         const attemptUseOpenAiCompatible = attemptProvider === 'openai-compatible'
         const attemptExecutionModel = toExecutionModelOverride(attemptModel, attemptProvider)
@@ -1163,6 +1187,25 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
           openaiCompatibleBaseUrl: attemptUseOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
           openaiCompatibleDefaultModel: attemptUseOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel || attemptModel) : undefined,
         }, attemptModel, attemptProvider, async () => {
+          // The CLI prints a Gateway-run reply only once the turn ends; the Gateway streams it as
+          // chat events meanwhile. Subscribe before the CLI starts so the run's start is not missed.
+          // Browser SSE only: the public CLI transport (instance-chat.ts) appends every delta and
+          // keeps its own one-shot contract, so it still receives the CLI's filtered stdout.
+          // Live text does not set hadVisibleOutput: retry decisions stay with the CLI's own
+          // result, and each retried attempt opens with a fresh `start`, on which the panel resets
+          // the reply instead of appending to the abandoned attempt's partial text.
+          // The reply already persisted before this attempt, so recovery below never mistakes it
+          // for this attempt's answer.
+          const priorAssistantId = readLatestAssistantTextFromPersistedSession(id, dashboardSessionKey, executionSessionId)?.messageId
+          let liveOutputForwarded = false
+          const liveOutput: GatewayChatDeltaObserver | null = !transport && openclawCli && (forceGateway || !useLocal)
+            ? await openGatewayChatLiveOutput(id, executionSessionId, (delta) => {
+                turn.touch()
+                liveOutputForwarded = true
+                // `live` tells the panel the reply is streaming as it is written.
+                send('delta', delta.replace ? { text: delta.text, replace: true, live: true } : { text: delta.text, live: true })
+              })
+            : null
           return await new Promise<ChatAttemptResult>((resolve, reject) => {
             if (!openclawCli) {
               reject(new Error('OpenClaw CLI is not available in this runtime. Install or bundle the CLI, or set OPENCLAW_BIN to the executable path.'))
@@ -1188,7 +1231,18 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
             proc = spawned
             procExited = false
 
-            send('start', { sessionId: executionSessionId, resumeSessionId: attemptSessionSeed, turnId: turn.turnId })
+            // `liveOutput: false`: this attempt can only deliver its reply when it finishes. true only
+            // means a Gateway subscription is open; the panel claims live streaming once a `live` delta
+            // actually arrives.
+            // The panel sends `resumeSessionId` with its next turn. A first attempt hands back what the
+            // panel sent, so a dashboard chat keeps asking for its current conversation; only a
+            // recovery seed (a locked session) is handed out for it to keep.
+            send('start', {
+              sessionId: executionSessionId,
+              resumeSessionId: chatSessionRetryAttempt > 0 ? attemptSessionSeed : (sessionId || attemptSessionSeed),
+              turnId: turn.turnId,
+              liveOutput: liveOutput !== null,
+            })
             invalidateAgentStatusCache(id)
 
             /**
@@ -1208,12 +1262,19 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
               if (!tail) return
               fullOutput = appendBoundedOutput(fullOutput, tail, MAX_RETAINED_CHAT_OUTPUT)
               hadVisibleOutput = true
-              send('delta', { text: tail })
+              if (!liveOutputForwarded) send('delta', { text: tail })
             }
 
             const resolveAttempt = (result: ChatAttemptResult) => {
               if (attemptSettled) return
               attemptSettled = true
+              // Synchronously, so no live delta can land after this attempt's result.
+              liveOutput?.close()
+              if (liveOutput && !liveOutputForwarded && fullOutput.trim()) {
+                // Subscribed, yet the reply arrived only on stdout: the Gateway's event shapes or
+                // session-key format no longer match what gateway-chat-stream.ts expects.
+                console.warn(`[Chat Route] Live output for ${id} matched no Gateway text; the reply was shown only when the turn finished.`)
+              }
               turn.signal.removeEventListener('abort', onAttemptCancel)
               if (killEscalation) clearTimeout(killEscalation)
               // Mirrors settle() in agent-runtime.ts's runOnce: without this, the 'data' listeners
@@ -1303,7 +1364,9 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
               if (!text) return
               fullOutput = appendBoundedOutput(fullOutput, text, MAX_RETAINED_CHAT_OUTPUT)
               hadVisibleOutput = true
-              send('delta', { text })
+              // Already streamed live: this is the CLI's one-shot copy of the same reply, and the
+              // `complete` event carries the authoritative text.
+              if (!liveOutputForwarded) send('delta', { text })
             })
 
             spawned.stderr.on('data', (chunk: Buffer) => {
@@ -1325,7 +1388,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
 
               const normalizedText = normalizeChatMessage(fullOutput.trim())
               const persistedAssistant = !incompleteReason && shouldRecoverPersistedAssistant(normalizedText)
-                ? await readLatestAssistantTextWithRetry(id, dashboardSessionKey, executionSessionId)
+                ? await readLatestAssistantTextWithRetry(id, dashboardSessionKey, executionSessionId, priorAssistantId)
                 : null
               const completionText = normalizedText || normalizeChatMessage(persistedAssistant?.content || '') || ''
               const usage = completionText
@@ -1352,7 +1415,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
               console.error(`[Chat Route] CLI spawn error for ${id}:`, err)
               reject(err)
             })
-          })
+          }).finally(() => liveOutput?.close())
         }, { persistAuthProfiles: true, skipModelConfigMutation: true })
       }
 
