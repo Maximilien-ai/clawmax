@@ -3683,11 +3683,19 @@ fi
 
 echo -e "${YELLOW}→ Running Agent chat stream safety tests...${NC}"
 npx ts-node --transpileOnly client/src/AgentChatStreamSafety.test.ts > /tmp/clawmax-agent-chat-stream-safety.out 2>&1 || true
-if grep -q "AgentChatStreamSafety.test.ts: 14 assertions passed" /tmp/clawmax-agent-chat-stream-safety.out; then
-  pass "Agent chat stream safety tests (14 assertions)"
+if grep -q "AgentChatStreamSafety.test.ts: 24 assertions passed" /tmp/clawmax-agent-chat-stream-safety.out; then
+  pass "Agent chat stream safety tests (24 assertions)"
 else
   cat /tmp/clawmax-agent-chat-stream-safety.out
   fail "Agent chat stream safety tests"
+fi
+
+echo -e "${YELLOW}→ Running Gateway chat live-output tests...${NC}"
+if npx ts-node --transpileOnly server/lib/gateway-chat-stream.test.ts > /tmp/clawmax-gateway-chat-stream.out 2>&1; then
+  pass "Gateway chat live-output tests"
+else
+  cat /tmp/clawmax-gateway-chat-stream.out
+  fail "Gateway chat live-output tests"
 fi
 
 echo -e "${YELLOW}→ Running dev host Skill chat presentation tests...${NC}"
@@ -3758,6 +3766,16 @@ if grep -q "All tests passed" /tmp/clawmax-chat-route-edges.out; then
 else
   cat /tmp/clawmax-chat-route-edges.out
   fail "Chat route gateway/readiness edge-case tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Chat route turn lifecycle tests...${NC}"
+if npx ts-node --transpileOnly server/routes/chat-turn-registry.test.ts > /tmp/clawmax-chat-turn-registry.out 2>&1; then
+  chat_turn_registry_count=$(grep "Tests passed:" /tmp/clawmax-chat-turn-registry.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Chat route turn lifecycle tests (${chat_turn_registry_count:-?} tests)"
+else
+  cat /tmp/clawmax-chat-turn-registry.out
+  fail "Chat route turn lifecycle tests"
 fi
 
 echo ""
