@@ -6,6 +6,7 @@ import { buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, buildSharedIn
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import {
   buildCommunicationCacheKey,
+  cleanCommunicationMessage,
   communicationTitle,
   mergeTypingAgents,
   removeRespondedAgentsFromPending,
@@ -78,63 +79,6 @@ const STATUS_DOT: Record<string, string> = {
   online: 'bg-green-400',
   offline: 'bg-yellow-400',
   unknown: 'bg-gray-300',
-}
-
-// Strip OpenClaw internal data from message content (brace-depth tracking)
-function cleanContent(content: string): string {
-  if (!content) return content
-  const lines = content.split('\n')
-  const cleanedLines: string[] = []
-  let braceDepth = 0
-  let bracketDepth = 0
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-
-    // Inside a JSON block — track depth and skip
-    if (braceDepth > 0 || bracketDepth > 0) {
-      for (const ch of trimmed) {
-        if (ch === '{') braceDepth++
-        else if (ch === '}') braceDepth = Math.max(0, braceDepth - 1)
-        else if (ch === '[') bracketDepth++
-        else if (ch === ']') bracketDepth = Math.max(0, bracketDepth - 1)
-      }
-      continue
-    }
-
-    // Detect start of JSON block
-    if (trimmed === '{' || trimmed.startsWith('{"') || trimmed.startsWith('[{') || trimmed === '[') {
-      braceDepth += (trimmed.match(/\{/g) || []).length - (trimmed.match(/\}/g) || []).length
-      bracketDepth += (trimmed.match(/\[/g) || []).length - (trimmed.match(/\]/g) || []).length
-      if (braceDepth > 0 || bracketDepth > 0) continue
-      continue
-    }
-
-    if (trimmed.match(/\[[\d;]*m/) || trimmed.match(/\x1b\[/)) continue
-    if (trimmed.startsWith('🦞 OpenClaw') || trimmed.match(/^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/)) continue
-    if (trimmed.match(/\{"type"\s*:\s*"/)) continue
-    if (trimmed.match(/^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/)) continue
-    if (trimmed.match(/^[}\]],?\s*$/)) continue
-
-    cleanedLines.push(line)
-  }
-
-  const cleaned = cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim() || content
-
-  if (
-    /model fallback decision|FailoverError|FallbackSummaryError|Incorrect API key provided|Provider .* auth issue|network connection error|Connection error/i.test(cleaned)
-    && !/\n\n/.test(cleaned)
-  ) {
-    if (/Incorrect API key provided|auth issue|missing credentials|missing api key/i.test(cleaned)) {
-      return 'Runtime auth error while contacting the configured model provider. Check the provider key/configuration and retry.'
-    }
-    if (/network connection error|Connection error|timeout|timed out|cooldown/i.test(cleaned)) {
-      return 'Runtime connection error while contacting the configured model provider. Check provider/network availability and retry.'
-    }
-    return 'Runtime model execution error. Review workflow details or retry the run.'
-  }
-
-  return cleaned
 }
 
 function formatChatTime(timestamp: number | undefined, includeDate: boolean): string {
@@ -851,7 +795,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         },
       }}
     >
-      {linkifyWorkspaceFiles(clean ? cleanContent(content) : content)}
+      {linkifyWorkspaceFiles(clean ? cleanCommunicationMessage(content) : content)}
     </ReactMarkdown>
   )
 
