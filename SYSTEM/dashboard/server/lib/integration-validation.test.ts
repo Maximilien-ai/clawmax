@@ -65,11 +65,11 @@ console.log(`\n${YELLOW}=== Integration Validation Test Suite ===${RESET}\n`)
 
 async function run() {
   const providers = [
-    { name: 'OpenAI', key: 'sk-test', validate: validateOpenAIKey, catalog: false },
-    { name: 'Anthropic', key: 'sk-ant-test', validate: validateAnthropicKey, catalog: false },
-    { name: 'Gemini', key: 'gemini-test', validate: validateGeminiKey, catalog: false },
-    { name: 'OpenRouter', key: 'sk-or-test', validate: validateOpenRouterKey, catalog: true },
-    { name: 'xAI', key: 'xai-test', validate: validateXaiKey, catalog: true },
+    { name: 'OpenAI', key: 'sk-test', validate: validateOpenAIKey, catalog: true, model: 'gpt-5.4-mini' },
+    { name: 'Anthropic', key: 'sk-ant-test', validate: validateAnthropicKey, catalog: true, model: 'claude-haiku-5-5' },
+    { name: 'Gemini', key: 'gemini-test', validate: validateGeminiKey, catalog: false, model: '' },
+    { name: 'OpenRouter', key: 'sk-or-test', validate: validateOpenRouterKey, catalog: true, model: 'openrouter/auto' },
+    { name: 'xAI', key: 'xai-test', validate: validateXaiKey, catalog: true, model: 'grok-4-fast' },
   ]
   for (const provider of providers) {
     await test(`${provider.name} skips blank credentials without network access`, async () => {
@@ -83,7 +83,9 @@ async function run() {
         let calls = 0
         const result = await provider.validate(provider.key, (async () => {
           calls++
-          return mockFetch(provider.catalog && calls === 1 ? 200 : status)('https://unused.test')
+          return provider.catalog && calls === 1
+            ? mockFetch(200, { data: [{ id: provider.model, lifecycle: 'active' }] })('https://unused.test')
+            : mockFetch(status)('https://unused.test')
         }) as typeof fetch)
         const invalidStatus = status === 401 || status === 403
           || (provider.name !== 'Gemini' && [400, 404].includes(status))
@@ -121,6 +123,7 @@ async function run() {
 
   for (const [name, validate, key] of [
     ['OpenAI', validateOpenAIKey, 'sk-test'],
+    ['Anthropic', validateAnthropicKey, 'sk-ant-test'],
     ['xAI', validateXaiKey, 'xai-test'],
   ] as const) {
     for (const warning of ['does not exist', 'do not have access', 'not found', 'unsupported', 'unavailable']) {
@@ -129,23 +132,37 @@ async function run() {
         const message = `Validation model ${warning}`
         const result = await validate(key, (async () => {
           calls++
-          return mockFetch(name === 'xAI' && calls === 1 ? 200 : 404, { error: { message } })('https://unused.test')
+          if (calls === 1) {
+            const id = name === 'OpenAI' ? 'gpt-5.4-mini' : name === 'Anthropic' ? 'claude-haiku-5-5' : 'grok-4-fast'
+            return mockFetch(200, { data: [{ id, lifecycle: 'active' }] })('https://unused.test')
+          }
+          return mockFetch(404, { error: { message } })('https://unused.test')
         }) as typeof fetch)
         assert(result.ok && result.status === 'valid', 'Model availability is not an invalid credential')
-        assert(result.message.includes(message) && result.message.includes('other models'), 'Warning must explain limited validation')
+        assert(result.message.includes('none of the available prompt models') && result.message.includes('other models'), 'Warning must explain limited validation')
       })
     }
   }
 
   for (const body of [{ message: '  Request rejected  ' }, { error: { message: 42 } }, { error: { message: ' ' } }, null]) {
     await test(`OpenAI handles provider error payload ${JSON.stringify(body)}`, async () => {
-      const result = await validateOpenAIKey('sk-test', mockFetch(400, body))
+      let calls = 0
+      const result = await validateOpenAIKey('sk-test', (async () => {
+        calls++
+        return calls === 1 ? mockFetch(200, { data: [{ id: 'gpt-5.4-mini' }] })('') : mockFetch(400, body)('')
+      }) as typeof fetch)
       assert(!result.ok && result.status === 'invalid', 'Malformed/error payload must not validate')
-      assert(result.message === (body?.message ? 'Request rejected' : 'OpenAI key could not complete a test prompt on gpt-4o-mini'), 'Expected trimmed message or safe fallback')
+      assert(result.message === (body?.message ? 'Request rejected' : 'OpenAI key could not complete a test prompt on gpt-5.4-mini'), 'Expected trimmed message or safe fallback')
     })
   }
   await test('non-JSON provider errors fall back to actionable guidance', async () => {
-    const result = await validateOpenAIKey('sk-test', async () => new Response('<html>Bad request</html>', { status: 400 }))
+    let calls = 0
+    const result = await validateOpenAIKey('sk-test', async () => {
+      calls++
+      return calls === 1
+        ? new Response(JSON.stringify({ data: [{ id: 'gpt-5.4-mini' }] }), { status: 200 })
+        : new Response('<html>Bad request</html>', { status: 400 })
+    })
     assert(result.status === 'invalid' && /could not complete/.test(result.message), 'Expected non-JSON fallback')
   })
 
@@ -233,13 +250,37 @@ async function run() {
   })
 
   await test('validateOpenAIKey returns valid on 200', async () => {
-    const request: { url?: string; init?: RequestInit } = {}
-    const result = await validateOpenAIKey('sk-test', captureFetch(200, request))
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    const result = await validateOpenAIKey('sk-test', (async (url: string, init?: RequestInit) => {
+      requests.push({ url, init })
+      return url.endsWith('/models') ? mockFetch(200, { data: [{ id: 'gpt-5.4-mini' }] })('') : mockFetch(200)('')
+    }) as typeof fetch)
     assert(result.status === 'valid', 'Expected valid status')
-    assert(!!request.url?.includes('/v1/chat/completions'), 'Expected OpenAI prompt validation endpoint')
-    assert(request.init?.method === 'POST', 'Expected OpenAI validation to POST a test completion')
-    const headers = request.init?.headers as Record<string, string> | undefined
+    assert(requests[0].url.endsWith('/v1/models'), 'Expected OpenAI model discovery first')
+    assert(requests[1].url.endsWith('/v1/chat/completions'), 'Expected OpenAI prompt validation endpoint')
+    assert(requests[1].init?.method === 'POST', 'Expected OpenAI validation to POST a test completion')
+    const headers = requests[1].init?.headers as Record<string, string> | undefined
     assert(headers?.['content-type'] === 'application/json', 'Expected OpenAI validation to send JSON content-type')
+  })
+
+  await test('validateOpenAIKey tries at most three current catalog models in cost order', async () => {
+    const attempted: string[] = []
+    const result = await validateOpenAIKey('sk-test', (async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/models')) {
+        return mockFetch(200, { data: [
+          { id: 'gpt-5.4' },
+          { id: 'gpt-5.4-mini' },
+          { id: 'gpt-5.4-nano' },
+          { id: 'gpt-5.3-mini' },
+        ] })('')
+      }
+      const model = JSON.parse(String(init?.body)).model
+      attempted.push(model)
+      if (attempted.length < 3) return mockFetch(404, { error: { message: `Model ${model} unavailable` } })('')
+      return mockFetch(200)('')
+    }) as typeof fetch)
+    assert(result.status === 'valid', 'Expected later OpenAI catalog model to validate')
+    assert(attempted.join(',') === 'gpt-5.4-nano,gpt-5.4-mini,gpt-5.3-mini', `Unexpected OpenAI order: ${attempted.join(',')}`)
   })
 
   await test('validateAnthropicKey returns invalid on 401', async () => {
@@ -248,11 +289,38 @@ async function run() {
   })
 
   await test('validateAnthropicKey posts a tiny test prompt', async () => {
-    const request: { url?: string; init?: RequestInit } = {}
-    const result = await validateAnthropicKey('sk-ant-test', captureFetch(200, request))
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    const result = await validateAnthropicKey('sk-ant-test', (async (url: string, init?: RequestInit) => {
+      requests.push({ url, init })
+      return url.includes('/v1/models')
+        ? mockFetch(200, { data: [{ id: 'claude-haiku-5-5', lifecycle: 'active' }] })('')
+        : mockFetch(200)('')
+    }) as typeof fetch)
     assert(result.status === 'valid', 'Expected valid status')
-    assert(!!request.url?.includes('/v1/messages'), 'Expected Anthropic messages endpoint')
-    assert(request.init?.method === 'POST', 'Expected Anthropic validation to POST a test prompt')
+    assert(requests[0].url.includes('/v1/models'), 'Expected Anthropic model discovery first')
+    assert(requests[1].url.includes('/v1/messages'), 'Expected Anthropic messages endpoint')
+    assert(requests[1].init?.method === 'POST', 'Expected Anthropic validation to POST a test prompt')
+  })
+
+  await test('validateAnthropicKey tries current catalog models in bounded cost order', async () => {
+    const attempted: string[] = []
+    const result = await validateAnthropicKey('sk-ant-test', (async (url: string, init?: RequestInit) => {
+      if (url.includes('/v1/models')) {
+        return mockFetch(200, { data: [
+          { id: 'claude-opus-5-5', lifecycle: 'active' },
+          { id: 'claude-sonnet-5-5', lifecycle: 'active' },
+          { id: 'claude-haiku-5-5', lifecycle: 'active' },
+          { id: 'claude-haiku-4-5-20251001', lifecycle: 'deprecated' },
+        ] })('')
+      }
+      const model = JSON.parse(String(init?.body)).model
+      attempted.push(model)
+      if (attempted.length < 3) return mockFetch(404, { error: { message: `Model ${model} unavailable` } })('')
+      return mockFetch(200)('')
+    }) as typeof fetch)
+    assert(result.status === 'valid', 'Expected later catalog model to validate')
+    assert(attempted.join(',') === 'claude-haiku-5-5,claude-sonnet-5-5,claude-opus-5-5', `Unexpected order: ${attempted.join(',')}`)
+    assert(result.message.includes('claude-opus-5-5'), 'Expected successful model in result')
   })
 
   await test('validateGeminiKey returns valid on 200', async () => {
@@ -285,11 +353,31 @@ async function run() {
     const requests: string[] = []
     const result = await validateXaiKey('xai-test', (async (url: string) => {
       requests.push(url)
-      return { ok: true, status: 200, json: async () => ({}) } as any
+      return { ok: true, status: 200, json: async () => url.endsWith('/models') ? { data: [{ id: 'grok-4-fast' }] } : {} } as any
     }) as any)
     assert(result.status === 'valid', 'Expected valid xAI key')
     assert(requests[0] === 'https://api.x.ai/v1/models', 'Expected native xAI catalog endpoint')
     assert(requests[1] === 'https://api.x.ai/v1/chat/completions', 'Expected native xAI completion endpoint')
+  })
+
+  await test('validateXaiKey tries at most three current catalog models in fast-first order', async () => {
+    const attempted: string[] = []
+    const result = await validateXaiKey('xai-test', (async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/models')) {
+        return mockFetch(200, { data: [
+          { id: 'grok-5' },
+          { id: 'grok-5-fast' },
+          { id: 'grok-4-fast' },
+          { id: 'grok-4' },
+        ] })('')
+      }
+      const model = JSON.parse(String(init?.body)).model
+      attempted.push(model)
+      if (attempted.length < 3) return mockFetch(404, { error: { message: `Model ${model} unavailable` } })('')
+      return mockFetch(200)('')
+    }) as typeof fetch)
+    assert(result.status === 'valid', 'Expected later xAI catalog model to validate')
+    assert(attempted.join(',') === 'grok-5-fast,grok-4-fast,grok-5', `Unexpected xAI order: ${attempted.join(',')}`)
   })
 
   await test('validateXaiKey rejects non-xAI key shapes before network use', async () => {
@@ -317,12 +405,16 @@ async function run() {
   })
 
   await test('validateOpenAIKey surfaces provider error message for 400 responses', async () => {
-    const result = await validateOpenAIKey('sk-test', mockFetch(400, {
-      error: { message: 'The model `gpt-4o-mini` does not exist or you do not have access to it.' },
-    }))
+    let calls = 0
+    const result = await validateOpenAIKey('sk-test', (async () => {
+      calls++
+      return calls === 1
+        ? mockFetch(200, { data: [{ id: 'gpt-5.4-mini' }] })('')
+        : mockFetch(400, { error: { message: 'The model does not exist or you do not have access to it.' } })('')
+    }) as typeof fetch)
     assert(result.status === 'valid', 'Expected non-blocking valid status for unavailable validation model')
     assert(/may still work for other models/i.test(result.message), 'Expected warning that other models may still work')
-    assert(/does not exist|do not have access/i.test(result.message), 'Expected provider error message to be surfaced')
+    assert(/gpt-5\.4-mini/i.test(result.message), 'Expected attempted model to be surfaced')
   })
 
   await test('validateAnthropicKey rejects non-developer credential shapes before network validation', async () => {

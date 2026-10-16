@@ -22,11 +22,15 @@ export interface IntegrationValidationResponse {
 
 type FetchLike = typeof fetch
 
-const OPENAI_VALIDATION_MODEL = 'gpt-4o-mini'
-const ANTHROPIC_VALIDATION_MODEL = 'claude-3-5-haiku-latest'
 const OPENROUTER_VALIDATION_MODEL = 'openrouter/auto'
-const XAI_VALIDATION_MODEL = 'grok-3'
+const MAX_PROMPT_VALIDATION_MODELS = 3
 const OPENAI_COMPATIBLE_EXCLUDE = ['embedding', 'embed', 'rerank', 'whisper', 'tts', 'speech', 'transcription', 'moderation']
+
+interface ProviderModelInfo {
+  id?: string
+  lifecycle?: 'active' | 'deprecated' | 'retired' | string
+  line?: string
+}
 
 function detectProviderFromKeyShape(key: string): 'openai' | 'anthropic' | 'gemini' | null {
   const trimmed = key.trim()
@@ -125,6 +129,49 @@ function isOpenAICompatibleChatModel(id: string): boolean {
   return !!normalized && !OPENAI_COMPATIBLE_EXCLUDE.some((token) => normalized.includes(token))
 }
 
+function uniqueModelIds(models: ProviderModelInfo[]): string[] {
+  return [...new Set(models.map((model) => (model.id || '').trim()).filter(Boolean))]
+}
+
+function naturalModelOrder(left: string, right: string): number {
+  return right.localeCompare(left, undefined, { numeric: true, sensitivity: 'base' })
+}
+
+function selectOpenAIValidationModels(models: ProviderModelInfo[]): string[] {
+  const ids = uniqueModelIds(models).filter((id) => {
+    const normalized = id.toLowerCase()
+    return normalized.startsWith('gpt-') && isOpenAICompatibleChatModel(normalized)
+      && !['audio', 'realtime', 'search', 'image', 'codex'].some((token) => normalized.includes(token))
+  })
+  return ids.sort((left, right) => {
+    const tier = (id: string) => id.includes('nano') ? 0 : id.includes('mini') ? 1 : 2
+    return tier(left) - tier(right) || naturalModelOrder(left, right)
+  }).slice(0, MAX_PROMPT_VALIDATION_MODELS)
+}
+
+function selectAnthropicValidationModels(models: ProviderModelInfo[]): string[] {
+  const available = models.filter((model) => model.lifecycle !== 'retired')
+  return uniqueModelIds(available).filter((id) => id.toLowerCase().startsWith('claude-')).sort((left, right) => {
+    const lifecycle = (id: string) => available.find((model) => model.id === id)?.lifecycle === 'deprecated' ? 1 : 0
+    const tier = (id: string) => id.includes('haiku') ? 0 : id.includes('sonnet') ? 1 : id.includes('opus') ? 2 : 3
+    return lifecycle(left) - lifecycle(right) || tier(left) - tier(right) || naturalModelOrder(left, right)
+  }).slice(0, MAX_PROMPT_VALIDATION_MODELS)
+}
+
+function selectXaiValidationModels(models: ProviderModelInfo[]): string[] {
+  return uniqueModelIds(models).filter((id) => {
+    const normalized = id.toLowerCase()
+    return normalized.startsWith('grok-') && !['embedding', 'image', 'vision'].some((token) => normalized.includes(token))
+  }).sort((left, right) => {
+    const tier = (id: string) => id.includes('mini') || id.includes('fast') ? 0 : 1
+    return tier(left) - tier(right) || naturalModelOrder(left, right)
+  }).slice(0, MAX_PROMPT_VALIDATION_MODELS)
+}
+
+function triedModelsMessage(provider: string, models: string[]): string {
+  return `${provider} authenticated this key, but none of the available prompt models tested successfully (${models.join(', ')}). The key may still work for other models.`
+}
+
 export async function validateOpenAIKey(apiKey: string, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResult> {
   if (!apiKey.trim()) return skipped('No OpenAI key provided')
   const mismatch = providerShapeMismatch('openai', apiKey)
@@ -132,30 +179,41 @@ export async function validateOpenAIKey(apiKey: string, fetchImpl: FetchLike = f
   const credentialMismatch = providerCredentialShapeMismatch('openai', apiKey)
   if (credentialMismatch) return credentialMismatch
   try {
-    const res = await fetchImpl('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey.trim()}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: OPENAI_VALIDATION_MODEL,
-        messages: [{ role: 'user', content: 'Reply with OK' }],
-        max_tokens: 5,
-        temperature: 0,
-      }),
+    const headers = { Authorization: `Bearer ${apiKey.trim()}` }
+    const modelsRes = await fetchImpl('https://api.openai.com/v1/models', {
+      headers,
       signal: AbortSignal.timeout(8000),
     })
-    if (res.ok) return valid('OpenAI key is valid and can complete prompts')
-    if (res.status === 401 || res.status === 403) return invalid('OpenAI rejected this key')
-    if (res.status === 400 || res.status === 404) {
-      const providerMessage = await readProviderErrorMessage(res)
-      if (isModelAvailabilityWarning(providerMessage)) {
-        return valid(`OpenAI key authenticated successfully, but the test model ${OPENAI_VALIDATION_MODEL} was unavailable. The key may still work for other models. ${providerMessage}`)
-      }
-      return invalid(providerMessage || `OpenAI key could not complete a test prompt on ${OPENAI_VALIDATION_MODEL}`)
+    if (!modelsRes.ok) {
+      const providerMessage = await readProviderErrorMessage(modelsRes)
+      if (modelsRes.status === 401 || modelsRes.status === 403) return invalid(providerMessage || 'OpenAI rejected this key')
+      return errored(providerMessage || `OpenAI models check returned ${modelsRes.status}`)
     }
-    return errored(`OpenAI prompt validation returned ${res.status}`)
+    const modelsBody = await modelsRes.json() as { data?: ProviderModelInfo[] }
+    const validationModels = selectOpenAIValidationModels(modelsBody.data || [])
+    if (validationModels.length === 0) return valid('OpenAI authenticated this key, but returned no prompt-capable GPT models to test')
+
+    for (const model of validationModels) {
+      const res = await fetchImpl('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'Reply with OK' }],
+          max_tokens: 5,
+          temperature: 0,
+        }),
+        signal: AbortSignal.timeout(8000),
+      })
+      if (res.ok) return valid(`OpenAI key is valid and can complete prompts using ${model}`)
+      const providerMessage = await readProviderErrorMessage(res)
+      if (res.status === 401 || res.status === 403) return invalid(providerMessage || 'OpenAI rejected this key')
+      if (res.status === 402) return invalid(providerMessage || 'OpenAI accepted the key but the account has insufficient credits')
+      if ((res.status === 400 || res.status === 404) && isModelAvailabilityWarning(providerMessage)) continue
+      if (res.status === 400 || res.status === 404) return invalid(providerMessage || `OpenAI key could not complete a test prompt on ${model}`)
+      return errored(providerMessage || `OpenAI prompt validation returned ${res.status}`)
+    }
+    return valid(triedModelsMessage('OpenAI', validationModels))
   } catch (err: any) {
     return errored(`OpenAI prompt validation failed: ${err.message || 'network error'}`)
   }
@@ -293,32 +351,34 @@ export async function validateXaiKey(apiKey: string, fetchImpl: FetchLike = fetc
       if (modelsRes.status === 401 || modelsRes.status === 403) return invalid(providerMessage || 'xAI rejected this key')
       return errored(providerMessage || `xAI models check returned ${modelsRes.status}`)
     }
+    const modelsBody = await modelsRes.json() as { data?: ProviderModelInfo[] }
+    const validationModels = selectXaiValidationModels(modelsBody.data || [])
+    if (validationModels.length === 0) return valid('xAI authenticated this key, but returned no prompt-capable Grok models to test')
 
-    const completionRes = await fetchImpl('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: XAI_VALIDATION_MODEL,
-        messages: [{ role: 'user', content: 'Reply with OK' }],
-        max_tokens: 5,
-        temperature: 0,
-      }),
-      signal: AbortSignal.timeout(15000),
-    })
-    if (completionRes.ok) return valid('xAI key is valid and can complete prompts')
-    const providerMessage = await readProviderErrorMessage(completionRes)
-    if (completionRes.status === 401 || completionRes.status === 403) return invalid(providerMessage || 'xAI rejected this key')
-    if (completionRes.status === 402) return invalid(providerMessage || 'xAI accepted the key but the account has insufficient credits')
-    if (completionRes.status === 400 || completionRes.status === 404) {
-      if (isModelAvailabilityWarning(providerMessage)) {
-        return valid(`xAI key authenticated successfully, but the test model ${XAI_VALIDATION_MODEL} was unavailable. The key may still work for other models. ${providerMessage}`)
-      }
-      return invalid(providerMessage || `xAI could not complete a test prompt on ${XAI_VALIDATION_MODEL}`)
+    for (const model of validationModels) {
+      const completionRes = await fetchImpl('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'Reply with OK' }],
+          max_tokens: 5,
+          temperature: 0,
+        }),
+        signal: AbortSignal.timeout(15000),
+      })
+      if (completionRes.ok) return valid(`xAI key is valid and can complete prompts using ${model}`)
+      const providerMessage = await readProviderErrorMessage(completionRes)
+      if (completionRes.status === 401 || completionRes.status === 403) return invalid(providerMessage || 'xAI rejected this key')
+      if (completionRes.status === 402) return invalid(providerMessage || 'xAI accepted the key but the account has insufficient credits')
+      if ((completionRes.status === 400 || completionRes.status === 404) && isModelAvailabilityWarning(providerMessage)) continue
+      if (completionRes.status === 400 || completionRes.status === 404) return invalid(providerMessage || `xAI could not complete a test prompt on ${model}`)
+      return errored(providerMessage || `xAI prompt validation returned ${completionRes.status}`)
     }
-    return errored(providerMessage || `xAI prompt validation returned ${completionRes.status}`)
+    return valid(triedModelsMessage('xAI', validationModels))
   } catch (err: any) {
     return errored(`xAI validation failed: ${err.message || 'network error'}`)
   }
@@ -331,24 +391,43 @@ export async function validateAnthropicKey(apiKey: string, fetchImpl: FetchLike 
   const credentialMismatch = providerCredentialShapeMismatch('anthropic', apiKey)
   if (credentialMismatch) return credentialMismatch
   try {
-    const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey.trim(),
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: ANTHROPIC_VALIDATION_MODEL,
-        max_tokens: 5,
-        messages: [{ role: 'user', content: 'Reply with OK' }],
-      }),
+    const headers = {
+      'x-api-key': apiKey.trim(),
+      'anthropic-version': '2023-06-01',
+    }
+    const modelsRes = await fetchImpl('https://api.anthropic.com/v1/models?limit=100&lifecycle=active', {
+      headers,
       signal: AbortSignal.timeout(8000),
     })
-    if (res.ok) return valid('Anthropic key is valid and can complete prompts')
-    if (res.status === 401 || res.status === 403) return invalid('Anthropic rejected this key')
-    if (res.status === 400 || res.status === 404) return invalid(`Anthropic key could not complete a test prompt on ${ANTHROPIC_VALIDATION_MODEL}`)
-    return errored(`Anthropic prompt validation returned ${res.status}`)
+    if (!modelsRes.ok) {
+      const providerMessage = await readProviderErrorMessage(modelsRes)
+      if (modelsRes.status === 401 || modelsRes.status === 403) return invalid(providerMessage || 'Anthropic rejected this key')
+      return errored(providerMessage || `Anthropic models check returned ${modelsRes.status}`)
+    }
+    const modelsBody = await modelsRes.json() as { data?: ProviderModelInfo[] }
+    const validationModels = selectAnthropicValidationModels(modelsBody.data || [])
+    if (validationModels.length === 0) return valid('Anthropic authenticated this key, but returned no active Claude models to test')
+
+    for (const model of validationModels) {
+      const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          max_tokens: 5,
+          messages: [{ role: 'user', content: 'Reply with OK' }],
+        }),
+        signal: AbortSignal.timeout(8000),
+      })
+      if (res.ok) return valid(`Anthropic key is valid and can complete prompts using ${model}`)
+      const providerMessage = await readProviderErrorMessage(res)
+      if (res.status === 401 || res.status === 403) return invalid(providerMessage || 'Anthropic rejected this key')
+      if (res.status === 402) return invalid(providerMessage || 'Anthropic accepted the key but the account has insufficient credits')
+      if ((res.status === 400 || res.status === 404) && isModelAvailabilityWarning(providerMessage)) continue
+      if (res.status === 400 || res.status === 404) return invalid(providerMessage || `Anthropic key could not complete a test prompt on ${model}`)
+      return errored(providerMessage || `Anthropic prompt validation returned ${res.status}`)
+    }
+    return valid(triedModelsMessage('Anthropic', validationModels))
   } catch (err: any) {
     return errored(`Anthropic prompt validation failed: ${err.message || 'network error'}`)
   }
