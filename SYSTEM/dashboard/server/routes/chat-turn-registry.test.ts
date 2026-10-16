@@ -362,6 +362,107 @@ async function run() {
     })
   })
 
+  // `openclaw agent` prints a Gateway-run reply only when the turn ends. The Gateway streams it as
+  // chat events meanwhile; the browser must receive those live, once, then the authoritative
+  // `complete` -- and the public CLI transport must keep its one-shot stdout contract untouched.
+  for (const viaTransport of [false, true]) {
+    await test(viaTransport
+      ? 'the CLI transport keeps its stdout-only contract and never subscribes to Gateway output'
+      : 'a Gateway-run turn streams live deltas to the browser once, then the authoritative complete', async () => {
+      await withScratchHome(async () => {
+        const { WebSocketServer } = require('ws')
+        const { scopeSessionIdToModel } = require('../lib/agent-execution')
+        const agentId = 'live-output-agent'
+        const sessionKey = `agent:${agentId}:explicit:${scopeSessionIdToModel('live-session', 'ollama/llama3')}`
+        const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
+        await new Promise<void>((resolve) => server.once('listening', () => resolve()))
+        const port = server.address().port
+        const observers: any[] = []
+        server.on('connection', (socket: any) => {
+          socket.send(JSON.stringify({ type: 'event', event: 'connect.challenge', payload: { nonce: 'n' } }))
+          socket.on('message', (raw: Buffer) => {
+            const text = raw.toString()
+            if (text === 'run') {
+              // The fake CLI's cue: the Gateway run starts and streams before the CLI prints.
+              const emit = (event: string, payload: object) => observers.forEach((o) => o.send(JSON.stringify({ type: 'event', event, payload })))
+              emit('agent', { runId: 'run-1', sessionKey, stream: 'lifecycle', data: { phase: 'start' } })
+              emit('chat', { runId: 'run-1', sessionKey, state: 'delta', deltaText: 'Hello' })
+              emit('chat', { runId: 'run-1', sessionKey, state: 'delta', deltaText: ', wrld' })
+              emit('chat', { runId: 'run-1', sessionKey, state: 'delta', deltaText: 'Hello, world!', replace: true })
+              setTimeout(() => socket.send('streamed'), 100)
+              return
+            }
+            const frame = JSON.parse(text)
+            if (frame.method !== 'connect') return
+            observers.push(socket)
+            socket.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: { auth: { scopes: ['operator.read'] } } }))
+          })
+        })
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-fake-openclaw-'))
+        const cli = writeFakeCli(dir, 'openclaw', `
+          const ws = new WebSocket('ws://127.0.0.1:${port}')
+          ws.onopen = () => ws.send('run')
+          ws.onmessage = (message) => {
+            if (message.data !== 'streamed') return
+            process.stdout.write('Hello, world!\\n')
+            ws.close()
+            process.exit(0)
+          }
+        `)
+        try {
+          await withOpenclawReadiness(agentId, {}, () =>
+            withModuleOverrides(openclawCliModulePath, { resolveOpenClawCliPath: () => cli }, () =>
+              withModuleOverrides(require.resolve('../lib/gateway-rpc'), {
+                isGatewayRunning: () => ({ running: true, port }),
+                isGatewayConfigured: () => true,
+                waitForGatewayResponsive: async () => ({ running: true, port }),
+                loadGatewayConfigFromDisk: () => ({ port, host: '127.0.0.1', wsUrl: `ws://127.0.0.1:${port}`, auth: { mode: 'token', token: 'fixture-token' } }),
+              }, async () => {
+                // Re-require so the observer module sees this test's Gateway config.
+                delete require.cache[require.resolve('../lib/gateway-chat-stream')]
+                const res = makeSseRes()
+                const req = makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: 'live-session' }, on() {} })
+                const sent: Array<{ type: string; data: any }> = []
+                const transport = {
+                  actor: { userId: 'u', login: 'u', email: null },
+                  open() {},
+                  send(type: string, data: any) { sent.push({ type, data }); if (type === 'complete') res.end() },
+                  reject(status: number, message: string) { throw new Error(`${status} ${message}`) },
+                  assertAuthorized() {},
+                }
+                const { executeAgentChat } = require('./chat')
+                await Promise.all([viaTransport ? executeAgentChat(req, res, transport) : getRouteHandler('post', '/:id/chat')(req, res), res.done])
+                const events = viaTransport ? sent : res.events
+                const deltas = events.filter((e) => e.type === 'delta').map((e) => e.data)
+                const complete = events.find((e) => e.type === 'complete')
+                if (viaTransport) {
+                  assert.deepStrictEqual(deltas, [{ text: 'Hello, world!\n' }], 'The CLI transport receives only the CLI\'s own output')
+                  assert.strictEqual(observers.length, 0, 'No Gateway subscription for the CLI transport')
+                } else {
+                  assert.deepStrictEqual(deltas, [{ text: 'Hello', live: true }, { text: ', wrld', live: true }, { text: 'Hello, world!', replace: true, live: true }],
+                    `Expected the live deltas and not the CLI's one-shot copy, got ${JSON.stringify(deltas)}`)
+                  const lastDelta = events.map((e) => e.type).lastIndexOf('delta')
+                  assert(lastDelta < events.findIndex((e) => e.type === 'complete'), 'Live text arrives before the turn completes')
+                  assert.strictEqual(observers.length, 1)
+                  const deadline = Date.now() + 1000
+                  while (observers[0].readyState !== 3 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10))
+                  assert.strictEqual(observers[0].readyState, 3, 'The Gateway subscription must close once the turn settles')
+                }
+                assert.strictEqual(complete?.data?.text, 'Hello, world!')
+                assert(events.findIndex((e) => e.type === 'start') < events.findIndex((e) => e.type === 'delta'), 'start precedes the first delta')
+                assert.strictEqual(events.find((e) => e.type === 'start')?.data?.liveOutput, !viaTransport,
+                  'start says whether this turn streams live, so the panel never claims it falsely')
+              })))
+        } finally {
+          // A leaked subscription must fail the assertion above, not hang the suite in close().
+          server.clients.forEach((client: any) => client.terminate())
+          await new Promise((resolve) => server.close(resolve))
+          fs.rmSync(dir, { recursive: true, force: true })
+        }
+      })
+    })
+  }
+
   await test('openclaw cancel escalates to SIGKILL and settles even when a grandchild holds stdout open, and releases the turn', async () => {
     // Mirrors agent-runtime.test.ts's equivalent runOnce coverage, but exercised through chat.ts's
     // own spawn/kill logic: before this fix, the openclaw branch only sent SIGTERM to the direct

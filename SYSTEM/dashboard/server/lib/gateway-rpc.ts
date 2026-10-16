@@ -153,7 +153,7 @@ function parseGatewayConfig(config: any): GatewayConfig | null {
   }
 }
 
-function loadGatewayConfigFromDisk(): GatewayConfig | null {
+export function loadGatewayConfigFromDisk(): GatewayConfig | null {
   try {
     return parseGatewayConfig(readOpenClawConfigFromDisk())
   } catch {
