@@ -11,6 +11,7 @@ import { AssistantCodeBlock, CopyIcon, UserCodeBlock } from './ChatCodeBlock'
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
+import { forwardChatMessage, loadForwardTargets, type ForwardTarget } from '../lib/agentChatForward'
 import { appendAgentInboxAttachmentContext, buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, type AgentInboxAttachmentRef } from '../lib/agentInbox'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { normalizeChatMessage } from '../../../server/lib/chat-normalization'
@@ -31,11 +32,8 @@ interface Message {
   id: string
 }
 
-interface GroupTarget {
-  type: 'group' | 'community'
-  name: string
-  displayName?: string
-}
+type ForwardTargetsState = { status: 'idle' | 'loading' | 'ready' | 'error'; targets: ForwardTarget[]; error?: string }
+const FORWARD_MENU_WIDTH_PX = 192 // w-48
 
 interface Props {
   agentId: string
@@ -122,8 +120,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [chatEnabled, setChatEnabled] = useState(browserChatEnabled && !stagedTemplateAgent)
   const [resettingSession, setResettingSession] = useState(false)
   const [forwardTargetMsgId, setForwardTargetMsgId] = useState<string | null>(null)
-  const [forwardGroups, setForwardGroups] = useState<GroupTarget[]>([])
+  const [forwardTargets, setForwardTargets] = useState<ForwardTargetsState>({ status: 'idle', targets: [] })
   const [forwardingTo, setForwardingTo] = useState<string | null>(null)
+  const [forwardError, setForwardError] = useState<string | null>(null)
+  const [forwardMenuAlign, setForwardMenuAlign] = useState<'left' | 'right'>('right')
   const [isSlideMode, setIsSlideMode] = useState(() => {
     // Load saved preference from localStorage
     const saved = localStorage.getItem(`agent-chat-mode-${agentId}`)
@@ -764,44 +764,43 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
     }
   }
 
-  const openForwardPicker = useCallback(async (messageId: string) => {
-    setForwardTargetMsgId(messageId)
-    if (forwardGroups.length === 0) {
-      try {
-        const [groupsResp, commsResp] = await Promise.all([
-          fetch('/api/groups').then(r => r.json()),
-          fetch('/api/communities').then(r => r.json()),
-        ])
-        const targets: GroupTarget[] = [
-          ...(groupsResp.groups || []).map((g: any) => ({ type: 'group' as const, name: g.name, displayName: g.displayName })),
-          ...(commsResp.communities || []).map((c: any) => ({ type: 'community' as const, name: c.name, displayName: c.displayName })),
-        ]
-        setForwardGroups(targets)
-      } catch {}
+  // Fetched on every open, so a group created meanwhile shows up; targets already loaded stay listed
+  // while the refresh runs.
+  const refreshForwardTargets = useCallback(async () => {
+    setForwardTargets(current => ({ status: 'loading', targets: current.targets }))
+    try {
+      setForwardTargets({ status: 'ready', targets: await loadForwardTargets() })
+    } catch (err) {
+      setForwardTargets(current => ({ status: 'error', targets: current.targets, error: err instanceof Error ? err.message : String(err) }))
     }
-  }, [forwardGroups.length])
+  }, [])
 
-  async function forwardToGroup(target: GroupTarget) {
+  // Opens toward the side with room: a short reply's Forward button sits near the panel's left edge,
+  // where a menu opening leftwards was cut off by the scrolling message list.
+  function openForwardPicker(messageId: string, anchor: HTMLElement) {
+    const viewport = anchor.closest('.overflow-y-auto')?.getBoundingClientRect()
+    setForwardMenuAlign(viewport && anchor.getBoundingClientRect().right - FORWARD_MENU_WIDTH_PX < viewport.left + 8 ? 'left' : 'right')
+    setForwardTargetMsgId(messageId)
+    setForwardError(null)
+    void refreshForwardTargets()
+  }
+
+  async function forwardToGroup(target: ForwardTarget) {
     const msg = messages.find(m => m.id === forwardTargetMsgId)
     if (!msg) return
     setForwardingTo(`${target.type}:${target.name}`)
+    setForwardError(null)
     try {
-      const endpoint = target.type === 'community'
-        ? `/api/communities/${encodeURIComponent(target.name)}/messages`
-        : `/api/groups/${encodeURIComponent(target.name)}/messages`
       const prefix = msg.role === 'assistant' ? `**[Forwarded from ${agentName}]**\n\n` : `**[Forwarded by user from chat with ${agentName}]**\n\n`
-      await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: prefix + msg.content,
-          from: msg.role === 'assistant' ? agentId : 'user',
-          mentions: [],
-        }),
+      await forwardChatMessage(target, {
+        content: prefix + msg.content,
+        from: msg.role === 'assistant' ? agentId : 'user',
       })
       setForwardTargetMsgId(null)
-      setForwardingTo(null)
-    } catch {
+      showSuccess(`Forwarded to ${channelLabel(target)}`)
+    } catch (err) {
+      setForwardError(err instanceof Error ? err.message : String(err))
+    } finally {
       setForwardingTo(null)
     }
   }
@@ -1241,9 +1240,17 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                     <CopyIcon state={copiedMessageId === msg.id ? 'copied' : 'idle'} className="w-3 h-3" />
                   </button>
                   {/* Forward to group */}
-                  <div className="relative">
+                  <div
+                    className="relative"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape' && forwardTargetMsgId === msg.id) {
+                        e.stopPropagation()
+                        setForwardTargetMsgId(null)
+                      }
+                    }}
+                  >
                     <button
-                      onClick={(e) => { e.stopPropagation(); forwardTargetMsgId === msg.id ? setForwardTargetMsgId(null) : openForwardPicker(msg.id) }}
+                      onClick={(e) => { e.stopPropagation(); forwardTargetMsgId === msg.id ? setForwardTargetMsgId(null) : openForwardPicker(msg.id, e.currentTarget) }}
                       className="bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 rounded-full p-1.5 shadow-md hover:bg-purple-50 dark:hover:bg-purple-900/30"
                       title="Forward to group"
                     >
@@ -1252,12 +1259,24 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                       </svg>
                     </button>
                     {forwardTargetMsgId === msg.id && (
-                      <div className="absolute bottom-full right-0 mb-1 w-48 max-h-40 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50">
+                      <div className={`absolute bottom-full ${forwardMenuAlign === 'left' ? 'left-0' : 'right-0'} mb-1 w-48 max-h-40 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50`}>
                         <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase">Forward to</div>
-                        {forwardGroups.length === 0 && (
-                          <div className="px-3 py-2 text-xs text-gray-400">Loading...</div>
+                        {forwardTargets.targets.length === 0 && forwardTargets.status === 'loading' && (
+                          <div className="px-3 py-2 text-xs text-gray-400" role="status">Loading...</div>
                         )}
-                        {forwardGroups.map(g => (
+                        {forwardTargets.targets.length === 0 && forwardTargets.status === 'ready' && (
+                          <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">No groups or communities yet.</div>
+                        )}
+                        {forwardTargets.status === 'error' && (
+                          <div className="px-3 py-2 text-xs text-red-600 dark:text-red-400" role="alert">
+                            <p className="break-words">{forwardTargets.error}</p>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); void refreshForwardTargets() }} className="mt-1 font-medium underline">Retry</button>
+                          </div>
+                        )}
+                        {forwardError && (
+                          <div className="px-3 py-2 text-xs text-red-600 dark:text-red-400 break-words" role="alert">{forwardError}</div>
+                        )}
+                        {forwardTargets.targets.map(g => (
                           <button
                             key={`${g.type}:${g.name}`}
                             onClick={() => forwardToGroup(g)}
