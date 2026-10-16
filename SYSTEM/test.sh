@@ -3769,6 +3769,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Chat route turn lifecycle tests...${NC}"
+if npx ts-node --transpileOnly server/routes/chat-turn-registry.test.ts > /tmp/clawmax-chat-turn-registry.out 2>&1; then
+  chat_turn_registry_count=$(grep "Tests passed:" /tmp/clawmax-chat-turn-registry.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Chat route turn lifecycle tests (${chat_turn_registry_count:-?} tests)"
+else
+  cat /tmp/clawmax-chat-turn-registry.out
+  fail "Chat route turn lifecycle tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Logs route contract tests...${NC}"
 npx ts-node --transpileOnly server/routes/logs-routes.test.ts > /tmp/clawmax-logs-routes-contract.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-logs-routes-contract.out; then
