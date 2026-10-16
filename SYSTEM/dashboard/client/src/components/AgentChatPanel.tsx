@@ -1,3 +1,4 @@
+import { channelLabel } from '../lib/channelLabel'
 import { useEffect, useState, useRef, useCallback, type ChangeEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -28,6 +29,7 @@ interface Message {
 interface GroupTarget {
   type: 'group' | 'community'
   name: string
+  displayName?: string
 }
 
 interface Props {
@@ -870,8 +872,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
           fetch('/api/communities').then(r => r.json()),
         ])
         const targets: GroupTarget[] = [
-          ...(groupsResp.groups || []).map((g: any) => ({ type: 'group' as const, name: g.name })),
-          ...(commsResp.communities || []).map((c: any) => ({ type: 'community' as const, name: c.name })),
+          ...(groupsResp.groups || []).map((g: any) => ({ type: 'group' as const, name: g.name, displayName: g.displayName })),
+          ...(commsResp.communities || []).map((c: any) => ({ type: 'community' as const, name: c.name, displayName: c.displayName })),
         ]
         setForwardGroups(targets)
       } catch {}
@@ -1342,7 +1344,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                             className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
                           >
                             <span className="text-gray-400">{g.type === 'community' ? '🏘' : '👥'}</span>
-                            <span className="truncate text-gray-700 dark:text-gray-200">{g.name}</span>
+                            <span className="truncate text-gray-700 dark:text-gray-200">{channelLabel(g)}</span>
                             {forwardingTo === `${g.type}:${g.name}` && <span className="text-[10px] text-gray-400">sending...</span>}
                           </button>
                         ))}

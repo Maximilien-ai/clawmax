@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { spawn } from 'child_process'
+import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import fs from 'fs'
 import path from 'path'
 import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, getAgentsDir, createGroup, deleteGroup, listAgents, deleteAgent, parseGroups } from '../lib/workspace'
@@ -474,7 +475,12 @@ export async function callAgent(
         ]
         // Own process group: openclaw spawns its own children, and signalling only this direct
         // child leaves grandchildren alive holding the stdout pipe open.
-        const proc = spawn('openclaw', args, { env: executionEnv, detached: true })
+        const openclawCli = resolveOpenClawCliPath()
+        if (!openclawCli) {
+          reject(new Error('Selected OpenClaw runtime is unavailable. Restore the configured runtime before retrying.'))
+          return
+        }
+        const proc = spawn(openclawCli, args, { env: executionEnv, detached: true })
 
     let stdout = ''
     let stderr = ''
@@ -634,7 +640,7 @@ export async function callAgent(
       settle(() => reject(err))
     })
     })
-    }, { persistAuthProfiles: true }))
+    }, { persistAuthProfiles: true, skipModelConfigMutation: true }))
   })
 }
 

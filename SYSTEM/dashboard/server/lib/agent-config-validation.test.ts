@@ -9,6 +9,7 @@ import { listTemplates, slugify } from './templates'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { repairAgentConfigSections } from './agent-config-repair'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -66,6 +67,27 @@ const validTools = `# TOOLS.md - Local Notes
 `
 
 console.log(`\n${YELLOW}=== Agent Config Validation Test Suite ===${RESET}\n`)
+
+test('Doctor restores missing names without changing model, tools, or instructions', () => {
+  const original = { identity: '# Identity\n- **Model:** openai/gpt-5.5\n', soul: validSoul, tools: '' }
+  const repaired = repairAgentConfigSections(original, 'astro-guide', 'Astro Guide')
+  assert(repaired.valid, 'Expected safe name repair')
+  assert(repaired.config.identity.includes('**Name:** Astro Guide'), 'Use registered name')
+  assert(repaired.config.identity.includes('**Model:** openai/gpt-5.5'), 'Preserve model')
+  assert(repaired.config.soul === original.soul && repaired.config.tools === '', 'Do not invent tools or instructions')
+  assert(repairAgentConfigSections(repaired.config, 'astro-guide').changes.length === 0, 'Repair must be idempotent')
+  assert(!original.identity.includes('**Name:**'), 'Input draft must remain unchanged')
+})
+
+test('Doctor normalizes alternate and empty names and retains unresolved errors', () => {
+  for (const identity of ['Name: Astro Guide', '**Name**: Astro Guide', '- **Name:**']) {
+    const result = repairAgentConfigSections({ identity, soul: '', tools: 'Use only assigned tools.' }, 'astro-guide')
+    assert(result.config.identity.includes('**Name:**'), 'Canonical name needed')
+    assert(!result.valid && result.errors.some(error => error.includes('SOUL.md')), 'Missing instructions need user input')
+    assert(result.config.soul === '', 'Never invent agent purpose')
+    assert(result.config.tools.endsWith('Use only assigned tools.'), 'Preserve tool content')
+  }
+})
 
 test('legacy N/A identity tags do not block config repairs', () => {
   const { parseTags } = require('./workspace')

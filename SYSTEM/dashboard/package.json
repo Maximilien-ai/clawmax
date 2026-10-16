@@ -44,7 +44,7 @@
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
     "resend": "^4.8.0",
-    "simple-git": "^3.22.0",
+    "simple-git": "^4.0.2",
     "ws": "^8.19.0"
   },
   "devDependencies": {
@@ -69,6 +69,9 @@
     "vite": "^8.1.5"
   },
   "overrides": {
-    "js-yaml": "^3.15.2"
+    "js-yaml": "^3.15.2",
+    "proxy-addr": "^2.0.8",
+    "shell-quote": "^1.11.0",
+    "source-map-js": "^1.2.2"
   }
 }

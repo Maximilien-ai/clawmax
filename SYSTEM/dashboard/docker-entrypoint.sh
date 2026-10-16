@@ -12,6 +12,7 @@ export CLAWMAX_GATEWAY_WATCHDOG="${CLAWMAX_GATEWAY_WATCHDOG:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC="${CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC:-30}"
 # Existing rosters need time for SQLite integrity validation on cold startup.
 export CLAWMAX_GATEWAY_READY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_READY_TIMEOUT_SEC:-120}"
+export CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC="${CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC:-15}"
 export CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC:-330}"
 export CLAWMAX_GATEWAY_LOG="${CLAWMAX_GATEWAY_LOG:-/tmp/openclaw-gateway.log}"
 export CLAWMAX_HOST_OPENCLAW_CONFIG="${CLAWMAX_HOST_OPENCLAW_CONFIG:-/root/.openclaw/openclaw.json}"
@@ -26,7 +27,9 @@ const path = require('path')
 const hostPath = process.env.HOST_CONFIG
 const workingPath = process.env.WORKING_CONFIG
 const strictPluginPolicy = !/^false$/i.test(String(process.env.STRICT_PLUGIN_POLICY || 'true').trim())
-const DEFAULT_DENIED_NON_BUNDLED_PLUGINS = ['cognee-openclaw']
+// Legacy generated deny entries have no ownership marker. Removal therefore
+// requires operator opt-in; never guess whether an existing deny was deliberate.
+const removeLegacyCogneeDeny = process.env.CLAWMAX_REMOVE_LEGACY_COGNEE_DENY === 'true'
 const DEPRECATED_ALLOW_SENTINELS = new Set([
   '__clawmax_no_non_bundled_plugins__',
   'clawmax_no_non_bundled_plugins'
@@ -43,6 +46,11 @@ const tryReadJson = (targetPath) => {
 
 const host = tryReadJson(hostPath)
 const working = tryReadJson(workingPath) || {}
+
+if ((removeLegacyCogneeDeny || process.env.CLAWMAX_BUNDLED_COGNEE_PATH) && fs.existsSync(workingPath)) {
+  // Refuse destructive recovery of malformed config during an opted-in upgrade.
+  JSON.parse(fs.readFileSync(workingPath, 'utf8'))
+}
 
 if (host?.gateway) {
   const token = host.gateway?.auth?.token || host.gateway?.remote?.token || ''
@@ -65,6 +73,18 @@ if (host?.gateway) {
 
 if (host?.plugins && typeof host.plugins === 'object') {
   working.plugins = JSON.parse(JSON.stringify(host.plugins))
+}
+
+if (removeLegacyCogneeDeny && Array.isArray(working.plugins?.deny)
+    && working.plugins.deny.includes('cognee-openclaw')) {
+  fs.mkdirSync(path.dirname(workingPath), { recursive: true })
+  try {
+    fs.writeFileSync(`${workingPath}.pre-cognee-policy.json`, JSON.stringify(working, null, 2), { flag: 'wx', mode: 0o600 })
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error
+  }
+  working.plugins.deny = working.plugins.deny.filter(id => id !== 'cognee-openclaw')
+  if (working.plugins.deny.length === 0) delete working.plugins.deny
 }
 
 working.agents = working.agents && typeof working.agents === 'object' && !Array.isArray(working.agents)
@@ -90,6 +110,21 @@ if (working.commands && typeof working.commands === 'object' && !Array.isArray(w
   delete working.commands.ownerDisplay
 }
 
+const bundledCogneePath = process.env.CLAWMAX_BUNDLED_COGNEE_PATH
+if (bundledCogneePath && !working.plugins?.installs?.['cognee-openclaw']) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(bundledCogneePath, 'openclaw.plugin.json'), 'utf8'))
+  if (manifest.id !== 'cognee-openclaw') throw new Error('Invalid bundled Cognee manifest')
+  working.plugins = working.plugins || {}
+  working.plugins.load = working.plugins.load || {}
+  const paths = working.plugins.load.paths || []
+  if (!Array.isArray(paths)) throw new Error('Invalid plugin load paths')
+  working.plugins.load.paths = Array.from(new Set([...paths, bundledCogneePath]))
+  working.plugins.entries = working.plugins.entries || {}
+  const entry = working.plugins.entries['cognee-openclaw'] || {}
+  // Presence of a key or partner selection is not memory-access consent.
+  working.plugins.entries['cognee-openclaw'] = { ...entry, enabled: entry.enabled === true }
+}
+
 if (strictPluginPolicy) {
   working.plugins = working.plugins || {}
   const explicitAllow = Array.isArray(working.plugins.allow)
@@ -103,9 +138,8 @@ if (strictPluginPolicy) {
 
   if (explicitAllow.length === 0) {
     delete working.plugins.allow
-    const deny = new Set(explicitDeny)
-    for (const pluginId of DEFAULT_DENIED_NON_BUNDLED_PLUGINS) deny.add(pluginId)
-    working.plugins.deny = Array.from(deny)
+    if (explicitDeny.length > 0) working.plugins.deny = explicitDeny
+    else delete working.plugins.deny
   } else {
     working.plugins.allow = explicitAllow
     if (explicitDeny.length > 0) {
@@ -330,11 +364,24 @@ gateway_authenticated_ready() {
   port="$1"
   gateway_token="$(get_gateway_auth_token)"
   [ -n "$gateway_token" ] || return 1
-  openclaw gateway call health \
+  probe_timeout_sec="$(gateway_probe_timeout_seconds)"
+  # OpenClaw's --timeout covers the RPC, not CLI startup. A wedged CLI must
+  # not prevent the owner-lease recovery loop from reaching its next attempt.
+  timeout -k 2s "${probe_timeout_sec}s" openclaw gateway call health \
     --json \
     --timeout 3000 \
     --url "ws://127.0.0.1:${port}" \
     --token "$gateway_token" >/dev/null 2>&1
+}
+
+gateway_probe_timeout_seconds() {
+  probe_budget="${CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC:-15}"
+  case "$probe_budget" in
+    ''|*[!0-9]*) probe_budget=15 ;;
+  esac
+  [ "$probe_budget" -gt 0 ] || probe_budget=1
+  [ "$probe_budget" -le 30 ] || probe_budget=30
+  printf '%s\n' "$probe_budget"
 }
 
 gateway_ready_timeout_seconds() {
@@ -406,7 +453,7 @@ start_gateway_with_lease_recovery() {
     fi
     if [ -n "${gateway_pid:-}" ]; then wait "$gateway_pid" 2>/dev/null || true; fi
     if ! tail -c "+$((lease_log_offset + 1))" "$CLAWMAX_GATEWAY_LOG" 2>/dev/null \
-      | grep -F 'Gateway failed to start: Another Gateway owner lease is still active for this state directory.' >/dev/null; then
+      | grep -F 'Another Gateway owner lease is still active for this state directory' >/dev/null; then
       return 1
     fi
     if [ "$(date +%s)" -ge "$lease_deadline" ]; then
@@ -485,6 +532,13 @@ shutdown_children() {
   done
 }
 
+verify_persisted_agent_schemas() {
+  if ! node /app/SYSTEM/dashboard/openclaw-schema-gate.cjs "${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"; then
+    echo "[startup] Persisted agent schema inspection failed. Keep the runtime stopped, back up its state, and complete qualified offline OpenClaw maintenance before restarting. No leases or databases were repaired by this check." >&2
+    return 1
+  fi
+}
+
 main() {
   # Keep an init for adopted children and a supervisor that waits for every
   # owned service's graceful shutdown, including gateway lease release.
@@ -499,6 +553,7 @@ main() {
   ensure_openclaw_cli
   sync_gateway_config
   migrate_openclaw_2_state
+  verify_persisted_agent_schemas
   ensure_gateway_auth_token
 
   gateway_port="$(get_gateway_port)"

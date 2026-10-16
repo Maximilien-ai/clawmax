@@ -7,7 +7,7 @@ import { sha256 } from './portable-template'
 import { templateStoragePath } from './template-storage-path'
 import { WorkspaceFileMutation } from './workspace-file-transaction'
 import { resolveTemplateAuthority, TemplateAuthoritySource } from './template-authority'
-import { compileTemplateSkillMutations } from './template-skill-package'
+import { compileTemplateSkillMutations, PackagedTemplateSkills } from './template-skill-package'
 
 const line = (value: string) => value.replace(/[\r\n\u2028\u2029]/g, ' ').replace(/\*\*/g, '').trim()
 
@@ -17,7 +17,7 @@ const line = (value: string) => value.replace(/[\r\n\u2028\u2029]/g, ' ').replac
  * are integrated. Full graph sidecars preserve semantics legacy Markdown
  * readers cannot represent; those readers must never execute a flattened graph.
  */
-export function createTemplateResourceFileCompiler(workspacePath: string, authoritySource?: TemplateAuthoritySource): TemplateCompiler {
+export function createTemplateResourceFileCompiler(workspacePath: string, authoritySource?: TemplateAuthoritySource, packagedSkills?: PackagedTemplateSkills): TemplateCompiler {
   return (bundle, request, prefix, context) => {
     const hasEmbeddedSkills = bundle.artifacts.some(item => [...(item.files?.keys() || [])].some(file => file.startsWith('content/skills/')))
     if (!authoritySource && (Object.keys(request.bindings).length || bundle.manifest.secretRequirements.length || bundle.artifacts.some(item => item.kind === 'agent' && item.definition.skills.length))) {
@@ -28,7 +28,7 @@ export function createTemplateResourceFileCompiler(workspacePath: string, author
     if (hasEmbeddedSkills && !authority) throw new PortableTemplateError('template_authority_unavailable', 'Embedded Skill files require server-owned authority admission', 409)
     const graph = compileTemplateResourceGraph(bundle, prefix)
     const mutations: WorkspaceFileMutation[] = []
-    if (authority) mutations.push(...compileTemplateSkillMutations(bundle, authority, workspacePath))
+    if (authority) mutations.push(...compileTemplateSkillMutations(bundle, authority, workspacePath, packagedSkills))
     const create = (relative: string, content: string) => {
       const file = templateStoragePath(workspacePath, relative)
       if (fs.existsSync(file)) throw new PortableTemplateError('resource_conflict', 'Template resource already exists', 409)

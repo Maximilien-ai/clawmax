@@ -75,6 +75,15 @@ test('explicit model policies preserve instance and per-agent restrictions', () 
   assertAgentModelPolicy({ agents: { defaults: { models: { 'openai/gpt-5.4': { alias: 'primary' } }, modelPolicy: { allow: ['primary'] } } } }, {}, ['openai/gpt-5.4'])
 })
 
+test('GPT-5.5 exact admission excludes older models and preserves agent overrides', () => {
+  const config = { agents: { defaults: { modelPolicy: { allow: ['openai/gpt-5.5'] } } } }
+  assertAgentModelPolicy(config, {}, ['openai/gpt-5.5'])
+  for (const model of ['openai/gpt-5.4', 'openai/gpt-5.4-mini', 'openai/gpt-5.3', 'openai/gpt-4o', 'openai/gpt-5.5-invented']) {
+    nodeAssert.throws(() => assertAgentModelPolicy(config, {}, [model]), /blocked/)
+  }
+  nodeAssert.throws(() => assertAgentModelPolicy(config, { modelPolicy: { allow: ['anthropic/*'] } }, ['openai/gpt-5.5']), /blocked.*agent.modelPolicy.allow/)
+})
+
 test('rejected primary, backup and provisioned models leave config unchanged', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-policy-'))
   try {

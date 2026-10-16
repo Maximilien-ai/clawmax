@@ -5,6 +5,16 @@ function isRecord(value: unknown): value is Record<string, any> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
+/** Presentation placeholders are never credentials or authored configuration. */
+export function assertNoRedactedOpenClawConfig(value: unknown): void {
+  if (value === '__OPENCLAW_REDACTED__') {
+    throw new Error('OpenClaw config contains a redacted placeholder; repair the source configuration before saving.')
+  }
+  if (value && typeof value === 'object') {
+    for (const child of Object.values(value)) assertNoRedactedOpenClawConfig(child)
+  }
+}
+
 export function materializeDashboardAgentList(config: any): any[] {
   if (!isRecord(config)) {
     throw new Error('OpenClaw config must be an object')
@@ -126,6 +136,7 @@ export function writeDashboardManagedOpenClawConfig(
   nextConfig: any,
   context: string
 ): void {
+  assertNoRedactedOpenClawConfig(nextConfig)
   fs.mkdirSync(path.dirname(configPath), { recursive: true })
 
   const latestConfig = safeReadJson(configPath)
@@ -136,6 +147,8 @@ export function writeDashboardManagedOpenClawConfig(
     }
     nextConfig.gateway = latestConfig.gateway
   }
+
+  assertNoRedactedOpenClawConfig(nextConfig)
 
   stripUnsupportedDashboardAgentKeys(nextConfig)
   normalizeDashboardOpenClaw2Config(nextConfig)

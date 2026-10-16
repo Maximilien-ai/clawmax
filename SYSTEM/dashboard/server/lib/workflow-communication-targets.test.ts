@@ -8,6 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import assert from 'node:assert/strict'
+import { getWorkspacePath, listAgents } from './workspace'
 import {
   formatWorkflowCommunicationTargetError,
   resolveWorkflowCommunicationTargets,
@@ -34,6 +35,11 @@ function test(name: string, fn: () => void) {
 }
 
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-communication-targets-'))
+// Agent discovery prioritizes the active workspace over OPENCLAW_WORKSPACE.
+// Use the explicit test override, including when the suite inherits a wrapper's
+// isolated workspace, so membership inference reads this fixture only.
+const previousTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+process.env.CLAWMAX_TEST_WORKSPACE = workspace
 fs.mkdirSync(path.join(workspace, 'ORG'), { recursive: true })
 fs.mkdirSync(path.join(workspace, 'SYSTEM'), { recursive: true })
 fs.mkdirSync(path.join(workspace, 'AGENTS', 'lead'), { recursive: true })
@@ -107,6 +113,11 @@ fs.writeFileSync(path.join(workspace, 'ORG', 'COMMUNITIES.md'), [
 ].join('\n'), 'utf-8')
 
 console.log(`\n${YELLOW}=== Workflow Communication Target Tests ===${RESET}\n`)
+
+test('agent discovery is pinned to the disposable membership fixture', () => {
+  assert.equal(getWorkspacePath(), workspace)
+  assert.deepEqual(listAgents().map(agent => agent.id).sort(), ['lead', 'researcher'])
+})
 
 test('resolves workflow group and community targets canonically', () => {
   const resolved = resolveWorkflowCommunicationTargets({
@@ -204,6 +215,8 @@ test('returns null when all communication targets resolve', () => {
 try {
   fs.rmSync(workspace, { recursive: true, force: true })
 } catch {}
+if (previousTestWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+else process.env.CLAWMAX_TEST_WORKSPACE = previousTestWorkspace
 
 console.log(`\nTests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)

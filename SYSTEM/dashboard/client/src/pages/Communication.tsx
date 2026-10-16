@@ -413,6 +413,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       if (!channelMap.has(key)) {
         channelMap.set(key, {
           name: community.name,
+          displayName: community.displayName,
           description: community.description,
           tags: community.tags || [],
           type: 'community',
@@ -446,6 +447,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         if (!channelMap.has(key)) {
           channelMap.set(key, {
             name: c.name,
+            displayName: c.displayName,
             description: c.description,
             tags: c.tags,
             type: 'community',

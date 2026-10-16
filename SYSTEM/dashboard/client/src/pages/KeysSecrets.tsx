@@ -253,6 +253,15 @@ export default function KeysSecrets() {
   const [keySearch, setKeySearch] = useState('')
   const [keyGroupFilter, setKeyGroupFilter] = useState<KeyGroup>('all')
 
+  useEffect(() => {
+    const openTab = (event: Event) => {
+      const tab = (event as CustomEvent<{ tab?: string }>).detail?.tab
+      if (KEYS_SECRETS_TABS.some((entry) => entry.id === tab)) setActiveTab(tab as KeysSecretsTab)
+    }
+    window.addEventListener('clawmax-open-keys-tab', openTab)
+    return () => window.removeEventListener('clawmax-open-keys-tab', openTab)
+  }, [])
+
   const refreshVaultState = React.useCallback(() => {
     setGlobalDrafts(toDrafts(readSharedSecrets('global')))
     setWorkspaceDrafts(toDrafts(readSharedSecrets('workspace', activeWorkspace?.id)))

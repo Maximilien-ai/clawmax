@@ -9,6 +9,25 @@ const identifier = { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127
 const hash = { type: 'string', pattern: '^[a-f0-9]{64}$' }
 const object = (properties: Record<string, object>) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false })
 const array = (items: object) => ({ type: 'array', items, maxItems: 128, uniqueItems: true })
+const skillSchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string', pattern: '^[a-z0-9][a-z0-9._-]{0,62}$' },
+    sha256: hash,
+    platform: { type: 'string', enum: ['linux/amd64', 'linux/arm64'] },
+    source: { const: 'packaged' },
+    version: identifier,
+    packageSha256: hash,
+  },
+  required: ['name', 'sha256', 'platform'],
+  additionalProperties: false,
+}
+const credentialSchema = {
+  oneOf: [
+    object({ name: { type: 'string', pattern: '^[A-Z][A-Z0-9_]{1,127}$' }, reference: identifier, revision: identifier }),
+    object({ name: { type: 'string', pattern: '^[A-Z][A-Z0-9_]{1,127}$' }, state: { const: 'pending-host-login' } }),
+  ],
+}
 const bindingSchema = object({
   id: identifier, revision: identifier, artifactId: identifier,
   artifactDigest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
@@ -16,8 +35,8 @@ const bindingSchema = object({
   model: object({ id: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$' }, revision: identifier }),
   policy: object({ id: identifier, sha256: hash }),
   runtime: object({ platform: { type: 'string', enum: ['linux/amd64', 'linux/arm64', 'darwin/amd64', 'darwin/arm64'] }, revision: identifier }),
-  skills: array(object({ name: { type: 'string', pattern: '^[a-z0-9][a-z0-9._-]{0,62}$' }, sha256: hash, platform: { type: 'string', enum: ['linux/amd64', 'linux/arm64'] } })),
-  credentials: array(object({ name: { type: 'string', pattern: '^[A-Z][A-Z0-9_]{1,127}$' }, reference: identifier, revision: identifier })),
+  skills: array(skillSchema),
+  credentials: array(credentialSchema),
 })
 const validateRegistry = new Ajv().compile<TemplateAuthorityRegistry>(object({
   apiVersion: { const: 'clawmax.template-authority/v1alpha1' }, workspaceId: identifier,
@@ -29,8 +48,8 @@ export interface TemplateAuthorityBinding {
   model: { id: string; revision: string }
   policy: { id: string; sha256: string }
   runtime: { platform: string; revision: string }
-  skills: Array<{ name: string; sha256: string; platform: string }>
-  credentials: Array<{ name: string; reference: string; revision: string }>
+  skills: Array<{ name: string; sha256: string; platform: string; source?: 'packaged'; version?: string; packageSha256?: string }>
+  credentials: Array<{ name: string; reference: string; revision: string } | { name: string; state: 'pending-host-login' }>
 }
 export interface TemplateAuthorityRegistry {
   apiVersion: 'clawmax.template-authority/v1alpha1'
@@ -155,6 +174,9 @@ export function resolveTemplateAuthority(bundle: PortableTemplate, selections: T
     const skills = structuredClone(selected.skills).sort((a, b) => a.name.localeCompare(b.name))
     if (JSON.stringify(skills.map(item => item.name)) !== JSON.stringify(requestedSkills)) fail('Named binding must match the exact requested Skills')
     if (skills.some(item => item.platform !== source.runtime.platform || !source.runtime.platform.startsWith('linux/'))) fail('Skill platform does not match the execution runtime')
+    if (skills.some(item => item.source === 'packaged'
+      ? !item.version || !item.packageSha256
+      : item.version !== undefined || item.packageSha256 !== undefined)) fail('Packaged Skill identity is incomplete or ambiguous')
     if (new Set(selected.credentials.map(item => item.name)).size !== selected.credentials.length) fail('Named credential requirements are ambiguous')
     for (const credential of selected.credentials) {
       if (!requirements.has(credential.name)) fail('Named binding includes an undeclared credential')

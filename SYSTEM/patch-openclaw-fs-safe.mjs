@@ -14,16 +14,19 @@ const metadata = fs.existsSync(packageFile) ? JSON.parse(fs.readFileSync(package
 // 2026.9.5 moved secret writes into fs-safe and already avoids chmod when the
 // directory mode is correct. Verify that contract instead of applying the old
 // textual patch to unrelated code. Unknown versions/layouts still fail closed.
-if (metadata.version === '2026.9.5') {
-  assert.equal(metadata.dependencies?.['@openclaw/fs-safe'], '0.13.1', 'Unexpected fs-safe dependency')
+const upstreamFsSafeVersions = { '2026.9.5': '0.13.1', '2026.9.7': '0.21.1' }
+if (Object.hasOwn(upstreamFsSafeVersions, metadata.version)) {
+  const expectedVersion = upstreamFsSafeVersions[metadata.version]
+  assert.equal(metadata.dependencies?.['@openclaw/fs-safe'], expectedVersion, 'Unexpected fs-safe dependency')
   const dependency = path.dirname(path.dirname(createRequire(packageFile).resolve('@openclaw/fs-safe')))
-  assert.equal(JSON.parse(fs.readFileSync(path.join(dependency, 'package.json'), 'utf8')).version, '0.13.1')
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dependency, 'package.json'), 'utf8')).version, expectedVersion)
   const guards = fs.readdirSync(distDir).filter(name => /^private-dir-mode-[\w-]+\.mjs$/.test(name))
   assert.equal(guards.length, 1, 'Expected one private directory mode guard')
   const guard = fs.readFileSync(path.join(distDir, guards[0]), 'utf8')
   assert(guard.includes('if (((await handle.stat()).mode & 511) !== mode) await handle.chmod(mode);'), 'Missing async no-op chmod guard')
   assert(guard.includes('if ((fs.fstatSync(fd).mode & 511) !== mode) fs.fchmodSync(fd, mode);'), 'Missing sync no-op chmod guard')
-  const { ownDirectoryMode } = await import(pathToFileURL(path.join(dependency, 'dist/directory-mode-owner.js')).href)
+  const ownerModule = metadata.version === '2026.9.7' ? 'directory-mode-node.js' : 'directory-mode-owner.js'
+  const { ownDirectoryMode } = await import(pathToFileURL(path.join(dependency, 'dist', ownerModule)).href)
   let mode = 0o700
   let calls = 0
   const owner = ownDirectoryMode({ inspect: async () => mode, chmod: async next => { calls++; mode = next }, close: async () => {} })
@@ -35,7 +38,7 @@ if (metadata.version === '2026.9.5') {
   assert.equal(calls, 1, 'Incorrect modes must be tightened')
   assert.equal(mode, 0o700)
   await owner.close()
-  console.log('Verified upstream OpenClaw 2026.9.5 no-op chmod safeguards; legacy patch not required')
+  console.log(`Verified upstream OpenClaw ${metadata.version} no-op chmod safeguards; legacy patch not required`)
   process.exit(0)
 }
 const candidates = fs.readdirSync(distDir)

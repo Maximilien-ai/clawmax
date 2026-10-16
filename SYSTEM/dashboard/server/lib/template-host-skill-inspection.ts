@@ -30,6 +30,7 @@ export function inspectTemplateHostSkill(input: {
   const admitted = revalidateTemplateAuthority(revision.authority, revision.authorityDigest, context, authority)
   const bindings = admitted.bindings.filter(binding => binding.artifactId === artifactIds[0])
   if (bindings.length !== 1) throw unavailable()
+  if (bindings[0].credentials.some(credential => 'state' in credential && credential.state === 'pending-host-login')) throw unavailable()
   const skills = bindings[0].skills.filter(skill => skill.name === skillName)
   if (skills.length !== 1 || !/^[a-f0-9]{64}$/.test(skills[0].sha256)) throw unavailable()
   let fd: number | undefined

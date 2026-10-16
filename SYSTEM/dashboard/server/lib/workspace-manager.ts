@@ -177,10 +177,16 @@ export class WorkspaceManager {
 
   /** Get workspace by ID */
   getWorkspace(id: string): Workspace | null {
-    const registry = this.loadRegistry()
-    const workspace = registry.workspaces.find(w => w.id === id) || null
+    const workspace = this.getWorkspaceRegistration(id)
     if (workspace) assertWorkspaceRecovered(workspace.path)
     return workspace
+  }
+
+  /** Registry identity only. Internal authorization rechecks use this while a
+   * transaction journal temporarily quarantines workspace resources. Callers
+   * must never use it as admission to read or mutate those resources. */
+  getWorkspaceRegistration(id: string): Workspace | null {
+    return this.loadRegistry().workspaces.find(w => w.id === id) || null
   }
 
   getWorkspaceByPath(workspacePath: string): Workspace | null {

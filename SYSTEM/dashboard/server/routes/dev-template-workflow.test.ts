@@ -71,6 +71,6 @@ assert(client.includes('{!selectedIsDevManual && <div className="rounded-lg bord
 assert(client.includes("workflow.status === 'running' || runningWorkflows.has(workflow.id)"),
   'Header running count must include active manual runs')
 const graph = fs.readFileSync(path.join(__dirname, '../../client/src/components/WorkflowDAG.tsx'), 'utf8')
-assert(graph.includes('disabled={isManualRunning}') && graph.includes("Schedule off · manual {isManualRunning ? 'running' : manualStatus || 'ready'}"),
+assert(graph.includes('disabled={isManualRunning}') && graph.includes("Schedule {wf.enabled ? 'on' : 'off'} · last run"),
   'Manual-run cards must block duplicate clicks and distinguish schedule state from run state')
 console.log('dev-template-workflow.test.ts: passed')

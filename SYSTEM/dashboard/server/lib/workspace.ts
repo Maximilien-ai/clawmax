@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import net from 'net'
+import { createAgentGatewayProbeCache } from './agent-gateway-probe-cache'
 import { parseIdentityTags } from './identity-tags'
 import os from 'os'
 import { createHash, randomUUID } from 'crypto'
@@ -13,6 +14,7 @@ import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, get
 import { REPO_ROOT } from './paths'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { listTemplateHostCredentialRequirements } from './template-agent-auth'
+import { channelDisplayName } from './channel-display-name'
 
 // Legacy constant for backward compatibility
 export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
@@ -145,6 +147,22 @@ interface StatusCache {
 }
 const statusCache = new Map<string, StatusCache>()
 const STATUS_CACHE_TTL = 5000 // 5 seconds cache
+const probeAgentGateway = createAgentGatewayProbeCache((probePort, hosts) => {
+  const { execSync } = require('child_process')
+  const portChecks: string[] = []
+  if (hosts.includes('127.0.0.1')) portChecks.push(`lsof -ti:${probePort}`)
+  for (const host of hosts) {
+    portChecks.push(`bash -lc 'exec 3<>/dev/tcp/${host}/${probePort}'`)
+    portChecks.push(`curl -fsS -o /dev/null --connect-timeout 1 http://${host}:${probePort}/healthz`)
+  }
+  for (const cmd of portChecks) {
+    try {
+      execSync(cmd, { encoding: 'utf-8', stdio: 'pipe', timeout: 2000 })
+      return true
+    } catch {}
+  }
+  return false
+})
 
 export interface AgentGatewayConfig {
   port: number
@@ -849,10 +867,16 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
 
 export interface GroupEntry {
   name: string
+  displayName?: string
   description: string | null
   tags: string[]
   community: string | null  // For groups only - which community they belong to
   channels: string[]  // Communication channels: 'whatsapp', 'slack', 'discord', etc.
+}
+
+function withChannelDisplayName<T extends GroupEntry>(entry: T, type: 'group' | 'community'): T {
+  const displayName = channelDisplayName(getWorkspacePath(), type, entry.name)
+  return displayName === entry.name ? entry : { ...entry, displayName }
 }
 
 /** Update tags for a community or group in its markdown file (verbose format only).
@@ -1376,7 +1400,7 @@ export function parseGroupsWithMembers(content: string): { communities: GroupWit
   }
 
   flushEntry()
-  return { communities, groups }
+  return { communities: communities.map(c => withChannelDisplayName(c, 'community')), groups: groups.map(g => withChannelDisplayName(g, 'group')) }
 }
 
 export function parseGroups(content: string): { communities: GroupEntry[]; groups: GroupEntry[] } {
@@ -1530,7 +1554,7 @@ export function parseGroups(content: string): { communities: GroupEntry[]; group
   }
 
   flushEntry() // Flush last entry
-  return { communities, groups }
+  return { communities: communities.map(c => withChannelDisplayName(c, 'community')), groups: groups.map(g => withChannelDisplayName(g, 'group')) }
 }
 
 /** Parse Tags from IDENTITY.md **Tags:** field.
@@ -2159,29 +2183,9 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
   } else {
     // Cache miss or expired, check actual status
     const gatewayConfig = getAgentGatewayConfig(id)
-    let gatewayRunning = false
-
     // Check agent-specific port, or fall back to shared gateway (port 18789)
     const probePort = (gatewayConfig && gatewayConfig.port) ? gatewayConfig.port : 18789
-    {
-      const { execSync } = require('child_process')
-      const hosts = getGatewayProbeHosts(gatewayConfig?.host)
-      const portChecks: string[] = []
-      if (hosts.includes('127.0.0.1')) {
-        portChecks.push(`lsof -ti:${probePort}`)
-      }
-      for (const host of hosts) {
-        portChecks.push(`bash -lc 'exec 3<>/dev/tcp/${host}/${probePort}'`)
-        portChecks.push(`curl -fsS -o /dev/null --connect-timeout 1 http://${host}:${probePort}/healthz`)
-      }
-      for (const cmd of portChecks) {
-        try {
-          execSync(cmd, { encoding: 'utf-8', stdio: 'pipe', timeout: 2000 })
-          gatewayRunning = true
-          break
-        } catch {}
-      }
-    }
+    const gatewayRunning = probeAgentGateway(probePort, getGatewayProbeHosts(gatewayConfig?.host))
 
     // Check file activity to determine if agent is active
     // Check BOTH workspace directory AND agent state directory
@@ -2238,6 +2242,20 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
 
     // Update cache with fresh status
     statusCache.set(id, { status, lastHeartbeat, timestamp: now })
+  }
+
+  // These dev Agents run on demand through the admitted host adapter, not a
+  // persistent Gateway. Revalidate availability outside the heartbeat cache.
+  if (process.env.CLAWMAX_DEV_HOST_SKILL_CHAT === '1' && /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(id)) {
+    try {
+      const { devHostSkillAgentAvailable } = require('../routes/dev-host-skill-chat')
+      status = devHostSkillAgentAvailable(id) ? 'online' : 'offline'
+    } catch { status = 'offline' }
+  }
+  if (process.env.CLAWMAX_DEV_HOST_SKILL_CHAT === '1') {
+    try {
+      if (require('./dev-brief-delivery-worker').devBriefReporterAvailable(getWorkspacePath(), id)) status = 'online'
+    } catch { /* Preserve the normal runtime status when no reporting adapter is available. */ }
   }
 
   // Read whatsapp number from IDENTITY.md

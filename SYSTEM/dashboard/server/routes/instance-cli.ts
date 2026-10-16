@@ -18,6 +18,7 @@ import { createInstanceWorkflowsRouter } from './instance-workflows'
 import { createInstanceGroupsRouter } from './instance-groups'
 import { configuredTemplateResolverFromEnv } from '../lib/template-service'
 import { PortableTemplateError } from '../lib/portable-template-zip'
+import { dashboardBootObservation } from '../lib/runtime-observation'
 
 const API_VERSION = 'clawmax.instance/v1'
 const WORKSPACE_SCOPES = ['agents.read', 'agents.chat', 'workflows.run']
@@ -409,6 +410,17 @@ export function createInstanceCliRouter(options: {
     })
   })
 
+  router.get('/runtime', requireCliAuth, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
+    res.setHeader('Vary', 'Authorization, Cookie')
+    res.json({
+      apiVersion: API_VERSION,
+      kind: 'RuntimeObservation',
+      instanceId: instanceId(),
+      ...dashboardBootObservation,
+    })
+  })
+
   router.get('/workspaces', requireCliAuth, (req, res) => {
     try {
       const actor = req.clawmaxCliActor!
@@ -573,13 +585,22 @@ export function createInstanceCliRouter(options: {
         }
         const assertAuthorized = () => {
           const currentActor = resolveCliActor(req)
-          const currentWorkspace = manager.getWorkspace(workspace.id)
+          const currentWorkspace = manager.getWorkspaceRegistration(workspace.id)
           if (!currentActor || currentActor.actorId !== actor.actorId || !currentWorkspace
             || currentWorkspace.path !== workspace.path || !authorizationFor(currentWorkspace, currentActor, loadState())) {
             throw new PortableTemplateError('workspace_forbidden', 'workspace access denied', 403)
           }
         }
-        return { workspaceId: workspace.id, workspacePath: workspace.path, actorId: actor.actorId, assertAuthorized }
+        const assertOwner = () => {
+          const currentActor = resolveCliActor(req)
+          const currentWorkspace = manager.getWorkspaceRegistration(workspace.id)
+          const admission = currentActor && currentWorkspace?.path === workspace.path
+            ? authorizationFor(currentWorkspace, currentActor, loadState()) : null
+          if (!currentActor || currentActor.actorId !== actor.actorId || admission?.role !== 'owner') {
+            throw new PortableTemplateError('workspace_forbidden', 'workspace owner access required', 403)
+          }
+        }
+        return { workspaceId: workspace.id, workspacePath: workspace.path, actorId: actor.actorId, assertAuthorized, assertOwner }
       } catch {
         sendError(res, req, 503, 'workspace_store_unavailable', 'workspace storage is unavailable', true)
         return null

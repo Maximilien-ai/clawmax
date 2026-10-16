@@ -162,6 +162,23 @@ async function run() {
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
 
+  await test('Doctor repairs the supplied draft without writing files and rejects invalid requests', async () => {
+    const target = path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md')
+    const before = fs.readFileSync(target, 'utf-8')
+    const handler = getRouteHandler('post', '/:id/config/repair')
+    const res = makeRes()
+    await handler(makeReq({ params: { id: 'plain-agent' }, body: { identity: '# My unsaved draft', soul: '# Soul\nKeep this text.', tools: '' } }), res)
+    assert.equal(res.statusCode, 200)
+    assert(res.jsonBody.config.identity.includes('# My unsaved draft'))
+    assert(res.jsonBody.config.identity.includes('**Name:** plain-agent'))
+    assert.equal(fs.readFileSync(target, 'utf-8'), before)
+    for (const [id, body, expected] of [['../escape', {}, 400], ['absent-agent', {}, 404], ['plain-agent', { identity: 1 }, 400]] as const) {
+      const failure = makeRes()
+      await handler(makeReq({ params: { id }, body }), failure)
+      assert.equal(failure.statusCode, expected)
+    }
+  })
+
   await test('model policy rejection prevents partial primary or backup saves', async () => {
     const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
     const original = fs.readFileSync(configPath, 'utf-8')
@@ -357,6 +374,16 @@ async function run() {
     })
   })
 
+  await test('bulk model update cannot mutate revision-owned Template Agents', async () => {
+    const stagedId = 'tr-2415d9f02f469b2a-agent-032ea6e8176b'
+    const res = makeRes()
+    await getRouteHandler('post', '/bulk-model')(makeReq({ body: { agentIds: [stagedId], model: 'openai/gpt-5.4-mini' } }), res)
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.jsonBody.updated, 0)
+    assert.equal(res.jsonBody.ok, false)
+    assert.match(res.jsonBody.results[0].error, /revision-owned/)
+  })
+
   await test('cost limits reject invalid values and permit explicit removal', async () => {
     const handler = getRouteHandler('put', '/:id/cost-limit')
     for (const limitUsd of ['5', -1, Number.NaN, Number.POSITIVE_INFINITY]) {
@@ -505,3 +532,4 @@ run().catch((err) => {
   console.error(err)
   process.exit(1)
 })
+import '../lib/agent-directory.test'

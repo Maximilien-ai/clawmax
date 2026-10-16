@@ -6,7 +6,7 @@ import { createInstanceTemplateLifecycleRouter, TemplateLifecycleResolver, TEMPL
 
 const apiVersion = 'clawmax.instance/v1'
 export const TEMPLATE_MEDIA_TYPE = 'application/vnd.clawmax.portable-template+zip'
-export interface TemplateWorkspaceContext { workspaceId: string; workspacePath: string; actorId: string; assertAuthorized?: () => void }
+export interface TemplateWorkspaceContext { workspaceId: string; workspacePath: string; actorId: string; assertAuthorized?: () => void; assertOwner?: () => void }
 interface Dependencies {
   authorize(req: Request, res: Response): TemplateWorkspaceContext | null
   dashboardVersion(): string
@@ -34,8 +34,9 @@ export function createInstanceTemplatesRouter(dependencies: Dependencies) {
     const workspace = context(res)
     let available = false
     workspace.assertAuthorized?.()
-    if (dependencies.lifecycle && workspace.assertAuthorized) {
+    if (dependencies.lifecycle && workspace.assertAuthorized && workspace.assertOwner) {
       try {
+        workspace.assertOwner()
         const service = dependencies.lifecycle(workspace)
         if (service.store.workspaceId === workspace.workspaceId && service.store.workspacePath === workspace.workspacePath
           && service.coordinator.workspaceId === workspace.workspaceId && service.coordinator.workspacePath === workspace.workspacePath

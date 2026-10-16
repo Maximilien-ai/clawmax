@@ -1,10 +1,11 @@
 # ClawMax Documentation
 
-> Last updated: September 26, 2026
+> Last updated: October 12, 2026
 
-Active development: RC85 preparation / OpenClaw `2026.9.5`; stable remains
-`v1.9.9`. RC84 image checks passed. RC85 validation, images and installed-instance
-acceptance remain pending. Start with the [current release gate](planning/RC85_RELEASE_GATE_2026-09-23.md).
+Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
+`v1.9.9`. RC91 is the latest tagged test candidate in this checkout. PR #212
+and dual-instance acceptance remain open. Start with the
+[current Dashboard gate](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md).
 
 ## Active Documents
 
@@ -12,7 +13,12 @@ acceptance remain pending. Start with the [current release gate](planning/RC85_R
 |----------|-------------|
 | [FIRST_AGENT_TUTORIAL.md](FIRST_AGENT_TUTORIAL.md) | Low-code guide to define, create, test, and improve a first ClawMax agent |
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
-| [planning/RC85_RELEASE_GATE_2026-09-23.md](planning/RC85_RELEASE_GATE_2026-09-23.md) | RC85 candidate scope, engineering gate and Mike acceptance |
+| [planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md) | Active PR #212, image, MBP14, test10, and Template execution gates |
+| [planning/PRE_RC89_MAINTENANCE_PARITY_2026-09-29.md](planning/PRE_RC89_MAINTENANCE_PARITY_2026-09-29.md) | 1.9.10 feature reconciliation into 2.0, focused evidence and pre-RC89 acceptance |
+| [LESSONS_LEARNED_2026-09-27.md](LESSONS_LEARNED_2026-09-27.md) | Hackathon recap, Cognee4 canary evidence, pending branches and next-day owners |
+| [recap/](recap/) | Historical repository recaps; current team recaps are in the shared `~/Desktop/Maximilien AI LLC/docs/recaps` directory |
+| [planning/WEEK_2026-09-28.md](planning/WEEK_2026-09-28.md) | Soft Dashboard priorities for 1.9.10 search, AI guide, Google sign-in, and PR triage |
+| [planning/RC85_RELEASE_GATE_2026-09-23.md](planning/RC85_RELEASE_GATE_2026-09-23.md) | Historical RC85 candidate scope, engineering gate and Mike acceptance |
 | [planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md) | RC83 branch coverage, isolated runtime validation, image and acceptance gates |
 | [planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md](planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md) | Published RC82 evidence and unresolved installed-instance deployment blockers |
 | [BACKLOG.md](BACKLOG.md) | Prioritized backlog, sprint items, and roadmap |
