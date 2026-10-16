@@ -1,3 +1,4 @@
+import { normalizeChatMessage } from '../../../server/lib/chat-normalization'
 import { resolveNavigableWorkspaceDocPath } from './workspaceDocNavigation'
 
 type ComparableMessage = {
@@ -85,4 +86,27 @@ export function shouldUpdateChannelMessages(
 export function communicationTitle(channel: { name: string; displayName?: string; description?: string | null; tags?: string[] }): string {
   return channel.tags?.includes('bulk-chat') && channel.description
     ? channel.description : channel.displayName?.trim() || channel.name
+}
+
+/**
+ * A group or community message as the panel shows it. The server normalizes messages when it stores
+ * and loads them; the same fence-aware normalizer runs here, so code, JSON examples and diagrams are
+ * shown as written. (This was a drifted copy of the old line filter that emptied fenced JSON blocks.)
+ * A one-line runtime failure is still restated as a plain explanation.
+ */
+export function cleanCommunicationMessage(content: string): string {
+  const cleaned = normalizeChatMessage(content) || content
+  if (
+    /model fallback decision|FailoverError|FallbackSummaryError|Incorrect API key provided|Provider .* auth issue|network connection error|Connection error/i.test(cleaned)
+    && !/\n\n/.test(cleaned)
+  ) {
+    if (/Incorrect API key provided|auth issue|missing credentials|missing api key/i.test(cleaned)) {
+      return 'Runtime auth error while contacting the configured model provider. Check the provider key/configuration and retry.'
+    }
+    if (/network connection error|Connection error|timeout|timed out|cooldown/i.test(cleaned)) {
+      return 'Runtime connection error while contacting the configured model provider. Check provider/network availability and retry.'
+    }
+    return 'Runtime model execution error. Review workflow details or retry the run.'
+  }
+  return cleaned
 }
