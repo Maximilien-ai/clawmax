@@ -1,7 +1,8 @@
 import { channelLabel } from '../lib/channelLabel'
-import { useEffect, useState, useRef, useCallback, type ChangeEvent } from 'react'
+import { useEffect, useLayoutEffect, useState, useRef, useCallback, type ChangeEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { nextChatFollowState } from '../lib/agentChatScroll'
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import { buildPersistentDashboardChatSessionId, resolveDashboardChatSessionId } from '../lib/agentChatSession'
 import { buildAgentChatTimelineRows, shouldShowCalendarDate } from '../lib/agentChatTimeline'
@@ -141,7 +142,14 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [docEntries, setDocEntries] = useState<DocEntryRef[]>([])
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  // Follow new content only while the reader is at the end of the conversation: a poll, a re-render
+  // or a reconciled history must never pull someone reading older messages back down.
+  const messagesViewportRef = useRef<HTMLDivElement>(null)
+  const followingRef = useRef(true)
+  const lastScrollTopRef = useRef(0)
+  const latestContentRef = useRef('')
+  const [isFollowing, setIsFollowing] = useState(true)
+  const [hasUnseen, setHasUnseen] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -379,9 +387,50 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
     }
   }, [agentId, agentStatus, agentName, browserChatEnabled])
 
+  const setFollowing = useCallback((following: boolean) => {
+    followingRef.current = following
+    setIsFollowing(following)
+    if (following) setHasUnseen(false)
+  }, [])
+
+  // Scrolls only the conversation. scrollIntoView also scrolled every scrollable ancestor.
+  const scrollToLatest = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const viewport = messagesViewportRef.current
+    viewport?.scrollTo({ top: viewport.scrollHeight, behavior })
+  }, [])
+
+  const handleMessagesScroll = useCallback(() => {
+    const viewport = messagesViewportRef.current
+    if (!viewport) return
+    const following = nextChatFollowState(followingRef.current, lastScrollTopRef.current, viewport)
+    lastScrollTopRef.current = viewport.scrollTop
+    if (following !== followingRef.current) setFollowing(following)
+  }, [setFollowing])
+
+  function jumpToLatest() {
+    setFollowing(true)
+    scrollToLatest(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth')
+  }
+
+  // Before paint, so streamed text never flashes below the fold first. Runs only when the message
+  // list itself changes.
+  useLayoutEffect(() => {
+    const latest = messages[messages.length - 1]
+    const latestContent = `${messages.length}:${latest?.id ?? ''}:${latest?.content.length ?? 0}`
+    if (followingRef.current) scrollToLatest()
+    else if (latestContent !== latestContentRef.current) setHasUnseen(true)
+    latestContentRef.current = latestContent
+  }, [messages, scrollToLatest])
+
+  // The viewport also shrinks without a message change: the status bar appearing, an error, a
+  // phone keyboard opening. Keep the latest message in view then too, while following.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    const viewport = messagesViewportRef.current
+    if (!viewport || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => { if (followingRef.current) scrollToLatest() })
+    observer.observe(viewport)
+    return () => observer.disconnect()
+  }, [scrollToLatest])
 
   const renderMarkdown = (content: string, clean = false, role: AgentChatMarkdownRole = 'assistant') => (
     <ReactMarkdown
@@ -500,6 +549,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       setHistoryIndex(-1)
       setSessionId(buildPersistentDashboardChatSessionId(agentId))
       setShowClearConfirm(false)
+      setFollowing(true)
     } catch (err: any) {
       setError(err?.message || 'Failed to reset agent session')
     } finally {
@@ -581,6 +631,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
         timestamp: Date.now(),
         id: assistantId
       }
+      // Sending is a request to see the reply, wherever the reader had scrolled to.
+      setFollowing(true)
       setMessages(prev => [...prev, userMsg, assistantMsg])
       if (!messageText) {
         setAttachments([])
@@ -815,6 +867,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
         setInputHistory([]) // Clear input history when chat is archived
         setHistoryIndex(-1)
         fetchArchives()
+        setFollowing(true)
       }
     } catch (e) {
       setError(String(e))
@@ -862,6 +915,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       setViewingArchive(null)
       setShowArchives(false)
       setError(null)
+      setFollowing(true)
       fetchArchives()
       setTimeout(() => inputRef.current?.focus(), 0)
     } catch (e: any) {
@@ -1092,7 +1146,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
+        <div ref={messagesViewportRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
           {!chatEnabled && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
               <div className="font-medium">Agent chat is disabled because no AI execution path is configured</div>
@@ -1310,7 +1364,24 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
             )
           })}
 
-          <div ref={messagesEndRef} />
+          {!isFollowing && (
+            // Sticky and zero-height: pinned to the bottom edge of the viewport without adding to the
+            // conversation's height, which would move the end the reader is trying to reach.
+            <div className="sticky bottom-3 !mt-0 flex h-0 items-start justify-center">
+              <button
+                type="button"
+                onClick={jumpToLatest}
+                className="-translate-y-full inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white/95 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-md backdrop-blur hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-gray-600 dark:bg-gray-800/95 dark:text-gray-100 dark:hover:bg-gray-700"
+              >
+                {hasUnseen && <span className="h-2 w-2 rounded-full bg-sky-500" aria-hidden="true" />}
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v10.638l3.96-4.158a.75.75 0 1 1 1.08 1.04l-5.25 5.5a.75.75 0 0 1-1.08 0l-5.25-5.5a.75.75 0 1 1 1.08-1.04l3.96 4.158V3.75A.75.75 0 0 1 10 3Z" clipRule="evenodd" />
+                </svg>
+                Jump to latest
+                {hasUnseen && <span className="sr-only">(new messages below)</span>}
+              </button>
+            </div>
+          )}
         </div>
 
         <span className="sr-only" aria-live="polite">{copiedMessageId ? 'Message copied' : ''}</span>
