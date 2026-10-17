@@ -1754,6 +1754,14 @@ else
   fail "Workspace doc navigation helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent chat scroll-follow unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentChatScroll.test.ts > /tmp/clawmax-agent-chat-scroll.out 2>&1; then
+  pass "Agent chat scroll-follow unit tests ($(grep -o '[0-9]\+ tests passed' /tmp/clawmax-agent-chat-scroll.out | grep -o '[0-9]\+') tests)"
+else
+  cat /tmp/clawmax-agent-chat-scroll.out
+  fail "Agent chat scroll-follow unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace doc navigation edge-case unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceDocNavigationEdges.test.ts > /tmp/clawmax-workspace-doc-navigation-edges.out 2>&1 || true
 if grep -q "workspaceDocNavigationEdges.test.ts:" /tmp/clawmax-workspace-doc-navigation-edges.out; then
