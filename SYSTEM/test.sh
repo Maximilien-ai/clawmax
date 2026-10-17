@@ -3698,6 +3698,14 @@ else
   fail "Dev host Skill chat presentation tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent chat code block Copy tests...${NC}"
+if npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/ChatCodeBlock.test.tsx > /tmp/clawmax-agent-chat-code-block.out 2>&1; then
+  pass "Agent chat code block Copy tests"
+else
+  cat /tmp/clawmax-agent-chat-code-block.out
+  fail "Agent chat code block Copy tests"
+fi
+
 echo -e "${YELLOW}→ Running Chat composer multiline regression tests...${NC}"
 npx ts-node --transpileOnly client/src/ChatComposerMultiline.test.ts > /tmp/clawmax-chat-composer-multiline.out 2>&1 || true
 if grep -q "ChatComposerMultiline.test.ts: 12 assertions passed" /tmp/clawmax-chat-composer-multiline.out; then

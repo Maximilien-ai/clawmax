@@ -2552,6 +2552,32 @@ async function run() {
     assert.strictEqual(res.statusCode, 400, 'Expected archive path traversal delete to return HTTP 400')
   })
 
+  // The history route normalizes stored replies: a JSON example or a code block the agent wrote
+  // must come back exactly as written, not with its braces or bracketed lines removed.
+  await test('chat history keeps fenced JSON and code exactly as the agent wrote them', async () => {
+    const id = 'fenced-history-agent'
+    writeAgent(workspacePath, id, '**Name:** Fenced history\n**Model:** openai/gpt-4o-mini\n')
+    const nativeDir = path.join(tmpHome, '.openclaw', 'agents', id, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(path.join(nativeDir, 'openclaw-agent.sqlite'))
+    db.exec(`
+      CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT);
+      INSERT INTO session_nodes VALUES ('agent:fenced-history-agent:dashboard-chat', 'fenced-window');
+    `)
+    const answer = 'Request:\n\n```json\n{\n  "target_url": "https://example.com/a",\n  "tags": ["a", "b"]\n}\n```\n\n```ts\nconst first = items[m]\n```'
+    const insert = db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?)')
+    insert.run('fenced-window', 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'Show the request', timestamp: 1 } }))
+    insert.run('fenced-window', 2, JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: answer }], timestamp: 2 } }))
+    db.close()
+
+    const res = makeRes()
+    await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), res)
+    assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(res.jsonBody.messages[1]?.content, answer, 'Fenced JSON and code must come back unaltered')
+  })
+
   await test('models route forwards LM Studio and Ollama local model settings into discovery', async () => {
     const discoveryModule = require('../lib/model-discovery')
     const originalDiscoverModels = discoveryModule.discoverModels

@@ -1,3 +1,4 @@
+import { createFenceTracker } from '../../../server/lib/chat-normalization'
 import { isOpenableWorkspaceFileMention } from './markdownLinks'
 
 const WORKSPACE_ROOT_PREFIX = '(?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)'
@@ -73,21 +74,29 @@ export function extractWorkspaceFileMentions(content: string): string[] {
   )
 }
 
+// Markdown renders link syntax inside code literally, so a file name in a fenced block or an inline
+// code span stays as written: `cat config.json` must not show (or copy) as `cat [config.json](...)`.
 export function linkifyWorkspaceFiles(content: string): string {
-  return content.replace(
-    /(^|[\s(])((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg)|[A-Za-z0-9][A-Za-z0-9._-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg))(?!\])/gm,
-    (_match, prefix, target) => {
-      const normalized = normalizeWorkspaceFileTarget(target)
-      if (!isOpenableWorkspaceFileMention(normalized)) return `${prefix}${target}`
-      if (!normalized.includes('/')) {
-        return `${prefix}[${normalized}](workspace-file:${normalized})`
+  const isFenced = createFenceTracker()
+  return content.split('\n').map((line) => {
+    if (isFenced(line)) return line
+    const codeSpans = Array.from(line.matchAll(/`[^`]*`/g), (span) => [span.index ?? 0, (span.index ?? 0) + span[0].length])
+    return line.replace(
+      /(^|[\s(])((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg)|[A-Za-z0-9][A-Za-z0-9._-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg))(?!\])/gm,
+      (match, prefix, target, offset: number) => {
+        if (codeSpans.some(([start, end]) => offset >= start && offset < end)) return match
+        const normalized = normalizeWorkspaceFileTarget(target)
+        if (!isOpenableWorkspaceFileMention(normalized)) return `${prefix}${target}`
+        if (!normalized.includes('/')) {
+          return `${prefix}[${normalized}](workspace-file:${normalized})`
+        }
+        if (/^(AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\//.test(normalized)) {
+          return `${prefix}[${normalized}](workspace-file:${normalized})`
+        }
+        return `${prefix}${target}`
       }
-      if (/^(AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\//.test(normalized)) {
-        return `${prefix}[${normalized}](workspace-file:${normalized})`
-      }
-      return `${prefix}${target}`
-    }
-  )
+    )
+  }).join('\n')
 }
 
 export function resolveWorkspaceDocPath(
