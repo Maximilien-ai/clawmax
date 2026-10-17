@@ -1744,6 +1744,14 @@ else
   fail "Workspace file mention edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent chat history reconciliation unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentChatHistory.test.ts > /tmp/clawmax-agent-chat-history.out 2>&1; then
+  pass "Agent chat history reconciliation unit tests ($(grep -c '^✓ ' /tmp/clawmax-agent-chat-history.out) tests)"
+else
+  cat /tmp/clawmax-agent-chat-history.out
+  fail "Agent chat history reconciliation unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace doc navigation helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceDocNavigation.test.ts > /tmp/clawmax-workspace-doc-navigation.out 2>&1 || true
 if grep -q "workspaceDocNavigation.test.ts:" /tmp/clawmax-workspace-doc-navigation.out; then
@@ -3758,6 +3766,16 @@ if grep -q "All tests passed" /tmp/clawmax-chat-route-edges.out; then
 else
   cat /tmp/clawmax-chat-route-edges.out
   fail "Chat route gateway/readiness edge-case tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Chat route turn lifecycle tests...${NC}"
+if npx ts-node --transpileOnly server/routes/chat-turn-registry.test.ts > /tmp/clawmax-chat-turn-registry.out 2>&1; then
+  chat_turn_registry_count=$(grep "Tests passed:" /tmp/clawmax-chat-turn-registry.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Chat route turn lifecycle tests (${chat_turn_registry_count:-?} tests)"
+else
+  cat /tmp/clawmax-chat-turn-registry.out
+  fail "Chat route turn lifecycle tests"
 fi
 
 echo ""
