@@ -26,6 +26,14 @@ function readNative<T>(agentId: string, home: string, read: (db: any) => T): T |
   }
 }
 
+/** Every session key currently pointing at a session id (the reverse of resolveNativeChatSession). */
+export function resolveNativeChatSessionKeys(agentId: string, sessionId: string, home: string): string[] {
+  return readNative(agentId, home, db => (
+    db.prepare('SELECT session_key FROM session_nodes WHERE current_session_id = ?').all(sessionId)
+      .map((row: { session_key: string }) => row.session_key)
+  )) ?? []
+}
+
 export function resolveNativeChatSession(agentId: string, sessionKey: string, home: string): string | undefined {
   return readNative(agentId, home, db => {
     const row = db.prepare('SELECT current_session_id FROM session_nodes WHERE session_key = ?').get(sessionKey)
