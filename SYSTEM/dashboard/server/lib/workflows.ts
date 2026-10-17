@@ -12,7 +12,7 @@ import { getWorkspacePath, listAgents, parseGroups } from './workspace'
 import { listTeams, type Team } from './teams'
 import { addMessage } from './messages'
 import { getConfiguredDashboardInstanceId, traceAgentChat, traceWorkflowExecution } from './opik'
-import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from './gateway-rpc'
+import { openClawStateOwner, readinessWaitWithoutCollisionRetry, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from './gateway-rpc'
 import { checkBudgetBlock } from './budget'
 import { validateWorkflow } from './validator'
 import {
@@ -2405,12 +2405,11 @@ export function triggerWorkflow(workflowId: string, options?: {
               if (attemptProvider === 'ollama' && !hasOllamaPath) {
                 throw new Error(`Agent ${participant.agentId} is configured for ${attemptModel || 'ollama'}, but no Ollama runtime is configured`)
               }
+              const stateOwner = openClawStateOwner()
+              const gatewayOwnsState = stateOwner !== null
               const gatewayRunning = shouldTreatGatewayAsRunning(
-                (await waitForGatewayResponsive()).running,
-                isGatewayRunning().running || configuredAutoStartGatewayOwnsState({
-                  configured: isGatewayConfigured(),
-                  autoStartSetting: process.env.CLAWMAX_AUTO_START_GATEWAY,
-                }),
+                (await waitForGatewayResponsive(readinessWaitWithoutCollisionRetry(stateOwner))).running,
+                gatewayOwnsState,
               )
               const useLocal = !gatewayRunning
               const sessionId = buildWorkflowRetrySessionId(executionId, participant.agentId, workflowSessionRetryAttempt)

@@ -9,7 +9,7 @@ import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessage
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { listWorkflows, resolveParticipants, deleteWorkflow } from '../lib/workflows'
 import { getConfiguredDashboardInstanceId, traceAgentChat } from '../lib/opik'
-import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
+import { openClawStateOwner, readinessWaitWithoutCollisionRetry, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { deleteTeams, listTeams } from '../lib/teams'
 import { findImpactedTopLevelTeamsForCommunityDelete } from '../lib/organization-delete'
 import {
@@ -434,12 +434,11 @@ export async function callAgent(
       })
     }
 
+    const stateOwner = openClawStateOwner()
+    const gatewayOwnsState = stateOwner !== null
     const gatewayRunning = shouldTreatGatewayAsRunning(
-      (await waitForGatewayResponsive()).running,
-      isGatewayRunning().running || configuredAutoStartGatewayOwnsState({
-        configured: isGatewayConfigured(),
-        autoStartSetting: process.env.CLAWMAX_AUTO_START_GATEWAY,
-      }),
+      (await waitForGatewayResponsive(readinessWaitWithoutCollisionRetry(stateOwner))).running,
+      gatewayOwnsState,
     )
     const useLocal = !gatewayRunning
     const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)

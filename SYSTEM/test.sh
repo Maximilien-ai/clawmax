@@ -2985,6 +2985,20 @@ else
   fail "Default OpenClaw plugin shell tests"
 fi
 
+echo -e "${YELLOW}→ Running local Gateway lifecycle tests...${NC}"
+if node --test "$SYSTEM_DIR/local-gateway.test.mjs" > /tmp/clawmax-local-gateway.out 2>&1; then
+  pass "Local Gateway setup, reuse, ownership and fallback tests"
+else
+  cat /tmp/clawmax-local-gateway.out
+  fail "Local Gateway setup, reuse, ownership and fallback tests"
+fi
+if bash "$SYSTEM_DIR/start-gateway.test.sh" > /tmp/clawmax-start-gateway.out 2>&1; then
+  pass "start.sh Gateway and watchdog startup tests"
+else
+  cat /tmp/clawmax-start-gateway.out
+  fail "start.sh Gateway and watchdog startup tests"
+fi
+
 echo -e "${YELLOW}→ Running OpenClaw target prep shell tests...${NC}"
 if node "$SYSTEM_DIR/test-isolated-gateway.test.mjs" > /tmp/clawmax-isolated-gateway.out 2>&1; then
   pass "Isolated gateway startup and cleanup tests"
@@ -3758,6 +3772,16 @@ if grep -q "All tests passed" /tmp/clawmax-chat-route-edges.out; then
 else
   cat /tmp/clawmax-chat-route-edges.out
   fail "Chat route gateway/readiness edge-case tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Chat route turn lifecycle tests...${NC}"
+if npx ts-node --transpileOnly server/routes/chat-turn-registry.test.ts > /tmp/clawmax-chat-turn-registry.out 2>&1; then
+  chat_turn_registry_count=$(grep "Tests passed:" /tmp/clawmax-chat-turn-registry.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Chat route turn lifecycle tests (${chat_turn_registry_count:-?} tests)"
+else
+  cat /tmp/clawmax-chat-turn-registry.out
+  fail "Chat route turn lifecycle tests"
 fi
 
 echo ""

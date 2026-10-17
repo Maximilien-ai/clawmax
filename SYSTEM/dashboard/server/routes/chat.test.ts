@@ -20,7 +20,7 @@ import {
   shouldRetryViaGatewayAfterLocalCollision,
   throwIfChatAttemptNeedsSessionRetry,
 } from './chat'
-import { configuredAutoStartGatewayOwnsState } from '../lib/gateway-rpc'
+import { openClawStateOwner, readinessWaitWithoutCollisionRetry } from '../lib/gateway-rpc'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -85,12 +85,36 @@ test('shouldUseLocalChatExecution prefers gateway for hosted BYOK models when ga
   }), 'Expected BYOK OpenAI chat to use gateway when available')
 })
 
-test('configured auto-start gateway owns state across transient readiness probe misses', () => {
-  assert(configuredAutoStartGatewayOwnsState({ configured: true }), 'Expected the default auto-start gateway to own configured state')
-  assert(configuredAutoStartGatewayOwnsState({ configured: true, autoStartSetting: 'true' }), 'Expected explicit auto-start gateway ownership')
-  assert(configuredAutoStartGatewayOwnsState({ configured: false, autoStartSetting: 'true' }), 'Expected entrypoint auto-start to own state before generated config becomes readable')
-  assert(!configuredAutoStartGatewayOwnsState({ configured: true, autoStartSetting: 'false' }), 'Expected explicitly disabled auto-start to allow local execution')
-  assert(!configuredAutoStartGatewayOwnsState({ configured: false }), 'Expected missing gateway config not to claim state ownership')
+test('only a running, deployment-started or remote Gateway owns state; a local gateway section alone does not', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-gateway-ownership-'))
+  const configPath = path.join(dir, 'openclaw.json')
+  const saved = { config: process.env.OPENCLAW_CONFIG_PATH, autoStart: process.env.CLAWMAX_AUTO_START_GATEWAY }
+  process.env.OPENCLAW_CONFIG_PATH = configPath
+  delete process.env.CLAWMAX_AUTO_START_GATEWAY
+  try {
+    assert(openClawStateOwner() === null, 'Expected no Gateway without a config')
+    assert(readinessWaitWithoutCollisionRetry(null) === 0, 'Expected group chat and workflows not to wait without a Gateway')
+    // setup.sh writes a section on hosts where nothing runs the Gateway; claiming ownership there
+    // stalled each turn for two minutes and then failed it. (Port 1 never has a Gateway.)
+    fs.writeFileSync(configPath, JSON.stringify({ gateway: { mode: 'local', port: 1, auth: { token: 't' } } }))
+    assert(openClawStateOwner() === null, 'Expected a configured but stopped local Gateway to allow local execution')
+    // Group chat and workflows have no collision retry: a configured Gateway may be booting.
+    assert(readinessWaitWithoutCollisionRetry(null) === undefined, 'Expected the short default wait for a configured Gateway that may be booting')
+    process.env.CLAWMAX_AUTO_START_GATEWAY = 'true'
+    assert(openClawStateOwner() === 'deployment', 'Expected entrypoint auto-start to own state before its Gateway answers')
+    process.env.CLAWMAX_AUTO_START_GATEWAY = 'false'
+    assert(openClawStateOwner() === null, 'Expected explicitly disabled auto-start to allow local execution')
+    assert(readinessWaitWithoutCollisionRetry(null) === 0, 'Expected CLI-only mode not to wait for a Gateway')
+    fs.writeFileSync(configPath, JSON.stringify({ gateway: { mode: 'remote', remote: { url: 'wss://gateway.example.invalid', token: 't' } } }))
+    assert(openClawStateOwner() === 'remote', 'Expected a remote Gateway, which no local probe can see, to own the turn')
+    assert(readinessWaitWithoutCollisionRetry('remote') === 0, 'Expected no wait for a remote Gateway')
+  } finally {
+    if (saved.config === undefined) delete process.env.OPENCLAW_CONFIG_PATH
+    else process.env.OPENCLAW_CONFIG_PATH = saved.config
+    if (saved.autoStart === undefined) delete process.env.CLAWMAX_AUTO_START_GATEWAY
+    else process.env.CLAWMAX_AUTO_START_GATEWAY = saved.autoStart
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('gateway-owned chat waits through bounded cold startup before execution', () => {
@@ -98,9 +122,9 @@ test('gateway-owned chat waits through bounded cold startup before execution', (
   assert(owned.timeoutMs === 120_000, 'Expected an auto-started Gateway to receive the full cold-start readiness window')
   assert(owned.pollMs === 1_000, 'Expected cold-start readiness polling to remain bounded')
 
+  // Waiting cannot make an unowned Gateway appear; it only delayed every local turn by 8 seconds.
   const unowned = resolveGatewayChatReadinessWait(false)
-  assert(unowned.timeoutMs === 8_000, 'Expected an unowned Gateway probe to retain the short local-fallback window')
-  assert(unowned.pollMs === 500, 'Expected the normal readiness poll interval to remain unchanged')
+  assert(unowned.timeoutMs === 0, 'Expected chat without an owning Gateway to fall back after a single probe')
 })
 
 test('shouldUseLocalChatExecution still falls back to direct mode for hosted BYOK when gateway is down', () => {
