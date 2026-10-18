@@ -15,6 +15,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 cd "$SCRIPT_DIR/dashboard"
 
+# Callers such as isolated tests can opt out of the checkout's developer
+# configuration without moving or rewriting it.
+DASHBOARD_ENV_FILE="${CLAWMAX_DASHBOARD_ENV_FILE:-.env}"
+
 BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
 FRONTEND_ORIGIN="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
@@ -38,16 +42,16 @@ fi
 
 dotenv_defines_nonempty() {
   local key="$1"
-  [ -f ".env" ] && grep -Eq "^${key}=.+$" .env
+  [ -f "$DASHBOARD_ENV_FILE" ] && grep -Eq "^${key}=.+$" "$DASHBOARD_ENV_FILE"
 }
 
 read_dotenv_var() {
   local key="$1"
-  if [ ! -f ".env" ]; then
+  if [ ! -f "$DASHBOARD_ENV_FILE" ]; then
     return 0
   fi
   local raw
-  raw=$(grep -E "^${key}=" .env 2>/dev/null | tail -n 1 | cut -d= -f2-)
+  raw=$(grep -E "^${key}=" "$DASHBOARD_ENV_FILE" 2>/dev/null | tail -n 1 | cut -d= -f2-)
   raw="${raw%\"}"
   raw="${raw#\"}"
   raw="${raw%\'}"

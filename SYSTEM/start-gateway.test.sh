@@ -31,7 +31,8 @@ chmod +x "$SANDBOX/bin/launchctl" "$SANDBOX/bin/lsof" "$SANDBOX/bin/openclaw"
 
 run_start() {
   env -i PATH="$SANDBOX/bin:$PATH" HOME="$SANDBOX/home" OPENCLAW_BIN="$SANDBOX/bin/openclaw" \
-    CLAWMAX_ALLOW_UNPINNED_OPENCLAW=true DASHBOARD_PORT=59991 DASHBOARD_CLIENT_PORT=59992 "$@" \
+    CLAWMAX_ALLOW_UNPINNED_OPENCLAW=true CLAWMAX_DASHBOARD_ENV_FILE="$SANDBOX/dashboard.env" \
+    DASHBOARD_PORT=59991 DASHBOARD_CLIENT_PORT=59992 "$@" \
     bash "$ROOT_DIR/SYSTEM/start.sh" 2>&1
 }
 fail() {
