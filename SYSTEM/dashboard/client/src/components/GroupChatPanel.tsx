@@ -289,7 +289,8 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         method: 'POST',
         headers: {
           'Content-Type': attachment.type || 'application/octet-stream',
-          'x-file-name': attachment.name,
+          'x-file-name': encodeURIComponent(attachment.name),
+          'x-file-name-encoding': 'percent',
         },
         body: await attachment.file.arrayBuffer(),
       })
