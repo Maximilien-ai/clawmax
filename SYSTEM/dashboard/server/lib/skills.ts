@@ -1282,6 +1282,7 @@ export function getSkillRequirementInstallCommands(
 
   for (const option of sortedOptions) {
     if (!canRunInstallOption(option, platform, commandExistsFn)) continue
+    if (platform === 'linux' && skill.name === '1password' && option.kind !== 'apt') continue
     if (option.kind === 'brew' && option.formula) {
       const formula = option.formula.trim()
       const key = `brew:${formula}`
@@ -1300,6 +1301,15 @@ export function getSkillRequirementInstallCommands(
       const key = `apt:${pkg}`
       if (!pkg || seen.has(key)) continue
       seen.add(key)
+      if (platform === 'linux' && skill.name === '1password' && pkg === '1password-cli') {
+        commands.push({
+          kind: 'apt',
+          command: 'sh',
+          args: [path.join(REPO_ROOT, 'SYSTEM', 'install-1password-cli.sh')],
+          display: 'Install 1Password CLI from its signed Debian repository',
+        })
+        continue
+      }
       if (platform === 'linux' && skill.name === 'himalaya' && pkg === 'himalaya' && commandExistsFn('sh') && commandExistsFn('curl')) {
         commands.push({
           kind: 'apt',
