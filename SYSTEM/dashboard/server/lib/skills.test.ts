@@ -158,6 +158,18 @@ test('1password defaults prefer apt on linux runtimes', () => {
   assert(visible && visible.length > 0, 'Expected visible linux install options')
   assertEqual(visible![0].kind, 'apt', 'Expected apt to be the visible linux installer for 1password')
   assertEqual(visible![0].package, '1password-cli', 'Expected linux 1password apt package')
+  const commands = getSkillRequirementInstallCommands({ name: '1password', description: '', filePath: '', bundled: true, source: 'bundled', install: options }, {
+    platform: 'linux',
+    commandExists: (command: string) => command === 'apt-get',
+  })
+  assertEqual(commands.length, 1, 'Expected a single Linux installer')
+  assertEqual(commands[0].command, 'sh', 'Expected the signed repository setup script')
+  assert(commands[0].args[0].endsWith('/SYSTEM/install-1password-cli.sh'), 'Expected the packaged 1Password installer')
+  const withBrew = getSkillRequirementInstallCommands({ name: '1password', description: '', filePath: '', bundled: true, source: 'bundled', install: options }, {
+    platform: 'linux',
+    commandExists: (command: string) => command === 'apt-get' || command === 'brew',
+  })
+  assertEqual(withBrew.length, 1, 'Expected one install method even when both apt and brew exist')
 })
 
 test('mac-only built-in skills are hidden on linux runtimes', () => {

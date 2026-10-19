@@ -144,6 +144,7 @@ COPY SKILLS/custom/luma-event-insights ./SKILLS/custom/luma-event-insights
 COPY SKILLS/custom/workspace-ls ./SKILLS/custom/workspace-ls
 COPY SKILLS/custom/clawmax-secret-test ./SKILLS/custom/clawmax-secret-test
 COPY SYSTEM/schemas ./SYSTEM/schemas
+COPY SYSTEM/install-1password-cli.sh ./SYSTEM/install-1password-cli.sh
 COPY SYSTEM/dashboard/.env.example ./SYSTEM/dashboard/.env.example
 COPY SYSTEM/dashboard/docker-entrypoint.sh ./SYSTEM/dashboard/docker-entrypoint.sh
 COPY SYSTEM/dashboard/openclaw-auth-store.mjs ./SYSTEM/dashboard/openclaw-auth-store.mjs
