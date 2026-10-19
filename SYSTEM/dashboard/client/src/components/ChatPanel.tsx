@@ -233,7 +233,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/20" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/20">
       <div className="bg-white dark:bg-gray-800 h-full w-full sm:w-[480px] shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex items-center justify-between shrink-0">

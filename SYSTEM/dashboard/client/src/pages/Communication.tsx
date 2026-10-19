@@ -1284,7 +1284,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     )}
 
     {showCreateCommunity && (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setShowCreateCommunity(false)}>
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Community</h2>
@@ -1321,7 +1321,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     )}
 
     {showCreateGroup && (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setShowCreateGroup(false)}>
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Group</h2>
@@ -1592,7 +1592,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Members</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 inline-flex items-center gap-2">
@@ -1743,7 +1743,7 @@ function TagManageModal({ channel, onClose, onSave }: { channel: Channel; onClos
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Tags</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 inline-flex items-center gap-2">
@@ -2366,7 +2366,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
 
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-3">Delete {channel.type === 'community' ? 'Community' : 'Group'}?</h3>
 
@@ -2540,7 +2540,7 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode,
 
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-3">Delete {channel.type === 'community' ? 'Community' : 'Group'}?</h3>
 

@@ -70,7 +70,7 @@ export default function SaveAsOrgTemplateModal({ agentCount, communityCount, gro
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
         <h2 className="text-xl font-bold text-gray-900 mb-1 dark:text-gray-100">Save Organization as Template</h2>
         <p className="text-sm text-gray-600 mb-4">

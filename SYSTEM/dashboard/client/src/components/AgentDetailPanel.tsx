@@ -310,7 +310,7 @@ export default function AgentDetailPanel({
   }, [docEntries, onClose, onNavigateToDoc, relDir])
 
   return (
-    <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20">
       {/* Panel */}
       <aside className="fixed top-0 right-0 h-[100dvh] max-h-[100dvh] w-full max-w-full bg-white shadow-2xl dark:bg-gray-800 sm:w-[30rem] lg:w-[36rem] z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
@@ -694,7 +694,7 @@ export default function AgentDetailPanel({
 
       {/* Rename Dialog */}
       {showRenameDialog && (
-        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onClick={() => setShowRenameDialog(false)}>
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Rename Agent</h3>
             <input

@@ -510,7 +510,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   }
 
   const docPreviewOverlay = docPath ? (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6" onClick={() => setDocPath(null)}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6">
       <div className="flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl dark:bg-slate-900" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-white/10">
           <div className="min-w-0">
