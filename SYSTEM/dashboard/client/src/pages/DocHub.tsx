@@ -697,7 +697,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
           method: 'POST',
           headers: {
             'Content-Type': file.type || 'application/octet-stream',
-            'x-file-name': file.name,
+            'x-file-name': encodeURIComponent(file.name),
+            'x-file-name-encoding': 'percent',
           },
           body: await file.arrayBuffer(),
         })
