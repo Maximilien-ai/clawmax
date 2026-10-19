@@ -184,6 +184,22 @@ test('mac-only built-in skills are hidden on linux runtimes', () => {
   assertEqual(isSkillSupportedOnPlatform('apple-notes', 'linux'), false, 'Expected apple-notes to be unsupported on linux')
   assertEqual(isSkillSupportedOnPlatform('apple-reminders', 'linux'), false, 'Expected apple-reminders to be unsupported on linux')
   assertEqual(isSkillSupportedOnPlatform('apple-notes', 'darwin'), true, 'Expected apple-notes to remain supported on macOS')
+  assertEqual(isSkillSupportedOnPlatform('peekaboo', 'linux', ['darwin']), false, 'Expected skill metadata to restrict a macOS-only skill')
+  assertEqual(isSkillSupportedOnPlatform('model-usage', 'linux', ['darwin', 'linux']), true, 'Expected declared Linux support to remain visible')
+})
+
+test('common Debian skill requirements offer native packages without Homebrew', () => {
+  const packages: Record<string, string[]> = {
+    'gh-issues': ['gh'], 'session-logs': ['jq', 'ripgrep'], tmux: ['tmux'],
+    trello: ['jq'], 'video-frames': ['ffmpeg'], weather: ['curl'], 'openai-whisper-api': ['curl'],
+  }
+  for (const [name, expected] of Object.entries(packages)) {
+    const options = normalizeSkillInstallOptions(name, undefined)
+    const visible = getVisibleSkillInstallOptions(options, 'linux', () => false)
+    assertEqual(JSON.stringify((visible || []).map((option: SkillInstallOption) => option.package)), JSON.stringify(expected), `Expected Debian packages for ${name}`)
+  }
+  const brewOnly = getVisibleSkillInstallOptions([{ id: 'brew', kind: 'brew', formula: 'example', label: 'brew example' }], 'linux', () => false)
+  assertEqual(brewOnly, undefined, 'Expected Homebrew-only installers to be hidden when Linux has no Homebrew')
 })
 
 test('getSkillRequirementStatus() marks requirements installed when all bins are present', () => {

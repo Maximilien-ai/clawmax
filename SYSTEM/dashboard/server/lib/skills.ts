@@ -254,6 +254,16 @@ const DEFAULT_SKILL_INSTALL_OPTIONS: Record<string, SkillInstallOption[]> = {
       label: 'Install GitHub CLI (apt)',
     },
   ],
+  'gh-issues': [{ id: 'apt', kind: 'apt', package: 'gh', bins: ['gh'], label: 'Install GitHub CLI (apt)', os: ['linux'] }],
+  'session-logs': [
+    { id: 'apt-jq', kind: 'apt', package: 'jq', bins: ['jq'], label: 'Install jq (apt)', os: ['linux'] },
+    { id: 'apt-ripgrep', kind: 'apt', package: 'ripgrep', bins: ['rg'], label: 'Install ripgrep (apt)', os: ['linux'] },
+  ],
+  tmux: [{ id: 'apt', kind: 'apt', package: 'tmux', bins: ['tmux'], label: 'Install tmux (apt)', os: ['linux'] }],
+  trello: [{ id: 'apt', kind: 'apt', package: 'jq', bins: ['jq'], label: 'Install jq (apt)', os: ['linux'] }],
+  'video-frames': [{ id: 'apt', kind: 'apt', package: 'ffmpeg', bins: ['ffmpeg'], label: 'Install ffmpeg (apt)', os: ['linux'] }],
+  weather: [{ id: 'apt', kind: 'apt', package: 'curl', bins: ['curl'], label: 'Install curl (apt)', os: ['linux'] }],
+  'openai-whisper-api': [{ id: 'apt', kind: 'apt', package: 'curl', bins: ['curl'], label: 'Install curl (apt)', os: ['linux'] }],
   himalaya: [
     {
       id: 'brew',
@@ -418,12 +428,15 @@ function getPreferredDisplayInstallKinds(platform: NodeJS.Platform = process.pla
 export function getVisibleSkillInstallOptions(
   install: SkillInstallOption[] | undefined,
   platform: NodeJS.Platform = process.platform,
+  commandExistsFn: (command: string) => boolean = commandExists,
 ): SkillInstallOption[] | undefined {
   const options = Array.isArray(install) ? install : []
   if (options.length === 0) return undefined
   const compatible = options.filter((option) => {
     const supportedPlatforms = (option as any).os
-    return !Array.isArray(supportedPlatforms) || supportedPlatforms.length === 0 || supportedPlatforms.includes(platform)
+    if (Array.isArray(supportedPlatforms) && supportedPlatforms.length > 0 && !supportedPlatforms.includes(platform)) return false
+    if (platform === 'linux' && option.kind === 'brew' && !commandExistsFn('brew')) return false
+    return true
   })
   if (compatible.length === 0) return undefined
 
@@ -439,7 +452,9 @@ export function getVisibleSkillInstallOptions(
 export function isSkillSupportedOnPlatform(
   name: string,
   platform: NodeJS.Platform = process.platform,
+  declaredOs?: string[],
 ): boolean {
+  if (Array.isArray(declaredOs) && declaredOs.length > 0 && !declaredOs.includes(platform)) return false
   const supportedPlatforms = SKILL_PLATFORM_SUPPORT[name]
   if (!Array.isArray(supportedPlatforms) || supportedPlatforms.length === 0) {
     return true
@@ -1093,11 +1108,8 @@ function parseSkillFile(
       // Silently skip skills without names (common in OpenClaw dev skills)
       return null
     }
-    if (!isSkillSupportedOnPlatform(data.name)) {
-      return null
-    }
-
     const openclawMeta = data.metadata?.openclaw || {}
+    if (!isSkillSupportedOnPlatform(data.name, process.platform, openclawMeta.os)) return null
 
     const requires = openclawMeta.requires
     const normalizedInstall = normalizeSkillInstallOptions(
