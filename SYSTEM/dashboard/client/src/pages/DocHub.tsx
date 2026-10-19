@@ -1418,7 +1418,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       </div>
 
       {showBulkDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30" onClick={() => !bulkActionRunning && setShowBulkDeleteConfirm(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
           <div className="w-full max-w-lg bg-white p-6 shadow-xl dark:bg-gray-800" onClick={(event) => event.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Delete {selectedUploadEntries.length} uploaded files?</h3>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Only files recorded as user uploads are included. This cannot be undone.</p>
@@ -1435,7 +1435,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       )}
 
       {showMoveDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30" onClick={() => !bulkActionRunning && setShowMoveDialog(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
           <div className="w-full max-w-lg bg-white p-6 shadow-xl dark:bg-gray-800" onClick={(event) => event.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Move {selectedUploadEntries.length} uploaded files</h3>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
@@ -1460,7 +1460,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
       {/* Delete uploaded file dialog */}
       {pendingDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={cancelDeleteAsset}>
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Delete {pendingDelete.label}?</h3>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
@@ -1527,7 +1527,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       )}
 
       {showCreateDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={closeCreateDialog}>
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-gray-100">Create New Document</h3>
 
@@ -1603,7 +1603,7 @@ Start writing..."
       )}
 
       {showUploadDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={closeUploadDialog}>
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-gray-100">Upload Files to Workspace</h3>
 
