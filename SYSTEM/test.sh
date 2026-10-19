@@ -894,6 +894,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Chat composer keyboard unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/chatComposer.test.ts > /tmp/clawmax-chat-composer.out 2>&1 || true
+if grep -q 'Chat composer keyboard tests passed' /tmp/clawmax-chat-composer.out; then
+  pass "Chat composer keyboard unit tests"
+else
+  cat /tmp/clawmax-chat-composer.out
+  fail "Chat composer keyboard unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Chat runtime errors helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/chatRuntimeErrors.test.ts > /tmp/clawmax-chat-runtime-errors.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-chat-runtime-errors.out; then
