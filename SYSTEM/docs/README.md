@@ -11,6 +11,7 @@ and dual-instance acceptance remain open. Start with the
 
 | Document | Description |
 |----------|-------------|
+| [FIRST_AGENT_TUTORIAL.md](FIRST_AGENT_TUTORIAL.md) | Low-code guide to define, create, test, and improve a first ClawMax agent |
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
 | [planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md) | Active PR #212, image, MBP14, test10, and Template execution gates |
 | [planning/PRE_RC89_MAINTENANCE_PARITY_2026-09-29.md](planning/PRE_RC89_MAINTENANCE_PARITY_2026-09-29.md) | 1.9.10 feature reconciliation into 2.0, focused evidence and pre-RC89 acceptance |
