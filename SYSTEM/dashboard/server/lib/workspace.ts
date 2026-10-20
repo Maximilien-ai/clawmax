@@ -1893,9 +1893,14 @@ export function getLatestTag(): string | null {
 
   if (!gitPath) return null
 
+  return getLatestReachableTag(path.dirname(gitPath))
+}
+
+/** Keep release identity on this checkout's history when multiple release lines share a clone. */
+export function getLatestReachableTag(repoRoot: string): string | null {
   try {
     const output = execFileSync('git', ['tag', '--merged', 'HEAD', '--sort=-version:refname'], {
-      cwd: path.dirname(gitPath),
+      cwd: repoRoot,
       stdio: ['ignore', 'pipe', 'ignore'],
       encoding: 'utf-8',
     })
