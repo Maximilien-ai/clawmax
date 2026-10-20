@@ -27,7 +27,7 @@ Template deployment until authority, digest, broker, restart/idempotency, and
 cleanup evidence passes. Test10 deployment and acceptance on the next candidate
 also remain unrecorded.
 
-### Internal RC89 development dependency advisory
+### Internal RC development dependency advisory
 
 On October 3, 2026, `npm audit` reported five high severity dependency nodes,
 all tracing to one `braces@3.0.3` advisory
@@ -35,11 +35,14 @@ all tracing to one `braces@3.0.3` advisory
 through the Tailwind 3 build toolchain. The production-only audit reported zero
 high/critical findings and five moderate findings. No patched npm release of
 `braces` was available. Internal RC CI temporarily accepts this exact advisory
-only when it remains outside the production dependency graph; the exception
-expires October 17, 2026 UTC. It fails on another high/critical finding or an
-affected production dependency. Dashboard owns dependency replacement or an
-upstream fix by that date. This initial dependency check is not a complete
-security audit or customer distribution approval.
+only when it remains outside the production dependency graph. On October 18,
+2026, npm still published `braces@3.0.3` as latest and offered only a Tailwind
+3-to-4 major upgrade as automated remediation. The narrowly scoped exception
+therefore expires November 1, 2026 UTC while that migration is evaluated. It
+fails on another high/critical finding or an affected production dependency.
+Dashboard owns dependency replacement or an upstream fix by that date. This
+dependency check is not a complete security audit or customer distribution
+approval.
 
 This document lists confirmed product limitations that remain relevant to the
 active release tracks. Historical snapshots are kept under
