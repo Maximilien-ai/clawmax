@@ -10,6 +10,7 @@ export type CoreDashboardPage =
   | 'skills'
   | 'keys'
   | 'logs'
+  | 'plugins'
 
 export type PluginDashboardPage = `plugin:${string}`
 export type DashboardPage = CoreDashboardPage | PluginDashboardPage
@@ -40,6 +41,7 @@ const PAGE_PATHS: Record<CoreDashboardPage, string> = {
   skills: '/skills',
   keys: '/keys',
   logs: '/logs',
+  plugins: '/system/plugins',
 }
 
 export function buildPluginPage(slug: string): PluginDashboardPage {

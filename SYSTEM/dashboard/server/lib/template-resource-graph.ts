@@ -27,6 +27,17 @@ export interface CompiledTemplateGroup {
   members: Array<{ id: string; agentId: string; role: string; sendTo: string[] }>
   limits: { maxTurns: number; maxMessages: number; maxMessageBytes: number; retentionSeconds: number }
 }
+export interface CompiledTemplateCommunity {
+  id: string
+  artifactId: string
+  digest: string
+  name: string
+  description: string
+  tags: string[]
+  memberAgentIds: string[]
+  groupIds: string[]
+  channels: []
+}
 export interface CompiledTemplateWorkflow {
   id: string
   artifactId: string
@@ -45,6 +56,7 @@ export interface CompiledTemplateWorkflow {
 export interface CompiledTemplateResourceGraph {
   resources: TemplateResourceOwnership
   agents: CompiledTemplateAgent[]
+  communities: CompiledTemplateCommunity[]
   groups: CompiledTemplateGroup[]
   workflows: CompiledTemplateWorkflow[]
 }
@@ -61,6 +73,7 @@ export function compileTemplateResourceGraph(bundle: PortableTemplate, resourceP
   const targets = new Map<string, string>()
   const identities = new Set<string>()
   for (const artifact of bundle.artifacts) {
+    const resourceKind: keyof TemplateResourceOwnership = artifact.kind === 'community' ? 'communities' : artifact.kind === 'agent' ? 'agents' : artifact.kind === 'group' ? 'groups' : 'workflows'
     const key = `${artifact.kind}:${artifact.id}`
     const targetKey = `${artifact.kind}:${artifact.digest}`
     // A digest-only graph reference cannot distinguish two copies of the same
@@ -68,7 +81,7 @@ export function compileTemplateResourceGraph(bundle: PortableTemplate, resourceP
     if (identities.has(key) || targets.has(targetKey)) throw new PortableTemplateError('ambiguous_template_graph', 'Template artifact identity or digest is ambiguous')
     identities.add(key)
     const id = `${resourcePrefix}-${artifact.kind}-${sha256(key).slice(0, 12)}`
-    resources[`${artifact.kind}s`][artifact.id] = id
+    resources[resourceKind][artifact.id] = id
     targets.set(targetKey, id)
   }
   const resolve = (kind: string, digest: string): string => {
@@ -76,13 +89,16 @@ export function compileTemplateResourceGraph(bundle: PortableTemplate, resourceP
     if (!target) throw new PortableTemplateError('invalid_template_graph', 'Template graph target is missing')
     return target
   }
-  const graph: CompiledTemplateResourceGraph = { resources, agents: [], groups: [], workflows: [] }
+  const graph: CompiledTemplateResourceGraph = { resources, agents: [], communities: [], groups: [], workflows: [] }
   for (const artifact of bundle.artifacts) {
+    const resourceKind: keyof TemplateResourceOwnership = artifact.kind === 'community' ? 'communities' : artifact.kind === 'agent' ? 'agents' : artifact.kind === 'group' ? 'groups' : 'workflows'
     // Never retain references to caller-owned arrays or nested graph objects.
     const definition = structuredClone(artifact.definition)
-    const base = { id: resources[`${artifact.kind}s`][artifact.id], artifactId: artifact.id, digest: artifact.digest, name: definition.name, description: definition.description }
+    const base = { id: resources[resourceKind][artifact.id], artifactId: artifact.id, digest: artifact.digest, name: definition.name, description: definition.description }
     if (artifact.kind === 'agent') {
       graph.agents.push({ ...base, instructions: definition.instructions, tags: definition.tags || [], ...(definition.model ? { requestedModel: definition.model } : {}), requestedSkills: definition.skills, admission: 'pending-authority' })
+    } else if (artifact.kind === 'community') {
+      graph.communities.push({ ...base, tags: definition.tags, memberAgentIds: definition.memberAgentDigests.map((digest: string) => resolve('agent', digest)), groupIds: definition.groupDigests.map((digest: string) => resolve('group', digest)), channels: [] })
     } else if (artifact.kind === 'group') {
       graph.groups.push({
         ...base, objective: definition.objective, state: 'stopped',

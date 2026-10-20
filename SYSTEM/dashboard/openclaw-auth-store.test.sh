@@ -45,4 +45,15 @@ grep -F 'fixture-v2' "$TMP_DIR/agent/openclaw-agent.sqlite" >/dev/null
 OPENCLAW_PACKAGE_ROOT="$TMP_DIR/openclaw" node "$ROOT_DIR/SYSTEM/dashboard/openclaw-auth-store.mjs" "$TMP_DIR/agent" read \
   | grep -F '"profiles":{}' >/dev/null
 
+# 2026.9.5 packages the same native-store boundary as .mjs bundles.
+mv "$TMP_DIR/openclaw/dist/store-fixture.js" "$TMP_DIR/openclaw/dist/store-fixture.mjs"
+mv "$TMP_DIR/openclaw/dist/persisted-fixture.js" "$TMP_DIR/openclaw/dist/persisted-fixture.mjs"
+OPENCLAW_PACKAGE_ROOT="$TMP_DIR/openclaw" node "$ROOT_DIR/SYSTEM/dashboard/openclaw-auth-store.mjs" "$TMP_DIR/agent" support \
+  | grep -F '"supported":true' >/dev/null
+printf '{"version":1,"profiles":{"synthetic":{"type":"api_key","provider":"openai","key":"fixture-mjs"}},"usageStats":{}}' \
+  | OPENCLAW_PACKAGE_ROOT="$TMP_DIR/openclaw" node "$ROOT_DIR/SYSTEM/dashboard/openclaw-auth-store.mjs" "$TMP_DIR/agent" \
+  | grep -F '"native":true' >/dev/null
+OPENCLAW_PACKAGE_ROOT="$TMP_DIR/openclaw" node "$ROOT_DIR/SYSTEM/dashboard/openclaw-auth-store.mjs" "$TMP_DIR/agent" read \
+  | grep -F '"key":"fixture-mjs"' >/dev/null
+
 echo "OpenClaw auth store bridge tests passed"

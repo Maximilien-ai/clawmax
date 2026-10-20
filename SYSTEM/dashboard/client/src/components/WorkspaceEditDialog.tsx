@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useWorkspace, type Workspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
+import { saveWorkspaceBudget } from '../lib/workspaceBudget'
 
 const PRESET_COLORS = [
   { name: 'Blue', value: '#3B82F6' },
@@ -31,6 +32,7 @@ export function WorkspaceEditDialog({
   const [budgetPct, setBudgetPct] = useState(0)
   const [budgetLevel, setBudgetLevel] = useState<'ok' | 'warning' | 'exceeded'>('ok')
   const [budgetEnabled, setBudgetEnabled] = useState(true)
+  const [saveError, setSaveError] = useState('')
 
   useEffect(() => {
     if (isOpen) {
@@ -47,7 +49,7 @@ export function WorkspaceEditDialog({
         setBudgetLevel(d.level)
       }).catch(() => {})
     }
-  }, [isOpen])
+  }, [isOpen, workspace.id])
 
   if (!isOpen) return null
 
@@ -59,6 +61,7 @@ export function WorkspaceEditDialog({
     }
 
     setUpdating(true)
+    setSaveError('')
     try {
       // Parse tags from comma-separated string
       const parsedTags = tags
@@ -66,29 +69,19 @@ export function WorkspaceEditDialog({
         .map(t => t.trim())
         .filter(t => t.length > 0)
 
+      if (budgetEnabled) {
+        await saveWorkspaceBudget(workspace.id, budgetLimit, budgetEnforced)
+      }
+
       await updateWorkspace(workspace.id, {
         name: name.trim(),
         color: selectedColor,
         tags: parsedTags
       })
 
-      if (budgetEnabled) {
-        try {
-          await fetch(buildWorkspaceScopedPath('/api/budget', workspace.id), {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              workspaceId: workspace.id,
-              limitUsd: parseFloat(budgetLimit) || 10,
-              enforced: budgetEnforced,
-            }),
-          })
-        } catch {}
-      }
-
       onClose()
     } catch (err) {
-      // Error is already shown by the context
+      setSaveError(err instanceof Error ? err.message : 'Workspace changes could not be saved.')
     } finally {
       setUpdating(false)
     }
@@ -225,6 +218,8 @@ export function WorkspaceEditDialog({
               </div>
             </div>
           </div>
+
+          {saveError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{saveError}</p>}
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">

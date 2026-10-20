@@ -4,6 +4,7 @@ import path from 'path'
 import { spawn } from 'child_process'
 import { getAgentSkills, getSkillById } from './skills'
 import { getWorkspacePath } from './workspace'
+import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
 
 const STORE_VERSION = 1
 const KEY_PATTERN = /^[A-Z][A-Z0-9_]{1,127}$/
@@ -236,6 +237,7 @@ export function createSkillSecretGrant(input: {
   const agentId = `${input.agentId || ''}`.trim()
   const skillId = `${input.skillId || ''}`.trim()
   if (!/^[a-z][a-z0-9_-]*$/.test(agentId)) throw new Error('Invalid agent id')
+  assertTemplateRuntimeAdmitted(agentId)
   if (!getAgentSkills(agentId).includes(skillId)) throw new Error(`Skill '${skillId}' is not assigned to agent '${agentId}'`)
   if (!FIXED_SKILL_ACTIONS[skillId]) throw new Error(`Skill '${skillId}' has no registered broker entrypoint`)
 
@@ -309,6 +311,7 @@ function appendAudit(event: Record<string, unknown>, workspacePath = getWorkspac
 }
 
 export function createBrokerCapabilityToken(agentId: string, workspacePath = getWorkspacePath(), ttlMs = DEFAULT_CAPABILITY_TTL_MS): string | undefined {
+  assertTemplateRuntimeAdmitted(agentId)
   const masterKey = getMasterKey()
   if (!masterKey) return undefined
   const payload: BrokerCapability = {
@@ -335,6 +338,7 @@ export function verifyBrokerCapabilityToken(token: string, workspacePath = getWo
     throw new Error('Expired or invalid broker capability')
   }
   if (!/^[a-z][a-z0-9_-]*$/.test(payload.agentId)) throw new Error('Invalid broker capability')
+  assertTemplateRuntimeAdmitted(payload.agentId)
   return payload
 }
 
@@ -343,6 +347,7 @@ export async function executeBrokeredSkill(input: {
   skillId: string
   action: string
 }, workspacePath = getWorkspacePath()): Promise<BrokerExecutionResult> {
+  assertTemplateRuntimeAdmitted(input.agentId)
   const skillId = `${input.skillId || ''}`.trim()
   const action = `${input.action || ''}`.trim()
   const definition = FIXED_SKILL_ACTIONS[skillId]?.[action]

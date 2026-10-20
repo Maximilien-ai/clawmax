@@ -42,6 +42,8 @@ function makeReq(overrides: Record<string, any> = {}) {
     query: {},
     body: {},
     headers: {},
+    socket: { remoteAddress: '127.0.0.1' },
+    get(name: string) { return (this.headers as Record<string, string>)[name.toLowerCase()] },
     ...overrides,
   } as any
 }
@@ -105,6 +107,29 @@ async function run() {
     await handler(makeReq({ params: { id: 'valid-agent' }, body: {} }), res)
     assert.strictEqual(res.statusCode, 400, 'Expected missing chat message to return HTTP 400')
     assert.strictEqual(res.jsonBody?.error, 'message is required', 'Expected missing message error')
+  })
+
+  await test('reserved Template chat cannot reach readiness, broker credentials, or managed actions', async () => {
+    const modules = [
+      [require('../lib/agent-execution'), 'resolveAgentExecutionConfig'],
+      [require('../lib/skill-secret-broker'), 'createBrokerCapabilityToken'],
+      [require('../lib/clawmax-resend-command'), 'executeClawmaxResendSend'],
+    ] as const
+    const originals = modules.map(([mod, key]) => mod[key])
+    let calls = 0
+    modules.forEach(([mod, key]) => { mod[key] = () => { calls++; throw new Error('Must not reach runtime preparation') } })
+    try {
+      const id = 'tr-0123456789abcdef-agent-0123456789ab'
+      const res = makeRes()
+      await getRouteHandler('post', '/:id/chat')(makeReq({ params: { id }, body: { message: 'Send an email' } }), res)
+      assert.equal(res.statusCode, 409)
+      assert.match(res.jsonBody.error, /Template execution is unavailable/)
+      const readiness = makeRes()
+      await getRouteHandler('post', '/:id/chat/readiness')(makeReq({ params: { id } }), readiness)
+      assert.equal(readiness.jsonBody.available, false)
+      assert.equal(readiness.jsonBody.code, 'template_runtime_unavailable')
+      assert.equal(calls, 0)
+    } finally { modules.forEach(([mod, key], index) => { mod[key] = originals[index] }) }
   })
 
   console.log('\n========================================')

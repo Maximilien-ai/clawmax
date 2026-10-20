@@ -1,4 +1,6 @@
 import {
+  formatPluginFieldValue,
+  formatPluginTargetNames,
   buildPluginDraftFromPrompt,
   buildGenericPluginFields,
   collectPluginTemplateTags,
@@ -31,6 +33,57 @@ import {
   type PluginRecord,
   type PluginRecordTemplate,
 } from './plugins'
+import strictAssert from 'node:assert/strict'
+
+test('generic field display preserves false and zero and handles empty values', () => {
+  for (const [value, expected] of [[false, 'no'], [true, 'yes'], [0, '0'], [null, 'none'], ['', 'none'], [[], 'none'], [['a', 'b'], 'a, b']] as const) {
+    strictAssert.equal(formatPluginFieldValue(value as any), expected)
+  }
+})
+
+test('generic targets resolve known names and preserve unresolved identifiers', () => {
+  const context = { agents: [{ id: 'a', name: 'Agent A' }], workflows: [{ id: 'w', name: 'Workflow W' }] } as any
+  for (const [fields, expected] of [
+    [{ targetIds: ['a', 'unknown'] }, ['agent: Agent A', 'agent: unknown']],
+    [{ subjectType: 'workflow', targetIds: ['w', 'unknown'] }, ['workflow: Workflow W', 'workflow: unknown']],
+    [{ scope: 'workflow', targetIds: ['w'] }, ['workflow: Workflow W']],
+    [{ subjectType: 'group', targetIds: ['g'] }, ['group: g']],
+    [{ subjectType: 'community', targetIds: ['c'] }, ['community: c']],
+    [{ targetIds: 'invalid' }, []],
+    [{}, []],
+  ] as const) {
+    strictAssert.deepEqual(formatPluginTargetNames({ kind: 'note', fields } as any, context), expected)
+  }
+})
+
+test('diagnostic normalization distrusts malformed optional fields and supplied health totals', () => {
+  const report = normalizePluginDiagnosticsReport({
+    healthy: true, summary: { invalid: 0 }, roots: ['valid', null, 7], hostApiVersion: 42,
+    diagnostics: [null, { status: 'unknown' }, { status: 'invalid', pluginId: 7, name: false, path: null, manifestPath: 3, apiVersion: 4, pluginVersion: 5, capabilities: {}, message: false, remediation: 7 }],
+  })
+  strictAssert.equal(report.healthy, false)
+  strictAssert.deepEqual(report.roots, ['valid'])
+  strictAssert.equal(report.hostApiVersion, 'clawmax.ai/v2')
+  strictAssert.deepEqual(report.diagnostics, [{ status: 'invalid', pluginId: null, name: null, path: '', manifestPath: null, apiVersion: null, pluginVersion: null, capabilities: [], message: 'Plugin diagnostic details are unavailable.', remediation: null }])
+  strictAssert.equal(formatPluginDiagnosticsSummary(report), '1 issue · 0 loaded')
+  strictAssert.equal(formatPluginDiagnosticsSummary(normalizePluginDiagnosticsReport(null)), 'No plugins discovered')
+})
+
+test('generic schema defaults and detail fields tolerate absent optional UI contracts', () => {
+  const plugin = { name: 'Notes', slug: 'notes', objectKind: 'note', recordSchema: { properties: {
+    title: { type: 'string', title: 'Title' }, count: { type: 'integer', title: 'Count' }, active: { type: 'boolean', title: 'Active' }, tags: { type: 'array', title: 'Tags' }, ratio: { type: 'number', title: 'Ratio' }, preset: { type: 'string', title: 'Preset', default: 'saved' },
+  } } } as any
+  strictAssert.deepEqual(buildGenericPluginFields(plugin), { title: '', count: 0, active: false, tags: [], ratio: 0, preset: 'saved' })
+  strictAssert.deepEqual(buildGenericPluginFields({} as any), {})
+  strictAssert.equal(getPluginGroupField({ ui: { list: { groupBy: 'missing' } } } as any), null)
+  strictAssert.equal(getPluginCheckField({ ui: { list: { checkField: 'missing' } } } as any), null)
+  plugin.ui = { list: { fields: ['title', 'missing'] } }
+  strictAssert.deepEqual(getPluginDetailLines(plugin, { kind: 'note', fields: { title: 'Visible' } } as any), ['Title: Visible'])
+  strictAssert.equal(normalizePluginNumericValue({ type: 'number', title: 'Number' }, 'invalid'), 0)
+  strictAssert.equal(normalizePluginNumericValue({ type: 'number', title: 'Number' }, 2.5), 2.5)
+  strictAssert.equal(formatPluginUpdatedAt({ updatedAt: '', createdAt: '' } as any), 'unknown')
+  strictAssert.equal(formatPluginUpdatedAt({ updatedAt: '', createdAt: '2026-01-01T00:00:00Z' } as any), 'Jan 1, 2026')
+})
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)

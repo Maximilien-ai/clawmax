@@ -2,6 +2,7 @@ import assert from 'assert'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import crypto from 'crypto'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const original = {
@@ -50,6 +51,18 @@ async function test(name: string, fn: () => void | Promise<void>) {
 }
 
 async function run() {
+  await test('reserved Template agents cannot obtain or reuse legacy broker authority', async () => {
+    const agentId = 'tr-0123456789abcdef-agent-0123456789ab'
+    assert.throws(() => broker.createBrokerCapabilityToken(agentId, workspace), /execution is unavailable/)
+    assert.throws(() => broker.createSkillSecretGrant({ agentId, skillId: 'clawmax-secret-test', keys: ['CLAWMAX_TEST_SECRET'] }, workspace), /execution is unavailable/)
+    await assert.rejects(broker.executeBrokeredSkill({ agentId, skillId: 'clawmax-secret-test', action: 'check' }, workspace), /execution is unavailable/)
+    // Simulate a correctly signed token minted before this admission gate.
+    const encoded = Buffer.from(JSON.stringify({ version: 1, workspaceId: path.basename(workspace), agentId, expiresAt: Date.now() + 60_000, nonce: 'synthetic' })).toString('base64url')
+    const key = crypto.createHash('sha256').update(process.env.CLAWMAX_SECRET_MASTER_KEY!).digest()
+    const signature = crypto.createHmac('sha256', key).update(encoded).digest('base64url')
+    assert.throws(() => broker.verifyBrokerCapabilityToken(`${encoded}.${signature}`, workspace), /execution is unavailable/)
+    assert(!fs.existsSync(path.join(workspace, 'SYSTEM', '.clawmax')), 'Rejection must not persist grants, audit entries, or secrets')
+  })
   await test('validates uppercase key names and rejects wildcards', () => {
     assert.strictEqual(broker.validateBrokerSecretKey('CLAWMAX_TEST_SECRET'), 'CLAWMAX_TEST_SECRET')
     assert.throws(() => broker.validateBrokerSecretKey('google.password'))

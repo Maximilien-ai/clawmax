@@ -35,7 +35,16 @@ const clawmaxResendModulePath = require.resolve('../lib/clawmax-resend-command')
 
 async function test(name: string, fn: () => Promise<void>) {
   try {
-    await fn()
+    // These cases exercise turn settlement, not agent deletion. Supply an
+    // explicit synthetic generation instead of consulting installed agents;
+    // lifecycle rejection has separate coverage in chat-route-edges.test.ts.
+    await withModuleOverrides(require.resolve('../lib/workspace'), {
+      getActiveAgentLifecycleGeneration: () => 'turn-registry-fixture-v1',
+    }, () => withModuleOverrides(require.resolve('../lib/gateway-rpc'), {
+      isGatewayRunning: () => ({ running: false }),
+      isGatewayConfigured: () => false,
+      waitForGatewayResponsive: async () => ({ running: false }),
+    }, fn))
     console.log(`${GREEN}✓${RESET} ${name}`)
     testsPassed++
   } catch (err: any) {
@@ -138,9 +147,8 @@ async function waitForActiveTurnCount(expected: number, timeoutMs = 1000): Promi
   }
 }
 
-/** Common readiness wiring for the openclaw (default-runtime) branch: an ollama provider skips
- *  the real gateway probe (waitForGatewayResponsive) entirely instead of waiting out its own
- *  network timeout, which is the only thing that would make these tests slow or flaky. */
+/** Common readiness wiring for the openclaw branch. Gateway discovery is
+ * isolated by test(); the ollama fixture selects the local fake CLI path. */
 async function withOpenclawReadiness<T>(
   agentId: string,
   opts: { skillIds?: string[] },

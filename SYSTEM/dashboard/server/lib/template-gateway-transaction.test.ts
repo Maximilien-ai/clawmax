@@ -79,8 +79,56 @@ async function main() {
     await assert.rejects(new TemplateGatewayTransaction(root, losingTransport).register(planDigest, { [agentId]: entry(root) }), /requires recovery/)
     assert.equal(await reopened.recover(digest => digest === planDigest), 'committed')
     assert.deepEqual((await transport.snapshot()).entries[agentId], entry(root))
+    const expected = { [agentId]: entry(root) }
+    const receiptPath = path.join(root, '.clawmax/template-gateway-revisions', `${planDigest}.json`)
+    const receiptBytes = fs.readFileSync(receiptPath)
+    const gatewayBytes = fs.readFileSync(file)
+    assert.deepEqual(await reopened.verifyCommitted(planDigest, expected), { hash: (await transport.snapshot()).hash })
+    assert.deepEqual(fs.readFileSync(receiptPath), receiptBytes)
+    assert.deepEqual(fs.readFileSync(file), gatewayBytes, 'Verification must not patch gateway state')
+    await assert.rejects(reopened.verifyCommitted('b'.repeat(64), expected), /receipt does not match/)
+    await assert.rejects(reopened.verifyCommitted(planDigest, { [agentId]: { ...entry(root), model: 'different/model' } }), /receipt does not match/)
+    for (const change of [
+      null,
+      { ...entry(root), model: 'different/model' },
+      { ...entry(root), agentDir: '/different/runtime' },
+      { ...entry(root), skills: ['unapproved'] },
+      { ...entry(root), tools: { deny: [] } },
+      { ...entry(root), heartbeat: { every: '1m' } },
+    ]) {
+      await transport.patch({ [agentId]: change }, (await transport.snapshot()).hash)
+      await assert.rejects(reopened.verifyCommitted(planDigest, expected), /registration does not match/)
+    }
+    await transport.patch(expected, (await transport.snapshot()).hash)
+    const unavailable = new TemplateGatewayTransaction(root, { ...transport, snapshot: async () => { throw new Error('private diagnostic') } })
+    await assert.rejects(unavailable.verifyCommitted(planDigest, expected), error => error instanceof Error && error.message === 'Template gateway ownership could not be verified')
+    const replaced = new TemplateGatewayTransaction(root, { ...transport, snapshot: async () => {
+      fs.unlinkSync(receiptPath)
+      return transport.snapshot()
+    } })
+    await assert.rejects(replaced.verifyCommitted(planDigest, expected), /changed during verification/)
+    fs.writeFileSync(receiptPath, receiptBytes)
+    const journalDuringVerification = path.join(root, '.clawmax/template-gateway-transaction.json')
+    const interrupted = new TemplateGatewayTransaction(root, { ...transport, snapshot: async () => {
+      fs.writeFileSync(journalDuringVerification, receiptBytes)
+      return transport.snapshot()
+    } })
+    await assert.rejects(interrupted.verifyCommitted(planDigest, expected), /changed during verification/)
+    fs.unlinkSync(journalDuringVerification)
+    const beforeUnrelated = await transport.snapshot()
+    writeAtomicJson(file, { hash: 'unrelated-change', entries: { ...beforeUnrelated.entries, unrelated: { name: 'updated independently' } } })
+    assert.deepEqual(await reopened.verifyCommitted(planDigest, expected), { hash: 'unrelated-change' }, 'Unrelated roster changes do not invalidate owned entries')
+    writeAtomicJson(file, beforeUnrelated)
+    let finishSnapshot!: () => void
+    const waitForSnapshot = new Promise<void>(resolve => { finishSnapshot = resolve })
+    const verifying = new TemplateGatewayTransaction(root, { ...transport, snapshot: async () => { await waitForSnapshot; return transport.snapshot() } })
+    const verification = verifying.verifyCommitted(planDigest, expected)
+    await assert.rejects(reopened.prepareCleanup(planDigest), /busy/)
+    finishSnapshot()
+    await verification
     await assert.rejects(transaction.register(planDigest, { [agentId]: entry(root) }), /already exists/)
     await reopened.prepareCleanup(planDigest)
+    await assert.rejects(reopened.verifyCommitted(planDigest, expected), /Recover the previous/)
     assert.deepEqual((await transport.snapshot()).entries[agentId], entry(root), 'Preparing cleanup must not mutate the gateway')
     assert.equal(await reopened.recover(() => true), 'committed', 'Uncommitted cleanup retains registrations')
     await reopened.prepareCleanup(planDigest)

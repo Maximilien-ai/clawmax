@@ -327,7 +327,9 @@ async function run() {
     const res = makeRes()
     await handler(makeReq(), res)
 
-    assert.strictEqual(res.statusCode, 500, 'Expected plugin status failure to return HTTP 500')
+    assert.strictEqual(res.statusCode, 503, 'Expected unavailable plugin inspection to return HTTP 503')
+    assert.match(res.jsonBody?.error || '', /configured OpenClaw runtime.*retry/i, 'Expected actionable runtime guidance')
+    assert(!JSON.stringify(res.jsonBody).includes('plugins list failed'), 'Must not expose raw runtime diagnostics')
     assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.status, 'unknown', 'Expected unknown fallback status')
   })
 

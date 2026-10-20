@@ -33,6 +33,8 @@ function test(name: string, fn: () => void) {
 console.log(`\n${YELLOW}=== Navigation Helper Test Suite ===${RESET}\n`)
 
 test('pathToPage resolves known paths', () => {
+  assert(pathToPage('/system/plugins') === 'plugins', 'Expected system plugin management route')
+  assert(pageToPath('plugins') === '/system/plugins', 'Management is separate from extension routes')
   assert(pathToPage('/workflows') === 'workflows', 'Expected /workflows to resolve to workflows')
   assert(pathToPage('/organizations') === 'organizations', 'Expected /organizations to resolve to organizations')
   assert(pathToPage('/docs/') === 'docs', 'Expected trailing slash to be ignored')

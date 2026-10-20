@@ -2,6 +2,7 @@ import express, { Router } from 'express'
 import { execFileSync, execSync, spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
+import { hasAgentDirectory } from '../lib/agent-directory'
 import os from 'os'
 import { streamZipExport } from '../lib/zip-export'
 import { hasNativeChatStore, readNativeChatTranscript } from '../lib/native-chat-history'
@@ -12,9 +13,11 @@ import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGate
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, userExecutionEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
+import { repairAgentConfigSections } from '../lib/agent-config-repair'
 import type { AgentModelConfigUpdateResult } from '../lib/agent-model'
 import {
   normalizeAgentModelInput,
+  validateAgentModelPolicyInConfigFile,
   resetAgentSessionsForModelChange,
   updateAgentBackupModelInConfigFile,
   upsertAgentBackupModelInIdentityContent,
@@ -56,6 +59,7 @@ import { REPO_ROOT } from '../lib/paths'
 import { buildNamedExportFilename } from '../lib/export-filename'
 import { recordAgentLifecycleAuditEvent } from '../lib/agent-lifecycle-audit'
 import { clearPinnedOpenClawWorkspaceState } from '../lib/openclaw-workspace-state'
+import { isStagedTemplateAgentId } from '../lib/template-runtime-admission'
 import { beginAgentDeletion, finishAgentDeletion, isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 import { listAvailableSkills, setAgentSkills } from '../lib/skills'
@@ -147,7 +151,13 @@ function updateAgentModelInConfig(agentId: string, model: string): AgentModelCon
     workspacePath,
     agentDir: runtimeAgentDir,
     name: agentId,
+    authorizePolicy: true,
   })
+}
+
+function validateAgentModelPolicy(agentId: string, model: string, backupModel?: string) {
+  return validateAgentModelPolicyInConfigFile(path.join(process.env.HOME || '', '.openclaw', 'openclaw.json'),
+    agentId, [model, backupModel], path.join(getWorkspacePath(), 'AGENTS', agentId), true)
 }
 
 function updateAgentBackupModelInConfig(agentId: string, backupModel: string | undefined): AgentModelConfigUpdateResult {
@@ -156,6 +166,7 @@ function updateAgentBackupModelInConfig(agentId: string, backupModel: string | u
   const workspacePath = path.join(getWorkspacePath(), 'AGENTS', agentId)
   return updateAgentBackupModelInConfigFile(defaultConfigPath, agentId, backupModel, {
     workspacePath,
+    authorizePolicy: true,
   })
 }
 
@@ -887,6 +898,17 @@ router.get('/models', async (req, res) => {
   }
 })
 
+// POST /api/agents/models/discover — BYOK-aware discovery without putting keys in a URL or clearing the model cache.
+router.post('/models/discover', async (req, res) => {
+  try {
+    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+    res.json(await discoverModels(body))
+  } catch (err) {
+    console.error('Model discovery failed:', err)
+    res.status(500).json({ error: 'Failed to discover models' })
+  }
+})
+
 // POST /api/agents/models/refresh — force-clear cache and re-fetch
 router.post('/models/refresh', async (req, res) => {
   clearModelCache()
@@ -1360,7 +1382,13 @@ router.post('/provision', async (req, res) => {
 
 // POST /api/agents/doctor — comprehensive agent health check and repair
 router.post('/doctor', async (req, res) => {
-  const { fix = false, probe = false } = req.body || {}
+  const { fix = false, probe = false, agentId: requestedAgentId } = req.body || {}
+  if (requestedAgentId !== undefined && (typeof requestedAgentId !== 'string' || !/^[a-z][a-z0-9_-]*$/.test(requestedAgentId))) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+  if (requestedAgentId && !hasAgentDirectory(getAgentsDir(), requestedAgentId)) {
+    return res.status(404).json({ error: 'Agent not found' })
+  }
   const results: Array<{ id: string; checks: Array<{ check: string; status: 'pass' | 'fail' | 'fixed' | 'warn'; message: string }> }> = []
   const platformChecks: Array<{ check: string; status: 'pass' | 'fail' | 'fixed' | 'warn'; message: string }> = []
 
@@ -1524,7 +1552,7 @@ router.post('/doctor', async (req, res) => {
       status: 'pass',
       message,
     })
-  } else if (fix && hasOpenclawCli) {
+  } else if (fix && hasOpenclawCli && !requestedAgentId) {
     try {
       const restartOutput = String(execFileSync(openclawCliPath!, ['gateway', 'restart'], { stdio: 'pipe', timeout: 20000, env: safeEnv() }) || '').trim()
       gatewayFixOutput = restartOutput || 'Gateway restart command completed with no output.'
@@ -1623,8 +1651,37 @@ router.post('/doctor', async (req, res) => {
     if (entry.name.startsWith('.') || entry.name.startsWith('_') || entry.name === 'archive') continue
 
     const agentId = entry.name
+    if (requestedAgentId && agentId !== requestedAgentId) continue
     const agentDir = path.join(agentsDir, agentId)
     const checks: Array<{ check: string; status: 'pass' | 'fail' | 'fixed' | 'warn'; message: string }> = []
+
+    // Use the same content checks as the editor; existence alone is not health.
+    try {
+      for (const file of ['IDENTITY.md', 'SOUL.md', 'TOOLS.md']) {
+        const target = path.join(agentDir, file)
+        if (fs.lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error('Linked config needs manual review')
+      }
+      const read = (name: string) => fs.existsSync(path.join(agentDir, name)) ? fs.readFileSync(path.join(agentDir, name), 'utf-8') : ''
+      const original = { identity: read('IDENTITY.md'), soul: read('SOUL.md'), tools: read('TOOLS.md') }
+      const repair = repairAgentConfigSections(original, agentId, agentConfigs.get(agentId)?.name)
+      if (fix && repair.changes.length) {
+        const backupDir = fs.mkdtempSync(path.join(agentDir, '.doctor-backup-'))
+        fs.chmodSync(backupDir, 0o700)
+        for (const key of ['identity', 'soul', 'tools'] as const) {
+          if (original[key] === repair.config[key]) continue
+          const file = `${key.toUpperCase()}.md`
+          fs.writeFileSync(path.join(backupDir, file), original[key], { mode: 0o600 })
+          fs.writeFileSync(path.join(agentDir, file), repair.config[key], 'utf-8')
+        }
+        recordAgentLifecycleAuditEvent(agentId, { type: 'modified', title: 'Doctor repaired agent configuration', detail: repair.changes.join('; ') })
+        checks.push({ check: 'config-repair', status: 'fixed', message: repair.changes.join('; ') + '. Previous documents backed up.' })
+      }
+      const validation = validateAgentConfigSections(fix ? repair.config : original, agentId)
+      checks.push({ check: 'config-validation', status: validation.valid ? 'pass' : 'fail', message: validation.valid ? 'Agent configuration is valid' : validation.errors.join('; ') + ' — edit the remaining fields; Doctor cannot invent missing instructions.' })
+      if (validation.warnings.length) checks.push({ check: 'config-advice', status: 'warn', message: validation.warnings.join('; ') })
+    } catch {
+      checks.push({ check: 'config-validation', status: 'fail', message: 'Could not inspect or repair agent configuration. Check file permissions; no successful repair is claimed.' })
+    }
 
     // Check 1: IDENTITY.md exists
     const identityPath = path.join(agentDir, 'IDENTITY.md')
@@ -1753,8 +1810,8 @@ router.post('/bulk-impact', (req, res) => {
 
   // Validate all agent IDs
   for (const agent of agentsToDelete) {
-    if (!/^[a-z][a-z0-9_-]*$/.test(agent.id)) {
-      return res.status(400).json({ error: `Invalid agent id: ${agent.id}` })
+    if (!agent || typeof agent.id !== 'string' || !/^[a-z][a-z0-9_-]*$/.test(agent.id)) {
+      return res.status(400).json({ error: `Invalid agent id: ${typeof agent?.id === 'string' ? agent.id : ''}` })
     }
   }
 
@@ -1806,8 +1863,8 @@ router.delete('/bulk', (req, res) => {
 
   // Validate all agent IDs
   for (const agent of agentsToDelete) {
-    if (!/^[a-z][a-z0-9_-]*$/.test(agent.id)) {
-      return res.status(400).json({ error: `Invalid agent id: ${agent.id}` })
+    if (!agent || typeof agent.id !== 'string' || !/^[a-z][a-z0-9_-]*$/.test(agent.id)) {
+      return res.status(400).json({ error: `Invalid agent id: ${typeof agent?.id === 'string' ? agent.id : ''}` })
     }
   }
 
@@ -3031,6 +3088,10 @@ router.post('/bulk-model', async (req, res) => {
 
   const results: { id: string; ok: boolean; error?: string }[] = []
   for (const agentId of agentIds) {
+    if (typeof agentId !== 'string' || isStagedTemplateAgentId(agentId)) {
+      results.push({ id: String(agentId), ok: false, error: 'Template Agent model is revision-owned; plan a new revision to change it' })
+      continue
+    }
     try {
       const configUpdate = updateAgentModelInConfig(agentId, normalizedModel)
       if (!configUpdate.ok) {
@@ -3074,8 +3135,8 @@ router.get('/:id/cost-limit', (req, res) => {
 // PUT /api/agents/:id/cost-limit — set cost limit for a specific agent
 router.put('/:id/cost-limit', (req, res) => {
   const { limitUsd } = req.body
-  if (limitUsd !== null && (typeof limitUsd !== 'number' || limitUsd < 0)) {
-    return res.status(400).json({ error: 'limitUsd must be a positive number or null to remove' })
+  if (limitUsd !== null && (typeof limitUsd !== 'number' || !Number.isFinite(limitUsd) || limitUsd < 0)) {
+    return res.status(400).json({ error: 'limitUsd must be a finite non-negative number or null to remove' })
   }
   const validationError = validateAgentCostLimit(limitUsd ?? null)
   if (validationError) {
@@ -3143,6 +3204,16 @@ router.get('/:id/config', (req, res) => {
 })
 
 // POST /api/agents/validate-config — validate editable config sections before save
+router.post('/:id/config/repair', (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) return res.status(400).json({ error: 'Invalid agent id' })
+  if (!hasAgentDirectory(getAgentsDir(), id)) return res.status(404).json({ error: 'Agent not found' })
+  const { identity, soul, tools } = req.body || {}
+  if ([identity, soul, tools].some(value => typeof value !== 'string')) return res.status(400).json({ error: 'All three config sections must be strings' })
+  // Draft-only: preserve unsaved edits and use the normal save path for persistence.
+  return res.json(repairAgentConfigSections({ identity, soul, tools }, id))
+})
+
 router.post('/validate-config', (req, res) => {
   const { identity, soul, tools, expectedId } = req.body as {
     identity?: string
@@ -3191,6 +3262,8 @@ router.put('/:id/config', (req, res) => {
       const identityModel = normalizeAgentModelInput(parsedIdentity.model || '')
       const identityBackupModel = parsedIdentity.backupModel ? normalizeAgentModelInput(parsedIdentity.backupModel) : undefined
       if (identityModel) {
+        const admission = validateAgentModelPolicy(id, identityModel, identityBackupModel)
+        if (!admission.ok) return res.status(409).json({ error: admission.error, code: 'model_policy_conflict' })
         configUpdate = updateAgentModelInConfig(id, identityModel)
         if (!configUpdate.ok) {
           return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
@@ -3273,6 +3346,8 @@ router.patch('/:id/model', (req, res) => {
   const identityPath = path.join(agentDir, 'IDENTITY.md')
 
   try {
+    const admission = validateAgentModelPolicy(id, normalizedModel, typeof backupModel === 'string' ? backupModel : undefined)
+    if (!admission.ok) return res.status(409).json({ error: admission.error, code: 'model_policy_conflict' })
     const configUpdate = updateAgentModelInConfig(id, normalizedModel)
     if (!configUpdate.ok) {
       return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })

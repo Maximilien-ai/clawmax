@@ -22,3 +22,4 @@ grep -F 'if (actualMode === expectedMode) return;' "$TMP_DIR/openclaw/dist/secre
 node "$ROOT_DIR/SYSTEM/patch-openclaw-fs-safe.mjs" "$TMP_DIR/openclaw" >/dev/null
 
 echo "OpenClaw fs-safe compatibility patch tests passed"
+node "$ROOT_DIR/SYSTEM/verify-openclaw-fs-safe.test.mjs"

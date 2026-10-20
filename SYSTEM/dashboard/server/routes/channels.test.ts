@@ -11,6 +11,7 @@ import assert from 'assert'
 import { EventEmitter } from 'events'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 import { callAgent } from './channels'
+import { createWorkflow, getWorkflow } from '../lib/workflows'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -133,6 +134,62 @@ async function run() {
   process.env.CLAWMAX_TEST_WORKSPACE = workspacePath
   resetWorkspaceManagerForTests()
 
+  await test('template groups expose authored display names without changing resource IDs', async () => {
+    const groupId = 'tr-test-group-123'
+    const groupsFile = path.join(workspacePath, 'ORG', 'GROUPS.md')
+    const metadataDir = path.join(workspacePath, 'ORG', 'template-groups')
+    const metadataFile = path.join(metadataDir, `${groupId}.json`)
+    fs.mkdirSync(metadataDir, { recursive: true })
+    fs.writeFileSync(groupsFile, `# Groups\n\n## Groups\n\n### ${groupId}\n- **Description:** authored group\n`)
+    fs.writeFileSync(metadataFile, JSON.stringify({ id: groupId, name: 'Daily Site Health' }))
+    const list = getRouteHandler('get', '/groups')
+    const result = makeRes()
+    list(makeReq(), result)
+    assert.equal(result.jsonBody.groups[0].name, groupId)
+    assert.equal(result.jsonBody.groups[0].displayName, 'Daily Site Health')
+
+    fs.writeFileSync(metadataFile, JSON.stringify({ id: 'another-group', name: 'Wrong name' }))
+    const mismatch = makeRes()
+    list(makeReq(), mismatch)
+    assert.equal(mismatch.jsonBody.groups[0].displayName, undefined)
+
+    fs.unlinkSync(metadataFile)
+    fs.symlinkSync(groupsFile, metadataFile)
+    const linked = makeRes()
+    list(makeReq(), linked)
+    assert.equal(linked.jsonBody.groups[0].displayName, undefined)
+    fs.unlinkSync(metadataFile)
+    fs.writeFileSync(groupsFile, '# Groups\n\n## Groups\n\n')
+  })
+
+  await test('temporary Template chat replies through admitted dev Agents without starting a Group', async () => {
+    const dev = require('./dev-host-skill-chat')
+    const originalReady = dev.isDevHostSkillChatReady
+    const originalRun = dev.runDevHostSkillChatTurn
+    const agentId = 'tr-1234567890abcdef-agent-123456789abc'
+    const channelName = `bulk-chat-${Date.now()}`
+    try {
+      dev.isDevHostSkillChatReady = () => true
+      dev.runDevHostSkillChatTurn = async (_req: any, id: string) => `Reply from ${id}`
+      const send = getRouteHandler('post', '/groups/:name/messages')
+      const result = makeRes()
+      await send(makeReq({ params: { name: channelName }, body: { content: 'status?', mentions: [agentId] } }), result)
+      assert.equal(result.jsonBody.ok, true)
+      await new Promise(resolve => setTimeout(resolve, 20))
+      const { getMessages } = require('../lib/messages')
+      const messages = getMessages('group', channelName)
+      assert.equal(messages.length, 2)
+      assert.equal(messages[1].content, `Reply from ${agentId}`)
+
+      const blocked = makeRes()
+      await send(makeReq({ params: { name: 'not-a-temporary-group' }, body: { content: 'status?', mentions: [agentId] } }), blocked)
+      assert.equal(blocked.statusCode, 409)
+    } finally {
+      dev.isDevHostSkillChatReady = originalReady
+      dev.runDevHostSkillChatTurn = originalRun
+    }
+  })
+
   await test('community and group creation reject missing names', async () => {
     const createCommunity = getRouteHandler('post', '/communities')
     const createGroup = getRouteHandler('post', '/groups')
@@ -144,6 +201,42 @@ async function run() {
     const groupRes = makeRes()
     await createGroup(makeReq({ body: {} }), groupRes)
     assert.strictEqual(groupRes.statusCode, 400, 'Expected missing group name to return HTTP 400')
+  })
+
+  await test('channel metadata edits stay within the named section and preserve adjacent entries', async () => {
+    const { updateGroupTags, updateGroupMembers } = require('../lib/workspace')
+    for (const type of ['community', 'group'] as const) {
+      const filePath = path.join(workspacePath, 'ORG', type === 'community' ? 'COMMUNITIES.md' : 'GROUPS.md')
+      const original = fs.readFileSync(filePath, 'utf-8')
+      try {
+        const fixture = [
+          '# Channels', '## Active', '### Alpha', '- **Description:** First',
+          '### Beta', '- **Tags:** existing', '- **Members:** old',
+          '## Archive', '### Gamma', '- **Description:** Last', '',
+        ].join('\n')
+        fs.writeFileSync(filePath, fixture)
+        assert.strictEqual(updateGroupTags(type, 'Alpha', ['new']), true)
+        assert.strictEqual(updateGroupMembers(type, 'Alpha', ['alice']), true)
+        let current = fs.readFileSync(filePath, 'utf-8')
+        assert.match(current, /### Alpha[\s\S]*?- \*\*Tags:\*\* new[\s\S]*?- \*\*Members:\*\* alice[\s\S]*?### Beta/)
+        assert.match(current, /### Beta\n- \*\*Tags:\*\* existing\n- \*\*Members:\*\* old/)
+
+        assert.strictEqual(updateGroupTags(type, 'Beta', ['updated']), true)
+        assert.strictEqual(updateGroupMembers(type, 'Beta', []), true)
+        current = fs.readFileSync(filePath, 'utf-8')
+        assert.match(current, /### Beta\n- \*\*Tags:\*\* updated\n## Archive/)
+        assert.strictEqual(current.includes('**Members:** old'), false)
+
+        assert.strictEqual(updateGroupTags(type, 'Gamma', ['final']), true)
+        assert.strictEqual(updateGroupMembers(type, 'Gamma', ['zoe']), true)
+        current = fs.readFileSync(filePath, 'utf-8')
+        assert.match(current, /### Gamma[\s\S]*?- \*\*Tags:\*\* final[\s\S]*?- \*\*Members:\*\* zoe/)
+        assert.strictEqual(updateGroupTags(type, 'Missing', ['x']), false)
+        assert.strictEqual(updateGroupMembers(type, 'Missing', ['x']), false)
+      } finally {
+        fs.writeFileSync(filePath, original)
+      }
+    }
   })
 
   await test('community and group routes create, list, and delete channel structures', async () => {
@@ -517,6 +610,43 @@ async function run() {
     assert.strictEqual(res.statusCode, 404, 'Expected missing group member update to return HTTP 404')
   })
 
+  await test('community cascade removes its group and workflow while preserving unrelated channels', async () => {
+    const createCommunity = getRouteHandler('post', '/communities')
+    const createGroup = getRouteHandler('post', '/groups')
+    const deleteCommunity = getRouteHandler('delete', '/communities/:name')
+    let res = makeRes()
+    await createCommunity(makeReq({ body: { name: 'Cascade Community', description: 'Cascade target' } }), res)
+    assert.equal(res.statusCode, 200)
+    res = makeRes()
+    await createGroup(makeReq({ body: { name: 'Cascade Group', description: 'Child group', community: 'Cascade Community' } }), res)
+    assert.equal(res.statusCode, 200)
+    res = makeRes()
+    await createCommunity(makeReq({ body: { name: 'Preserved Community', description: 'Must remain' } }), res)
+    assert.equal(res.statusCode, 200)
+    const created = createWorkflow({
+      name: 'Cascade Workflow', description: 'Should follow its target', schedule: 'manual',
+      content: '# Work\nComplete task', executionMode: 'managed', owner: 'cascade-owner',
+      targeting: { agents: [], groups: ['Cascade Group'], communities: [], tags: [] },
+    })
+    assert(created.success && !!created.id, `Expected fixture workflow: ${created.error}`)
+
+    res = makeRes()
+    await deleteCommunity(makeReq({ params: { name: encodeURIComponent('Cascade Community') }, query: { cascade: 'true' } }), res)
+    assert.equal(res.statusCode, 200, `Expected verified cascade: ${JSON.stringify(res.jsonBody)}`)
+    assert.equal(res.jsonBody.ok, true)
+    assert(res.jsonBody.deleted.groups.includes('Cascade Group'), 'Expected child group to be removed')
+    assert(res.jsonBody.deleted.workflows.includes(created.id), 'Expected targeted workflow to be removed')
+    assert.equal(getWorkflow(created.id!), null, 'Expected workflow to be absent afterward')
+    const communities = makeRes()
+    await getRouteHandler('get', '/communities')(makeReq(), communities)
+    assert(communities.jsonBody.communities.some((entry: any) => entry.name === 'Preserved Community'), 'Unrelated community must remain')
+    assert(!communities.jsonBody.communities.some((entry: any) => entry.name === 'Cascade Community'), 'Target community must be absent')
+
+    const missing = makeRes()
+    await deleteCommunity(makeReq({ params: { name: encodeURIComponent('Cascade Community') }, query: { cascade: '1' } }), missing)
+    assert.equal(missing.statusCode, 404, 'Repeated cascade must report missing target')
+  })
+
   await test('group and community message routes validate missing content and expose empty reads', async () => {
     const sendCommunityMessage = getRouteHandler('post', '/communities/:name/messages')
     const sendGroupMessage = getRouteHandler('post', '/groups/:name/messages')
@@ -549,9 +679,17 @@ async function run() {
   })
 
   await test('group mentions surface runtime fs errors instead of generic no-response placeholders', async () => {
+    const originalPackageRoot = process.env.OPENCLAW_PACKAGE_ROOT
+    const fixturePackageRoot = path.join(tmpHome, 'synthetic-openclaw')
+    fs.mkdirSync(path.join(fixturePackageRoot, 'dist'), { recursive: true })
+    // This test mocks execution, so never borrow the host runtime's auth bridge.
+    process.env.OPENCLAW_PACKAGE_ROOT = fixturePackageRoot
     const childProcess = require('child_process')
     const originalSpawn = childProcess.spawn
     const originalFetch = global.fetch
+    const cliResolver = require('../lib/openclaw-cli')
+    const originalResolveCli = cliResolver.resolveOpenClawCliPath
+    cliResolver.resolveOpenClawCliPath = () => '/synthetic/pinned/openclaw'
 
     const openclawDir = path.join(tmpHome, '.openclaw')
     const agentWorkspace = path.join(workspacePath, 'AGENTS', 'double-agent')
@@ -593,6 +731,7 @@ async function run() {
     }) as any
 
     childProcess.spawn = (_cmd: string, args: string[]) => {
+      assert.strictEqual(_cmd, '/synthetic/pinned/openclaw', 'Group chat must use the selected runtime, never global PATH')
       spawnCalls.push(args)
       const proc = new EventEmitter() as any
       proc.stdout = new EventEmitter()
@@ -653,7 +792,13 @@ async function run() {
       const modelArgIndex = agentSpawn!.indexOf('--model')
       assert(modelArgIndex >= 0, `Expected group chat to pass --model, got: ${agentSpawn!.join(' ')}`)
       assert.strictEqual(agentSpawn![modelArgIndex + 1], 'lmstudio/qwen/qwen3.6-27b', 'Expected openai-compatible model to be passed as lmstudio execution model')
+      const saved = JSON.parse(fs.readFileSync(path.join(openclawDir, 'openclaw.json'), 'utf8'))
+      const entry = saved.agents?.entries?.['double-agent'] || saved.agents?.list?.find((entry: any) => entry.id === 'double-agent')
+      assert.strictEqual(entry.model, 'openai-compatible/qwen/qwen3.6-27b', 'Group chat must not temporarily rewrite the selected agent model')
     } finally {
+      if (originalPackageRoot === undefined) delete process.env.OPENCLAW_PACKAGE_ROOT
+      else process.env.OPENCLAW_PACKAGE_ROOT = originalPackageRoot
+      cliResolver.resolveOpenClawCliPath = originalResolveCli
       childProcess.spawn = originalSpawn
       global.fetch = originalFetch
     }

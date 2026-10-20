@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { openClawStatePath } from './openclaw-profile-paths'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
 import path from 'path'
 import matter from 'gray-matter'
@@ -888,8 +889,8 @@ export function resolveWorkflowOpenClawCliPath(): string {
   return cliPath
 }
 
-function resolveAgentSessionsDir(agentId: string, home: string): string {
-  return path.join(home, '.openclaw', 'agents', agentId, 'sessions')
+function resolveAgentSessionsDir(agentId: string, home?: string): string {
+  return path.join(openClawStatePath(home), 'agents', agentId, 'sessions')
 }
 
 function resolveSessionFileFromEntry(sessionsDir: string, sessionFile: string): string | undefined {
@@ -921,9 +922,9 @@ function readSessionHeaderId(sessionFile: string): string | undefined {
   }
 }
 
-export function repairWorkflowSessionEntryForRun(agentId: string, sessionId: string, home: string = process.env.HOME || ''): boolean {
+export function repairWorkflowSessionEntryForRun(agentId: string, sessionId: string, home?: string): boolean {
   try {
-    if (!agentId || !sessionId || !home) return false
+    if (!agentId || !sessionId || home === '') return false
     const sessionsDir = resolveAgentSessionsDir(agentId, home)
     const sessionsPath = path.join(sessionsDir, 'sessions.json')
     if (!fs.existsSync(sessionsPath)) return false
@@ -968,7 +969,7 @@ export function repairWorkflowSessionEntryForRun(agentId: string, sessionId: str
   }
 }
 
-export function getLatestAgentSessionErrorMessage(agentId: string, home: string = process.env.HOME || ''): string | undefined {
+export function getLatestAgentSessionErrorMessage(agentId: string, home?: string): string | undefined {
   try {
     const sessionsDir = resolveAgentSessionsDir(agentId, home)
     if (!fs.existsSync(sessionsDir)) return undefined
@@ -1910,6 +1911,11 @@ export function isExecutionCancelled(executionId: string): boolean {
   return cancelledExecutions.has(executionId)
 }
 
+/** Terminal files may be written before the runner releases its processes. */
+export function isWorkflowExecutionActive(workflowId: string, executionId: string): boolean {
+  return activeWorkflowExecutions.get(workflowId) === executionId
+}
+
 export function cancelExecution(workflowId: string, executionId: string): { success: boolean; error?: string } {
   const execution = getExecution(workflowId, executionId)
   if (!execution) return { success: false, error: 'Execution not found' }
@@ -1943,6 +1949,10 @@ export function cancelExecution(workflowId: string, executionId: string): { succ
 
 // Trigger workflow manually
 export function triggerWorkflow(workflowId: string, options?: {
+  /** Server-owned admission, rechecked after the participant execution queue. */
+  assertAuthorized?: () => void
+  /** Public CLI runs must not reset or automatically start dependent workflows. */
+  executionScope?: 'single-workflow'
   manual?: boolean
   mock?: boolean
   byok?: WorkflowRuntimeOverrides
@@ -1957,6 +1967,7 @@ export function triggerWorkflow(workflowId: string, options?: {
 }): { success: boolean; executionId?: string; error?: string } {
   let claimedExecutionId: string | undefined
   try {
+    options?.assertAuthorized?.()
     assertTemplateRuntimeAdmitted(workflowId)
     if (getWorkflowPipelineState().paused) {
       return { success: false, error: 'Workflow pipeline is paused. Resume the pipeline before starting new runs.' }
@@ -1988,6 +1999,12 @@ export function triggerWorkflow(workflowId: string, options?: {
       return { success: false, error: 'This workflow is already running. Stop the current run before starting another.' }
     }
 
+    const admittedParticipants = options?.executionScope === 'single-workflow' && !options.mock
+      ? resolveParticipants(workflow, require('./workspace').listAgents()) : null
+    if (admittedParticipants && admittedParticipants.length === 0) {
+      return { success: false, error: 'Workflow has no executable participants.' }
+    }
+
     // Check maxRuns limit (skip for manual triggers)
     if (!options?.manual && workflow.maxRuns && workflow.maxRuns > 0) {
       const currentCount = workflow.runCount || 0
@@ -2009,7 +2026,8 @@ export function triggerWorkflow(workflowId: string, options?: {
 
     // Reset all downstream dependent workflows to idle for a clean rerun
     const allWorkflows = listWorkflows()
-    const downstreamWorkflowIds = getRecursiveDownstreamWorkflowIds(workflowId, allWorkflows)
+    const downstreamWorkflowIds = options?.executionScope === 'single-workflow'
+      ? [] : getRecursiveDownstreamWorkflowIds(workflowId, allWorkflows)
     for (const downstreamId of downstreamWorkflowIds) {
       updateWorkflow(downstreamId, { status: 'idle', progress: 0 } as any)
       console.log(`[Workflow] Reset downstream ${downstreamId} to idle (depends on re-triggered ${workflowId})`)
@@ -2036,7 +2054,7 @@ export function triggerWorkflow(workflowId: string, options?: {
     // Resolve participants upfront
     const { listAgents } = require('./workspace')
     const agents = listAgents()
-    const workflowParticipants = resolveParticipants(workflow, agents)
+    const workflowParticipants = admittedParticipants || resolveParticipants(workflow, agents)
     const resolvedWorkflowParticipants = options?.mock && workflowParticipants.length === 0
       ? (() => {
           const seen = new Set<string>()
@@ -2266,7 +2284,8 @@ export function triggerWorkflow(workflowId: string, options?: {
           progress: 100,
         } as any)
 
-        const { readyToRun } = completeWorkflow(workflowId)
+        const { readyToRun } = options?.executionScope === 'single-workflow'
+          ? { readyToRun: [] } : completeWorkflow(workflowId)
         if (readyToRun.length > 0) {
           execution.logs.push(`DAG: unlocked ${readyToRun.join(', ')}`)
           persistExecution()
@@ -2522,6 +2541,10 @@ export function triggerWorkflow(workflowId: string, options?: {
               return await executeAttempt(fallbackModel, fallbackProvider)
             }
           }, {
+            assertAuthorized: () => {
+              if (isExecutionCancelled(executionId) || turn.signal.aborted) throw new Error('Workflow execution was cancelled')
+              options?.assertAuthorized?.()
+            },
             maxSessionLockRetries: 1,
             onSessionLockRetry: (attempt) => {
               workflowSessionRetryAttempt = attempt + 1
@@ -2726,7 +2749,8 @@ export function triggerWorkflow(workflowId: string, options?: {
       if (execution.status === 'completed') {
         const { resolveWorkflowExecutionNotifications } = require('./notifications')
         resolveWorkflowExecutionNotifications(workflowId, execution.id, { includeOlderExecutions: true })
-        const { readyToRun } = completeWorkflow(workflowId)
+        const { readyToRun } = options?.executionScope === 'single-workflow'
+          ? { readyToRun: [] } : completeWorkflow(workflowId)
         if (readyToRun.length > 0) {
           execution.logs.push(`DAG: unlocked ${readyToRun.join(', ')}`)
           persistExecution()

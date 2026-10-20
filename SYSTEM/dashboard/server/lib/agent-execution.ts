@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { openClawConfigPath, openClawStatePath } from './openclaw-profile-paths'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
 import { resolveNativeChatSession } from './native-chat-history'
 import path from 'path'
@@ -66,6 +67,11 @@ const agentExecutionLocks = new Map<string, Promise<void>>()
 const AGENT_EXECUTION_SESSION_LOCK_RETRIES = 2
 
 interface ExclusiveAgentExecutionOptions {
+  /** Server-owned admission check, rerun at queue head and before each retry.
+   * Failure releases the queue and is never treated as a session-lock retry.
+   * This hook cannot override reserved Template runtime admission.
+   */
+  assertAuthorized?: () => void | Promise<void>
   onSessionLockRetry?: (attempt: number, error: unknown) => void | Promise<void>
   maxSessionLockRetries?: number
 }
@@ -201,6 +207,9 @@ export async function runExclusiveAgentExecution<T>(
     let attempt = 0
     const maxSessionLockRetries = options.maxSessionLockRetries ?? AGENT_EXECUTION_SESSION_LOCK_RETRIES
     while (true) {
+      assertTemplateRuntimeAdmitted(agentId)
+      await options.assertAuthorized?.()
+      assertTemplateRuntimeAdmitted(agentId)
       try {
         return await fn()
       } catch (error) {
@@ -222,7 +231,7 @@ export async function runExclusiveAgentExecution<T>(
 
 function readOpenClawAgentRecord(agentId: string, activeWorkspaceAgentDir?: string): OpenClawAgentRecord | null {
   try {
-    const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+    const configPath = openClawConfigPath()
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
     const records = materializeDashboardAgentList(config).filter((agent: any) => agent.id === agentId)
     if (records.length === 0) return null
@@ -601,7 +610,7 @@ function resetSessionsIfModelChanged(agentId: string, preferredModel?: string) {
   if (!normalizedPreferred) return
 
   try {
-    const sessionsPath = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'sessions', 'sessions.json')
+    const sessionsPath = path.join(openClawStatePath(), 'agents', agentId, 'sessions', 'sessions.json')
     if (!fs.existsSync(sessionsPath)) return
     const sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
     const persistedModels = Object.values(sessions || {})
@@ -610,7 +619,7 @@ function resetSessionsIfModelChanged(agentId: string, preferredModel?: string) {
     const hasMismatchedModel = persistedModels.some((model) => model !== normalizedPreferred)
     if (!hasMismatchedModel) return
 
-    const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+    const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId, openClawStatePath())
     if (!reset.ok) {
       throw new Error(reset.error || `Failed to reset runtime sessions for ${agentId}`)
     }
@@ -651,7 +660,7 @@ function ensureWorkspaceAgentRecordForExecution(
   if (exactIndex === -1) {
     exactIndex = config.agents.list.findIndex((agent: any) => agent?.id === agentId)
   }
-  const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+  const agentDir = execution.agentDir || path.join(openClawStatePath(), 'agents', agentId, 'agent')
   const model = normalizeMissingModel(preferredModel)
 
   if (exactIndex >= 0) {
@@ -808,9 +817,9 @@ function getNewestFileMtimeMs(targetPath: string): number {
   }
 }
 
-function getLatestPersistedSessionMtimeMs(agentId: string, homeDir: string = process.env.HOME || ''): number {
-  if (!agentId || !homeDir) return 0
-  const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
+function getLatestPersistedSessionMtimeMs(agentId: string, homeDir?: string): number {
+  if (!agentId || homeDir === '') return 0
+  const sessionsDir = path.join(openClawStatePath(homeDir), 'agents', agentId, 'sessions')
   if (!fs.existsSync(sessionsDir)) return 0
 
   try {
@@ -839,7 +848,7 @@ function resetSessionsIfWorkspaceSkillsChanged(
   const latestSessionMtime = getLatestPersistedSessionMtimeMs(agentId)
   if (latestSessionMtime >= newestSkillMtime) return
 
-  const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+  const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId, openClawStatePath())
   if (!reset.ok) {
     console.warn(`[Agent Execution] Failed to reset sessions after workspace skill update for ${agentId}: ${reset.error || 'unknown error'}`)
   }
@@ -920,13 +929,21 @@ export function shouldUpdateNativeAuthStore(
     !== authProfileStateFingerprint(JSON.stringify(nextStore))
 }
 
-function resolvePinnedOpenClawAuthBridge(): { helperPath: string; packageRoot: string } | null {
+export function resolvePinnedOpenClawAuthBridge(): { helperPath: string; packageRoot: string } | null {
   const helperPath = path.join(REPO_ROOT, 'SYSTEM', 'dashboard', 'openclaw-auth-store.mjs')
-  const packageRoot = [
-    process.env.OPENCLAW_PACKAGE_ROOT,
+  const explicitRoot = process.env.OPENCLAW_PACKAGE_ROOT?.trim()
+  // A selected CLI must never borrow native storage code from a different
+  // global installation. start.sh supplies the matching package root.
+  if (process.env.OPENCLAW_BIN?.trim() && !explicitRoot) {
+    throw new Error('Pinned OpenClaw requires its matching OPENCLAW_PACKAGE_ROOT for credential storage. Restart Dashboard through SYSTEM/start.sh.')
+  }
+  if (explicitRoot && !fs.existsSync(path.join(explicitRoot, 'dist'))) {
+    throw new Error('Selected OPENCLAW_PACKAGE_ROOT is unavailable; refusing global credential-store fallback.')
+  }
+  const packageRoot = (explicitRoot ? [explicitRoot] : [
     '/usr/local/lib/node_modules/openclaw',
     '/opt/homebrew/lib/node_modules/openclaw',
-  ].find((root) => root && fs.existsSync(path.join(root, 'dist')))
+  ]).find((root) => fs.existsSync(path.join(root, 'dist')))
   return fs.existsSync(helperPath) && packageRoot ? { helperPath, packageRoot } : null
 }
 
@@ -1042,14 +1059,14 @@ export async function withTemporaryAgentAuthProfiles<T>(
   if (options.runtime && options.runtime !== 'openclaw') return await fn()
 
   const execution = resolveAgentExecutionConfig(agentId)
-  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+  const configPath = openClawConfigPath()
   const hadConfig = fs.existsSync(configPath)
   try {
     const toolsChanged = syncAssignedSkillGuidanceForAgent(agentId, {
       agentWorkspaceDir: execution.workspace,
     })
     if (toolsChanged) {
-      const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+      const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId, openClawStatePath())
       if (!reset.ok) {
         console.warn(`[Agent Execution] Failed to reset sessions after assigned skill guidance sync for ${agentId}: ${reset.error || 'unknown error'}`)
       }
@@ -1070,7 +1087,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
     const skillRootChanged = ensureWorkspaceSkillRootForExecution(configPath, execution)
     const bundledSkillRootChanged = ensureBundledRepoSkillRootForExecution(configPath, agentId, execution)
     if (skillRootChanged || bundledSkillRootChanged) {
-      resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+      resetAgentSessionsForModelChange(process.env.HOME || '', agentId, openClawStatePath())
     }
     resetSessionsIfWorkspaceSkillsChanged(configPath, agentId, execution)
   }
@@ -1268,7 +1285,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
     return true
   }
 
-  const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+  const agentDir = execution.agentDir || path.join(openClawStatePath(), 'agents', agentId, 'agent')
   const authProfilePath = path.join(agentDir, 'auth-profiles.json')
   const nativeAuthStorePath = path.join(agentDir, 'openclaw-agent.sqlite')
   fs.mkdirSync(agentDir, { recursive: true })
@@ -1474,7 +1491,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
   if (hasNextAuthProfiles && !usesNativeAuthStore) {
     fs.writeFileSync(authProfilePath, nextAuthProfilesSerialized, 'utf-8')
     if (authProfilesChanged) {
-      resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+      resetAgentSessionsForModelChange(process.env.HOME || '', agentId, openClawStatePath())
     }
   }
   const currentConfigModel = readCurrentModel()

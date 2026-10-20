@@ -10,7 +10,11 @@ export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE:-/app/WORKSPACES/default}"
 export CLAWMAX_AUTO_START_GATEWAY="${CLAWMAX_AUTO_START_GATEWAY:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG="${CLAWMAX_GATEWAY_WATCHDOG:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC="${CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC:-30}"
-export CLAWMAX_GATEWAY_READY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_READY_TIMEOUT_SEC:-25}"
+# Existing rosters need time for SQLite integrity validation on cold startup.
+export CLAWMAX_GATEWAY_READY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_READY_TIMEOUT_SEC:-120}"
+export CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC="${CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC:-15}"
+export CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC="${CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC:-330}"
+export CLAWMAX_GATEWAY_LOG="${CLAWMAX_GATEWAY_LOG:-/tmp/openclaw-gateway.log}"
 export CLAWMAX_HOST_OPENCLAW_CONFIG="${CLAWMAX_HOST_OPENCLAW_CONFIG:-/root/.openclaw/openclaw.json}"
 export CLAWMAX_RUNTIME_PACKAGE_JSON="${CLAWMAX_RUNTIME_PACKAGE_JSON:-/app/SYSTEM/dashboard/package.json}"
 export CLAWMAX_STRICT_OPENCLAW_PLUGIN_POLICY="${CLAWMAX_STRICT_OPENCLAW_PLUGIN_POLICY:-true}"
@@ -23,7 +27,9 @@ const path = require('path')
 const hostPath = process.env.HOST_CONFIG
 const workingPath = process.env.WORKING_CONFIG
 const strictPluginPolicy = !/^false$/i.test(String(process.env.STRICT_PLUGIN_POLICY || 'true').trim())
-const DEFAULT_DENIED_NON_BUNDLED_PLUGINS = ['cognee-openclaw']
+// Legacy generated deny entries have no ownership marker. Removal therefore
+// requires operator opt-in; never guess whether an existing deny was deliberate.
+const removeLegacyCogneeDeny = process.env.CLAWMAX_REMOVE_LEGACY_COGNEE_DENY === 'true'
 const DEPRECATED_ALLOW_SENTINELS = new Set([
   '__clawmax_no_non_bundled_plugins__',
   'clawmax_no_non_bundled_plugins'
@@ -40,6 +46,11 @@ const tryReadJson = (targetPath) => {
 
 const host = tryReadJson(hostPath)
 const working = tryReadJson(workingPath) || {}
+
+if ((removeLegacyCogneeDeny || process.env.CLAWMAX_BUNDLED_COGNEE_PATH) && fs.existsSync(workingPath)) {
+  // Refuse destructive recovery of malformed config during an opted-in upgrade.
+  JSON.parse(fs.readFileSync(workingPath, 'utf8'))
+}
 
 if (host?.gateway) {
   const token = host.gateway?.auth?.token || host.gateway?.remote?.token || ''
@@ -62,6 +73,18 @@ if (host?.gateway) {
 
 if (host?.plugins && typeof host.plugins === 'object') {
   working.plugins = JSON.parse(JSON.stringify(host.plugins))
+}
+
+if (removeLegacyCogneeDeny && Array.isArray(working.plugins?.deny)
+    && working.plugins.deny.includes('cognee-openclaw')) {
+  fs.mkdirSync(path.dirname(workingPath), { recursive: true })
+  try {
+    fs.writeFileSync(`${workingPath}.pre-cognee-policy.json`, JSON.stringify(working, null, 2), { flag: 'wx', mode: 0o600 })
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error
+  }
+  working.plugins.deny = working.plugins.deny.filter(id => id !== 'cognee-openclaw')
+  if (working.plugins.deny.length === 0) delete working.plugins.deny
 }
 
 working.agents = working.agents && typeof working.agents === 'object' && !Array.isArray(working.agents)
@@ -87,6 +110,21 @@ if (working.commands && typeof working.commands === 'object' && !Array.isArray(w
   delete working.commands.ownerDisplay
 }
 
+const bundledCogneePath = process.env.CLAWMAX_BUNDLED_COGNEE_PATH
+if (bundledCogneePath && !working.plugins?.installs?.['cognee-openclaw']) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(bundledCogneePath, 'openclaw.plugin.json'), 'utf8'))
+  if (manifest.id !== 'cognee-openclaw') throw new Error('Invalid bundled Cognee manifest')
+  working.plugins = working.plugins || {}
+  working.plugins.load = working.plugins.load || {}
+  const paths = working.plugins.load.paths || []
+  if (!Array.isArray(paths)) throw new Error('Invalid plugin load paths')
+  working.plugins.load.paths = Array.from(new Set([...paths, bundledCogneePath]))
+  working.plugins.entries = working.plugins.entries || {}
+  const entry = working.plugins.entries['cognee-openclaw'] || {}
+  // Presence of a key or partner selection is not memory-access consent.
+  working.plugins.entries['cognee-openclaw'] = { ...entry, enabled: entry.enabled === true }
+}
+
 if (strictPluginPolicy) {
   working.plugins = working.plugins || {}
   const explicitAllow = Array.isArray(working.plugins.allow)
@@ -100,9 +138,8 @@ if (strictPluginPolicy) {
 
   if (explicitAllow.length === 0) {
     delete working.plugins.allow
-    const deny = new Set(explicitDeny)
-    for (const pluginId of DEFAULT_DENIED_NON_BUNDLED_PLUGINS) deny.add(pluginId)
-    working.plugins.deny = Array.from(deny)
+    if (explicitDeny.length > 0) working.plugins.deny = explicitDeny
+    else delete working.plugins.deny
   } else {
     working.plugins.allow = explicitAllow
     if (explicitDeny.length > 0) {
@@ -327,20 +364,38 @@ gateway_authenticated_ready() {
   port="$1"
   gateway_token="$(get_gateway_auth_token)"
   [ -n "$gateway_token" ] || return 1
-  openclaw gateway call health \
+  probe_timeout_sec="$(gateway_probe_timeout_seconds)"
+  # OpenClaw's --timeout covers the RPC, not CLI startup. A wedged CLI must
+  # not prevent the owner-lease recovery loop from reaching its next attempt.
+  timeout -k 2s "${probe_timeout_sec}s" openclaw gateway call health \
     --json \
     --timeout 3000 \
     --url "ws://127.0.0.1:${port}" \
     --token "$gateway_token" >/dev/null 2>&1
 }
 
-wait_for_gateway_ready() {
-  port="$1"
-  timeout_sec="$CLAWMAX_GATEWAY_READY_TIMEOUT_SEC"
+gateway_probe_timeout_seconds() {
+  probe_budget="${CLAWMAX_GATEWAY_PROBE_TIMEOUT_SEC:-15}"
+  case "$probe_budget" in
+    ''|*[!0-9]*) probe_budget=15 ;;
+  esac
+  [ "$probe_budget" -gt 0 ] || probe_budget=1
+  [ "$probe_budget" -le 30 ] || probe_budget=30
+  printf '%s\n' "$probe_budget"
+}
+
+gateway_ready_timeout_seconds() {
+  timeout_sec="${CLAWMAX_GATEWAY_READY_TIMEOUT_SEC:-120}"
   case "$timeout_sec" in
-    ''|*[!0-9]*) timeout_sec=25 ;;
+    ''|*[!0-9]*) timeout_sec=120 ;;
   esac
   [ "$timeout_sec" -gt 0 ] || timeout_sec=1
+  printf '%s\n' "$timeout_sec"
+}
+
+wait_for_gateway_ready() {
+  port="$1"
+  timeout_sec="$(gateway_ready_timeout_seconds)"
   deadline=$(( $(date +%s) + timeout_sec ))
 
   while [ "$(date +%s)" -lt "$deadline" ]; do
@@ -350,30 +405,69 @@ wait_for_gateway_ready() {
     fi
     if [ -n "${gateway_pid:-}" ] && ! kill -0 "$gateway_pid" 2>/dev/null; then
       echo "[entrypoint] ERROR: gateway exited before authenticated readiness" >&2
-      tail -n 40 /tmp/openclaw-gateway.log >&2 2>/dev/null || true
+      tail -n 40 "$CLAWMAX_GATEWAY_LOG" >&2 2>/dev/null || true
       return 1
     fi
     sleep 1
   done
 
   echo "[entrypoint] ERROR: gateway did not pass authenticated readiness within ${timeout_sec}s on port ${port}" >&2
-  tail -n 40 /tmp/openclaw-gateway.log >&2 2>/dev/null || true
+  tail -n 40 "$CLAWMAX_GATEWAY_LOG" >&2 2>/dev/null || true
   return 1
 }
 
 start_gateway_run() {
   port="$1"
   echo "[entrypoint] starting gateway on port ${port}"
-  openclaw gateway run --port "$port" >>/tmp/openclaw-gateway.log 2>&1 &
+  openclaw gateway run --port "$port" >>"$CLAWMAX_GATEWAY_LOG" 2>&1 &
   gateway_pid=$!
+  gateway_owned=true
   sleep 2
   if kill -0 "$gateway_pid" 2>/dev/null; then
     echo "[entrypoint] gateway started (pid ${gateway_pid})"
   else
     echo "[entrypoint] gateway failed to start — check /tmp/openclaw-gateway.log" >&2
-    tail -n 40 /tmp/openclaw-gateway.log >&2 2>/dev/null || true
+    tail -n 40 "$CLAWMAX_GATEWAY_LOG" >&2 2>/dev/null || true
     return 1
   fi
+}
+
+start_gateway_with_lease_recovery() {
+  lease_port="$1"
+  lease_budget="$CLAWMAX_GATEWAY_LEASE_RECOVERY_TIMEOUT_SEC"
+  case "$lease_budget" in ''|*[!0-9]*) lease_budget=330 ;; esac
+  [ "$lease_budget" -le 330 ] || lease_budget=330
+  lease_deadline=$(( $(date +%s) + lease_budget ))
+  while true; do
+    # Classify only this attempt, never an old failure left in an appended log.
+    lease_log_offset=0
+    if [ -f "$CLAWMAX_GATEWAY_LOG" ]; then
+      lease_log_offset=$(wc -c < "$CLAWMAX_GATEWAY_LOG")
+    fi
+    if start_gateway_run "$lease_port" && wait_for_gateway_ready "$lease_port"; then
+      return 0
+    fi
+    # Never abandon a live child or retry unrelated configuration/auth failures.
+    if [ -n "${gateway_pid:-}" ] && kill -0 "$gateway_pid" 2>/dev/null; then
+      return 1
+    fi
+    if [ -n "${gateway_pid:-}" ]; then wait "$gateway_pid" 2>/dev/null || true; fi
+    if ! tail -c "+$((lease_log_offset + 1))" "$CLAWMAX_GATEWAY_LOG" 2>/dev/null \
+      | grep -F 'Another Gateway owner lease is still active for this state directory' >/dev/null; then
+      return 1
+    fi
+    if [ "$(date +%s)" -ge "$lease_deadline" ]; then
+      echo '[entrypoint] ERROR: gateway owner lease recovery deadline exceeded; refusing to clear another owner' >&2
+      return 1
+    fi
+    echo '[entrypoint] waiting for gateway owner lease expiry; readiness remains unavailable'
+    sleep 5
+    # Another gateway may have appeared while we waited. Do not compete with it.
+    if gateway_port_listening "$lease_port"; then
+      gateway_authenticated_ready "$lease_port"
+      return $?
+    fi
+  done
 }
 
 ensure_gateway_running() {
@@ -386,8 +480,7 @@ ensure_gateway_running() {
     echo "[entrypoint] ERROR: port ${port} is listening but the gateway failed authenticated readiness" >&2
     return 1
   fi
-  start_gateway_run "$port" || return 1
-  wait_for_gateway_ready "$port"
+  start_gateway_with_lease_recovery "$port"
 }
 
 gateway_watchdog_tick() {
@@ -402,15 +495,21 @@ gateway_watchdog_tick() {
     echo "[entrypoint] ERROR: unhealthy gateway on port ${port} is not managed by this container" >&2
     return 1
   fi
-  start_gateway_run "$port" || return 1
-  wait_for_gateway_ready "$port"
+  start_gateway_with_lease_recovery "$port"
 }
 
 start_gateway_watchdog() {
   port="$1"
   (
+    # The initial gateway belongs to the parent supervisor. Only forward to a
+    # replacement that this watchdog actually spawned, avoiding double TERM.
+    gateway_owned=false
+    trap 'if [ -n "${watchdog_sleep_pid:-}" ]; then kill "$watchdog_sleep_pid" 2>/dev/null || true; wait "$watchdog_sleep_pid" 2>/dev/null || true; fi; if [ "${gateway_owned:-false}" = true ] && [ -n "${gateway_pid:-}" ]; then kill "$gateway_pid" 2>/dev/null || true; wait "$gateway_pid" 2>/dev/null || true; fi; exit 0' TERM INT
     while true; do
-      sleep "$CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC"
+      sleep "$CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC" &
+      watchdog_sleep_pid=$!
+      wait "$watchdog_sleep_pid" || true
+      watchdog_sleep_pid=''
       # A failed recovery must not terminate this supervisor under set -e.
       # Keep retrying on subsequent ticks, without overlapping attempts.
       if ! gateway_watchdog_tick "$port"; then
@@ -418,22 +517,43 @@ start_gateway_watchdog() {
       fi
     done
   ) &
+  watchdog_pid=$!
+}
+
+shutdown_children() {
+  # Do not let the init process exit (and the kernel kill remaining children)
+  # before OpenClaw has released its persisted owner lease.
+  trap '' TERM INT
+  for managed_pid in "${watchdog_pid:-}" "${dashboard_pid:-}" "${gateway_pid:-}"; do
+    if [ -n "$managed_pid" ]; then kill "$managed_pid" 2>/dev/null || true; fi
+  done
+  for managed_pid in "${watchdog_pid:-}" "${dashboard_pid:-}" "${gateway_pid:-}"; do
+    if [ -n "$managed_pid" ]; then wait "$managed_pid" 2>/dev/null || true; fi
+  done
+}
+
+verify_persisted_agent_schemas() {
+  if ! node /app/SYSTEM/dashboard/openclaw-schema-gate.cjs "${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"; then
+    echo "[startup] Persisted agent schema inspection failed. Keep the runtime stopped, back up its state, and complete qualified offline OpenClaw maintenance before restarting. No leases or databases were repaired by this check." >&2
+    return 1
+  fi
 }
 
 main() {
-  # The dashboard replaces this shell while gateway/watchdog children outlive
-  # it. Node does not reap adopted children: a dead gateway can then retain its
-  # PID and block OpenClaw's state-directory ownership check forever. Re-exec
-  # here so downstream images that wrap this entrypoint also get an init.
+  # Keep an init for adopted children and a supervisor that waits for every
+  # owned service's graceful shutdown, including gateway lease release.
   if [ "$$" -eq 1 ]; then
-    exec /usr/bin/tini -g -- "$0" "$@"
+    exec /usr/bin/tini -- "$0" "$@"
   fi
+  trap 'shutdown_children; exit 143' TERM
+  trap 'shutdown_children; exit 130' INT
   ensure_runtime_dirs
   log_runtime_version_diagnostics
   verify_runtime_version_matches_image
   ensure_openclaw_cli
   sync_gateway_config
   migrate_openclaw_2_state
+  verify_persisted_agent_schemas
   ensure_gateway_auth_token
 
   gateway_port="$(get_gateway_port)"
@@ -450,7 +570,12 @@ main() {
     start_gateway_watchdog "$gateway_port"
   fi
 
-  exec "$@"
+  "$@" &
+  dashboard_pid=$!
+  dashboard_status=0
+  wait "$dashboard_pid" || dashboard_status=$?
+  shutdown_children
+  return "$dashboard_status"
 }
 
 if [ "${CLAWMAX_ENTRYPOINT_TEST_MODE:-false}" = "true" ]; then

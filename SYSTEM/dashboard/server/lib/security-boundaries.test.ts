@@ -57,6 +57,9 @@ assert(!indexSource.includes("app.use('/api/workspace-dashboards', workspaceDash
 assert(!indexSource.includes('origin: true'), 'Credentialed CORS must never reflect arbitrary origins')
 assert(indexSource.includes("app.disable('x-powered-by')"), 'Express framework disclosure must be disabled')
 assert(!indexSource.includes("removeHeader('X-Content-Type-Options')"), 'Static responses must retain nosniff protection')
+assert(indexSource.indexOf("app.get('/assets/*'") < indexSource.indexOf("app.get('*'"), 'Missing hashed assets must not fall through to SPA HTML')
+assert(indexSource.includes("res.status(404).type('text/plain').send('Dashboard asset not found."), 'Missing hashed assets must return a non-HTML 404')
+assert(indexSource.includes("res.setHeader('Cache-Control', 'no-store')\n    res.sendFile(path.join(earlyClientDist, 'index.html'))"), 'SPA HTML must not be cached across image upgrades')
 
 const matrixKeys = API_AUTHORIZATION_MATRIX.map((entry) => `${entry.methods} ${entry.path}`)
 assert.equal(new Set(matrixKeys).size, matrixKeys.length, 'Authorization matrix entries must be unique')
@@ -176,4 +179,25 @@ try {
   Object.assign(process.env, originalEnv)
 }
 
+const { browserMutationGuard } = require('./http-security')
+for (const scenario of [
+  { method: 'POST', headers: { Origin: 'https://dashboard.example.com', Cookie: 'session=fixture' }, allowed: true },
+  { method: 'POST', headers: { Origin: 'http://localhost:5174', Cookie: 'session=fixture' }, allowed: true },
+  { method: 'POST', headers: { Origin: 'https://attacker.example', Cookie: 'session=fixture' }, allowed: false },
+  { method: 'DELETE', headers: { Origin: 'https://dashboard.example.com.attacker.example' }, allowed: false },
+  { method: 'POST', headers: { Origin: 'null' }, allowed: false },
+  { method: 'PATCH', headers: { Cookie: 'session=fixture' }, allowed: false },
+  { method: 'POST', headers: { Referer: 'https://dashboard.example.com/agents', Cookie: 'session=fixture' }, allowed: true },
+  { method: 'POST', headers: { 'Sec-Fetch-Site': 'cross-site' }, allowed: false },
+  { method: 'POST', headers: { 'Sec-Fetch-Site': 'same-site' }, allowed: false },
+  { method: 'POST', headers: { Authorization: 'Bearer fixture' }, allowed: true },
+  { method: 'GET', headers: { Cookie: 'session=fixture' }, allowed: true },
+]) {
+  let allowed = false, status = 0
+  browserMutationGuard(['http://localhost:5174'])({ method: scenario.method, protocol: 'https',
+    get: (name: string) => name === 'host' ? 'dashboard.example.com' : (scenario.headers as Record<string, string | undefined>)[name],
+  }, { status: (value: number) => { status = value; return { json: () => {} } } }, () => { allowed = true })
+  assert(allowed === scenario.allowed, 'Browser mutation origin admission must match expected policy')
+  assert(allowed || status === 403, 'Rejected mutations must return 403 before execution')
+}
 console.log(`security-boundaries.test.ts: ${assertionsRun} tests passed`)

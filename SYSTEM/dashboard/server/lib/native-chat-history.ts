@@ -35,7 +35,19 @@ export function resolveNativeChatSession(agentId: string, sessionKey: string, ho
 
 export function readNativeChatTranscript(agentId: string, sessionId: string, home: string): string | undefined {
   return readNative(agentId, home, db => {
-    if (!db.prepare('SELECT 1 FROM session_windows WHERE session_id = ?').get(sessionId)) return undefined
+    const hasTable = (name: string) => Boolean(db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?").get(name))
+    if (!hasTable('transcript_events')) return undefined
+    if (hasTable('session_windows') && !db.prepare('SELECT 1 FROM session_windows WHERE session_id = ?').get(sessionId)) return undefined
+    const hasIndex = hasTable('session_transcript_index_state')
+    const hasActiveBranch = hasTable('session_transcript_active_events')
+    // Older stores have no branch-index tables. Only that schema may read the
+    // linear transcript; a partially migrated or rebuilding modern index must
+    // never fall back to events from inactive branches.
+    if (!hasIndex && !hasActiveBranch) {
+      const rows = db.prepare('SELECT event_json FROM transcript_events WHERE session_id = ? ORDER BY seq').all(sessionId)
+      return rows.length ? rows.map((row: { event_json: string }) => row.event_json).join('\n') : undefined
+    }
+    if (!hasIndex || !hasActiveBranch) throw new Error('Chat history index is not ready; retry after the runtime finishes updating it')
     const index = db.prepare('SELECT needs_rebuild FROM session_transcript_index_state WHERE session_id = ?').get(sessionId)
     if (!index || index.needs_rebuild !== 0) {
       throw new Error('Chat history index is not ready; retry after the runtime finishes updating it')

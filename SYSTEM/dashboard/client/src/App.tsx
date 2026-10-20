@@ -16,17 +16,21 @@ import { ToastProvider } from './components/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { WorkspaceProvider } from './contexts/WorkspaceContext'
+import { AgentForgeSharing } from './components/AgentForgeSharing'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { AuthGate } from './components/AuthGate'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
+import { NavigationSearch } from './components/NavigationSearch'
+import { pageSearchTerms, type SearchDestination } from './lib/navigationSearch'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
 import { ByokWizard } from './components/ByokWizard'
+import { AgentReadinessProvider } from './contexts/AgentReadinessContext'
 import { HostAgentStatusBanner } from './components/HostAgentStatusBanner'
 import { MaintenanceBanner } from './components/MaintenanceBanner'
 import { NotificationCenter } from './components/NotificationCenter'
 import { OnboardingWizard } from './components/OnboardingWizard'
 import { TermsOfServiceModal } from './components/TermsOfServiceModal'
-import { PluginManagerDialog } from './components/PluginManagerDialog'
+import SystemPlugins from './pages/SystemPlugins'
 import { WorkspaceFirstRunTour } from './components/WorkspaceFirstRunTour'
 import { useWorkspace } from './contexts/WorkspaceContext'
 import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
@@ -310,7 +314,8 @@ const DEFAULT_NAV_ORDER: NavItem[] = [
   { id: 'docs', label: 'Documents', icon: FileIcon },
   { id: 'keys', label: 'Keys & Secrets', icon: KeyIcon },
   { id: 'activity', label: 'Activity & Budget', icon: ActivityIcon },
-  { id: 'logs', label: 'System & Logs', icon: LogIcon },
+  { id: 'plugins', label: 'Plugins', icon: WrenchIcon },
+  { id: 'logs', label: 'Logs', icon: LogIcon },
 ]
 
 const USER_TABS_COUNT = 7
@@ -321,7 +326,7 @@ const PRIMARY_CLIENT_GROUPS: CoreDashboardPage[][] = [
 ]
 const DOCUMENTS_TABS_ORDER: Page[] = ['docs']
 const CREATION_TABS_ORDER: Page[] = []
-const OPERATIONS_TABS_ORDER: Page[] = ['keys', 'activity', 'logs']
+const OPERATIONS_TABS_ORDER: Page[] = ['keys', 'activity', 'plugins', 'logs']
 const SYSTEM_TABS_ORDER: Page[] = [...DOCUMENTS_TABS_ORDER, ...CREATION_TABS_ORDER, ...OPERATIONS_TABS_ORDER]
 const SYSTEM_NAV_EXPANDED_STORAGE_KEY = 'clawmax-system-nav-expanded'
 const LAST_PAGE_STORAGE_KEY = 'clawmax-last-dashboard-page'
@@ -448,6 +453,7 @@ export default function App() {
   const [initialOpenChatName, setInitialOpenChatName] = useState<string | undefined>(undefined)
   const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
   const [initialSkillsSkill, setInitialSkillsSkill] = useState<string | undefined>(undefined)
+  const [templateSearchSelection, setTemplateSearchSelection] = useState<{ key: string } | undefined>(undefined)
   const [initialWorkflowId, setInitialWorkflowId] = useState<string | undefined>(undefined)
   const [initialWorkflowExecutionId, setInitialWorkflowExecutionId] = useState<string | undefined>(undefined)
   const [initialCommunityName, setInitialCommunityName] = useState<string | undefined>(undefined)
@@ -489,7 +495,6 @@ export default function App() {
   })
   const [dismissedMaintenanceKey, setDismissedMaintenanceKey] = useState<string | null>(null)
   const [showTermsOfService, setShowTermsOfService] = useState(false)
-  const [showPluginManager, setShowPluginManager] = useState(false)
 
   const coreUserNav = navOrder.slice(0, USER_TABS_COUNT)
   const navIndexById = new Map(navOrder.map((item, index) => [item.id, index]))
@@ -498,6 +503,73 @@ export default function App() {
     [plugins, pluginNavOrder],
   )
   const pluginPageBySlug = useMemo(() => new Map(orderedPlugins.map((plugin) => [plugin.slug, buildPluginPage(plugin.slug)])), [orderedPlugins])
+  const searchPages = useMemo(() => [
+    ...navOrder.map((item) => ({ page: item.id as Page, title: item.label, terms: pageSearchTerms(item.id as Page) })),
+    ...orderedPlugins.map((plugin) => ({ page: buildPluginPage(plugin.slug) as Page, title: plugin.name })),
+  ], [navOrder, orderedPlugins])
+
+  const handleSearchNavigate = useCallback((destination: SearchDestination) => {
+    if (destination.kind === 'partner' && destination.target) {
+      window.dispatchEvent(new CustomEvent('open-partners-wizard', { detail: { step: `partner:${destination.target}` } }))
+      return
+    }
+    if (destination.kind === 'action') {
+      if (destination.target === 'byok') window.dispatchEvent(new CustomEvent('open-byok-wizard'))
+      if (destination.target === 'partners') window.dispatchEvent(new CustomEvent('open-partners-wizard'))
+      if (destination.target === 'create-workspace') setShowWorkspaceDialog(true)
+      if (destination.target === 'terms') setShowTermsOfService(true)
+      if (destination.target?.startsWith('skill-import:')) {
+        const source = destination.target.slice('skill-import:'.length)
+        window.sessionStorage.setItem('clawmax-skill-import-source', source)
+        window.dispatchEvent(new CustomEvent('clawmax-open-skill-import', { detail: { source } }))
+        setPage('skills')
+      }
+      if (destination.target === 'create-agent') { setInitialAgentAction('create'); setPage('agents') }
+      if (destination.target === 'create-agent-ai') { setInitialAgentAction('create-ai'); setPage('agents') }
+      if (destination.target === 'import-agent') { setInitialAgentAction('import'); setPage('agents') }
+      return
+    }
+    if (destination.kind === 'subpage' && destination.page === 'keys' && destination.target) {
+      window.localStorage.setItem('clawmax.keys-secrets.active-tab', destination.target)
+      window.dispatchEvent(new CustomEvent('clawmax-open-keys-tab', { detail: { tab: destination.target } }))
+      setPage('keys')
+      return
+    }
+    if (destination.kind === 'document' && destination.target) {
+      setDocFile(destination.target)
+      setPage('docs')
+      setMobileNavOpen(false)
+      return
+    }
+    if (destination.kind === 'community' && destination.target) {
+      setInitialCommunityName(destination.target)
+      setPage('organizations')
+      setMobileNavOpen(false)
+      return
+    }
+    if (destination.kind === 'group' && destination.target) {
+      setInitialOrgGroupName(destination.target)
+      setPage('organizations')
+      setMobileNavOpen(false)
+      return
+    }
+    if (destination.kind === 'model' && destination.provider) {
+      window.dispatchEvent(new CustomEvent('open-byok-wizard', { detail: { step: 'models', provider: destination.provider, focus: 'preferred-model' } }))
+      return
+    }
+    if (destination.kind === 'agent' && destination.target) setInitialAgentId(destination.target)
+    if (destination.kind === 'workflow' && destination.target) {
+      setInitialWorkflowId(destination.target)
+      setInitialWorkflowExecutionId(undefined)
+    }
+    if (destination.kind === 'skill' && destination.target) {
+      setInitialSkillsAgent(undefined)
+      setInitialSkillsSkill(destination.target)
+    }
+    if (destination.kind === 'template' && destination.target) setTemplateSearchSelection({ key: destination.target })
+    setPage(destination.page)
+    setMobileNavOpen(false)
+  }, [])
 
   // Apply dark mode class to document
   useEffect(() => {
@@ -773,17 +845,14 @@ export default function App() {
         <AuthGate>
         <ToastProvider>
         <WorkspaceProvider>
+          <AgentForgeSharing />
+        <AgentReadinessProvider>
           <ConnectionStatus />
           <WorkspaceDialog
             isOpen={showWorkspaceDialog}
             onClose={() => setShowWorkspaceDialog(false)}
           />
           <TermsOfServiceModal open={showTermsOfService} onClose={() => setShowTermsOfService(false)} />
-          <PluginManagerDialog
-            open={showPluginManager}
-            onClose={() => setShowPluginManager(false)}
-            onSaved={(nextPlugins) => setPlugins(nextPlugins)}
-          />
           <div className="flex h-[100dvh] w-full min-w-0 overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
           {/* Mobile nav overlay backdrop */}
           {mobileNavOpen && (
@@ -865,20 +934,26 @@ export default function App() {
                       onClick={() => setPluginNavExpanded((current) => !current)}
                       aria-expanded={pluginNavExpanded}
                       className={`flex min-w-0 flex-1 items-center px-3 py-2 text-left text-sm font-medium ${navCollapsed ? 'justify-center' : 'justify-between'}`}
-                      title={navCollapsed ? 'Toggle plugin navigation' : undefined}
+                      title={navCollapsed ? 'Toggle extension navigation' : undefined}
                     >
                       {navCollapsed ? (
                         pluginNavExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightSmallIcon className="h-4 w-4" />
                       ) : (
                         <>
-                        <span className="uppercase tracking-[0.18em] text-[11px] text-gray-400">Plugins</span>
+                        <span className="uppercase tracking-[0.18em] text-[11px] text-gray-400">Extensions</span>
                         {pluginNavExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightSmallIcon className="h-4 w-4" />}
                         </>
                       )}
                     </button>
                     <button
                       type="button"
-                      onClick={() => setShowPluginManager(true)}
+                      onClick={() => {
+                        window.history.pushState({}, '', '/system/plugins#clawmax')
+                        window.dispatchEvent(new PopStateEvent('popstate'))
+                        setPage('plugins')
+                        setSystemNavExpanded(true)
+                        setMobileNavOpen(false)
+                      }}
                       className="mr-1 rounded-md p-2 text-gray-400 hover:bg-gray-700 hover:text-white"
                       title="Manage plugins"
                       aria-label="Manage plugins"
@@ -997,6 +1072,8 @@ export default function App() {
             {/* Top bar */}
             <TopBar
               system={system}
+              searchPages={searchPages}
+              onSearchNavigate={handleSearchNavigate}
               onMobileMenuToggle={() => setMobileNavOpen(true)}
               onOpenWorkspaceDialog={() => setShowWorkspaceDialog(true)}
               runningWorkflowsCount={runningWorkflowsCount}
@@ -1082,7 +1159,7 @@ export default function App() {
             {visitedPages.has('templates') && (
             <div className={`flex-1 overflow-auto ${page === 'templates' ? '' : 'hidden'}`}>
               <WorkspaceScoped pageKey="templates">
-                <Templates />
+                <Templates searchSelection={templateSearchSelection} />
               </WorkspaceScoped>
             </div>
             )}
@@ -1173,6 +1250,7 @@ export default function App() {
               </WorkspaceScoped>
             </div>
             )}
+            {visitedPages.has('plugins') && <div hidden={page !== 'plugins'} className="min-w-0 flex-1 overflow-auto"><SystemPlugins onSaved={setPlugins} /></div>}
             {page === 'logs' && (
             <div className="flex-1 overflow-auto">
               <WorkspaceScoped pageKey="logs">
@@ -1189,6 +1267,7 @@ export default function App() {
             )}
           </main>
           </div>
+        </AgentReadinessProvider>
         </WorkspaceProvider>
       </ToastProvider>
         </AuthGate>
@@ -1197,8 +1276,10 @@ export default function App() {
   )
 }
 
-function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToChannel, onNavigateToDoc, onOpenAgentCreate, onOpenAgentCreateAI, onOpenAgentImport, onOpenAgentChat, onOpenBuilder, onOpenByok, onOpenPartners }: {
+function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToChannel, onNavigateToDoc, onOpenAgentCreate, onOpenAgentCreateAI, onOpenAgentImport, onOpenAgentChat, onOpenBuilder, onOpenByok, onOpenPartners }: {
   system: SystemInfo | null
+  searchPages: Array<{ page: Page; title: string; terms?: string }>
+  onSearchNavigate: (destination: SearchDestination) => void
   onMobileMenuToggle?: () => void
   onOpenWorkspaceDialog?: () => void
   runningWorkflowsCount?: number
@@ -1309,7 +1390,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           setWorkspaceTourVisible(false)
         }}
       />
-      <div className="min-h-11 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2 shrink-0 dark:border-gray-700 dark:bg-gray-800 md:min-h-14 md:px-5 md:py-2">
+      <div className="relative z-30 min-h-11 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2 shrink-0 dark:border-gray-700 dark:bg-gray-800 md:min-h-14 md:px-5 md:py-2">
       <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-4">
         {/* Mobile menu button */}
         <button
@@ -1359,6 +1440,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         </div>
       </div>
       <div className="flex w-full items-center justify-end gap-2 md:w-auto md:gap-3">
+        <NavigationSearch pages={searchPages} onNavigate={onSearchNavigate} />
         <div data-tour="notifications">
           <NotificationCenter
             onNavigateToAgent={onNavigateToAgent}

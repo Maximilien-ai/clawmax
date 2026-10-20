@@ -2,6 +2,7 @@ import assert from 'assert'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import http from 'http'
 import {
   applyCompanyWorkflowExecutionDefaults,
   buildGeneratedExecutionSubteam,
@@ -17,6 +18,7 @@ import {
   enforceVisibleCompanyWorkflowChain,
   explainOneTimeCronLimitation,
   extractJsonResponseText,
+  generateBuilderStarterPromptsWithAI,
   isOneTimeScheduleRequest,
   normalizeGeneratedSkillScaffold,
   normalizeGeneratedAgentMeta,
@@ -70,6 +72,38 @@ test('parseJsonResponse returns fallback on invalid json', () => {
   const fallback = { cron: '', explanation: '' }
   const parsed = parseJsonResponse('not json at all', fallback)
   assert.deepStrictEqual(parsed, fallback)
+})
+
+test('starter prompts handle truncated, empty and malformed BYOK responses without leaking parse errors', async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-prompts-fixture-'))
+  const previousWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+  process.env.CLAWMAX_TEST_WORKSPACE = workspace
+  let content = ''
+  const server = http.createServer((req, res) => {
+    req.resume()
+    req.on('end', () => {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ choices: [{ message: { content } }] }))
+    })
+  })
+  try {
+    await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
+    const address = server.address() as { port: number }
+    setRequestByokKeys({ openaiCompatibleBaseUrl: `http://127.0.0.1:${address.port}/v1`, openaiCompatibleApiKey: 'synthetic-test-key', openaiCompatibleDefaultModel: 'fixture-model' })
+    for (const invalid of ['{"prompts":["unfinished', '', 'null', '{"prompts":{}}', '{"prompts":[null, {}, 42, " "]}']) {
+      content = invalid
+      await assert.rejects(() => generateBuilderStarterPromptsWithAI({ workspaceName: 'Fixture' }), { message: 'Failed to generate builder starter prompts' })
+    }
+    content = '```json\n{"prompts":[" One ",null,"Two","Three","Four","Five"]}\n```'
+    assert.deepEqual(await generateBuilderStarterPromptsWithAI({ workspaceName: 'Fixture' }), ['One', 'Two', 'Three', 'Four'])
+  } finally {
+    setRequestByokKeys(undefined)
+    server.closeAllConnections()
+    if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()))
+    if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+    else process.env.CLAWMAX_TEST_WORKSPACE = previousWorkspace
+    fs.rmSync(workspace, { recursive: true, force: true })
+  }
 })
 
 test('isOneTimeScheduleRequest detects one-time cron requests', () => {

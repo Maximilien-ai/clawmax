@@ -20,7 +20,9 @@ export default defineConfig({
     allowedHosts,
     proxy: {
       '/api': {
-        target: `http://localhost:${backendPort}`,
+        // The dev API binds IPv4 loopback. "localhost" can resolve to ::1 and
+        // intermittently return 502 even while 127.0.0.1:PORT is healthy.
+        target: `http://127.0.0.1:${backendPort}`,
         changeOrigin: true,
         proxyTimeout: 0,   // no timeout — needed for long-running SSE (provision)
         timeout: 0,

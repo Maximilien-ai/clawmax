@@ -7,6 +7,10 @@ import {
   ACTIVITY_EXPORT_VERSION,
   appendActivityExportEventsForActiveConsents,
   getActivityExportConsent,
+  getActivityExportEnrollment,
+  getActivityExportConsentFence,
+  getOpaqueActivityUserId,
+  getOpaqueActivityWorkspaceId,
   flushActivityExportOutbox,
   listActivityExportConsents,
   listActivityExportOutbox,
@@ -14,13 +18,26 @@ import {
   receiveActivityExportBatch,
   revokeActivityExportConsent,
   revokeActivityExportDestinationConsent,
+  revokeActivityExportEnrollment,
   saveActivityExportConsent,
+  saveActivityExportEnrollment,
   type ActivityExportScope,
 } from '../lib/activity-export'
-import { flushActivityExportWorker, getActivityExportWorkerStatus } from '../lib/activity-export-worker'
+import { flushActivityExportWorker, getActivityExportWorkerStatus, startActivityExportWorker } from '../lib/activity-export-worker'
+import {
+  AGENTFORGE_DESTINATION_ID,
+  AGENTFORGE_PURPOSE,
+  AGENTFORGE_RETENTION_DAYS,
+  AGENTFORGE_SUPPORTED_SCOPES,
+  exchangeAgentForgeEnrollment,
+  getAgentForgeRuntimeConfig,
+  registerAgentForgeConsent,
+  agentForgeReceiverBinding,
+  currentAgentForgeReceiverBinding,
+} from '../lib/agentforge-activity-export'
 
 const router = Router()
-const ALLOWED_DESTINATIONS = new Set(['clawmax-ai', 'digo'])
+const ALLOWED_DESTINATIONS = new Set(['clawmax-ai', 'digo', AGENTFORGE_DESTINATION_ID])
 const ALLOWED_SCOPES = new Set<ActivityExportScope>(['agent-chat', 'group-chat', 'community-chat', 'workflow', 'builder'])
 
 function actor(req: any): { userId: string; workspaceId: string } {
@@ -34,15 +51,69 @@ router.get('/status', (req, res) => {
   const destinations = listActivityExportConsents(userId, workspaceId)
   const outbox = listActivityExportOutbox(userId, workspaceId)
   const worker = getActivityExportWorkerStatus()
+  const agentForgeConfig = getAgentForgeRuntimeConfig()
+  const agentForgeEnrollment = getActivityExportEnrollment(userId, workspaceId, AGENTFORGE_DESTINATION_ID)
   const retrySummary = outbox.reduce((summary, entry: any) => {
     if (entry.attempts > 0) summary.attempts += entry.attempts
     if (entry.lastError && !summary.lastError) summary.lastError = entry.lastError
     return summary
   }, { attempts: 0, lastError: undefined as string | undefined })
-  res.json({ version: ACTIVITY_EXPORT_VERSION, sharing: consent ? { destinationId: consent.destinationId, scopes: consent.scopes, consentedAt: consent.consentedAt } : null, destinations: destinations.map((entry) => ({ destinationId: entry.destinationId, scopes: entry.scopes, consentedAt: entry.consentedAt })), queuedEvents: outbox.length, delivery: { worker: { running: worker.running, startedAt: worker.startedAt, lastAttemptAt: worker.lastAttemptAt, lastResult: worker.lastResult, lastError: worker.lastError, intervalMs: worker.intervalMs, configured: worker.configured }, retry: retrySummary } })
+  res.json({
+    version: ACTIVITY_EXPORT_VERSION,
+    sharing: consent ? { destinationId: consent.destinationId, scopes: consent.scopes, consentedAt: consent.consentedAt } : null,
+    destinations: destinations.map((entry) => ({ destinationId: entry.destinationId, scopes: entry.scopes, consentedAt: entry.consentedAt, expiresAt: entry.expiresAt })),
+    queuedEvents: outbox.length,
+    agentforge: {
+      configured: Boolean(agentForgeConfig),
+      connected: Boolean(agentForgeEnrollment),
+      enrollmentId: agentForgeEnrollment?.enrollmentId,
+      purpose: AGENTFORGE_PURPOSE,
+      privacyUrl: agentForgeConfig?.privacyUrl,
+      retentionDays: AGENTFORGE_RETENTION_DAYS,
+      supportedScopes: AGENTFORGE_SUPPORTED_SCOPES,
+    },
+    delivery: { worker: { running: worker.running, startedAt: worker.startedAt, lastAttemptAt: worker.lastAttemptAt, lastResult: worker.lastResult, lastError: worker.lastError, intervalMs: worker.intervalMs, configured: worker.configured }, retry: retrySummary },
+  })
 })
 
-router.post('/consent', (req, res) => {
+router.post('/agentforge/enrollment', async (req, res) => {
+  const { userId, workspaceId } = actor(req)
+  const connectionCode = typeof req.body?.connectionCode === 'string' ? req.body.connectionCode.trim() : ''
+  if (!connectionCode) return res.status(400).json({ error: 'The AgentForge enrollment handoff is missing or expired.' })
+  const config = getAgentForgeRuntimeConfig()
+  if (!config) return res.status(503).json({ error: 'The operator has not configured AgentForge delivery.' })
+  const receiverBinding = agentForgeReceiverBinding(config)
+  const fence = getActivityExportConsentFence(userId, workspaceId, AGENTFORGE_DESTINATION_ID)
+  const externalWorkspaceId = getOpaqueActivityWorkspaceId(workspaceId)
+  const externalUserId = getOpaqueActivityUserId(userId, workspaceId, AGENTFORGE_DESTINATION_ID)
+  try {
+    const remote = await exchangeAgentForgeEnrollment({ connectionCode, workspaceId: externalWorkspaceId, userId: externalUserId }, { config })
+    if (currentAgentForgeReceiverBinding(workspaceId) !== receiverBinding || getActivityExportConsentFence(userId, workspaceId, AGENTFORGE_DESTINATION_ID) !== fence) return res.status(409).json({ error: 'AgentForge configuration or authorization changed. Reconnect before sharing.' })
+    const enrollment = saveActivityExportEnrollment({
+      enrollmentId: remote.enrollmentId,
+      destinationId: AGENTFORGE_DESTINATION_ID,
+      workspaceId,
+      userId,
+      externalWorkspaceId,
+      externalUserId,
+      status: 'active',
+      connectedAt: new Date().toISOString(),
+      receiverBinding,
+    })
+    return res.status(201).json({ ok: true, enrollment: { enrollmentId: enrollment.enrollmentId, status: enrollment.status } })
+  } catch (error: any) {
+    return res.status(502).json({ error: error?.message || 'AgentForge enrollment could not be connected.' })
+  }
+})
+
+router.delete('/agentforge/enrollment', (req, res) => {
+  const { userId, workspaceId } = actor(req)
+  const revokedConsent = revokeActivityExportDestinationConsent(userId, workspaceId, AGENTFORGE_DESTINATION_ID)
+  const revokedEnrollment = revokeActivityExportEnrollment(userId, workspaceId, AGENTFORGE_DESTINATION_ID)
+  res.json({ ok: true, revokedConsent, revokedEnrollment })
+})
+
+router.post('/consent', async (req, res) => {
   const { userId, workspaceId } = actor(req)
   const destinationId = String(req.body?.destinationId || '').trim()
   const scopes = Array.isArray(req.body?.scopes) ? req.body.scopes.filter((scope: unknown): scope is ActivityExportScope => typeof scope === 'string' && ALLOWED_SCOPES.has(scope as ActivityExportScope)) : []
@@ -58,6 +129,56 @@ router.post('/consent', (req, res) => {
       return res.status(400).json({ error: 'Configure the Digo HTTPS ingestion URL and server-managed API key before enabling activity sharing.' })
     }
   }
+  if (destinationId === AGENTFORGE_DESTINATION_ID) {
+    const config = getAgentForgeRuntimeConfig()
+    if (!config) return res.status(400).json({ error: 'The operator must configure the AgentForge API, privacy URL, and Partner API key first.' })
+    const receiverBinding = agentForgeReceiverBinding(config)
+    const unsupported = scopes.filter((scope: ActivityExportScope) => !(AGENTFORGE_SUPPORTED_SCOPES as readonly string[]).includes(scope))
+    if (unsupported.length > 0) return res.status(400).json({ error: `AgentForge does not support the selected launch scope: ${unsupported.join(', ')}.` })
+    const enrollment = getActivityExportEnrollment(userId, workspaceId, AGENTFORGE_DESTINATION_ID)
+    if (!enrollment) return res.status(400).json({ error: 'Connect your AgentForge enrollment before enabling activity sharing.' })
+    if (scopes.length === 0) return res.status(400).json({ error: 'Select at least one activity scope.' })
+    const consentedAt = new Date().toISOString()
+    const expiresAt = new Date(Date.now() + AGENTFORGE_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    const receiptId = `consent_${randomUUID()}`
+    const fence = getActivityExportConsentFence(userId, workspaceId, destinationId)
+    try {
+      await registerAgentForgeConsent({
+        receiptId,
+        enrollmentId: enrollment.enrollmentId,
+        workspaceId: enrollment.externalWorkspaceId,
+        userId: enrollment.externalUserId,
+        scopes,
+        consentedAt,
+        expiresAt,
+      }, { config })
+    } catch (error: any) {
+      return res.status(502).json({ error: error?.message || 'AgentForge could not register the consent receipt.' })
+    }
+    if (currentAgentForgeReceiverBinding(workspaceId) !== receiverBinding ||
+        getActivityExportConsentFence(userId, workspaceId, destinationId) !== fence ||
+        getActivityExportEnrollment(userId, workspaceId, AGENTFORGE_DESTINATION_ID)?.enrollmentId !== enrollment.enrollmentId) {
+      return res.status(409).json({ error: 'AgentForge configuration or enrollment changed. Reconnect before sharing.' })
+    }
+    const consent = saveActivityExportConsent({
+      receiptId,
+      version: ACTIVITY_EXPORT_VERSION,
+      destinationId,
+      workspaceId,
+      userId,
+      scopes: [...new Set(scopes)] as ActivityExportScope[],
+      active: true,
+      consentedAt,
+      expiresAt,
+      enrollmentId: enrollment.enrollmentId,
+      purpose: AGENTFORGE_PURPOSE,
+      privacyUrl: config.privacyUrl,
+      retentionUntil: expiresAt,
+      receiverBinding,
+    })
+    startActivityExportWorker()
+    return res.status(201).json({ ok: true, consent: { receiptId: consent.receiptId, destinationId: consent.destinationId, scopes: consent.scopes, consentedAt: consent.consentedAt, expiresAt: consent.expiresAt } })
+  }
   if (scopes.length === 0) return res.status(400).json({ error: 'Select at least one activity scope.' })
   const consent = saveActivityExportConsent({ receiptId: `consent_${randomUUID()}`, version: ACTIVITY_EXPORT_VERSION, destinationId, workspaceId, userId, scopes: [...new Set(scopes)] as ActivityExportScope[], active: true, consentedAt: new Date().toISOString() })
   res.status(201).json({ ok: true, consent: { receiptId: consent.receiptId, destinationId: consent.destinationId, scopes: consent.scopes, consentedAt: consent.consentedAt } })
@@ -69,6 +190,9 @@ router.delete('/consent', (req, res) => {
   const revoked = destinationId
     ? revokeActivityExportDestinationConsent(userId, workspaceId, destinationId)
     : revokeActivityExportConsent(userId, workspaceId)
+  // Durable purge jobs are created atomically with local revocation. Never wait
+  // for the partner before acknowledging that local sharing has stopped.
+  void flushActivityExportWorker().catch(() => {})
   res.json({ ok: true, revoked })
 })
 

@@ -12,6 +12,10 @@ import {
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { openClawConfigPath, openClawStatePath } from './openclaw-profile-paths'
+import { resetAgentSessionsForModelChange } from './agent-model'
+import { resolveAgentExecutionConfig } from './agent-execution'
+import { syncAssignedSkillGuidanceForAgent } from './skills'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -38,6 +42,55 @@ async function test(name: string, fn: () => void | Promise<void>) {
 }
 
 async function run() {
+  await test('selected OpenClaw profiles isolate workflow session repair, reset, and agent config', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'workflow-profile-'))
+    const previous = { state: process.env.OPENCLAW_STATE_DIR, config: process.env.OPENCLAW_CONFIG_PATH, workspace: process.env.CLAWMAX_TEST_WORKSPACE }
+    const state = path.join(root, 'state')
+    const otherHome = path.join(root, 'other-home')
+    const agentId = `profile-${path.basename(root)}`
+    const sessionDir = path.join(state, 'agents', agentId, 'sessions')
+    const otherDir = path.join(otherHome, '.openclaw', 'agents', agentId, 'sessions')
+    const entry = JSON.stringify({ [`agent:${agentId}:main`]: { sessionId: 'workflow-old', sessionFile: 'workflow-old.jsonl' } })
+    try {
+      process.env.CLAWMAX_TEST_WORKSPACE = root
+      for (const dir of [sessionDir, otherDir]) {
+        fs.mkdirSync(dir, { recursive: true })
+        fs.writeFileSync(path.join(dir, 'sessions.json'), entry)
+        fs.writeFileSync(path.join(dir, 'workflow-old.jsonl'), JSON.stringify({ id: 'workflow-old' }))
+      }
+      process.env.OPENCLAW_STATE_DIR = state
+      delete process.env.OPENCLAW_CONFIG_PATH
+      assert(openClawStatePath() === state, 'Selected state root must win')
+      assert(openClawStatePath(otherHome) === path.join(otherHome, '.openclaw'), 'Explicit legacy home must remain supported')
+      assert(openClawConfigPath() === path.join(state, 'openclaw.json'), 'Config must default within selected state')
+      const agentWorkspace = path.join(root, 'agent-workspace')
+      fs.mkdirSync(agentWorkspace)
+      const selectedConfig = path.join(root, 'custom.json')
+      fs.writeFileSync(selectedConfig, JSON.stringify({ agents: { entries: { [agentId]: {
+        model: 'ollama/qwen2.5:latest', workspace: agentWorkspace, agentDir: path.join(state, 'agents', agentId, 'agent'), skills: [],
+      } } } }))
+      process.env.OPENCLAW_CONFIG_PATH = selectedConfig
+      assert(openClawConfigPath() === selectedConfig, 'Explicit config must win over state directory')
+      const resolved = resolveAgentExecutionConfig(agentId)
+      assert(resolved.workspace === agentWorkspace && resolved.model === 'ollama/qwen2.5:latest', 'Execution must read only selected configuration')
+      syncAssignedSkillGuidanceForAgent(agentId, { agentWorkspaceDir: agentWorkspace })
+      process.env.OPENCLAW_CONFIG_PATH = path.join(root, 'missing.json')
+      let refused = false
+      try { syncAssignedSkillGuidanceForAgent(agentId, { agentWorkspaceDir: agentWorkspace }) } catch { refused = true }
+      assert(refused, 'Missing selected config must not discover another installed profile')
+      assert(repairWorkflowSessionEntryForRun(agentId, 'workflow-new'), 'Selected session pointer should be repaired')
+      assert(!JSON.parse(fs.readFileSync(path.join(sessionDir, 'sessions.json'), 'utf8'))[`agent:${agentId}:main`].sessionFile, 'Stale selected pointer removed')
+      assert(fs.readFileSync(path.join(otherDir, 'sessions.json'), 'utf8') === entry, 'Unrelated profile must remain byte-identical')
+      assert(resetAgentSessionsForModelChange(otherHome, agentId, state).ok, 'Selected session reset must succeed')
+      assert(!fs.existsSync(path.join(sessionDir, 'sessions.json')), 'Selected session index archived')
+      assert(fs.readFileSync(path.join(otherDir, 'sessions.json'), 'utf8') === entry, 'Reset must preserve unrelated profile')
+    } finally {
+      if (previous.state === undefined) delete process.env.OPENCLAW_STATE_DIR; else process.env.OPENCLAW_STATE_DIR = previous.state
+      if (previous.config === undefined) delete process.env.OPENCLAW_CONFIG_PATH; else process.env.OPENCLAW_CONFIG_PATH = previous.config
+      if (previous.workspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE; else process.env.CLAWMAX_TEST_WORKSPACE = previous.workspace
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
   console.log(`\n${YELLOW}=== Workflow Session Regression Tests ===${RESET}\n`)
 
   await test('embedded session takeover errors are treated as lock conflicts', async () => {

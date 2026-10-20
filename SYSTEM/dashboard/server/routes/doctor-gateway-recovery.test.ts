@@ -132,6 +132,46 @@ async function run() {
   setupWorkspace(tmpHome)
   process.env.OPENCLAW_BIN = writeFakeOpenClawCli(tmpHome)
 
+  await test('agent-scoped Doctor persists safe repairs, backs up originals, and leaves other agents untouched', async () => {
+    const agentsDir = path.join(process.env.OPENCLAW_WORKSPACE!, 'AGENTS')
+    for (const id of ['repair-me', 'leave-me']) {
+      fs.mkdirSync(path.join(agentsDir, id), { recursive: true })
+      fs.writeFileSync(path.join(agentsDir, id, 'IDENTITY.md'), '# Identity\n')
+      fs.writeFileSync(path.join(agentsDir, id, 'SOUL.md'), '# Soul\nKeep instructions.')
+    }
+    await withGatewayRpcStubs({ probeGatewayResponsive: async () => ({ running: false, port: 18789 }), isGatewayRunning: () => ({ running: false, port: 18789 }), getConfiguredGatewayPort: () => 18789 }, async () => {
+      await withChildProcessStubs({ execFileSync: (_command: string, args: string[]) => {
+        assert(!args.includes('restart'), 'Scoped Doctor must not restart the shared gateway')
+        return 'openclaw 2026.5.26'
+      } }, async () => {
+        const res = makeRes()
+        await getDoctorHandler()(makeReq({ fix: true, agentId: 'repair-me' }), res)
+        assert.deepEqual(res.jsonBody.results.map((r: any) => r.id), ['repair-me'])
+        assert(res.jsonBody.results[0].checks.some((c: any) => c.check === 'config-repair' && c.status === 'fixed'))
+        assert(fs.readFileSync(path.join(agentsDir, 'repair-me', 'IDENTITY.md'), 'utf-8').includes('**Name:** repair-me'))
+        assert.equal(fs.readFileSync(path.join(agentsDir, 'leave-me', 'IDENTITY.md'), 'utf-8'), '# Identity\n')
+        const backups = fs.readdirSync(path.join(agentsDir, 'repair-me')).filter(name => name.startsWith('.doctor-backup-'))
+        assert.equal(backups.length, 1)
+        assert.equal(fs.readFileSync(path.join(agentsDir, 'repair-me', backups[0], 'IDENTITY.md'), 'utf-8'), '# Identity\n')
+        const again = makeRes()
+        await getDoctorHandler()(makeReq({ fix: true, agentId: 'repair-me' }), again)
+        assert(!again.jsonBody.results[0].checks.some((c: any) => c.check === 'config-repair'))
+        const identityPath = path.join(agentsDir, 'repair-me', 'IDENTITY.md')
+        fs.renameSync(identityPath, `${identityPath}.saved`)
+        fs.symlinkSync(path.join(agentsDir, 'leave-me', 'IDENTITY.md'), identityPath)
+        const linked = makeRes()
+        await getDoctorHandler()(makeReq({ fix: true, agentId: 'repair-me' }), linked)
+        assert(linked.jsonBody.results[0].checks.some((c: any) => c.check === 'config-validation' && c.status === 'fail'))
+        assert.equal(fs.readFileSync(path.join(agentsDir, 'leave-me', 'IDENTITY.md'), 'utf-8'), '# Identity\n')
+        for (const [agentId, status] of [['../escape', 400], ['does-not-exist', 404]] as const) {
+          const invalid = makeRes()
+          await getDoctorHandler()(makeReq({ fix: true, agentId }), invalid)
+          assert.equal(invalid.statusCode, status)
+        }
+      })
+    })
+  })
+
   await test('doctor auto-fix reports structured gateway restart success', async () => {
     let probeCalls = 0
     let runningCalls = 0
