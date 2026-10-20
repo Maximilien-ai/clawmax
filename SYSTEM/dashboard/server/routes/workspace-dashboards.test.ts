@@ -7,6 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import strictAssert from 'node:assert/strict'
 import {
   extractLinks,
   extractParticipantResponses,
@@ -149,6 +150,43 @@ test('inferWorkspaceDashboardCompanies returns workspace, team, and prefix focus
   assert(companies[0].kind === 'workspace', 'Expected workspace option first')
   assert(companies.some((company) => company.kind === 'team' && company.value === 'build-a-company-hackathon-org'), 'Expected team-backed company option')
   assert(companies.some((company) => company.kind === 'prefix' && company.value === 'b2b'), 'Expected derived prefix company option')
+})
+
+test('dashboard helpers handle missing, malformed and bounded result content', () => {
+  strictAssert.equal(summarizeSentence(' \n\t '), '')
+  strictAssert.equal(summarizeSentence(' short\n text '), 'short text')
+  strictAssert.deepEqual(extractProjectConfigurationLines('# No configuration'), [])
+  strictAssert.deepEqual(extractProjectConfigurationLines('## Project Configuration\nParagraph\n1. First\n2. Second\n## Stop\n- Excluded'), ['First', 'Second'])
+  strictAssert.equal(extractProjectConfigurationLines('## Project Configuration\n' + Array.from({ length: 10 }, (_, i) => `- Item ${i}`).join('\n')).length, 6)
+  strictAssert.deepEqual(extractParticipantResponses(null), [])
+  strictAssert.deepEqual(extractParticipantResponses({ participants: {} }), [])
+  strictAssert.deepEqual(extractParticipantResponses({ participants: [null, {}, { response: 1 }, { response: ' ' }, { result: { response: 'usable' } }] }), ['usable'])
+  strictAssert.deepEqual(extractLinks([null, undefined, '', 'No links', 'https://a.invalid https://b.invalid'], 1), ['https://a.invalid'])
+  strictAssert.deepEqual(normalizeResultArtifacts({ links: ['invalid link', 'https://host.invalid/'], filePaths: [], workspacePath: '/fixture' }), [
+    { kind: 'link', label: 'invalid link', url: 'invalid link' },
+    { kind: 'link', label: 'host.invalid / host.invalid', url: 'https://host.invalid/' },
+  ])
+})
+
+test('company options deduplicate teams and prefixes while excluding child teams', () => {
+  strictAssert.deepEqual(inferWorkspaceDashboardCompanies({} as any), [{ kind: 'workspace', value: null, label: 'Whole workspace' }])
+  const options = inferWorkspaceDashboardCompanies({ teams: [
+    { id: 'a', name: 'Alpha' }, { id: 'a', name: 'Alpha duplicate' },
+    { id: 'b', name: 'Beta' }, { id: 'child', name: 'Child', parentTeamId: 'a' },
+  ] as any, workflows: [{}, { name: '' }, { name: 'Standalone' }, { name: 'Alpha · Work' }, { name: 'Gamma · One' }, { name: 'gamma · Two' }] })
+  strictAssert.deepEqual(options.map(option => option.label.toLowerCase()), ['whole workspace', 'alpha', 'beta', 'gamma'])
+})
+
+test('workspace artifact extraction ignores absent files and honors deduplication and limits', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-artifact-edges-'))
+  try {
+    const a = path.join(root, 'a.md')
+    const b = path.join(root, 'b.md')
+    fs.writeFileSync(a, 'a')
+    fs.writeFileSync(b, 'b')
+    strictAssert.deepEqual(extractWorkspaceFilePaths([null, '', 'No paths', `${root}/missing.md`, a, a, b], root, 1), [a])
+    strictAssert.deepEqual(extractWorkspaceFilePaths([a, a, b], root), [a, b])
+  } finally { fs.rmSync(root, { recursive: true, force: true }) }
 })
 
 console.log('\n========================================')

@@ -12,9 +12,31 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 Latest Stable Release: v1.9.9
 
-Development is preparing RC83 on OpenClaw `2026.9.5` and Node `24.19.0`.
-RC82 image checks passed; installed-instance acceptance and broad tester approval
-remain pending. See the [current release gate](SYSTEM/docs/planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
+### Choose the correct OSS image
+
+For a stable open-source installation, use the public image:
+
+```text
+ghcr.io/maximilien-ai/clawmax-dashboard:v1.9.9
+```
+
+See the [verified 1.9.9 release](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.9.9)
+for its multi-architecture promotion and registry smoke-test evidence.
+The public Dashboard image does not require access to the private combined-plugin
+image repository. Private combined images are not the OSS installation path.
+
+As verified on September 29, 2026, stable `v1.9.10` has not been published.
+`1.9.10-test-cognee*` and `2.0.0-test-rc*` are test candidates, not stable release
+recommendations. GitHub currently labels `v1.9.10-test-cognee4` as “Latest”; do not
+use that label as the stable-release selector. Use the explicit stable tag above
+and the pinned installer links below until a validated stable promotion is published.
+
+The latest tagged 2.0 test candidate in this checkout is RC91, using OpenClaw
+`2026.9.7`; it is not a stable release. Dashboard is working toward the
+[current dual-instance gate](SYSTEM/docs/planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md):
+close owner-scoped Template staging PR #212, validate matching public/private
+images, and prove the same next candidate on MBP14 and test10. Installed-instance
+acceptance and public Template Workflow execution are still open.
 
 - `1.9.9` adds native OpenRouter and xAI/Grok providers, brokered agent-skill secret grants, scoped Keys & Secrets navigation, mobile-safe workflow runs, pinned OpenAI model compatibility, and clearer long-running tool feedback.
 - Browser-local secrets remain unavailable to agent chat by design. Runtime use requires an explicitly assigned skill, an exact secret grant, and a registered broker action; normal Google account passwords are not supported.
@@ -22,7 +44,7 @@ remain pending. See the [current release gate](SYSTEM/docs/planning/RC83_COVERAG
 
 ## 🛠 Current Development Line: 2.0.0
 
-- RC83 preparation strengthens isolated runtime validation and targets at least 75% branch coverage. RC82 public and matching combined image checks passed, but installed-instance acceptance remains open; stable installers and images remain at `v1.9.9` until the remaining external-environment and human-review gates in the [2.0 launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) are complete.
+- Stable installers and images remain at `v1.9.9` until the remaining external-environment and human-review gates in the [2.0 launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) are complete. PR #212 provides inert Template staging and a dev-only no-tool chat path, not a public production lifecycle.
 - `main` now carries the public `clawmax.ai/v2` plugin platform. A plugin can contribute pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points through one domain-neutral host contract.
 - Lifecycle and Review are the public product plugins in the current 2.0 phase. Lifecycle provides a read-only deep view of agents, workflows, groups, and communities; Review keeps release validation organized and exportable. Other deployment-managed plugins remain outside this public repository and image. `PLUGINS/test/plugin-*` directories are synthetic host-contract fixtures and are never shown in the plugin manager.
 - Public 2.0 products include AI scoring, the Lifecycle and Review plugins, curated Gmail and Microsoft 365/Outlook integrations, and a consent-gated Activity Export contract for partner event integrations such as Digo. Activity export is off by default, visibly names its destination, and never blocks agent execution on remote delivery.
@@ -172,16 +194,16 @@ You do **not** need to pre-install OpenClaw or add model API keys before setup.
 
 If you do not want to clone the repository first, you can install from public release assets instead.
 
-Latest release:
+Stable release (pinned explicitly; not GitHub's latest test-release assets):
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/download/v1.9.9/install.sh | bash -s -- v1.9.9
 ```
 
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.9.9
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/download/v1.9.9/install.sh | bash -s -- v1.9.9
 ```
 
 What it does:
@@ -211,7 +233,7 @@ You can also bootstrap directly with the checked-in wrapper:
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.9.9 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/download/v1.9.9/install.sh | bash -s -- v1.9.9 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.
@@ -633,6 +655,7 @@ Detailed setup and troubleshooting:
 ## 📖 Documentation
 
 ### User Guides
+- **[First Agent Tutorial](SYSTEM/docs/FIRST_AGENT_TUTORIAL.md)** - Define, create, test, and improve a first ClawMax agent
 - **[Release Status](SYSTEM/docs/STATUS.md)** - Stable version, current 2.0 candidate, and remaining release gates
 - **[Testing Guide](SYSTEM/docs/TESTING_GUIDE.md)** - Unit, API, integration, and manual testing
 - **[Release Checklist](SYSTEM/docs/RELEASE_CHECKLIST.md)** - Final pre-release validation

@@ -44,6 +44,7 @@ import {
   persistWorkflowExecutionOutputArtifacts,
   resolveTargetTeamAgentIds,
   extractWorkflowAgentResultPayload,
+  parseWorkflowAgentResultPayload,
   isBenignOpenClawRuntimeWarning,
   stripBenignOpenClawRuntimeWarnings,
   summarizeAgentInputRequest,
@@ -103,6 +104,38 @@ test('validateCron returns human-readable description', () => {
   const result = validateCron('0 9 * * *')
   assert(result.humanReadable !== undefined, 'Should have humanReadable')
   assert(result.humanReadable!.toLowerCase().includes('9'), 'Should mention 9')
+})
+
+test('workflow agent payload parsing preserves raw text, nested metadata, and retry errors', () => {
+  const raw = parseWorkflowAgentResultPayload('plain response')
+  assert(raw.text === 'plain response', 'Plain runtime output should remain visible')
+  assert(raw.durationMs === 0, 'Plain output should have no invented duration')
+  const cases = [
+    { payloads: [{ text: 'top-level' }], meta: { durationMs: 14, agentMeta: { model: 'fast' } } },
+    { result: { payloads: [{ text: 'nested' }], meta: { durationMs: 22, agentMeta: { model: 'backup' } } } },
+    { result: { payloads: [{ text: '' }] } },
+    { payloads: [], result: { payloads: [{ text: 'fallback' }] }, meta: {} },
+  ]
+  const expected = [
+    { text: 'top-level', durationMs: 14, model: 'fast' },
+    { text: 'nested', durationMs: 22, model: 'backup' },
+    { text: '', durationMs: 0, model: undefined },
+    { text: 'fallback', durationMs: 0, model: undefined },
+  ]
+  for (const [index, payload] of cases.entries()) {
+    const result = parseWorkflowAgentResultPayload(JSON.stringify(payload))
+    assert(result.text === expected[index].text, `Payload ${index} text should be exact`)
+    assert(result.durationMs === expected[index].durationMs, `Payload ${index} duration should be exact`)
+    assert(result.meta.model === expected[index].model, `Payload ${index} model should be exact`)
+  }
+  for (const output of [
+    'session file locked by another process',
+    JSON.stringify({ payloads: [{ text: 'session file locked by another process' }] }),
+  ]) {
+    let threw = false
+    try { parseWorkflowAgentResultPayload(output) } catch { threw = true }
+    assert(threw, 'Lock failures should propagate for retry rather than becoming successful text')
+  }
 })
 
 test('extractWorkflowAgentResultPayload falls back to stderr json when stdout is empty', () => {
@@ -275,6 +308,34 @@ Do the thing.
 test('parseWorkflowMd returns null for invalid content', () => {
   assert(parseWorkflowMd('just text') === null, 'Plain text should fail')
   assert(parseWorkflowMd('') === null, 'Empty should fail')
+})
+
+test('workflow markdown defaults sparse fields and preserves extended portable fields', () => {
+  const sparse = parseWorkflowMd('---\nname: Sparse\n---\n\n# Work')
+  assert(sparse?.name === 'Sparse', 'Sparse workflow should parse')
+  assert(sparse?.schedule === 'manual' && sparse.timezone === 'UTC', 'Sparse workflow should use safe scheduling defaults')
+  assert(sparse?.enabled === true && sparse.executionMode === 'automated', 'Sparse workflow should remain enabled with automated mode')
+  assert(sparse?.targeting.teamIds?.length === 0, 'Sparse targeting should default to empty teams')
+  assert(sparse?.maxRuns === 0 && sparse.runCount === 0, 'Sparse counters should default to zero')
+  const namedById = parseWorkflowMd('---\ndescription: No name\nenabled: false\n---\n', 'external-id')
+  assert(namedById?.name === 'external-id' && namedById.id === 'external-id', 'Explicit ID should allow unnamed legacy markdown')
+  assert(namedById?.enabled === false, 'Explicit disabled state should remain disabled')
+  assert(parseWorkflowMd('---\nname: [broken\n---\n') === null, 'Malformed YAML must fail closed')
+
+  const full = {
+    ...sparse!, id: 'full', name: 'Full', owner: 'lead', maxRuns: 3, runCount: 1,
+    secretRequirements: [{ key: 'API_KEY', required: true }],
+    outputDefinitions: [{ key: 'report', label: 'Report', type: 'markdown' }],
+    inputRefs: [{ key: 'source', value: 'workspace:notes' }],
+  } as any
+  const markdown = workflowToMarkdown(full)
+  assert(markdown.includes('owner: lead'), 'Owner should be exported')
+  assert(markdown.includes('maxRuns: 3'), 'Run limit should be exported')
+  assert(markdown.includes('secretRequirements:'), 'Secret requirements should be exported')
+  assert(markdown.includes('outputDefinitions:'), 'Output definitions should be exported')
+  assert(markdown.includes('inputRefs:'), 'Input references should be exported')
+  const parsed = parseWorkflowMd(markdown)
+  assert(parsed?.owner === 'lead' && parsed.maxRuns === 3, 'Extended fields should round-trip')
 })
 
 test('workflowToMarkdown round-trips', () => {
@@ -1213,6 +1274,41 @@ test('triggerWorkflow rejects a concurrent second run before it can increment st
   const second = triggerWorkflow(result.id!, { manual: true })
   assert(first.success, `First trigger should claim the run: ${first.error}`)
   assert(!second.success && /already running/i.test(second.error || ''), 'Second trigger must be rejected while the first claim is active')
+})
+
+test('workflow admission disables exhausted scheduled runs without creating an execution', () => {
+  const result = createWorkflow({
+    name: `Run Limit ${Date.now()}`,
+    description: 'Scheduled workflow with exhausted quota',
+    schedule: '0 9 * * *',
+    content: '# Limited run',
+    executionMode: 'automated',
+    targeting: { agents: [], groups: [], communities: [], tags: [] },
+  })
+  assert(result.success && !!result.id, `Workflow should be created: ${result.error}`)
+  createdIds.push(result.id!)
+  updateWorkflow(result.id!, { maxRuns: 1, runCount: 1 } as any)
+  const before = listExecutions(result.id!).length
+  const rejected = triggerWorkflow(result.id!, { manual: false })
+  assert(!rejected.success && /max runs limit/i.test(rejected.error || ''), 'Scheduled run must stop at its configured limit')
+  assert(getWorkflow(result.id!)?.enabled === false, 'Exhausted workflow should be disabled')
+  assert(listExecutions(result.id!).length === before, 'Rejected admission must not create execution history')
+})
+
+test('single-workflow admission rejects empty participant selection before claiming a run', () => {
+  const result = createWorkflow({
+    name: `No Participants ${Date.now()}`,
+    description: 'Single-workflow admission boundary',
+    schedule: 'manual',
+    content: '# Work',
+    executionMode: 'automated',
+    targeting: { agents: ['missing-agent'], groups: [], communities: [], tags: [] },
+  })
+  assert(result.success && !!result.id, `Workflow should be created: ${result.error}`)
+  createdIds.push(result.id!)
+  const rejected = triggerWorkflow(result.id!, { manual: true, executionScope: 'single-workflow' })
+  assert(!rejected.success && /no executable participants/i.test(rejected.error || ''), 'Empty resolved target must be refused')
+  assert(listExecutions(result.id!).length === 0, 'No execution should be persisted for empty target')
 })
 
 test('getWorkflow marks an execution owned by an earlier dashboard boot as interrupted', () => {

@@ -20,11 +20,29 @@ export function noToolsTemplatePolicy(id: string) {
 }
 
 export function verifyTemplateExecutionPolicies(authority: TemplateAuthorityEvidence, source: TemplateExecutionPolicySource): void {
+  if (authority.bindings.some(binding => binding.skills.length || binding.credentials.length)) {
+    throw new PortableTemplateError('template_policy_unavailable', 'Committed Template execution policy is unavailable or unsupported', 409)
+  }
+  verifyTemplateStagingPolicies(authority, source)
+}
+
+/** A mixed revision may contain a credentialed Agent. That must not turn an
+ * unrelated, no-tools Agent into a credentialed execution, nor block its
+ * independently authorized no-tools eligibility. This check is only policy
+ * validation; it never grants runtime admission by itself. */
+export function verifyTemplateNoToolsAgentPolicy(authority: TemplateAuthorityEvidence, artifactId: string, source: TemplateExecutionPolicySource): void {
+  verifyTemplateStagingPolicies(authority, source)
+  const matches = authority.bindings.filter(binding => binding.artifactId === artifactId)
+  if (matches.length !== 1 || matches[0].skills.length || matches[0].credentials.length) {
+    throw new PortableTemplateError('template_policy_unavailable', 'Committed Template execution policy is unavailable or unsupported', 409)
+  }
+}
+
+/** Staging keeps the no-tools gateway policy while recording Skill and named
+ * credential requirements. It does not authorize a model or Skill invocation. */
+export function verifyTemplateStagingPolicies(authority: TemplateAuthorityEvidence, source: TemplateExecutionPolicySource): void {
   const fail = (): never => { throw new PortableTemplateError('template_policy_unavailable', 'Committed Template execution policy is unavailable or unsupported', 409) }
   for (const binding of authority.bindings) {
-    // Never silently drop requested execution authority to fit the supported
-    // adapter. In particular, this cannot stand in for Collector-only access.
-    if (binding.skills.length || binding.credentials.length) fail()
     const expected = noToolsTemplatePolicy(binding.policy.id)
     let actual: unknown
     try { actual = source.read(binding.policy.id) } catch { fail() }

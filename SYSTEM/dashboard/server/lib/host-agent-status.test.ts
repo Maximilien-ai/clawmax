@@ -97,6 +97,43 @@ async function run() {
     assert(status === null, 'Expected reconnect banner suppressed for a different dashboard host')
   })
 
+  await test('missing and malformed state never invent host warnings', () => {
+    process.env.OPENCLAW_HOST_AGENT_STATE_PATH = path.join(tmpDir, 'missing.json')
+    assert(getHostAgentStatus() === null, 'Missing state must be silent')
+    process.env.OPENCLAW_HOST_AGENT_STATE_PATH = statePath
+    for (const value of ['invalid JSON', 'null', '[]', '"text"', '{}']) {
+      fs.writeFileSync(statePath, value)
+      assert(getHostAgentStatus() === null, `Unexpected warning for ${value}`)
+    }
+  })
+
+  await test('missing and invalid heartbeats explain unreachable hosts without exposing credentials', () => {
+    for (const lastSeen of [undefined, 'invalid date']) {
+      fs.writeFileSync(statePath, JSON.stringify({ desired_state: 'RUNNING', last_seen_at: lastSeen, worker_key: 'private-worker', refresh_token: 'private-refresh' }))
+      const status = getHostAgentStatus()
+      assert(status?.state === 'unreachable', 'Running host without valid heartbeat must be unreachable')
+      assert(!!status?.detail.includes('stopped checking in'), 'Expected useful default detail')
+      assert(status?.summary === undefined, 'Missing summary must remain absent')
+      assert(!JSON.stringify(status).includes('private-'), 'Credentials must never appear in status')
+    }
+    fs.writeFileSync(statePath, JSON.stringify({ desired_state: 'stopped', last_seen_at: 'invalid date' }))
+    assert(getHostAgentStatus() === null, 'Stopped host must not be reported unreachable')
+  })
+
+  await test('host aliases and legacy host-only URLs retain correctly scoped warnings', () => {
+    for (const [stored, current] of [['http://localhost:3201', '127.0.0.1:3201'], ['localhost', '127.0.0.1'], ['localhost:3201', 'localhost:3201']]) {
+      fs.writeFileSync(statePath, JSON.stringify({ last_dashboard_url: stored, last_error: 'action polling unauthorized' }))
+      const status = getHostAgentStatus(current)
+      assert(status?.state === 'unauthorized', `Expected equivalent hosts ${stored} and ${current}`)
+      assert(status?.summary === undefined && status?.lastSeenAt === undefined, 'Absent metadata must remain absent')
+    }
+    fs.writeFileSync(statePath, JSON.stringify({ last_reconcile_result: 'FAILED' }))
+    const status = getHostAgentStatus('  ')
+    assert(status?.state === 'warning', 'Failed reconcile without host must be visible')
+    assert(status?.detail === 'The local host agent reported a failed reconcile.', 'Expected default reconcile detail')
+    assert(status?.summary === undefined && status?.lastSeenAt === undefined, 'Missing optional metadata must remain absent')
+  })
+
   if (originalPath === undefined) delete process.env.OPENCLAW_HOST_AGENT_STATE_PATH
   else process.env.OPENCLAW_HOST_AGENT_STATE_PATH = originalPath
 

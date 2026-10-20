@@ -1,6 +1,7 @@
 import assert from 'assert'
 import {
   buildCommunicationCacheKey,
+  communicationTitle,
   mergeTypingAgents,
   removeRespondedAgentsFromPending,
   resolveCommunicationDocPath,
@@ -8,6 +9,10 @@ import {
 } from './communicationMessages'
 
 function run() {
+  assert.equal(communicationTitle({ name: 'opaque-id', displayName: 'Daily Site Health' }), 'Daily Site Health')
+  assert.equal(communicationTitle({ name: 'Legacy Group', displayName: '  ' }), 'Legacy Group')
+  assert.equal(communicationTitle({ name: 'bulk-id', displayName: 'Ignored', tags: ['bulk-chat'], description: 'Temporary chat with Analysts' }), 'Temporary chat with Analysts')
+  assert.equal(buildCommunicationCacheKey('group', 'opaque-id'), 'group:opaque-id', 'Display labels must not change storage identity')
   assert.strictEqual(buildCommunicationCacheKey('group', 'Leadership'), 'group:Leadership')
 
   const base = [

@@ -157,6 +157,22 @@ test('deleteWorkspace removes a non-active test workspace without changing the a
   assert(manager.getWorkspace(systemTestWorkspace.id) === null, 'Expected system-test workspace registry entry to be removed')
 })
 
+test('registry identity remains readable for authorization while resources are quarantined', () => {
+  const manager = createManager()
+  const workspace = manager.createWorkspace('Transaction Workspace', path.join(tmpRoot, 'transaction-workspace'))
+  const journalDirectory = path.join(workspace.path, '.clawmax')
+  fs.mkdirSync(journalDirectory, { recursive: true })
+  const journal = path.join(journalDirectory, 'template-gateway-transaction.json')
+  fs.writeFileSync(journal, '{pending')
+  try {
+    assert(manager.getWorkspaceRegistration(workspace.id)?.path === workspace.path, 'Registry identity must remain available for owner rechecks')
+    let blocked = false
+    try { manager.getWorkspace(workspace.id) } catch { blocked = true }
+    assert(blocked, 'Workspace resources must remain quarantined')
+  } finally { fs.unlinkSync(journal) }
+  assert(manager.getWorkspace(workspace.id)?.path === workspace.path, 'Resources must be available after recovery')
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)

@@ -3,7 +3,7 @@ import path from 'path'
 import { InstanceTemplateCatalog, validResourceId } from './instance-template-catalog'
 import { PortableTemplate, sha256 } from './portable-template'
 import { PortableTemplateError } from './portable-template-zip'
-import { commitWorkspaceFiles, WorkspaceFileMutation } from './workspace-file-transaction'
+import { commitWorkspaceFiles, WorkspaceFileMutation, maxWorkspaceResourceBytes } from './workspace-file-transaction'
 import { templateStoragePath } from './template-storage-path'
 import type { resolveTemplateAuthority } from './template-authority'
 import { assertTemplateExecutionsSettled } from './template-execution-receipts'
@@ -52,6 +52,7 @@ interface Revision {
   // Private rollback/cleanup data never returned through the public API.
   undo: WorkspaceFileMutation[]
   groupAppend?: string
+  communityAppend?: string
 }
 interface RevisionState { version: 1; current: string | null; revisions: Revision[] }
 const stateRelativePath = 'SYSTEM/.clawmax/template-revisions.json'
@@ -60,7 +61,7 @@ function canonical(value: any): string {
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`
   return JSON.stringify(value)
 }
-function publicRevision(revision: Revision) { const { undo: _undo, groupAppend: _groupAppend, requestDigest: _requestDigest, ...result } = revision; return result }
+function publicRevision(revision: Revision) { const { undo: _undo, groupAppend: _groupAppend, communityAppend: _communityAppend, requestDigest: _requestDigest, ...result } = revision; return result }
 
 /** Owns revision state and exact cleanup independently of the resource compiler.
  * The compiler must reject unsupported runtime/authority semantics, not silently
@@ -107,7 +108,8 @@ export class TemplateRevisionStore {
   async plan(actorId: string, request: TemplateRevisionRequest): Promise<TemplateRevisionPlan> {
     return (await this.prepare(actorId, request)).plan
   }
-  async apply(actorId: string, request: TemplateRevisionRequest, planDigest: string) {
+  async apply(actorId: string, request: TemplateRevisionRequest, planDigest: string, assertAuthorized: () => void = () => {}) {
+    assertAuthorized()
     this.validateRequest(request)
     const requestDigest = sha256(canonical(request))
     const replay = this.read().state.revisions.find(entry => entry.actorId === actorId && entry.idempotencyKey === request.idempotencyKey)
@@ -123,6 +125,7 @@ export class TemplateRevisionStore {
       if (concurrent && concurrent.requestDigest === requestDigest && concurrent.planDigest === planDigest && !concurrent.cleanedAt) return { created: false, revision: publicRevision(concurrent) }
       throw error
     }
+    assertAuthorized()
     if (prepared.plan.planDigest !== planDigest) throw new PortableTemplateError('stale_plan', 'Template, resources, or authority changed; plan again', 409)
     const undo = prepared.compiled.mutations.map(item => {
       const file = path.join(this.workspacePath, item.path)
@@ -139,8 +142,14 @@ export class TemplateRevisionStore {
     const groupWrite = prepared.compiled.mutations.find(item => item.path === 'ORG/GROUPS.md')
     const groupUndo = undo.find(item => item.path === 'ORG/GROUPS.md')
     const groupBase = groupUndo?.content ?? '# Organization\n'
-    if (Object.keys(revision.resources.groups).length && groupWrite?.content?.startsWith(`${groupBase}\n## Groups\n\n`)) {
+    if (Object.keys(revision.resources.groups).length && typeof groupWrite?.content === 'string' && groupWrite.content.startsWith(`${groupBase}\n## Groups\n\n`)) {
       revision.groupAppend = groupWrite.content.slice(groupBase.length)
+    }
+    const communityWrite = prepared.compiled.mutations.find(item => item.path === 'ORG/COMMUNITIES.md')
+    const communityUndo = undo.find(item => item.path === 'ORG/COMMUNITIES.md')
+    const communityBase = communityUndo?.content ?? '# Communities\n'
+    if (Object.keys(revision.resources.communities).length && typeof communityWrite?.content === 'string' && communityWrite.content.startsWith(`${communityBase}\n## Communities\n\n`)) {
+      revision.communityAppend = communityWrite.content.slice(communityBase.length)
     }
     const next: RevisionState = { version: 1, current: revision.id, revisions: [...prepared.state.revisions, revision] }
     commitWorkspaceFiles(this.workspacePath, [...prepared.compiled.mutations, { path: stateRelativePath, expectedSha256: prepared.bytes ? sha256(prepared.bytes) : null, content: JSON.stringify(next) }])
@@ -151,10 +160,15 @@ export class TemplateRevisionStore {
   private cleanupMutations(revision: Revision): WorkspaceFileMutation[] {
     return revision.undo.map(item => {
       // Older ledgers retain their original strict whole-file cleanup contract.
-      if (item.path !== 'ORG/GROUPS.md' || revision.groupAppend === undefined) return item
-      const conflict = () => new PortableTemplateError('resource_conflict', 'Revision-owned Group section changed; cleanup requires inspection', 409)
-      const appended = revision.groupAppend
-      if (typeof appended !== 'string' || !appended.startsWith('\n## Groups\n\n') || sha256((item.content ?? '# Organization\n') + appended) !== item.expectedSha256) throw conflict()
+      const isGroup = item.path === 'ORG/GROUPS.md' && revision.groupAppend !== undefined
+      const isCommunity = item.path === 'ORG/COMMUNITIES.md' && revision.communityAppend !== undefined
+      if (!isGroup && !isCommunity) return item
+      const label = isGroup ? 'Group' : 'Community'
+      const sectionName = isGroup ? 'Groups' : 'Communities'
+      const conflict = () => new PortableTemplateError('resource_conflict', `Revision-owned ${label} section changed; cleanup requires inspection`, 409)
+      const appended = isGroup ? revision.groupAppend : revision.communityAppend
+      const base = isGroup ? '# Organization\n' : '# Communities\n'
+      if (typeof appended !== 'string' || !appended.startsWith(`\n## ${sectionName}\n\n`) || sha256((item.content ?? base) + appended) !== item.expectedSha256) throw conflict()
       let current: string
       let fd: number | undefined
       try {
@@ -165,11 +179,12 @@ export class TemplateRevisionStore {
       } catch { throw conflict() } finally { if (fd !== undefined) fs.closeSync(fd) }
       const offset = current.indexOf(appended)
       if (offset < 0 || current.indexOf(appended, offset + appended.length) !== -1) throw conflict()
-      for (const id of Object.values(revision.resources.groups)) {
-        if (current.split('\n').filter(line => line.trim() === `### ${id}`).length !== 1) throw conflict()
+      for (const id of Object.values(isGroup ? revision.resources.groups : revision.resources.communities)) {
+        const marker = isGroup ? `### ${id}` : `- **Template Resource ID:** ${id}`
+        if (current.split('\n').filter(line => line.trim() === marker).length !== 1) throw conflict()
       }
       const remaining = current.slice(0, offset) + current.slice(offset + appended.length)
-      return { path: item.path, expectedSha256: sha256(current), content: item.content === null && remaining === '# Organization\n' ? null : remaining }
+      return { path: item.path, expectedSha256: sha256(current), content: item.content === null && remaining === base ? null : remaining }
     })
   }
   /** Read-only integrity evidence, NOT execution permission. Callers must still
@@ -184,16 +199,16 @@ export class TemplateRevisionStore {
     const conflict = () => new PortableTemplateError('resource_conflict', 'Revision execution resources are missing or changed', 409)
     const paths: string[] = []
     const ids: string[] = []
-    for (const kind of ['agents', 'groups', 'workflows'] as const) {
+    for (const kind of ['agents', 'communities', 'groups', 'workflows'] as const) {
       const resources = revision.resources?.[kind]
       if (!resources || typeof resources !== 'object' || Array.isArray(resources)) throw conflict()
       for (const id of Object.values(resources)) {
-        const singular = kind === 'agents' ? 'agent' : kind === 'groups' ? 'group' : 'workflow'
+        const singular = kind === 'agents' ? 'agent' : kind === 'communities' ? 'community' : kind === 'groups' ? 'group' : 'workflow'
         if (typeof id !== 'string' || !new RegExp(`^tr-[a-f0-9]{16}-${singular}-[a-f0-9]{12}$`).test(id) || ids.includes(id)) throw conflict()
         ids.push(id)
         if (kind === 'agents') {
           for (const name of ['IDENTITY.md', 'SOUL.md', 'GROUPS.md', 'TEMPLATE_RESOURCE.json', ...(revision.authority ? ['TEMPLATE_AUTHORITY.json'] : [])]) paths.push(`AGENTS/${id}/${name}`)
-        } else paths.push(kind === 'groups' ? `ORG/template-groups/${id}.json` : `WORKFLOWS/${id}.json`)
+        } else paths.push(kind === 'communities' ? `ORG/template-communities/${id}.json` : kind === 'groups' ? `ORG/template-groups/${id}.json` : `WORKFLOWS/${id}.json`)
       }
     }
     if (!ids.includes(resourceId)) throw new PortableTemplateError('revision_forbidden', 'Resource does not belong to this revision', 403)
@@ -224,7 +239,7 @@ export class TemplateRevisionStore {
       const file = templateStoragePath(this.workspacePath, item.path)
       if (fs.existsSync(file)) {
         const stat = fs.statSync(file)
-        if (!stat.isFile() || stat.size > 2 * 1024 * 1024) throw new PortableTemplateError('resource_conflict', 'Revision-owned resource is not a bounded regular file', 409)
+        if (!stat.isFile() || stat.size > maxWorkspaceResourceBytes(item.path)) throw new PortableTemplateError('resource_conflict', 'Revision-owned resource is not a bounded regular file', 409)
       }
       const digest = fs.existsSync(file) ? sha256(fs.readFileSync(file)) : null
       if (digest !== item.expectedSha256) throw new PortableTemplateError('resource_conflict', 'Revision-owned resources changed; cleanup requires inspection', 409)

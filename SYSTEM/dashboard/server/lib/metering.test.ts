@@ -14,6 +14,7 @@ import {
   resetMeteringFetchFailureStateForTests,
   summarizeCostWindows,
   traceMatchesViewer,
+  traceMatchesWorkspace,
 } from './metering'
 import { estimateModelCostUsd } from './model-pricing'
 
@@ -44,6 +45,12 @@ function assert(condition: boolean, message: string) {
 console.log(`\n${YELLOW}=== Metering Test Suite ===${RESET}\n`)
 
 async function run() {
+  await test('workspace spend excludes unscoped and other-workspace traces even when agent IDs overlap', () => {
+    const ids = new Set(['workspace-a', 'workspace-a-path'])
+    assert(traceMatchesWorkspace({ metadata: { workspace_id: 'workspace-a', agent_id: 'collector' } }, ids), 'Expected current workspace trace')
+    assert(!traceMatchesWorkspace({ metadata: { workspace_id: 'workspace-b', agent_id: 'collector' } }, ids), 'Other workspace spend must not be charged here')
+    assert(!traceMatchesWorkspace({ metadata: { agent_id: 'collector' } }, ids), 'Unscoped legacy spend must not be assigned by agent name')
+  })
   await test('empty and legacy metering snapshots merge with finite zero totals', () => {
     const merged = mergeWorkspaceMetering({} as any, {} as any)
     assert(merged.period === 'all', 'Legacy snapshots default to all time')

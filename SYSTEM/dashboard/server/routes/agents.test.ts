@@ -150,6 +150,19 @@ async function withModelDiscoveryStubs<T>(overrides: Record<string, any>, fn: ()
   }
 }
 
+async function withAgentRuntimeStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
+  const runtime = require('../lib/agent-runtime')
+  const originals = Object.fromEntries(Object.keys(overrides).map((key) => [key, runtime[key]]))
+  Object.assign(runtime, overrides)
+  delete require.cache[require.resolve('./agents')]
+  try {
+    return await fn()
+  } finally {
+    Object.assign(runtime, originals)
+    delete require.cache[require.resolve('./agents')]
+  }
+}
+
 async function withWhatsAppDependencyStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
   delete require.cache[whatsappDependenciesModulePath]
   const whatsappDependencies = require('../lib/whatsapp-dependencies')
@@ -493,6 +506,40 @@ async function run() {
       )
       assert(/not a quality or cost measurement/i.test(res.jsonBody?.disclaimer || ''), 'Expected advisory limitation')
     })
+  })
+
+  await test('model fit handles empty prompts and scopes pinned CLI models after BYOK discovery failure', async () => {
+    await withModelDiscoveryStubs({
+      getAvailableModelsCached: () => ['openai/gpt-5.4-mini'],
+      discoverModels: async () => { throw new Error('Synthetic provider outage') },
+    }, () => withAgentRuntimeStubs({
+      listRuntimeModels: async (runtime: string) => runtime === 'droid' ? ['droid-fast', 'droid-reasoner'] : [],
+    }, async () => {
+      const handler = getRouteHandler('post', '/model-fit')
+      const missing = makeRes()
+      await handler(makeReq({ body: { description: '   ' } }), missing)
+      assert.strictEqual(missing.statusCode, 400)
+      assert.strictEqual(missing.jsonBody.error, 'description is required')
+
+      const pinned = makeRes()
+      await handler(makeReq({ body: {
+        description: 'Summarize a report quickly',
+        runtime: 'droid',
+        preference: 'unsupported',
+        byokKeys: { openai: 'synthetic-key' },
+        availableModels: ['openai/gpt-5.4-mini', 'droid-fast', 'not-installed'],
+      } }), pinned)
+      assert.strictEqual(pinned.statusCode, 200)
+      assert.deepStrictEqual(pinned.jsonBody.candidates.map((candidate: any) => candidate.model), ['droid-fast'])
+
+      const fallback = makeRes()
+      await handler(makeReq({ body: {
+        description: 'Write a short answer', runtime: 'droid',
+        availableModels: ['not-installed'],
+      } }), fallback)
+      assert.strictEqual(fallback.statusCode, 200)
+      assert(fallback.jsonBody.candidates.every((candidate: any) => candidate.model.startsWith('droid-')))
+    }))
   })
 
   await test('generate returns AI-suggested names, tags, models, and skills for new agents', async () => {
@@ -1966,6 +2013,34 @@ async function run() {
     }
   })
 
+  await test('validate-provision retains pinned CLI models when provider discovery fails', async () => {
+    let discoveryCalls = 0
+    await withModelDiscoveryStubs({
+      discoverModels: async () => { discoveryCalls++; throw new Error('Synthetic provider outage') },
+      getAvailableModels: () => ['openai/gpt-5.4-mini'],
+    }, () => withAgentRuntimeStubs({
+      listRuntimeModels: async (runtime: string) => runtime === 'droid' ? ['droid-fast'] : [],
+    }, async () => {
+      const handler = getRouteHandler('post', '/validate-provision')
+      const pinned = makeRes()
+      await handler(makeReq({ body: {
+        name: 'pinned-cli-agent', model: 'droid-fast', runtime: 'droid',
+        openai: 'synthetic-key', anthropic: 42, gemini: 42, openrouter: 42,
+        xai: 42, ollamaBaseUrl: 42, openaiCompatibleApiKey: 42,
+        openaiCompatibleBaseUrl: 42, openaiCompatibleDefaultModel: 42,
+      } }), pinned)
+      assert.strictEqual(pinned.statusCode, 200)
+      assert.strictEqual(pinned.jsonBody.valid, true)
+      assert(!(pinned.jsonBody.warnings || []).some((warning: string) => /may fall back during provisioning/i.test(warning)))
+      assert.strictEqual(discoveryCalls, 1)
+
+      const uncatalogued = makeRes()
+      await handler(makeReq({ body: { name: 'uncatalogued-agent', model: 'droid-missing', runtime: 'droid' } }), uncatalogued)
+      assert.strictEqual(uncatalogued.statusCode, 200)
+      assert((uncatalogued.jsonBody.warnings || []).some((warning: string) => /may fall back during provisioning/i.test(warning)))
+    }))
+  })
+
   await test('chat messages route falls back to the newest explicit session file when the legacy dashboard mapping is missing', async () => {
     writeAgent(workspacePath, 'history-agent', [
       '# IDENTITY.md',
@@ -2510,6 +2585,30 @@ async function run() {
       assert(res.jsonBody?.modelsByProvider?.ollama, 'Expected Ollama provider in response')
     } finally {
       discoveryModule.discoverModels = originalDiscoverModels
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
+  await test('model search discovers configured BYOK models without clearing cache', async () => {
+    const discoveryModule = require('../lib/model-discovery')
+    const originalDiscoverModels = discoveryModule.discoverModels
+    const originalClearModelCache = discoveryModule.clearModelCache
+    let cacheCleared = false
+    try {
+      discoveryModule.clearModelCache = () => { cacheCleared = true }
+      discoveryModule.discoverModels = async (byokKeys: any) => {
+        assert.strictEqual(byokKeys?.openai, 'fixture-openai-key')
+        return { models: ['openai/gpt-6-sol'], modelsByProvider: { openai: { name: 'OpenAI', models: ['openai/gpt-6-sol'] } } }
+      }
+      const handler = getRouteHandler('post', '/models/discover')
+      const res = makeRes()
+      await handler(makeReq({ body: { openai: 'fixture-openai-key' } }), res)
+      assert.strictEqual(res.statusCode, 200)
+      assert.deepStrictEqual(res.jsonBody?.models, ['openai/gpt-6-sol'])
+      assert.strictEqual(cacheCleared, false)
+    } finally {
+      discoveryModule.discoverModels = originalDiscoverModels
+      discoveryModule.clearModelCache = originalClearModelCache
       delete require.cache[require.resolve('./agents')]
     }
   })

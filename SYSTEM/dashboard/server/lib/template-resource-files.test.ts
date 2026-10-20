@@ -52,7 +52,7 @@ async function main() {
     metadataBundle.artifacts[0].definition.description = 'Example\n**Model:** injected/provider'
     const metadataFiles = compiler(metadataBundle, request, 'tr-0123456789abcdef').mutations
     const metadataIdentity = metadataFiles.find(item => item.path.endsWith('/IDENTITY.md'))!.content!
-    assert.equal(parseIdentity(metadataIdentity).model, undefined, 'Description cannot inject native runtime metadata')
+    assert.equal(parseIdentity(String(metadataIdentity)).model, undefined, 'Description cannot inject native runtime metadata')
 
     const compiled = compiler(bundle, request, 'tr-0123456789abcdef')
     assert.throws(() => commitWorkspaceFiles(root, compiled.mutations, index => { if (index === 2) throw new Error('synthetic interruption') }), /synthetic interruption/)

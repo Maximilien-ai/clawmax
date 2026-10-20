@@ -32,15 +32,23 @@ export function verifyCorePersistentStateReadable(checks: StartupReadinessCheck[
 export function createGatewayReadinessCheck(
   probe: () => Promise<{ running: boolean }>,
   now: () => number = Date.now,
+  timeoutMs = 2000,
 ) {
   let pending: Promise<boolean> | undefined
   let cached: { ready: boolean; expires: number } | undefined
   return (): Promise<boolean> => {
     if (cached && now() < cached.expires) return Promise.resolve(cached.ready)
     if (pending) return pending
-    pending = Promise.resolve().then(probe)
-      .then(result => result.running === true, () => false)
+    let timer: ReturnType<typeof setTimeout>
+    const deadline = new Promise<boolean>(resolve => {
+      timer = setTimeout(() => resolve(false), timeoutMs)
+    })
+    pending = Promise.race([
+      Promise.resolve().then(probe).then(result => result.running === true, () => false),
+      deadline,
+    ])
       .then(ready => {
+        clearTimeout(timer)
         cached = { ready, expires: now() + 1000 }
         pending = undefined
         return ready

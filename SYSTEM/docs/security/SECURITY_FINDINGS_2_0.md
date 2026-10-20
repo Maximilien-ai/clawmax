@@ -5,6 +5,23 @@
 
 ## Summary
 
+### RC89 dependency checkpoint — September 30, 2026 (Pacific)
+
+This checkpoint is separate from the August review totals below; it is not a
+complete security audit. CI run `36801337752` stopped on two high-severity
+brace-expansion advisories before running tests. Commit `9b420c71` updates the
+lockfile from 5.0.9 to 5.0.12 without weakening the audit gate.
+
+- `npm run security:audit`: passed, zero high/critical advisories.
+- `npm audit --json`: 593 reported dependencies (336 production, 258 development,
+  32 optional; categories overlap); 0 critical, 0 high, 5 moderate.
+- Remaining moderate package findings: body-parser, express, fast-uri,
+  ip-address, qs. Owner: Dashboard; triage deadline: October 1, 2026, before RC89
+  release qualification. These are not silently accepted or closed.
+- `npm run lint` and `npm run typecheck`: passed after the fixture cleanup fix.
+- New CI and complete candidate integration/coverage remain required. This
+  audit covers Dashboard dependencies, not every packaged runtime/plugin.
+
 | Severity | Found | Open | Fixed | Accepted |
 |---|---:|---:|---:|---:|
 | Critical | 0 | 0 | 0 | 0 |
@@ -68,4 +85,3 @@
 The RC15 OpenTelemetry Medium advisory chain is no longer present. The current
 lockfile resolves the compatible OpenTelemetry family and the final npm audit
 reports `0` Critical, High, Moderate, Low, and Info vulnerabilities.
-

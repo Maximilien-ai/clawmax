@@ -1,0 +1,183 @@
+import crypto from 'crypto'
+import fs from 'fs'
+import type { Request, Response } from 'express'
+import { getWorkspaceManager } from '../lib/workspace-manager'
+import { configuredTemplateResolverFromEnv } from '../lib/template-service'
+import { inspectTemplateHostSkill } from '../lib/template-host-skill-inspection'
+import { revalidateTemplateAuthority } from '../lib/template-authority'
+import { templateStoragePath } from '../lib/template-storage-path'
+import { runTemplateHostSkillRead } from '../lib/template-host-skill-tool'
+import { runDevHostSkillAgent, runDevNoToolAgent } from '../lib/dev-host-skill-agent'
+import { getSystemProviderKeys } from '../lib/dashboard-env'
+import { isDashboardAuthBypassAllowed } from '../lib/http-security'
+import { withRegisteredTurn } from '../lib/agent-turns'
+
+const agentIdPattern = /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/
+const loopback = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1'])
+
+/** Explicitly scoped local rehearsal for staged Agents. This mode never
+ * opens the host Skill bridge or treats a pending credential as bound. */
+export function devTemplateNoToolChatEnabled(env: NodeJS.ProcessEnv, origin: string | undefined, remoteAddress: string | undefined): boolean {
+  return env.NODE_ENV !== 'production'
+    && env.CLAWMAX_DEV_TEMPLATE_NO_TOOL_CHAT === '1'
+    && env.DASHBOARD_APP_URL === 'http://localhost:5174'
+    && isDashboardAuthBypassAllowed(env)
+    && origin === 'http://localhost:5174'
+    && loopback.has(remoteAddress || '')
+    && !!env.CLAWMAX_DEV_HOST_WORKSPACE_ID
+    && !!env.CLAWMAX_DEV_HOST_ACTOR_ID
+    && env.CLAWMAX_DEV_HOST_ACTOR_ID === env.CLAWMAX_CLI_LOCAL_ACTOR_ID
+}
+
+export function devHostSkillChatEnabled(env: NodeJS.ProcessEnv, origin: string | undefined, remoteAddress: string | undefined): boolean {
+  return env.NODE_ENV !== 'production'
+    && env.CLAWMAX_DEV_HOST_SKILL_CHAT === '1'
+    && env.CLAWMAX_DEV_HOST_SKILL_AUTHORITY === '1'
+    && env.DASHBOARD_APP_URL === 'http://localhost:5174'
+    && isDashboardAuthBypassAllowed(env)
+    && origin === 'http://localhost:5174'
+    && loopback.has(remoteAddress || '')
+    && /^[a-f0-9]{64}$/.test(env.CLAWMAX_DEV_HOST_AUTH_KEY || '')
+    && !!env.CLAWMAX_DEV_HOST_ACTOR_ID
+    && env.CLAWMAX_DEV_HOST_ACTOR_ID === env.CLAWMAX_CLI_LOCAL_ACTOR_ID
+}
+
+function enabled(req: Request): boolean {
+  return devHostSkillChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)
+    || devTemplateNoToolChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)
+}
+
+function readBoundFile(file: string, maxBytes: number): string {
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK)
+  try {
+    const stat = fs.fstatSync(fd)
+    if (!stat.isFile() || stat.size < 1 || stat.size > maxBytes) throw new Error('Bound Agent file unavailable')
+    return fs.readFileSync(fd, 'utf8')
+  } finally { fs.closeSync(fd) }
+}
+
+function resolve(agentId: string, noToolsOnly = false) {
+  if (!agentIdPattern.test(agentId)) return null
+  const actorId = process.env.CLAWMAX_DEV_HOST_ACTOR_ID || ''
+  const manager = getWorkspaceManager()
+  // No-tool rehearsal follows the locally selected workspace; the host Skill
+  // bridge remains pinned to its one explicitly configured workspace.
+  const workspaceId = noToolsOnly ? manager.getActiveWorkspaceId() : process.env.CLAWMAX_DEV_HOST_WORKSPACE_ID || ''
+  if (manager.getActiveWorkspaceId() !== workspaceId) return null
+  const workspace = manager.getWorkspace(workspaceId)
+  const resolver = configuredTemplateResolverFromEnv()
+  if (!workspace || !resolver) return null
+  const service = resolver({ workspaceId, workspacePath: workspace.path, actorId })
+  const revisions = service.store.history().filter(revision => !revision.cleanedAt
+    && revision.actorId === actorId && Object.values(revision.resources.agents).includes(agentId))
+  if (revisions.length !== 1) return null
+  const revision = revisions[0]
+  const current = service.store.verifyExecutionResources(actorId, revision.id, agentId)
+  if (!current.authority) return null
+  revalidateTemplateAuthority(current.authority, current.authorityDigest, { workspaceId, actorId }, service.authority)
+  const artifactId = Object.entries(revision.resources.agents).find(([, id]) => id === agentId)?.[0]
+  const binding = revision.authority?.bindings.find(item => item.artifactId === artifactId)
+  if (!binding || binding.model.id !== 'openai/gpt-5.4-mini') return null
+  const identity = readBoundFile(templateStoragePath(workspace.path, `AGENTS/${agentId}/IDENTITY.md`), 32 * 1024)
+  const soul = readBoundFile(templateStoragePath(workspace.path, `AGENTS/${agentId}/SOUL.md`), 32 * 1024)
+  if (noToolsOnly) return { workspaceId, actorId, revisionId: revision.id, agentId,
+    skillName: null, skillInstructions: `${identity}\n\n${soul}`, service }
+  if (binding.skills.length > 1 || !binding.skills.length && binding.credentials.length) return null
+  const skillName = binding.skills[0]?.name || null
+  let skillInstructions = ''
+  if (skillName) {
+    const evidence = inspectTemplateHostSkill({ store: service.store, authority: service.authority,
+      actorId, revisionId: revision.id, agentId, skillName })
+    skillInstructions = readBoundFile(templateStoragePath(workspace.path, `SKILLS/custom/${skillName}/SKILL.md`), 64 * 1024)
+    if (`sha256:${crypto.createHash('sha256').update(skillInstructions).digest('hex')}` !== evidence.skillDigest) return null
+  }
+  return { workspaceId, actorId, revisionId: revision.id, agentId, skillName,
+    skillInstructions: `${identity}\n\n${soul}\n\n${skillInstructions}`, service }
+}
+
+function resolveForRequest(req: Request, agentId: string) {
+  if (devHostSkillChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)) {
+    try {
+      const skilled = resolve(agentId)
+      if (skilled) return skilled
+    } catch { /* A revoked Skill may still have an explicitly admitted no-tool mode. */ }
+  }
+  if (devTemplateNoToolChatEnabled(process.env, req.get('Origin'), req.socket.remoteAddress)) return resolve(agentId, true)
+  return null
+}
+
+/** Browser requests are only prompts. The server resolves immutable identity,
+ * authority, Skill bytes, and the host key afresh for every tool call. */
+export function isDevHostSkillChatReady(req: Request, agentId: string): boolean {
+  if (!enabled(req)) return false
+  try { return !!resolveForRequest(req, agentId) && !!getSystemProviderKeys().openai } catch { return false }
+}
+
+/** Availability of the on-demand dev runtime, not a running Agent process.
+ * Kept separate from HTTP admission: this grants no execution authority. */
+export function devHostSkillAgentAvailable(agentId: string): boolean {
+  const host = devHostSkillChatEnabled(process.env, 'http://localhost:5174', '127.0.0.1')
+  const noTools = devTemplateNoToolChatEnabled(process.env, 'http://localhost:5174', '127.0.0.1')
+  if (!host && !noTools) return false
+  if (!getSystemProviderKeys().openai) return false
+  if (host) { try { if (resolve(agentId)) return true } catch { /* Check the separately scoped no-tool mode. */ } }
+  if (noTools) { try { return !!resolve(agentId, true) } catch { return false } }
+  return false
+}
+
+/** Reused by individual chat and temporary, explicitly selected multi-Agent chat.
+ * Every invocation resolves current authority; no browser-supplied Skill scope is trusted. */
+export async function runDevHostSkillChatTurn(req: Request, agentId: string, message: string, signal: AbortSignal): Promise<string> {
+  if (!enabled(req) || typeof message !== 'string' || !message.trim() || Buffer.byteLength(message) > 16 * 1024) {
+    throw new Error('Dev Agent chat unavailable')
+  }
+  const openaiKey = getSystemProviderKeys().openai
+  const context = resolveForRequest(req, agentId)
+  if (!openaiKey || !context) throw new Error('Dev Agent authority unavailable')
+  const text = context.skillName ? await runDevHostSkillAgent({ message, skillName: context.skillName,
+    skillInstructions: context.skillInstructions, apiKey: openaiKey, signal,
+    invoke: async argv => {
+      const fresh = resolveForRequest(req, agentId)
+      if (!fresh || fresh.revisionId !== context.revisionId || fresh.skillName !== context.skillName) throw new Error('Dev Agent authority changed')
+      if (!fresh.skillName) throw new Error('Dev Agent Skill unavailable')
+      return runTemplateHostSkillRead({ instanceKey: process.env.CLAWMAX_INSTANCE_KEY || '',
+        workspaceId: fresh.workspaceId, actorId: fresh.actorId, revisionId: fresh.revisionId,
+        agentId, skillName: fresh.skillName, arguments: argv,
+        hostKey: process.env.CLAWMAX_DEV_HOST_AUTH_KEY || '', signal,
+        store: fresh.service.store, authority: fresh.service.authority,
+        assertAuthorized: () => { if (signal.aborted || !enabled(req) || getWorkspaceManager().getActiveWorkspaceId() !== fresh.workspaceId) throw new Error('Dev Agent authority revoked') },
+      })
+    },
+  }) : await runDevNoToolAgent({ message, instructions: context.skillInstructions, apiKey: openaiKey, signal })
+  if (signal.aborted || !resolveForRequest(req, agentId)) throw new Error('Dev Agent authority revoked')
+  return text
+}
+
+export async function executeDevHostSkillChat(req: Request, res: Response): Promise<void> {
+  const { id: agentId } = req.params
+  if (!enabled(req) || !agentIdPattern.test(agentId)) { res.status(404).json({ error: 'Dev Agent chat unavailable' }); return }
+  const message = req.body?.message
+  // The existing chat composer may include BYOK fields. This dev path ignores
+  // them entirely and always uses the configured server-owned model key.
+  if (typeof message !== 'string' || !message.trim() || Buffer.byteLength(message) > 16 * 1024) {
+    res.status(400).json({ error: 'Invalid dev Agent chat request' }); return
+  }
+  const openaiKey = getSystemProviderKeys().openai
+  if (!openaiKey) { res.status(503).json({ error: 'Configured OpenAI model unavailable' }); return }
+  try {
+    if (!resolveForRequest(req, agentId)) { res.status(409).json({ error: 'Dev Agent authority unavailable' }); return }
+  } catch { res.status(409).json({ error: 'Dev Agent authority unavailable' }); return }
+  const sessionId = typeof req.body?.sessionId === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(req.body.sessionId)
+    ? req.body.sessionId : `dev-${crypto.randomUUID()}`
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' })
+  const send = (type: string, data: unknown) => { if (!res.writableEnded && !res.destroyed) res.write(`data: ${JSON.stringify({ type, data })}\n\n`) }
+  await withRegisteredTurn(agentId, async turn => {
+    send('start', { sessionId, turnId: turn.turnId })
+    try {
+      const text = await runDevHostSkillChatTurn(req, agentId, message, turn.signal)
+      send('delta', { text })
+      send('complete', { text })
+    } catch { send('error', { message: 'Dev Agent chat unavailable. Verify the host bridge, Skill sign-in, and current workspace.' }) }
+  })
+  if (!res.writableEnded) res.end()
+}

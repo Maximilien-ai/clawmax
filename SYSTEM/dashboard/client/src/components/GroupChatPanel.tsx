@@ -6,6 +6,7 @@ import { buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, buildSharedIn
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import {
   buildCommunicationCacheKey,
+  communicationTitle,
   mergeTypingAgents,
   removeRespondedAgentsFromPending,
   resolveCommunicationDocPath,
@@ -33,6 +34,7 @@ interface Agent {
 
 interface Channel {
   name: string
+  displayName?: string
   description: string | null
   tags: string[]
   type: 'community' | 'group'
@@ -872,7 +874,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                     className="shrink-0 border-transparent bg-transparent text-current"
                   />
                   <span className="truncate">
-                    {channel.tags?.includes('bulk-chat') && channel.description ? channel.description : channel.name}
+                    {communicationTitle(channel)}
                   </span>
                 </span>
               </h2>
@@ -988,7 +990,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
             return (
               <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5 dark:bg-gray-800">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{channel.members.find(agent => agent.id === msg.from)?.name || msg.from}</span>
                   <span className="text-xs text-gray-400">
                     {formatChatTime(msg.timestamp, row.showDate)}
                   </span>
@@ -1331,7 +1333,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                     const url = URL.createObjectURL(blob)
                     const a = document.createElement('a')
                     a.href = url
-                    a.download = `${channel.name}_${new Date(parseInt(viewingArchive.filename.match(/_(\d+)\.json$/)?.[1] || '0')).toISOString().split('T')[0]}.txt`
+                    a.download = `${communicationTitle(channel).replace(/[^a-z0-9_-]+/gi, '-')}_${new Date(parseInt(viewingArchive.filename.match(/_(\d+)\.json$/)?.[1] || '0')).toISOString().split('T')[0]}.txt`
                     a.click()
                     URL.revokeObjectURL(url)
                   }}
@@ -1371,7 +1373,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                 return (
                   <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5 dark:bg-gray-800">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{channel.members.find(agent => agent.id === msg.from)?.name || msg.from}</span>
                       <span className="text-xs text-gray-400">
                         {formatChatTime(msg.timestamp, shouldShowCalendarDate(msg.timestamp))}
                       </span>

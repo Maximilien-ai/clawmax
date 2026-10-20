@@ -82,3 +82,7 @@ export function shouldUpdateChannelMessages(
 
   return false
 }
+export function communicationTitle(channel: { name: string; displayName?: string; description?: string | null; tags?: string[] }): string {
+  return channel.tags?.includes('bulk-chat') && channel.description
+    ? channel.description : channel.displayName?.trim() || channel.name
+}

@@ -21,6 +21,7 @@ import {
   readLatestAssistantUsageFromPersistedSession,
   resolvePersistedAgentSessionId,
   resolveAgentExecutionConfig,
+  resolvePinnedOpenClawAuthBridge,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
   shouldUpdateNativeAuthStore,
@@ -693,6 +694,106 @@ test('readLatestAssistantTextFromPersistedSession extracts assistant text from r
   const latest = readLatestAssistantTextFromPersistedSession('ceo', 'agent:ceo:dashboard-chat', undefined, home)
   assert(latest?.sessionId === 'current-session', `Expected resolved session id, got ${latest?.sessionId}`)
   assert(latest?.content === "I'm the CEO agent.", `Expected assistant text from persisted session, got ${latest?.content}`)
+})
+
+test('session resolution prefers existing files and recovers from invalid indexes', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-edges-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'writer', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  try {
+    assert(resolvePersistedAgentSessionId('', 'key', 'preferred', home) === 'preferred', 'Missing agent should keep caller alias')
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', '') === 'preferred', 'Missing home should keep caller alias')
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', home) === 'preferred', 'Empty store should keep alias')
+    fs.writeFileSync(path.join(sessionsDir, 'preferred.jsonl'), '')
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', home) === 'preferred', 'Existing preferred file should win')
+    fs.writeFileSync(path.join(sessionsDir, 'mapped.jsonl'), '')
+    fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({
+      'other-key': { sessionId: 'mapped' },
+      preferred: { sessionId: 'mapped' },
+    }))
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', home) === 'preferred', 'Direct preferred file must outrank index')
+    fs.unlinkSync(path.join(sessionsDir, 'preferred.jsonl'))
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', home) === 'mapped', 'Preferred alias should resolve through the index')
+    fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), '{broken')
+    assert(resolvePersistedAgentSessionId('writer', 'key', undefined, home) === 'mapped', 'Corrupt index should fall back to an existing file')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('persisted assistant readers handle missing, non-assistant, and malformed records', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-read-edges-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'writer', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  const sessionFile = path.join(sessionsDir, 'read-edges.jsonl')
+  try {
+    assert(readLatestAssistantUsageFromPersistedSession('writer', 'key', undefined, home) === null, 'Missing session should have no usage')
+    assert(readLatestAssistantTextFromPersistedSession('writer', 'key', undefined, home) === null, 'Missing session should have no text')
+    fs.writeFileSync(sessionFile, JSON.stringify({ type: 'message', message: { role: 'user', content: 'hello' } }))
+    assert(readLatestAssistantUsageFromPersistedSession('writer', 'key', 'read-edges', home)?.sessionId === 'read-edges', 'User-only session should retain its ID')
+    assert(readLatestAssistantTextFromPersistedSession('writer', 'key', 'read-edges', home)?.content === undefined, 'User-only session should not invent assistant text')
+    fs.writeFileSync(sessionFile, '{broken')
+    assert(readLatestAssistantUsageFromPersistedSession('writer', 'key', 'read-edges', home)?.sessionId === 'read-edges', 'Invalid JSON should retain only the ID')
+    assert(readLatestAssistantTextFromPersistedSession('writer', 'key', 'read-edges', home)?.content === undefined, 'Invalid JSON should not become text')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('persisted assistant text combines supported content parts and skips empty turns', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-content-edges-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'writer', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  try {
+    fs.writeFileSync(path.join(sessionsDir, 'parts.jsonl'), [
+      JSON.stringify({ type: 'message', message: { role: 'assistant', content: ['plain', { type: 'text', text: 'typed' }, { text: 'generic' }, { content: 'nested' }, null, { type: 'image' }] } }),
+      JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'image', data: 'hidden' }] } }),
+    ].join('\n'))
+    const result = readLatestAssistantTextFromPersistedSession('writer', 'key', 'parts', home)
+    assert(result?.content === 'plain\ntyped\ngeneric\nnested', `Expected text-only content parts, got ${result?.content}`)
+    const usage = readLatestAssistantUsageFromPersistedSession('writer', 'key', 'parts', home)
+    assert(usage?.inputTokens === 0 && usage.outputTokens === 0, 'Missing usage should normalize to zero')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('provider and backup retry classifiers distinguish supported failure signals', () => {
+  for (const [model, provider] of [
+    ['openai-compatible/vendor/model', 'openai-compatible'], ['lmstudio/model', 'openai-compatible'],
+    ['openrouter/model', 'openrouter'], ['xai/grok', 'xai'], ['openai/gpt-5', 'openai'],
+    ['gpt-5', 'openai'], ['o3-mini', 'openai'], ['anthropic/claude', 'anthropic'],
+    ['claude-sonnet', 'anthropic'], ['gemini/model', 'gemini'], ['gemini-2.5', 'gemini'],
+    ['google/model', 'gemini'], ['ollama/llama', 'ollama'], ['llama:latest', 'ollama'],
+    ['unknown-model', null], ['', null],
+  ] as const) {
+    assert(providerFromModel(model) === provider, `Unexpected provider for ${model}`)
+  }
+  for (const signal of [
+    'Unknown model: bad', 'No API key found for provider', 'Incorrect API key provided',
+    'has auth issue (skipping all models)', 'insufficient_quota', 'quota exceeded',
+    'rate limit', 'too many requests', 'HTTP 429', 'is in cooldown (suspending lanes)',
+    'request timeout', 'All models failed',
+  ]) {
+    assert(shouldRetryWithBackupModel(signal), `Expected backup retry for ${signal}`)
+  }
+  assert(!shouldRetryWithBackupModel('') && !shouldRetryWithBackupModel('Bad prompt'), 'Unrelated failures must not trigger a backup')
+  assert(!shouldUseExplicitBackupModelRetry({ backupModel: 'openai/gpt-5', backupProvider: 'openai', rawError: 'timeout', hadVisibleOutput: true }), 'Visible output must not be retried')
+  assert(shouldUseExplicitBackupModelRetry({ backupModel: 'openai/gpt-5', backupProvider: 'openai', rawError: 'timeout' }), 'Clean timeout should permit explicit backup')
+})
+
+test('model override and session scoping preserve safe provider-specific identities', () => {
+  assert(toExecutionModelOverride('openai-compatible/vendor/model', 'openai-compatible') === 'lmstudio/vendor/model', 'Compatible provider should use native alias')
+  assert(toExecutionModelOverride('gpt-4o-mini', 'openai') === 'openai/gpt-5.4-mini', 'Retired model should map to active fallback')
+  assert(toExecutionModelOverride(' openai/gpt-5 ', 'openai') === 'openai/gpt-5.4-mini', 'Model override should trim before remapping')
+  assert(toExecutionModelOverride('anthropic/claude', 'anthropic') === 'anthropic/claude', 'Other provider should preserve model')
+  assert(toExecutionModelOverride(' ', 'openai') === undefined, 'Blank model should be omitted')
+  assert(scopeSessionIdToModel('  ', undefined) === 'chat', 'Blank session key should use safe fallback')
+  assert(scopeSessionIdToModel('agent:writer/chat', 'openai/gpt-5').includes('openai-gpt-5'), 'Session key should be model-scoped')
+  assert(scopeSessionIdToModel('very-long-session-key-'.repeat(6), 'openai/gpt-5').length <= 48, 'Scoped session key must remain bounded')
+  assert(deriveWorkspaceRootFromAgentWorkspace('/tmp/workspace/AGENTS/writer') === '/tmp/workspace', 'Agent path should return owning workspace')
+  assert(deriveWorkspaceRootFromAgentWorkspace('/tmp/independent') === '/tmp/independent', 'Independent path should remain itself')
+  assert(deriveWorkspaceRootFromAgentWorkspace() === undefined, 'Missing workspace should remain missing')
 })
 
 test('isOpenClawSessionLockError matches lock timeout errors', () => {
@@ -1713,6 +1814,33 @@ test('withTemporaryAgentAuthProfiles runs the normal openclaw auth-profile flow 
   )
 
   assert(sawAuthProfile, 'Expected auth-profiles.json to be written for the openclaw runtime')
+})
+
+test('pinned auth bridge refuses missing or invalid package roots without global fallback', () => {
+  const previousBin = process.env.OPENCLAW_BIN
+  const previousRoot = process.env.OPENCLAW_PACKAGE_ROOT
+  try {
+    process.env.OPENCLAW_BIN = '/synthetic/pinned/openclaw'
+    delete process.env.OPENCLAW_PACKAGE_ROOT
+    let missingRefused = false
+    try { resolvePinnedOpenClawAuthBridge() } catch (error) {
+      missingRefused = String(error).includes('matching OPENCLAW_PACKAGE_ROOT')
+    }
+    assert(missingRefused, 'A selected CLI must not borrow global storage code')
+    process.env.OPENCLAW_PACKAGE_ROOT = path.join(legacyPackage, 'missing')
+    let invalidRefused = false
+    try { resolvePinnedOpenClawAuthBridge() } catch (error) {
+      invalidRefused = String(error).includes('refusing global')
+    }
+    assert(invalidRefused, 'An unavailable explicit root must fail closed')
+    process.env.OPENCLAW_PACKAGE_ROOT = legacyPackage
+    assert(resolvePinnedOpenClawAuthBridge()?.packageRoot === legacyPackage, 'Use only the selected package')
+  } finally {
+    if (previousBin === undefined) delete process.env.OPENCLAW_BIN
+    else process.env.OPENCLAW_BIN = previousBin
+    if (previousRoot === undefined) delete process.env.OPENCLAW_PACKAGE_ROOT
+    else process.env.OPENCLAW_PACKAGE_ROOT = previousRoot
+  }
 })
 
 test('migrateLegacyOpenClawAuthStore publishes credentials and archives the retired JSON source', () => {

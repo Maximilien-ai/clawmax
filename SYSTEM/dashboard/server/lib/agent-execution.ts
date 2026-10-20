@@ -929,13 +929,21 @@ export function shouldUpdateNativeAuthStore(
     !== authProfileStateFingerprint(JSON.stringify(nextStore))
 }
 
-function resolvePinnedOpenClawAuthBridge(): { helperPath: string; packageRoot: string } | null {
+export function resolvePinnedOpenClawAuthBridge(): { helperPath: string; packageRoot: string } | null {
   const helperPath = path.join(REPO_ROOT, 'SYSTEM', 'dashboard', 'openclaw-auth-store.mjs')
-  const packageRoot = [
-    process.env.OPENCLAW_PACKAGE_ROOT,
+  const explicitRoot = process.env.OPENCLAW_PACKAGE_ROOT?.trim()
+  // A selected CLI must never borrow native storage code from a different
+  // global installation. start.sh supplies the matching package root.
+  if (process.env.OPENCLAW_BIN?.trim() && !explicitRoot) {
+    throw new Error('Pinned OpenClaw requires its matching OPENCLAW_PACKAGE_ROOT for credential storage. Restart Dashboard through SYSTEM/start.sh.')
+  }
+  if (explicitRoot && !fs.existsSync(path.join(explicitRoot, 'dist'))) {
+    throw new Error('Selected OPENCLAW_PACKAGE_ROOT is unavailable; refusing global credential-store fallback.')
+  }
+  const packageRoot = (explicitRoot ? [explicitRoot] : [
     '/usr/local/lib/node_modules/openclaw',
     '/opt/homebrew/lib/node_modules/openclaw',
-  ].find((root) => root && fs.existsSync(path.join(root, 'dist')))
+  ]).find((root) => fs.existsSync(path.join(root, 'dist')))
   return fs.existsSync(helperPath) && packageRoot ? { helperPath, packageRoot } : null
 }
 

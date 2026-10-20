@@ -73,7 +73,7 @@ async function main() {
     const governedResult = resolveTemplateAuthority(governed, selections, context, governedSource)
     assert.equal(governedResult.bindings[0].credentials.length, 1)
     assert.deepEqual(governedResult.bindings[1].credentials, [])
-    governedRegistry.bindings[0].credentials[0].revision = 'credential-v2'
+    if ('revision' in governedRegistry.bindings[0].credentials[0]) governedRegistry.bindings[0].credentials[0].revision = 'credential-v2'
     assert.notEqual(resolveTemplateAuthority(governed, selections, context, governedSource).digest, governedResult.digest)
     governedRegistry.bindings[0].skills.push({ name: 'extra', sha256: 'e'.repeat(64), platform: 'linux/arm64' })
     assert.throws(() => resolveTemplateAuthority(governed, selections, context, governedSource), /exact requested Skills/)
@@ -85,6 +85,13 @@ async function main() {
     assert.throws(() => resolveTemplateAuthority(governed, selections, context, governedSource), /undeclared credential/)
     governedRegistry.bindings[0].skills[0].platform = 'linux/amd64'
     assert.throws(() => resolveTemplateAuthority(governed, selections, context, governedSource), /Skill platform/)
+    governedRegistry.bindings[0].skills[0].platform = 'linux/arm64'
+    governedRegistry.bindings[0].credentials = [{ name: 'SERVICE_TOKEN', reference: 'service-credential', revision: 'credential-v1' }]
+    governedRegistry.bindings[0].skills[0].source = 'packaged'
+    assert.throws(() => resolveTemplateAuthority(governed, selections, context, governedSource), /Packaged Skill identity/)
+    governedRegistry.bindings[0].skills[0].version = 'rc91'
+    governedRegistry.bindings[0].skills[0].packageSha256 = 'c'.repeat(64)
+    assert.equal(resolveTemplateAuthority(governed, selections, context, governedSource).bindings[0].skills[0].packageSha256, 'c'.repeat(64))
 
     // Read actual server-owned registry files; reject links and sanitize errors.
     const file = path.join(root, 'authority.json')

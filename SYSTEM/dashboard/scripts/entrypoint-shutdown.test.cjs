@@ -33,6 +33,7 @@ test('supervisor waits for gateway cleanup on TERM and Dashboard failure', async
         ensure_openclaw_cli() { :; }
         sync_gateway_config() { :; }
         migrate_openclaw_2_state() { :; }
+        verify_persisted_agent_schemas() { :; }
         ensure_gateway_auth_token() { :; }
         get_gateway_port() { echo 18789; }
         ensure_gateway_running() { "$NODE_BINARY" "$FIXTURE" gateway "$RUN_ROOT" & gateway_pid=$!; }
