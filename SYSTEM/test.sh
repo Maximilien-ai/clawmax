@@ -941,6 +941,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running BYOK open request unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/byokOpenRequest.test.ts > /tmp/clawmax-byok-open-request.out 2>&1 || true
+if grep -q 'BYOK open request tests passed' /tmp/clawmax-byok-open-request.out; then
+  pass "BYOK open request unit tests"
+else
+  cat /tmp/clawmax-byok-open-request.out
+  fail "BYOK open request unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Chat runtime errors helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/chatRuntimeErrors.test.ts > /tmp/clawmax-chat-runtime-errors.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-chat-runtime-errors.out; then
