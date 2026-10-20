@@ -780,11 +780,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
         ))
       }
     } catch (e: any) {
-      if (e.name === 'AbortError') {
-        setError('Request cancelled')
-      } else {
-        setError(summarizeAgentChatFailure(String(e), { agentId }))
-      }
+      const friendly = e.name === 'AbortError'
+        ? 'Request cancelled'
+        : summarizeAgentChatFailure(String(e), { agentId, transportFailure: true })
+      setError(friendly)
       if (!messageText) {
         setInput(textToSend)
         if (preparedAttachments.length > 0) {
@@ -794,7 +793,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       if (assistantId) {
         setMessages(prev => prev.map(m =>
           m.id === assistantId
-            ? { ...m, content: summarizeAgentChatFailure(String(e), { agentId }) }
+            ? { ...m, content: friendly }
             : m
         ))
       }
