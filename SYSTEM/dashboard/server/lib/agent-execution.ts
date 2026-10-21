@@ -1,7 +1,7 @@
 import fs from 'fs'
 import { openClawConfigPath, openClawStatePath } from './openclaw-profile-paths'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
-import { resolveNativeChatSession } from './native-chat-history'
+import { readPersistedChatTranscript, resolveNativeChatSession, hasNativeChatSession } from './native-chat-history'
 import path from 'path'
 import { createHash } from 'crypto'
 import { spawnSync } from 'child_process'
@@ -428,6 +428,10 @@ export function resolvePersistedAgentSessionId(
 ): string | undefined {
   if (!agentId || !homeDir) return preferredSessionId
 
+  // The session a turn ran, when the runtime has it. A key migrated from the legacy dashboard-chat
+  // index keeps pointing at the conversation it held then, which is no longer this one once the chat
+  // was cleared (or the model changed).
+  if (preferredSessionId && hasNativeChatSession(agentId, preferredSessionId, homeDir)) return preferredSessionId
   const nativeSession = resolveNativeChatSession(agentId, sessionKey, homeDir)
   if (nativeSession) return nativeSession
 
@@ -481,6 +485,23 @@ export function resolvePersistedAgentSessionId(
   }
 }
 
+/**
+ * A session's persisted transcript lines: the native agent store when it holds the session (OpenClaw
+ * 2 records `--session-id` turns there and writes no JSONL), otherwise the legacy JSONL file.
+ */
+function readPersistedSessionLines(agentId: string, sessionId: string, homeDir: string): string[] | null {
+  let transcript: string | undefined
+  try {
+    transcript = readPersistedChatTranscript(agentId, sessionId, homeDir)
+  } catch (err) {
+    // Best effort by design: this feeds reply recovery and usage metering, never the history view,
+    // which reports the same failure to the user (GET /chat/messages).
+    console.warn(`[Agent Execution] Could not read the transcript for ${agentId}/${sessionId}: ${err instanceof Error ? err.message : String(err)}`)
+    return null
+  }
+  return transcript === undefined ? null : transcript.split('\n').filter((line) => line.trim())
+}
+
 export function readLatestAssistantUsageFromPersistedSession(
   agentId: string,
   sessionKey: string,
@@ -498,14 +519,10 @@ export function readLatestAssistantUsageFromPersistedSession(
   const sessionId = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
   if (!sessionId || !homeDir) return null
 
-  const sessionFile = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions', `${sessionId}.jsonl`)
-  if (!fs.existsSync(sessionFile)) return null
+  const lines = readPersistedSessionLines(agentId, sessionId, homeDir)
+  if (!lines) return null
 
   try {
-    const lines = fs.readFileSync(sessionFile, 'utf-8')
-      .split('\n')
-      .filter((line) => line.trim())
-
     for (let i = lines.length - 1; i >= 0; i--) {
       const entry = JSON.parse(lines[i])
       const message = entry?.message
@@ -534,18 +551,16 @@ export function readLatestAssistantTextFromPersistedSession(
 ): {
   sessionId?: string
   content?: string
+  /** Transcript event id of the reply, so a caller can tell this turn's reply from an earlier one. */
+  messageId?: string
 } | null {
   const sessionId = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
   if (!sessionId || !homeDir) return null
 
-  const sessionFile = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions', `${sessionId}.jsonl`)
-  if (!fs.existsSync(sessionFile)) return null
+  const lines = readPersistedSessionLines(agentId, sessionId, homeDir)
+  if (!lines) return null
 
   try {
-    const lines = fs.readFileSync(sessionFile, 'utf-8')
-      .split('\n')
-      .filter((line) => line.trim())
-
     for (let i = lines.length - 1; i >= 0; i--) {
       const entry = JSON.parse(lines[i])
       const message = entry?.message
@@ -569,6 +584,7 @@ export function readLatestAssistantTextFromPersistedSession(
         return {
           sessionId,
           content,
+          ...(typeof entry?.id === 'string' && entry.id ? { messageId: entry.id } : {}),
         }
       }
     }
