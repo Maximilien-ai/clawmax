@@ -921,10 +921,23 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
     setAiCronLoadingIndex(idx)
     setWorkflowCronHints(prev => ({ ...prev, [idx]: '' }))
     try {
+      const byok = readStoredByokKeys()
       const resp = await fetch('/api/workflows/generate-cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: workflow.schedule.trim(), tz: timezone }),
+        body: JSON.stringify({
+          text: workflow.schedule.trim(),
+          tz: timezone,
+          byokKeys: (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl)
+            ? {
+                openai: byok.openai,
+                anthropic: byok.anthropic,
+                openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
+                openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
+                openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
+              }
+            : undefined,
+        }),
       })
       const data = await resp.json().catch(() => ({}))
       if (data.valid && data.cron) {
@@ -2067,7 +2080,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         )}
       </div>
       {showFullPrompt && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowFullPrompt(false)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-3xl rounded-lg bg-white dark:bg-gray-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-5 py-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Full AI Prompt</h3>
@@ -2102,7 +2115,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         qualityDomain="template"
       />
       {formBuilderWorkflowIndex !== null && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setFormBuilderWorkflowIndex(null)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-3xl rounded-lg bg-white dark:bg-gray-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-5 py-4">
               <div>

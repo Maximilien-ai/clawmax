@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import AIPromptEditorModal from './AIPromptEditorModal'
 import { formatAgentOptionLabel } from '../lib/agentLabels'
 import { expandPromptWithAI } from '../lib/aiPrompt'
+import { readStoredByokKeys } from '../lib/byok'
 
 interface AgentTargeting {
   communities: string[]
@@ -256,10 +257,23 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     setAiCronLoading(true)
     setAiCronResult(null)
     try {
+      const byok = readStoredByokKeys()
       const r = await fetch('/api/workflows/generate-cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: aiCronInput.trim(), tz: formData.timezone })
+        body: JSON.stringify({
+          text: aiCronInput.trim(),
+          tz: formData.timezone,
+          byokKeys: (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl)
+            ? {
+                openai: byok.openai,
+                anthropic: byok.anthropic,
+                openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
+                openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
+                openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
+              }
+            : undefined,
+        })
       })
       const data = await r.json()
       if (data.valid && data.cron) {
@@ -390,7 +404,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 z-50" />
 
       {/* Dialog */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-auto">

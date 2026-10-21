@@ -931,6 +931,26 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Chat composer keyboard unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/chatComposer.test.ts > /tmp/clawmax-chat-composer.out 2>&1 || true
+if grep -q 'Chat composer keyboard tests passed' /tmp/clawmax-chat-composer.out; then
+  pass "Chat composer keyboard unit tests"
+else
+  cat /tmp/clawmax-chat-composer.out
+  fail "Chat composer keyboard unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running BYOK open request unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/byokOpenRequest.test.ts > /tmp/clawmax-byok-open-request.out 2>&1 || true
+if grep -q 'BYOK open request tests passed' /tmp/clawmax-byok-open-request.out; then
+  pass "BYOK open request unit tests"
+else
+  cat /tmp/clawmax-byok-open-request.out
+  fail "BYOK open request unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Chat runtime errors helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/chatRuntimeErrors.test.ts > /tmp/clawmax-chat-runtime-errors.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-chat-runtime-errors.out; then
@@ -1724,6 +1744,14 @@ else
   fail "Communication message helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent chat Forward To unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentChatForward.test.ts > /tmp/clawmax-agent-chat-forward.out 2>&1; then
+  pass "Agent chat Forward To unit tests ($(grep -c '^✓ ' /tmp/clawmax-agent-chat-forward.out) tests)"
+else
+  cat /tmp/clawmax-agent-chat-forward.out
+  fail "Agent chat Forward To unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace file mention helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceFiles.test.ts > /tmp/clawmax-workspace-files.out 2>&1 || true
 if grep -q "workspaceFiles.test.ts:" /tmp/clawmax-workspace-files.out; then
@@ -1752,6 +1780,14 @@ if grep -q "workspaceDocNavigation.test.ts:" /tmp/clawmax-workspace-doc-navigati
 else
   cat /tmp/clawmax-workspace-doc-navigation.out
   fail "Workspace doc navigation helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Agent chat scroll-follow unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentChatScroll.test.ts > /tmp/clawmax-agent-chat-scroll.out 2>&1; then
+  pass "Agent chat scroll-follow unit tests ($(grep -o '[0-9]\+ tests passed' /tmp/clawmax-agent-chat-scroll.out | grep -o '[0-9]\+') tests)"
+else
+  cat /tmp/clawmax-agent-chat-scroll.out
+  fail "Agent chat scroll-follow unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Workspace doc navigation edge-case unit tests...${NC}"
@@ -2555,6 +2591,15 @@ if grep -q "RegistryResultRow.test.tsx: 8 assertions passed" /tmp/clawmax-regist
 else
   cat /tmp/clawmax-registry-result-row.out /tmp/clawmax-dochub-selection-actions.out /tmp/clawmax-dochub-tree-pane-layout.out /tmp/clawmax-dochub-asset-presentation.out
   fail "RC feedback presentation regression tests"
+fi
+
+echo -e "${YELLOW}→ Running agent chat internal-notice extraction tests...${NC}"
+npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/AgentChatPanel.test.tsx > /tmp/clawmax-agent-chat-panel.out 2>&1 || true
+if grep -q "AgentChatPanel.test.tsx: 14 assertions passed" /tmp/clawmax-agent-chat-panel.out; then
+  pass "Agent chat internal-notice extraction tests (14 assertions)"
+else
+  cat /tmp/clawmax-agent-chat-panel.out
+  fail "Agent chat internal-notice extraction tests"
 fi
 
 echo -e "${YELLOW}→ Running Named export filename unit tests...${NC}"
@@ -3757,6 +3802,16 @@ if grep -q "All tests passed" /tmp/clawmax-chat-route-edges.out; then
 else
   cat /tmp/clawmax-chat-route-edges.out
   fail "Chat route gateway/readiness edge-case tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Chat route turn lifecycle tests...${NC}"
+if npx ts-node --transpileOnly server/routes/chat-turn-registry.test.ts > /tmp/clawmax-chat-turn-registry.out 2>&1; then
+  chat_turn_registry_count=$(grep "Tests passed:" /tmp/clawmax-chat-turn-registry.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Chat route turn lifecycle tests (${chat_turn_registry_count:-?} tests)"
+else
+  cat /tmp/clawmax-chat-turn-registry.out
+  fail "Chat route turn lifecycle tests"
 fi
 
 echo ""

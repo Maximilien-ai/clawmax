@@ -1062,7 +1062,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         method: 'POST',
         headers: {
           'Content-Type': 'application/zip',
-          'x-file-name': file.name,
+          'x-file-name': encodeURIComponent(file.name),
+          'x-file-name-encoding': 'percent',
         },
         body: payload,
       })
