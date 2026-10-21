@@ -687,7 +687,7 @@ function PluginDetailsPanel({
       ]
 
   return (
-    <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20">
       <aside className="fixed top-0 right-0 h-[100dvh] max-h-[100dvh] w-full max-w-full bg-white shadow-2xl dark:bg-gray-800 sm:w-[30rem] lg:w-[36rem] z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-start justify-between gap-3 border-b border-gray-100 bg-white px-4 py-4 shrink-0 dark:border-gray-700 dark:bg-gray-800 sm:px-5">
         <div className="min-w-0">

@@ -13,6 +13,7 @@ import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { createPromptAttachment } from '../lib/promptAttachments'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import { formatAgentWorkStatus, summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
+import { shouldSendChatOnKeyDown } from '../lib/chatComposer'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -216,7 +217,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [docEntries, setDocEntries] = useState<DocEntryRef[]>([])
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [draggingAttachment, setDraggingAttachment] = useState(false)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -274,8 +276,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     refreshDocEntries().catch(() => {})
   }, [refreshDocEntries])
 
-  async function handleAttachFiles(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || [])
+  async function addAttachmentFiles(files: File[]) {
     if (!files.length) return
     try {
       const nextAttachments = await Promise.all(files.map(async (file) => {
@@ -288,11 +289,12 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       })
     } catch (err: any) {
       setError(err?.message || 'Failed to prepare attachments')
-    } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
     }
+  }
+
+  async function handleAttachFiles(event: ChangeEvent<HTMLInputElement>) {
+    await addAttachmentFiles(Array.from(event.target.files || []))
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   function removeAttachment(attachmentId: string) {
@@ -311,7 +313,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         method: 'POST',
         headers: {
           'Content-Type': attachment.type || 'application/octet-stream',
-          'x-file-name': attachment.name,
+          'x-file-name': encodeURIComponent(attachment.name),
+          'x-file-name-encoding': 'percent',
         },
         body: await attachment.file.arrayBuffer(),
       })
@@ -1196,7 +1199,17 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         )}
 
         {/* Input */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 shrink-0 dark:border-gray-700">
+        <div
+          className={`px-4 sm:px-6 py-3 sm:py-4 border-t shrink-0 ${draggingAttachment ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30' : 'border-gray-200 dark:border-gray-700'}`}
+          onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setDraggingAttachment(true) } }}
+          onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDraggingAttachment(false) }}
+          onDrop={(event) => {
+            event.preventDefault()
+            setDraggingAttachment(false)
+            if (!sending) void addAttachmentFiles(Array.from(event.dataTransfer.files))
+          }}
+        >
+          {draggingAttachment && <p className="mb-2 text-xs font-medium text-sky-700 dark:text-sky-300">Drop files to attach</p>}
           {attachments.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
               {attachments.map((attachment) => (
@@ -1249,13 +1262,13 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                 </svg>
               )}
             </button>
-            <input
+            <textarea
               ref={inputRef}
-              type="text"
+              rows={3}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !sending) {
+                if (shouldSendChatOnKeyDown(e) && !sending) {
                   e.preventDefault()
                   sendMessage()
                 } else if (e.key === 'Escape') {
@@ -1264,7 +1277,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   } else {
                     onClose()
                   }
-                } else if (e.key === 'ArrowUp') {
+                } else if (e.key === 'ArrowUp' && !input.includes('\n') && e.currentTarget.selectionStart === 0) {
                   e.preventDefault()
                   if (inputHistory.length > 0) {
                     const newIndex = historyIndex === -1
@@ -1273,7 +1286,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                     setHistoryIndex(newIndex)
                     setInput(inputHistory[newIndex])
                   }
-                } else if (e.key === 'ArrowDown') {
+                } else if (e.key === 'ArrowDown' && !input.includes('\n') && e.currentTarget.selectionStart === input.length) {
                   e.preventDefault()
                   if (historyIndex !== -1) {
                     const newIndex = historyIndex + 1
@@ -1287,9 +1300,9 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   }
                 }
               }}
-              placeholder={isListening ? "Listening..." : "Type, speak, or attach files... (Enter to send)"}
+              placeholder={isListening ? "Listening..." : "Type, speak, or drop files... (Enter to send, Option+Enter for a new line)"}
               disabled={sending || !gatewayAvailable || isListening || !chatEnabled}
-              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
+              className="min-w-0 flex-1 resize-y px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
             />
             {streaming ? (
               <button

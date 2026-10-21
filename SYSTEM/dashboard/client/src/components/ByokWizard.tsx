@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { resolveByokOpenRequest } from '../lib/byokOpenRequest'
 import { useAuth } from '../contexts/AuthContext'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { useToast } from './Toast'
@@ -197,6 +198,10 @@ export function ByokWizard({
   const { activeWorkspace } = useWorkspace()
   const { showSuccess, showInfo, showWarning } = useToast()
   const [open, setOpen] = useState(false)
+  const [openedOverAiEditor, setOpenedOverAiEditor] = useState(false)
+  useEffect(() => {
+    if (!open) setOpenedOverAiEditor(false)
+  }, [open])
   const [step, setStep] = useState<Step>('models')
   const [openaiKey, setOpenaiKey] = useState('')
   const [anthropicKey, setAnthropicKey] = useState('')
@@ -379,9 +384,12 @@ export function ByokWizard({
 
   useEffect(() => {
     const handleOpen = (event: Event) => {
-      const detail = (event as CustomEvent<{ step?: Step; focus?: string }>).detail || {}
+      const detail = (event as CustomEvent<{ step?: Step; focus?: string; provider?: ModelTab; fromAiEditor?: boolean }>).detail || {}
+      const target = resolveByokOpenRequest(detail, initialStep)
       setOpen(true)
-      setStep(detail.step || initialStep)
+      setOpenedOverAiEditor(target.aboveAiEditor)
+      setStep(target.step)
+      if (target.provider === 'anthropic') setModelTab('anthropic')
       if (detail.focus === 'preferred-model') {
         setHighlightPreferredModel(true)
         window.setTimeout(() => preferredModelRef.current?.focus(), 50)
@@ -1937,7 +1945,7 @@ export function ByokWizard({
       </button>
 
       {!open ? null : (
-        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-2 sm:p-4">
+        <div className={`fixed inset-0 ${openedOverAiEditor ? 'z-[100]' : 'z-[70]'} bg-black/50 flex items-center justify-center p-2 sm:p-4`}>
           <div className="w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-4 sm:p-5 max-h-[96dvh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3 sm:gap-4">
               <div className="min-w-0">
@@ -2136,7 +2144,8 @@ export function ByokWizard({
                         <div className="font-medium text-gray-900 dark:text-gray-100">Anthropic</div>
                         <button onClick={() => runValidation('anthropic')} disabled={validating} className="px-3 py-1.5 text-xs rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Key'}</button>
                       </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Strong reasoning models, especially useful for longer-form planning and analysis.</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Use an Anthropic developer API key from the Claude Console. A Claude chat subscription does not include API access. <a href="https://platform.claude.com/docs/en/get-api-key" target="_blank" rel="noopener noreferrer" className="font-medium text-sky-700 underline dark:text-sky-300">How to get a key</a></p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Paste the key below, choose Check Key, then save these workspace integrations. Keep the key out of prompts and chat.</p>
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <label htmlFor="byok-anthropic" className="block text-sm font-medium text-gray-700 dark:text-gray-300">API key</label>
                         {anthropicKey && (
