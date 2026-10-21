@@ -38,11 +38,12 @@ import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange } from '../lib/runtime-transcripts'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
-import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
+import { captureConsentedActivity as appendActivityExportEventsForActiveConsents } from '../lib/activity-export-capture'
 import { appendBoundedOutput } from '../lib/stream-bounds'
 import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '../lib/process-tree'
 import { isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
 import { assertTemplateRuntimeAdmitted } from '../lib/template-runtime-admission'
+import { executeDevHostSkillChat, isDevHostSkillChatReady } from './dev-host-skill-chat'
 
 const router = Router()
 const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
@@ -529,6 +530,9 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
   if (/Gateway is running for this state directory/i.test(text) && /Run without --local/i.test(text)) {
     return 'OpenClaw refused local execution because the healthy Gateway owns this state directory. ClawMax could not complete its Gateway retry; verify Gateway readiness and retry.'
   }
+  if (/modelPolicy\.allow/i.test(text) && /not allowed|blocked/i.test(text)) {
+    return 'The selected model is blocked by this instance or agent model policy. Ask the instance owner to review the allowed models, or choose an allowed model. This is not a gateway connectivity failure.'
+  }
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
   if (/timeout/i.test(text)) {
     const modelDetail = context?.model ? ` \`${context.model}\`` : 'The selected model'
@@ -831,6 +835,7 @@ router.get('/:id/gateway', (req, res) => {
 
 router.post('/:id/chat/readiness', async (req, res) => {
   const { id } = req.params
+  if (isDevHostSkillChatReady(req, id)) return res.json({ available: true, devHostSkill: true })
   const { byok } = req.body as {
     byok?: ChatByokPayload
   }
@@ -1147,6 +1152,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
             // matched on exact userId + workspaceId, so recording the active workspace here would
             // check consent against a workspace that did not run the turn.
             workspaceId: effectiveWorkspaceRoot,
+            occurredAt: new Date(chatStartedAt).toISOString(),
             userId: session?.userId || session?.login || 'dashboard-user',
             sessionId: executionSessionId,
             subjectId: id,
@@ -1496,10 +1502,10 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
             dashboardInstanceId: getRequestDashboardInstanceId(req),
           })
           const activityUserId = session?.userId || session?.login || 'dashboard-user'
-          const activityWorkspaceId = getWorkspacePath()
           appendActivityExportEventsForActiveConsents({
             source: 'agent-chat',
-            workspaceId: activityWorkspaceId,
+            workspaceId: effectiveWorkspaceRoot,
+            occurredAt: new Date(chatStartedAt).toISOString(),
             userId: activityUserId,
             sessionId: attemptResult.sessionId,
             subjectId: id,
@@ -1556,6 +1562,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
 }
 
 router.post('/:id/chat', (req, res, next) => {
+  if (isDevHostSkillChatReady(req, req.params.id)) return executeDevHostSkillChat(req, res).catch(next)
   return executeAgentChat(req, res).catch(next)
 })
 

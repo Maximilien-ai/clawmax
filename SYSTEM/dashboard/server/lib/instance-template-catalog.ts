@@ -65,12 +65,27 @@ export class InstanceTemplateCatalog {
     return entry.template
   }
   async bundle(id: string): Promise<PortableTemplate> {
+    return (await this.readBundle(id)).bundle
+  }
+  async exportBundle(id: string): Promise<Buffer> {
+    return (await this.readBundle(id)).bytes
+  }
+  private async readBundle(id: string) {
     const template = this.get(id)
     let bytes: Buffer
-    try { bytes = fs.readFileSync(templateStoragePath(this.workspacePath, `.clawmax/portable-templates/${template.id}.zip`)) }
+    let fd: number | undefined
+    try {
+      fd = fs.openSync(templateStoragePath(this.workspacePath, `.clawmax/portable-templates/${template.id}.zip`), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK)
+      const stat = fs.fstatSync(fd)
+      if (!stat.isFile() || stat.size > 64 * 1024 * 1024) throw new Error('Invalid bundle file')
+      bytes = fs.readFileSync(fd)
+    }
     catch { throw new PortableTemplateError('template_store_unavailable', 'Template bundle is unavailable', 503) }
+    finally { if (fd !== undefined) fs.closeSync(fd) }
     if (sha256(bytes) !== template.bundleSha256) throw new PortableTemplateError('template_store_unavailable', 'Template bundle integrity check failed', 503)
-    return validatePortableTemplate(bytes)
+    const bundle = await validatePortableTemplate(bytes)
+    if (this.get(id).bundleSha256 !== bundle.bundleSha256) throw new PortableTemplateError('template_store_unavailable', 'Template catalog changed during validation', 503)
+    return { bytes, bundle }
   }
   /** Validation precedes this synchronous transaction: no await between read/commit.
    * The Dashboard owns one writer process per workspace volume. Multi-writer

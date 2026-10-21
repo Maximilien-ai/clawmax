@@ -211,6 +211,27 @@ async function run() {
     )
   })
 
+  await test('malformed persisted plugin selections fall back without exposing fixtures', () => {
+    const settingsPath = process.env.CLAWMAX_PLUGIN_SETTINGS_PATH!
+    const originalSelection = process.env.CLAWMAX_ENABLED_PLUGINS
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'clawmax-lifecycle,plugin-review-notes'
+    try {
+      for (const invalid of ['{bad json', JSON.stringify({ version: 2, enabledPluginIds: [] }), JSON.stringify({ version: 1, enabledPluginIds: null })]) {
+        fs.writeFileSync(settingsPath, invalid)
+        const slugs = listConfiguredPlugins().map((plugin) => plugin.slug)
+        assert.deepStrictEqual(slugs, ['clawmax-lifecycle', 'plugin-review-notes'])
+      }
+      fs.writeFileSync(settingsPath, JSON.stringify({ version: 1, enabledPluginIds: ['clawmax-lifecycle', 42, 'clawmax-lifecycle'] }))
+      assert.deepStrictEqual(listConfiguredPlugins().map((plugin) => plugin.slug), ['clawmax-lifecycle'])
+      assert.throws(() => updatePluginSettings([null]), (error: any) => error instanceof PluginContractError && error.statusCode === 400)
+      assert.throws(() => updatePluginSettings('clawmax-lifecycle'), (error: any) => error instanceof PluginContractError && error.statusCode === 400)
+    } finally {
+      fs.unlinkSync(settingsPath)
+      if (originalSelection === undefined) delete process.env.CLAWMAX_ENABLED_PLUGINS
+      else process.env.CLAWMAX_ENABLED_PLUGINS = originalSelection
+    }
+  })
+
   await test('Lifecycle exposes agent files, conversations, models, and chronological evidence', () => {
     const plugin = getPluginBySlug('clawmax-lifecycle')
     assert(plugin, 'Expected public Lifecycle plugin')
@@ -242,6 +263,39 @@ async function run() {
     assert(evidence.events.every((entry, index, events) => index === 0 || events[index - 1].at <= entry.at), 'Expected chronological workflow events')
   })
 
+  await test('Lifecycle includes owned workflow artifacts but never traverses outside the workspace', () => {
+    const lifecycle = getPluginBySlug('clawmax-lifecycle')!
+    const workflowId = getPluginWorkspaceContext(lifecycle).workflows[0]?.id
+    assert(workflowId, 'Expected seeded workflow')
+    const executionPath = path.join(tempWorkspace, 'WORKFLOWS', 'executions', workflowId, 'run-1.json')
+    const original = fs.readFileSync(executionPath, 'utf-8')
+    const outputPath = path.join(tempWorkspace, 'WORKFLOWS', 'outputs', workflowId, 'report.md')
+    const externalPath = path.join(tempHome, 'private-output.md')
+    try {
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true })
+      fs.writeFileSync(outputPath, '# Report')
+      fs.writeFileSync(externalPath, '# Private')
+      const execution = JSON.parse(original)
+      execution.outputs = {
+        report: { artifactPath: path.relative(tempWorkspace, outputPath) },
+        repeated: { artifactPath: path.relative(tempWorkspace, outputPath) },
+        outside: { artifactPath: externalPath },
+        missing: { artifactPath: 'WORKFLOWS/outputs/missing.md' },
+        empty: {},
+      }
+      fs.writeFileSync(executionPath, JSON.stringify(execution))
+      const evidence = getWorkflowLifecycleEvidence(lifecycle, workflowId)
+      const artifact = path.relative(tempWorkspace, outputPath)
+      assert.strictEqual(evidence.files.filter((file) => file.path === artifact).length, 1)
+      assert(!evidence.files.some((file) => file.path.includes('private-output.md')))
+      assert(evidence.events.some((event) => event.type === 'file' && event.detail === artifact))
+    } finally {
+      fs.writeFileSync(executionPath, original)
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath)
+      if (fs.existsSync(externalPath)) fs.unlinkSync(externalPath)
+    }
+  })
+
   await test('Lifecycle exposes group and community communication evidence', async () => {
     const plugin = getPluginBySlug('clawmax-lifecycle')
     addMessage('group', 'Research Ops', { from: 'analyst', content: 'Research update', mentions: [] })
@@ -254,6 +308,76 @@ async function run() {
     assert.strictEqual(communityEvidence.summary.messageCount, 1)
     assert(groupEvidence.events.some((entry) => entry.type === 'conversation'), 'Expected group message timeline event')
     assert(communityEvidence.events.some((entry) => entry.type === 'conversation'), 'Expected community message timeline event')
+  })
+
+  await test('Lifecycle rejects invalid or unavailable subjects before reading evidence', () => {
+    const lifecycle = getPluginBySlug('clawmax-lifecycle')!
+    const other = getPluginBySlug('plugin-evals')!
+    for (const operation of [
+      () => getAgentLifecycleEvidence(other, 'analyst'),
+      () => getWorkflowLifecycleEvidence(other, 'research-sweep'),
+      () => getCommunicationLifecycleEvidence(other, 'group', 'Research Ops'),
+      () => getAgentLifecycleEvidence(lifecycle, '../analyst'),
+      () => getWorkflowLifecycleEvidence(lifecycle, '../research-sweep'),
+      () => getCommunicationLifecycleEvidence(lifecycle, 'group', ' '),
+      () => getCommunicationLifecycleEvidence(lifecycle, 'group', 'x'.repeat(241)),
+    ]) {
+      assert.throws(operation, (error: any) => error instanceof PluginContractError && error.statusCode === 400)
+    }
+    for (const operation of [
+      () => getAgentLifecycleEvidence(lifecycle, 'missing-agent'),
+      () => getWorkflowLifecycleEvidence(lifecycle, 'missing-workflow'),
+      () => getCommunicationLifecycleEvidence(lifecycle, 'community', 'Missing Community'),
+    ]) {
+      assert.throws(operation, (error: any) => error instanceof PluginContractError && error.statusCode === 404)
+    }
+  })
+
+  await test('Lifecycle summarizes archived sessions and malformed retained evidence safely', () => {
+    const lifecycle = getPluginBySlug('clawmax-lifecycle')!
+    const sessionsRoot = path.join(tempHome, '.openclaw', 'agents', 'analyst', 'sessions')
+    const archiveDir = path.join(sessionsRoot, 'archive')
+    fs.mkdirSync(archiveDir, { recursive: true })
+    const archivePath = path.join(archiveDir, 'archived-chat.jsonl')
+    const indexPath = path.join(sessionsRoot, 'sessions.json')
+    const oldIndex = fs.readFileSync(indexPath, 'utf-8')
+    try {
+      fs.writeFileSync(archivePath, [
+        '{bad json}',
+        JSON.stringify({ type: 'message', message: { role: 'system', content: 'hidden' } }),
+        JSON.stringify({ type: 'message', message: { role: 'assistant', content: 'Visible' } }),
+      ].join('\n'))
+      fs.writeFileSync(indexPath, JSON.stringify({
+        one: { modelOverride: 'openai/gpt-4o-mini', updatedAt: 'not-a-timestamp' },
+        two: { model: 'openai/gpt-5.4-mini', updatedAt: Date.now() },
+        three: { updatedAt: Date.now() },
+      }))
+      const evidence = getAgentLifecycleEvidence(lifecycle, 'analyst')
+      assert.strictEqual(evidence.summary.conversationCount, 2)
+      assert.strictEqual(evidence.summary.messageCount, 3)
+      assert(evidence.conversations.some((entry) => entry.id === 'archived-chat' && !entry.active && entry.messageCount === 1))
+      assert(evidence.modelHistory.some((entry) => entry.model === 'openai/gpt-4o-mini' && entry.observedAt === null))
+      assert(evidence.modelHistory.some((entry) => entry.model === 'openai/gpt-5.4-mini' && entry.current))
+
+      const groupArchive = path.join(tempWorkspace, 'SYSTEM', 'messages', 'groups', 'archive')
+      fs.mkdirSync(groupArchive, { recursive: true })
+      const validArchive = path.join(groupArchive, 'research_ops_1785600000000.json')
+      const invalidArchive = path.join(groupArchive, 'research_ops_1785600000001.json')
+      try {
+        fs.writeFileSync(validArchive, JSON.stringify([{ content: 'Archived' }, { content: 'Retained' }]))
+        fs.writeFileSync(invalidArchive, '{invalid')
+        const group = getCommunicationLifecycleEvidence(lifecycle, 'group', 'Research Ops')
+        assert.strictEqual(group.summary.archiveCount, 2)
+        assert(group.events.some((entry) => entry.detail === '2 messages'))
+        assert(group.events.some((entry) => entry.detail === '0 messages'))
+      } finally {
+        fs.unlinkSync(validArchive)
+        fs.unlinkSync(invalidArchive)
+      }
+    } finally {
+      fs.unlinkSync(archivePath)
+      fs.writeFileSync(indexPath, oldIndex)
+    }
   })
 
   await test('host supports zero-plugin mode when default plugins are disabled', () => {
@@ -813,6 +937,25 @@ async function run() {
     assert(context.communities.includes('Research'), 'Expected plugin context to expose communities')
   })
 
+  await test('fixed evaluator records passed and failed comparisons without fabricated usage', () => {
+    const plugin = getPluginBySlug('plugin-evals')!
+    for (const [name, fixedMatch, candidateOutput, expectedOutput, fixedCaseSensitive, score, summaryPart] of [
+      ['Contains insensitive', 'contains', 'Ready for RELEASE', 'release', false, 100, 'passed'],
+      ['Contains sensitive', 'contains', 'Ready for RELEASE', 'release', true, 0, 'failed'],
+      ['Regex insensitive', 'regex', 'Release 85', '^release 85$', false, 100, 'passed'],
+    ] as const) {
+      const created = upsertPluginRecord(plugin, {
+        name, target: { type: 'agent', ids: ['analyst'] },
+        experiment: { input: 'Check output', candidateOutput, expectedOutput, judge: 'fixed', fixedMatch, fixedCaseSensitive, iterations: 2 },
+      } as any)
+      const evaluated = runPluginEval(plugin, created.id)
+      assert.strictEqual(evaluated?.lastRun?.score, score, name)
+      assert(evaluated?.lastRun?.summary.includes(summaryPart), name)
+      assert.strictEqual(evaluated?.lastRun?.totalCases, 1, 'The one retained trial case determines progress')
+      assert.strictEqual(evaluated?.lastRun?.costUsd, 0, 'Fixed evaluation must not invent spend')
+    }
+  })
+
   await test('eval runs reject incomplete or disabled configurations', async () => {
     const plugin = getPluginBySlug('plugin-evals')
     assert(plugin, 'Expected evals test plugin manifest to load')
@@ -982,6 +1125,133 @@ async function run() {
     const notificationCount = getActiveNotifications().length
     assert(generatePluginRecordDocument(docsOnlyPlugin, docsOnlyRecord.id)?.document?.path, 'Expected docs-only grant to generate a document')
     assert.strictEqual(getActiveNotifications().length, notificationCount, 'Expected docs-only action not to emit a notification')
+  })
+
+  await test('persisted plugin records normalize malformed optional fields without losing usable evidence', () => {
+    const fixtures: Array<{ plugin: any; records: any[] }> = [
+      {
+        plugin: { ...getPluginBySlug('plugin-guardrails')!, id: 'guard-normalize', slug: 'guard-normalize' },
+        records: [null, { id: 'guard-one', name: 'Guard One', tags: ['stable', 'stable'], enabled: false,
+          appliesTo: { agents: ['analyst', 'analyst'] }, controls: { blockEmail: true },
+          history: [{ action: 'unknown', summary: ' Retained ', createdAt: '2026-01-01T00:00:00Z' }] }],
+      },
+      {
+        plugin: { ...getPluginBySlug('plugin-evals')!, id: 'eval-normalize', slug: 'eval-normalize' },
+        records: [{ id: 'eval-one', name: 'Eval One', target: { type: 'invalid', ids: ['analyst', 'analyst'] },
+          experiment: { input: 'Prompt', expectedOutput: 'Answer', iterations: 999, fixedMatch: 'invalid',
+            cases: [{ id: 'case-a', input: { type: 'file', value: 'input.md' }, expected: { type: 'text', value: 'Answer' } }] },
+          runs: [{ id: 'run-one', score: Number.NaN, createdAt: '2026-01-01T00:00:00Z' }, { id: '', createdAt: '2026-01-01T00:00:00Z' }],
+          humanReview: { status: 'invalid', reviewerEmail: ' TEST@EXAMPLE.COM ', requestedAt: '2026-01-01' } }],
+      },
+      {
+        plugin: { ...getPluginBySlug('plugin-review-notes')!, id: 'generic-normalize', slug: 'generic-normalize' },
+        records: [{ id: 'note-one', name: 'Note One', tags: ['one', 'one'], fields: { release: '2.0.0', area: 'regression', completed: 1, outcome: 'invalid' } }],
+      },
+    ]
+    const normalized = fixtures.map(({ plugin, records }) => {
+      const storage = path.join(tempWorkspace, 'SYSTEM', 'plugins', plugin.slug)
+      fs.mkdirSync(storage, { recursive: true })
+      fs.writeFileSync(path.join(storage, 'items.json'), JSON.stringify(records))
+      return listPluginRecords(plugin)
+    })
+    assert.strictEqual(normalized[0].length, 1, 'Null persisted records must be ignored')
+    const guard = normalized[0][0] as any
+    assert.strictEqual(guard.enabled, false)
+    assert.deepStrictEqual(guard.appliesTo.agents, ['analyst'])
+    assert.strictEqual(guard.history[0].action, 'updated', 'Unknown history actions should normalize safely')
+    const evaluation = normalized[1][0] as any
+    assert.strictEqual(evaluation.target.type, 'agent')
+    assert.strictEqual(evaluation.experiment.iterations, 100)
+    assert.strictEqual(evaluation.experiment.cases[0].input.type, 'file')
+    assert.strictEqual(evaluation.runs.length, 1, 'Incomplete historical runs should be dropped')
+    assert.strictEqual(evaluation.runs[0].score, 0, 'Non-finite stored scores should not propagate')
+    assert.strictEqual(evaluation.humanReview.reviewerEmail, 'test@example.com')
+    const note = normalized[2][0] as any
+    assert.deepStrictEqual(note.tags, ['one'])
+    assert.strictEqual(note.fields.completed, false, 'Only an explicit true enables a persisted check')
+  })
+
+  await test('legacy plugin records retain alternative targets, trial history, and review state', () => {
+    const evalPlugin = { ...getPluginBySlug('plugin-evals')!, id: 'eval-history-fixture', slug: 'eval-history-fixture' }
+    const guardPlugin = { ...getPluginBySlug('plugin-guardrails')!, id: 'guard-history-fixture', slug: 'guard-history-fixture' }
+    const writeRecords = (plugin: any, records: any[]) => {
+      const storage = path.join(tempWorkspace, 'SYSTEM', 'plugins', plugin.slug)
+      fs.mkdirSync(storage, { recursive: true })
+      fs.writeFileSync(path.join(storage, 'items.json'), JSON.stringify(records))
+      return listPluginRecords(plugin)
+    }
+    const evaluations = writeRecords(evalPlugin, [
+      { id: 'group-eval', name: 'Group Eval', target: { type: 'group', ids: ['Research Ops'] },
+        experiment: { input: 'Question', expectedOutput: 'Answer', judge: 'human', iterations: -2,
+          fixedMatch: 'regex', fixedCaseSensitive: true, humanReviewerEmail: ' REVIEW@EXAMPLE.COM ' },
+        runs: [{ id: 'run-group', score: 0.8, summary: ' Retained ', judgeMode: 'human',
+          casesCompleted: -1, totalCases: 0, tokensIn: 3, tokensOut: 2, costUsd: 0.01,
+          createdAt: '2026-01-02T00:00:00Z' }],
+        humanReview: { status: 'completed', reviewerName: ' Reviewer ', completedAt: '2026-01-03T00:00:00Z' } },
+      { id: 'workflow-eval', name: 'Workflow Eval', target: { type: 'workflow', ids: ['research-sweep'] },
+        experiment: { cases: [{ input: { value: 'Only input' } }, { expected: { value: 'Only expected' } }, {}] },
+        runs: 'bad' },
+    ]) as any[]
+    assert.strictEqual(evaluations[0].target.type, 'group')
+    assert.strictEqual(evaluations[0].experiment.iterations, 1)
+    assert.strictEqual(evaluations[0].experiment.fixedMatch, 'regex')
+    assert.strictEqual(evaluations[0].experiment.humanReviewerEmail, 'review@example.com')
+    assert.strictEqual(evaluations[0].runs[0].casesCompleted, 0)
+    assert.strictEqual(evaluations[0].runs[0].totalCases, 1)
+    assert.strictEqual(evaluations[0].humanReview.status, 'completed')
+    assert.strictEqual(evaluations[1].target.type, 'workflow')
+    assert.strictEqual(evaluations[1].experiment.cases.length, 2, 'Empty trial cases should be removed')
+    assert.strictEqual(evaluations[1].runs.length, 0)
+
+    const guards = writeRecords(guardPlugin, [{ id: 'guard-history', name: 'Historical Guard',
+      appliesTo: { workflows: ['research-sweep'], groups: ['Research Ops'], communities: ['Research'] },
+      controls: { blockWeb: true, blockExternalDocs: true, allowedSkills: ['github', 'github'] },
+      history: [{ id: 'retained', action: 'blocked', summary: 'Blocked', createdAt: '2026-01-01' }] }]) as any[]
+    assert.strictEqual(guards[0].history[0].action, 'blocked')
+    assert.deepStrictEqual(guards[0].controls.allowedSkills, ['github'])
+    assert.deepStrictEqual(guards[0].appliesTo.communities, ['Research'])
+  })
+
+  await test('plugin suggestion bundles normalize sparse items and reject malformed entries', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-suggestion-bundle-'))
+    const previousPluginPaths = process.env.CLAWMAX_PLUGIN_PATHS
+    const source = getPluginBySlug('plugin-review-notes')!
+    const plugin = { ...source, id: 'suggestion-fixture', slug: 'suggestion-fixture' }
+    const templateDir = path.join(root, 'templates')
+    try {
+      fs.mkdirSync(templateDir, { recursive: true })
+      fs.writeFileSync(path.join(root, 'clawmax-plugin.json'), JSON.stringify(plugin))
+      fs.writeFileSync(path.join(templateDir, 'bundle.json'), JSON.stringify({
+        id: 'release-checks', release: '2.0.0-test-rc86', tags: ['release'],
+        defaults: { enabled: false, tags: ['default'], fields: { completed: false, area: 'regression' } },
+        items: [
+          null,
+          { id: 'a', name: 'Architecture', description: 'Inspect boundary', tags: ['security'], fields: { notes: 'Retained' } },
+          { id: 'b', name: 'Browser', recommended: false, enabled: true, fields: { area: 'browser' } },
+          { id: 'blank', name: '' },
+        ],
+      }))
+      fs.writeFileSync(path.join(templateDir, 'single.json'), JSON.stringify({
+        id: 'single', name: 'Single', record: { fields: { release: '2.0.0-test-rc86' } },
+      }))
+      fs.writeFileSync(path.join(templateDir, 'invalid.json'), '{invalid')
+      process.env.CLAWMAX_PLUGIN_PATHS = root
+      clearPluginTemplateCache(plugin)
+      const suggestions = listPluginTemplates(plugin, { forceRefresh: true })
+      assert.deepStrictEqual(suggestions.map((entry) => entry.id), ['release-checks:a', 'release-checks:b', 'single'])
+      assert.deepStrictEqual(suggestions[0].tags, ['release', 'security'])
+      assert.deepStrictEqual((suggestions[0].payload as any).tags, ['release', 'default', 'security'])
+      assert.strictEqual((suggestions[0].payload as any).fields.release, '2.0.0-test-rc86')
+      assert.strictEqual((suggestions[0].payload as any).fields.notes, 'Retained')
+      assert.strictEqual(suggestions[1].recommended, false)
+      assert.strictEqual((suggestions[1].payload as any).enabled, true)
+      assert.strictEqual((suggestions[1].payload as any).fields.area, 'browser')
+    } finally {
+      clearPluginTemplateCache(plugin)
+      if (previousPluginPaths === undefined) delete process.env.CLAWMAX_PLUGIN_PATHS
+      else process.env.CLAWMAX_PLUGIN_PATHS = previousPluginPaths
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE

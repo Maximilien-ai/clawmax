@@ -1,16 +1,61 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: September 22, 2026
+**Last Updated**: October 12, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
 ## Active Issues
+
+### RC91 installed chat compatibility on MBP14
+
+An MBP14 agent chat reported `ERR_PACKAGE_PATH_NOT_EXPORTED` while loading a
+captured Codex plugin path. Available evidence suggests a packaged OpenClaw
+core/plugin version mismatch, but the exact affected agent's model and a
+successful installed-instance repair have not been verified. Preserve volumes
+and rollback while CLI/on-prem ownership checks the installed image, core,
+plugin, and affected agent, then repeat direct chat, restart, and persistence
+acceptance. Local dev chat does not close this installed-instance issue. See
+the [active dual-instance gate](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md).
+
+### Template staging is not public Template execution
+
+PR #212 stages inert, owner-scoped Template topology and offers a localhost-only
+no-tool chat path for dev inspection. It does not yet admit the public
+server-owned plan/apply/resource lifecycle or a Collector-backed read-only
+Workflow run. Do not advertise execution, credential delivery, or production
+Template deployment until authority, digest, broker, restart/idempotency, and
+cleanup evidence passes. Test10 deployment and acceptance on the next candidate
+also remain unrecorded.
+
+### Internal RC development dependency advisory
+
+On October 3, 2026, `npm audit` reported five high severity dependency nodes,
+all tracing to one `braces@3.0.3` advisory
+([GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm))
+through the Tailwind 3 build toolchain. The production-only audit reported zero
+high/critical findings and five moderate findings. No patched npm release of
+`braces` was available. Internal RC CI temporarily accepts this exact advisory
+only when it remains outside the production dependency graph. On October 18,
+2026, npm still published `braces@3.0.3` as latest and offered only a Tailwind
+3-to-4 major upgrade as automated remediation. The narrowly scoped exception
+therefore expires November 1, 2026 UTC while that migration is evaluated. It
+fails on another high/critical finding or an affected production dependency.
+Dashboard owns dependency replacement or an upstream fix by that date. This
+dependency check is not a complete security audit or customer distribution
+approval.
 
 This document lists confirmed product limitations that remain relevant to the
 active release tracks. Historical snapshots are kept under
 [`archive/`](archive/).
 
 ## Runtime And Workflows
+
+### RC85 does not yet establish resolution of Mike's wrong-model report
+
+RC85 preparation addresses configuration validation and policy-denied model saves.
+The RC83 report of a different model executing still needs same-agent saved
+configuration and redacted runtime evidence. Duplicated chat errors/raw Markdown
+also remain unresolved. See the [RC85 gate](planning/RC85_RELEASE_GATE_2026-09-23.md).
 
 ### Installed-instance RC82 acceptance remains blocked
 

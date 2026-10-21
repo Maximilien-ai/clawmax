@@ -7,8 +7,15 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import nodeAssert from 'assert'
+import { assertAgentModelPolicy } from './agent-model-policy'
 import {
   normalizeAgentModelInput,
+  readAgentBackupModelFromConfigFile,
+  readAgentModelFromConfigFile,
+  restoreAgentModelInConfigFile,
+  restoreAgentBackupModelInConfigFile,
+  validateAgentModelPolicyInConfigFile,
   resetAgentSessionsForModelChange,
   updateAgentBackupModelInConfigFile,
   updateAgentModelInConfigFile,
@@ -53,6 +60,245 @@ function readMaterializedConfig(configPath: string): any {
 }
 
 console.log(`\n${YELLOW}=== Agent Model Test Suite ===${RESET}\n`)
+
+test('explicit model policies preserve instance and per-agent restrictions', () => {
+  const config = { agents: { defaults: { modelPolicy: { allow: ['openai/gpt-5.4'] }, models: {} } } }
+  assertAgentModelPolicy(config, {}, ['openai/gpt-5.4'])
+  nodeAssert.throws(() => assertAgentModelPolicy(config, {}, ['openai/gpt-5.4-mini']), /blocked.*defaults.modelPolicy.allow/)
+  assertAgentModelPolicy(config, { modelPolicy: { allow: ['anthropic/*'] } }, ['anthropic/claude-test'])
+  nodeAssert.throws(() => assertAgentModelPolicy(config, { modelPolicy: { allow: ['anthropic/*'] } }, ['openai/gpt-5.4']), /blocked.*agent.modelPolicy.allow/)
+  assertAgentModelPolicy(config, { modelPolicy: { allow: [] } }, ['other/model'])
+  assertAgentModelPolicy({}, {}, ['other/model'])
+  assertAgentModelPolicy(config, { modelPolicy: { allow: ['lmstudio/google/*'] } }, ['openai-compatible/google/gemma-test'])
+  nodeAssert.throws(() => assertAgentModelPolicy(config, { modelPolicy: { allow: ['openai/gpt*'] } }, ['openai/gpt-5.4']), /blocked/)
+  nodeAssert.throws(() => assertAgentModelPolicy(config, { modelPolicy: { allow: 'openai/*' } }, ['openai/gpt-5.4']), /blocked/)
+  assertAgentModelPolicy({ agents: { defaults: { models: { 'openai/gpt-5.4': { alias: 'primary' } }, modelPolicy: { allow: ['primary'] } } } }, {}, ['openai/gpt-5.4'])
+})
+
+test('GPT-5.5 exact admission excludes older models and preserves agent overrides', () => {
+  const config = { agents: { defaults: { modelPolicy: { allow: ['openai/gpt-5.5'] } } } }
+  assertAgentModelPolicy(config, {}, ['openai/gpt-5.5'])
+  for (const model of ['openai/gpt-5.4', 'openai/gpt-5.4-mini', 'openai/gpt-5.3', 'openai/gpt-4o', 'openai/gpt-5.5-invented']) {
+    nodeAssert.throws(() => assertAgentModelPolicy(config, {}, [model]), /blocked/)
+  }
+  nodeAssert.throws(() => assertAgentModelPolicy(config, { modelPolicy: { allow: ['anthropic/*'] } }, ['openai/gpt-5.5']), /blocked.*agent.modelPolicy.allow/)
+})
+
+test('rejected primary, backup and provisioned models leave config unchanged', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-policy-'))
+  try {
+    const configPath = path.join(tmpDir, 'openclaw.json')
+    const original = JSON.stringify({ agents: { defaults: { modelPolicy: { allow: ['openai/gpt-5.4'] } }, entries: { ceo: { model: 'openai/gpt-5.4' } } } })
+    fs.writeFileSync(configPath, original)
+    for (const result of [updateAgentModelInConfigFile(configPath, 'ceo', 'anthropic/blocked'), updateAgentBackupModelInConfigFile(configPath, 'ceo', 'anthropic/blocked'), upsertAgentModelInConfigFile(configPath, 'new-agent', 'anthropic/blocked')]) {
+      assert(!result.ok && !!result.error?.includes('blocked'), 'Policy must reject the selection')
+      assert(fs.readFileSync(configPath, 'utf-8') === original, 'Rejection must not mutate the config')
+    }
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }) }
+})
+
+test('explicit Dashboard save admits exact primary and backup refs into a migrated default policy', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-migrated-policy-'))
+  try {
+    const configPath = path.join(tmpDir, 'openclaw.json')
+    const original = { meta: { migrations: { modelPolicyAllowlist: true } }, agents: {
+      defaults: { modelPolicy: { allow: ['openai/gpt-4o-mini'] }, models: { 'openai/gpt-4o-mini': {} } },
+      list: [{ id: 'admin-secretary', workspace: '/workspace/a', model: 'openai/gpt-5.4' },
+        { id: 'peer', workspace: '/workspace/b', model: 'openai/gpt-4o-mini' }],
+    } }
+    fs.writeFileSync(configPath, JSON.stringify(original))
+    nodeAssert.ok(validateAgentModelPolicyInConfigFile(configPath, 'admin-secretary',
+      ['openai/gpt-5.4', 'openai/gpt-5.4-mini'], '/workspace/a', true).ok)
+    nodeAssert.deepEqual(JSON.parse(fs.readFileSync(configPath, 'utf8')), original, 'Preflight must be read-only')
+    nodeAssert.ok(upsertAgentModelInConfigFile(configPath, 'admin-secretary', 'openai/gpt-5.4',
+      { workspacePath: '/workspace/a', authorizePolicy: true }).ok)
+    nodeAssert.ok(updateAgentBackupModelInConfigFile(configPath, 'admin-secretary', 'openai/gpt-5.4-mini',
+      { workspacePath: '/workspace/a', authorizePolicy: true }).ok)
+    const saved = readMaterializedConfig(configPath)
+    nodeAssert.deepEqual(saved.agents.defaults.modelPolicy.allow,
+      ['openai/gpt-4o-mini', 'openai/gpt-5.4', 'openai/gpt-5.4-mini'])
+    nodeAssert.ok(saved.agents.defaults.models['openai/gpt-5.4'])
+    nodeAssert.ok(saved.agents.defaults.models['openai/gpt-5.4-mini'])
+    nodeAssert.deepEqual(saved.agents.list.find((agent: any) => agent.id === 'peer'), original.agents.list[1])
+    assert(!saved.agents.defaults.modelPolicy.allow.includes('openai/*'), 'Never authorize a wildcard')
+    assert(!upsertAgentModelInConfigFile(configPath, 'admin-secretary', 'anthropic/blocked',
+      { workspacePath: '/workspace/a' }).ok, 'Runtime/internal writes remain strict')
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }) }
+})
+
+test('Dashboard save does not widen unmarked or per-agent model policies', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-owned-policy-'))
+  try {
+    const configPath = path.join(tmpDir, 'openclaw.json')
+    for (const config of [
+      { agents: { defaults: { modelPolicy: { allow: ['openai/gpt-4o-mini'] } }, list: [{ id: 'a', workspace: '/w' }] } },
+      { meta: { migrations: { modelPolicyAllowlist: true } }, agents: { defaults: { modelPolicy: { allow: ['openai/gpt-4o-mini'] } }, list: [{ id: 'a', workspace: '/w', modelPolicy: { allow: ['openai/gpt-4o-mini'] } }] } },
+    ]) {
+      const original = JSON.stringify(config)
+      fs.writeFileSync(configPath, original)
+      nodeAssert.ok(!validateAgentModelPolicyInConfigFile(configPath, 'a', ['openai/gpt-5.4'], '/w', true).ok)
+      nodeAssert.ok(!upsertAgentModelInConfigFile(configPath, 'a', 'openai/gpt-5.4', { workspacePath: '/w', authorizePolicy: true }).ok)
+      nodeAssert.ok(fs.readFileSync(configPath, 'utf8') === original)
+    }
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }) }
+})
+
+test('model inspection and policy checks remain workspace-scoped on malformed or missing configs', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-read-'))
+  try {
+    const configPath = path.join(tmpDir, 'openclaw.json')
+    const missing = readAgentModelFromConfigFile(configPath, 'shared')
+    assert(!missing.ok && /Config not found/.test(missing.error || ''), 'Missing config must fail closed')
+    assert(!readAgentBackupModelFromConfigFile(configPath, 'shared').ok, 'Missing backup config must fail closed')
+    assert(validateAgentModelPolicyInConfigFile(configPath, 'shared', ['openai/gpt-5.4'], '/workspace/a').ok, 'Missing policy config permits a new agent')
+
+    fs.writeFileSync(configPath, '{bad json')
+    for (const result of [
+      readAgentModelFromConfigFile(configPath, 'shared'),
+      readAgentBackupModelFromConfigFile(configPath, 'shared'),
+      validateAgentModelPolicyInConfigFile(configPath, 'shared', ['openai/gpt-5.4'], '/workspace/a'),
+    ]) assert(!result.ok, 'Malformed config must not be accepted')
+
+    fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [
+      { id: 'shared', workspace: '/workspace/a', model: 'openai/gpt-5.4', backupModel: 'openai/gpt-5.4-mini' },
+      { id: 'shared', workspace: '/workspace/b', model: 'anthropic/claude-test' },
+    ] } }))
+    assert(readAgentModelFromConfigFile(configPath, 'shared', { workspacePath: '/workspace/a' }).model === 'openai/gpt-5.4', 'Read must use the selected workspace')
+    const backup = readAgentBackupModelFromConfigFile(configPath, 'shared', { workspacePath: '/workspace/a' })
+    assert(backup.ok && backup.backupModel === undefined, 'Unsupported legacy backup config must not become an active fallback')
+    assert(!readAgentModelFromConfigFile(configPath, 'shared', { workspacePath: '/workspace/c' }).ok, 'Unknown workspace must not fall through to another agent')
+    assert(!readAgentBackupModelFromConfigFile(configPath, 'shared', { workspacePath: '/workspace/c' }).ok, 'Unknown backup workspace must not fall through')
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }) }
+})
+
+test('model restoration changes only the selected workspace agent and reports no-ops', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-restore-'))
+  try {
+    const configPath = path.join(tmpDir, 'openclaw.json')
+    assert(!restoreAgentModelInConfigFile(configPath, 'shared', undefined).ok, 'Missing config must fail')
+    fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [
+      { id: 'shared', workspace: '/workspace/a', model: 'openai/gpt-5.4' },
+      { id: 'peer', workspace: '/workspace/b', model: 'anthropic/claude-test' },
+    ] } }))
+    assert(!restoreAgentModelInConfigFile(configPath, 'shared', undefined, { workspacePath: '/workspace/c' }).ok, 'Unknown workspace must not mutate another agent')
+    const noChange = restoreAgentModelInConfigFile(configPath, 'shared', 'openai/gpt-5.4', { workspacePath: '/workspace/a' })
+    assert(noChange.ok && noChange.changed === false, 'Restoring same model is a no-op')
+    const cleared = restoreAgentModelInConfigFile(configPath, 'shared', undefined, { workspacePath: '/workspace/a' })
+    assert(cleared.ok && cleared.changed === true, 'Selected model should clear')
+    assert(readAgentModelFromConfigFile(configPath, 'shared', { workspacePath: '/workspace/a' }).model === undefined, 'Selected model must be cleared')
+    assert(readAgentModelFromConfigFile(configPath, 'peer', { workspacePath: '/workspace/b' }).model === 'anthropic/claude-test', 'Other workspace model must remain')
+    const restored = restoreAgentModelInConfigFile(configPath, 'shared', 'openai/gpt-5.4', { workspacePath: '/workspace/a' })
+    assert(restored.ok && restored.changed === true, 'Selected model should restore')
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }) }
+})
+
+test('backup restoration strips unsupported legacy config without touching peer agents', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-backup-restore-'))
+  try {
+    const configPath = path.join(tmpDir, 'openclaw.json')
+    assert(!restoreAgentBackupModelInConfigFile(configPath, 'selected', undefined).ok, 'Missing config must fail')
+    fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [
+      { id: 'selected', workspace: '/workspace/a', model: 'openai/gpt-5.4', backupModel: 'openai/gpt-5.4-mini' },
+      { id: 'peer', workspace: '/workspace/b', model: 'anthropic/claude-test' },
+    ] } }))
+    assert(!restoreAgentBackupModelInConfigFile(configPath, 'selected', undefined, { workspacePath: '/workspace/c' }).ok, 'Unknown workspace must fail')
+    const restored = restoreAgentBackupModelInConfigFile(configPath, 'selected', 'openai/gpt-5.4-mini', { workspacePath: '/workspace/a' })
+    assert(restored.ok && restored.changed === true, 'Legacy backup key should be removed')
+    const durable = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const agents = materializeDashboardAgentList(durable)
+    assert(!('backupModel' in agents.find((agent: any) => agent.id === 'selected')), 'Unsupported backup key must not persist')
+    assert(agents.some((agent: any) => agent.id === 'peer' && agent.model === 'anthropic/claude-test'), 'Peer agent must remain')
+    const noChange = restoreAgentBackupModelInConfigFile(configPath, 'selected', undefined, { workspacePath: '/workspace/a' })
+    assert(noChange.ok && noChange.changed === false, 'Repeated restore should be a no-op')
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }) }
+})
+
+test('identity model and runtime edits preserve metadata and choose stable insertion points', () => {
+  const suffix = '\n## Creation Metadata\n- **Model:** original/model\n'
+  for (const [line, expected] of [
+    ['- **Avatar:**\n  avatar.png', '- **Avatar:**\n  avatar.png\n- **Model:** openai/gpt-5.4'],
+    ['- **Tags:** assistant', '- **Model:** openai/gpt-5.4\n- **Tags:** assistant'],
+    ['- **Role:** helper', '- **Role:** helper\n- **Model:** openai/gpt-5.4'],
+    ['- **Name:** Helper', '- **Name:** Helper\n\n- **Model:** openai/gpt-5.4'],
+  ]) {
+    const updated = upsertAgentModelInIdentityContent(`# Identity\n${line}${suffix}`, 'openai/gpt-5.4')
+    assert(updated.includes(expected), `Model insertion should follow runtime field: ${line}`)
+    assert(updated.includes('- **Model:** original/model'), 'Creation metadata must remain untouched')
+  }
+  for (const line of ['- **Model:** openai/gpt-5.4', '- **Avatar:**\n  avatar.png', '- **Tags:** assistant', '- **Role:** helper', '- **Name:** Helper']) {
+    const updated = upsertAgentRuntimeInIdentityContent(`# Identity\n${line}${suffix}`, 'droid')
+    assert(updated.includes('- **Runtime:** droid'), `Runtime should be inserted near ${line}`)
+    assert(updated.includes('- **Model:** original/model'), 'Creation metadata must remain untouched')
+    const cleared = upsertAgentRuntimeInIdentityContent(updated, 'default')
+    assert(!cleared.includes('- **Runtime:** droid'), 'Reset should clear only active runtime')
+  }
+  const noOp = '# Identity\n- **Name:** Helper\n'
+  nodeAssert.strictEqual(upsertAgentRuntimeInIdentityContent(noOp, 'default'), noOp)
+})
+
+test('identity tag and backup edits stay in the runtime section', () => {
+  const suffix = '\n## Creation Metadata\n- **Tags:** original\n- **Backup Model:** original/model\n'
+  for (const line of ['- **Role:** helper', '- **Name:** Helper', '- **Model:** openai/gpt-5.4']) {
+    const tagged = upsertAgentTagsInIdentityContent(`# Identity\n${line}${suffix}`, ['assistant', 'assistant', 'finance'])
+    assert(tagged.includes('- **Tags:** assistant, finance'), `Tags should be inserted for ${line}`)
+    assert(tagged.includes('- **Tags:** original'), 'Creation metadata tag must remain')
+    const cleared = upsertAgentTagsInIdentityContent(tagged, [])
+    assert(!cleared.includes('- **Tags:** assistant, finance'), 'Runtime tags should clear')
+    assert(cleared.includes('- **Tags:** original'), 'Creation metadata should survive clearing')
+  }
+  const existing = upsertAgentTagsInIdentityContent('# Identity\n- **Tags:** old\n', ['new'])
+  assert(existing.includes('- **Tags:** new') && !existing.includes('- **Tags:** old'), 'Existing tags should replace')
+  for (const line of ['- **Model:** openai/gpt-5.4', '- **Name:** Helper']) {
+    const backed = upsertAgentBackupModelInIdentityContent(`# Identity\n${line}${suffix}`, 'openai/gpt-5.4-mini')
+    assert(backed.includes('- **Backup Model:** openai/gpt-5.4-mini'), 'Backup should be inserted')
+    assert(backed.includes('- **Backup Model:** original/model'), 'Metadata backup must remain')
+    const cleared = upsertAgentBackupModelInIdentityContent(backed, undefined)
+    assert(!cleared.includes('- **Backup Model:** openai/gpt-5.4-mini'), 'Runtime backup should clear')
+    assert(cleared.includes('- **Backup Model:** original/model'), 'Metadata backup should survive')
+  }
+})
+
+test('automatic model-fit fields remain next to the active model or backup', () => {
+  for (const line of ['- **Backup Model:** openai/gpt-5.4-mini', '- **Model:** openai/gpt-5.4', '- **Name:** Helper']) {
+    const updated = upsertAgentModelFitInIdentityContent(`# Identity\n${line}\n\n## Creation Metadata\n- **Model Selection:** archived\n`, 'auto', 'balanced')
+    assert(updated.includes('- **Model Selection:** auto'), 'Selection mode should be written to active identity')
+    assert(updated.includes('- **Model Priority:** balanced'), 'Priority should be written to active identity')
+    assert(updated.includes('- **Model Selection:** archived'), 'Creation metadata should remain unchanged')
+    const repeated = upsertAgentModelFitInIdentityContent(updated, 'manual', 'cost')
+    assert((repeated.match(/- \*\*Model Selection:\*\* manual/g) || []).length === 1, 'Selection mode should update in place')
+    assert((repeated.match(/- \*\*Model Priority:\*\* cost/g) || []).length === 1, 'Priority should update in place')
+  }
+})
+
+test('model normalization distinguishes OpenAI families from arbitrary provider IDs', () => {
+  nodeAssert.strictEqual(normalizeAgentModelInput('   '), '')
+  nodeAssert.strictEqual(normalizeAgentModelInput(' o1-preview '), 'openai/o1-preview')
+  nodeAssert.strictEqual(normalizeAgentModelInput(' o3-mini '), 'openai/o3-mini')
+  nodeAssert.strictEqual(normalizeAgentModelInput(' chatgpt-4o-latest '), 'openai/chatgpt-4o-latest')
+  nodeAssert.strictEqual(normalizeAgentModelInput(' text-embedding-3-small '), 'openai/text-embedding-3-small')
+  nodeAssert.strictEqual(normalizeAgentModelInput(' gemma-local '), 'gemma-local')
+  nodeAssert.strictEqual(normalizeAgentModelInput('custom/gpt-4o'), 'custom/gpt-4o')
+})
+
+test('model update errors never create a missing or invalid OpenClaw config', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-errors-'))
+  try {
+    const configPath = path.join(tmpDir, 'openclaw.json')
+    for (const result of [
+      updateAgentModelInConfigFile(configPath, 'missing', 'openai/gpt-5.4'),
+      updateAgentBackupModelInConfigFile(configPath, 'missing', 'openai/gpt-5.4-mini'),
+    ]) assert(!result.ok, 'Missing config must reject model changes')
+    assert(!fs.existsSync(configPath), 'Rejected update must not create a config')
+    fs.writeFileSync(configPath, '{invalid')
+    assert(!updateAgentModelInConfigFile(configPath, 'missing', 'openai/gpt-5.4').ok, 'Invalid config must fail primary update')
+    assert(!updateAgentBackupModelInConfigFile(configPath, 'missing', undefined).ok, 'Invalid config must fail backup update')
+    fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [{ id: 'present', workspace: '/workspace/a', model: 'openai/gpt-5.4' }] } }))
+    assert(!updateAgentModelInConfigFile(configPath, 'present', '  ').ok, 'Empty model must fail')
+    assert(!updateAgentModelInConfigFile(configPath, 'present', 'openai/gpt-5.4-mini', { workspacePath: '/workspace/b' }).ok, 'Other workspace must fail')
+    assert(!updateAgentBackupModelInConfigFile(configPath, 'present', 'openai/gpt-5.4-mini', { workspacePath: '/workspace/b' }).ok, 'Other workspace backup must fail')
+    assert(!updateAgentBackupModelInConfigFile(configPath, 'missing', 'openai/gpt-5.4-mini').ok, 'Unknown agent backup must fail')
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }) }
+})
 
 test('updateAgentModelInConfigFile updates model in openclaw.json', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
@@ -616,6 +862,19 @@ test('resetAgentSessionsForModelChange archives runtime session state', () => {
   const archived = fs.readdirSync(archiveDir)
   assert(archived.some(name => name.endsWith('sessions.json')), 'Expected archived sessions index')
   assert(archived.some(name => name.endsWith('session-a.jsonl')), 'Expected archived session transcript')
+})
+
+test('session reset ignores absent state and unrelated files', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-reset-'))
+  try {
+    assert(resetAgentSessionsForModelChange(home, 'ceo').ok, 'Absent sessions should be a no-op')
+    const sessionsDir = path.join(home, '.openclaw', 'agents', 'ceo', 'sessions')
+    fs.mkdirSync(path.join(sessionsDir, 'nested'), { recursive: true })
+    fs.writeFileSync(path.join(sessionsDir, 'notes.txt'), 'unrelated')
+    assert(resetAgentSessionsForModelChange(home, 'ceo').ok, 'Unrelated entries should not fail reset')
+    assert(fs.existsSync(path.join(sessionsDir, 'notes.txt')), 'Unrelated file should remain')
+    assert(fs.existsSync(path.join(sessionsDir, 'nested')), 'Unrelated directory should remain')
+  } finally { fs.rmSync(home, { recursive: true, force: true }) }
 })
 
 setTimeout(() => {

@@ -287,6 +287,47 @@ async function run() {
     scheduler.stopScheduler()
   })
 
+  await test('dev schedules use current host authority, never gateway cron, and stop on disable', async () => {
+    const id = 'tr-1234567890abcdef-workflow-123456789abc'
+    const runtime = require('../routes/dev-template-workflow')
+    const originalConfig = runtime.getDevWorkflowConfiguration
+    const originalStart = runtime.startScheduledDevWorkflow
+    const originalFlag = process.env.CLAWMAX_DEV_HOST_SKILL_CHAT
+    let enabled = true, revoked = false, starts = 0, stopped = 0
+    let callback: () => void = () => { throw new Error('Not scheduled') }
+    try {
+      process.env.CLAWMAX_DEV_HOST_SKILL_CHAT = '1'
+      runtime.getDevWorkflowConfiguration = () => {
+        if (revoked) throw new Error('Revoked')
+        return { enabled, schedule: '0 9 * * *', timezone: 'America/Los_Angeles' }
+      }
+      runtime.startScheduledDevWorkflow = () => { if (revoked) throw new Error('Revoked'); starts++; return { runId: 'scheduled-run' } }
+      const scheduler = loadScheduler({
+        cron: { validate: () => true, schedule: (_expression: string, cb: () => void, options: any) => { callback = cb; assert.equal(options.timezone, 'America/Los_Angeles'); return { stop: () => { stopped++ } } } } as any,
+        workflows: { listWorkflows: () => [{ id, enabled: false, schedule: '' }], syncWorkflowToCron: () => { throw new Error('Must not register gateway cron') } } as any,
+        workspace: { listAgents: () => [] } as any,
+      })
+      scheduler.syncAllWorkflows({ syncCronRegistrations: true })
+      callback()
+      assert.equal(starts, 1)
+      revoked = true
+      callback()
+      assert.equal(starts, 1, 'Revocation must prevent dispatch at tick time')
+      revoked = false
+      enabled = false
+      scheduler.syncAllWorkflows()
+      assert.equal(stopped, 1)
+      delete process.env.CLAWMAX_DEV_HOST_SKILL_CHAT
+      assert.equal(scheduler.scheduledWorkflowConfiguration({ id }), null)
+      scheduler.stopScheduler()
+    } finally {
+      runtime.getDevWorkflowConfiguration = originalConfig
+      runtime.startScheduledDevWorkflow = originalStart
+      if (originalFlag === undefined) delete process.env.CLAWMAX_DEV_HOST_SKILL_CHAT
+      else process.env.CLAWMAX_DEV_HOST_SKILL_CHAT = originalFlag
+    }
+  })
+
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)

@@ -26,9 +26,28 @@ import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
+import { admitDevWorkflowReadRequest, devRunAsExecution, getDevTemplateWorkflowRun, isDevTemplateWorkflowId, listDevTemplateWorkflowRuns, startDevTemplateWorkflow } from './dev-template-workflow'
+import { devHostSkillChatEnabled } from './dev-host-skill-chat'
+import { getDevWorkflowConfiguration, updateDevWorkflowConfiguration } from './dev-template-workflow'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 
 const router = Router()
+
+function devManualWorkflowRequest(req: any, id: string): boolean {
+  if (!isDevTemplateWorkflowId(id)) return false
+  const admitted = admitDevWorkflowReadRequest(req)
+  return isDevTemplateWorkflowId(id)
+    && devHostSkillChatEnabled(process.env, admitted.get('Origin'), admitted.socket.remoteAddress)
+}
+
+export function devWorkflowSummary(req: any, id: string) {
+  if (!devManualWorkflowRequest(req, id)) return {}
+  try {
+    const runs = listDevTemplateWorkflowRuns(req, id, 20)
+    const latest = runs[0]
+    return latest ? { status: latest.status, lastRun: latest.createdAt, lastExecutionId: latest.runId } : {}
+  } catch { return { status: 'blocked' } }
+}
 
 function resolveSessionAuthor(req: any): string | undefined {
   const session = getAuthenticatedSession(req)
@@ -196,6 +215,9 @@ router.get('/', (req, res) => {
     const agents = listAgents()
     const pipelinePaused = getWorkflowPipelineState().paused
     const workflowsWithCounts = workflows.map(workflow => {
+      if (devManualWorkflowRequest(req, workflow.id)) {
+        workflow = { ...workflow, ...getDevWorkflowConfiguration(req, workflow.id) }
+      }
       const participants = resolveParticipants(workflow, agents)
       const cronInfo = validateCron(workflow.schedule)
       return {
@@ -221,6 +243,7 @@ router.get('/', (req, res) => {
         secretRequirements: workflow.secretRequirements,
         outputDefinitions: workflow.outputDefinitions,
         inputRefs: workflow.inputRefs,
+        ...devWorkflowSummary(req, workflow.id),
       }
     })
 
@@ -279,11 +302,13 @@ router.get('/:id', (req, res) => {
       return res.status(400).json({ error: 'Invalid workflow ID' })
     }
 
-    const workflow = getWorkflow(id)
+    let workflow = getWorkflow(id)
 
     if (!workflow) {
       return res.status(404).json({ error: 'Workflow not found', workflowId: id })
     }
+
+    if (devManualWorkflowRequest(req, id)) workflow = { ...workflow, ...getDevWorkflowConfiguration(req, id) }
 
     // Include cron human-readable description and resolved participants
     const cronValidation = validateCron(workflow.schedule)
@@ -291,6 +316,7 @@ router.get('/:id', (req, res) => {
     const participants = resolveParticipants(workflow, agents)
     const response = {
       ...workflow,
+      ...devWorkflowSummary(req, id),
       scheduleHuman: cronValidation.humanReadable || workflow.schedule,
       nextRunAt: workflow.enabled && !getWorkflowPipelineState().paused ? getNextCronRun(workflow.schedule, new Date(), workflow.timezone || 'UTC')?.toISOString() || null : null,
       participantCount: participants.length,
@@ -301,6 +327,26 @@ router.get('/:id', (req, res) => {
   } catch (error: any) {
     console.error('Error getting workflow:', error)
     res.status(500).json({ error: 'Failed to get workflow', message: error.message })
+  }
+})
+
+/** Explicit manual rehearsal. It never enables schedules or starts the
+ * imported Group runner; the Group is the durable Agent handoff channel. */
+router.post('/:id/dev-run', (req, res) => {
+  try {
+    const run = startDevTemplateWorkflow(req, req.params.id)
+    return res.status(202).json(run)
+  } catch {
+    return res.status(409).json({ error: 'Dev Workflow run unavailable or already running' })
+  }
+})
+
+router.get('/:id/dev-runs/:runId', (req, res) => {
+  try {
+    const run = getDevTemplateWorkflowRun(req, req.params.id, req.params.runId)
+    return run ? res.json(run) : res.status(404).json({ error: 'Dev Workflow run not found' })
+  } catch {
+    return res.status(409).json({ error: 'Dev Workflow authority unavailable' })
   }
 })
 
@@ -436,6 +482,14 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ error: 'Invalid workflow ID' })
     }
 
+    if (isDevTemplateWorkflowId(id)) {
+      if (!devManualWorkflowRequest(req, id)) return res.status(409).json({ error: 'Template editing requires an admitted runtime or a revised Template' })
+      try {
+        updateDevWorkflowConfiguration(req, id, req.body)
+        syncAllWorkflows({ syncCronRegistrations: false })
+        return res.json({ message: 'Workflow settings saved; original Template preserved' })
+      } catch (error: any) { return res.status(400).json({ error: 'Workflow settings not saved', details: error.message }) }
+    }
     const result = updateWorkflow(id, req.body)
 
     if (!result.success) {
@@ -536,7 +590,9 @@ router.get('/:id/executions', (req, res) => {
       return res.status(404).json({ error: 'Workflow not found', workflowId: id })
     }
 
-    const executions = listExecutions(id, limit)
+    const executions = devManualWorkflowRequest(req, id)
+      ? listDevTemplateWorkflowRuns(req, id, limit).map(devRunAsExecution)
+      : listExecutions(id, limit)
 
     // Simplify execution data for list view
     const simplifiedExecutions = executions.map(exec => ({
@@ -721,7 +777,11 @@ router.get('/:id/executions/:executionId', (req, res) => {
       return res.status(404).json({ error: 'Workflow not found', workflowId: id })
     }
 
-    const execution = getExecution(id, executionId)
+    const isDevManual = devManualWorkflowRequest(req, id)
+    const devRun = isDevManual ? getDevTemplateWorkflowRun(req, id, executionId) : null
+    const execution = isDevManual
+      ? devRun ? devRunAsExecution(devRun) : null
+      : getExecution(id, executionId)
     if (!execution) {
       return res.status(404).json({ error: 'Execution not found', executionId })
     }

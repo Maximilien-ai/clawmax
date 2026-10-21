@@ -8,7 +8,7 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import { execFile } from 'child_process'
-import simpleGit from 'simple-git'
+import { simpleGit } from 'simple-git'
 import { materializeDashboardAgentList } from './lib/openclaw-config'
 import docsRouter from './routes/docs'
 import agentsRouter from './routes/agents'
@@ -18,6 +18,7 @@ import skillsRouter from './routes/skills'
 import skillSecretBrokerRouter, { skillSecretBrokerRuntimeRouter } from './routes/skill-secret-broker'
 import mailOAuthRouter, { createMailRuntimeRouter } from './routes/mail-oauth'
 import workspacesRouter from './routes/workspaces'
+import { clearPending, isClearRoute, isClearRecoveryRead, workspaceClearRequestGate } from './lib/workspace-clear-http'
 import workspaceDashboardsRouter from './routes/workspace-dashboards'
 import chatRouter from './routes/chat'
 import logsRouter from './routes/logs'
@@ -31,10 +32,14 @@ import aiBuilderRouter from './routes/ai-builder'
 import templateRegistryRouter from './routes/template-registry'
 import activityExportRouter from './routes/activity-export'
 import instanceCliRouter from './routes/instance-cli'
+import { createHostAgentSkillAuthorityRouter } from './routes/host-agent-skill-authority'
+import { configuredTemplateResolverFromEnv } from './lib/template-service'
+import { inspectTemplateHostSkill } from './lib/template-host-skill-inspection'
 import { startActivityExportWorker, stopActivityExportWorker } from './lib/activity-export-worker'
 import { isTemplateRegistryWriteEnabled } from './lib/template-registry'
 import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity, isManagedAgentWorkspaceDir } from './lib/workspace'
 import { getSchedulerDiagnostics, startScheduler, stopScheduler } from './lib/scheduler'
+import { startDevBriefDeliveryWorker } from './lib/dev-brief-delivery-worker'
 import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
 import notificationsRouter from './routes/notifications'
 import { initOpikTracing, shutdownOpik, isOpikEnabled, getRequestDashboardInstanceId, getRuntimeInstanceIdentity } from './lib/opik'
@@ -44,7 +49,7 @@ import { requireAuth, verifyToken } from './lib/auth'
 import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthConfigured, getAuthenticatedSession, shouldUseSecureAuthCookies } from './lib/github-auth'
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
-import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
+import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, updatedBudgetConfig, BudgetConfig } from './lib/budget'
 import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardDeploymentKind, getDashboardEnvRaw, getDashboardInstanceLabel, getDefaultOllamaBaseUrl, getDefaultOpenAICompatibleBaseUrl, isManagedRuntime, isOllamaUiEnabled, resolveSystemExecutionProviderKeys } from './lib/dashboard-env'
 import { getResolvedMaintenanceBanner } from './lib/cloud-maintenance-status'
 import { getHostAgentStatus } from './lib/host-agent-status'
@@ -53,7 +58,7 @@ import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
 import { detectRuntimeStatuses, resolveEnabledRuntimes, resolveWorkspaceRuntime } from './lib/agent-runtime'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
-import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins, resolveDashboardBindHost } from './lib/http-security'
+import { browserMutationGuard, applyDashboardSecurityHeaders, dashboardCorsOrigins, isCorsOriginAllowed, isDashboardAuthBypassAllowed, resolveDashboardBindHost } from './lib/http-security'
 import { getTenantResourceLimitConfig, getTenantResourceLimits } from './lib/tenant-resource-limits'
 import { reconcileInterruptedWorkflowExecutions } from './lib/workflows'
 import { startPluginUsageMonitor, stopPluginUsageMonitor } from './lib/plugin-usage-monitor'
@@ -179,6 +184,7 @@ function startBackgroundServices() {
 
     try {
       startScheduler()
+      startDevBriefDeliveryWorker()
     } catch (err) {
       logToFile(`Scheduler start failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
     }
@@ -250,7 +256,7 @@ const HOST = resolveDashboardBindHost(process.env)
 app.set('trust proxy', process.env.DASHBOARD_TRUST_PROXY === 'true' ? 1 : false)
 app.disable('x-powered-by')
 
-const allowedCorsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN, 'http://localhost:5173')
+const allowedCorsOrigins = dashboardCorsOrigins(process.env)
 const primaryAppOrigin = allowedCorsOrigins[0] || `http://localhost:${PORT}`
 
 const shouldServeBuiltClient = process.env.NODE_ENV === 'production'
@@ -276,6 +282,7 @@ app.use(express.json())
 // Every request gets its own BYOK credential scope (see requestByokScopeMiddleware).
 app.use(requestByokScopeMiddleware)
 app.use(cookieParser())
+app.use('/api', browserMutationGuard(allowedCorsOrigins))
 
 // Rate limiting — global: 1000 req/min, auth: 20 req/min
 const authBypassMode = isDashboardAuthBypassAllowed(process.env)
@@ -302,7 +309,16 @@ const authLimiter = rateLimit({
 })
 app.use('/api', globalLimiter)
 app.use('/api/auth', authLimiter)
-app.use('/api', recoveryRequestGate(() => recoveryServingGate.ready))
+app.use('/api', workspaceClearRequestGate())
+app.use('/api', recoveryRequestGate(() => recoveryServingGate.ready, (pathname, method) => clearPending() && (isClearRoute(pathname) || (method === 'GET' && isClearRecoveryRead(pathname)))))
+app.use('/api/workspaces/default/clear', (_req, res, next) => {
+  res.once('finish', () => {
+    if (!recoveryServingGate.ready && !clearPending()) {
+      try { recoveryServingGate.resume() } catch { /* Other recovery still pending. */ }
+    }
+  })
+  next()
+})
 app.get('/api/health/live', (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json({ alive: true }) })
 app.get('/api/recovery', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store')
@@ -321,6 +337,29 @@ app.get('/api/health', createHealthHandler({
 // boundary so requests can never fall through to the browser SPA shell.
 app.use('/api', auditLog)
 app.use('/api/cli/v1', instanceCliRouter)
+// Private, host-initiated dev admission probe. A browser session and the
+// sign-in popup never authorize execution; production leaves this unmounted.
+app.use('/api/dev/host-agent-skill', createHostAgentSkillAuthorityRouter({
+  enabled: () => process.env.CLAWMAX_DEV_HOST_SKILL_AUTHORITY === '1'
+    && process.env.NODE_ENV !== 'production'
+    && process.env.DASHBOARD_APP_URL === 'http://localhost:5174'
+    && !!process.env.CLAWMAX_DEV_HOST_ACTOR_ID
+    && process.env.CLAWMAX_DEV_HOST_ACTOR_ID === process.env.CLAWMAX_CLI_LOCAL_ACTOR_ID
+    && !!process.env.CLAWMAX_DEV_HOST_WORKSPACE_ID,
+  secret: () => process.env.CLAWMAX_DEV_HOST_AUTH_KEY || '',
+  instanceKey: () => process.env.CLAWMAX_INSTANCE_KEY || '',
+  actorId: () => process.env.CLAWMAX_DEV_HOST_ACTOR_ID || '',
+  workspaceId: () => process.env.CLAWMAX_DEV_HOST_WORKSPACE_ID || '',
+  inspect: input => {
+    const workspace = getWorkspaceManager().getWorkspace(input.workspaceId)
+    if (!workspace) throw new Error('Workspace unavailable')
+    const resolver = configuredTemplateResolverFromEnv()
+    if (!resolver) throw new Error('Template authority unavailable')
+    const service = resolver({ workspaceId: workspace.id, workspacePath: workspace.path, actorId: input.actorId })
+    return inspectTemplateHostSkill({ store: service.store, authority: service.authority,
+      actorId: input.actorId, revisionId: input.workspaceRevisionId, agentId: input.agentId, skillName: input.skillName })
+  },
+}))
 
 // Auth verification (public, legacy)
 app.post('/api/auth/verify', verifyToken)
@@ -340,6 +379,10 @@ app.get('/api/auth/config', (_req, res) => {
   const integrationConfig = readWorkspaceIntegrationConfig()
   const managedRuntime = isManagedRuntime(rawEnv)
   const deploymentKind = getDashboardDeploymentKind(rawEnv)
+  const devHostAuthReady = process.env.CLAWMAX_DEV_MAXIMILIEN_AUTH_BRIDGE === '1'
+    && process.env.DASHBOARD_APP_URL === 'http://localhost:5174'
+    && process.env.NODE_ENV !== 'production'
+    && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(process.env.CLAWMAX_INSTANCE_KEY || '')
   const hasHostedExecutionPath = !!(executionKeys.openai || executionKeys.anthropic || executionKeys.gemini || executionKeys.openrouter || executionKeys.xai)
   res.json({
     githubEnabled: isGitHubAuthConfigured(),
@@ -347,6 +390,8 @@ app.get('/api/auth/config', (_req, res) => {
     authMode: process.env.DASHBOARD_AUTH_MODE || 'github_oauth',
     authDisabled: isDashboardAuthBypassAllowed(process.env),
     deploymentKind,
+    hostAuthBridgeReady: devHostAuthReady,
+    instanceKey: devHostAuthReady ? process.env.CLAWMAX_INSTANCE_KEY : null,
     instanceLabel: getDashboardInstanceLabel(rawEnv),
     resourceLimits: getTenantResourceLimits(rawEnv),
     resourceLimitConfig: getTenantResourceLimitConfig(rawEnv),
@@ -451,17 +496,9 @@ app.get('/api/budget', protect, async (req, res) => {
       })
     }
     const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : undefined
-    const session = getAuthenticatedSession(req)
-    const runtimeIdentity = getRuntimeInstanceIdentity()
-    const status = await getBudgetStatus(workspaceId, {
-      userId: session?.userId || null,
-      login: session?.login || null,
-      email: session?.email || null,
-      dashboardInstanceId: getRequestDashboardInstanceId(req),
-      instanceKey: runtimeIdentity.instanceKey || null,
-      machineId: runtimeIdentity.machineId || null,
-      machineName: runtimeIdentity.machineName || null,
-    })
+    // A workspace budget is shared by every actor in that workspace. Viewer-
+    // scoped spend would undercount the budget and disagree with enforcement.
+    const status = await getBudgetStatus(workspaceId)
     res.json({ enabled: true, ...status })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
@@ -469,7 +506,7 @@ app.get('/api/budget', protect, async (req, res) => {
 })
 
 // Update budget config
-app.put('/api/budget', protect, (req, res) => {
+app.put('/api/budget', protect, async (req, res) => {
   try {
     if (!isOpikEnabled()) {
       return res.status(400).json({
@@ -481,21 +518,21 @@ app.put('/api/budget', protect, (req, res) => {
     const current = loadBudgetConfig(workspaceId)
 
     // Validate
-    if (updates.limitUsd !== undefined && (typeof updates.limitUsd !== 'number' || updates.limitUsd < 0)) {
+    if (updates.limitUsd !== undefined && (typeof updates.limitUsd !== 'number' || !Number.isFinite(updates.limitUsd) || updates.limitUsd < 0)) {
       res.status(400).json({ error: 'limitUsd must be a non-negative number' })
       return
     }
-    if (updates.warningPct !== undefined && (typeof updates.warningPct !== 'number' || updates.warningPct < 0 || updates.warningPct > 100)) {
+    if (updates.warningPct !== undefined && (typeof updates.warningPct !== 'number' || !Number.isFinite(updates.warningPct) || updates.warningPct < 0 || updates.warningPct > 100)) {
       res.status(400).json({ error: 'warningPct must be 0-100' })
       return
     }
-
-    const config: BudgetConfig = {
-      limitUsd: updates.limitUsd ?? current.limitUsd,
-      warningPct: updates.warningPct ?? current.warningPct,
-      enforced: updates.enforced ?? current.enforced,
-      paused: updates.paused ?? current.paused,
+    if (updates.enforced !== undefined && typeof updates.enforced !== 'boolean') {
+      res.status(400).json({ error: 'enforced must be a boolean' })
+      return
     }
+
+    const spend = (await getBudgetStatus(workspaceId)).currentSpendUsd
+    const config = updatedBudgetConfig(current, updates, spend)
 
     saveBudgetConfig(config, workspaceId)
     res.json({ ok: true, config })
@@ -808,7 +845,12 @@ function resolveClientDist(): string | null {
 // SPA fallback for client-side routing (static files already mounted above CORS)
 if (earlyClientDist) {
   console.log(`[Static] Serving dashboard client from ${earlyClientDist}`)
+  app.get('/assets/*', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
+    res.status(404).type('text/plain').send('Dashboard asset not found. Reload the page to use the current version.')
+  })
   app.get('*', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
     res.sendFile(path.join(earlyClientDist, 'index.html'))
   })
 } else if (shouldServeBuiltClient) {

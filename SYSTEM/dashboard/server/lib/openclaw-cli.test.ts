@@ -61,7 +61,7 @@ test('resolveOpenClawCliPath returns PATH entry when available', () => {
   })
 })
 
-test('resolveOpenClawCliPath falls back to PATH when OPENCLAW_BIN is not executable', () => {
+test('resolveOpenClawCliPath fails closed when an explicit pin is unusable', () => {
   withTempDir('clawmax-openclaw-cli-fallback-', (dir) => {
     const badOverride = path.join(dir, 'not-executable-openclaw')
     const binDir = path.join(dir, 'bin')
@@ -73,7 +73,11 @@ test('resolveOpenClawCliPath falls back to PATH when OPENCLAW_BIN is not executa
 
     process.env.OPENCLAW_BIN = badOverride
     process.env.PATH = `${binDir}:${originalPath || ''}`
-    assert.strictEqual(resolveOpenClawCliPath(), pathCli)
+    assert.strictEqual(resolveOpenClawCliPath(), null)
+    process.env.OPENCLAW_BIN = path.join(dir, 'missing')
+    assert.strictEqual(resolveOpenClawCliPath(), null)
+    process.env.OPENCLAW_BIN = binDir
+    assert.strictEqual(resolveOpenClawCliPath(), null)
   })
 })
 

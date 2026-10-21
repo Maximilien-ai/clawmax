@@ -21,10 +21,11 @@ if (mode === 'write') {
   }
 }
 
-const roots = [
-  process.env.OPENCLAW_PACKAGE_ROOT,
-  '/usr/local/lib/node_modules/openclaw',
-].filter(Boolean)
+const selectedRoot = process.env.OPENCLAW_PACKAGE_ROOT?.trim()
+if (process.env.OPENCLAW_BIN?.trim() && !selectedRoot) {
+  throw new Error('Pinned OpenClaw credential storage requires OPENCLAW_PACKAGE_ROOT')
+}
+const roots = selectedRoot ? [selectedRoot] : ['/usr/local/lib/node_modules/openclaw']
 
 let storeModulePath = ''
 let saveExportName = ''

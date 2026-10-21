@@ -4,6 +4,17 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### Current 2.0 development (October 12, 2026)
+- RC91 is a tagged test candidate, not a stable promotion. The active goal is a single identified next candidate accepted on MBP14 and test10; see the [dual-instance gate](SYSTEM/docs/planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md).
+- [PR #212](https://github.com/Maximilien-ai/clawmax/pull/212) adds owner-scoped inert Template staging and dev-only, no-tool chat for staged agents. It remains under review; public Template execution and installed-instance acceptance are separate open gates.
+
+### RC85 preparation
+- Preserve Builder agent/team scope and handle malformed starter suggestions cleanly.
+- Open Agents after successful template application while keeping failed-apply inputs intact.
+- Support older native chat stores without bypassing modern active-branch/index safeguards.
+- Treat empty optional tools files and legacy placeholder tags consistently; reject model saves blocked by explicit runtime policy before changing configuration.
+- Expand error-path and persistence tests toward a 77% branch-coverage gate. Final validation and images remain pending; see the [RC85 release gate](SYSTEM/docs/planning/RC85_RELEASE_GATE_2026-09-23.md).
+
 ### RC83 preparation
 - Canonicalize isolated runtime paths for native SQLite session admission, keep test workspace/profile state disposable, and separate unit-test environment overrides from live execution.
 - Expand branch coverage for provider validation, metering isolation/merges, generated workflow normalization and Builder catalog/fallback handling: the complete integration/validation run passed 485/485 checks with 75.59% branch coverage.

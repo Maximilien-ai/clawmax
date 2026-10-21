@@ -7,7 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { deleteAgent, parseGroups } from './workspace'
+import { deleteAgent, parseGroups, parseGroupsWithMembers, parseIdentity, parseTags } from './workspace'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -170,6 +170,89 @@ Group focused on writing and editing posts.
     assert(parsedGroups.groups.length === 1, `Expected 1 group, got ${parsedGroups.groups.length}`)
     assert(parsedGroups.groups[0].name === 'Content Creation', 'Expected Content Creation group to parse')
     assert(parsedGroups.groups[0].community === 'CW Team', 'Expected group community link to parse')
+  })
+
+  await test('verbose group parsers retain metadata and do not cross section boundaries', () => {
+    const content = [
+      '# Communities',
+      '### Research',
+      '- **Description:** Shared research',
+      '- **Tags:** science, , analysis',
+      '- **Channels:** slack, , email',
+      '- **Members:** analyst, , editor',
+      '# Groups',
+      '### Writers',
+      '- **Description:** Daily output',
+      '- **Community:** Research',
+      '- **Tags:** writing, editing',
+      '- **Channels:** whatsapp',
+      '- **Members:** editor, analyst',
+      '## Unrelated',
+      '### Ignored',
+      '- **Members:** outsider',
+    ].join('\n')
+    const withMembers = parseGroupsWithMembers(content)
+    assert(withMembers.communities.length === 1 && withMembers.groups.length === 1, 'Expected entries only in recognized sections')
+    assert(withMembers.communities[0].description === 'Shared research', 'Expected community description')
+    assert(withMembers.communities[0].tags.join(',') === 'science,analysis', 'Expected empty tags removed')
+    assert(withMembers.communities[0].channels.join(',') === 'slack,email', 'Expected empty channels removed')
+    assert(withMembers.communities[0].members.join(',') === 'analyst,editor', 'Expected members parsed')
+    assert(withMembers.groups[0].community === 'Research', 'Expected group community retained')
+    assert(withMembers.groups[0].members.join(',') === 'editor,analyst', 'Expected group members parsed')
+    const simple = parseGroups(content)
+    assert(simple.communities.length === 1 && simple.groups.some(group => group.name === 'Writers'), 'Simple parser should retain recognized entries')
+    assert(simple.groups.find(group => group.name === 'Writers')?.channels.join(',') === 'whatsapp', 'Simple parser should retain channel metadata')
+  })
+
+  await test('compact group parser separates descriptions, tags, community links, and channels', () => {
+    const parsed = parseGroups([
+      '# Communities',
+      '- Research: Findings [science, analysis] 📧',
+      '- General',
+      '# Groups',
+      '- Writers: Daily output [writing, editing] @Research 📱 💬',
+      '- Assistants: No channel @Research',
+      '- Standalone',
+    ].join('\n'))
+    assert(parsed.communities.length === 2 && parsed.groups.length === 3, 'Expected both compact sections')
+    assert(parsed.communities[0].name === 'Research' && parsed.communities[0].description === 'Findings', 'Expected compact description')
+    assert(parsed.communities[0].tags.join(',') === 'science,analysis', 'Expected compact tags')
+    assert(parsed.communities[0].channels.join(',') === 'email', 'Expected email channel')
+    assert(parsed.communities[1].description === null, 'Expected absent description to stay null')
+    assert(parsed.groups[0].community === 'Research', 'Expected group community link')
+    assert(parsed.groups[0].channels.join(',') === 'whatsapp,slack', 'Expected multiple channels')
+    assert(parsed.groups[1].community === 'Research', 'Expected community without tags')
+    assert(parsed.groups[2].community === null, 'Expected absent community to stay null')
+  })
+
+  await test('identity parser excludes creation metadata and normalizes optional runtime fields', () => {
+    const parsed = parseIdentity([
+      '# Identity',
+      '- **Name:** Analyst',
+      '- **Creature:** Assistant',
+      '- **Vibe:** Careful',
+      '- **Emoji:** 🔎',
+      '- **Model:** openai/gpt-5.4-mini',
+      '- **Backup Model:** openai/gpt-4o-mini',
+      '- **Model Selection:** AUTO',
+      '- **Model Priority:** COST',
+      '- **Runtime:** default',
+      '- **WhatsApp:** +15551234567',
+      '- **Tags:** analyst, investigator',
+      '## Creation Metadata',
+      '- **Model:** stale/local-model',
+      '- **Tags:** leaked',
+    ].join('\n'))
+    assert(parsed.name === 'Analyst' && parsed.creature === 'Assistant' && parsed.vibe === 'Careful', 'Expected identity fields')
+    assert(parsed.emoji === '🔎' && parsed.runtime === 'default', 'Expected display and runtime fields')
+    assert(parsed.model === 'openai/gpt-5.4-mini' && parsed.backupModel === 'openai/gpt-4o-mini', 'Expected live models only')
+    assert(parsed.modelSelection === 'auto' && parsed.modelPreference === 'cost', 'Expected normalized model preferences')
+    assert(parsed.whatsapp === '+15551234567', 'Expected WhatsApp number')
+    assert(parsed.tags.join(',') === 'analyst,investigator', 'Expected creation tags excluded')
+    assert(parseTags('**Tags:**\n**Model:** openai/test').length === 0, 'Empty tags must not consume the next line')
+    const invalid = parseIdentity('**Model Selection:** unknown\n**Model Priority:** fast\n**WhatsApp:**\n')
+    assert(invalid.modelSelection === undefined && invalid.modelPreference === undefined, 'Unknown model preferences must be ignored')
+    assert(invalid.whatsapp === null, 'Empty WhatsApp value must stay null')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

@@ -13,6 +13,7 @@ import { TemplateRevisionStore } from '../lib/template-revisions'
 import { TemplateApplyCoordinator } from '../lib/template-apply-coordinator'
 import { TemplateGatewayTransaction, TemplateGatewayTransport } from '../lib/template-gateway-transaction'
 import { PortableTemplateError } from '../lib/portable-template-zip'
+import { TEMPLATE_LIFECYCLE_OPERATIONS } from './instance-template-lifecycle'
 
 function files(root: string): Record<string, string> {
   const result: Record<string, string> = {}
@@ -40,12 +41,20 @@ async function main() {
     let running = false
     let mismatch = false
     let coordinatorMismatch = false
+    let authorized = true
+    let stagingAvailable = false
+    let revokeOnSnapshot = false
+    let revokeAfterPatch = false
     const entries: Record<string, unknown> = { unrelated: { name: 'Preserve' } }
     const transport: TemplateGatewayTransport = {
-      async snapshot() { return { hash: String(revision), entries: structuredClone(entries) } },
+      async snapshot() {
+        if (revokeOnSnapshot) { authorized = false; revokeOnSnapshot = false }
+        return { hash: String(revision), entries: structuredClone(entries) }
+      },
       async patch(changes, hash) {
         assert.equal(hash, String(revision++))
         for (const [id, entry] of Object.entries(changes)) { if (entry === null) delete entries[id]; else entries[id] = entry }
+        if (revokeAfterPatch) { authorized = false; revokeAfterPatch = false }
       },
     }
     const runtime = { platform: 'linux/amd64', revision: 'fixture-v1' }
@@ -61,15 +70,20 @@ async function main() {
     const store = new TemplateRevisionStore(workspace, 'owned', compiler)
     const coordinator = new TemplateApplyCoordinator(store, new TemplateGatewayTransaction(workspace, transport), path.join(root, 'runtime'))
     const authorize = (req: express.Request, res: express.Response) => {
-      const actorId = req.get('Authorization') === 'Bearer owner-fixture' ? 'actor' : req.get('Authorization') === 'Bearer other-fixture' ? 'other' : null
+      const actorId = req.get('Authorization') === 'Bearer owner-fixture' ? 'actor' : req.get('Authorization') === 'Bearer other-fixture' ? 'other' : req.get('Authorization') === 'Bearer member-fixture' ? 'member' : null
       if (!actorId || req.params.workspaceId !== 'owned') { res.status(actorId ? 403 : 401).json({ kind: 'Error' }); return null }
-      return { workspaceId: 'owned', workspacePath: workspace, actorId }
+      return { workspaceId: 'owned', workspacePath: workspace, actorId, assertAuthorized() {
+        if (!authorized) throw new PortableTemplateError('workspace_forbidden', 'workspace access denied', 403)
+      }, assertOwner() {
+        if (actorId === 'member') throw new PortableTemplateError('workspace_forbidden', 'workspace owner access required', 403)
+      } }
     }
     const dependencies = { authorize, dashboardVersion: () => 'fixture', openClawVersion: () => 'fixture' }
     app.use('/disabled/:workspaceId', createInstanceTemplatesRouter(dependencies))
     app.use('/api/cli/v1/workspaces/:workspaceId', createInstanceTemplatesRouter({ ...dependencies, lifecycle: () => ({
       store: mismatch ? new TemplateRevisionStore(workspace, 'wrong', compiler) : store,
       coordinator: coordinatorMismatch ? new TemplateApplyCoordinator(new TemplateRevisionStore(path.join(root, 'foreign'), 'foreign', compiler), new TemplateGatewayTransaction(path.join(root, 'foreign'), transport), path.join(root, 'runtime')) : coordinator,
+      assertStagingAvailable() { if (!stagingAvailable) throw new Error('private configuration unavailable') },
       assertStopped() { if (running) throw new PortableTemplateError('resources_running', 'Stop owned resources first', 409) },
     }) }))
     await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
@@ -85,6 +99,24 @@ async function main() {
     const base = '/api/cli/v1/workspaces/owned'
     const request = { templateId: template.id, expectedRevision: null, idempotencyKey: 'apply', bindings: { producer: 'producer-binding', reviewer: 'reviewer-binding' } }
     const initial = files(root)
+    assert.equal((await call('/disabled/owned/capabilities')).body.templates.lifecycle.available, false)
+    stagingAvailable = true
+    assert.equal((await call(`${base}/capabilities`, 'GET', undefined, 'member-fixture')).body.templates.lifecycle.available, false)
+    assert.equal((await call(`${base}/package-plans`, 'POST', { templateId: template.id, expectedRevision: null, idempotencyKey: 'member-plan', bindings: {} }, 'member-fixture')).status, 403)
+    const capabilities = (await call(`${base}/capabilities`)).body
+    assert.deepEqual(capabilities.templates.operations, ['export', 'import', 'list', 'remove', 'show', 'validate', 'versions', ...TEMPLATE_LIFECYCLE_OPERATIONS])
+    assert.deepEqual(capabilities.templates.lifecycle, { available: true, mode: 'staged-no-tools', execution: false, scheduling: false, skillInstallation: false, credentialDelivery: false })
+    mismatch = true
+    assert.equal((await call(`${base}/capabilities`)).body.templates.lifecycle.available, false)
+    mismatch = false
+    authorized = false
+    assert.equal((await call(`${base}/capabilities`)).status, 403)
+    authorized = true
+    stagingAvailable = false
+    const unavailableCapabilities = (await call(`${base}/capabilities`)).body
+    assert.equal(unavailableCapabilities.templates.lifecycle.available, false)
+    assert(!JSON.stringify(unavailableCapabilities).includes('private configuration'))
+    assert.deepEqual(files(root), initial, 'Discovery must remain read-only')
     assert.equal((await call('/disabled/owned/package-plans', 'POST', request)).body.error.code, 'template_lifecycle_unavailable')
     assert.equal((await call(`${base}/package-plans`, 'POST', '{malformed', 'unknown')).status, 401)
     assert.equal((await call('/api/cli/v1/workspaces/foreign/revisions')).status, 403)
@@ -104,8 +136,24 @@ async function main() {
     assert.deepEqual(files(root), initial, 'Planning and rejected requests cannot persist files')
     assert.equal(revision, 0, 'Planning cannot contact the mutating transport')
     const payload = { request, planDigest: planned.body.planDigest }
+    assert.equal((await call(`${base}/revisions`, 'POST', payload, 'member-fixture')).status, 403)
+    assert.equal(revision, 0, 'A non-owner cannot mutate the gateway')
+    authorized = false
+    assert.equal((await call(`${base}/revisions`, 'POST', payload)).status, 403)
+    assert.equal(revision, 0, 'Revoked caller must not mutate gateway')
+    authorized = true
+    revokeOnSnapshot = true
+    assert.equal((await call(`${base}/revisions`, 'POST', payload)).status, 403)
+    assert.equal(revision, 0, 'Revocation during snapshot prevents registration')
+    authorized = true
+    revokeAfterPatch = true
+    assert.equal((await call(`${base}/revisions`, 'POST', payload)).status, 403)
+    assert.deepEqual(entries, { unrelated: { name: 'Preserve' } }, 'Revocation after registration rolls back only owned entries')
+    assert.equal(store.history().length, 0, 'Revocation before file commit cannot create a revision')
+    authorized = true
+    const patchesBeforeStalePlan = revision
     assert.equal((await call(`${base}/revisions`, 'POST', { request, planDigest: 'b'.repeat(64) })).status, 409)
-    assert.equal(revision, 0, 'Stale apply plans must not mutate the gateway')
+    assert.equal(revision, patchesBeforeStalePlan, 'Stale apply plans must not mutate the gateway')
     const applied = await call(`${base}/revisions`, 'POST', payload)
     assert.equal(applied.status, 201)
     assert.equal((await call(`${base}/revisions`, 'POST', payload)).status, 200)
@@ -127,11 +175,17 @@ async function main() {
     assert.equal(cleanupPlan.status, 200)
     assert.deepEqual(files(root), beforeCleanup)
     const cleanup = { expectedRevision: id, planDigest: cleanupPlan.body.planDigest }
+    assert.equal((await call(`${base}/revisions/${id}/cleanup`, 'POST', cleanup, 'member-fixture')).status, 403)
     assert.equal((await call(`${base}/revisions/${id}/cleanup`, 'POST', cleanup, 'other-fixture')).status, 403)
     running = true
     assert.equal((await call(`${base}/revisions/${id}/cleanup`, 'POST', cleanup)).status, 409)
     running = false
     catalog.remove(template.id)
+    revokeOnSnapshot = true
+    assert.equal((await call(`${base}/revisions/${id}/cleanup`, 'POST', cleanup)).status, 403)
+    assert(!store.history()[0].cleanedAt, 'Revocation during cleanup prevents ledger commit')
+    assert(Object.keys(entries).length > 1, 'Denied cleanup retains staged registrations')
+    authorized = true
     const removed = await call(`${base}/revisions/${id}/cleanup`, 'POST', cleanup)
     assert.equal(removed.status, 200)
     assert(removed.body.removed)

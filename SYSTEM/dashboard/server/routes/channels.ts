@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { spawn } from 'child_process'
+import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import fs from 'fs'
 import path from 'path'
 import { updateGroupTags, updateGroupMembers, parseGroupsWithMembers, getWorkspacePath, getAgentsDir, createGroup, deleteGroup, listAgents, deleteAgent, parseGroups } from '../lib/workspace'
@@ -27,6 +28,7 @@ import { deriveChatError } from './chat'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 import { cancelProcessTree, detachProcessStreams } from '../lib/process-tree'
+import { isDevHostSkillChatReady, runDevHostSkillChatTurn } from './dev-host-skill-chat'
 
 const router = Router()
 
@@ -94,7 +96,26 @@ router.get('/groups', (req, res) => {
     }
     const content = fs.readFileSync(groupsPath, 'utf-8')
     const { groups } = parseGroupsWithMembers(content)
-    res.json({ groups })
+    const templateGroupsDir = path.join(getWorkspacePath(), 'ORG', 'template-groups')
+    const safeTemplateDir = fs.existsSync(templateGroupsDir) && fs.lstatSync(templateGroupsDir).isDirectory()
+    res.json({ groups: groups.map(group => {
+      if (!safeTemplateDir || !/^tr-[a-z0-9-]+$/.test(group.name)) return group
+      try {
+        const filename = path.join(templateGroupsDir, `${group.name}.json`)
+        const fd = fs.openSync(filename, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
+        try {
+          if (!fs.fstatSync(fd).isFile()) return group
+          const metadata = JSON.parse(fs.readFileSync(fd, 'utf-8'))
+          if (metadata.id !== group.name || typeof metadata.name !== 'string') return group
+          const displayName = metadata.name.trim()
+          return displayName && displayName.length <= 160 ? { ...group, displayName } : group
+        } finally {
+          fs.closeSync(fd)
+        }
+      } catch {
+        return group
+      }
+    }) })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
@@ -454,7 +475,12 @@ export async function callAgent(
         ]
         // Own process group: openclaw spawns its own children, and signalling only this direct
         // child leaves grandchildren alive holding the stdout pipe open.
-        const proc = spawn('openclaw', args, { env: executionEnv, detached: true })
+        const openclawCli = resolveOpenClawCliPath()
+        if (!openclawCli) {
+          reject(new Error('Selected OpenClaw runtime is unavailable. Restore the configured runtime before retrying.'))
+          return
+        }
+        const proc = spawn(openclawCli, args, { env: executionEnv, detached: true })
 
     let stdout = ''
     let stderr = ''
@@ -614,7 +640,7 @@ export async function callAgent(
       settle(() => reject(err))
     })
     })
-    }, { persistAuthProfiles: true }))
+    }, { persistAuthProfiles: true, skipModelConfigMutation: true }))
   })
 }
 
@@ -943,6 +969,15 @@ router.post('/groups/:name/messages', async (req, res) => {
 
   const decodedName = decodeURIComponent(name)
   const session = getAuthenticatedSession(req)
+  const templateMentions = Array.isArray(mentions) && mentions.some(id => typeof id === 'string' && /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(id))
+  const devTemporaryChat = templateMentions && /^bulk-chat-\d{13}$/.test(decodedName)
+    && mentions.length >= 1 && mentions.length <= 8
+    && new Set(mentions).size === mentions.length
+    && mentions.every(id => typeof id === 'string' && isDevHostSkillChatReady(req, id))
+  if (templateMentions && !devTemporaryChat) {
+    res.status(409).json({ ok: false, error: 'Template Agents require the admitted local dev chat path' })
+    return
+  }
 
   // Save message (use provided 'from' or default to 'User')
   const message = addMessage('group', decodedName, {
@@ -955,6 +990,20 @@ router.post('/groups/:name/messages', async (req, res) => {
   appendActivityExportEventsForActiveConsents({ source: 'group-chat', workspaceId: activityWorkspaceId, userId: activityUserId, subjectId: decodedName, content })
 
   res.json({ ok: true, message })
+
+  if (devTemporaryChat) {
+    // Temporary chat is an explicit multi-Agent conversation, not a Group
+    // activation. Each Agent and Skill scope is revalidated per turn.
+    void Promise.all(mentions!.map(async agentId => {
+      try {
+        const response = await withRegisteredTurn(agentId, turn => runDevHostSkillChatTurn(req, agentId, content, turn.signal))
+        addMessage('group', decodedName, { from: agentId, content: response, mentions: [] })
+      } catch {
+        addMessage('group', decodedName, { from: agentId, content: '**Error:** Dev Agent chat unavailable. Check sign-in and current workspace.', mentions: [] })
+      }
+    }))
+    return
+  }
 
   // Call mentioned agents asynchronously (don't block response)
   if (mentions && mentions.length > 0) {

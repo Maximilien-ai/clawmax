@@ -1,10 +1,44 @@
 import fs from 'fs'
+import type { RequestHandler } from 'express'
+
+/** Reject browser-forged mutations before routes run; CORS alone is not CSRF protection. */
+export function browserMutationGuard(allowedOrigins: string[]): RequestHandler {
+  return (req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase())) return next()
+    const origin = req.get('Origin')
+    const referer = req.get('Referer')
+    const hasCookies = Boolean(req.get('Cookie'))
+    const site = req.get('Sec-Fetch-Site')
+    const sameOrigin = `${req.protocol}://${req.get('host')}`
+    const trusted = (value: string): boolean => {
+      try {
+        const url = new URL(value)
+        return !url.username && !url.password && ['http:', 'https:'].includes(url.protocol)
+          && (url.origin === sameOrigin || allowedOrigins.includes(url.origin))
+      } catch { return false }
+    }
+    const allowed = origin ? origin !== 'null' && trusted(origin)
+      : referer ? trusted(referer)
+        : !hasCookies && !['cross-site', 'same-site'].includes(site || '')
+    if (!allowed) {
+      res.status(403).json({ error: 'Cross-origin request denied', code: 'csrf_rejected' })
+      return
+    }
+    next()
+  }
+}
 
 export function parseCorsOrigins(value: string | undefined, fallbackOrigin: string): string[] {
   return (value || fallbackOrigin)
     .split(',')
     .map((origin) => origin.trim().replace(/\/+$/, ''))
     .filter(Boolean)
+}
+
+/** Keep the browser mutation guard aligned with the configured dev frontend.
+ * An explicit CORS_ORIGIN remains authoritative for deployments. */
+export function dashboardCorsOrigins(env: NodeJS.ProcessEnv): string[] {
+  return parseCorsOrigins(env.CORS_ORIGIN, env.DASHBOARD_APP_URL || 'http://localhost:5173')
 }
 
 export function isCorsOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {

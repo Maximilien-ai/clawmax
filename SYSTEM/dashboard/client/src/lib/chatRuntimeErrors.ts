@@ -24,6 +24,10 @@ export function summarizeAgentChatFailure(message: string, options?: { agentId?:
   if (/Agent couldn't generate a response|incomplete turn detected|hasLastAssistant=no/i.test(text)) return 'The agent used tools but did not produce a final reply. Some tool actions may already have completed. Verify the requested results, then retry or reset this chat session.'
   if (/insufficient_quota|quota exceeded|rate limit|too many requests|429\b/i.test(text)) return 'The model provider rejected this request because the account hit a quota or rate limit. Wait a moment and retry, or update the provider billing/usage limits for this runtime.'
   if (/is in cooldown \(suspending lanes\)/i.test(text)) return 'The model provider is temporarily cooling down after a timeout. Wait a moment and retry, or switch this agent to a faster fallback model.'
+  if (/modelPolicy\.allow/i.test(text) && /not allowed|blocked/i.test(text)
+    || /selected model is blocked by this instance or agent model policy/i.test(text)) {
+    return 'The selected model is blocked by this instance or agent model policy. Ask the instance owner to review the allowed models, or choose an allowed model. This is not a gateway connectivity failure.'
+  }
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
   if (/timeout/i.test(text)) {
     const editLink = options?.agentId

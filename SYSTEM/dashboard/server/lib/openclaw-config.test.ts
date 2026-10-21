@@ -36,6 +36,33 @@ function assert(condition: boolean, message: string) {
 
 console.log(`\n${YELLOW}=== OpenClaw Config Test Suite ===${RESET}\n`)
 
+test('managed writes reject redacted presentation values without changing source config', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-redaction-test-'))
+  const configPath = path.join(tmpDir, 'openclaw.json')
+  const original = JSON.stringify({ gateway: { mode: 'local', auth: { token: 'synthetic-auth' } }, agents: { entries: {} } })
+  fs.writeFileSync(configPath, original)
+  try {
+    for (const redacted of [
+      { gateway: { remote: { token: '__OPENCLAW_REDACTED__' } } },
+      { plugins: { entries: { synthetic: { secret: '__OPENCLAW_REDACTED__' } } } },
+      { nested: [{ value: '__OPENCLAW_REDACTED__' }] },
+    ]) {
+      let message = ''
+      try { writeDashboardManagedOpenClawConfig(configPath, redacted, 'synthetic-test') }
+      catch (error: any) { message = error.message }
+      assert(message === 'OpenClaw config contains a redacted placeholder; repair the source configuration before saving.', 'Expected bounded redaction error')
+      assert(fs.readFileSync(configPath, 'utf8') === original, 'Source config must remain byte-identical')
+    }
+    fs.writeFileSync(configPath, JSON.stringify({ gateway: { remote: { token: '__OPENCLAW_REDACTED__' } } }))
+    const corrupted = fs.readFileSync(configPath, 'utf8')
+    let refused = false
+    try { writeDashboardManagedOpenClawConfig(configPath, { agents: { entries: {} } }, 'synthetic-test') }
+    catch { refused = true }
+    assert(refused, 'An existing redacted protected gateway must not be silently propagated')
+    assert(fs.readFileSync(configPath, 'utf8') === corrupted, 'Existing invalid config must not be silently repaired')
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }) }
+})
+
 test('writeDashboardManagedOpenClawConfig strips unsupported dashboard-only agent keys before writing', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-config-test-'))
   const configPath = path.join(tmpDir, 'openclaw.json')
