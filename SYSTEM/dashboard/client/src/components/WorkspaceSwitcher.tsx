@@ -732,7 +732,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       )}
 
       {dashboardWorkspace && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDashboardWorkspace(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div
             className="flex max-h-[85vh] w-[92vw] max-w-2xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
             onClick={(e) => e.stopPropagation()}

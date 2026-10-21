@@ -17,6 +17,7 @@ import { createPromptAttachment } from '../lib/promptAttachments'
 import { useAuth } from '../contexts/AuthContext'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
+import { shouldSendChatOnKeyDown } from '../lib/chatComposer'
 
 interface Message {
   id: string
@@ -176,7 +177,8 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   const [copyAttachmentsToMentionedAgents, setCopyAttachmentsToMentionedAgents] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [draggingAttachment, setDraggingAttachment] = useState(false)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<any>(null)
@@ -254,8 +256,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
     refreshDocEntries().catch(() => setDocEntries([]))
   }, [refreshDocEntries])
 
-  async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || [])
+  async function addAttachmentFiles(files: File[]) {
     if (!files.length) return
     try {
       const nextAttachments = await Promise.all(files.map(async (file) => {
@@ -268,11 +269,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       })
     } catch (err: any) {
       setError(err?.message || 'Failed to prepare attachments')
-    } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
     }
+  }
+
+  async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
+    await addAttachmentFiles(Array.from(event.target.files || []))
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   function removeAttachment(attachmentId: string) {
@@ -289,7 +291,8 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         method: 'POST',
         headers: {
           'Content-Type': attachment.type || 'application/octet-stream',
-          'x-file-name': attachment.name,
+          'x-file-name': encodeURIComponent(attachment.name),
+          'x-file-name-encoding': 'percent',
         },
         body: await attachment.file.arrayBuffer(),
       })
@@ -656,7 +659,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (showMentions && filteredMentionAgents.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
@@ -678,7 +681,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
           setExpandedMentionGroup(null)
           setSelectedMentionIndex(0)
         }
-      } else if (e.key === 'Enter') {
+      } else if (shouldSendChatOnKeyDown(e)) {
         e.preventDefault()
         const selected = filteredMentionAgents[selectedMentionIndex]
         if (selected && 'isGroup' in selected && (selected as any).isGroup) {
@@ -698,10 +701,10 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
           setShowMentions(false)
         }
       }
-    } else if (e.key === 'Enter') {
+    } else if (shouldSendChatOnKeyDown(e)) {
       e.preventDefault()
       sendMessage()
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === 'ArrowUp' && !input.includes('\n') && e.currentTarget.selectionStart === 0) {
       e.preventDefault()
       if (inputHistory.length > 0) {
         const newIndex = historyIndex === -1
@@ -710,7 +713,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         setHistoryIndex(newIndex)
         setInput(inputHistory[newIndex])
       }
-    } else if (e.key === 'ArrowDown') {
+    } else if (e.key === 'ArrowDown' && !input.includes('\n') && e.currentTarget.selectionStart === input.length) {
       e.preventDefault()
       if (historyIndex !== -1) {
         const newIndex = historyIndex + 1
@@ -1046,7 +1049,17 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         </div>
 
         {/* Input */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 shrink-0">
+        <div
+          className={`px-4 sm:px-6 py-3 sm:py-4 border-t shrink-0 ${draggingAttachment ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30' : 'border-gray-100'}`}
+          onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setDraggingAttachment(true) } }}
+          onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDraggingAttachment(false) }}
+          onDrop={(event) => {
+            event.preventDefault()
+            setDraggingAttachment(false)
+            if (!sending) void addAttachmentFiles(Array.from(event.dataTransfer.files))
+          }}
+        >
+          {draggingAttachment && <p className="mb-2 text-xs font-medium text-sky-700 dark:text-sky-300">Drop files to attach</p>}
           {!chatEnabled && (
             <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
               <div className="font-medium">Group chat is disabled because no AI execution path is configured</div>
@@ -1194,14 +1207,14 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                   </svg>
                 )}
               </button>
-              <input
+              <textarea
                 ref={inputRef}
-                type="text"
+                rows={3}
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder={isListening ? "Listening..." : "Type, speak, or attach files... posts to everyone by default, or use @name"}
-                className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                placeholder={isListening ? "Listening..." : "Type, speak, or drop files... Option+Enter adds a line; use @name to address an agent"}
+                className="min-w-0 flex-1 resize-y px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 disabled={sending || isListening || !chatEnabled}
               />
               <button

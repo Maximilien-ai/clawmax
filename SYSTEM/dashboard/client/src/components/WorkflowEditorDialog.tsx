@@ -390,7 +390,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 z-50" />
 
       {/* Dialog */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-auto">

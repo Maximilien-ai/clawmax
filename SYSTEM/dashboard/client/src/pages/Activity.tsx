@@ -717,7 +717,7 @@ function AgentDebugModal({ agentId, onClose }: { agentId: string; onClose: () =>
   }, [agentId, tab])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div
         className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-[90vw] max-w-5xl h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -910,7 +910,7 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
   const doctorRuntimeSignal = detectDoctorRuntimeSignal(results)
   useEffect(() => { runDoctor() }, [runDoctor])
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <div><h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">ClawMax Doctor</h2><p className="text-xs text-gray-500 dark:text-gray-400">Platform and agent health check</p></div>
