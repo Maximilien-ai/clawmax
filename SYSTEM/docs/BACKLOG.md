@@ -1,11 +1,17 @@
 # Backlog
 
+- [ ] **RC93 CodeQL triage** — Dashboard: assess the seven open findings on
+  merged RC92 PR #236 (three critical, four high), fix reachable command/path
+  hazards and session-key collision risk, or document evidence for a bounded
+  dismissal. Complete focused tests and CodeQL before selecting RC93. See the
+  [dated triage](planning/RC93_CODEQL_TRIAGE_2026-10-21.md).
+
 - [ ] **RC89 development dependency advisory** — Dashboard: replace or update
   the Tailwind 3 `braces@3.0.3` chain when a maintained fix is available,
   remove the exact internal-RC audit exception, and verify full and production
   audits by October 17, 2026 UTC. Keep customer distribution gated on review.
 
-> Last updated: October 12, 2026
+> Last updated: October 21, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Priority: Dashboard 2.0 on MBP14 and test10
