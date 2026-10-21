@@ -1744,6 +1744,14 @@ else
   fail "Communication message helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent chat Forward To unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentChatForward.test.ts > /tmp/clawmax-agent-chat-forward.out 2>&1; then
+  pass "Agent chat Forward To unit tests ($(grep -c '^✓ ' /tmp/clawmax-agent-chat-forward.out) tests)"
+else
+  cat /tmp/clawmax-agent-chat-forward.out
+  fail "Agent chat Forward To unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace file mention helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceFiles.test.ts > /tmp/clawmax-workspace-files.out 2>&1 || true
 if grep -q "workspaceFiles.test.ts:" /tmp/clawmax-workspace-files.out; then
