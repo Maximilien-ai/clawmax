@@ -12,6 +12,7 @@ import {
   buildFallbackPromptExpansion,
   TEMPLATE_GENERATION_TIMEOUT_MS,
   buildResolvedModelRequestOptions,
+  buildClientForSelection,
   createAiGenerationClient,
   createChatCompletionWithCompatibilityRetry,
   ensureGeneratedCompanyRoot,
@@ -56,6 +57,11 @@ function test(name: string, fn: () => void | Promise<void>) {
 }
 
 console.log('\n\x1b[33m=== AI Generator Test Suite ===\x1b[0m\n')
+
+test('OpenAI-compatible base URL trims trailing slashes without changing its path', () => {
+  const selected = buildClientForSelection({ provider: 'openai-compatible', key: 'test-key', baseUrl: 'https://example.test/v1////', defaultModel: 'test-model' })
+  assert.strictEqual(selected.client.baseURL, 'https://example.test/v1')
+})
 
 test('extractJsonResponseText strips fenced json blocks', () => {
   const raw = '```json\n{ "name": "agent" }\n```'

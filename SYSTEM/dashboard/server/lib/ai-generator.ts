@@ -804,7 +804,8 @@ export function buildClientForSelection(
     }
   }
   if (provider === 'openai-compatible') {
-    const normalizedBaseUrl = String(baseUrl || '').trim().replace(/\/+$/, '')
+    let normalizedBaseUrl = String(baseUrl || '').trim()
+    while (normalizedBaseUrl.endsWith('/')) normalizedBaseUrl = normalizedBaseUrl.slice(0, -1)
     if (!normalizedBaseUrl) {
       throw new Error('OpenAI-compatible Base URL is required for AI generation.')
     }

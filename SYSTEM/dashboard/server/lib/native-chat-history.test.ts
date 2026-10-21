@@ -3,7 +3,7 @@ import fs from 'fs'
 import os from 'os'
 import zlib from 'zlib'
 import path from 'path'
-import { hasNativeChatStore, resolveNativeChatSession, readNativeChatTranscript } from './native-chat-history'
+import { hasNativeChatStore, resolveNativeChatSession, readNativeChatTranscript, readPersistedChatTranscript } from './native-chat-history'
 
 const { DatabaseSync } = require('node:sqlite')
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'native-chat-test-'))
@@ -38,6 +38,9 @@ try {
   assert.equal(resolveNativeChatSession('alpha', 'missing', home), undefined)
   const expected = [message('first'), message('last')].join('\n')
   assert.equal(readNativeChatTranscript('alpha', 'chat-window', home), expected)
+  assert.equal(readPersistedChatTranscript('alpha', 'chat-window', home), expected)
+  assert.throws(() => readPersistedChatTranscript('alpha', '../../../private', home), /Invalid session id/, 'Legacy transcript paths must reject traversal')
+  assert.throws(() => readPersistedChatTranscript('alpha', 'bad/segment', home), /Invalid session id/, 'Session ids cannot contain path separators')
   assert.equal(readNativeChatTranscript('alpha', 'chat-window', home), expected, 'reopening must retain history')
   assert.deepEqual(fs.readFileSync(filename), before, 'reads must not modify runtime state')
   assert.equal(readNativeChatTranscript('alpha', 'non-openclaw-window', home), undefined)

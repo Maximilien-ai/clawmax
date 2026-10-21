@@ -108,6 +108,7 @@ export function readNativeChatTranscript(agentId: string, sessionId: string, hom
  * `sessions/<id>.jsonl` file. Undefined when neither exists; throws when the store cannot be read.
  */
 export function readPersistedChatTranscript(agentId: string, sessionId: string, home: string): string | undefined {
+  if (!/^[a-zA-Z0-9_-]+$/.test(sessionId)) throw new Error('Invalid session id')
   const nativeTranscript = readNativeChatTranscript(agentId, sessionId, home)
   if (nativeTranscript !== undefined) return nativeTranscript
   const jsonlPath = path.join(home, '.openclaw', 'agents', agentId, 'sessions', `${sessionId}.jsonl`)
