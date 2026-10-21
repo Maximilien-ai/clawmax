@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { openClawConfigPath } from './openclaw-profile-paths'
 import path from 'path'
 import os from 'os'
 import matter from 'gray-matter'
@@ -1814,6 +1815,7 @@ interface OpenClawConfig {
 // Auto-detect OpenClaw config: scan gateway-specific dirs (.openclaw-*)
 // and prefer whichever config has agents defined
 function findOpenClawConfigPath(): string {
+  if (process.env.OPENCLAW_CONFIG_PATH?.trim() || process.env.OPENCLAW_STATE_DIR?.trim()) return openClawConfigPath()
   const home = os.homedir()
   const candidates: string[] = []
 

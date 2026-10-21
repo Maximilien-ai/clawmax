@@ -10,6 +10,10 @@ on:
       image_tag:
         description: Existing immutable image tag without an architecture suffix
         required: true
+      source_entrypoint:
+        description: Diagnostic only - mount source entrypoint; does not approve the packaged image
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       source_ref:
@@ -18,6 +22,10 @@ on:
       image_tag:
         required: true
         type: string
+      source_entrypoint:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -56,4 +64,6 @@ jobs:
 
       - name: Verify populated persistence and startup acceptance
         shell: bash
+        env:
+          CLAWMAX_LIFECYCLE_SOURCE_ENTRYPOINT: ${{ inputs.source_entrypoint }}
         run: bash SYSTEM/container-agent-lifecycle-smoke.sh "${{ inputs.image_tag }}-${{ matrix.arch }}" "${{ matrix.platform }}"

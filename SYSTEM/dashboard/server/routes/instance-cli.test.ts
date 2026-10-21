@@ -5,6 +5,7 @@ import http from 'http'
 import os from 'os'
 import path from 'path'
 import express from 'express'
+import { execFileSync } from 'child_process'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -54,6 +55,19 @@ async function run() {
 
   const app = express()
   app.use(express.json())
+  let composedCalls = 0
+  let accessToken = ''
+  app.use('/composed/api/cli/v1', createInstanceCliRouter({ templates: (context: any) => {
+    composedCalls++
+    assert.strictEqual(context.actorId, 'actor_local')
+    assert.strictEqual(context.workspaceId, 'operations')
+    assert.strictEqual(context.workspacePath, path.join(root, 'workspaces', 'operations'))
+    return {
+      store: { workspaceId: context.workspaceId, workspacePath: context.workspacePath, history: () => [], currentRevision: () => null },
+      coordinator: { workspaceId: context.workspaceId, workspacePath: context.workspacePath },
+      assertStopped() {}, authority: {}, policies: {}, runtime: {},
+    }
+  } }))
   app.use('/api/cli/v1', createInstanceCliRouter())
   app.get('*', (_req, res) => res.type('html').send('<html>SPA</html>'))
   const server = http.createServer(app)
@@ -165,6 +179,7 @@ async function run() {
     assert.strictEqual(token.response.status, 200)
     assert.strictEqual(token.json.kind, 'TokenSession')
     assert.strictEqual(token.json.instanceId, 'inst_test')
+    accessToken = token.json.accessToken
     const identity = await request('/api/cli/v1/identity', { headers: { authorization: `Bearer ${token.json.accessToken}` } })
     assert.strictEqual(identity.json.actorId, 'actor_local')
 
@@ -239,6 +254,32 @@ async function run() {
     assert.strictEqual(result.json.kind, 'Identity')
     assert.strictEqual(result.json.actorId, 'actor_local')
     assert.deepStrictEqual(result.json.memberships, [{ id: 'membership_local', tenantId: 'tenant_local', role: 'owner' }])
+  })
+
+  await test('runtime observation is authenticated, bounded and stable within the serving process', async () => {
+    const denied = await request('/api/cli/v1/runtime')
+    assert.strictEqual(denied.response.status, 401)
+    assert.strictEqual(denied.json.error.code, 'authentication_required')
+    const wrong = await request('/api/cli/v1/runtime', { headers: { authorization: 'Bearer wrong-token' } })
+    assert.strictEqual(wrong.response.status, 401)
+    const first = await request('/api/cli/v1/runtime', { headers: auth })
+    const second = await request('/composed/api/cli/v1/runtime', { headers: auth })
+    assert.strictEqual(first.response.status, 200)
+    assert.strictEqual(first.response.headers.get('cache-control'), 'no-store')
+    assert.deepStrictEqual(Object.keys(first.json).sort(), ['apiVersion', 'bootId', 'instanceId', 'kind', 'scope', 'startedAt'])
+    assert.strictEqual(first.json.apiVersion, 'clawmax.instance/v1')
+    assert.strictEqual(first.json.kind, 'RuntimeObservation')
+    assert.strictEqual(first.json.instanceId, 'inst_test')
+    assert.strictEqual(first.json.scope, 'dashboard-process')
+    assert.match(first.json.bootId, /^[a-f0-9-]{36}$/)
+    assert(Number.isFinite(Date.parse(first.json.startedAt)))
+    assert.deepStrictEqual(first.json, second.json)
+    const restarted = JSON.parse(execFileSync(process.execPath, [
+      '-r', require.resolve('ts-node/register/transpile-only'),
+      '-e', `process.stdout.write(JSON.stringify(require(${JSON.stringify(require.resolve('../lib/runtime-observation'))}).dashboardBootObservation))`,
+    ], { encoding: 'utf8', timeout: 10000, maxBuffer: 4096 }))
+    assert.notStrictEqual(first.json.bootId, restarted.bootId, 'A new process must have a new identity')
+    assert.strictEqual(restarted.scope, 'dashboard-process')
   })
 
   await test('workspace list returns only contract fields and never selects a workspace', async () => {
@@ -345,6 +386,72 @@ async function run() {
     assert.strictEqual(missing.response.status, 404)
     assert.strictEqual(missing.json.error.code, 'agent_not_found')
     assert(!fs.existsSync(path.join(root, 'workspaces', 'operations', '.clawmax', 'cli-chat')))
+  })
+
+  await test('shared Template composition is reached only after session and workspace authorization', async () => {
+    const prefix = '/composed/api/cli/v1/workspaces'
+    const headers = { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' }
+    const chat = (workspace: string, authenticated = true) => request(`${prefix}/${workspace}/agents/tr-0123456789abcdef-agent-0123456789ab/chat/sessions`, {
+      method: 'POST', headers: authenticated ? headers : { 'content-type': 'application/json' },
+      body: JSON.stringify({ apiVersion: 'clawmax.instance/v1', kind: 'AgentChatRequest', message: 'Synthetic', idempotencyKey: 'composed-chat' }),
+    })
+    assert.strictEqual((await chat('operations', false)).response.status, 401)
+    assert.strictEqual((await chat('unknown')).response.status, 403)
+    assert.strictEqual(composedCalls, 0)
+    assert.strictEqual((await chat('operations')).json.error.code, 'agent_not_found')
+    assert.strictEqual(composedCalls, 1)
+    const revisions = await request(`${prefix}/operations/revisions`, { headers })
+    assert.strictEqual(revisions.response.status, 200)
+    assert.strictEqual(composedCalls, 2)
+    const unconfigured = await request('/api/cli/v1/workspaces/operations/revisions', { headers })
+    assert.strictEqual(unconfigured.response.status, 503)
+    assert.strictEqual(unconfigured.json.error.code, 'template_lifecycle_unavailable')
+  })
+
+  await test('public Group discovery is authorized, contextual, stable and read-only', async () => {
+    const prefix = '/api/cli/v1/workspaces/operations/groups'
+    assert.strictEqual((await request(prefix)).response.status, 401)
+    assert.strictEqual((await request('/api/cli/v1/workspaces/unknown/groups', { headers: auth })).response.status, 403)
+    const file = path.join(root, 'workspaces', 'operations', 'ORG', 'GROUPS.md')
+    const before = fs.existsSync(file) ? fs.readFileSync(file) : null
+    const content = '# Organization\n\n## Groups\n\n### Demo team 🌍\n- **Description:** Isolated group\n- **Members:** analyst, reviewer\n'
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, content)
+    try {
+      const list = await request(prefix, { headers: auth })
+      assert.strictEqual(list.response.status, 200)
+      assert.strictEqual(list.json.kind, 'GroupList')
+      assert.strictEqual(list.json.items.length, 1)
+      const group = list.json.items[0]
+      assert.match(group.id, /^group-[a-f0-9]{64}$/)
+      assert.strictEqual(group.name, 'Demo team 🌍')
+      assert.strictEqual(group.memberCount, 2)
+      assert.strictEqual(group.status, 'unavailable')
+      assert.deepStrictEqual((await request(prefix, { headers: auth })).json, list.json)
+      assert.deepStrictEqual((await request(`${prefix}/${group.id}`, { headers: auth })).json.group, group)
+      assert.strictEqual((await request(`${prefix}/missing`, { headers: auth })).response.status, 404)
+      assert.strictEqual((await request(`${prefix}?cursor=unsupported`, { headers: auth })).response.status, 400)
+      assert.strictEqual((await request(`${prefix}/${group.id}/messages`, { headers: auth })).json.error.code, 'group_history_unavailable')
+      const chat = await request(`${prefix}/${group.id}/chat/sessions`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: '{}' })
+      assert.strictEqual(chat.response.status, 503)
+      assert.strictEqual(chat.json.error.code, 'group_execution_unavailable')
+      assert.strictEqual(fs.readFileSync(file, 'utf8'), content)
+      assert(!fs.existsSync(path.join(root, 'workspaces', 'operations', 'SYSTEM', 'messages')))
+      fs.writeFileSync(file, content + '\n### Demo team 🌍\n')
+      assert.strictEqual((await request(prefix, { headers: auth })).response.status, 503)
+      fs.unlinkSync(file)
+      const outside = path.join(root, 'private-group-catalog')
+      fs.writeFileSync(outside, 'sensitive catalog')
+      fs.symlinkSync(outside, file)
+      const linked = await request(prefix, { headers: auth })
+      assert.strictEqual(linked.response.status, 503)
+      assert(!linked.text.includes('sensitive'))
+      fs.unlinkSync(file)
+      assert.deepStrictEqual((await request(prefix, { headers: auth })).json.items, [])
+    } finally {
+      if (before) fs.writeFileSync(file, before)
+      else if (fs.existsSync(file)) fs.unlinkSync(file)
+    }
   })
 
   await test('public Workflow execution routes are authenticated and mounted', async () => {

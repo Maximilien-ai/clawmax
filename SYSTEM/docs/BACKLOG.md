@@ -1,9 +1,134 @@
 # Backlog
 
-> Last updated: September 18, 2026
+- [ ] **RC89 development dependency advisory** — Dashboard: replace or update
+  the Tailwind 3 `braces@3.0.3` chain when a maintained fix is available,
+  remove the exact internal-RC audit exception, and verify full and production
+  audits by October 17, 2026 UTC. Keep customer distribution gated on review.
+
+> Last updated: October 12, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
-## Current Mini Sprint
+## Current Priority: Dashboard 2.0 on MBP14 and test10
+
+Use the [active dual-instance acceptance gate](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md). The next candidate is not ready merely because PR #212 or source CI is green.
+
+- [ ] Close [PR #212](https://github.com/Maximilien-ai/clawmax/pull/212) after required CI/review, keeping owner-scoped staging and dev-only no-tool chat distinct from production Template execution. Record the merge SHA.
+- [ ] Obtain the user's complete post-#212 local integration/validation/coverage result; select and identify the next candidate only after source and runtime issues are resolved.
+- [ ] Diagnose and repair MBP14's installed RC91 Codex plugin-path chat failure with CLI/on-prem ownership; verify the exact affected agent, core/plugin versions, direct chat, restart, and preserved state.
+- [ ] Inventory test10's installed image/runtime and run the same identified next candidate through cloud chat, Group chat, Workflow, restart, and persistence acceptance.
+- [ ] Validate matching public and private candidate images on amd64/arm64, including smoke, packaged identity, plugin discovery, digests, and the actual registry pull path for both targets.
+- [ ] Finish the public, server-owned Template plan/apply/resource lifecycle and prove one authority-bound, read-only Collector Workflow run with idempotent restart and exact cleanup. The inert topology in PR #212 is a useful staging milestone, not completion of this item.
+
+## Earlier RC89 Mini Sprint: Carried-Forward Detail
+
+### RC89 blockers — stability, complete search, and installed-instance recovery
+
+This section preserves earlier unresolved work; the dual-instance gate above is
+the current priority. Older incomplete checks are not a claim that RC89 is ready.
+Execution plan: [September 29–30 stabilization](planning/RC89_STABILIZATION_2026-09-29.md).
+
+- [ ] **Clear Personal workspace without deleting it** — source implementation
+  pushed (`d8c1145c`, `e39ef8b5`, `bc81b8e0`, `90b9adf5`); full/live acceptance pending.
+  Two confirmations, scoped inventory, runtime cleanup, durable failure/retry and
+  workspace identity preservation are implemented. An owned runtime-only keeper
+  now supports clearing the final Personal agent on explicit keyed rosters.
+  Shared-credential owners and legacy/ambiguous ownership still refuse cleanup.
+  Native validation is blocked by missing dependencies in the local pinned
+  OpenClaw cache; repair it before full/native acceptance. Credential relocation
+  remains separate work, not implicitly authorized by keeper creation.
+  Acceptance: [Personal workspace clearing](planning/PERSONAL_WORKSPACE_CLEAR_ACCEPTANCE.md).
+  Current ordinary deletion only unregisters a workspace despite its permanent
+  content-deletion warning; do not reuse that handler as a successful clear.
+
+- [ ] **P0: Template apply split-state and persisted redaction sentinel** — CLI
+  repaired MBP14's nine-agent apply, but the product defect remains. Prevent
+  presentation/redacted config from entering authored config; journal filesystem
+  and native-registration mutations before execution; reconcile ambiguous commits
+  and exact owned rollback after failures/restarts. Never delete workspace files
+  while leaving committed registrations behind. Require clean and upgraded RC87
+  fixtures, scoped config fallback, bounded UI errors, and restart/idempotency tests.
+  See the stabilization plan's September 29 late handoff and acceptance gates.
+- [ ] **Dev responsiveness and BYOK save** — remove synchronous runtime probes
+  from request-critical paths; decouple credential save from catalog discovery;
+  bound requests and show pending/failure states. Diagnose gateway heap growth
+  without discarding sessions or masking it by merely raising memory limits.
+- [ ] **Rotated credentials** — verify effective Resend/Opik source precedence
+  and current protected-store revision, reload affected consumers, verify bounded
+  provider acceptance, and coordinate revocation. Never inspect/log raw values.
+  Metering failures must show unavailable/stale, not authoritative zero usage.
+- [ ] **Local-model admission and gateway recovery** — coordinate CLI's handoff:
+  budget complete prompts/tools/history/reserve before dispatch, avoid unchanged
+  oversized retries, persist terminal states, serialize drain/lease-aware recovery,
+  and refresh readiness after recovery. Do not start competing gateways.
+- [ ] **Agent Skills defaults to Available** — agent-origin navigation opens
+  Available, while explicit Assigned navigation remains usable; test agent switches,
+  deep links, empty/error states, and mobile.
+- [ ] **Complete live workspace search (MUST before RC89)** — authorized workspace
+  names, agents, workflows, groups, communities, skills, templates, and public host
+  plugin objects. Progressive independent results, complete pagination, explicit
+  source errors, stale-response fencing across workspace switches, correct links.
+- [ ] **Responsive search trigger** — full Search + Ctrl/Cmd+K when the header has
+  room; accessible loupe-only when constrained. Verify desktop/mobile, long workspace
+  names, zoom, keyboard opening, focus restoration, and no header overflow.
+- [ ] **Installed 2.0 RC recovery: Mike on-prem and owner's Mac mini** — separate
+  evidence/targets, exact image/runtime/architecture, preserved volumes, rollback,
+  upgrade, restart, chat, skills, workflow/history/brief and metering acceptance.
+  Keep MBP14 evidence separate; its recovery does not validate those targets.
+- [ ] **Joint CLI operations acceptance** — Maximilien-AI and AuctionsMax-AI:
+  validate/plan/apply/inspect/retry/cleanup, supported skill/auth flow, Agent and
+  Group chat, manual/scheduled workflows, briefs/reporting, persistence, and exact
+  cleanup in isolated workspaces. Freeze scope to stability, simpler interactions,
+  consistent status, and execution latency before RC89 image gates.
+  September 30 CLI reply: approved pre-created fixtures support Agent/Group chat
+  and Workflow execution; exact workspace cleanup and public Template lifecycle
+  contracts remain blockers. Dashboard process observation is implemented in
+  `7b8347d2` ([contract](planning/INSTANCE_RUNTIME_OBSERVATION_V1.md)); CLI
+  consumption and real single-target restart acceptance are still pending.
+
+- [ ] **RC86 on-prem offline upgrade recovery** — implement the versioned
+  Dashboard backup/verify/restore contract, using OpenClaw's verified native
+  archive for sessions/auth/SQLite and a separate inventory for Dashboard-owned
+  data. Restore and migrate only into an empty candidate volume; never touch
+  the original. Gate release on the private M4 RC57→RC85 fixture, locked and
+  interrupted operations, insufficient space, preserved state, and rollback.
+  See [offline upgrade recovery design](planning/ONPREM_OFFLINE_UPGRADE_RECOVERY.md).
+
+- [ ] **RC85 release gate** — complete clean integration/validation with at least
+  77% branch coverage, publish and validate matching public/combined images,
+  then obtain Mike's installed-instance acceptance. Keep unresolved reports
+  explicit in the [release gate](planning/RC85_RELEASE_GATE_2026-09-23.md).
+
+- [ ] **Next RC after RC83: bulk agent budget limits (testing priority)** —
+  let an operator select multiple agents on the Agents page and apply the same
+  budget limit in one action. Team testing currently requires editing each
+  agent individually. Show the selected count and proposed limit before
+  applying. Make the current workspace budget explicit (including unset or
+  unlimited state), and show each selected agent's current budget limit and
+  current spend when available so the operator can make an informed decision.
+  Label the spending period and data freshness; distinguish unavailable or
+  stale spend from zero. Show workspace spend/remaining budget when available
+  and explain the relationship between workspace and per-agent limits without
+  implying that per-agent limits reserve or add funds to the workspace budget.
+  Preserve unselected agents, support clearing selected limits,
+  and report per-agent success/failure with retry of failed updates. Reuse
+  existing per-agent budget semantics and authorization; do not introduce a
+  pooled team budget. Cover input validation, mixed existing limits, partial
+  failure, persistence, budget/spend context, missing/stale data, and
+  desktop/mobile selection flows. Keep this out of
+  RC83's validation-and-coverage scope.
+
+- [ ] **RC83 coverage and image gate** — verify at least 75% branch coverage
+  with the complete integration/validation suite, then build and validate public
+  and matching combined candidates. Keep installed-instance acceptance separate
+  from image publication. [Current evidence](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
+
+- [ ] **Remaining Template runtime and deployment acceptance** — finish authority-enforced Template
+  Workflow graph execution, correlated results and settled cancellation on
+  OpenClaw `2026.9.5`; run complete integration/validation/coverage, then public
+  and matching combined images, followed by MBP14 and test10 acceptance.
+  Native source-build template apply/cleanup and agent/Group chat passed;
+  keep schedules disabled and tester distribution on hold. Evidence:
+  [RC81 acceptance](planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md).
 
 - [ ] **AI Builder, agent channels, and branch coverage** — strengthen explicit
   AI Create behavior first, then implement Telegram, Discord, and Slack Socket
@@ -17,7 +142,58 @@
   authorization regression reported in issue #189. Plan:
   [MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md).
 
+## Future RC — OpenClaw follow-up (after today's stabilization)
+
+Explicitly deferred: do not change today's pinned OpenClaw runtime or interrupt
+the current integration/validation/coverage run for this work.
+
+- [ ] **Follow up upstream reports** — check the previously submitted OpenClaw
+  issue and fix, starting with the recorded [issue #152047](https://github.com/openclaw/openclaw/issues/152047)
+  and [PR #152052](https://github.com/openclaw/openclaw/pull/152052), and correlate
+  any later reports from the CLI handoffs. Record actual merge/release status;
+  submission alone is not evidence that a released version contains the fix.
+- [ ] **Evaluate newer runtime releases** — review release notes and known
+  regressions against our current pin. Identify a candidate with evidence of
+  improved stability; newer alone does not mean more stable. Prioritize credible
+  upstream hints that address issues we actually experienced: gateway heap growth,
+  oversized local-model requests/retries, drain/lease/watchdog races, config hot
+  reload/cron recovery, redaction placeholders, and partial native registration.
+  Map each claimed fix to its issue/PR, released version, and our reproducer;
+  treat release-note hints as reasons to test, not proof of resolution.
+- [ ] **Run an isolated upgrade qualification for a later RC** — test preserved
+  state/schema compatibility, restore/rollback, plugin loading, template apply and
+  recovery, Agent/Group chat, workflows, local-model limits, gateway memory/restart
+  behavior, and CLI compatibility. Run full integration/validation/coverage and
+  cloud/on-prem acceptance before proposing a pin change. Retire compatibility
+  patches only after the upstream fix is verified in the candidate.
+
 ## Release Tracks
+
+- [ ] **System → OpenClaw Plugins — installed inventory and enable/disable controls**
+  — requested after missing external plugins blocked native gateway startup.
+  Keep this distinct from the existing ClawMax product-plugin manager.
+  - Show installed versions/source, configured-but-missing plugins, enabled,
+    loaded, failed, and permission-review-required states. Show discovery scope
+    warnings rather than presenting partial discovery as a complete inventory.
+  - Initial scope is listing installed runtime plugins and enabling/disabling
+    them where OpenClaw supports it. Restrict changes to administrators, disclose
+    capabilities before required consent, confirm disruptive disable operations,
+    and preserve exact prior selection for recovery.
+  - Show action progress, actionable errors, persistent enable/disable history,
+    restart requirements, and independently verified gateway readiness.
+    Gateway unavailability must not hide inventory or supported controls.
+  - Defer browsing/adding, installing, and updating plugins to a later phase;
+    those will require verified sources, compatible pinned versions, explicit
+    capability review, and backup/rollback evidence.
+  - Installation is not OAuth sign-in, permission to read existing conversations,
+    join meetings, or consent to transcript export. Preserve per-user data-egress
+    controls, protect secrets, and keep recurring schedules disabled by default.
+  - Verify administrator authorization, unsupported toggles, denied/revoked consent,
+    failed enable/disable, restart recovery, and unrelated-resource
+    preservation on cloud and on-prem; audit desktop/mobile presentation.
+  - Prioritize missing-plugin diagnosis within stability work; do not
+    hold the immediate native repair for this new UI or promise a release slot
+    before the runtime acceptance gates are met.
 
 - [ ] **RC81 — audit and expand ready-to-apply business templates (after stability)**
   — begin after the [RC80 cloud/on-prem stability gate](planning/RC80_STABILITY_AND_TEMPLATE_GATE_2026-09-18.md)

@@ -21,10 +21,11 @@ if (mode === 'write') {
   }
 }
 
-const roots = [
-  process.env.OPENCLAW_PACKAGE_ROOT,
-  '/usr/local/lib/node_modules/openclaw',
-].filter(Boolean)
+const selectedRoot = process.env.OPENCLAW_PACKAGE_ROOT?.trim()
+if (process.env.OPENCLAW_BIN?.trim() && !selectedRoot) {
+  throw new Error('Pinned OpenClaw credential storage requires OPENCLAW_PACKAGE_ROOT')
+}
+const roots = selectedRoot ? [selectedRoot] : ['/usr/local/lib/node_modules/openclaw']
 
 let storeModulePath = ''
 let saveExportName = ''
@@ -35,7 +36,7 @@ for (const root of roots) {
   if (!fs.existsSync(distDir)) continue
   const entries = fs.readdirSync(distDir)
   const match = entries.find((name) => {
-    if (!name.startsWith('store-') || !name.endsWith('.js')) return false
+    if (!name.startsWith('store-') || !/\.(?:js|mjs)$/.test(name)) return false
     const source = fs.readFileSync(path.join(distDir, name), 'utf8')
     const exportMatch = source.match(/saveAuthProfileStore as ([A-Za-z_$][\w$]*)/)
     if (!exportMatch) return false
@@ -45,7 +46,7 @@ for (const root of roots) {
   if (match) {
     storeModulePath = path.join(distDir, match)
     const persistedMatch = entries.find((name) => {
-      if (!name.startsWith('persisted-') || !name.endsWith('.js')) return false
+      if (!name.startsWith('persisted-') || !/\.(?:js|mjs)$/.test(name)) return false
       const source = fs.readFileSync(path.join(distDir, name), 'utf8')
       const exportMatch = source.match(/loadPersistedAuthProfileStore as ([A-Za-z_$][\w$]*)/)
       if (!exportMatch) return false

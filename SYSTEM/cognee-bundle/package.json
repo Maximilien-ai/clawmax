@@ -1,0 +1,8 @@
+{
+  "name": "clawmax-cognee-bundle",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@cognee/cognee-openclaw": "2026.9.2"
+  }
+}

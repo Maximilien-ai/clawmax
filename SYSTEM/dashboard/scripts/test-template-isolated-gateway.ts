@@ -2,6 +2,8 @@
  * installed instance profile. Owns a temporary state/config root and one child
  * process group. Optional --local-model ollama/<id> enables credential-free
  * native execution against localhost Ollama. Never loads hosted provider keys.
+ * CLAWMAX_ACCEPTANCE_CLI_CHECKOUT optionally runs the actual Go HTTP client
+ * from an explicit CLI checkout without touching profiles or the OS keychain.
  */
 import assert from 'assert'
 import crypto from 'crypto'
@@ -9,6 +11,8 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import net from 'net'
+import http from 'http'
+import express from 'express'
 import { spawn, execFile } from 'child_process'
 import { promisify } from 'util'
 import { setTimeout as delay } from 'timers/promises'
@@ -29,6 +33,8 @@ async function main() {
   const localModel = process.argv[3] === '--local-model' ? process.argv[4] : undefined
   assert(process.argv.length === 3 || (process.argv.length === 5 && localModel && /^ollama\/[a-zA-Z0-9._:-]+$/.test(localModel)), 'Optional arguments: --local-model ollama/<id>')
   const model = localModel || 'openai/gpt-4.1-mini'
+  const hostRegistry = path.join(os.homedir(), '.openclaw', 'dashboard-workspaces.json')
+  const hostRegistryBefore = fs.existsSync(hostRegistry) ? fs.readFileSync(hostRegistry) : null
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-isolated-template-gateway-'))
   const workspace = path.join(root, 'workspace')
   const state = path.join(root, 'state')
@@ -171,6 +177,146 @@ async function main() {
         })
         assert.deepEqual(replay, { ...reply, replayed: true })
         console.log(`Native no-tools execution passed: model=${model}; replyBytes=${Buffer.byteLength(reply.text)}; durable replay passed`)
+        const { createInstanceCliRouter } = await import('../server/routes/instance-cli')
+        const { WorkspaceManager } = await import('../server/lib/workspace-manager')
+        const { createCliSessionToken } = await import('../server/lib/github-auth')
+        const { createConfiguredTemplateResolver } = await import('../server/lib/template-service')
+        const app = express()
+        const isolatedEnv: Record<string, string> = {
+          JWT_SECRET: crypto.randomBytes(32).toString('hex'),
+          DASHBOARD_TOKEN: crypto.randomBytes(32).toString('hex'),
+          BYPASS_OAUTH: 'false', DASHBOARD_AUTH_DISABLED: 'false', DASHBOARD_AUTH_MODE: 'email_otp',
+          CLAWMAX_CLI_API_STATE_PATH: path.join(root, 'cli-api.json'), OPENCLAW_WORKSPACE: workspace,
+          CLAWMAX_TEST_WORKSPACE: workspace,
+        }
+        const previousEnv = Object.fromEntries(Object.keys(isolatedEnv).map(key => [key, process.env[key]]))
+        Object.assign(process.env, isolatedEnv)
+        const registryPath = path.join(root, 'dashboard-workspaces.json')
+        writeAtomicJson(registryPath, { version: '1.0.0', activeWorkspaceId: 'isolated', workspaces: [{
+          id: 'isolated', name: 'Isolated acceptance', path: workspace,
+          createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString(),
+        }] })
+        const session = (actorId: string) => createCliSessionToken({ actorId, email: `${actorId}@example.test`, displayName: actorId })
+        let authorization = `Bearer ${session('actor')}`
+        let httpDispatches = 0
+        const authorityDirectory = path.join(root, 'operator-authority')
+        writeAtomicJson(path.join(authorityDirectory, `${sha256('isolated')}.json`), registry)
+        const templates = createConfiguredTemplateResolver({ authorityDirectory, agentStateRoot: path.join(state, 'agents'), runtime,
+          client: { getConfig: () => client.getConfig(), patchTemplateAgentEntriesAtRevision: (entries, hash) => client.patchTemplateAgentEntriesAtRevision(entries, hash),
+            runNoToolsTemplateAgent: async request => { httpDispatches++; return client.runNoToolsTemplateAgent(request) } } })
+        app.use(express.json())
+        app.use('/api/cli/v1', createInstanceCliRouter({
+          workspaceManager: new WorkspaceManager(registryPath),
+          templates,
+        }))
+        const server = http.createServer(app)
+        try {
+          await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
+          const address = server.address() as net.AddressInfo
+          const origin = `http://127.0.0.1:${address.port}`
+          // Seed only the browser identity; the execution bearer must come from
+          // the real one-time authorization-code/PKCE exchange, with bypass off.
+          const verifier = crypto.randomBytes(48).toString('base64url')
+          const loginState = crypto.randomUUID()
+          const redirectUri = `${origin}/isolated-callback`
+          const query = new URLSearchParams({ response_type: 'code', client_id: 'clawmax-cli',
+            redirect_uri: redirectUri, code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'),
+            code_challenge_method: 'S256', state: loginState })
+          const login = await fetch(`${origin}/api/cli/v1/auth/authorize?${query}`, { headers: { authorization }, redirect: 'manual' })
+          assert.equal(login.status, 302)
+          const callback = new URL(login.headers.get('location')!)
+          await login.text()
+          assert.equal(callback.searchParams.get('state'), loginState)
+          assert.equal(callback.origin, origin)
+          const exchange = () => fetch(`${origin}/api/cli/v1/auth/token`, { method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ grantType: 'authorization_code', clientId: 'clawmax-cli', code: callback.searchParams.get('code'), redirectUri, codeVerifier: verifier }) })
+          const exchanged = await exchange()
+          assert.equal(exchanged.status, 200)
+          const tokenSession = await exchanged.json() as { kind: string; actorId: string; accessToken: string }
+          assert.equal(tokenSession.kind, 'TokenSession')
+          assert.equal(tokenSession.actorId, 'actor')
+          assert(tokenSession.accessToken)
+          authorization = `Bearer ${tokenSession.accessToken}`
+          const reusedCode = await exchange()
+          assert.equal(reusedCode.status, 400)
+          await reusedCode.text()
+          const url = `http://127.0.0.1:${address.port}/api/cli/v1/workspaces/isolated/agents/${input.agentId}/chat/sessions`
+          const send = (credential = authorization, target = url) => fetch(target, { method: 'POST', headers: { authorization: credential, 'content-type': 'application/json' },
+            body: JSON.stringify({ apiVersion: 'clawmax.instance/v1', kind: 'AgentChatRequest', message: input.message, idempotencyKey: 'http-model-greeting' }),
+            signal: AbortSignal.timeout(180000) })
+          for (const credential of ['', 'Bearer invalid', `${authorization}invalid`]) {
+            const denied = await send(credential)
+            assert.equal(denied.status, 401)
+            await denied.text()
+          }
+          const wrongWorkspace = await send(authorization, url.replace('/workspaces/isolated/', '/workspaces/unknown/'))
+          assert.equal(wrongWorkspace.status, 403)
+          await wrongWorkspace.text()
+          const wrongActor = await send(`Bearer ${session('unrelated')}`)
+          assert.equal(wrongActor.status, 404)
+          await wrongActor.text()
+          assert.equal(httpDispatches, 0)
+          const response = await send()
+          assert.equal(response.status, 200)
+          assert(response.headers.get('content-type')?.startsWith('application/x-ndjson'))
+          const text = await response.text()
+          const events = text.trim().split('\n').map(line => JSON.parse(line))
+          assert.deepEqual(events.map(event => event.type), ['start', 'delta', 'done'])
+          assert(events[1].content.trim())
+          events.forEach((event, index) => {
+            assert.equal(event.sequence, index + 1)
+            assert.equal(event.requestId, events[0].requestId)
+            assert.equal(event.sessionId, events[0].sessionId)
+            assert.equal(event.workspaceId, 'isolated')
+            assert.equal(event.agentId, input.agentId)
+          })
+          assert.equal(await (await send()).text(), text)
+          assert.equal(httpDispatches, 1)
+          console.log(`PKCE-authenticated public CLI router native execution passed: model=${model}; replyBytes=${Buffer.byteLength(events[1].content)}; code reuse, invalid sessions, wrong workspace/actor rejected; correlated events and durable replay passed`)
+          const cliCheckout = process.env.CLAWMAX_ACCEPTANCE_CLI_CHECKOUT
+          if (cliCheckout) {
+            assert(path.isAbsolute(cliCheckout) && fs.existsSync(path.join(cliCheckout, 'go.mod')), 'CLI checkout must be an absolute module directory')
+            await new Promise<void>((resolve, reject) => {
+              const go = execFile('go', ['run', path.resolve(__dirname, 'fixtures/native-chat-cli-contract.go')], {
+                cwd: cliCheckout, timeout: 210000, maxBuffer: 65536,
+                env: { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: root, GOFLAGS: '-mod=readonly' },
+              }, (error, stdout) => {
+                if (error) { reject(new Error('Isolated CLI Go client acceptance failed')); return }
+                if (stdout.trim() !== 'CLI Go client: native reply and durable replay passed') { reject(new Error('Unexpected isolated CLI result')); return }
+                console.log(stdout.trim())
+                resolve()
+              })
+              go.stdin!.on('error', () => reject(new Error('Isolated CLI input failed')))
+              go.stdin!.end(JSON.stringify({ Origin: origin, Token: tokenSession.accessToken, Workspace: 'isolated', Agent: input.agentId }))
+            })
+            assert.equal(httpDispatches, 6, 'One HTTP agent call, one Go agent call and four Group turns; replays must not dispatch')
+          }
+          const groupId = Object.values(result.revision.resources.groups)[0]
+          const groupInput = { groupId, message: 'Reply with one short sentence. Do not use tools.', idempotencyKey: 'native-group-handoff' }
+          const handoffs: Array<{ agentId: string; message: string }> = []
+          const groupRun = await coordinator.executeNoToolsGroup('actor', result.revision.id, groupInput, source, policies, {
+            runNoToolsTemplateAgent: async request => { handoffs.push(request); return client.runNoToolsTemplateAgent(request) },
+          })
+          const groupResult = JSON.parse(groupRun.text)
+          assert.equal(groupResult.stopReason, 'turn_limit')
+          assert.deepEqual(groupResult.turns.map((turn: any) => turn.memberId), ['producer', 'reviewer', 'producer', 'reviewer'])
+          assert.equal(new Set(handoffs.map(turn => turn.agentId)).size, 2)
+          for (let index = 1; index < handoffs.length; index++) {
+            assert.equal(JSON.parse(handoffs[index].message).content, groupResult.turns[index - 1].text)
+            assert(groupResult.turns[index].text.trim())
+          }
+          assert.deepEqual(await coordinator.executeNoToolsGroup('actor', result.revision.id, groupInput, source, policies, {
+            runNoToolsTemplateAgent: async () => { throw new Error('Group replay must not execute') },
+          }), { ...groupRun, replayed: true })
+          console.log('Native Group communication passed: two agents, four edge-directed turns, exact reply handoffs, turn-limit stop and durable replay')
+        } finally {
+          server.closeAllConnections()
+          await new Promise<void>(resolve => server.close(() => resolve()))
+          for (const [key, value] of Object.entries(previousEnv)) {
+            if (value === undefined) delete process.env[key]
+            else process.env[key] = value
+          }
+        }
       } catch (error: any) {
         const cause = error.cause
         throw new Error(`${error.message}; isolated transport: ${diagnostic}; isolated cause: ${String(cause?.stderr || cause?.stdout || cause?.message || '').slice(-3000)}`)
@@ -245,6 +391,9 @@ async function main() {
       await closed
     }
     fs.rmSync(root, { recursive: true, force: true })
+    const hostRegistryAfter = fs.existsSync(hostRegistry) ? fs.readFileSync(hostRegistry) : null
+    assert(hostRegistryBefore === null ? hostRegistryAfter === null : hostRegistryAfter !== null && hostRegistryBefore.equals(hostRegistryAfter),
+      'Native acceptance must not change the host workspace registry')
   }
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1 })

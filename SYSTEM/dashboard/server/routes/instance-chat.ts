@@ -4,6 +4,10 @@ import path from 'path'
 import { Router, type Request, type Response } from 'express'
 import { executeAgentChat, resolveCurrentChatAgentGeneration, type AgentChatTransport } from './chat'
 import { assertTemplateRuntimeAdmitted } from '../lib/template-runtime-admission'
+import type { InstanceTemplateLifecycle } from './instance-template-lifecycle'
+import type { TemplateAuthoritySource } from '../lib/template-authority'
+import type { TemplateExecutionPolicySource } from '../lib/template-execution-policy'
+import type { GatewayRPCClient } from '../lib/gateway-rpc'
 
 const API_VERSION = 'clawmax.instance/v1'
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
@@ -27,6 +31,13 @@ type ChatEvent = {
 type Receipt = { requestHash: string; sessionId: string; events?: ChatEvent[] }
 type Session = { agentId: string; generation: string }
 
+/** Trusted server composition only. No request field can select runtime or policy. */
+export interface CliTemplateExecution extends InstanceTemplateLifecycle {
+  authority: TemplateAuthoritySource
+  policies: TemplateExecutionPolicySource
+  runtime: Pick<GatewayRPCClient, 'runNoToolsTemplateAgent'>
+}
+
 function writePrivate(file: string, value: unknown, exclusive = false) {
   const temporary = exclusive ? file : `${file}.${crypto.randomUUID()}.tmp`
   const fd = fs.openSync(temporary, 'wx', 0o600)
@@ -46,11 +57,12 @@ function readPrivate<T>(file: string): T | null {
   }
 }
 
-// The injected executor is for isolated contract tests, never client-selected.
+// Executors are supplied by trusted server composition, never client-selected.
 export function createInstanceChatRouter(options: {
   authorize(req: Request, res: Response): CliChatContext | null
   execute?: typeof executeAgentChat
   generation?: typeof resolveCurrentChatAgentGeneration
+  templateExecution?(context: CliChatContext): CliTemplateExecution
 }) {
   const router = Router({ mergeParams: true })
   router.post('/agents/:agentId/chat/sessions', async (req, res) => {
@@ -75,10 +87,29 @@ export function createInstanceChatRouter(options: {
       }
       await context.run(async () => {
         context.assertAuthorized()
+        let template: CliTemplateExecution | undefined
+        let revisionId: string | undefined
         try { assertTemplateRuntimeAdmitted(agentId) } catch {
-          fail(409, 'template_runtime_unavailable', 'Template execution is not admitted'); return
+          if (!options.templateExecution) {
+            fail(409, 'template_runtime_unavailable', 'Template execution is not admitted'); return
+          }
+          if (body.sessionId !== undefined) {
+            fail(409, 'template_session_unsupported', 'Template chat currently supports one-shot requests only'); return
+          }
+          template = options.templateExecution(context)
+          if (template.store.workspaceId !== context.workspaceId
+            || path.resolve(template.store.workspacePath) !== path.resolve(context.workspacePath)
+            || template.coordinator.workspaceId !== context.workspaceId
+            || template.coordinator.workspacePath !== path.resolve(context.workspacePath)) throw new Error('Workspace mismatch')
+          const revisions = template.store.history().filter(revision => !revision.cleanedAt
+            && revision.actorId === context.actorId && Object.values(revision.resources.agents).includes(agentId))
+          if (revisions.length !== 1) { fail(404, 'agent_not_found', 'Agent not found'); return }
+          revisionId = revisions[0].id
+          // Replays also require current resource, authority and gateway admission.
+          await template.coordinator.verifyStagedExecution(context.actorId, revisionId, agentId, template.authority, template.policies)
+          context.assertAuthorized()
         }
-        const generation = (options.generation || resolveCurrentChatAgentGeneration)(agentId)
+        const generation = revisionId || (options.generation || resolveCurrentChatAgentGeneration)(agentId)
         if (!generation) { fail(404, 'agent_not_found', 'Agent not found'); return }
         // Hash all externally sourced identifiers; none can become filesystem paths.
         const directory = path.join(context.workspacePath, '.clawmax', 'cli-chat', hash(context.actorId))
@@ -167,6 +198,15 @@ export function createInstanceChatRouter(options: {
               else emit('done')
             }
           },
+        }
+        if (template && revisionId) {
+          transport.open()
+          const result = await template.coordinator.executeNoToolsAgent(context.actorId, revisionId,
+            { agentId, message: body.message, idempotencyKey: body.idempotencyKey },
+            template.authority, template.policies, template.runtime, context.assertAuthorized)
+          context.assertAuthorized()
+          transport.send('complete', { text: result.text })
+          return
         }
         // Pin the generation across waits, and use only the server-owned session
         // namespace. Never accept browser BYOK, context, or runtime overrides.

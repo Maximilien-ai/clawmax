@@ -46,6 +46,33 @@ try {
   update.close()
   assert.throws(() => readNativeChatTranscript('alpha', 'chat-window', home), /index is not ready/)
   assert.throws(() => hasNativeChatStore('../alpha', home), /Invalid agent/)
+  const legacyDir = path.join(home, '.openclaw/agents/legacy/agent')
+  fs.mkdirSync(legacyDir, { recursive: true })
+  const legacyFile = path.join(legacyDir, 'openclaw-agent.sqlite')
+  const legacy = new DatabaseSync(legacyFile)
+  legacy.exec(`
+    CREATE TABLE session_nodes (session_key TEXT PRIMARY KEY, current_session_id TEXT);
+    INSERT INTO session_nodes VALUES ('agent:legacy:dashboard-chat', 'old-chat');
+    CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT);
+  `)
+  const legacyInsert = legacy.prepare('INSERT INTO transcript_events VALUES (?, ?, ?)')
+  legacyInsert.run('old-chat', 2, message('second'))
+  legacyInsert.run('other-chat', 1, message('unrelated'))
+  legacyInsert.run('old-chat', 1, message('first'))
+  legacy.close()
+  const legacyBefore = fs.readFileSync(legacyFile)
+  assert.equal(resolveNativeChatSession('legacy', 'agent:legacy:dashboard-chat', home), 'old-chat')
+  assert.equal(readNativeChatTranscript('legacy', 'old-chat', home), [message('first'), message('second')].join('\n'))
+  assert.equal(readNativeChatTranscript('legacy', 'missing', home), undefined)
+  assert.deepEqual(fs.readFileSync(legacyFile), legacyBefore, 'Legacy reads must not migrate or mutate the runtime store')
+  const partial = new DatabaseSync(legacyFile)
+  partial.exec('CREATE TABLE session_transcript_active_events (session_id TEXT, event_seq INTEGER, active_position INTEGER)')
+  assert.throws(() => readNativeChatTranscript('legacy', 'old-chat', home), /index is not ready/)
+  partial.exec('DROP TABLE session_transcript_active_events; CREATE TABLE session_transcript_index_state (session_id TEXT, needs_rebuild INTEGER)')
+  assert.throws(() => readNativeChatTranscript('legacy', 'old-chat', home), /index is not ready/)
+  partial.exec("CREATE TABLE session_transcript_active_events (session_id TEXT, event_seq INTEGER, active_position INTEGER); INSERT INTO session_transcript_index_state VALUES ('old-chat', 0)")
+  partial.close()
+  assert.equal(readNativeChatTranscript('legacy', 'old-chat', home), '', 'Empty active branch must not resurrect legacy transcript events')
   console.log('PASS: native session mapping, active branch, reopen, isolation, read-only, stale index')
 } finally {
   fs.rmSync(home, { recursive: true, force: true })

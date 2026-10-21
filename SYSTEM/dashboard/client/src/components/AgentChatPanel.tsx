@@ -1,3 +1,4 @@
+import { channelLabel } from '../lib/channelLabel'
 import { useEffect, useState, useRef, useCallback, type ChangeEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -16,6 +17,7 @@ import { formatAgentWorkStatus, summarizeAgentChatFailure } from '../lib/chatRun
 import { INCOMPLETE_AGENT_CHAT_MESSAGE, markIncompleteAgentReply } from '../lib/agentChatStream'
 import { buildAgentChatMarkdown, getAgentChatDownloadState } from '../lib/agentChatExport'
 import { useToast } from './Toast'
+import { AgentAttention } from './AgentAttention'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -27,6 +29,7 @@ interface Message {
 interface GroupTarget {
   type: 'group' | 'community'
   name: string
+  displayName?: string
 }
 
 interface Props {
@@ -193,7 +196,10 @@ function cleanMessageContent(content: string): string {
 export default function AgentChatPanel({ agentId, agentName, agentStatus, agentGeneration, onClose, onSuccess, onNavigateToDoc }: Props) {
   const { config } = useAuth()
   const { showSuccess, showError } = useToast()
-  const browserChatEnabled = hasChatExecutionAccess(config)
+  // Staged Template Agents can only chat when their server-owned dev runtime
+  // passes readiness. Do not infer access from browser BYOK or expose a key.
+  const stagedTemplateAgent = /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(agentId)
+  const browserChatEnabled = hasChatExecutionAccess(config) || stagedTemplateAgent
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [rawViewIds, setRawViewIds] = useState<Set<string>>(new Set())
@@ -212,7 +218,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [error, setError] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string>(() => buildPersistentDashboardChatSessionId(agentId))
   const [gatewayAvailable, setGatewayAvailable] = useState<boolean | null>(null)
-  const [chatEnabled, setChatEnabled] = useState(browserChatEnabled)
+  const [chatEnabled, setChatEnabled] = useState(browserChatEnabled && !stagedTemplateAgent)
   const [resettingSession, setResettingSession] = useState(false)
   const [forwardTargetMsgId, setForwardTargetMsgId] = useState<string | null>(null)
   const [forwardGroups, setForwardGroups] = useState<GroupTarget[]>([])
@@ -577,7 +583,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
         setError(data.error)
       }
     } catch {
-      setChatEnabled(browserChatEnabled)
+      setChatEnabled(browserChatEnabled && !stagedTemplateAgent)
     }
   }
 
@@ -866,8 +872,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
           fetch('/api/communities').then(r => r.json()),
         ])
         const targets: GroupTarget[] = [
-          ...(groupsResp.groups || []).map((g: any) => ({ type: 'group' as const, name: g.name })),
-          ...(commsResp.communities || []).map((c: any) => ({ type: 'community' as const, name: c.name })),
+          ...(groupsResp.groups || []).map((g: any) => ({ type: 'group' as const, name: g.name, displayName: g.displayName })),
+          ...(commsResp.communities || []).map((c: any) => ({ type: 'community' as const, name: c.name, displayName: c.displayName })),
         ]
         setForwardGroups(targets)
       } catch {}
@@ -1095,6 +1101,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
           <div className="flex items-start gap-3">
             <div className="min-w-0 w-0 flex-1">
               <h2 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 truncate">Agent Chat: {agentName}</h2>
+              <AgentAttention agentId={agentId} generation={agentGeneration} />
             </div>
             <button
               type="button"
@@ -1337,7 +1344,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                             className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
                           >
                             <span className="text-gray-400">{g.type === 'community' ? '🏘' : '👥'}</span>
-                            <span className="truncate text-gray-700 dark:text-gray-200">{g.name}</span>
+                            <span className="truncate text-gray-700 dark:text-gray-200">{channelLabel(g)}</span>
                             {forwardingTo === `${g.type}:${g.name}` && <span className="text-[10px] text-gray-400">sending...</span>}
                           </button>
                         ))}

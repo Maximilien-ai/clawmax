@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 . "$SCRIPT_DIR/openclaw-version.sh"
+. "$SCRIPT_DIR/openclaw-cache-guard.sh"
 
 PREPARED_WORK_ROOT=""
 
@@ -27,15 +28,14 @@ const patch = Number(patchRaw);
 const atLeast = (wantedMinor, wantedPatch) =>
   minor > wantedMinor || (minor === wantedMinor && patch >= wantedPatch);
 if (
-  (major === 22 && atLeast(22, 3)) ||
-  (major === 24 && atLeast(15, 0)) ||
-  (major === 25 && atLeast(9, 0)) ||
-  major > 25
+  (major === 24 && atLeast(16, 0)) ||
+  (major === 26 && atLeast(1, 0)) ||
+  major > 26
 ) {
   process.exit(0);
 }
 console.error(
-  `prepare-openclaw-target.sh requires Node.js 22.22.3+, 24.15.0+, or 25.9.0+ (current: ${process.versions.node})`,
+  `prepare-openclaw-target.sh requires Node.js 24.16.0+ (24.x) or 26.1.0+ (current: ${process.versions.node})`,
 );
 process.exit(1);
 EOF
@@ -79,8 +79,48 @@ EOF
   exit 1
 }
 
+ensure_corepack_ready() {
+  local work_root="$1"
+  command -v corepack >/dev/null 2>&1 || return 0
+  if corepack pnpm --version >&2; then
+    return 0
+  fi
+  # A stale Corepack install marker can survive missing package files. Probe
+  # before dependency installation and retry once in a fresh task-owned cache.
+  # Preserve the old cache (including an explicitly configured shared cache).
+  export COREPACK_HOME="$(mktemp -d "${work_root}/corepack-recovery.XXXXXX")"
+  echo "pnpm startup failed; retrying with isolated Corepack cache $COREPACK_HOME" >&2
+  if ! corepack pnpm --version >&2; then
+    echo "Pinned pnpm is still unavailable; refusing to install or build OpenClaw." >&2
+    return 1
+  fi
+}
+
 sanitize_ref() {
   printf '%s' "$1" | tr '/:@' '---'
+}
+
+clone_target() {
+  local work_root="$1" src_dir="$2" attempt staging
+  for attempt in 1 2 3; do
+    staging="$(mktemp -d "${work_root}/clone.XXXXXX")"
+    echo "Cloning pinned OpenClaw ${CLAWMAX_OPENCLAW_TARGET} (attempt ${attempt}/3, HTTP/1.1)..." >&2
+    # Command-local transport selection avoids HTTP/2 stream cancellation without
+    # changing the user's global Git settings. Never clone into the usable cache.
+    if git -c http.version=HTTP/1.1 clone --depth 1 --single-branch --branch "$CLAWMAX_OPENCLAW_TARGET" https://github.com/openclaw/openclaw.git "$staging/src" >&2; then
+      if [ -e "$src_dir" ] || [ -L "$src_dir" ]; then
+        echo "OpenClaw source cache appeared during clone; refusing to overwrite it. Retry preparation." >&2
+        return 1
+      fi
+      mv "$staging/src" "$src_dir"
+      rmdir "$staging"
+      return 0
+    fi
+    # Keep failed transfer artifacts isolated for inspection; never mark ready.
+    echo "OpenClaw clone failed; incomplete transfer retained at $staging" >&2
+  done
+  echo "Unable to clone pinned OpenClaw after 3 attempts; no fallback runtime was selected." >&2
+  return 1
 }
 
 prepare_checkout() {
@@ -92,23 +132,29 @@ prepare_checkout() {
   prepared_stamp="${work_root}/.prepared-commit"
 
   mkdir -p "$work_root"
+  work_root="$(cd "$work_root" && pwd -P)"
+  src_dir="${work_root}/src"
+  prepared_stamp="${work_root}/.prepared-commit"
+  clawmax_cache_lock "$work_root"
 
   if [ -d "$src_dir" ] && [ ! -f "$src_dir/package.json" ]; then
+    clawmax_cache_assert_idle "$work_root"
     rm -rf "$src_dir"
   fi
 
   if [ ! -d "$src_dir/.git" ]; then
-    git clone --depth 1 --branch "$CLAWMAX_OPENCLAW_TARGET" https://github.com/openclaw/openclaw.git "$src_dir" >&2
+    clone_target "$work_root" "$src_dir"
   fi
 
-  (
-    cd "$src_dir"
-    current_tag="$(git describe --tags --exact-match HEAD 2>/dev/null || true)"
-    if [ "$current_tag" != "$CLAWMAX_OPENCLAW_TARGET" ]; then
+  current_tag="$(cd "$src_dir" && git describe --tags --exact-match HEAD 2>/dev/null || true)"
+  if [ "$current_tag" != "$CLAWMAX_OPENCLAW_TARGET" ]; then
+    clawmax_cache_assert_idle "$work_root"
+    (
+      cd "$src_dir"
       git fetch --depth 1 --tags --force origin "$CLAWMAX_OPENCLAW_TARGET" >&2
       git checkout --force "$CLAWMAX_OPENCLAW_TARGET" >&2
-    fi
-  )
+    )
+  fi
 
   ensure_supported_node
 
@@ -119,16 +165,28 @@ prepare_checkout() {
 
   # Rebuild cached artifacts when the maintained source compatibility patch changes.
   current_commit="${current_commit}:$(cksum < "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs")"
-  if [ ! -f "${src_dir}/dist/index.js" ] || [ ! -f "$prepared_stamp" ] || [ "$(cat "$prepared_stamp" 2>/dev/null || true)" != "$current_commit" ]; then
+  current_commit="${current_commit}:$(cksum < "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs")"
+  current_commit="${current_commit}:source-plugins-v1:$(cksum < "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs")"
+  if [ ! -f "${src_dir}/dist/index.js" ] || [ ! -f "$prepared_stamp" ] || [ "$(cat "$prepared_stamp" 2>/dev/null || true)" != "$current_commit" ] || ! node "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs" "$src_dir" >&2; then
+    clawmax_cache_assert_idle "$work_root"
     (
       cd "$src_dir"
       export COREPACK_HOME="${COREPACK_HOME:-${work_root}/corepack}"
+      ensure_corepack_ready "$work_root"
       ensure_pnpm_on_path "${work_root}/bin"
       run_pnpm install --frozen-lockfile --ignore-scripts >&2
       node "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs" "$src_dir" >&2
       run_pnpm run build:docker >&2
+      # The Docker lane omits standalone first-party plugin graphs. A local
+      # source checkout must build them too, before advertising cache readiness.
+      node --import ./scripts/tsx.mjs scripts/build-external-plugin-local-dist.mts >&2
+      # Standalone compilation replaces plugin output directories. Restore the
+      # package/manifests and assets afterward, matching upstream build-all.
+      run_pnpm plugins:assets:copy >&2
+      node scripts/runtime-postbuild.mjs >&2
       node "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs" "$src_dir" >&2
-      node scripts/postinstall-bundled-plugins.mjs >&2 || true
+      node scripts/postinstall-bundled-plugins.mjs >&2
+      node "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs" "$src_dir" >&2
       node - dist/cli-startup-metadata.json <<'EOF'
 const fs = require("node:fs");
 const metadata = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
@@ -147,12 +205,19 @@ EOF
   cat >"${work_root}/bin/openclaw" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$src_dir"
+. "$SCRIPT_DIR/openclaw-cache-guard.sh"
+clawmax_cache_lock_wait "$work_root" 10
+clawmax_cache_register_runtime "$work_root"
+clawmax_cache_unlock
+# Never inherit a removable cache/workspace as the process working directory.
+cd /
+export OPENCLAW_NO_RESPAWN=1
 exec node "$src_dir/openclaw.mjs" "\$@"
 EOF
   chmod +x "${work_root}/bin/openclaw"
 
   PREPARED_WORK_ROOT="$work_root"
+  clawmax_cache_unlock
 }
 
 main() {

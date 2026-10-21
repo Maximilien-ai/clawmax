@@ -15,16 +15,22 @@ pass() {
   echo "PASS: $*"
 }
 
+bash "$repo_root/SYSTEM/openclaw-cache-guard.test.sh"
+
 [ -f "$script_file" ] || fail "expected prepare-openclaw-target.sh to exist"
 
 grep -q 'openclaw-version.sh' "$script_file" || fail "expected script to source openclaw-version.sh"
-grep -q 'Node.js 22.22.3+, 24.15.0+, or 25.9.0+' "$script_file" || fail "expected script to enforce the OpenClaw 2 Node ranges"
+grep -Fq 'Node.js 24.16.0+ (24.x) or 26.1.0+' "$script_file" || fail "expected script to enforce the OpenClaw 2026.9 Node ranges"
 grep -q 'pnpm install --frozen-lockfile --ignore-scripts' "$script_file" || fail "expected pnpm install command"
 grep -q 'npm run build:docker' "$script_file" || fail "expected docker-oriented OpenClaw build path"
 grep -q 'patch-openclaw-fs-safe.mjs' "$script_file" || fail "expected OpenClaw fs-safe compatibility patch"
 grep -q 'node "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs" "$src_dir"' "$script_file" || fail "expected explicit roster-removal source patch"
 grep -q 'cksum < "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs"' "$script_file" || fail "expected patch-aware runtime cache invalidation"
+grep -q 'cksum < "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs"' "$script_file" || fail "expected filesystem-verifier-aware runtime cache invalidation"
 grep -q 'postinstall-bundled-plugins.mjs' "$script_file" || fail "expected bundled plugin postinstall repair step"
+grep -q 'scripts/build-external-plugin-local-dist.mts' "$script_file" || fail "expected standalone source plugin build"
+grep -q 'source-plugins-v1:' "$script_file" || fail "expected cache invalidation for standalone plugins"
+node "$repo_root/SYSTEM/verify-openclaw-plugin-entries.test.mjs"
 for channel in whatsapp discord telegram slack; do
   grep -q "\\\"$channel\\\"" "$script_file" || fail "expected $channel startup metadata smoke check"
 done
@@ -50,6 +56,8 @@ fi
 if grep -q 'Prepared OpenClaw' "$failure_root/output"; then
   fail "target preparation must not report success after a failed clone"
 fi
+[ "$(grep -c 'attempt [123]/3' "$failure_root/output")" -eq 3 ] || fail "expected exactly three bounded clone attempts"
+[ -z "$(find "$failure_root/cache" -name .prepared-commit -print)" ] || fail "failed clones must not mark the cache ready"
 
 corepack_root="$failure_root/corepack-only"
 cache_root="$corepack_root/cache"
@@ -61,6 +69,22 @@ printf '{}\n' > "$source_root/package.json"
 cat > "$corepack_root/bin/git" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in
+  -c)
+    [ "$2" = 'http.version=HTTP/1.1' ] || exit 41
+    [ "$3" = 'clone' ] && [ "$4" = '--depth' ] && [ "$5" = '1' ] || exit 42
+    [ "$6" = '--single-branch' ] && [ "$7" = '--branch' ] && [ "$8" = "$CLAWMAX_OPENCLAW_TARGET" ] || exit 43
+    attempt=0
+    [ ! -f "$CLONE_TEST_COUNTER" ] || attempt="$(cat "$CLONE_TEST_COUNTER")"
+    attempt=$((attempt + 1))
+    printf '%s\n' "$attempt" > "$CLONE_TEST_COUNTER"
+    destination="${10}"
+    mkdir -p "$destination/.git"
+    printf '{}\n' > "$destination/package.json"
+    if [ "$attempt" -lt 3 ]; then
+      printf 'partial\n' > "$destination/partial-transfer"
+      exit 23
+    fi
+    ;;
   describe)
     printf '%s\n' "${CLAWMAX_OPENCLAW_TARGET:?}"
     ;;
@@ -83,6 +107,16 @@ set -euo pipefail
 [ "${1:-}" = "pnpm" ] || exit 31
 shift
 case "${1:-}" in
+  --version)
+    [ "${PREP_TEST_COREPACK_BROKEN:-}" != 'always' ] || exit 45
+    if [ "${PREP_TEST_COREPACK_BROKEN:-}" = 'original' ] && [[ "$COREPACK_HOME" != */corepack-recovery.* ]]; then
+      exit 45
+    fi
+    printf '12.4.0\n'
+    ;;
+  plugins:assets:copy)
+    exit 0
+    ;;
   install)
     exit 0
     ;;
@@ -102,7 +136,11 @@ case "${1:-}" in
 esac
 EOF
 
-chmod +x "$corepack_root/bin/git" "$corepack_root/bin/node" "$corepack_root/bin/corepack"
+cat > "$corepack_root/bin/lsof" <<'EOF'
+#!/usr/bin/env bash
+printf 'n/unrelated-test-workspace\n'
+EOF
+chmod +x "$corepack_root/bin/git" "$corepack_root/bin/node" "$corepack_root/bin/corepack" "$corepack_root/bin/lsof"
 
 if ! PATH="$corepack_root/bin:/usr/bin:/bin" \
   CLAWMAX_OPENCLAW_CACHE_DIR="$cache_root" \
@@ -113,5 +151,39 @@ fi
 
 [ -x "$cache_root/$target_dir/bin/pnpm" ] || fail "expected a scoped pnpm shim for corepack-only builds"
 [ -x "$cache_root/$target_dir/bin/openclaw" ] || fail "expected OpenClaw wrapper after corepack-only build"
+
+retry_cache="$failure_root/retry-cache"
+if ! PATH="$corepack_root/bin:/usr/bin:/bin" \
+  CLONE_TEST_COUNTER="$failure_root/clone-attempts" \
+  CLAWMAX_OPENCLAW_CACHE_DIR="$retry_cache" \
+  bash "$script_file" --print-bin > "$failure_root/retry-output" 2>&1; then
+  cat "$failure_root/retry-output" >&2
+  fail "expected preparation to recover after interrupted clone transfers"
+fi
+[ "$(cat "$failure_root/clone-attempts")" -eq 3 ] || fail "expected recovery on third clone attempt"
+[ ! -f "$retry_cache/$target_dir/src/partial-transfer" ] || fail "partial clone must not contaminate promoted source"
+[ -f "$retry_cache/$target_dir/.prepared-commit" ] || fail "successful preparation must write readiness stamp"
+[ -x "$retry_cache/$target_dir/bin/openclaw" ] || fail "successful preparation must provide pinned wrapper"
+
+# Force a rebuild to exercise a corrupt Corepack cache without a live download.
+rm "$source_root/dist/index.js" "$cache_root/$target_dir/.prepared-commit"
+if ! PATH="$corepack_root/bin:/usr/bin:/bin" \
+  PREP_TEST_COREPACK_BROKEN=original \
+  CLAWMAX_OPENCLAW_CACHE_DIR="$cache_root" \
+  bash "$script_file" --print-bin > "$failure_root/corepack-recovery-output" 2>&1; then
+  fail "expected a broken Corepack cache to recover in an isolated cache"
+fi
+grep -q 'retrying with isolated Corepack cache' "$failure_root/corepack-recovery-output" || fail "expected explicit recovery diagnostic"
+[ -f "$cache_root/$target_dir/.prepared-commit" ] || fail "expected prepared stamp after Corepack recovery"
+
+rm "$source_root/dist/index.js" "$cache_root/$target_dir/.prepared-commit"
+if PATH="$corepack_root/bin:/usr/bin:/bin" \
+  PREP_TEST_COREPACK_BROKEN=always \
+  CLAWMAX_OPENCLAW_CACHE_DIR="$cache_root" \
+  bash "$script_file" --print-bin > "$failure_root/corepack-failed-output" 2>&1; then
+  fail "expected persistent pnpm failure to stop preparation"
+fi
+[ ! -f "$cache_root/$target_dir/.prepared-commit" ] || fail "pnpm failure must not stamp cache readiness"
+[ ! -f "$source_root/dist/index.js" ] || fail "pnpm failure must not proceed to build"
 
 pass "prepare-openclaw-target.sh uses the branch target Node/PNPM OpenClaw build flow"

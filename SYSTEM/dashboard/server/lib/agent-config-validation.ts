@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { parseIdentityTags } from './identity-tags'
 import { validateSoul, validateTools } from './validator'
 import { getAgentTemplatesDir, getGlobalAgentTemplatesDir, resolveAgentTemplateSlug, slugify } from './templates'
 import { getModelLifecycleEntry } from './openAiModelLifecycle'
@@ -94,7 +95,7 @@ function validateIdentityMarkdown(content: string, _expectedId?: string): AgentC
   }
 
   if (tagsValue) {
-    const tags = tagsValue.split(',').map(tag => tag.trim()).filter(Boolean)
+    const tags = parseIdentityTags(tagsValue)
     const duplicateTags = tags.filter((tag, index) => tags.indexOf(tag) !== index)
     for (const tag of tags) {
       if (!TAG_REGEX.test(tag)) {

@@ -9,8 +9,7 @@ if (!workspaceDir || workspaceDir === path.parse(workspaceDir).root) {
   throw new Error('Usage: openclaw-workspace-state.mjs <workspace-dir>')
 }
 
-const roots = [
-  process.env.OPENCLAW_PACKAGE_ROOT,
+const roots = process.env.OPENCLAW_PACKAGE_ROOT ? [process.env.OPENCLAW_PACKAGE_ROOT] : [
   '/usr/local/lib/node_modules/openclaw',
   '/opt/homebrew/lib/node_modules/openclaw',
 ].filter(Boolean)
@@ -25,7 +24,7 @@ for (const root of roots) {
   if (!fs.existsSync(distDir)) continue
   const entries = fs.readdirSync(distDir)
   const match = entries.find((name) => {
-    if (!name.startsWith('workspace-state-store-') || !name.endsWith('.js')) return false
+    if (!name.startsWith('workspace-state-store-') || !/\.(?:js|mjs)$/.test(name)) return false
     const source = fs.readFileSync(path.join(distDir, name), 'utf8')
     const prepareMatch = source.match(/prepareWorkspaceStateDeletion as ([A-Za-z_$][\w$]*)/)
     const deleteMatch = source.match(/deleteWorkspaceState as ([A-Za-z_$][\w$]*)/)
@@ -59,10 +58,10 @@ if (
   throw new Error('Pinned OpenClaw workspace state module is missing required lifecycle exports')
 }
 
-const deletionPlan = prepareWorkspaceStateDeletion(workspaceDir)
-deleteWorkspaceState(deletionPlan)
+const deletionPlan = await prepareWorkspaceStateDeletion(workspaceDir)
+await deleteWorkspaceState(deletionPlan)
 
-const snapshot = readWorkspaceStateSnapshot(workspaceDir, { readOnly: true })
+const snapshot = await readWorkspaceStateSnapshot(workspaceDir, { readOnly: true })
 if (snapshot?.setupExists || snapshot?.attestation) {
   throw new Error('OpenClaw workspace state remains after deletion')
 }

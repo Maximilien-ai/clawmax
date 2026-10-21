@@ -1,0 +1,65 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+const { DatabaseSync } = require('node:sqlite')
+const { test } = require('node:test')
+const { checkSchemas, verifyRuntimeSchema, EXPECTED_AGENT_SCHEMA, EXPECTED_OPENCLAW_VERSION } = require('../openclaw-schema-gate.cjs')
+test('packaged runtime identity must match both version and schema', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'schema-identity-'))
+  try {
+    fs.mkdirSync(path.join(root, 'dist'))
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version: EXPECTED_OPENCLAW_VERSION }))
+    const identity = path.join(root, 'dist/openclaw-agent-db-identity-fixture.mjs')
+    fs.writeFileSync(identity, 'const OPENCLAW_AGENT_SCHEMA_VERSION = 24;')
+    verifyRuntimeSchema(root)
+    fs.writeFileSync(identity, 'const OPENCLAW_AGENT_SCHEMA_VERSION = 25;')
+    assert.throws(() => verifyRuntimeSchema(root), /schema does not match/)
+    fs.unlinkSync(identity)
+    assert.throws(() => verifyRuntimeSchema(root), /one runtime schema identity/)
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version: '2026.9.5' }))
+    assert.throws(() => verifyRuntimeSchema(root), /version does not match/)
+  } finally { fs.rmSync(root, { recursive: true, force: true }) }
+})
+test('schema gate is reviewed alongside the selected OpenClaw pin', () => {
+  const pin = fs.readFileSync(path.join(__dirname, '../../openclaw-version.sh'), 'utf8')
+  assert(pin.includes(`CLAWMAX_OPENCLAW_TARGET:-v${EXPECTED_OPENCLAW_VERSION}`))
+  assert.equal(EXPECTED_AGENT_SCHEMA, 24)
+})
+test('large inventory accepts only matching schema markers without changing bytes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'schema-gate-'))
+  try {
+    assert.deepEqual(checkSchemas(root), { ready: true, checked: 0 })
+    const files = []
+    for (let i = 0; i < 54; i++) {
+      const file = path.join(root, 'agents', `fixture-${i}`, 'agent', 'openclaw-agent.sqlite')
+      fs.mkdirSync(path.dirname(file), { recursive: true })
+      const db = new DatabaseSync(file)
+      db.exec(`PRAGMA user_version=${EXPECTED_AGENT_SCHEMA}; CREATE TABLE schema_meta (meta_key TEXT, schema_version INTEGER); INSERT INTO schema_meta VALUES ('primary', ${EXPECTED_AGENT_SCHEMA});`)
+      db.close()
+      files.push([file, fs.readFileSync(file)])
+    }
+    assert.deepEqual(checkSchemas(root), { ready: true, checked: 54 })
+    for (const [file, bytes] of files) assert.deepEqual(fs.readFileSync(file), bytes)
+    for (const version of [19, 21, 22, 23, 25]) {
+      const db = new DatabaseSync(files[0][0]); db.exec(`PRAGMA user_version=${version}`); db.close()
+      const before = fs.readFileSync(files[0][0])
+      assert.equal(checkSchemas(root).code, 'agent_schema_maintenance_required')
+      assert.deepEqual(fs.readFileSync(files[0][0]), before)
+    }
+    const mismatched = new DatabaseSync(files[0][0])
+    mismatched.exec(`PRAGMA user_version=24; UPDATE schema_meta SET schema_version=21`)
+    mismatched.close()
+    assert.equal(checkSchemas(root).code, 'agent_schema_maintenance_required')
+    fs.writeFileSync(files[0][0], 'synthetic corrupt database')
+    assert.equal(checkSchemas(root).code, 'agent_schema_inspection_failed')
+    fs.writeFileSync(files[0][0], files[0][1])
+    const mismatch = new DatabaseSync(files[0][0])
+    mismatch.exec('UPDATE schema_meta SET schema_version=19')
+    mismatch.close()
+    assert.equal(checkSchemas(root).code, 'agent_schema_maintenance_required')
+    fs.unlinkSync(files[0][0])
+    fs.symlinkSync(path.join(root, 'missing-target'), files[0][0])
+    assert.equal(checkSchemas(root).code, 'agent_schema_inspection_failed')
+  } finally { fs.rmSync(root, { recursive: true, force: true }) }
+})

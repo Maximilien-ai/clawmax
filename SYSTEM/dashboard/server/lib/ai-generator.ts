@@ -300,10 +300,10 @@ export async function generateBuilderStarterPromptsWithAI(input: BuilderStarterP
     ...completionTokenLimit(model, 900),
   })
 
-  const raw = completion.choices[0].message.content || ''
+  const raw = completion.choices?.[0]?.message?.content || ''
   const parsed = parseJsonResponse<{ prompts?: unknown }>(raw, {})
   const prompts = Array.isArray(parsed?.prompts)
-    ? parsed.prompts.map((value: unknown) => String(value || '').trim()).filter(Boolean)
+    ? parsed.prompts.filter((value: unknown): value is string => typeof value === 'string').map(value => value.trim()).filter(Boolean)
     : []
   if (prompts.length === 0) {
     throw new Error('Failed to generate builder starter prompts')

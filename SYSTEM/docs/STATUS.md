@@ -4,11 +4,11 @@
 
 **Development Line**: 2.0.0
 
-**Last Updated**: August 30, 2026
+**Last Updated**: October 12, 2026
 
-**Status**: `v1.9.9` remains stable. RC46 is the latest fully published 2.0 test candidate; OpenClaw remains pinned to `v2026.6.34` on the 2.0 line.
+**Status**: `v1.9.9` remains stable. `v2.0.0-test-rc91` is the latest tagged test candidate in this checkout, not a stable release. [PR #212](https://github.com/Maximilien-ai/clawmax/pull/212) is open for owner-scoped inert Template staging and dev-only chat; it does not establish public Template Workflow execution. MBP14 reported an installed RC91 chat/plugin compatibility failure, while test10 acceptance on the same next candidate is not yet recorded. The [active dual-instance gate](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md) separates source, images, deployment, and user acceptance.
 
-## Current State
+## Earlier release evidence (retained history)
 
 - RC43 public source, image, digest, and combined-image results are retained as historical evidence, but tester feedback made that candidate non-promotable.
 - RC45 carries the LM Studio/Gemma, QBO runtime packaging, Builder, optional-skill, Partner navigation, and focused Review repairs. Public source `4ea36c447b3380c4c3cce045b441ec3973edfccb` and amd64/arm64 image publication passed [run 32911120892](https://github.com/Maximilien-ai/clawmax/actions/runs/32911120892); the public manifest digest is `sha256:26d49eb2da975a449db9513ba889f0cd78f064e4fbba2f16458312d69824f688`. The matching authorized combined image passed its private build, contract, smoke, and publication run.
@@ -33,17 +33,17 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Latest published candidate: `2.0.0-test-rc46`
-- Next candidate: only if RC46 hands-on or external-environment testing finds a source or packaging defect
-- Runtime: OpenClaw `v2026.6.34`
-- Hands-on review: use the focused RC46 Review set; RC45 results remain historical evidence.
-- External validation: verify cloud and on-prem health, restart behavior, chat, workflows, and plugin persistence against the accepted images.
+- Latest tagged test candidate: `2.0.0-test-rc91`; the next candidate number and source SHA are not selected yet.
+- Candidate runtime baseline: OpenClaw `v2026.9.7`; verify the packaged core and plugin versions on each installed target.
+- Hands-on review: use the [current dual-instance gate](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md). RC85 and earlier checklists are retained historical evidence.
+- External validation: verify the same identified image on MBP14 and test10, including restart, chat, workflows, and plugin persistence.
 - Promotion rule: if candidate source changes, cut and validate a new RC. Otherwise promote the exact tested source and image digest.
 - Alternate runtime PR #170 is merged in RC46; its source, package, and runtime contracts are green, while hands-on Claude Code and Factory Droid checks remain in the focused Review set.
 
 ## Release References
 
 - active launch plan: [RELEASE_2_0_0_LAUNCH_2026-08-24.md](planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md)
+- active Dashboard gate: [DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md)
 - changelog: [CHANGELOG.md](../../CHANGELOG.md)
 - active backlog: [BACKLOG.md](BACKLOG.md)
 - known issues: [KNOWN_ISSUES.md](KNOWN_ISSUES.md)

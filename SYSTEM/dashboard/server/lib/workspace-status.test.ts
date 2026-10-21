@@ -1,5 +1,6 @@
 import assert from 'assert'
 import { deriveAgentRuntimeStatus } from './workspace'
+import { createAgentGatewayProbeCache } from './agent-gateway-probe-cache'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -53,6 +54,32 @@ async function main() {
       hasIdentity: true,
     })
     assert.equal(derived.status, 'offline')
+  })
+
+  await test('agents sharing a gateway use one probe until its result expires', () => {
+    let calls = 0
+    let running = false
+    const probe = createAgentGatewayProbeCache(() => {
+      calls++
+      return running
+    }, 5000)
+    const local = ['127.0.0.1']
+
+    assert.equal(probe(18789, local, 1000), false)
+    assert.equal(probe(18789, local, 1001), false)
+    assert.equal(calls, 1)
+
+    running = true
+    assert.equal(probe(18889, local, 1001), true)
+    assert.equal(probe(18789, ['localhost'], 1001), true)
+    assert.equal(calls, 3, 'different endpoints must not share a result')
+
+    assert.equal(probe(18789, local, 6000), true)
+    assert.equal(calls, 4, 'expired failure must be checked again')
+    running = false
+    assert.equal(probe(18789, local, 6001), true)
+    assert.equal(probe(18789, local, 11000), false)
+    assert.equal(calls, 5, 'expired success must be checked again')
   })
 
   console.log('\n========================================')

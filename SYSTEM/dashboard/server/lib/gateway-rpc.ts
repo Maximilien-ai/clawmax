@@ -659,6 +659,15 @@ export class GatewayRPCClient {
     }
   }
 
+  /** Revision-bound creation of the non-workspace runtime keeper. */
+  async createWorkspaceClearKeeper(entry: Record<string, unknown>, baseHash: string): Promise<void> {
+    if (!baseHash) throw new Error('A runtime configuration revision is required')
+    await this.callConfig('config.patch', {
+      raw: JSON.stringify({ agents: { entries: { 'clawmax-runtime-keeper': entry } } }),
+      baseHash,
+    })
+  }
+
   /** Compare-and-swap a scoped Template roster patch; never retry without the
    * original revision. The transaction coordinator reconciles ambiguous writes.
    */
@@ -986,14 +995,20 @@ export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ runnin
   })
 }
 
-export async function waitForGatewayResponsive(timeoutMs = 8000, pollMs = 500): Promise<{ running: boolean; port: number | null; error?: string }> {
+export async function waitForGatewayResponsive(timeoutMs = 8000, pollMs = 500, signal?: AbortSignal): Promise<{ running: boolean; port: number | null; error?: string }> {
+  const cancelled = { running: false, port: null, error: 'Gateway readiness cancelled' }
+  if (signal?.aborted) return cancelled
   const deadline = Date.now() + Math.max(0, timeoutMs)
   let last = await probeGatewayResponsive(Math.min(3000, Math.max(1000, pollMs * 2)))
+  if (signal?.aborted) return cancelled
   if (last.running || timeoutMs <= 0) return last
 
   while (Date.now() < deadline) {
+    if (signal?.aborted) return cancelled
     await new Promise((resolve) => setTimeout(resolve, pollMs))
+    if (signal?.aborted) return cancelled
     last = await probeGatewayResponsive(Math.min(3000, Math.max(1000, pollMs * 2)))
+    if (signal?.aborted) return cancelled
     if (last.running) return last
   }
 

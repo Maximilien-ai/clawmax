@@ -1,5 +1,10 @@
 import assert from 'assert'
-import { __test } from './ai-generator'
+import {
+  __test, applyCompanyWorkflowExecutionDefaults, applyGeneratedWorkflowHandoffs,
+  buildGeneratedExecutionSubteam, enforceVisibleCompanyWorkflowChain,
+  ensureGeneratedCompanyRoot, normalizeGeneratedWorkflowReferences, normalizeGeneratedSkillScaffold,
+  shouldGenerateCompanyTemplate,
+} from './ai-generator'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -136,6 +141,159 @@ test('workflow team inference maps groups, alias matches, leadership fallback, a
     'leadership',
   )
   assert.strictEqual(__test.normalizeGenerationName(' Client-Delivery / Weekly Brief '), 'client delivery weekly brief')
+})
+
+test('empty generated collections remain empty without inventing workflow resources', () => {
+  for (const value of [undefined, null, {}, [], 'invalid']) {
+    for (const normalize of [applyCompanyWorkflowExecutionDefaults, applyGeneratedWorkflowHandoffs, enforceVisibleCompanyWorkflowChain, normalizeGeneratedWorkflowReferences]) {
+      assert.deepStrictEqual(normalize(value as any), [])
+    }
+    assert.strictEqual(ensureGeneratedCompanyRoot(value as any, 'Company'), value)
+  }
+  const singleton = [{ id: 'only' }]
+  assert.strictEqual(enforceVisibleCompanyWorkflowChain(singleton), singleton)
+  assert.strictEqual(buildGeneratedExecutionSubteam(undefined), null)
+  assert.strictEqual(buildGeneratedExecutionSubteam(null), null)
+  assert.strictEqual(buildGeneratedExecutionSubteam({ id: 'empty', name: 'Empty', memberAgentIds: ['', ''] }), null)
+})
+
+test('company root leader fallbacks preserve input ownership and revenue purpose', () => {
+  for (const [teams, leader] of [
+    [[{ id: 'leadership', memberAgentIds: ['member'] }], 'member'],
+    [[{ id: 'ops', leaderAgentId: 'lead' }], 'lead'],
+    [[{ id: 'ops', memberAgentIds: ['member'] }], 'member'],
+    [[{ id: 'ops' }], undefined],
+  ] as const) {
+    const before = JSON.stringify(teams)
+    const result = ensureGeneratedCompanyRoot(teams as any, '', true)
+    assert.strictEqual(result[0].leaderAgentId, leader)
+    assert.strictEqual(result[0].id, 'company')
+    assert.strictEqual(result[0].name, 'Company')
+    assert.match(result[0].purpose, /revenue/)
+    assert.strictEqual(JSON.stringify(teams), before)
+  }
+  const root = [{ id: 'root', tags: ['company'] }]
+  assert.strictEqual(ensureGeneratedCompanyRoot(root, 'Ignored'), root)
+  assert.strictEqual(ensureGeneratedCompanyRoot([{ id: 'ops' }], '!!!')[0].id, 'company-root')
+})
+
+test('company inference respects explicit team scope and multi-function revenue context', () => {
+  assert.strictEqual(shouldGenerateCompanyTemplate('create a team for revenue and research'), false)
+  assert.strictEqual(shouldGenerateCompanyTemplate('revenue research marketing'), true)
+  assert.strictEqual(shouldGenerateCompanyTemplate('several teams for reading'), true)
+  assert.strictEqual(shouldGenerateCompanyTemplate('read a book'), false)
+})
+
+test('generated handoffs select output types, de-duplicate inferred keys and skip unknown dependencies', () => {
+  const source = [
+    { id: 'a', name: 'Delivery Plan' },
+    { id: 'b', name: 'Milestone Plan' },
+    { id: 'c', name: 'Execution Plan' },
+    { id: 'd', name: 'Technical Spec' },
+    { id: 'e', name: 'Launch Campaign' },
+    { id: 'f', name: 'Review Summary' },
+    { id: 'odd', dependsOn: ['missing'] },
+    {},
+  ]
+  const before = JSON.stringify(source)
+  const result = applyGeneratedWorkflowHandoffs(source)
+  assert.deepStrictEqual(result.map((w) => w.outputDefinitions[0].key), ['plan', 'plan-2', 'plan-3', 'spec', 'launch-pack', 'summary', 'odd-output', 'workflow-output'])
+  assert.strictEqual(result[6].inputRefs, undefined)
+  assert.strictEqual(result[7].outputDefinitions[0].label, 'Workflow Output')
+  assert.strictEqual(result[7].inputRefs[0].workflowId, 'odd')
+  assert.strictEqual(JSON.stringify(source), before)
+})
+
+test('partial output definitions receive defaults while explicit contracts survive', () => {
+  const result = applyGeneratedWorkflowHandoffs([
+    { id: 'first', outputDefinitions: [{ key: ' ', label: ' ', help: 'Keep guidance' }, { key: 'secondary', type: 'json' }] },
+    { outputDefinitions: [{}], inputRefs: [{ workflowId: 'external', outputKey: 'contract' }] },
+  ])
+  assert.strictEqual(result[0].outputDefinitions[0].key, 'first-output')
+  assert.strictEqual(result[0].outputDefinitions[0].label, 'first Output')
+  assert.strictEqual(result[0].outputDefinitions[0].help, 'Keep guidance')
+  assert.strictEqual(result[0].outputDefinitions[1].type, 'json')
+  assert.strictEqual(result[1].outputDefinitions[0].label, 'Workflow Output')
+  assert.deepStrictEqual(result[1].inputRefs, [{ workflowId: 'external', outputKey: 'contract' }])
+})
+
+test('company workflow ownership falls back to unique explicit agents and preserves team IDs', () => {
+  const result = applyCompanyWorkflowExecutionDefaults([
+    { id: 'a', targeting: { agents: [' alpha ', '', 'alpha', 'beta'], teamIds: ['existing'], tags: ['broad'] } },
+    { id: 'b', owner: ' owner ', content: 'one\ntwo\nthree\nfour\nfive' },
+    { id: 'c' },
+  ])
+  assert.deepStrictEqual(result[0].targeting.agents, ['alpha', 'beta'])
+  assert.deepStrictEqual(result[0].targeting.teamIds, ['existing'])
+  assert.deepStrictEqual(result[0].targeting.tags, [])
+  assert.strictEqual(result[0].owner, 'alpha')
+  assert.strictEqual(result[1].owner, 'owner')
+  assert(!result[1].content.includes('five'))
+  assert.match(result[1].content, /previous workflow/)
+  assert.strictEqual(result[2].owner, undefined)
+  assert.deepStrictEqual(result[2].targeting.agents, [])
+  assert.match(result[2].content, /final markdown deliverable/)
+})
+
+test('workflow aliases remove self/empty edges and retain external references', () => {
+  const result = normalizeGeneratedWorkflowReferences([
+    { id: 'research', name: 'ICP Research' },
+    { id: 'proposal', name: 'Proposal' },
+    { id: 'summary', name: 'Revenue Summary', _sourceId: 'legacy', dependsOn: ['market-research', 'outreach', 'revenue-summary', '', null, 'external', 'external'], inputRefs: [{}, { workflowId: 'legacy' }, { workflowId: 'outreach', outputKey: 'proposal' }, { workflowId: 'external' }] },
+    {},
+  ])
+  assert.deepStrictEqual(result[2].dependsOn, ['research', 'proposal', 'external'])
+  assert.deepStrictEqual(result[2].inputRefs, [{ workflowId: 'proposal', outputKey: 'proposal' }, { workflowId: 'external' }])
+  assert(!('_sourceId' in result[2]))
+  assert.deepStrictEqual(result[3].dependsOn, [])
+  assert.deepStrictEqual(enforceVisibleCompanyWorkflowChain([{}, { id: 'second', dependsOn: ['', 'external'] }])[1].dependsOn, ['external'])
+})
+
+test('workflow team inference handles incomplete catalogs and picks the strongest alias match', () => {
+  assert.strictEqual(__test.inferCompanyWorkflowTeamId({}), undefined)
+  assert.strictEqual(__test.inferCompanyWorkflowTeamId({ id: 'kickoff' }, [{ id: 'ops' }]), undefined)
+  assert.strictEqual(__test.inferCompanyWorkflowTeamId({ id: 'unmatched' }, [{ id: 'ops' }], [{}, { name: 'missing' }]), 'ops')
+  assert.strictEqual(__test.inferCompanyWorkflowTeamId({ description: 'Research Team and ops' }, [
+    { id: 'ops', name: 'Operations' }, { id: 'research', name: 'Research Team' }, {},
+  ]), 'research')
+})
+
+test('reference blocks honor first/final placement and omit absent source material', () => {
+  assert.strictEqual(__test.buildWorkflowReferenceBlock('https://example.test', { finalOnly: true }), '')
+  assert.strictEqual(__test.buildWorkflowReferenceBlock('https://example.test', { firstOnly: true }), '')
+  assert.match(__test.buildWorkflowReferenceBlock('https://example.test', { firstOnly: true, isFirst: true }), /References/)
+  assert.match(__test.buildWorkflowReferenceBlock('Match the style', { finalOnly: true, isFinal: true }), /style guidance/)
+  assert.strictEqual(__test.buildWorkflowReferenceBlock('Read a book'), '')
+  assert.strictEqual(__test.buildExampleAwarePromptContext('Read a book'), '')
+  assert.deepStrictEqual(__test.summarizePromptExamples('## Example\n## Notes'), ['Example'])
+  assert.strictEqual(__test.humanizeGeneratedChannelName('Already Named'), 'Already Named')
+})
+
+test('scaling parameters cap lanes, fall back to IDs and disambiguate identical roles', () => {
+  assert.deepStrictEqual(__test.buildScalableTeamParameters([], false), [])
+  assert.deepStrictEqual(__test.buildScalableTeamParameters(null as any, true), [])
+  const result = __test.buildScalableTeamParameters([
+    { id: 'writer' }, { id: 'second', role: 'Writer' }, { id: 'third', role: 'Writer' }, { id: 'fourth', role: 'Writer' },
+  ], true)
+  assert.strictEqual(result.length, 3)
+  assert.strictEqual(new Set(result.map((p) => p.label)).size, 3)
+  assert(result.every((p) => p.min === 1 && p.max === 10 && p.default === 2))
+  assert.strictEqual(__test.buildSoberCompanyName('landing page conversion'), 'Landing Page Growth Studio')
+  assert.strictEqual(__test.buildSoberCompanyName('B2B SaaS conversion'), 'B2B SaaS Conversion Studio')
+  assert.strictEqual(__test.buildSoberCompanyName('increase profit'), 'Revenue Operations Studio')
+})
+
+test('skill scaffolds safely default blank names and bound tags without replacing supplied content', () => {
+  const empty = normalizeGeneratedSkillScaffold({}, '')
+  assert.strictEqual(empty.name, 'custom-skill')
+  assert.strictEqual(empty.description, 'AI-generated custom skill')
+  assert.deepStrictEqual(empty.tags, [])
+  assert.match(empty.content, /## Instructions/)
+  const supplied = normalizeGeneratedSkillScaffold({ name: '!!!', tags: ['', 'a', 'b', 'c', 'd', 'e', 'f', 'g'], content: '  supplied instructions  ', emoji: 'X' }, '')
+  assert.strictEqual(supplied.name, 'custom-skill')
+  assert.strictEqual(supplied.content, 'supplied instructions')
+  assert.strictEqual(supplied.emoji, 'X')
+  assert.deepStrictEqual(supplied.tags, ['a', 'b', 'c', 'd', 'e', 'f'])
 })
 
 console.log('\n========================================')

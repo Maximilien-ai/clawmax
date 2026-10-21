@@ -723,6 +723,86 @@ test('templateToMarkdown produces valid output', () => {
   assert(parsed.name === 'Round Trip', 'Round-trip name should match')
 })
 
+test('template markdown omits absent optional sections and preserves explicit sparse defaults', () => {
+  const { templateToMarkdown, parseTemplateMd } = require('./templates')
+  const sparse = {
+    name: 'Sparse Organization',
+    type: 'organization',
+    agents: [{ id: 'lead' }],
+    teams: [{ name: 'Unnamed Team' }],
+    communities: [{ name: 'General' }],
+    groups: [{ name: 'Updates' }],
+    workflows: [{ id: 'daily', name: 'Daily', targeting: {} }],
+  }
+  const markdown = templateToMarkdown(sparse, {
+    agentFiles: { lead: { 'SOUL.md': '  ', 'TOOLS.md': '# Tools' } },
+  })
+  assert(markdown.includes('version: 1.0.0'), 'Missing version should use portable default')
+  assert(markdown.includes('| lead | lead |'), 'Unnamed agent should render its ID')
+  assert(markdown.includes('**Unnamed Team**'), 'Sparse teams should remain visible')
+  assert(markdown.includes('**General**'), 'Sparse communities should remain visible')
+  assert(markdown.includes('**Updates**'), 'Sparse groups should remain visible')
+  assert(markdown.includes('**Schedule:** manual'), 'Sparse workflows should remain manually scheduled')
+  assert(markdown.includes('**Mode:** automated'), 'Sparse workflows should retain the execution default')
+  assert(!markdown.includes('### lead/SOUL.md'), 'Blank agent files must not be exported')
+  assert(markdown.includes('### lead/TOOLS.md'), 'Populated agent files must be exported')
+  const parsed = parseTemplateMd(markdown)
+  assert(parsed?.name === 'Sparse Organization', 'Sparse template should remain parseable')
+  assertEqual(parsed?.workflows?.length, 1, 'Sparse workflow should round-trip')
+
+  const agentOnly = templateToMarkdown({ name: 'One Agent', type: 'agent', metadata: { aiPrompt: 'Draft carefully' } })
+  assert(agentOnly.includes('## AI Prompt'), 'AI prompt should render when present')
+  assert(!agentOnly.includes('## Agent Files'), 'Agent files are organization-only')
+  assert(!agentOnly.includes('## Workflows'), 'Absent workflow section should not render')
+})
+
+test('lean template parser accepts bullet agents, mixed workflow targets, and bounded agent files', () => {
+  const { parseTemplateMd } = require('./templates')
+  const markdown = [
+    '---', 'name: Handwritten Organization', 'type: organization', 'category: operations',
+    'parameters:', '  - name: region', '    default: west', '---', '',
+    'Handwritten deployment notes.', '',
+    '## Agents', '',
+    '- **lead**: Operations lead (tags: manager, ops) (skills: github, workspace-ls)',
+    '- **writer**: Drafts updates', '',
+    '## Teams', '',
+    '- **Operations** — Runs delivery (id: operations; leader: lead; members: lead, writer; tags: ops, delivery)',
+    '- **Review Team** — Reviews output', '',
+    '## Communities', '', '- **Company** — Shared context', '',
+    '## Groups', '', '- **Updates** — Daily updates (Company)', '',
+    '## Workflows', '',
+    '### Daily Brief',
+    '- **Description:** Summarize progress',
+    '- **Schedule:** 0 9 * * *',
+    '- **Mode:** automated',
+    '- **Depends On:** source scan, approval',
+    '- **Targets:** agents: lead, writer; teams: operations; groups: Updates; communities: Company; tags: ops',
+    '', '    # Brief', '    Include status.', '',
+    '### Final Review', '- **Mode:** managed', '', 'Review the result.', '',
+    '## Agent Files', '',
+    '### lead/SOUL.md', '', '```md', '# Lead soul', '### Preserve this heading', '```', '',
+    '### writer/TOOLS.md', '', '# Writer tools', '',
+    '### lead/UNSUPPORTED.md', '', 'Do not import.', '',
+  ].join('\n')
+  const parsed = parseTemplateMd(markdown) as any
+  assert(parsed !== null, 'Handwritten lean template should parse')
+  assertEqual(parsed.description, 'Handwritten deployment notes.', 'Leading prose should become description')
+  assertEqual(parsed.agents.length, 2, 'Bullet agents should parse')
+  assertEqual(parsed.agents[0].tags.join(','), 'manager,ops', 'Agent tags should parse')
+  assertEqual(parsed.agents[0].skills.join(','), 'github,workspace-ls', 'Agent skills should parse')
+  assertEqual(parsed.teams[0].memberAgentIds.join(','), 'lead,writer', 'Team members should parse')
+  assertEqual(parsed.teams[1].id, 'review-team', 'Missing team ID should use a stable slug')
+  assertEqual(parsed.groups[0].community, 'Company', 'Group community should parse')
+  assertEqual(parsed.workflows[0].dependsOn.join(','), 'source-scan,approval', 'Workflow dependencies should normalize')
+  assertEqual(parsed.workflows[0].targeting.teamIds.join(','), 'operations', 'Team workflow target should parse')
+  assertEqual(parsed.workflows[0].targeting.communities.join(','), 'Company', 'Community workflow target should parse')
+  assert(parsed.workflows[0].content.includes('Include status.'), 'Indented workflow body should decode')
+  assertEqual(parsed.workflows[1].schedule, 'manual', 'Sparse workflow should keep manual default')
+  assertEqual(parsed.agentFiles.lead['SOUL.md'].includes('### Preserve this heading'), true, 'Fenced file headings should remain content')
+  assertEqual(parsed.agentFiles.writer['TOOLS.md'], '# Writer tools', 'Unfenced agent files should parse')
+  assertEqual(parsed.agentFiles.lead['UNSUPPORTED.md'], undefined, 'Unrecognized agent files must be ignored')
+})
+
 test('templateToMarkdown round-trips multiple workflows with internal markdown headings', () => {
   const { templateToMarkdown, parseTemplateMd } = require('./templates')
   const template = {
@@ -1001,6 +1081,41 @@ test('upsertOpenClawAgentRegistration adopts existing agent ids into active work
   fs.rmSync(home, { recursive: true, force: true })
 })
 
+test('native template finalization respects explicit config and state paths', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-template-profile-'))
+  const keys = ['OPENCLAW_CONFIG_PATH', 'OPENCLAW_STATE_DIR', 'CLAWMAX_TEST_WORKSPACE']
+  const previous = keys.map(key => process.env[key])
+  const gateway = require('./gateway-rpc')
+  const originalRunning = gateway.isGatewayRunning
+  const originalClient = gateway.getGatewayClient
+  const configPath = path.join(root, 'selected.json')
+  const state = path.join(root, 'state')
+  const workspace = path.join(root, 'workspace')
+  const homeConfig = path.join(os.homedir(), '.openclaw', 'openclaw.json')
+  const before = fs.existsSync(homeConfig) ? fs.readFileSync(homeConfig) : null
+  process.env.OPENCLAW_CONFIG_PATH = configPath
+  process.env.OPENCLAW_STATE_DIR = state
+  process.env.CLAWMAX_TEST_WORKSPACE = workspace
+  fs.mkdirSync(workspace, { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [] } }))
+  gateway.isGatewayRunning = () => ({ running: true })
+  gateway.getGatewayClient = () => ({ upsertAgentsNative: async (agents: any[]) => {
+    assertEqual(agents[0].agentDir, path.join(state, 'agents/profile-check/agent'), 'Native lifecycle must use selected state')
+    fs.writeFileSync(configPath, JSON.stringify({ agents: { list: agents } }))
+  } })
+  try {
+    const result = await importAgentFromTemplate('briefing-writer-template', { newAgentId: 'profile-check', model: 'openai/gpt-4o-mini' })
+    assert(result.ok, result.error || 'Expected selected-profile registration to persist')
+    assert(fs.existsSync(path.join(state, 'agents/profile-check/config.yaml')), 'Runtime artifacts must stay in selected state')
+    assert(before === null ? !fs.existsSync(homeConfig) : before.equals(fs.readFileSync(homeConfig)), 'Installed config must remain unchanged')
+  } finally {
+    keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index] })
+    gateway.isGatewayRunning = originalRunning
+    gateway.getGatewayClient = originalClient
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('importAgentFromTemplate registers created agents into the active OpenClaw workspace config', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
@@ -1093,9 +1208,9 @@ test('importAgentFromTemplate resolves a real default model when no override is 
     const configYaml = fs.readFileSync(configYamlPath, 'utf-8')
 
     assert(registered !== undefined, 'Expected imported agent to be registered in openclaw.json')
-    assertEqual(registered.model, 'openai/gpt-5.4-mini', 'Expected template import without override to resolve the pinned runtime default model')
+    assertEqual(registered.model, 'openai/gpt-5.5', 'Expected template import without override to resolve the pinned runtime default model')
     assertEqual(JSON.stringify(registered.skills), JSON.stringify(['github']), 'Expected template skills to persist after agent registration')
-    assert(configYaml.includes('model: openai/gpt-5.4-mini'), 'Expected runtime config.yaml to contain the pinned runtime default model')
+    assert(configYaml.includes('model: openai/gpt-5.5'), 'Expected runtime config.yaml to contain the pinned runtime default model')
   } finally {
     if (typeof originalHome === 'undefined') delete process.env.HOME
     else process.env.HOME = originalHome
@@ -1274,6 +1389,45 @@ test('validateTemplateReferences catches workflow targets that exclude the targe
   })
   assert(!result.valid, 'Should have warnings')
   assert(result.warnings.some((w: string) => w.includes('without a matching targeted group/community')), 'Should warn about targeted-agent communication mismatch')
+})
+
+test('validateTemplateReferences reports duplicate agents and broken channel and team links together', () => {
+  const { validateTemplateReferences } = require('./templates')
+  const result = validateTemplateReferences({
+    type: 'organization', name: 'Broken links', agents: [
+      { id: 'lead', role: 'Lead', communities: ['Missing Community'], groups: ['Missing Group'] },
+      { id: 'lead', role: 'Duplicate' },
+    ],
+    communities: [{ name: 'Known Community' }],
+    groups: [{ name: 'Known Group', community: 'Missing Community' }],
+    teams: [{ id: 'known-team', name: 'Known Team' }],
+    workflows: [{ id: 'review', name: 'Review', targeting: {
+      agents: ['unknown'], groups: ['Missing Group'], teamIds: ['missing-team'], communities: ['Known Community'], tags: [],
+    } }],
+  } as any)
+  assert(!result.valid, 'Broken references must fail cross-validation')
+  for (const fragment of [
+    'Duplicate agent ID: lead', 'unknown community "Missing Community"', 'unknown group "Missing Group"',
+    'targets unknown agent "unknown"', 'targets unknown group "Missing Group"', 'targets unknown team "missing-team"',
+  ]) {
+    assert(result.warnings.some((warning: string) => warning.includes(fragment)), `Expected warning for ${fragment}`)
+  }
+})
+
+test('validateTemplateReferences accepts a matching community target and ignores non-organization templates', () => {
+  const { validateTemplateReferences } = require('./templates')
+  const matched = validateTemplateReferences({
+    type: 'organization', name: 'Community target',
+    agents: [{ id: 'lead', role: 'Lead', communities: ['Research'], groups: [] }],
+    communities: [{ name: 'Research' }], groups: [],
+    teams: [{ id: 'research-team', name: 'Research Team' }],
+    workflows: [{ id: 'review', name: 'Review', targeting: {
+      agents: ['lead'], groups: [], teamIds: ['research-team'], communities: ['Research'], tags: [],
+    } }],
+  } as any)
+  assert(matched.valid && matched.warnings.length === 0, 'Matching community and team targets should be valid')
+  const agent = validateTemplateReferences({ type: 'agent', agents: [{ id: 'writer' }] } as any)
+  assert(agent.valid && agent.warnings.length === 0, 'Agent templates have no organization reference graph')
 })
 
 test('System templates pass cross-validation (excluding test fixtures)', () => {
@@ -1617,7 +1771,7 @@ test('importOrganizationTemplate creates nested teams and workflow handoff metad
     const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
     const config = readMaterializedConfig(configPath)
     const demoMarketingLead = config?.agents?.list?.find((agent: any) => agent.id === 'demo-marketing-lead' && agent.workspace === path.join(tempWorkspace, 'AGENTS', 'demo-marketing-lead'))
-    assert(demoMarketingLead?.model === 'openai/gpt-5.4-mini', `Expected imported live config model to use the pinned runtime default model, got ${demoMarketingLead?.model || 'missing'}`)
+    assert(demoMarketingLead?.model === 'openai/gpt-5.5', `Expected imported live config model to use the pinned runtime default model, got ${demoMarketingLead?.model || 'missing'}`)
     assertEqual(demoMarketingLead?.name, 'Marketing Lead', 'Expected organization import to preserve the Agent display name')
     const marketingIdentity = fs.readFileSync(path.join(tempWorkspace, 'AGENTS', 'demo-marketing-lead', 'IDENTITY.md'), 'utf-8')
     assert(marketingIdentity.includes('# Marketing Lead'), 'Expected organization Agent identity heading to preserve its display name')

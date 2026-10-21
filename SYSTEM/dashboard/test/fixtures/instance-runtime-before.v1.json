@@ -1,0 +1,8 @@
+{
+  "apiVersion": "clawmax.instance/v1",
+  "kind": "RuntimeObservation",
+  "instanceId": "inst_fixture",
+  "bootId": "d328d071-716d-4b95-8c1d-f35718fe7a01",
+  "startedAt": "2026-09-30T15:00:00.000Z",
+  "scope": "dashboard-process"
+}

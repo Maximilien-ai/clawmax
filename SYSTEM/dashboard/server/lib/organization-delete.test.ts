@@ -155,6 +155,72 @@ test('findImpactedTopLevelTeamsForCommunityDelete isolates only the matching com
   assert(plans[0].communityNames.includes('SaaS Conversion Partners'), 'Expected deleted community to be in matched plan')
 })
 
+test('unknown roots and unrelated communities produce no deletion targets', () => {
+  const missing = buildOrganizationDeletePlan({ rootTeamId: 'missing', teams, groups, communities, workflows })
+  assertEqual(Object.values(missing).flat().length, 0, 'Unknown team cannot authorize deletion')
+  const unrelated = findImpactedTopLevelTeamsForCommunityDelete({
+    communityName: 'Other Community', teams, groups, communities, workflows,
+  })
+  assertEqual(unrelated.length, 0, 'Unrelated community cannot select a team')
+})
+
+test('child traversal is deterministic and survives cyclic team references', () => {
+  const plan = buildOrganizationDeletePlan({
+    rootTeamId: 'root',
+    teams: [
+      { id: 'root', name: 'Root', leaderAgentId: 'lead', memberAgentIds: [], parentTeamId: 'child-b', tags: [] },
+      { id: 'child-b', name: 'B', leaderAgentId: 'b', memberAgentIds: [], parentTeamId: 'root', tags: [] },
+      { id: 'child-a', name: 'A', leaderAgentId: 'a', memberAgentIds: [], parentTeamId: 'root', tags: [] },
+    ],
+    groups: [], communities: [], workflows: [],
+  })
+  assertEqual(plan.teamIds.join(','), 'root,child-a,child-b', 'Children should be ordered once despite cyclic input')
+  assertEqual(plan.agentIds.length, 3, 'Each child agent should appear once')
+})
+
+test('workflow and group references expand the deletion plan transitively', () => {
+  const plan = buildOrganizationDeletePlan({
+    rootTeamId: 'root',
+    teams: [{ id: 'root', name: 'Root Org', leaderAgentId: ' lead ', memberAgentIds: ['lead', ''], tags: [] }],
+    groups: [
+      { name: 'root-group', community: 'root-community', members: ['lead', { id: 'colleague' }, { id: '' }] },
+      { name: 'linked-group', community: 'linked-community', members: [{ id: 'collaborator' }] },
+      { name: 'unrelated-group', community: 'other', members: ['outsider'] },
+    ],
+    communities: [
+      { name: 'root-community', members: ['lead', 'colleague'] },
+      { name: 'linked-community', members: ['collaborator'] },
+      { name: 'other', members: ['outsider'] },
+    ],
+    workflows: [
+      { id: 'first', owner: 'lead', targeting: { agents: ['collaborator'], groups: ['linked-group'] } },
+      { id: 'second', owner: 'later-owner', targeting: { groups: ['linked-group'] } },
+      { id: 'third', targeting: { agents: ['later-owner'] } },
+      { id: 'outside', owner: 'outsider', targeting: { groups: ['unrelated-group'] } },
+    ],
+  })
+  assert(plan.agentIds.includes('later-owner'), 'Referenced workflow owners should be included')
+  assert(plan.workflowIds.includes('third'), 'Later workflows should enter through acquired owners')
+  assert(plan.groupNames.includes('root-group') && plan.groupNames.includes('linked-group'), 'Connected groups should be included')
+  assert(plan.communityNames.includes('root-community') && plan.communityNames.includes('linked-community'), 'Connected communities should be included')
+  assert(!plan.workflowIds.includes('outside') && !plan.agentIds.includes('outsider'), 'Unrelated resources must remain out of scope')
+})
+
+test('empty communities stay outside the plan unless attached to a selected group', () => {
+  const input = {
+    rootTeamId: 'root',
+    teams: [{ id: 'root', name: 'Root', leaderAgentId: 'lead', memberAgentIds: [], tags: [] }],
+    groups: [{ name: 'root', community: 'attached', members: [] as string[] }],
+    communities: [
+      { name: 'attached', members: [] as string[] },
+      { name: 'empty-unrelated', members: [] as string[] },
+    ],
+  }
+  const plan = buildOrganizationDeletePlan(input)
+  assert(plan.communityNames.includes('attached'), 'Attached empty community should be included')
+  assert(!plan.communityNames.includes('empty-unrelated'), 'Unrelated empty community should remain untouched')
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)

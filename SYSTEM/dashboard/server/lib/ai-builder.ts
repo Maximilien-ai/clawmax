@@ -992,7 +992,7 @@ function chooseIntent(args: {
     return { intent: 'team_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (orgTemplateScore >= 6 ? 'high' : 'medium') }
   }
 
-  if (operation === 'refine_template' && matchedAgentTemplates.length > 0) {
+  if (operation === 'refine_template' && !hasTeamLanguage && matchedAgentTemplates.length > 0) {
     return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 6 ? 'high' : 'medium') }
   }
 
@@ -1015,11 +1015,11 @@ function chooseIntent(args: {
     return { intent: 'agent_template', scope, operation, confidence }
   }
 
-  if (hasTemplateLanguage && matchedOrganizationTemplates.length > 0 && (hasTeamLanguage || orgTemplateScore >= agentTemplateScore)) {
+  if (hasTemplateLanguage && scope !== 'single_agent' && matchedOrganizationTemplates.length > 0 && (hasTeamLanguage || orgTemplateScore >= agentTemplateScore)) {
     return { intent: 'team_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (orgTemplateScore >= 7 ? 'high' : 'medium') }
   }
 
-  if ((hasTemplateLanguage || hasAgentTemplateLanguage) && matchedAgentTemplates.length > 0 && !hasExplicitNoTemplate) {
+  if (((hasTemplateLanguage && !hasTeamLanguage) || hasAgentTemplateLanguage) && matchedAgentTemplates.length > 0 && !hasExplicitNoTemplate) {
     return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 7 ? 'high' : 'medium') }
   }
 
@@ -1042,12 +1042,12 @@ function chooseIntent(args: {
     return { intent: 'ai_generate', scope, operation, confidence: 'medium' }
   }
 
-  if (matchedOrganizationTemplates.length > 0 && (hasTeamLanguage || orgTemplateScore >= Math.max(agentScore + 2, 7))) {
+  if (scope !== 'single_agent' && matchedOrganizationTemplates.length > 0 && (hasTeamLanguage || orgTemplateScore >= Math.max(agentScore + 2, 7))) {
     const confidence: AiBuilderConfidence = hasAmbiguityLanguage ? 'low' : (agentScore >= orgTemplateScore - 1 ? 'low' : 'high')
     return { intent: 'team_template', scope, operation, confidence }
   }
 
-  if (matchedAgentTemplates.length > 0 && (agentTemplateScore >= Math.max(agentScore + 2, 7) || (hasRefineLanguage && !hasReuseLanguage))) {
+  if (!hasTeamLanguage && matchedAgentTemplates.length > 0 && (agentTemplateScore >= Math.max(agentScore + 2, 7) || (hasRefineLanguage && !hasReuseLanguage))) {
     const confidence: AiBuilderConfidence = hasAmbiguityLanguage ? 'low' : (agentScore >= agentTemplateScore - 1 ? 'low' : 'high')
     return { intent: 'agent_template', scope, operation, confidence }
   }

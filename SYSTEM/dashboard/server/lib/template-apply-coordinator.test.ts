@@ -13,7 +13,8 @@ import { TemplateGatewayTransaction, TemplateGatewayTransport } from './template
 import { TemplateApplyCoordinator } from './template-apply-coordinator'
 import { recoverTemplatesBeforeStartup } from './template-startup-recovery'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
-import { noToolsTemplatePolicy, verifyTemplateExecutionPolicies } from './template-execution-policy'
+import { noToolsTemplatePolicy, verifyTemplateExecutionPolicies, verifyTemplateNoToolsAgentPolicy } from './template-execution-policy'
+import { createConfiguredTemplateResolver } from './template-service'
 
 function components(root: string, options: { checkpoint?: (phase: string) => void; afterPatch?: () => void; beforeSnapshot?: () => void } = {}) {
   const file = path.join(root, 'synthetic-gateway.json')
@@ -72,6 +73,52 @@ async function main() {
   }
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-apply-coordinator-'))
   try {
+    const configuredRoot = path.join(root, 'configured-workspace')
+    await setup(configuredRoot)
+    const configured = components(configuredRoot)
+    const authorityDirectory = path.join(root, 'operator-authority')
+    const registryFile = path.join(authorityDirectory, `${sha256('workspace')}.json`)
+    writeAtomicJson(registryFile, readTemplateAuthorityRegistry(path.join(configuredRoot, 'authority.json')))
+    const resolverOptions = { authorityDirectory, agentStateRoot: path.join(configuredRoot, 'runtime'),
+      runtime: { platform: 'linux/amd64', revision: 'synthetic-runtime' }, client: {
+        getConfig: async () => { const snapshot = await configured.transport.snapshot(); return { hash: snapshot.hash, sourceConfig: { agents: { entries: snapshot.entries } } } },
+        patchTemplateAgentEntriesAtRevision: async (entries: any, hash: string) => { await configured.transport.patch(entries, hash) },
+        runNoToolsTemplateAgent: async () => ({ runId: 'configured-reply', text: 'Configured reply' }),
+      } }
+    const resolver = createConfiguredTemplateResolver(resolverOptions)
+    const context = { workspaceId: 'workspace', workspacePath: configuredRoot, actorId: 'actor' }
+    const service = resolver(context)
+    service.assertStagingAvailable!()
+    assert.throws(() => resolver({ ...context, actorId: 'unrelated' }).assertStagingAvailable!(), /authority/)
+    const supportedRegistry: any = readTemplateAuthorityRegistry(registryFile)
+    for (const mutation of ['policy', 'skills', 'credentials', 'runtime', 'disabled']) {
+      const unsupported = structuredClone(supportedRegistry)
+      for (const binding of unsupported.bindings) {
+        if (mutation === 'policy') binding.policy.sha256 = '0'.repeat(64)
+        if (mutation === 'skills') binding.skills = [{ name: 'unsupported', sha256: '0'.repeat(64), platform: 'linux/amd64' }]
+        if (mutation === 'credentials') binding.credentials = [{ name: 'API_KEY', reference: 'broker-only', revision: 'v1' }]
+        if (mutation === 'runtime') binding.runtime.revision = 'other-runtime'
+        if (mutation === 'disabled') binding.disabled = true
+      }
+      writeAtomicJson(registryFile, unsupported)
+      if (mutation === 'skills' || mutation === 'credentials') service.assertStagingAvailable!()
+      else assert.throws(() => service.assertStagingAvailable!(), /authority/, mutation)
+      await assert.rejects(service.store.plan('actor', configured.request), mutation)
+    }
+    writeAtomicJson(registryFile, supportedRegistry)
+    service.assertStagingAvailable!()
+    const configuredPlan = await service.store.plan('actor', configured.request)
+    const applied = await service.coordinator.apply('actor', configured.request, configuredPlan.planDigest)
+    const configuredGroup = { groupId: Object.values(applied.revision.resources.groups)[0], message: 'Configured group', idempotencyKey: 'configured-group' }
+    const configuredResult = await service.coordinator.executeNoToolsGroup('actor', applied.revision.id, configuredGroup, service.authority, service.policies, service.runtime)
+    assert.equal(JSON.parse(configuredResult.text).turns.length, 4)
+    const revokedRegistry: any = readTemplateAuthorityRegistry(registryFile)
+    revokedRegistry.bindings[0].disabled = true
+    writeAtomicJson(registryFile, revokedRegistry)
+    await assert.rejects(service.coordinator.executeNoToolsGroup('actor', applied.revision.id, { ...configuredGroup, idempotencyKey: 'revoked' }, service.authority, service.policies, service.runtime))
+    assert.throws(() => resolver({ ...context, workspaceId: 'missing' }), /unavailable/)
+    assert.throws(() => createConfiguredTemplateResolver({ ...resolverOptions, authorityDirectory: configuredRoot })(context), /outside the workspace/)
+    assert.throws(() => createConfiguredTemplateResolver({ ...resolverOptions, runtime: { ...resolverOptions.runtime, revision: '' } }), /Invalid server/)
     const unavailable: TemplateGatewayTransport = {
       async snapshot() { throw new Error('Synthetic gateway unavailable') },
       async patch() { throw new Error('Unexpected gateway mutation') },
@@ -148,9 +195,14 @@ async function main() {
     const addedCredential = structuredClone(stagedRevision.authority!)
     addedCredential.bindings[0].credentials = [{ name: 'API_KEY', reference: 'collector', revision: 'v1' }]
     assert.throws(() => verifyTemplateExecutionPolicies(addedCredential, policies), /policy is unavailable/)
+    const noToolsSibling = addedCredential.bindings[1].artifactId
+    assert.doesNotThrow(() => verifyTemplateNoToolsAgentPolicy(addedCredential, noToolsSibling, policies), 'A credentialed Collector must not block an unrelated no-tools Agent')
+    assert.throws(() => verifyTemplateNoToolsAgentPolicy(addedCredential, addedCredential.bindings[0].artifactId, policies), /policy is unavailable/)
+    assert.throws(() => verifyTemplateNoToolsAgentPolicy(addedCredential, 'missing', policies), /policy is unavailable/)
     const addedSkill = structuredClone(stagedRevision.authority!)
     addedSkill.bindings[0].skills = [{ name: 'collector', sha256: 'c'.repeat(64), platform: 'linux/amd64' }]
     assert.throws(() => verifyTemplateExecutionPolicies(addedSkill, policies), /policy is unavailable/)
+    assert.throws(() => verifyTemplateNoToolsAgentPolicy(addedSkill, addedSkill.bindings[0].artifactId, policies), /policy is unavailable/)
     assert.throws(() => verifyTemplateExecutionPolicies(stagedRevision.authority!, { read: () => { throw new Error('private path') } }), error => error instanceof Error && !error.message.includes('private path'))
     duringSnapshot = () => { policy = null }
     await assert.rejects(check(), /policy is unavailable/)
@@ -190,6 +242,13 @@ async function main() {
       return { runId: 'synthetic-run', text: 'Synthetic final reply' }
     } }
     const executionInput = { agentId: stagedAgent, message: 'Private request not stored in receipts', idempotencyKey: 'first-run' }
+    let workspaceAuthorized = true
+    duringSnapshot = () => { workspaceAuthorized = false }
+    await assert.rejects(staged.coordinator.executeNoToolsAgent('actor', stagedRevision.id, executionInput, source, policies, noToolsRuntime,
+      () => { if (!workspaceAuthorized) throw new Error('workspace access revoked') }), /workspace access revoked/)
+    assert.equal(dispatches, 0)
+    assert(!fs.existsSync(path.join(admissionRoot, '.clawmax/template-runs', `${sha256(stagedRevision.id)}.json`)))
+    duringSnapshot = undefined
     const execute = () => staged.coordinator.executeNoToolsAgent('actor', stagedRevision.id, executionInput, source, policies, noToolsRuntime)
     assert.deepEqual(await execute(), { replayed: false, runId: 'synthetic-run', text: 'Synthetic final reply' })
     assert.deepEqual(await execute(), { replayed: true, runId: 'synthetic-run', text: 'Synthetic final reply' })
@@ -198,6 +257,47 @@ async function main() {
     const receiptFile = path.join(admissionRoot, '.clawmax/template-runs', `${sha256(stagedRevision.id)}.json`)
     assert(!fs.readFileSync(receiptFile, 'utf8').includes(executionInput.message))
     assert.equal(fs.statSync(receiptFile).mode & 0o777, 0o600)
+    const groupInput = { groupId: Object.values(stagedRevision.resources.groups)[0], message: 'Private group request', idempotencyKey: 'group-run' }
+    const groupCalls: Array<{ agentId: string; message: string; idempotencyKey: string }> = []
+    const groupRuntime = { runNoToolsTemplateAgent: async (input: any) => {
+      groupCalls.push(input)
+      assert.throws(() => staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {}), /pending Template execution/)
+      return { runId: `turn-${groupCalls.length}`, text: `reply-${groupCalls.length}` }
+    } }
+    await assert.rejects(staged.coordinator.executeNoToolsGroup('other', stagedRevision.id, groupInput, source, policies, groupRuntime))
+    await assert.rejects(staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, { ...groupInput, message: 'x'.repeat(1025) }, source, policies, groupRuntime), /input exceeds/)
+    await assert.rejects(staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, { ...groupInput, message: '' }, source, policies, groupRuntime), /Invalid Group execution/)
+    assert.equal(groupCalls.length, 0)
+    const groupRun = await staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, groupInput, source, policies, groupRuntime)
+    const groupResult = JSON.parse(groupRun.text)
+    assert.equal(groupResult.stopReason, 'turn_limit')
+    assert.equal(groupResult.turns.length, 4)
+    assert.deepEqual(groupResult.turns.map((turn: any) => turn.memberId), ['producer', 'reviewer', 'producer', 'reviewer'])
+    assert.equal(JSON.parse(groupCalls[1].message).content, 'reply-1')
+    assert.equal(JSON.parse(groupCalls[1].message).from, 'producer')
+    assert.equal(new Set(groupCalls.map(call => call.idempotencyKey)).size, 4)
+    assert.deepEqual(await staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, groupInput, source, policies, {
+      runNoToolsTemplateAgent: async () => { throw new Error('Group replay dispatched') },
+    }), { ...groupRun, replayed: true })
+    await assert.rejects(staged.coordinator.executeNoToolsGroup('actor', stagedRevision.id, { ...groupInput, message: 'changed' }, source, policies, groupRuntime), /different request/)
+    assert(!fs.readFileSync(receiptFile, 'utf8').includes(groupInput.message))
+    assert.equal(JSON.parse(fs.readFileSync(path.join(admissionRoot, 'ORG/template-groups', `${groupInput.groupId}.json`), 'utf8')).state, 'stopped')
+
+    const groupFailureRoot = path.join(root, 'group-failure')
+    await setup(groupFailureRoot)
+    const failingGroup = components(groupFailureRoot)
+    const groupPlan = await failingGroup.store.plan('actor', failingGroup.request)
+    const failureRevision = (await failingGroup.coordinator.apply('actor', failingGroup.request, groupPlan.planDigest)).revision
+    const failureSource = { ...source, read: () => readTemplateAuthorityRegistry(path.join(groupFailureRoot, 'authority.json')) }
+    const failureInput = { ...groupInput, groupId: Object.values(failureRevision.resources.groups)[0] }
+    let allowed = true
+    let failureCalls = 0
+    const failingRuntime = { runNoToolsTemplateAgent: async () => { failureCalls++; allowed = false; return { runId: 'one', text: 'first reply' } } }
+    await assert.rejects(failingGroup.coordinator.executeNoToolsGroup('actor', failureRevision.id, failureInput, failureSource, policies, failingRuntime,
+      () => { if (!allowed) throw new Error('Group access revoked') }), /Group access revoked/)
+    assert.equal(failureCalls, 1)
+    await assert.rejects(failingGroup.coordinator.executeNoToolsGroup('actor', failureRevision.id, failureInput, failureSource, policies, failingRuntime), /pending Template execution/)
+    assert.throws(() => failingGroup.store.planCleanup('actor', failureRevision.id, failureRevision.id, () => {}), /pending Template execution/)
     const stagedCleanup = staged.store.planCleanup('actor', stagedRevision.id, stagedRevision.id, () => {})
     const stagedGroups = path.join(admissionRoot, 'ORG/GROUPS.md')
     const concurrentGroup = '\n### concurrent-unrelated\n- **Members:** existing\n'

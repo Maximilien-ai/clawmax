@@ -26,6 +26,14 @@ function assert(condition: boolean, message: string) {
 
 console.log(`\n${YELLOW}=== Chat Runtime Errors Test Suite ===${RESET}\n`)
 
+test('model policy rejection survives gateway wrappers and repeated presentation', () => {
+  const message = summarizeAgentChatFailure('Gateway error: Model override "ollama/qwen2.5:latest" is not allowed by agents.defaults.modelPolicy.allow')
+  assert(/model is blocked/i.test(message), 'Expected model policy guidance')
+  assert(!/could not reach/i.test(message), 'Must not misreport connectivity')
+  assert(summarizeAgentChatFailure(message) === message, 'Formatting must be idempotent')
+  assert(/could not reach/i.test(summarizeAgentChatFailure('gateway connection refused')), 'Real gateway failures retain guidance')
+})
+
 test('summarizeAgentChatFailure normalizes missing provider credentials', () => {
   const message = summarizeAgentChatFailure('No API key found for provider "openai"')
   assert(/No model provider credentials are configured for this chat/i.test(message), `Unexpected message: ${message}`)

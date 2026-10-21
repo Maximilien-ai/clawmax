@@ -5,6 +5,7 @@ import { detectDoctorRuntimeSignal } from '../lib/doctorRuntimeSignals'
 import { formatMeteringCost, formatMeteringTokens, summarizeMeteringByAgentType } from '../lib/meteringPresentation'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
+import { saveWorkspaceBudget } from '../lib/workspaceBudget'
 import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 
@@ -155,6 +156,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>(cachedActivityAgentCostLimitsByWorkspace[workspaceCacheKey] ?? {})
   const [editingBudget, setEditingBudget] = useState(false)
   const [budgetInput, setBudgetInput] = useState(cachedActivityBudgetByWorkspace[workspaceCacheKey] ? String(cachedActivityBudgetByWorkspace[workspaceCacheKey]!.config.limitUsd) : '')
+  const [budgetSaveError, setBudgetSaveError] = useState('')
   const lastActivationRefreshRef = useRef(0)
 
   useEffect(() => {
@@ -334,24 +336,24 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
 
   const saveBudget = async (updates: Record<string, any>) => {
     try {
-      const res = await fetch('/api/budget', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...updates,
-          workspaceId: activeWorkspace?.id,
-        }),
-      })
-      if (res.ok) {
+      setBudgetSaveError('')
+      if ('limitUsd' in updates) await saveWorkspaceBudget(activeWorkspace?.id || '', budgetInput, budget?.config.enforced ?? true)
+      else {
+        const res = await fetch(buildWorkspaceScopedPath('/api/budget', activeWorkspace?.id), {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...updates, workspaceId: activeWorkspace?.id }),
+        })
+        if (!res.ok) throw new Error('Workspace budget could not be saved.')
+      }
         const refreshed = await fetch(buildWorkspaceScopedPath('/api/budget', activeWorkspace?.id))
         const data = refreshed.ok ? await refreshed.json() : null
         if (isBudgetResponse(data)) {
           setBudget(data)
+          cachedActivityBudgetByWorkspace[workspaceCacheKey] = data
           setBudgetInput(String(data.config.limitUsd))
           setEditingBudget(false)
-        }
-      }
-    } catch {}
+        } else throw new Error('Workspace budget status could not be refreshed.')
+    } catch (error) { setBudgetSaveError(error instanceof Error ? error.message : 'Workspace budget could not be saved.') }
   }
 
   const rows = sortEntries(feed, sortCol, sortDir)
@@ -414,7 +416,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Workspace Budget</span>
               {budget.level === 'exceeded' && (
-                <span className="text-xs font-bold text-red-600 bg-red-100 dark:bg-red-900/40 px-2 py-0.5 rounded-full">EXCEEDED — agents paused</span>
+                <span className="text-xs font-bold text-red-600 bg-red-100 dark:bg-red-900/40 px-2 py-0.5 rounded-full">{budget.config.paused ? 'EXCEEDED — agents paused' : 'EXCEEDED'}</span>
               )}
               {budget.level === 'warning' && (
                 <span className="text-xs font-bold text-yellow-600 bg-yellow-100 dark:bg-yellow-900/40 px-2 py-0.5 rounded-full">WARNING</span>
@@ -433,11 +435,11 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
                     step="1"
                     autoFocus
                     onKeyDown={e => {
-                      if (e.key === 'Enter') saveBudget({ limitUsd: parseFloat(budgetInput) || 10 })
+                      if (e.key === 'Enter') saveBudget({ limitUsd: budgetInput })
                       if (e.key === 'Escape') setEditingBudget(false)
                     }}
                   />
-                  <button onClick={() => saveBudget({ limitUsd: parseFloat(budgetInput) || 10 })} className="text-xs text-green-600 hover:text-green-700 font-medium">Save</button>
+                  <button onClick={() => saveBudget({ limitUsd: budgetInput })} className="text-xs text-green-600 hover:text-green-700 font-medium">Save</button>
                   <button onClick={() => setEditingBudget(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
                 </div>
               ) : (
@@ -456,6 +458,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
               </label>
             </div>
           </div>
+          {budgetSaveError && <p role="alert" className="mb-2 text-xs text-red-700 dark:text-red-300">{budgetSaveError}</p>}
           {/* Progress bar */}
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-1">
             <div

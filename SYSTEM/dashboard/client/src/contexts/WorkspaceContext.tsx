@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useToast } from '../components/Toast'
 import { applyWorkspaceOrder, reorderWorkspaceList, serializeWorkspaceOrder } from '../lib/workspace-order'
 import { setActiveWorkspaceSecretScope } from '../lib/localSecrets'
+import { workspaceSwitchError } from '../lib/workspaceSwitchResponse'
 
 export interface Workspace {
   id: string
@@ -108,12 +109,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const switchWorkspace = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/workspaces/${id}/activate`, {
-        method: 'PUT'
+        method: 'PUT',
+        signal: AbortSignal.timeout(15000),
       })
 
       if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'Failed to switch workspace')
+        throw new Error(await workspaceSwitchError(res))
       }
 
       setActiveWorkspace((prev) => {

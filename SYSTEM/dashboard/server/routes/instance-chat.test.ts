@@ -6,7 +6,7 @@ import path from 'path'
 import express from 'express'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { createInstanceChatRouter } from './instance-chat'
+import { createInstanceChatRouter, type CliTemplateExecution } from './instance-chat'
 import type { AgentChatTransport } from './chat'
 
 async function main() {
@@ -17,8 +17,18 @@ async function main() {
   let pending: AgentChatTransport | undefined
   let lastBody: any
   let authorized = true
+  let templateEnabled = false
+  let templateCalls = 0
+  let templateRevision = 'revision-one'
+  let templateCleaned = false
+  let revokeDuringVerification = false
+  const templateAgent = 'tr-0123456789abcdef-agent-0123456789ab'
   const app = express()
   app.use(express.json({ limit: '2mb' }))
+  app.use('/unconfigured/:workspaceId', createInstanceChatRouter({
+    authorize: () => ({ actorId: 'alice', workspaceId: 'test', workspacePath: root, assertAuthorized() {}, run: async fn => fn() }),
+    execute: async () => { throw new Error('Reserved Template must never reach browser executor') },
+  }))
   app.use('/api/cli/v1/workspaces/:workspaceId', createInstanceChatRouter({
     authorize(req, res) {
       const actorId = req.get('authorization')
@@ -31,6 +41,24 @@ async function main() {
       }
     },
     generation: id => id === 'analyst' ? generation : null,
+    templateExecution: context => {
+      if (!templateEnabled) throw new Error('Template execution disabled')
+      // Synthetic server composition: coordinator enforcement is tested separately.
+      return {
+        store: { workspaceId: 'test', workspacePath: root, history: () => [{ id: templateRevision, actorId: 'alice', cleanedAt: templateCleaned ? 'now' : undefined, resources: { agents: { analyst: templateAgent } } }] },
+        coordinator: { workspaceId: 'test', workspacePath: root,
+          verifyStagedExecution: async () => { if (revokeDuringVerification) authorized = false },
+          executeNoToolsAgent: async (actor: string, revision: string, input: any, _authority: unknown, _policies: unknown, _runtime: unknown, assertAuthorized: () => void) => {
+            assertAuthorized()
+            assert.strictEqual(actor, context.actorId)
+            assert.strictEqual(revision, templateRevision)
+            assert.strictEqual(input.agentId, templateAgent)
+            templateCalls++
+            return { text: 'Template reply', runId: 'synthetic', replayed: false }
+          },
+        }, authority: {}, policies: {}, runtime: {}, assertStopped() {},
+      } as unknown as CliTemplateExecution
+    },
     execute: async (req, res, transport) => {
       calls++
       lastBody = req.body
@@ -70,6 +98,14 @@ async function main() {
   let passed = 0
   const test = async (name: string, fn: () => Promise<void>) => { await fn(); passed++; console.log(`✓ ${name}`) }
   try {
+    await test('unconfigured Template execution remains blocked', async () => {
+      const response = await fetch(`http://127.0.0.1:${address.port}/unconfigured/test/agents/${templateAgent}/chat/sessions`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body('default-off')),
+      })
+      assert.strictEqual(response.status, 409)
+      const payload = await response.json() as { error: { code: string } }
+      assert.strictEqual(payload.error.code, 'template_runtime_unavailable')
+    })
     await test('authentication and workspace isolation precede execution', async () => {
       assert.strictEqual((await request(body('unauth'), '')).status, 401)
       assert.strictEqual((await request(body('forbidden'), 'alice', 'other')).status, 403)
@@ -81,7 +117,7 @@ async function main() {
       }
       assert.strictEqual((await request(body('key'), 'alice', 'test', 'analyst', { 'idempotency-key': 'different' })).status, 400)
       assert.strictEqual((await request(body('missing'), 'alice', 'test', 'missing')).status, 404)
-      assert.strictEqual((await request(body('reserved'), 'alice', 'test', 'tr-0123456789abcdef-agent-0123456789ab')).status, 409)
+      assert.strictEqual((await request(body('reserved'), 'alice', 'test', templateAgent)).status, 503)
       assert.strictEqual(calls, 0)
     })
     let first: Awaited<ReturnType<typeof request>>
@@ -159,6 +195,32 @@ async function main() {
         assert.strictEqual(fs.statSync(full).mode & 0o777, 0o600)
         assert(!fs.readFileSync(full, 'utf8').includes('Greet me'))
       }
+    })
+    await test('Template chat uses its server-owned executor and durable replay, never browser chat', async () => {
+      templateEnabled = true
+      const before = calls
+      const first = await request(body('template-first'), 'alice', 'test', templateAgent)
+      assert.deepStrictEqual(first.events.map(e => e.type), ['start', 'delta', 'done'])
+      assert.strictEqual(first.events[1].content, 'Template reply')
+      assert.strictEqual((await request(body('template-first'), 'alice', 'test', templateAgent)).text, first.text)
+      assert.strictEqual(templateCalls, 1)
+      assert.strictEqual(calls, before)
+      assert.strictEqual((await request(body('template-session', { sessionId: first.events[0].sessionId }), 'alice', 'test', templateAgent)).status, 409)
+      assert.strictEqual((await request(body('template-first'), 'bob', 'test', templateAgent)).status, 404)
+      templateCleaned = true
+      assert.strictEqual((await request(body('template-first'), 'alice', 'test', templateAgent)).status, 404)
+      templateCleaned = false
+      templateRevision = 'revision-two'
+      assert.strictEqual((await request(body('template-first'), 'alice', 'test', templateAgent)).status, 409)
+      assert.strictEqual(templateCalls, 1)
+    })
+    await test('Template verification rechecks workspace authorization after gateway waits', async () => {
+      revokeDuringVerification = true
+      const result = await request(body('template-revoked'), 'alice', 'test', templateAgent)
+      assert.strictEqual(result.status, 503)
+      assert.strictEqual(templateCalls, 1)
+      authorized = true
+      revokeDuringVerification = false
     })
     if (process.argv[2]) await test('real CLI Go client accepts the public stream and durable replay', async () => {
       mode = 'success'
