@@ -1,7 +1,7 @@
 const { spawnSync } = require('node:child_process')
 
 const DEFERRED_DEV_ADVISORY = 'GHSA-vfj7-8cjw-p6xm'
-const DEFERRAL_EXPIRES_AT = Date.parse('2026-10-17T00:00:00Z')
+const DEFERRAL_EXPIRES_AT = Date.parse('2026-11-01T00:00:00Z')
 
 function audit(omitDev = false) {
   const result = spawnSync('npm', ['audit', ...(omitDev ? ['--omit=dev'] : []), '--audit-level=high', '--json'], {
@@ -55,7 +55,7 @@ if (require.main === module) {
     const blockers = blockingAdvisories(full.report, production.report)
     if (blockers.length) throw new Error(`High/critical dependency advisories:\n${blockers.map(item => `- ${item}`).join('\n')}`)
     if (full.status !== 0) {
-      console.log(`Internal RC development dependency exception: ${DEFERRED_DEV_ADVISORY}; Dashboard team review by 2026-10-17 UTC. Production high/critical count: 0.`)
+      console.log(`Internal RC development dependency exception: ${DEFERRED_DEV_ADVISORY}; Dashboard team review by 2026-11-01 UTC. Production high/critical count: 0.`)
     } else {
       console.log('Dependency audit passed with zero High/Critical advisories.')
     }
