@@ -21,6 +21,7 @@ import { buildAgentChatMarkdown, getAgentChatDownloadState } from '../lib/agentC
 import { useToast } from './Toast'
 import { AgentAttention } from './AgentAttention'
 import { shouldSendChatOnKeyDown } from '../lib/chatComposer'
+import { readChatComposerExpanded, saveChatComposerExpanded } from '../lib/chatComposerSize'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -241,7 +242,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [rawViewIds, setRawViewIds] = useState<Set<string>>(new Set())
   const [input, setInput] = useState('')
-  const [composerExpanded, setComposerExpanded] = useState(false)
+  const [composerExpanded, setComposerExpanded] = useState(readChatComposerExpanded)
   const [sending, setSending] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -1647,7 +1648,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
             />
             <button
               type="button"
-              onClick={() => { if (inputRef.current) inputRef.current.style.height = ''; setComposerExpanded(value => !value) }}
+              onClick={() => { if (inputRef.current) inputRef.current.style.height = ''; const next = !composerExpanded; saveChatComposerExpanded(next); setComposerExpanded(next) }}
               className="absolute right-2 top-1.5 rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
               aria-label={composerExpanded ? 'Collapse message box' : 'Expand message box'}
               title={composerExpanded ? 'Collapse message box' : 'Expand message box'}

@@ -18,6 +18,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import { shouldSendChatOnKeyDown } from '../lib/chatComposer'
+import { readChatComposerExpanded, saveChatComposerExpanded } from '../lib/chatComposerSize'
 
 interface Message {
   id: string
@@ -152,7 +153,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   const cacheKey = buildCommunicationCacheKey(channel.type, channel.name)
   const [messages, setMessages] = useState<Message[]>(() => groupChatMessageCache.get(cacheKey) || [])
   const [input, setInput] = useState('')
-  const [composerExpanded, setComposerExpanded] = useState(false)
+  const [composerExpanded, setComposerExpanded] = useState(readChatComposerExpanded)
   const [loading, setLoading] = useState(() => (groupChatMessageCache.get(cacheKey) || []).length === 0)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1223,7 +1224,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
               />
               <button
                 type="button"
-                onClick={() => { if (inputRef.current) inputRef.current.style.height = ''; setComposerExpanded(value => !value) }}
+                onClick={() => { if (inputRef.current) inputRef.current.style.height = ''; const next = !composerExpanded; saveChatComposerExpanded(next); setComposerExpanded(next) }}
                 className="absolute right-2 top-1.5 rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
                 aria-label={composerExpanded ? 'Collapse message box' : 'Expand message box'}
                 title={composerExpanded ? 'Collapse message box' : 'Expand message box'}

@@ -941,6 +941,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Chat composer size preference unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/chatComposerSize.test.ts > /tmp/clawmax-chat-composer-size.out 2>&1 || true
+if grep -q 'Chat composer size preference tests passed' /tmp/clawmax-chat-composer-size.out; then
+  pass "Chat composer size preference unit tests"
+else
+  cat /tmp/clawmax-chat-composer-size.out
+  fail "Chat composer size preference unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running BYOK open request unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/byokOpenRequest.test.ts > /tmp/clawmax-byok-open-request.out 2>&1 || true
 if grep -q 'BYOK open request tests passed' /tmp/clawmax-byok-open-request.out; then

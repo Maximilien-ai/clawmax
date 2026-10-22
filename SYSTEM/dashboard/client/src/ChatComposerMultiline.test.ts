@@ -28,6 +28,8 @@ for (const [name, source] of [
   assert(source.includes('aria-expanded={composerExpanded}'), `${name} must expose expansion state`)
   assert(source.includes('Collapse message box') && source.includes('Expand message box'), `${name} must name both chevron actions`)
   assert(source.includes("composerExpanded ? '' : 'rotate-180'"), `${name} must show an upward chevron when compact and a downward chevron when expanded`)
+  assert(source.includes('useState(readChatComposerExpanded)'), `${name} must restore the saved composer size`)
+  assert(source.includes('saveChatComposerExpanded(next)'), `${name} must save both chevron choices`)
 }
 
 assert(agentChatSource.includes("!input.includes('\\n')"), 'Multiline agent chat must preserve native arrow-key navigation')
