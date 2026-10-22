@@ -152,6 +152,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   const cacheKey = buildCommunicationCacheKey(channel.type, channel.name)
   const [messages, setMessages] = useState<Message[]>(() => groupChatMessageCache.get(cacheKey) || [])
   const [input, setInput] = useState('')
+  const [composerExpanded, setComposerExpanded] = useState(false)
   const [loading, setLoading] = useState(() => (groupChatMessageCache.get(cacheKey) || []).length === 0)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1168,7 +1169,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
               </div>
             )}
 
-            <div className="flex gap-2">
+            <div className="flex items-end gap-2">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -1207,16 +1208,30 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                   </svg>
                 )}
               </button>
+              <div className="relative min-w-0 flex-1">
               <textarea
                 ref={inputRef}
-                rows={3}
+                rows={composerExpanded ? 4 : 1}
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder={isListening ? "Listening..." : "Type, speak, or drop files... Option+Enter adds a line; use @name to address an agent"}
-                className="min-w-0 flex-1 resize-y px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                placeholder={isListening ? "Listening..." : "Message..."}
+                title="Enter to send; Shift+Enter for a new line. Use @name to address an agent."
+                aria-label="Message group"
+                className="block w-full min-h-10 max-h-40 resize-y px-4 pr-10 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 disabled={sending || isListening || !chatEnabled}
               />
+              <button
+                type="button"
+                onClick={() => { if (inputRef.current) inputRef.current.style.height = ''; setComposerExpanded(value => !value) }}
+                className="absolute right-2 top-1.5 rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                aria-label={composerExpanded ? 'Collapse message box' : 'Expand message box'}
+                title={composerExpanded ? 'Collapse message box' : 'Expand message box'}
+                aria-expanded={composerExpanded}
+              >
+                <svg className={`h-4 w-4 transition-transform ${composerExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 7 5 5 5-5" /></svg>
+              </button>
+              </div>
               <button
                 ref={sendButtonRef}
                 onClick={sendMessage}

@@ -141,14 +141,16 @@ export default function AgentDetailPanel({
 
   // Close on Escape
   const handleKey = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && !e.defaultPrevented) {
       if (showRenameDialog) {
         setShowRenameDialog(false)
+      } else if (editingCostLimit) {
+        setEditingCostLimit(false)
       } else {
         onClose()
       }
     }
-  }, [onClose, showRenameDialog])
+  }, [editingCostLimit, onClose, showRenameDialog])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKey)
@@ -378,8 +380,8 @@ export default function AgentDetailPanel({
             <button
               onClick={onClose}
               className="h-9 w-9 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-lg leading-none"
-              aria-label="Close"
-              title="Close"
+              aria-label="Close details (Esc)"
+              title="Close details (Esc)"
             >
               <span aria-hidden="true">×</span>
             </button>
@@ -664,6 +666,7 @@ export default function AgentDetailPanel({
 
         {/* Footer path */}
         <div className="space-y-3 border-t border-gray-100 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shrink-0 dark:border-gray-700 dark:bg-gray-800 sm:px-5 sm:pb-3">
+          <span className="block text-xs text-gray-400 dark:text-gray-500">Press Esc to close details</span>
           <button
             type="button"
             onClick={onClose}

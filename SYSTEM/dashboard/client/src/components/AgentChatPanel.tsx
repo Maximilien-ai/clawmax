@@ -241,6 +241,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [rawViewIds, setRawViewIds] = useState<Set<string>>(new Set())
   const [input, setInput] = useState('')
+  const [composerExpanded, setComposerExpanded] = useState(false)
   const [sending, setSending] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -1599,9 +1600,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                 </svg>
               )}
             </button>
+            <div className="relative min-w-0 flex-1">
             <textarea
               ref={inputRef}
-              rows={3}
+              rows={composerExpanded ? 4 : 1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -1641,8 +1643,19 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               aria-label="Message agent"
               title="Type, speak, or drop files. Enter to send; Option+Enter or Shift+Enter for a new line."
               disabled={sending || streaming || !gatewayAvailable || isListening || !chatEnabled}
-              className="min-h-11 max-h-32 min-w-0 flex-1 resize-y px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
+              className="block w-full min-h-10 max-h-40 resize-y px-4 pr-10 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
             />
+            <button
+              type="button"
+              onClick={() => { if (inputRef.current) inputRef.current.style.height = ''; setComposerExpanded(value => !value) }}
+              className="absolute right-2 top-1.5 rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+              aria-label={composerExpanded ? 'Collapse message box' : 'Expand message box'}
+              title={composerExpanded ? 'Collapse message box' : 'Expand message box'}
+              aria-expanded={composerExpanded}
+            >
+              <svg className={`h-4 w-4 transition-transform ${composerExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 7 5 5 5-5" /></svg>
+            </button>
+            </div>
             {streaming ? (
               <button
                 onClick={cancelStreaming}

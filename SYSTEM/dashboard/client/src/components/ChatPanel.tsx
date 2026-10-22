@@ -27,6 +27,7 @@ interface Props {
 export default function ChatPanel({ agentId, agentName, onClose }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
+  const [composerExpanded, setComposerExpanded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -329,16 +330,28 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
         {/* Input */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 shrink-0">
           <div className="flex items-end gap-2">
+            <div className="relative min-w-0 flex-1">
             <textarea
               ref={inputRef}
-              rows={2}
+              rows={composerExpanded ? 4 : 1}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={sending}
               placeholder="Type a message… (Enter to send, Shift+Enter for a new line)"
-              className="min-h-11 max-h-32 min-w-0 flex-1 resize-y px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-700"
+              className="block w-full min-h-10 max-h-40 resize-y px-3 pr-10 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-700"
             />
+            <button
+              type="button"
+              onClick={() => { if (inputRef.current) inputRef.current.style.height = ''; setComposerExpanded(value => !value) }}
+              className="absolute right-2 top-1.5 rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+              aria-label={composerExpanded ? 'Collapse message box' : 'Expand message box'}
+              title={composerExpanded ? 'Collapse message box' : 'Expand message box'}
+              aria-expanded={composerExpanded}
+            >
+              <svg className={`h-4 w-4 transition-transform ${composerExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 7 5 5 5-5" /></svg>
+            </button>
+            </div>
             <button
               onClick={sendMessage}
               disabled={!input.trim() || sending}
