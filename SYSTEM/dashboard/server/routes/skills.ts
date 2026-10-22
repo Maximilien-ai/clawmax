@@ -19,7 +19,7 @@ import {
 import { extractZipBufferToWorkspace, resolveWorkspacePath } from '../lib/workspace'
 import { getCuratedPartnerInstaller, listCuratedPartnerInstallers } from '../lib/partner-installs'
 import { decodeUploadFilename } from '../lib/upload-filename'
-import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
+import { generateSkillFromNL, setRequestByokKeys, warmOpenAiCompatibleGenerationModel } from '../lib/ai-generator'
 import { safeEnv } from '../lib/safe-env'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import {
@@ -485,6 +485,7 @@ router.post('/generate', async (req, res) => {
   }
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys)
     setRequestByokKeys(byokKeys)
     const skill = await generateSkillFromNL(description.trim(), currentDraft)
     const session = getAuthenticatedSession(req)
