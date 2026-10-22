@@ -1,9 +1,10 @@
 # Backlog
 
-- [ ] **RC93 CodeQL triage** — Dashboard: assess the seven open findings on
-  merged RC92 PR #236 (three critical, four high), fix reachable command/path
-  hazards and session-key collision risk, or document evidence for a bounded
-  dismissal. Complete focused tests and CodeQL before selecting RC93. See the
+- [ ] **RC93 residual CodeQL triage** — Dashboard: alert 579's session-key
+  collision is fixed in `6faee7a7`; assess the six remaining command/path
+  findings from RC92 PR #236, including CLI option parsing and local transcript
+  symlinks. Keep RC93 images internal until this review supports a bounded
+  disposition. See the
   [dated triage](planning/RC93_CODEQL_TRIAGE_2026-10-21.md).
 
 - [ ] **RC89 development dependency advisory** — Dashboard: replace or update
