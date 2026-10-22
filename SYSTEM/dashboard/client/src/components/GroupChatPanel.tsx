@@ -1229,7 +1229,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                 title={composerExpanded ? 'Collapse message box' : 'Expand message box'}
                 aria-expanded={composerExpanded}
               >
-                <svg className={`h-4 w-4 transition-transform ${composerExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 7 5 5 5-5" /></svg>
+                <svg className={`h-4 w-4 transition-transform ${composerExpanded ? '' : 'rotate-180'}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 7 5 5 5-5" /></svg>
               </button>
               </div>
               <button
