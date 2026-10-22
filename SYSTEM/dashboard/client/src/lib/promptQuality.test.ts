@@ -38,10 +38,13 @@ assert.equal(improvement.delta, improvement.after - improvement.before, 'Prompt 
 const regression = comparePromptQuality(detailed.facets.map((facet) => facet.suggestion).join(' '), 'Create an agent', 'builder')
 assert(regression.delta < 0, 'Prompt comparison must identify a readiness regression without blocking the rewrite')
 
-console.log('promptQuality.test.ts: 12 tests passed')
-
 // The rubric must be worth exactly 100 for every domain, so a score can never exceed its own denominator.
 for (const domain of ['general', 'agent', 'skill', 'template', 'workflow', 'plugin', 'builder'] as const) {
   const total = scorePromptQuality('x', domain).facets.reduce((sum, facet) => sum + facet.max, 0)
   assert(total === 100, `${domain} rubric maxes must total 100, got ${total}`)
+  // A prompt that trips every pattern must never score past the denominator.
+  const stuffed = scorePromptQuality('Create an agent role for the team to read input data and return a markdown report; it must never send without approval every day, verify success criteria, trigger the workflow step, use the tool skill plugin with a deliverable result, and explain when to use it.', domain)
+  assert(stuffed.score <= 100, `${domain} score must never exceed 100, got ${stuffed.score}`)
 }
+
+console.log('promptQuality.test.ts: 13 tests passed')
