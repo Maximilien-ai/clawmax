@@ -26,6 +26,7 @@ import {
   runExclusiveAgentExecution,
   shouldUseExplicitBackupModelRetry,
   scopeSessionIdToModel,
+  scopeStoredDashboardSessionId,
   toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
@@ -879,7 +880,8 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     executionEnv.CLAWMAX_MAIL_BROKER_TOKEN = brokerCapability
     executionEnv.CLAWMAX_MAIL_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/mail`
   }
-  const sessionSeed = sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace)
+  const defaultSessionSeed = buildDashboardChatSeed(id, resolvedAgent.workspace)
+  const sessionSeed = sessionId || defaultSessionSeed
 
   console.log(`[Chat Route] Starting CLI chat for agent ${id}`)
 
@@ -904,7 +906,9 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   }, 2000)
   const chatStartedAt = Date.now()
   const dashboardSessionKey = `agent:${id}:dashboard-chat`
-  let currentSessionId = scopeSessionIdToModel(sessionSeed, resolvedAgent.model)
+  let currentSessionId = sessionId
+    ? scopeSessionIdToModel(sessionSeed, resolvedAgent.model)
+    : scopeStoredDashboardSessionId(id, sessionSeed, resolvedAgent.model)
   let chatSessionRetryAttempt = 0
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
@@ -1134,10 +1138,9 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
         forceGateway = false,
       ) => {
         const attemptSessionSeed = buildDashboardChatRetrySeed(sessionSeed, chatSessionRetryAttempt)
-        const executionSessionId = scopeSessionIdToModel(
-          attemptSessionSeed,
-          attemptModel,
-        )
+        const executionSessionId = !sessionId && chatSessionRetryAttempt === 0
+          ? scopeStoredDashboardSessionId(id, attemptSessionSeed, attemptModel)
+          : scopeSessionIdToModel(attemptSessionSeed, attemptModel)
         currentSessionId = executionSessionId
         // The reply already persisted before this attempt, so recovery below never mistakes it for
         // this attempt's answer.

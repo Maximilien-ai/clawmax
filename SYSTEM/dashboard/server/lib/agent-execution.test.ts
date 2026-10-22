@@ -7,6 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { createHash } from 'crypto'
 import {
   clearModelCache,
 } from './model-discovery'
@@ -24,6 +25,7 @@ import {
   resolvePinnedOpenClawAuthBridge,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
+  scopeStoredDashboardSessionId,
   shouldUpdateNativeAuthStore,
   shouldUseExplicitBackupModelRetry,
   shouldRetryWithBackupModel,
@@ -522,6 +524,42 @@ test('scopeSessionIdToModel isolates chats across model changes', () => {
   assert(!scoped.includes(':'), 'Expected scoped session id to be sanitized for OpenClaw')
   assert(scoped.includes('group-temp-test-agent1'), 'Expected original session prefix preserved in safe form')
   assert(scoped.includes('ollama-qwen2-5-latest'), 'Expected sanitized model suffix')
+})
+
+test('long session keys avoid the legacy collision and continue a stored dashboard chat', () => {
+  const prefix = 'group-demo-window-with-a-very-long-common-prefix-'
+  const first = scopeSessionIdToModel(`${prefix}1596`, 'openai/gpt-5')
+  const second = scopeSessionIdToModel(`${prefix}27592`, 'openai/gpt-5')
+  assert(first !== second, 'Distinct long sessions must not share the known legacy key')
+  assert(first.length <= 48 && second.length <= 48, 'Session IDs must stay within the runtime limit')
+
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-upgrade-'))
+  const agentId = 'upgrade-agent'
+  const seed = `dashboard-${agentId}-a-long-server-generated-stamp-chat`
+  const model = 'openai/gpt-5'
+  const combined = `${seed}-${model.replace(/[^a-zA-Z0-9_-]+/g, '-')}`
+  const oldHash = createHash('sha1').update(combined).digest('hex').slice(0, 8)
+  const legacy = `${seed.slice(0, 39)}-${oldHash}`
+  const sessionsDir = path.join(home, '.openclaw', 'agents', agentId, 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, `${legacy}.jsonl`), '{"message":"stored"}\n')
+  try {
+    assert(scopeStoredDashboardSessionId(agentId, seed, model, home) === legacy, 'Existing stored chat must keep its original session ID')
+    assert(resolvePersistedAgentSessionId(agentId, `agent:${agentId}:dashboard-chat`, legacy, home) === legacy, 'Existing chat history must remain readable')
+    assert(scopeStoredDashboardSessionId(agentId, seed, model, home) === legacy, 'A new lookup after restart must still select the stored session')
+    fs.unlinkSync(path.join(sessionsDir, `${legacy}.jsonl`))
+    assert(scopeStoredDashboardSessionId(agentId, seed, model, home) === scopeSessionIdToModel(seed, model), 'A new chat must use the wider digest')
+    const nativeDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(path.join(nativeDir, 'openclaw-agent.sqlite'))
+    db.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT); CREATE TABLE session_windows (session_id TEXT)')
+    db.prepare('INSERT INTO session_windows (session_id) VALUES (?)').run(legacy)
+    db.close()
+    assert(scopeStoredDashboardSessionId(agentId, seed, model, home) === legacy, 'Native stored sessions must also survive the key upgrade')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
 })
 
 test('toExecutionModelOverride maps OpenClaw-retired OpenAI models to the supported mini model', () => {

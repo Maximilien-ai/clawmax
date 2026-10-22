@@ -49,7 +49,7 @@ import { normalizeChatMessage } from '../lib/chat-normalization'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
 import { hasReadyOpenClawNativeAgentStore, runExclusiveAgentExecution } from '../lib/agent-execution'
 import { cancelTurnsForAgent, listActiveTurns, withRegisteredTurn } from '../lib/agent-turns'
-import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
+import { scopeStoredDashboardSessionId, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
 import { resolveDefaultAgentModel } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
@@ -468,7 +468,7 @@ function getAgentDashboardSessionKey(agentId: string): string {
 function resolveAgentChatSessionId(agentId: string, homeDir: string = process.env.HOME || ''): string | null {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const sessionKey = getAgentDashboardSessionKey(agentId)
-  const preferredSessionId = scopeSessionIdToModel(sessionKey, resolvedAgent.model)
+  const preferredSessionId = scopeStoredDashboardSessionId(agentId, sessionKey, resolvedAgent.model, homeDir)
   const persisted = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
   // claude/droid chats never write openclaw's sessions.json index, so their "current session"
   // pointer is the newest runtime transcript. Prefer the store that matches the agent's runtime
@@ -568,7 +568,7 @@ function readMergedChatSessionMessages(agentId: string, sessionId: string, homeD
 function getArchiveRestoreSessionId(agentId: string, homeDir: string = process.env.HOME || ''): string {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const sessionKey = getAgentDashboardSessionKey(agentId)
-  const preferredSessionId = scopeSessionIdToModel(sessionKey, resolvedAgent.model)
+  const preferredSessionId = scopeStoredDashboardSessionId(agentId, sessionKey, resolvedAgent.model, homeDir)
   return resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir) || preferredSessionId
 }
 
@@ -2917,7 +2917,7 @@ router.post('/:id/chat/messages', async (req, res) => {
     const resolvedAgent = resolveAgentExecutionConfig(id)
     // The dashboard chat's current conversation, the one its history shows. This used to scope an
     // already scoped id a second time, so these turns ran in a session the chat never displayed.
-    const sessionId = resolveAgentChatSessionId(id, HOME) || scopeSessionIdToModel(sessionKey, resolvedAgent.model)
+    const sessionId = resolveAgentChatSessionId(id, HOME) || scopeStoredDashboardSessionId(id, sessionKey, resolvedAgent.model, HOME)
 
     if (resolvedAgent.runtime !== 'openclaw') {
       // Claude Code / Factory Droid: spawn via the shared runtime adapter instead of the
