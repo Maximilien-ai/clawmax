@@ -3119,6 +3119,13 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Version unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/versionLabel.test.ts > /tmp/clawmax-version-label.out 2>&1 || true
+if grep -q "Version label tests passed" /tmp/clawmax-version-label.out; then
+  pass "Version label tests"
+else
+  cat /tmp/clawmax-version-label.out
+  fail "Version label tests"
+fi
 npx ts-node --transpileOnly server/lib/version.test.ts > /tmp/clawmax-version.out 2>&1
 version_status=$?
 if [ "$version_status" -eq 0 ]; then

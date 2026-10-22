@@ -24,6 +24,6 @@ assert(source.includes("plugin.objectKind === 'lifecycle-view' || plugin.icon ==
 assert(source.includes('aria-label="Manage plugins"'), 'Plugin section must expose the plugin manager')
 assert(!source.includes('max-w-[10rem] truncate whitespace-nowrap font-mono'), 'Top bar should not duplicate the machine name')
 assert(source.includes("title={system?.version || 'Version unavailable'}"), 'Top bar version hover must show the full reported version')
-assert(source.includes("title={`${system?.version ?? 'Version unavailable'} · ${system?.machineName || system?.hostname || 'Machine unavailable'}`}"), 'Footer hover must reveal the complete version and machine name')
+assert(source.includes('{compactDashboardVersion(system?.version)} ·'), 'Footer must show only the compact version beside the machine name')
 
 console.log('AppSidebar.test.ts: 18 tests passed')

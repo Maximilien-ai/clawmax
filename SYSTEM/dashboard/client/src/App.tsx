@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Builder from './pages/Builder'
 import Agents from './pages/Agents'
+import { compactDashboardVersion } from './lib/versionLabel'
 import DocHub from './pages/DocHub'
 import { subscribeSystemRefresh } from './lib/systemRefresh'
 import Activity from './pages/Activity'
@@ -1030,7 +1031,7 @@ export default function App() {
               {!navCollapsed ? (
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-mono text-gray-500" title={`${system?.version ?? 'Version unavailable'} · ${system?.machineName || system?.hostname || 'Machine unavailable'}`}>{system?.version ?? '…'} · {(system?.machineName || system?.hostname || '…')}</div>
+                    <div className="truncate text-xs font-mono text-gray-500" title={system?.machineName || system?.hostname || 'Machine unavailable'}>{compactDashboardVersion(system?.version)} · {(system?.machineName || system?.hostname || '…')}</div>
                     <button
                       onClick={() => setShowTermsOfService(true)}
                       className="mt-1 text-[11px] text-sky-400 hover:text-sky-300"
@@ -1583,7 +1584,7 @@ function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onO
             )}
           </button>
         )}
-        <span className="hidden md:inline text-xs text-gray-300 dark:text-gray-600 font-mono" title={system?.version || 'Version unavailable'}>{system?.version}</span>
+        <span className="hidden md:inline whitespace-nowrap text-xs font-mono text-gray-500 dark:text-gray-400" title={system?.version || 'Version unavailable'}>{system?.version}</span>
       </div>
       </div>
     </>
