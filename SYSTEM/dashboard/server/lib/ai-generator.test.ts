@@ -30,6 +30,7 @@ import {
   normalizeTemplateGenerationTarget,
   parseJsonResponse,
   resolveSystemGenerationModelForProvider,
+  resolveGenerationProvider,
   resolveOpenAiCompatibleGenerationDefaults,
   setRequestByokKeys,
   shouldUseMaxCompletionTokens,
@@ -337,19 +338,15 @@ test('generateCronFromText attempts generation with an OpenAI-compatible BYOK ke
   }
 })
 
-test('generateCronFromText still reports a clear error when nothing is configured at all', async () => {
-  const tmpWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-ai-generator-cron-none-'))
-  const originalTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
-  try {
-    process.env.CLAWMAX_TEST_WORKSPACE = tmpWorkspace
-    setRequestByokKeys(undefined)
-    const result = await generateCronFromText('every weekday at 9am')
-    assert.ok(result.error, 'expected an error when no execution path is configured')
-    assert.match(result.error!, /No API key configured|No OpenAI API key or CLI runtime configured/)
-  } finally {
-    if (originalTestWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
-    else process.env.CLAWMAX_TEST_WORKSPACE = originalTestWorkspace
-  }
+test('generation provider reports a clear error when no execution path is configured', () => {
+  assert.throws(
+    () => resolveGenerationProvider(undefined, {
+      skipCliRuntime: true,
+      systemKeys: {},
+      compatibleDefaults: {},
+    }),
+    /No API key configured/,
+  )
 })
 
 function withFakeOpenAiCompatibleServer(content: string, fn: (baseUrl: string) => Promise<void>): Promise<void> {
