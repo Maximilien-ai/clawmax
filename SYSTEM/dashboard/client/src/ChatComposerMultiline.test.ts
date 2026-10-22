@@ -36,4 +36,4 @@ assert(agentChatSource.includes("!input.includes('\\n')"), 'Multiline agent chat
 assert(detailSource.includes('Press Esc to close details'), 'Agent detail must disclose the Escape shortcut')
 assert(detailSource.includes('else if (editingCostLimit)'), 'Escape must dismiss inline budget editing before closing details')
 
-console.log('ChatComposerMultiline.test.ts: compact and expandable composers and detail shortcut passed')
+console.log('ChatComposerMultiline.test.ts: 39 assertions passed')

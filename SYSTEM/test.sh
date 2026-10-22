@@ -3798,8 +3798,8 @@ fi
 
 echo -e "${YELLOW}→ Running Chat composer multiline regression tests...${NC}"
 npx ts-node --transpileOnly client/src/ChatComposerMultiline.test.ts > /tmp/clawmax-chat-composer-multiline.out 2>&1 || true
-if grep -q "ChatComposerMultiline.test.ts: 12 assertions passed" /tmp/clawmax-chat-composer-multiline.out; then
-  pass "Chat composer multiline regression tests (12 assertions)"
+if grep -q "ChatComposerMultiline.test.ts: 39 assertions passed" /tmp/clawmax-chat-composer-multiline.out; then
+  pass "Chat composer multiline regression tests (39 assertions)"
 else
   cat /tmp/clawmax-chat-composer-multiline.out
   fail "Chat composer multiline regression tests"
