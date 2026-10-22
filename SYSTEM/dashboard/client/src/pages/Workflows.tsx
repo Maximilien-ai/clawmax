@@ -2655,7 +2655,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                         <div key={exec.id} className="relative group">
                           <button
                             onClick={() => fetchExecutionDetails(selectedWorkflow.id, exec.id)}
-                            className="w-full text-left text-sm border border-gray-200 dark:border-gray-700 rounded p-3 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:bg-gray-800 hover:border-gray-300 dark:border-gray-600 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
+                            className="w-full text-left text-sm border border-gray-200 rounded p-3 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700"
                           >
                             <div className="flex items-center mb-1">
                               <span className={`px-2 py-0.5 text-xs font-medium rounded ${

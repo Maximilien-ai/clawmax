@@ -1937,7 +1937,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                     <button
                       key={agent.id}
                       onClick={() => onNavigateToAgent?.(agent.id)}
-                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-gray-200 bg-gray-50 font-medium hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
+                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-gray-200 bg-gray-50 text-gray-700 font-medium hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       title={`Go to ${agent.name} in Agents page`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />

@@ -2361,7 +2361,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
                 <button
                   onClick={handleSendMessage}
                   disabled={!messageText.trim() || sending}
-                  className="px-3 py-1.5 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                  className="px-3 py-1.5 text-sm rounded bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                 >
                   {sending ? 'Sending...' : 'Send'}
                 </button>

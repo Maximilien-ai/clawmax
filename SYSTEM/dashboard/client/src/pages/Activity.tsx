@@ -924,7 +924,7 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
               />
               Show info checks
             </label>
-            <button onClick={() => runDoctor(true)} disabled={fixing} className="text-sm px-3 py-1.5 rounded-md bg-cyan-600 text-white hover:bg-cyan-700 disabled:bg-gray-300 transition-colors">{fixing ? 'Fixing...' : 'Auto-Fix'}</button>
+            <button onClick={() => runDoctor(true)} disabled={fixing} className="text-sm px-3 py-1.5 rounded-md bg-cyan-600 text-white hover:bg-cyan-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 transition-colors">{fixing ? 'Fixing...' : 'Auto-Fix'}</button>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
           </div>
         </div>

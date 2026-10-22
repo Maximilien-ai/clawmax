@@ -1670,7 +1670,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                 ref={sendButtonRef}
                 onClick={() => sendMessage()}
                 disabled={(!input.trim() && attachments.length === 0) || sending || !gatewayAvailable || !chatEnabled}
-                className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors text-sm font-medium disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors text-sm font-medium disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed"
               >
                 Send
               </button>

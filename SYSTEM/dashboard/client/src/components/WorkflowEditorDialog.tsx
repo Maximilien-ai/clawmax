@@ -577,7 +577,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                   type="button"
                   onClick={handleAiCron}
                   disabled={aiCronLoading || !aiCronInput.trim()}
-                  className="px-3 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap font-medium"
+                  className="px-3 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap font-medium"
                 >
                   {aiCronLoading ? '...' : 'AI Generate'}
                 </button>

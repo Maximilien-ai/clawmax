@@ -1237,7 +1237,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                 ref={sendButtonRef}
                 onClick={sendMessage}
                 disabled={(!input.trim() && attachments.length === 0) || sending || !chatEnabled}
-                className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
               >
                 {sending ? 'Sending...' : 'Send'}
               </button>

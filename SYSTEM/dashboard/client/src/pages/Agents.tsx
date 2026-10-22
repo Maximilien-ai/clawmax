@@ -4102,7 +4102,7 @@ const AgentCard = React.memo(function AgentCard({
               onNavigateToSkills ? (
                 <button
                   onClick={e => { e.stopPropagation(); onNavigateToSkills(agent.id); }}
-                  className="text-xs px-2 py-1 rounded bg-gray-50 dark:bg-gray-900 text-gray-500 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:bg-gray-800 hover:text-gray-700 dark:text-gray-300 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="text-xs px-2 py-1 rounded bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 hover:text-gray-700 transition-colors dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   + Add Skills
                 </button>

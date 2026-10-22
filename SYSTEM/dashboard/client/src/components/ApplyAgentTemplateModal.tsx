@@ -214,7 +214,7 @@ export default function ApplyAgentTemplateModal({
         <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
           <button
             onClick={onClose}
-            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300"
+            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-500 dark:text-gray-300 dark:disabled:text-gray-400"
             disabled={applying}
           >
             Cancel

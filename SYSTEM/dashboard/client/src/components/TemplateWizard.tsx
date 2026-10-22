@@ -957,7 +957,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
 
   // ---- Styles ----
   const inputCls = 'w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500'
-  const btnPrimary = 'px-4 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium'
+  const btnPrimary = 'px-4 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed transition-colors font-medium'
   const btnSecondary = 'px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors'
   const labelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'
   const registerFieldRef = (fieldKey: string) => (el: FocusableField | null) => {
@@ -2001,7 +2001,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                 onApply(t)
               }}
               disabled={!state.teamName.trim() || state.agents.length === 0}
-              className="px-4 py-2 text-sm bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
+              className="px-4 py-2 text-sm bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
             >
               Apply Now
             </button>

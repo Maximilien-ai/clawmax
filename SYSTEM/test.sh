@@ -2282,6 +2282,16 @@ else
   fail "Template apply progress unit tests"
 fi
 
+echo ""
+echo -e "${YELLOW}→ Running button theme audit tests...${NC}"
+npx ts-node --transpileOnly client/src/ButtonThemeAudit.test.ts > /tmp/clawmax-button-theme-audit.out 2>&1 || true
+if grep -q 'Button theme audit passed' /tmp/clawmax-button-theme-audit.out; then
+  pass "Button theme audit tests"
+else
+  cat /tmp/clawmax-button-theme-audit.out
+  fail "Button theme audit tests"
+fi
+
 echo -e "${YELLOW}→ Running Template apply readiness helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/templateApplyReadiness.test.ts > /tmp/clawmax-template-apply-readiness.out 2>&1 || true
 if grep -q "templateApplyReadiness.test.ts: ok" /tmp/clawmax-template-apply-readiness.out; then

@@ -2686,7 +2686,7 @@ export default function Builder({
                 <button
                   onClick={() => void submitPrompt()}
                   disabled={loading || !prompt.trim()}
-                  className="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-700"
+                  className="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300"
                 >
                   {loading ? (builderQuestion ? 'Asking…' : 'Finding a path…') : (builderQuestion ? 'Ask Builder' : 'Recommend Next Step')}
                 </button>

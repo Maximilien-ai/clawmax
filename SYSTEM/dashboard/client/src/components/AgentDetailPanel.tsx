@@ -710,7 +710,7 @@ export default function AgentDetailPanel({
               <button
                 onClick={handleRename}
                 disabled={!newName.trim() || newName === agent.name}
-                className="px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-700 transition-colors disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-700 transition-colors disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed"
               >
                 Rename
               </button>

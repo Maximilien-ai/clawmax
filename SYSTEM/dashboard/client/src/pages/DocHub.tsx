@@ -1428,7 +1428,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             {bulkActionError && <div className="mt-3 text-sm text-red-600 dark:text-red-300">{bulkActionError}</div>}
             <div className="mt-6 flex justify-end gap-2">
               <button type="button" onClick={() => setShowBulkDeleteConfirm(false)} disabled={bulkActionRunning} className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-700">Cancel</button>
-              <button type="button" onClick={deleteSelectedUploads} disabled={bulkActionRunning} className="bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-gray-400">{bulkActionRunning ? 'Deleting...' : 'Delete files'}</button>
+              <button type="button" onClick={deleteSelectedUploads} disabled={bulkActionRunning} className="bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300">{bulkActionRunning ? 'Deleting...' : 'Delete files'}</button>
             </div>
           </div>
         </div>
@@ -1452,7 +1452,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             {bulkActionError && <div className="mt-3 text-sm text-red-600 dark:text-red-300">{bulkActionError}</div>}
             <div className="mt-6 flex justify-end gap-2">
               <button type="button" onClick={() => setShowMoveDialog(false)} disabled={bulkActionRunning} className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-700">Cancel</button>
-              <button type="button" onClick={moveSelectedUploads} disabled={bulkActionRunning || !moveDestination.trim()} className="bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:bg-gray-400">{bulkActionRunning ? 'Moving...' : 'Move files'}</button>
+              <button type="button" onClick={moveSelectedUploads} disabled={bulkActionRunning || !moveDestination.trim()} className="bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300">{bulkActionRunning ? 'Moving...' : 'Move files'}</button>
             </div>
           </div>
         </div>

@@ -1908,7 +1908,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
               <button
                 type="button"
                 onClick={() => { setShowWorkflowSection(!showWorkflowSection); setWorkflowStep(0) }}
-                className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:bg-gray-800 transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
+                className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-700 transition-colors"
               >
                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                   Customize Workflows ({editableWorkflows.length} workflow{editableWorkflows.length !== 1 ? 's' : ''})
@@ -2271,7 +2271,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
             <button
               type="button"
               onClick={() => setShowModelSection(!showModelSection)}
-              className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:bg-gray-800 transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
+              className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-700 transition-colors"
             >
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                 Agents, Skills & Models ({agentsToCreate.length} agent{agentsToCreate.length !== 1 ? 's' : ''})
@@ -2407,7 +2407,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
         <div className="flex justify-end gap-3 mt-6">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md hover:bg-gray-50 dark:bg-gray-900 transition-colors dark:bg-gray-900 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+            className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-500 dark:bg-gray-900 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:text-gray-400 transition-colors"
             disabled={applying}
           >
             Cancel
@@ -2529,7 +2529,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
               <button
                 onClick={handleApply}
                 disabled={applying || !!applyBlockReason || agentConflicts.length > 0 || (hasUnresolvedChannelConflicts && !acknowledgedChannelConflicts) || hasUnresolvedWorkflowConflicts || conflictResolutionErrors.length > 0}
-                className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+                className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
               >
                 {applying ? 'Applying...' : '⚡ Apply Template'}
               </button>
