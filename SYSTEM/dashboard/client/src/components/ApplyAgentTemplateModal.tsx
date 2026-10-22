@@ -128,7 +128,7 @@ export default function ApplyAgentTemplateModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-4 sm:p-6 max-h-[92dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h2 className="text-xl font-bold text-gray-900 mb-1 dark:text-gray-100">Apply Agent Template</h2>
         <p className="text-sm text-gray-600 mb-4 dark:text-gray-300">

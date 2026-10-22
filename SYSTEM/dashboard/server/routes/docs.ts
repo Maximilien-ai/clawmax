@@ -1,6 +1,7 @@
 import express, { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
+import { decodeUploadFilename } from '../lib/upload-filename'
 import { deleteDocHubUploads, deleteWorkspaceAsset, extractZipBufferToWorkspace, listDocEntries, listMarkdownFiles, moveDocHubUploads, readWorkspaceBinaryFile, readWorkspaceFile, recordDocHubUploads, resolveWorkspacePath, writeWorkspaceFile, writeWorkspaceBinaryFile } from '../lib/workspace'
 
 const router = Router()
@@ -136,14 +137,14 @@ router.post('/upload', express.raw({ type: '*/*', limit: '200mb' }), (req, res) 
   const target = typeof req.query.target === 'string' ? req.query.target.trim() : ''
   const extractZip = req.query.extractZip === 'true'
   const fileNameHeader = req.header('x-file-name') || req.header('x-upload-file-name') || ''
-  const fileName = path.basename(fileNameHeader.trim())
+  const fileName = decodeUploadFilename(fileNameHeader, req.header('x-file-name-encoding') || undefined)
   const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || [])
 
   if (!target) {
     return res.status(400).json({ error: 'target query param required' })
   }
   if (!fileName) {
-    return res.status(400).json({ error: 'x-file-name header required' })
+    return res.status(400).json({ error: 'Valid x-file-name header required' })
   }
   if (!body.length) {
     return res.status(400).json({ error: 'File body required' })

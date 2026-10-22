@@ -1,8 +1,8 @@
 import assert from 'assert'
 import fs from 'fs'
+import http from 'http'
 import os from 'os'
 import path from 'path'
-import http from 'http'
 import {
   applyCompanyWorkflowExecutionDefaults,
   buildGeneratedExecutionSubteam,
@@ -12,6 +12,7 @@ import {
   buildFallbackPromptExpansion,
   TEMPLATE_GENERATION_TIMEOUT_MS,
   buildResolvedModelRequestOptions,
+  buildClientForSelection,
   createAiGenerationClient,
   createChatCompletionWithCompatibilityRetry,
   ensureGeneratedCompanyRoot,
@@ -19,6 +20,7 @@ import {
   explainOneTimeCronLimitation,
   extractJsonResponseText,
   generateBuilderStarterPromptsWithAI,
+  generateCronFromText,
   isOneTimeScheduleRequest,
   normalizeGeneratedSkillScaffold,
   normalizeGeneratedAgentMeta,
@@ -28,6 +30,7 @@ import {
   normalizeTemplateGenerationTarget,
   parseJsonResponse,
   resolveSystemGenerationModelForProvider,
+  resolveGenerationProvider,
   resolveOpenAiCompatibleGenerationDefaults,
   setRequestByokKeys,
   getRequestByokKeys,
@@ -60,6 +63,11 @@ function test(name: string, fn: () => void | Promise<void>) {
 }
 
 console.log('\n\x1b[33m=== AI Generator Test Suite ===\x1b[0m\n')
+
+test('OpenAI-compatible base URL trims trailing slashes without changing its path', () => {
+  const selected = buildClientForSelection({ provider: 'openai-compatible', key: 'test-key', baseUrl: 'https://example.test/v1////', defaultModel: 'test-model' })
+  assert.strictEqual(selected.client.baseURL, 'https://example.test/v1')
+})
 
 test('extractJsonResponseText strips fenced json blocks', () => {
   const raw = '```json\n{ "name": "agent" }\n```'
@@ -501,6 +509,99 @@ test('createAiGenerationClient targets the official Gemini OpenAI-compatible end
   } finally {
     setRequestByokKeys(undefined)
   }
+})
+
+test('generateCronFromText attempts generation with an OpenAI-compatible BYOK key instead of rejecting it outright', async () => {
+  // The gate used to check only a system-level OpenAI key, so a caller with nothing but a
+  // request-scoped BYOK key (an OpenAI-compatible endpoint here) was rejected before generation
+  // was ever attempted, with the exact message asserted against below. Pointing at a refusing
+  // local port proves the fix got past that gate and actually tried the endpoint: the failure
+  // is now a connection error, not the old blanket "not configured" message.
+  // CLAWMAX_TEST_WORKSPACE routes getWorkspacePath() straight to an isolated directory, bypassing
+  // the workspace-manager singleton entirely — touching HOME/OPENCLAW_WORKSPACE and resetting that
+  // singleton instead was found to leak into unrelated later tests in this same suite.
+  const tmpWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-ai-generator-cron-'))
+  const originalTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+  try {
+    process.env.CLAWMAX_TEST_WORKSPACE = tmpWorkspace
+    setRequestByokKeys({
+      openaiCompatibleBaseUrl: 'http://127.0.0.1:1/v1',
+      openaiCompatibleDefaultModel: 'test-model',
+    } as any)
+    const result = await generateCronFromText('every weekday at 9am')
+    assert.ok(result.error, 'expected a network-level failure once past the availability gate')
+    assert.notStrictEqual(result.error, 'No OpenAI API key or CLI runtime configured')
+  } finally {
+    setRequestByokKeys(undefined)
+    if (originalTestWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+    else process.env.CLAWMAX_TEST_WORKSPACE = originalTestWorkspace
+  }
+})
+
+test('generation provider reports a clear error when no execution path is configured', () => {
+  assert.throws(
+    () => resolveGenerationProvider(undefined, {
+      skipCliRuntime: true,
+      systemKeys: {},
+      compatibleDefaults: {},
+    }),
+    /No API key configured/,
+  )
+})
+
+function withFakeOpenAiCompatibleServer(content: string, fn: (baseUrl: string) => Promise<void>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      let body = ''
+      req.on('data', (chunk) => { body += chunk })
+      req.on('end', () => {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ choices: [{ message: { content } }] }))
+      })
+    })
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      const port = typeof address === 'object' && address ? address.port : 0
+      fn(`http://127.0.0.1:${port}/v1`)
+        .then(() => server.close(() => resolve()))
+        .catch((err) => server.close(() => reject(err)))
+    })
+  })
+}
+
+test('generateBuilderStarterPromptsWithAI degrades to a clean error instead of an uncaught JSON parse crash on a truncated reply', async () => {
+  // The exact shape a real BYOK model produced live: the JSON array of prompts gets cut off
+  // mid-string before the completion finishes. Before the fix this threw a raw
+  // `SyntaxError: Unterminated string in JSON`, uncaught, straight out of this function.
+  const truncated = '{"prompts": ["Build an agent that checks AWS billing alerts daily and sends a plain'
+  await withFakeOpenAiCompatibleServer(truncated, async (baseUrl) => {
+    setRequestByokKeys({ openaiCompatibleBaseUrl: baseUrl, openaiCompatibleDefaultModel: 'test-model' } as any)
+    try {
+      await assert.rejects(
+        () => generateBuilderStarterPromptsWithAI({ workspaceName: 'Test' }),
+        (err: any) => {
+          assert.strictEqual(err.message, 'Failed to generate builder starter prompts')
+          assert.ok(!/Unterminated string|Unexpected token|JSON/i.test(err.message), 'must not leak a raw JSON.parse error')
+          return true
+        },
+      )
+    } finally {
+      setRequestByokKeys(undefined)
+    }
+  })
+})
+
+test('generateBuilderStarterPromptsWithAI returns real prompts from a well-formed BYOK reply', async () => {
+  const wellFormed = JSON.stringify({ prompts: ['First idea', 'Second idea', 'Third idea', 'Fourth idea'] })
+  await withFakeOpenAiCompatibleServer(wellFormed, async (baseUrl) => {
+    setRequestByokKeys({ openaiCompatibleBaseUrl: baseUrl, openaiCompatibleDefaultModel: 'test-model' } as any)
+    try {
+      const prompts = await generateBuilderStarterPromptsWithAI({ workspaceName: 'Test' })
+      assert.deepStrictEqual(prompts, ['First idea', 'Second idea', 'Third idea', 'Fourth idea'])
+    } finally {
+      setRequestByokKeys(undefined)
+    }
+  })
 })
 
 test('createChatCompletionWithCompatibilityRetry retries unsupported max_tokens errors with max_completion_tokens', async () => {

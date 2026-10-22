@@ -1,6 +1,9 @@
-export function summarizeAgentChatFailure(message: string, options?: { agentId?: string }): string {
+export function summarizeAgentChatFailure(message: string, options?: { agentId?: string; transportFailure?: boolean }): string {
   const text = String(message || '').trim()
   if (!text) return 'No reply from agent.'
+  if (options?.transportFailure && /(?:TypeError:\s*)?(?:network error|failed to fetch|networkerror|load failed)/i.test(text)) {
+    return 'The connection to this chat was interrupted. The agent may still be working; check its status before retrying so a tool action is not repeated.'
+  }
   if (/\[Edit agent model\]\(\/agents\?agent=/i.test(text)) return text
   if (/ENOSPC|no space left on device|database or disk is full|ERR_SQLITE_(?:FULL|ERROR)/i.test(text)) return 'This instance is out of storage space, so the agent cannot save the chat state needed to reply. Free or expand the instance storage, then retry. No model change is needed.'
   if (/failed to initialize (?:sqlite )?state runtime/i.test(text)) return 'The agent could not initialize its local chat state. Check the instance storage capacity and permissions, then retry. If the instance has free space, restart the runtime before trying again.'
@@ -45,5 +48,5 @@ export function formatAgentWorkStatus(elapsedMs: number): string {
   const elapsed = elapsedSeconds < 60
     ? `${elapsedSeconds}s`
     : `${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`
-  return `Agent is working and may be using tools. ${elapsed} elapsed; tool-enabled requests can take up to 3 minutes.`
+  return `Agent is working and may be using tools. ${elapsed} elapsed; tool-enabled requests can take several minutes.`
 }
