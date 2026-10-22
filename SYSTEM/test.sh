@@ -2214,6 +2214,15 @@ else
   fail "Builder mobile layout helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Builder prompt layout tests...${NC}"
+npx ts-node --transpileOnly client/src/BuilderPromptLayout.test.ts > /tmp/clawmax-builder-prompt-layout.out 2>&1 || true
+if grep -q "Builder prompt layout tests passed" /tmp/clawmax-builder-prompt-layout.out; then
+  pass "Builder prompt layout tests"
+else
+  cat /tmp/clawmax-builder-prompt-layout.out
+  fail "Builder prompt layout tests"
+fi
+
 echo -e "${YELLOW}→ Running Builder question command unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/builderQuestion.test.ts > /tmp/clawmax-builder-question.out 2>&1 || true
 if grep -q "builderQuestion.test.ts: ok" /tmp/clawmax-builder-question.out; then
