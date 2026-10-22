@@ -1030,7 +1030,7 @@ export default function App() {
               {!navCollapsed ? (
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-mono text-gray-500">{system?.version ?? '…'} · {(system?.machineName || system?.hostname || '…')}</div>
+                    <div className="truncate text-xs font-mono text-gray-500" title={`${system?.version ?? 'Version unavailable'} · ${system?.machineName || system?.hostname || 'Machine unavailable'}`}>{system?.version ?? '…'} · {(system?.machineName || system?.hostname || '…')}</div>
                     <button
                       onClick={() => setShowTermsOfService(true)}
                       className="mt-1 text-[11px] text-sky-400 hover:text-sky-300"
@@ -1417,8 +1417,6 @@ function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onO
           </span>
         )}
         <div className="hidden min-w-0 items-center gap-3 text-xs text-gray-500 dark:text-gray-400 sm:flex">
-          <span className="hidden max-w-[10rem] truncate whitespace-nowrap font-mono text-gray-400 dark:text-gray-500 lg:inline xl:max-w-[14rem]">{system?.machineName || system?.hostname}</span>
-          <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
           <span className="hidden sm:inline">{system?.agentCount ?? 0} agent{(system?.agentCount ?? 0) !== 1 ? 's' : ''}</span>
           <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
           <span className="flex items-center gap-1">
@@ -1585,7 +1583,7 @@ function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onO
             )}
           </button>
         )}
-        <span className="hidden md:inline text-xs text-gray-300 dark:text-gray-600 font-mono">{system?.version}</span>
+        <span className="hidden md:inline text-xs text-gray-300 dark:text-gray-600 font-mono" title={system?.version || 'Version unavailable'}>{system?.version}</span>
       </div>
       </div>
     </>
