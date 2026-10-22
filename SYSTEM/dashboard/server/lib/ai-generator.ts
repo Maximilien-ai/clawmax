@@ -448,9 +448,13 @@ export function resolveOpenAiCompatibleGenerationDefaults(byokKeys?: ProviderKey
 
 function getAvailableProvider(
   byokKeys?: ProviderKeys,
-  options: { skipCliRuntime?: boolean } = {},
+  options: {
+    skipCliRuntime?: boolean
+    systemKeys?: ProviderKeys
+    compatibleDefaults?: { baseUrl?: string; defaultModel?: string }
+  } = {},
 ): { provider: AIProvider; key: string; baseUrl?: string; defaultModel?: string } {
-  const compatibleDefaults = resolveOpenAiCompatibleGenerationDefaults(byokKeys)
+  const compatibleDefaults = options.compatibleDefaults ?? resolveOpenAiCompatibleGenerationDefaults(byokKeys)
   const cliCandidate = () => (options.skipCliRuntime ? undefined : pickGenerationRuntime())
   // A runtime the caller explicitly chose outranks even the enabled-runtime search below: that
   // search ranks by workspace order and by which CLI can supply its own model, neither of which
@@ -487,7 +491,7 @@ function getAvailableProvider(
   if (byokKeys?.anthropic) return { provider: 'anthropic', key: byokKeys.anthropic }
   if (byokKeys?.gemini) return { provider: 'gemini', key: byokKeys.gemini }
   // Then system/user-default keys
-  const keys = resolveSystemExecutionProviderKeys()
+  const keys = options.systemKeys ?? resolveSystemExecutionProviderKeys()
   if (keys.openai) return { provider: 'openai', key: keys.openai }
   if (compatibleDefaults.baseUrl) {
     const cliInstead = String(compatibleDefaults.defaultModel || '').trim() ? undefined : cliCandidate()
@@ -757,12 +761,16 @@ export function isCliRecoverableFailure(error: unknown): boolean {
  * Surfaces the precedence that used to be invisible, so the dashboard can say "generation will
  * use Claude Code CLI" instead of leaving an operator to infer it from a failure.
  */
-export function resolveGenerationProvider(byokKeys?: ProviderKeys): {
+export function resolveGenerationProvider(byokKeys?: ProviderKeys, options?: {
+  skipCliRuntime?: boolean
+  systemKeys?: ProviderKeys
+  compatibleDefaults?: { baseUrl?: string; defaultModel?: string }
+}): {
   provider: AIProvider
   label: string
   runtime?: AgentRuntimeId
 } {
-  const selection = getAvailableProvider(byokKeys)
+  const selection = getAvailableProvider(byokKeys, options)
   return {
     provider: selection.provider,
     label: describeProvider(selection.provider, selection.key),
