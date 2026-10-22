@@ -2148,6 +2148,15 @@ else
   fail "Agent grid responsive tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent detail navigation tests...${NC}"
+npx ts-node --transpileOnly client/src/AgentDetailNavigation.test.ts > /tmp/clawmax-agent-detail-navigation.out 2>&1 || true
+if grep -q "Agent detail navigation tests passed" /tmp/clawmax-agent-detail-navigation.out; then
+  pass "Agent detail navigation tests"
+else
+  cat /tmp/clawmax-agent-detail-navigation.out
+  fail "Agent detail navigation tests"
+fi
+
 echo -e "${YELLOW}→ Running Maximilien host-auth message boundary tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/maximilienHostAuth.test.ts > /tmp/clawmax-maximilien-host-auth.out 2>&1 || true
 if grep -q "maximilienHostAuth.test.ts: passed" /tmp/clawmax-maximilien-host-auth.out; then

@@ -1124,6 +1124,7 @@ export default function App() {
                   initialAgentId={initialAgentId}
                   initialAction={initialAgentAction}
                   initialAiDescription={initialAgentAiDescription}
+                  onInitialAgentHandled={() => setInitialAgentId(undefined)}
                   onInitialActionHandled={() => {
                     setInitialAgentAction(undefined)
                     setInitialAgentAiDescription(undefined)

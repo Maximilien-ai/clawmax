@@ -161,7 +161,7 @@ function normalizeAgentLookup(value: string): string {
 type ViewMode = 'grid' | 'list' | 'table'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, initialAiDescription, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import' | 'chat' | 'edit'; initialAiDescription?: string; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, initialAiDescription, onInitialAgentHandled, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import' | 'chat' | 'edit'; initialAiDescription?: string; onInitialAgentHandled?: () => void; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const { config } = useAuth()
   const { activeWorkspace } = useWorkspace()
@@ -407,12 +407,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     localStorage.setItem('agents-view-mode', viewMode)
   }, [viewMode])
 
-  // Select initial agent if provided and scroll to it
+  // Keep the list at its current scroll position when leaving Agents, but close
+  // the detail panel so a later tab visit starts with a usable list.
   useEffect(() => {
-    if (initialAgentId && agents.length > 0) {
+    if (isActive === false) {
+      setSelectedAgent(null)
+      setBudgetEditorAgentId(null)
+    }
+  }, [isActive])
+
+  // An explicit agent link opens detail once; ordinary tab visits do not.
+  useEffect(() => {
+    if (isActive && initialAgentId && agents.length > 0) {
       const agent = agents.find(a => a.id === initialAgentId)
       if (agent) {
         setSelectedAgent(agent)
+        onInitialAgentHandled?.()
         // Scroll to agent card after a brief delay to ensure DOM is updated
         setTimeout(() => {
           const element = document.getElementById(`agent-card-${initialAgentId}`)
@@ -422,7 +432,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         }, 100)
       }
     }
-  }, [initialAgentId, agents])
+  }, [initialAgentId, agents, isActive, onInitialAgentHandled])
 
   useEffect(() => {
     if (!isActive || !initialAction) return
