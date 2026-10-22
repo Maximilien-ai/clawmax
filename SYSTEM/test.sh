@@ -3622,11 +3622,20 @@ fi
 
 echo -e "${YELLOW}→ Running Workflow lifecycle safety tests...${NC}"
 npx ts-node --transpileOnly client/src/WorkflowLifecycleSafety.test.ts > /tmp/clawmax-workflow-lifecycle-safety.out 2>&1 || true
-if grep -q "WorkflowLifecycleSafety.test.ts: 11 assertions passed" /tmp/clawmax-workflow-lifecycle-safety.out; then
-  pass "Workflow lifecycle safety tests (11 assertions)"
+if grep -q "WorkflowLifecycleSafety.test.ts: 14 assertions passed" /tmp/clawmax-workflow-lifecycle-safety.out; then
+  pass "Workflow lifecycle safety tests (14 assertions)"
 else
   cat /tmp/clawmax-workflow-lifecycle-safety.out
   fail "Workflow lifecycle safety tests"
+fi
+
+echo -e "${YELLOW}→ Running Workflow start gate tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workflowStartGate.test.ts > /tmp/clawmax-workflow-start-gate.out 2>&1 || true
+if grep -q "Workflow start gate tests passed" /tmp/clawmax-workflow-start-gate.out; then
+  pass "Workflow start gate tests"
+else
+  cat /tmp/clawmax-workflow-start-gate.out
+  fail "Workflow start gate tests"
 fi
 
 echo ""

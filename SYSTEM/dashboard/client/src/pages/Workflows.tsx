@@ -31,6 +31,7 @@ import {
 } from '../lib/workflowLoading'
 import { parseWorkspaceDocEntriesResponse, WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
+import { createWorkflowStartGate } from '../lib/workflowStartGate'
 import { summarizeWorkflowParticipantFailure } from '../lib/workflowRuntimeErrors'
 import { buildWorkflowDocsIndexPath, buildWorkflowsCollectionPath } from '../lib/workflowRequestPaths'
 import { MobileSafeDialog } from '../components/MobileSafeDialog'
@@ -437,6 +438,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [workflowRunInputFields, setWorkflowRunInputFields] = useState<StructuredWorkflowInputField[]>([])
   const [workflowRunInstructions, setWorkflowRunInstructions] = useState('')
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
+  const workflowStartGateRef = useRef(createWorkflowStartGate())
+  const [startingWorkflowIds, setStartingWorkflowIds] = useState<Set<string>>(new Set())
   const [devWorkflowRuns, setDevWorkflowRuns] = useState<Map<string, { status: string; groupId: string; error?: string }>>(new Map())
   const [latestExecutionStatuses, setLatestExecutionStatuses] = useState<Record<string, WorkflowExecution['status'] | undefined>>({})
   const [selectedExecution, setSelectedExecution] = useState<WorkflowExecutionDetails | null>(null)
@@ -680,27 +683,40 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     workflow: Workflow,
     options?: { secrets?: Record<string, string>; inputs?: Record<string, string> }
   ) {
-    const secrets = options?.secrets || readLocalSecrets('workflow', workflow.id)
-    const resp = await fetch(`/api/workflows/${workflow.id}/trigger`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        manual: true,
-        byok: byokForRequest(),
-        secrets,
-        inputs: options?.inputs,
-      }),
-    })
-    const data = await resp.json()
-    if (!resp.ok || !data.executionId) {
-      throw new Error(data.details || data.error || `Failed to trigger ${workflow.id}`)
+    if (!workflowStartGateRef.current.begin(workflow.id)) {
+      throw new Error('Workflow start already in progress')
     }
-    setRunningWorkflows(prev => new Set(prev).add(workflow.id))
-    return data
+    setStartingWorkflowIds(previous => new Set(previous).add(workflow.id))
+    try {
+      const secrets = options?.secrets || readLocalSecrets('workflow', workflow.id)
+      const resp = await fetch(`/api/workflows/${workflow.id}/trigger`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          manual: true,
+          byok: byokForRequest(),
+          secrets,
+          inputs: options?.inputs,
+        }),
+      })
+      const data = await resp.json()
+      if (!resp.ok || !data.executionId) {
+        throw new Error(data.details || data.error || `Failed to trigger ${workflow.id}`)
+      }
+      setRunningWorkflows(prev => new Set(prev).add(workflow.id))
+      return data
+    } finally {
+      workflowStartGateRef.current.end(workflow.id)
+      setStartingWorkflowIds(previous => {
+        const next = new Set(previous)
+        next.delete(workflow.id)
+        return next
+      })
+    }
   }
 
   async function startWorkflowTrigger(workflow: Workflow) {
-    if (runningWorkflows.has(workflow.id) || workflow.status === 'running') {
+    if (workflowStartGateRef.current.has(workflow.id) || runningWorkflows.has(workflow.id) || workflow.status === 'running') {
       showError('Already running. Stop the current run before starting another.')
       return
     }
@@ -2136,8 +2152,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       showError('Failed to trigger workflow')
                     }
                   }}
-                  disabled={runningWorkflows.has(selectedWorkflow.id) || selectedWorkflow.status === 'running'}
-                  title={runningWorkflows.has(selectedWorkflow.id) || selectedWorkflow.status === 'running' ? 'Already running. Stop the current run to start another.' : 'Run workflow now'}
+                  disabled={startingWorkflowIds.has(selectedWorkflow.id) || runningWorkflows.has(selectedWorkflow.id) || selectedWorkflow.status === 'running'}
+                  title={startingWorkflowIds.has(selectedWorkflow.id) ? 'Starting workflow...' : runningWorkflows.has(selectedWorkflow.id) || selectedWorkflow.status === 'running' ? 'Already running. Stop the current run to start another.' : 'Run workflow now'}
                   className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {/^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(selectedWorkflow.id) ? '▶ Run once (dev)' : '▶ Run Now'}
@@ -2491,16 +2507,18 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
                   <div className="flex justify-end">
                     <button
+                      disabled={startingWorkflowIds.has(selectedWorkflow.id) || runningWorkflows.has(selectedWorkflow.id) || selectedWorkflow.status === 'running'}
                       onClick={async () => {
+                        if (workflowStartGateRef.current.has(selectedWorkflow.id)) return
                         try {
                           await triggerWorkflowFromDetail(selectedWorkflow)
                         } catch (err: any) {
                           showError(err.message || `Failed to trigger ${selectedWorkflow.id}`)
                         }
                       }}
-                      className="px-3 py-2 text-sm font-medium rounded bg-amber-600 text-white hover:bg-amber-700"
+                      className="px-3 py-2 text-sm font-medium rounded bg-amber-600 text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300"
                     >
-                      Run With Edited Values
+                      {startingWorkflowIds.has(selectedWorkflow.id) ? 'Starting...' : 'Run With Edited Values'}
                     </button>
                   </div>
                 </div>}
@@ -2973,8 +2991,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               </button>
               <button
                 type="button"
+                disabled={startingWorkflowIds.has(triggeringWorkflow.id) || runningWorkflows.has(triggeringWorkflow.id) || triggeringWorkflow.status === 'running'}
                 onClick={async () => {
                   if (!triggeringWorkflow) return
+                  if (workflowStartGateRef.current.has(triggeringWorkflow.id)) return
                   for (const requirement of triggeringWorkflow.secretRequirements || []) {
                     if (requirement.required !== false && !(workflowSecrets[requirement.key] || '').trim()) {
                       showError(`Missing required secret/input: ${requirement.label}`)
@@ -2983,13 +3003,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   }
                   writeLocalSecrets('workflow', triggeringWorkflow.id, workflowSecrets)
                   const workflow = triggeringWorkflow
-                  setTriggeringWorkflow(null)
                   try {
                     const data = await triggerWorkflowWithSecrets(workflow, {
                       secrets: workflowSecrets,
                       inputs: buildWorkflowExecutionInputs(workflowRunInputs, workflowRunInstructions),
                     })
                     showSuccess('Workflow triggered successfully')
+                    setTriggeringWorkflow(null)
                     if (data.executionId) {
                       const key = `${workflow.id}:${data.executionId}`
                       setTrackedExecutions(prev => {
@@ -3010,9 +3030,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     showError(err.message || `Failed to trigger ${workflow.id}`)
                   }
                 }}
-                className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700"
+                className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300"
               >
-                Run Workflow
+                {startingWorkflowIds.has(triggeringWorkflow.id) ? 'Starting...' : 'Run Workflow'}
               </button>
             </div>
           )}
