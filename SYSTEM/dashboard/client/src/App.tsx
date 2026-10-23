@@ -1031,7 +1031,7 @@ export default function App() {
               {!navCollapsed ? (
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-mono text-gray-500" title={system?.machineName || system?.hostname || 'Machine unavailable'}>{compactDashboardVersion(system?.version)} · {(system?.machineName || system?.hostname || '…')}</div>
+                    <div className="truncate text-xs font-mono text-gray-500" title={`${system?.version ?? 'Version unavailable'} · ${system?.machineName || system?.hostname || 'Machine unavailable'}`}>{compactDashboardVersion(system?.version)} · {(system?.machineName || system?.hostname || '…')}</div>
                     <button
                       onClick={() => setShowTermsOfService(true)}
                       className="mt-1 text-[11px] text-sky-400 hover:text-sky-300"
@@ -1392,7 +1392,10 @@ function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onO
           setWorkspaceTourVisible(false)
         }}
       />
-      <div className="relative z-30 min-h-11 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2 shrink-0 dark:border-gray-700 dark:bg-gray-800 md:min-h-14 md:px-5 md:py-2">
+      {/* Controls on the right never shrink, and neither do the agent counts; the workspace name gives
+          way first by truncating, so nothing in the bar can overlap. Below lg the controls take their own
+          row. Lower-priority details appear only where the bar has room. */}
+      <div className="relative z-30 min-h-11 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-4 py-2 shrink-0 dark:border-gray-700 dark:bg-gray-800 sm:px-6 md:min-h-14 md:py-2">
       <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-4">
         {/* Mobile menu button */}
         <button
@@ -1407,29 +1410,29 @@ function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onO
 
         {/* Workspace switcher */}
         {onOpenWorkspaceDialog && (
-          <div data-tour="workspace-switcher">
+          <div data-tour="workspace-switcher" className="flex min-w-0">
             <WorkspaceSwitcher onCreateNew={onOpenWorkspaceDialog} />
           </div>
         )}
 
         {orgBase && (
-          <span className="hidden md:inline text-sm font-bold text-gray-800 dark:text-gray-200 tracking-tight dark:text-gray-200">
+          <span className="hidden min-w-0 truncate md:inline text-sm font-bold text-gray-800 dark:text-gray-200 tracking-tight dark:text-gray-200">
             {orgBase}{orgTld && <span className="text-sky-500 dark:text-sky-400">{orgTld}</span>}
           </span>
         )}
-        <div className="hidden min-w-0 items-center gap-3 text-xs text-gray-500 dark:text-gray-400 sm:flex">
-          <span className="hidden sm:inline">{system?.agentCount ?? 0} agent{(system?.agentCount ?? 0) !== 1 ? 's' : ''}</span>
-          <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
-          <span className="flex items-center gap-1">
+        <div className="hidden shrink-0 items-center gap-3 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 sm:flex">
+          <span className="shrink-0">{system?.agentCount ?? 0} agent{(system?.agentCount ?? 0) !== 1 ? 's' : ''}</span>
+          <span className="shrink-0 text-gray-300 dark:text-gray-600" aria-hidden="true">·</span>
+          <span className="flex shrink-0 items-center gap-1">
             <span className={`w-1.5 h-1.5 rounded-full ${allOnline ? 'bg-green-400' : (system?.onlineCount ?? 0) > 0 ? 'bg-yellow-400' : 'bg-gray-300'}`} />
-            <span className="hidden sm:inline">{system?.onlineCount ?? 0} online</span>
+            <span>{system?.onlineCount ?? 0} online</span>
           </span>
           {runningWorkflowsCount !== undefined && runningWorkflowsCount > 0 && (
             <>
-              <span className="text-gray-300 dark:text-gray-600">·</span>
+              <span className="shrink-0 text-gray-300 dark:text-gray-600" aria-hidden="true">·</span>
               <button
                 onClick={onClickRunningWorkflows}
-                className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors dark:text-gray-300"
+                className="flex shrink-0 items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors dark:text-gray-300"
                 title="View running workflows"
               >
                 <span className="animate-pulse">⚙️</span>
@@ -1439,7 +1442,9 @@ function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onO
           )}
         </div>
       </div>
-      <div className="flex w-full items-center justify-end gap-2 md:w-auto md:gap-3">
+      {/* Whole controls wrap to a second line on the narrowest screens instead of being pushed off the edge;
+          their labels never wrap. */}
+      <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 whitespace-nowrap md:gap-3 lg:w-auto lg:flex-nowrap">
         <NavigationSearch pages={searchPages} onNavigate={onSearchNavigate} />
         <div data-tour="notifications">
           <NotificationCenter
@@ -1584,7 +1589,8 @@ function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onO
             )}
           </button>
         )}
-        <span className="hidden md:inline whitespace-nowrap text-xs font-mono text-gray-500 dark:text-gray-400" title={system?.version || 'Version unavailable'}>{system?.version}</span>
+        {/* In full where the bar has room for it; the sidebar footer shows it otherwise. */}
+        <span className="hidden shrink-0 whitespace-nowrap text-xs font-mono text-gray-500 dark:text-gray-400 xl:inline" title={system?.version || 'Version unavailable'}>{system?.version}</span>
       </div>
       </div>
     </>
