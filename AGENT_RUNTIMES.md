@@ -76,7 +76,7 @@ The agent editor's **Runtime** field offers *Default / OpenClaw / Claude Code / 
 | **OpenClaw** (default) | `openclaw` | ClawMax's normal key resolution (BYOK / system keys) | `<provider>/<model>` | OpenClaw's own session store |
 | **Claude Code** | `claude` | `ANTHROPIC_API_KEY` (or `claude login`) | **Anthropic only** — `anthropic/<model>` | deterministic session UUID, `cwd`-scoped resume |
 | **Factory Droid** | `droid` | `FACTORY_API_KEY` (or `droid login`) | any provider/model Droid supports (provider prefix stripped) | deterministic 48-char session id |
-| **OpenCode** | `opencode` | any provider key OpenCode supports (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, …) or `opencode auth login` | `<provider>/<model>` passed **verbatim** (OpenCode's own notation) | deterministic `ses_…` session id, create-or-resume via `-s` |
+| **OpenCode** | `opencode` | any provider key OpenCode supports (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, …) or `opencode auth login` | `<provider>/<model>` passed **verbatim** (OpenCode's own notation) | CLI-created `ses_…` id, resumed via `-s` |
 
 **Spawn plans** (built by `buildRuntimePlan()`, spawned argv-array with no shell):
 
@@ -88,15 +88,16 @@ claude   -p <message> --model <anthropic-model> (--session-id | --resume) <uuid>
 droid    exec <message> [-m <model>] -s <session-id> --auto high -o json --cwd <agent-dir>
          [--append-system-prompt <IDENTITY>]
 
-opencode run <message> [-m <provider/model>] -s ses_<hash> --auto --format json
+opencode run <message> [-m <provider/model>] [-s ses_…] --auto --format json
          (cwd = agent dir — this is the project OpenCode sees)
+         (-s is resume-only; the first turn omits it and OpenCode creates the session)
 ```
 
 **Model guardrail:** a Claude-pinned agent must use an `anthropic/*` model — any other provider raises a `RuntimeModelError` with an actionable message rather than silently mis-running. Droid accepts any model and strips the `<provider>/` prefix. OpenCode accepts the stored `provider/model` unchanged, since that is exactly the notation `opencode models` prints.
 
 **Session determinism:** `claudeSessionUuid()` / `droidSessionId()` / `opencodeSessionId()` hash `agentId + scopedSessionId`, so two agents sharing a raw session key (e.g. a DM) can never collide on the same underlying CLI session. Claude runs self-heal: a `not-found` session error retries as a fresh session, an `already-in-use` error retries as `--resume`.
 
-**OpenCode specifics:** `-s` *creates* the session when the id is unknown and *resumes* it when it exists, so no separate resume flag or session bookkeeping is needed. OpenCode validates the id — a value that does not start with `ses` is rejected outright — which is why the deterministic id is `ses_` + a sha256 slice. There is no `--append-system-prompt` equivalent, so the agent's `IDENTITY.md` text is prepended to the message instead. The project directory comes from `cwd` only: `opencode run` rejects `--dir` (verified against the shipped 2.1.4 binary), so passing it as a flag would break every turn.
+**OpenCode specifics:** `-s` is **resume-only, never create**. Measured against opencode 2.1.4: handing `-s` an id the CLI has never seen is not create-or-resume — the free tier answers `403 FreeTierError` ("OpenCode's free tier can only be used from within OpenCode"), while the same turn without `-s` succeeds and reports the session id it created. So the first turn omits `-s`, and the id OpenCode reports is recorded in the runtime session store (`getRuntimeSessionId`/`markRuntimeSession`) so later turns resume it. `opencodeSessionId()` remains only as a fallback for conversations marked before that id was recorded. OpenCode validates the id — a value that does not start with `ses` is rejected outright. There is no `--append-system-prompt` equivalent, so the agent's `IDENTITY.md` text is prepended to the message instead. The project directory comes from `cwd` only: `opencode run` rejects `--dir` (verified against the shipped 2.1.4 binary), so passing it as a flag would break every turn.
 
 **Result parsing:** OpenCode's `--format json` is a stream of raw events, not a single envelope. Assistant text arrives as `{type:"text",part:{type:"text",text}}`; tool/reasoning/step events are ignored, and a `{type:"error",…}` event outranks partial text so a failed turn is never persisted as a successful reply. The same event stream is translated into chat deltas while the turn runs.
 
