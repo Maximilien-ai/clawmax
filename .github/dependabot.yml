@@ -1,0 +1,85 @@
+# Dependabot version updates. Nothing here merges anything: every update is a pull request that
+# runs the normal CI and needs a maintainer's review. Security updates are configured in the
+# repository settings; they use these ecosystems and stay one advisory per pull request.
+#
+# Minor and patch updates are grouped into one pull request per ecosystem; each major update gets
+# its own. Commit prefixes follow AGENTS.md (lowercase, no scope). Labels are ones the repository
+# already has.
+version: 2
+updates:
+  # Dashboard server and client (one package.json and lockfile).
+  - package-ecosystem: "npm"
+    directory: "/SYSTEM/dashboard"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Los_Angeles"
+    # Skip releases newer than a week: a compromised or broken release is usually pulled by then.
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      dashboard-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    commit-message:
+      prefix: "build"
+    labels:
+      - "chore"
+
+  # The Cognee plugin baked into the container image. It follows the pinned OpenClaw release, so
+  # bumps are rare and reviewed against that pin.
+  - package-ecosystem: "npm"
+    directory: "/SYSTEM/cognee-bundle"
+    schedule:
+      interval: "monthly"
+      timezone: "America/Los_Angeles"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "build"
+    labels:
+      - "chore"
+
+  # Actions used by .github/workflows (tag and SHA pins alike).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      timezone: "America/Los_Angeles"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    groups:
+      actions-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "ci/cd"
+
+  # Base images in the root Dockerfile. The Node version is pinned on purpose and matches
+  # node-version in ci.yml, so an update here must move that pin too.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      timezone: "America/Los_Angeles"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 2
+    ignore:
+      # Stay on the Node 24 LTS line (odd majors are never LTS); a move to the next LTS is a
+      # deliberate change, not a routine update.
+      - dependency-name: "node"
+        update-types:
+          - "version-update:semver-major"
+    commit-message:
+      prefix: "build"
+    labels:
+      - "chore"
