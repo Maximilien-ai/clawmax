@@ -1875,7 +1875,7 @@ router.post('/bulk-impact', (req, res) => {
 })
 
 // DELETE /api/agents/bulk — bulk delete multiple agents
-router.delete('/bulk', (req, res) => {
+router.delete('/bulk', async (req, res) => {
   const { agents: agentsToDelete, removeStateDir } = req.body as { agents?: Array<{ id: string; archived?: boolean }>; removeStateDir?: boolean }
 
   if (!agentsToDelete || !Array.isArray(agentsToDelete) || agentsToDelete.length === 0) {
@@ -1894,10 +1894,12 @@ router.delete('/bulk', (req, res) => {
   let failureCount = 0
 
   for (const agent of agentsToDelete) {
-    const result = deleteAgent(agent.id, removeStateDir === true, agent.archived || false)
-    results[agent.id] = { ok: result.errors.length === 0, ...result }
+    const { status, body } = await deleteAgentSafely(agent.id, removeStateDir === true, agent.archived || false)
+    const steps: string[] = Array.isArray(body.steps) ? body.steps : []
+    const errors: string[] = Array.isArray(body.errors) ? body.errors : body.error ? [String(body.error)] : []
+    results[agent.id] = { ok: status === 200 && errors.length === 0, steps, errors }
 
-    if (result.errors.length === 0) {
+    if (results[agent.id].ok) {
       successCount++
     } else {
       failureCount++
@@ -1915,26 +1917,23 @@ router.delete('/bulk', (req, res) => {
   })
 })
 
-// DELETE /api/agents/:id
-router.delete('/:id', async (req, res) => {
-  const { id } = req.params
-  const { removeStateDir } = req.body as { removeStateDir?: boolean }
-  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
-    res.status(400).json({ ok: false, error: 'Invalid agent id' })
-    return
-  }
+/**
+ * Deletes one agent with every lifecycle safeguard: a per-agent lock, in-flight turns stopped first,
+ * the pinned workspace state cleared, and the Gateway registration removed before the files. Bulk
+ * delete runs the same steps; it used to call deleteAgent directly, leaving the agent registered in a
+ * running Gateway and its turns running.
+ */
+async function deleteAgentSafely(id: string, removeStateDir: boolean, archived = false): Promise<{ status: number; body: Record<string, any> }> {
   if (!beginAgentDeletion(id)) {
-    res.status(409).json({ ok: false, error: 'Agent deletion is already in progress' })
-    return
+    return { status: 409, body: { ok: false, error: 'Agent deletion is already in progress' } }
   }
   try {
     if (!await quiesceAgentForDeletion(id)) {
-      res.status(409).json({ ok: false, error: 'Agent is still stopping; retry deletion shortly' })
-      return
+      return { status: 409, body: { ok: false, error: 'Agent is still stopping; retry deletion shortly' } }
     }
     const agentWorkspaceDir = path.join(getAgentsDir(), id)
     const lifecycleSteps: string[] = []
-    if (removeStateDir === true) {
+    if (removeStateDir) {
       try {
         // OpenClaw 2026.8.2 removes the config entry before moving workspace
         // files to Trash. On persistent container volumes that move can fail,
@@ -1943,12 +1942,14 @@ router.delete('/:id', async (req, res) => {
         await clearPinnedOpenClawWorkspaceState(agentWorkspaceDir)
         lifecycleSteps.push(`Cleared OpenClaw workspace state for ${id}`)
       } catch (err: any) {
-        res.status(503).json({
-          ok: false,
-          steps: [],
-          errors: [String(err?.message || err || 'Failed to clear OpenClaw workspace state')],
-        })
-        return
+        return {
+          status: 503,
+          body: {
+            ok: false,
+            steps: [],
+            errors: [String(err?.message || err || 'Failed to clear OpenClaw workspace state')],
+          },
+        }
       }
     }
     if (isGatewayRunning().running) {
@@ -1957,20 +1958,34 @@ router.delete('/:id', async (req, res) => {
         // deleteAgent below owns the persistent-volume filesystem lifecycle.
         await getGatewayClient().deleteAgentNative(id, false)
       } catch (err: any) {
-        res.status(503).json({
-          ok: false,
-          steps: [],
-          errors: [`Failed to remove agent from OpenClaw lifecycle: ${String(err?.message || err || 'unknown error')}`],
-        })
-        return
+        return {
+          status: 503,
+          body: {
+            ok: false,
+            steps: [],
+            errors: [`Failed to remove agent from OpenClaw lifecycle: ${String(err?.message || err || 'unknown error')}`],
+          },
+        }
       }
     }
-    const result = deleteAgent(id, removeStateDir === true)
+    const result = deleteAgent(id, removeStateDir, archived)
     result.steps.unshift(...lifecycleSteps)
-    res.json({ ok: result.errors.length === 0, ...result })
+    return { status: 200, body: { ok: result.errors.length === 0, ...result } }
   } finally {
     finishAgentDeletion(id)
   }
+}
+
+// DELETE /api/agents/:id
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params
+  const { removeStateDir } = req.body as { removeStateDir?: boolean }
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    res.status(400).json({ ok: false, error: 'Invalid agent id' })
+    return
+  }
+  const outcome = await deleteAgentSafely(id, removeStateDir === true)
+  res.status(outcome.status).json(outcome.body)
 })
 
 // GET /api/agents/:id/impact — impact summary for delete confirmation
