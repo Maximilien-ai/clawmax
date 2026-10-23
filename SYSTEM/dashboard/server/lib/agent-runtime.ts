@@ -14,7 +14,7 @@ import { execFile, execFileSync, spawn } from 'child_process'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { safeEnv } from './safe-env'
-import { clearRuntimeSession, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
+import { clearRuntimeSession, getRuntimeSessionId, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
 import { appendBoundedOutput } from './stream-bounds'
 import { cancelProcessTree, detachProcessStreams, signalProcessTree } from './process-tree'
 import { getDashboardDeploymentKind } from './dashboard-env'
@@ -346,8 +346,9 @@ export function droidSessionId(scopedSessionId: string, agentId: string): string
 /**
  * OpenCode validates the `--session` value rather than trusting it: a prefixed-but-wrong id is
  * rejected outright with `Expected a string starting with "ses"` (measured against opencode
- * 2.1.4), while an unknown `ses_…` id silently creates the session — the create-or-resume
- * behaviour `-s` documents. So the deterministic id ClawMax derives must carry that prefix.
+ * 2.1.4), and an id the CLI has never seen is rejected by the free tier with `403 FreeTierError`
+ * rather than silently created — so `-s` is resume-only. This deterministic id is therefore a
+ * fallback for conversations marked before the CLI-reported id was recorded, not the primary path.
  *
  * The hash mixes agentId in for the same reason droidSessionId() does: two agents sharing one raw
  * scoped session key (a DM, a group thread) must never collide on the same underlying CLI session.
@@ -490,9 +491,14 @@ export function buildRuntimePlan(o: {
   // opencode
   //
   // `opencode run` is the headless equivalent of `claude -p`: the message is a positional arg,
-  // `-s` creates-or-resumes (so there is no separate resume flag and no runtime-sessions
-  // bookkeeping), `--auto` is the permission bypass, and `--format json` is the only structured
-  // output it offers.
+  // `--auto` is the permission bypass, and `--format json` is the only structured output it offers.
+  //
+  // `-s` is resume-only, never create. Measured against opencode 2.1.4: handing `-s` an id the CLI
+  // has never seen is not "create-or-resume" — the free tier answers `403 FreeTierError`
+  // ("OpenCode's free tier can only be used from within OpenCode"), while the same turn without
+  // `-s` succeeds and reports the session id it created. So the first turn omits `-s`, and every
+  // later turn resumes the id the CLI reported (runtime-sessions), falling back to the
+  // deterministic id only for conversations marked before that id was recorded.
   //
   // The project the turn sees comes from cwd alone. opencode 2.1.4 rejects `--dir` on `run`
   // ("Unrecognized flag: --dir", verified end to end against the shipped binary) and its top-level
@@ -504,10 +510,12 @@ export function buildRuntimePlan(o: {
   // re-sending it per turn is harmless for continuation.
   const opencodeModel = runtimeModelArg('opencode', o.model)
   const opencodeMessage = o.systemPrompt ? `${o.systemPrompt}\n\n---\n\n${o.message}` : o.message
+  const opencodeResumeId = getRuntimeSessionId('opencode', o.agentId, o.scopedSessionId)
+    ?? opencodeSessionId(o.scopedSessionId, o.agentId)
   const opencodeArgs = [
     'run', opencodeMessage,
     ...(opencodeModel ? ['-m', opencodeModel] : []),
-    '-s', opencodeSessionId(o.scopedSessionId, o.agentId),
+    ...(o.resume ? ['-s', opencodeResumeId] : []),
     '--auto',
     '--format', 'json',
   ]
@@ -678,14 +686,20 @@ export function parseOpencodeStreamJson(
   stdout: string,
   stderr: string,
   exitCode: number | null,
-): { text: string; errorText?: string } {
+): { text: string; errorText?: string; sessionId?: string } {
   const parts: string[] = []
   let errorFromEvents = ''
+  let sessionId: string | undefined
   for (const line of stdout.split('\n')) {
     const trimmed = line.trim()
     if (!trimmed.startsWith('{')) continue
     let event: any
     try { event = JSON.parse(trimmed) } catch { continue }
+    // Every event names the session, including the first one the CLI created itself. Capture it so
+    // the next turn can resume by id (`-s`) instead of starting a fresh conversation.
+    if (!sessionId && typeof event.sessionID === 'string' && event.sessionID.trim()) {
+      sessionId = event.sessionID.trim()
+    }
     const eventError = opencodeEventError(event)
     if (eventError) {
       errorFromEvents = eventError
@@ -694,11 +708,11 @@ export function parseOpencodeStreamJson(
     const text = opencodeEventText(event)
     if (text) parts.push(text)
   }
-  if (errorFromEvents) return { text: '', errorText: errorFromEvents }
+  if (errorFromEvents) return { text: '', errorText: errorFromEvents, sessionId }
   const text = parts.join('').trim()
-  if (text) return { text }
+  if (text) return { text, sessionId }
   const failure = (stderr || '').trim()
-  return { text: '', errorText: failure || silentExitMessage('opencode', exitCode) }
+  return { text: '', errorText: failure || silentExitMessage('opencode', exitCode), sessionId }
 }
 
 export function parseRuntimeResult(
@@ -707,7 +721,7 @@ export function parseRuntimeResult(
   stdout: string,
   stderr: string,
   exitCode: number | null
-): { text: string; errorText?: string } {
+): { text: string; errorText?: string; sessionId?: string } {
   const rawFailureText = () => (stderr || stdout).trim() || silentExitMessage(rt, exitCode)
 
   if (rt === 'claude' && mode === 'chat') {
@@ -1040,7 +1054,7 @@ export async function runRuntimeCli(o: {
       // droid/others don't stream — deliver the final text once so callers get a uniform delta+complete shape.
       o.onDelta(parsed.text)
     }
-    return { result, text: parsed.text, errorText: parsed.errorText }
+    return { result, text: parsed.text, errorText: parsed.errorText, sessionId: parsed.sessionId }
   }
 
   const first = await attempt(o.plan)
@@ -1072,6 +1086,12 @@ export async function runRuntimeCli(o: {
 
   if (!first.errorText && o.runtime === 'claude') {
     markRuntimeSession(o.runtime, o.agentId, o.scopedSessionId)
+  }
+
+  // opencode names the session it created on the first turn; record it so the next turn resumes
+  // that conversation with `-s` instead of starting a new one.
+  if (!first.errorText && o.runtime === 'opencode' && first.sessionId) {
+    markRuntimeSession(o.runtime, o.agentId, o.scopedSessionId, first.sessionId)
   }
 
   return { text: first.text, errorText: first.errorText }

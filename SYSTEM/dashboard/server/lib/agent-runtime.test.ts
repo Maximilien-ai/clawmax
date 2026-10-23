@@ -27,7 +27,7 @@ import {
   DROID_POST_TURN_TOOLS,
   RUNTIME_CANCELLED, isRuntimeCancelledError,
 } from './agent-runtime'
-import { hasRuntimeSession } from './runtime-sessions'
+import { getRuntimeSessionId, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -731,25 +731,41 @@ test('buildRuntimePlan(droid) mode has no effect on streamsDeltas (always false)
   })
 })
 
-test('buildRuntimePlan(opencode) spawns `opencode run` with the session, model, autonomy and json flags', () => {
+test('buildRuntimePlan(opencode) lets the CLI create the session on the first turn (no -s)', () => {
   withStubbedClis(() => {
-    const boundSessionId = opencodeSessionId('sess1', 'agent1')
-
-    const withModel = buildRuntimePlan({
-      runtime: 'opencode', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
-      message: 'hello', model: 'anthropic/claude-sonnet-4-5', agentDir: '/workspace/AGENTS/agent1', resume: false,
+    withWorkspace(null, () => {
+      const plan = buildRuntimePlan({
+        runtime: 'opencode', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+        message: 'hello', model: 'anthropic/claude-sonnet-4-5', agentDir: '/workspace/AGENTS/agent1', resume: false,
+      })
+      // `-s` with an id the CLI has never seen is not create-or-resume: opencode 2.1.4 answers
+      // 403 FreeTierError ("free tier can only be used from within OpenCode"). The first turn must
+      // let the CLI create the session and report its id.
+      assert.ok(!plan.args.includes('-s'), `first opencode turn must omit -s, got: ${plan.args.join(' ')}`)
+      assert.deepStrictEqual(plan.args, [
+        'run', 'hello',
+        '-m', 'anthropic/claude-sonnet-4-5',
+        '--auto',
+        '--format', 'json',
+      ])
+      // cwd is the only thing that scopes the project: opencode 2.1.4 rejects `--dir` on `run`.
+      assert.strictEqual(plan.cwd, '/workspace/AGENTS/agent1')
+      assert.strictEqual(plan.streamsDeltas, true)
+      assert.ok(!plan.args.includes('--dir'), 'opencode rejects --dir; cwd must carry the agent directory')
     })
-    assert.deepStrictEqual(withModel.args, [
-      'run', 'hello',
-      '-m', 'anthropic/claude-sonnet-4-5',
-      '-s', boundSessionId,
-      '--auto',
-      '--format', 'json',
-    ])
-    // cwd is the only thing that scopes the project: opencode 2.1.4 rejects `--dir` on `run`.
-    assert.strictEqual(withModel.cwd, '/workspace/AGENTS/agent1')
-    assert.strictEqual(withModel.streamsDeltas, true)
-    assert.ok(!withModel.args.includes('--dir'), 'opencode rejects --dir; cwd must carry the agent directory')
+  })
+})
+
+test('buildRuntimePlan(opencode) resumes the session id the CLI reported', () => {
+  withStubbedClis(() => {
+    withWorkspace(null, () => {
+      markRuntimeSession('opencode', 'agent1', 'sess1', 'ses_cli_created_by_opencode')
+      const plan = buildRuntimePlan({
+        runtime: 'opencode', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+        message: 'hello', model: 'anthropic/claude-sonnet-4-5', agentDir: '/workspace/AGENTS/agent1', resume: true,
+      })
+      assert.strictEqual(plan.args[plan.args.indexOf('-s') + 1], 'ses_cli_created_by_opencode')
+    })
   })
 })
 
@@ -780,26 +796,33 @@ test('buildRuntimePlan(opencode) carries the identity prompt in the message (no 
   })
 })
 
-test('buildRuntimePlan(opencode) always passes a ses_-prefixed session id, never the raw one', () => {
+test('buildRuntimePlan(opencode) falls back to a ses_-prefixed id for conversations marked before an id was recorded', () => {
   withStubbedClis(() => {
-    const plan = buildRuntimePlan({
-      runtime: 'opencode', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
-      message: 'hi', agentDir: '/workspace/AGENTS/agent1', resume: false,
+    withWorkspace(null, () => {
+      // Older state files only recorded "a session exists"; the deterministic id must still be a
+      // valid opencode id rather than the raw scoped key.
+      const plan = buildRuntimePlan({
+        runtime: 'opencode', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+        message: 'hi', agentDir: '/workspace/AGENTS/agent1', resume: true,
+      })
+      const sessionId = plan.args[plan.args.indexOf('-s') + 1]
+      assert.notStrictEqual(sessionId, 'sess1')
+      assert.ok(sessionId.startsWith('ses_'), `opencode rejects non-ses ids, got: ${sessionId}`)
+      assert.strictEqual(sessionId, opencodeSessionId('sess1', 'agent1'))
     })
-    const sessionId = plan.args[plan.args.indexOf('-s') + 1]
-    assert.notStrictEqual(sessionId, 'sess1')
-    assert.ok(sessionId.startsWith('ses_'), `opencode rejects non-ses ids, got: ${sessionId}`)
   })
 })
 
-test('buildRuntimePlan(opencode) binds -s to the agent: a shared scopedSessionId never collides', () => {
+test('buildRuntimePlan(opencode) binds the fallback id to the agent: a shared scopedSessionId never collides', () => {
   withStubbedClis(() => {
-    const build = (agentId: string) => buildRuntimePlan({
-      runtime: 'opencode', mode: 'chat', agentId, scopedSessionId: 'shared-dm',
-      message: 'hi', agentDir: `/workspace/AGENTS/${agentId}`, resume: false,
+    withWorkspace(null, () => {
+      const build = (agentId: string) => buildRuntimePlan({
+        runtime: 'opencode', mode: 'chat', agentId, scopedSessionId: 'shared-dm',
+        message: 'hi', agentDir: `/workspace/AGENTS/${agentId}`, resume: true,
+      })
+      const sessionIdOf = (plan: { args: string[] }) => plan.args[plan.args.indexOf('-s') + 1]
+      assert.notStrictEqual(sessionIdOf(build('agent-a')), sessionIdOf(build('agent-b')))
     })
-    const sessionIdOf = (plan: { args: string[] }) => plan.args[plan.args.indexOf('-s') + 1]
-    assert.notStrictEqual(sessionIdOf(build('agent-a')), sessionIdOf(build('agent-b')))
   })
 })
 
@@ -918,6 +941,17 @@ test('parseRuntimeResult: opencode reads assistant text out of the raw event str
     assert.strictEqual(parsed.text, 'PROBE_OK', `mode=${mode}`)
     assert.strictEqual(parsed.errorText, undefined, `mode=${mode}`)
   }
+})
+
+test('parseRuntimeResult: opencode reports the session id the CLI created', () => {
+  const stdout = [
+    JSON.stringify({ type: 'step_start', sessionID: 'ses_created_by_cli', part: { type: 'step-start' } }),
+    JSON.stringify({ type: 'text', sessionID: 'ses_created_by_cli', part: { type: 'text', text: 'PROBE_OK' } }),
+  ].join('\n')
+  const parsed = parseRuntimeResult('opencode', 'chat', stdout, '', 0)
+  assert.strictEqual(parsed.text, 'PROBE_OK')
+  // Without this the next turn would start a new conversation: `-s` cannot create a session.
+  assert.strictEqual(parsed.sessionId, 'ses_created_by_cli')
 })
 
 test('parseRuntimeResult: opencode joins multiple text parts and ignores non-text parts', () => {
@@ -1148,6 +1182,29 @@ async function run(): Promise<void> {
       })
       assert.strictEqual(result.text, 'Hello World')
       assert.ok(deltas.length >= 2, `Expected multiple streamed chunks, got ${deltas.length}`)
+    })
+  })
+
+  await testAsync('runRuntimeCli records the opencode session id the CLI created so the next turn can resume it', async () => {
+    await withWorkspaceAsync(null, async () => {
+      await withTempDirAsync('clawmax-agent-runtime-opencode-session-', async (dir) => {
+        const cli = path.join(dir, 'fake-opencode.js')
+        writeFakeNodeCli(cli, `
+          process.stdout.write(JSON.stringify({ type: 'step_start', sessionID: 'ses_created_by_cli', part: { type: 'step-start' } }) + '\\n')
+          process.stdout.write(JSON.stringify({ type: 'text', sessionID: 'ses_created_by_cli', part: { type: 'text', text: 'OK' } }) + '\\n')
+        `)
+        fs.chmodSync(cli, 0o755)
+        const result = await runRuntimeCli({
+          plan: { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: true },
+          env: process.env as NodeJS.ProcessEnv, signal: new AbortController().signal,
+          rebuildPlan: () => { throw new Error('opencode never retries') },
+          runtime: 'opencode', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+        })
+        assert.strictEqual(result.text, 'OK')
+        // `-s` cannot create a session, so the CLI-reported id is the only way to keep continuity.
+        assert.strictEqual(getRuntimeSessionId('opencode', 'agent1', 'sess1'), 'ses_created_by_cli')
+        assert.strictEqual(hasRuntimeSession('opencode', 'agent1', 'sess1'), true)
+      })
     })
   })
 
