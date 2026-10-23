@@ -2796,6 +2796,27 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
+  // A dialog: focus moves into it on open, Escape closes it (not mid-save), and focus returns afterwards.
+  // Mount-only, reading the latest props through a ref: the page re-renders on every auto-refresh, and
+  // re-running would pull focus back to the dialog while the user types.
+  const dialogRef = React.useRef<HTMLDivElement | null>(null)
+  const dismissRef = React.useRef({ onClose, saving })
+  React.useEffect(() => { dismissRef.current = { onClose, saving } })
+  React.useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    dialogRef.current?.focus()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      // Handled here: the agent detail panel underneath skips an Escape that is defaultPrevented.
+      event.preventDefault()
+      if (!dismissRef.current.saving) dismissRef.current.onClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      previouslyFocused?.focus()
+    }
+  }, [])
   const [error, setError] = React.useState<string | null>(null)
   const [warnings, setWarnings] = React.useState<string[]>([])
   const [validationErrors, setValidationErrors] = React.useState<string[]>([])
@@ -3087,15 +3108,20 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4">
       <div
-        className="flex max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-800"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-agent-config-title"
+        tabIndex={-1}
+        className="flex max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl outline-none dark:bg-gray-800"
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-6 dark:border-gray-700">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Agent Config</h3>
+            <h3 id="edit-agent-config-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Agent Config</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{agent.name} <span className="font-mono text-xs">({agent.id})</span></p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none p-1">
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none p-1">
             &times;
           </button>
         </div>
