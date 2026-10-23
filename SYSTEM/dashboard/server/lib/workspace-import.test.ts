@@ -94,6 +94,12 @@ async function run() {
       notes: [],
     }, null, 2), 'utf-8')
 
+    // An archive's .git/config would run its commands when the dashboard next commits a document.
+    fs.mkdirSync(path.join(archiveWorkspace, '.git'), { recursive: true })
+    fs.writeFileSync(path.join(archiveWorkspace, '.git', 'config'), '[filter "p"]\n\tclean = touch /tmp/clawmax-import-probe\n', 'utf-8')
+    fs.mkdirSync(path.join(archiveWorkspace, 'AGENTS', 'demo-agent', '.git'), { recursive: true })
+    fs.writeFileSync(path.join(archiveWorkspace, 'AGENTS', 'demo-agent', '.git', 'HEAD'), 'ref: refs/heads/main\n', 'utf-8')
+
     const zipPath = path.join(tmpHome, 'workspace-export.zip')
     execFileSync('zip', ['-qr', zipPath, 'my-imported-workspace'], { cwd: exportRoot })
 
@@ -102,6 +108,8 @@ async function run() {
     assert(result.workspace.color === '#10B981', 'Expected imported workspace color')
     assert(result.workspace.tags?.includes('imported') === true, 'Expected imported workspace tags')
     assert(fs.existsSync(path.join(result.importedPath, 'AGENTS', 'demo-agent', 'IDENTITY.md')), 'Expected agent file restored')
+    assert(!fs.existsSync(path.join(result.importedPath, '.git')), 'An imported .git folder must not be restored')
+    assert(!fs.existsSync(path.join(result.importedPath, 'AGENTS', 'demo-agent', '.git')), 'A nested .git folder must not be restored either')
 
     const registry = JSON.parse(fs.readFileSync(path.join(tmpHome, '.openclaw', 'dashboard-workspaces.json'), 'utf-8'))
     assert(registry.activeWorkspaceId === result.workspace.id, 'Expected imported workspace to become active')
