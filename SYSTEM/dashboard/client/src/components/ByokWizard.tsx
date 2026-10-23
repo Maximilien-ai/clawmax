@@ -2880,12 +2880,12 @@ export function ByokWizard({
                     Run via CLI — enable the CLIs you want (no API key needed)
                   </div>
                   <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                    Separate from the model-provider keys above. Turn on the CLIs you want to use — each runs agents with its own login (your Claude subscription or Factory login). Enable both to run some agents on Claude and others on Droid.
+                    Separate from the model-provider keys above. Turn on the CLIs you want to use — each runs agents with its own login or provider key (your Claude subscription, your Factory login, or OpenCode's provider keys). Enable any combination and pin each agent to the runtime you want.
                   </p>
                   {runtimeStatusesLoading && runtimeStatuses.length === 0 ? (
                     <div className="text-xs text-gray-500 dark:text-gray-400">Detecting installed CLIs…</div>
                   ) : (
-                    <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="grid gap-2 sm:grid-cols-3">
                       {runtimeStatuses.filter((status) => isSelectableRuntimeId(status.id)).map((status) => {
                         const runtimeEnabled = enabledRuntimes.includes(status.id)
                         return (
@@ -2915,7 +2915,7 @@ export function ByokWizard({
                               </span>
                             </div>
                             <div className="mt-1 pl-6 text-xs opacity-80">
-                              {status.installed ? (runtimeEnabled ? 'Enabled · runs agents with its own login' : 'Runs agents with its own login') : status.installHint}
+                              {status.installed ? (runtimeEnabled ? 'Enabled · runs agents with its own credentials' : 'Runs agents with its own credentials') : status.installHint}
                             </div>
                           </button>
                         )

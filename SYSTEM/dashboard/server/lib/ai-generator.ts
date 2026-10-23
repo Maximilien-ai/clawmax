@@ -690,7 +690,7 @@ export function withGenerationRuntimePin<T>(
 ): Promise<T> {
   // openclaw is not a generation runtime — it has no OpenAI-shaped client here — so treat it, and
   // an absent pin, as "resolve the provider the usual way".
-  if (!pin || (pin.runtime !== 'claude' && pin.runtime !== 'droid')) return fn()
+  if (!pin || (pin.runtime !== 'claude' && pin.runtime !== 'droid' && pin.runtime !== 'opencode')) return fn()
   return generationRuntimePinStore.run(pin, fn)
 }
 
@@ -700,7 +700,10 @@ export function currentGenerationRuntimePin(): GenerationRuntimePin | undefined 
 
 function describeProvider(provider: AIProvider, key?: string): string {
   if (provider === 'cli-runtime') {
-    return key === 'claude' ? 'Claude Code CLI' : key === 'droid' ? 'Factory Droid CLI' : `${key} CLI`
+    if (key === 'claude') return 'Claude Code CLI'
+    if (key === 'droid') return 'Factory Droid CLI'
+    if (key === 'opencode') return 'OpenCode CLI'
+    return `${key} CLI`
   }
   if (provider === 'anthropic') return 'Anthropic'
   if (provider === 'openai-compatible') return 'OpenAI-compatible endpoint'

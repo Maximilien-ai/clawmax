@@ -102,6 +102,9 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
     OPENCLAW_STATE_DIR: process.env.OPENCLAW_STATE_DIR,
     OPENCLAW_CONFIG_PATH: process.env.OPENCLAW_CONFIG_PATH,
     OPENCLAW_GATEWAY_URL: process.env.OPENCLAW_GATEWAY_URL,
+    // OpenCode's config-file override (documented `OPENCODE_CONFIG`). A path, not a secret: it is
+    // how a deployment points the opencode runtime at a non-default provider/endpoint config.
+    OPENCODE_CONFIG: process.env.OPENCODE_CONFIG,
     NODE_ENV: process.env.NODE_ENV,
     // GitHub CLI auth (needed for agents with github/gh-issues skills)
     GITHUB_TOKEN: process.env.GITHUB_TOKEN || workspaceGitHubToken,

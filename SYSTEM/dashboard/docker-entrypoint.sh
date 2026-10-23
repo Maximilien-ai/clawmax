@@ -181,6 +181,13 @@ droid_cli_present() {
   command -v droid >/dev/null 2>&1
 }
 
+opencode_cli_present() {
+  if [ -n "${OPENCODE_BIN:-}" ] && [ -x "${OPENCODE_BIN}" ]; then
+    return 0
+  fi
+  command -v opencode >/dev/null 2>&1
+}
+
 ensure_openclaw_cli() {
   if command -v openclaw >/dev/null 2>&1; then
     echo "[entrypoint] openclaw: $(openclaw --version 2>/dev/null || echo unavailable)"
@@ -198,13 +205,13 @@ ensure_openclaw_cli() {
   # CLI a given agent actually needs — the rule is: only hard-fail when NO
   # runtime CLI exists at all. Gateway startup and openclaw-cron registration
   # are skipped below when openclaw itself is unavailable.
-  if claude_cli_present || droid_cli_present; then
+  if claude_cli_present || droid_cli_present || opencode_cli_present; then
     echo "[entrypoint] WARNING: openclaw CLI is missing from the runtime image — the gateway and any agents pinned to the openclaw runtime will not work" >&2
-    echo "[entrypoint] Other agent runtime CLI(s) detected — agents pinned to claude/droid can still run" >&2
+    echo "[entrypoint] Other agent runtime CLI(s) detected — agents pinned to claude/droid/opencode can still run" >&2
     return 0
   fi
 
-  echo "[entrypoint] ERROR: no agent runtime CLI (openclaw, claude, or droid) is available in the runtime image" >&2
+  echo "[entrypoint] ERROR: no agent runtime CLI (openclaw, claude, droid, or opencode) is available in the runtime image" >&2
   exit 1
 }
 

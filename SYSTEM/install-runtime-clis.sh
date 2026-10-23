@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# Installs the Claude Code and Factory Droid CLIs for CI so agent-runtime tests can exercise
-# the real "is this CLI available?" check (server/lib/agent-runtime.ts: resolveRuntimeCliPath)
+# Installs the Claude Code, Factory Droid and OpenCode CLIs for CI so agent-runtime tests can
+# exercise the real "is this CLI available?" check (server/lib/agent-runtime.ts: resolveRuntimeCliPath)
 # instead of failing with "<runtime> CLI is not available in this runtime". Tests never need a
 # real turn from these CLIs -- only presence on disk -- so no API key/auth is required here.
 #
-# Version pins mirror the Dockerfile's CLAUDE_CODE_VERSION / FACTORY_DROID_VERSION ARGs. Update
-# both places together when bumping either CLI.
+# Version pins mirror the Dockerfile's CLAUDE_CODE_VERSION / FACTORY_DROID_VERSION /
+# OPENCODE_VERSION ARGs. Update both places together when bumping any CLI.
 
 set -euo pipefail
 
 CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.205}"
 FACTORY_DROID_VERSION="${FACTORY_DROID_VERSION:-0.158.0}"
+OPENCODE_VERSION="${OPENCODE_VERSION:-2.1.4}"
 FACTORY_DROID_AMD64_SHA256="${FACTORY_DROID_AMD64_SHA256:-f64a55bb6d314c8d925063ce741c97796208ef0facdd4b4f1881a358acb668d8}"
 FACTORY_DROID_AMD64_BASELINE_SHA256="${FACTORY_DROID_AMD64_BASELINE_SHA256:-891325d02d7c013188ffc49b0c9654c539e1dd637f27f302bb41e5e888fb714f}"
 FACTORY_DROID_ARM64_SHA256="${FACTORY_DROID_ARM64_SHA256:-fe9d06b4c0136add0619d964afb3dac2cc9b13ac6c0e448f11691d749203c584}"
@@ -18,6 +19,12 @@ FACTORY_DROID_ARM64_SHA256="${FACTORY_DROID_ARM64_SHA256:-fe9d06b4c0136add0619d9
 echo "Installing Claude Code CLI ${CLAUDE_CODE_VERSION}..."
 npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
 command -v claude >/dev/null 2>&1 || { echo "claude not found on PATH after install" >&2; exit 1; }
+
+echo "Installing OpenCode CLI ${OPENCODE_VERSION}..."
+npm install -g "@opencode/cli@${OPENCODE_VERSION}"
+command -v opencode >/dev/null 2>&1 || { echo "opencode not found on PATH after install" >&2; exit 1; }
+opencode --version | grep -F "${OPENCODE_VERSION}" \
+  || { echo "opencode --version did not report pinned version ${OPENCODE_VERSION}" >&2; exit 1; }
 
 echo "Installing Factory Droid CLI ${FACTORY_DROID_VERSION}..."
 droid_arch="$(uname -m)"
@@ -55,4 +62,5 @@ rm -f "$tmp_droid"
 echo "$HOME/.local/bin" >> "${GITHUB_PATH:-/dev/null}" 2>/dev/null || true
 
 echo "claude: $(command -v claude)"
+echo "opencode: $(command -v opencode)"
 echo "droid:  $HOME/.local/bin/droid"

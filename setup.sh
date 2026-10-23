@@ -548,12 +548,13 @@ echo ""
 # Agent Runtimes (Claude Code / Factory Droid) — optional, non-fatal
 # ============================================================================
 
-print_header "Agent Runtimes (Claude Code / Factory Droid)"
+print_header "Agent Runtimes (Claude Code / Factory Droid / OpenCode)"
 
-echo "  OpenClaw is ClawMax's default agent runtime. Claude Code and Factory"
-echo "  Droid are optional per-agent runtimes — pin one per agent later in the"
-echo "  agent editor, or set a workspace default in Integrations > Runtime."
-echo "  setup.sh only reports what's detected here; it does not install them."
+echo "  OpenClaw is ClawMax's default agent runtime. Claude Code, Factory"
+echo "  Droid and OpenCode are optional per-agent runtimes — pin one per agent"
+echo "  later in the agent editor, or set a workspace default in Integrations >"
+echo "  Runtime. setup.sh only reports what's detected here; it does not install"
+echo "  them."
 echo ""
 
 if command -v claude &> /dev/null; then
@@ -570,6 +571,14 @@ else
   print_info "Factory Droid CLI not found (optional)"
   echo "    Install later: curl -fsSL https://app.factory.ai/cli | sh"
   echo "    Or set DROID_BIN to an existing installation's path"
+fi
+
+if command -v opencode &> /dev/null; then
+  print_success "OpenCode CLI: $(opencode --version 2>&1 | head -1)"
+else
+  print_info "OpenCode CLI not found (optional)"
+  echo "    Install later: npm install -g @opencode/cli"
+  echo "    Or set OPENCODE_BIN to an existing installation's path"
 fi
 
 echo ""

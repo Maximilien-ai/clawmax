@@ -199,6 +199,24 @@ function writeFakeDroidCli(filePath: string, resultText: string) {
   fs.chmodSync(filePath, 0o755)
 }
 
+// Fake `opencode run ... --format json` that emits the raw event stream shape opencode 2.1.4
+// produces: assistant text arrives as a `{type:'text',part:{type:'text',text}}` event, alongside
+// non-text progress events the parser must ignore.
+function writeFakeOpencodeCli(filePath: string, resultText: string) {
+  const events = [
+    JSON.stringify({ type: 'step_start', part: { id: 'prt_1', type: 'step-start' } }),
+    JSON.stringify({ type: 'text', part: { id: 'prt_2', type: 'text', text: resultText } }),
+    JSON.stringify({ type: 'step_finish', part: { id: 'prt_3', type: 'step-finish', reason: 'stop' } }),
+  ]
+  const script = [
+    '#!/bin/sh',
+    ...events.map((event) => `echo '${event}'`),
+    '',
+  ].join('\n')
+  fs.writeFileSync(filePath, script, 'utf-8')
+  fs.chmodSync(filePath, 0o755)
+}
+
 // Fake `claude -p ... --output-format json` that dumps its own spawned ANTHROPIC_API_KEY env var
 // into the JSON result envelope instead of echoing a fixed string, so the caller can assert on
 // exactly what environment the route handed the child process (regression coverage for the P2
@@ -3013,6 +3031,42 @@ async function run() {
     } finally {
       if (typeof originalDroidBin === 'undefined') delete process.env.DROID_BIN
       else process.env.DROID_BIN = originalDroidBin
+    }
+  })
+
+  await test('dashboard chat/messages route runs an opencode-pinned agent through the runtime adapter and parses its json event stream', async () => {
+    writeAgent(workspacePath, 'opencode-dashboard-chat', [
+      '# IDENTITY.md',
+      '- **Name:** OpenCode Dashboard Chat',
+      '- **Model:** anthropic/claude-sonnet-4-5',
+      '- **Runtime:** opencode',
+    ].join('\n'))
+    fs.mkdirSync(path.join(workspacePath, 'SYSTEM'), { recursive: true })
+    fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['opencode'] }), 'utf-8')
+
+    const opencodeCli = path.join(tmpHome, 'fake-opencode-dashboard-chat')
+    writeFakeOpencodeCli(opencodeCli, 'hello from opencode dashboard chat')
+    const originalOpencodeBin = process.env.OPENCODE_BIN
+    process.env.OPENCODE_BIN = opencodeCli
+
+    try {
+      const handler = getRouteHandler('post', '/:id/chat/messages')
+      const res = makeRes()
+      await handler(makeReq({ params: { id: 'opencode-dashboard-chat' }, body: { message: 'hi' } }), res)
+      // Same fire-and-forget shape as the droid/claude cases: poll for the spawned fake-opencode
+      // process to exit and call res.json().
+      for (let waited = 0; waited < 2000 && typeof res.jsonBody === 'undefined'; waited += 20) {
+        await new Promise(resolve => setTimeout(resolve, 20))
+      }
+      assert.strictEqual(res.statusCode, 200, 'Expected the opencode-pinned dashboard chat call to succeed')
+      assert.strictEqual(
+        res.jsonBody?.result?.response,
+        'hello from opencode dashboard chat',
+        'Expected the reply parsed out of the opencode json event stream, not the raw event log'
+      )
+    } finally {
+      if (typeof originalOpencodeBin === 'undefined') delete process.env.OPENCODE_BIN
+      else process.env.OPENCODE_BIN = originalOpencodeBin
     }
   })
 

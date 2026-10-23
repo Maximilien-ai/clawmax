@@ -191,6 +191,18 @@ RUN npm install -g --include=optional "@openai/codex@${OPENCLAW_CODEX_APP_SERVER
 ARG CLAUDE_CODE_VERSION=2.1.205
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
+# OpenCode CLI (optional agent runtime: opencode). Published on npm as
+# @opencode/cli, which pulls a per-platform binary through optional
+# dependencies — so it installs and version-checks exactly like claude above.
+# It authenticates either from a provider key already in the environment
+# (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, ...) or from a login in
+# ~/.local/share/opencode (see `opencode auth login`). Pinned via ARG so image
+# builds stay reproducible; the trailing check fails the build if the installed
+# binary reports a different version than requested.
+ARG OPENCODE_VERSION=2.1.4
+RUN npm install -g @opencode/cli@${OPENCODE_VERSION} \
+  && opencode --version | grep -F "${OPENCODE_VERSION}"
+
 # Factory Droid CLI (optional agent runtime: droid). Factory does not publish
 # droid to npm. Its published installer (https://app.factory.ai/cli) is a
 # curl-piped shell script that is NOT genuinely pinnable: it hardcodes an

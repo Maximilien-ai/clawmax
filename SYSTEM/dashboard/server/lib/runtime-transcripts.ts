@@ -1,13 +1,14 @@
 /**
- * Dashboard-readable transcript store for non-openclaw runtime chats (claude / droid).
+ * Dashboard-readable transcript store for non-openclaw runtime chats (claude / droid / opencode).
  *
  * OpenClaw's own CLI writes its own JSONL session files under ~/.openclaw/agents/<id>/sessions,
- * which the dashboard chat history route reads directly. Claude Code and Factory Droid have no
- * equivalent dashboard-visible transcript — their session state lives in their own CLI-private
- * stores (~/.claude, Factory's own servers) that this dashboard process can't read. This module
- * is the runtime-neutral substitute: both non-openclaw chat call sites (routes/chat.ts's SSE
- * branch and routes/agents.ts's POST /:id/chat/messages branch) append each user+assistant turn
- * here so refresh / archive / clear-history flows have something dashboard-local to read.
+ * which the dashboard chat history route reads directly. Claude Code, Factory Droid and OpenCode
+ * have no equivalent dashboard-visible transcript — their session state lives in their own
+ * CLI-private stores (~/.claude, Factory's own servers, ~/.local/share/opencode) that this
+ * dashboard process can't read. This module is the runtime-neutral substitute: every non-openclaw
+ * chat call site (routes/chat.ts's SSE branch and routes/agents.ts's POST /:id/chat/messages
+ * branch) appends each user+assistant turn here so refresh / archive / clear-history flows have
+ * something dashboard-local to read.
  *
  * Storage: <workspace>/SYSTEM/runtime-transcripts/<agentId>/<scopedSessionId>.jsonl
  * One line per turn: {"role":"user"|"assistant","content":string,"ts":number}

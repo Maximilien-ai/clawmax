@@ -5,6 +5,7 @@ All notable changes to ClawMax are documented here.
 ## [Unreleased]
 
 ### Current 2.0 development (October 12, 2026)
+- Add **OpenCode** as a third optional "Run via CLI" agent runtime alongside Claude Code and Factory Droid: enable it in BYOK → Models, pin agents to it in the agent editor, and it runs turns through `opencode run --auto --format json` with deterministic `ses_` session continuity, verbatim `provider/model` notation, streamed event parsing, and `OPENCODE_BIN`/`OPENCODE_CONFIG` overrides. Covered by unit, route, and a headless end-to-end run that creates an agent and verifies the CLI executes its chats.
 - Discover current OpenAI, Anthropic, and xAI prompt models from each provider catalog when checking credentials, try up to three suitable models before reporting limited validation, and stop depending on retired fixed model IDs.
 - RC91 is a tagged test candidate, not a stable promotion. The active goal is a single identified next candidate accepted on MBP14 and test10; see the [dual-instance gate](SYSTEM/docs/planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md).
 - Merged [PR #212](https://github.com/Maximilien-ai/clawmax/pull/212) adds owner-scoped inert Template staging and dev-only, no-tool chat for staged agents. Public Template execution and installed-instance acceptance remain separate open gates.

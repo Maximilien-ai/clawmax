@@ -284,8 +284,8 @@ export function checkTemplatePrereqs(template: {
     checks.push({ id: 'gateway', label: 'Gateway', status: 'warn', message: 'Not configured — agents will chat but cannot use skills', fixHint: 'Run: openclaw config set gateway.mode local && openclaw gateway restart', category: 'infrastructure' })
   }
 
-  // Non-openclaw agent runtimes (claude / droid) — informational only. OpenClaw remains the
-  // default runtime and the check above already gates readiness for it.
+  // Non-openclaw agent runtimes (claude / droid / opencode) — informational only. OpenClaw
+  // remains the default runtime and the check above already gates readiness for it.
   for (const status of detectRuntimeStatuses(resolveWorkspaceRuntime())) {
     if (status.id === 'openclaw') continue
     checks.push({

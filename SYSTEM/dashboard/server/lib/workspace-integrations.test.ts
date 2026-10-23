@@ -126,6 +126,33 @@ test('writeWorkspaceIntegrationConfig persists a valid agentRuntime and omits in
   assert(persistedInvalid.agentRuntime === undefined, 'Expected invalid agentRuntime to stay omitted after reload')
 })
 
+test('writeWorkspaceIntegrationConfig persists a valid opencode agentRuntime', () => {
+  const config = writeWorkspaceIntegrationConfig({ agentRuntime: 'opencode' })
+  assert(config.agentRuntime === 'opencode', 'Expected opencode agentRuntime to persist')
+
+  const persisted = readWorkspaceIntegrationConfig()
+  assert(persisted.agentRuntime === 'opencode', 'Expected persisted opencode agentRuntime')
+})
+
+test('writeWorkspaceIntegrationConfig normalizes enabledRuntimes including opencode and drops openclaw', () => {
+  const config = writeWorkspaceIntegrationConfig({
+    enabledRuntimes: [' opencode ', 'claude', 'openclaw', 'opencode', 'not-a-runtime'] as any,
+  })
+
+  // openclaw is always available and is not an "enabled" CLI selection; junk is dropped, and the
+  // duplicate opencode entry collapses to one.
+  assert(
+    JSON.stringify(config.enabledRuntimes) === JSON.stringify(['opencode', 'claude']),
+    `Expected normalized enabledRuntimes, got ${JSON.stringify(config.enabledRuntimes)}`
+  )
+
+  const persisted = readWorkspaceIntegrationConfig()
+  assert(
+    JSON.stringify(persisted.enabledRuntimes) === JSON.stringify(['opencode', 'claude']),
+    `Expected persisted enabledRuntimes, got ${JSON.stringify(persisted.enabledRuntimes)}`
+  )
+})
+
 test('writeWorkspaceIntegrationConfig normalizes enabled partner selections', () => {
   const config = writeWorkspaceIntegrationConfig({
     enabledPartners: [' senso ', 'github', 'github'],

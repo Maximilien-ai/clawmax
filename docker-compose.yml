@@ -21,16 +21,21 @@ services:
       #
       #   CLAWMAX_FACTORY_DIR=~/.factory docker compose up -d     # reuse host droid login
       #   CLAWMAX_CLAUDE_DIR=~/.clawmax/claude docker compose up -d
+      #   CLAWMAX_OPENCODE_DIR=~/.local/share/opencode docker compose up -d
       #
       # then, for a dir with no login yet:
       #   docker compose exec clawmax claude auth login    # subscription; no API key
       #   docker compose exec clawmax droid               # then /login
+      #   docker compose exec clawmax opencode auth login  # provider login; no API key
       #
       # Claude Code on macOS keeps its host login in the Keychain rather than a
       # file, so there is nothing to bind-mount from a host `claude login`; log
       # in against the mounted directory instead and it persists there.
       - ${CLAWMAX_CLAUDE_DIR:-clawmax-claude-state}:/app/.claude
       - ${CLAWMAX_FACTORY_DIR:-clawmax-factory-state}:/app/.factory
+      # OpenCode keeps both its provider logins and its session database here, so
+      # this single directory carries auth and multi-turn continuity.
+      - ${CLAWMAX_OPENCODE_DIR:-clawmax-opencode-state}:/app/.local/share/opencode
     env_file:
       - path: ./SYSTEM/dashboard/.env
         required: false
@@ -54,10 +59,11 @@ services:
       WORKSPACES_INTEGRATIONS_THIRD_PARTIES: ${WORKSPACES_INTEGRATIONS_THIRD_PARTIES:-senso,opik,github,resend,cognee,gmail,microsoft365}
       CLAWMAX_EXTRA_PARTNER_DIRS: ${CLAWMAX_EXTRA_PARTNER_DIRS:-}
       # Optional agent runtime auth — set these (via shell env or an .env file
-      # next to this compose file) to enable agents pinned to the claude/droid
-      # runtimes. OpenClaw remains the default and needs neither.
+      # next to this compose file) to enable agents pinned to the claude/droid/
+      # opencode runtimes. OpenClaw remains the default and needs none of them.
       # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # FACTORY_API_KEY: ${FACTORY_API_KEY:-}
+      # OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -69,3 +75,4 @@ volumes:
   clawmax-openclaw-state:
   clawmax-claude-state:
   clawmax-factory-state:
+  clawmax-opencode-state:
