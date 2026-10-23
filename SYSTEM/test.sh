@@ -3675,6 +3675,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Path boundary tests...${NC}"
+npx ts-node --transpileOnly server/routes/path-boundaries.test.ts > /tmp/clawmax-path-boundaries.out 2>&1 || true
+if grep -q "path-boundaries.test.ts: [0-9]* passed, 0 failed" /tmp/clawmax-path-boundaries.out; then
+  pass "Path boundary tests"
+else
+  cat /tmp/clawmax-path-boundaries.out
+  fail "Path boundary tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Docs route unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/docs.test.ts > /tmp/clawmax-docs-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-docs-routes.out; then
