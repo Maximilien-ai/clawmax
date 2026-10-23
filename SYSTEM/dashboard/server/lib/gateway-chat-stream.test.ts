@@ -165,8 +165,8 @@ async function run() {
     assert.deepEqual(received, [
       { text: 'H', replace: true },
       { text: 'ello', replace: false },
-      { text: 'Hello.', replace: true },
-    ], 'A snapshot replaces (never appends twice), an older frame is dropped, and final text settles the bubble')
+      { text: 'Hello.', replace: true, final: true },
+    ], 'A snapshot replaces (never appends twice), an older frame is dropped, and final text settles the bubble (marked final: it proves no streaming)')
     observer.close()
     await gateway.close()
   }
@@ -210,7 +210,7 @@ async function run() {
     assert.deepEqual(received, [
       { text: 'HTTP', replace: true },
       { text: 'HTTP caching', replace: true },
-      { text: 'HTTP caching.', replace: true },
+      { text: 'HTTP caching.', replace: true, final: true },
     ], 'A Codex runtime reply streams like a native one')
     observer.close()
     await gateway.close()

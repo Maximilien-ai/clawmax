@@ -18,9 +18,12 @@ assert(panelSource.includes("data.type === 'complete'"), 'Agent chat must recogn
 assert(panelSource.includes("data.type === 'error'"), 'Agent chat must recognize error events')
 assert(panelSource.includes('if (!sawTerminalEvent)'), 'Agent chat must handle a clean close without a terminal event')
 assert(panelSource.includes('markIncompleteAgentReply(m.content)'), 'Agent chat must mark the partial bubble itself')
-assert(panelSource.includes('sawLiveDelta ? markIncompleteAgentReply(m.content, friendly) : friendly'), 'An error after live Gateway text must keep that text and add the error, not replace it')
+assert(panelSource.includes('sawGatewayText ? markIncompleteAgentReply(m.content, friendly) : friendly'), 'An error after Gateway reply text must keep that text and add the error, not replace it')
+assert(panelSource.includes('if (data.data?.live === true || data.data?.final === true) sawGatewayText = true'), 'The Gateway\'s final snapshot is reply text an error must keep, though it is not live streaming')
 assert(/live === true && !sawLiveDelta\) \{\s*sawLiveDelta = true/.test(panelSource), 'Only live Gateway deltas count as streamed reply text')
 assert(/content: '' \} : m\)\)\s*sawLiveDelta = false/.test(panelSource), 'A retried attempt starts without the abandoned attempt\'s live text')
+// "Replies stream live" from an earlier turn must not stay up while this one has streamed nothing (a long tool phase).
+assert(panelSource.includes('setLiveOutput(data.data?.liveOutput === false ? false : null)'), 'Each turn\'s start resets the streaming label to that turn\'s own state')
 assert(panelSource.includes('turnId: string; agentId: string'), 'Active-turn polling must retain the server turn id')
 assert(panelSource.includes('activeTurnIdRef.current = mine.turnId'), 'A reloaded chat must adopt the turn id before offering Stop')
 assert(panelSource.includes("'X-ClawMax-Agent-Generation': agentGeneration"), 'Every agent chat request must identify its lifecycle generation')
@@ -35,4 +38,4 @@ assert.strictEqual(applyAgentChatDelta('Hi', { replace: 'yes', text: 7 }), 'Hi',
 assert(panelSource.includes('if (sawTerminalEvent) continue'), 'No delta may be appended after the authoritative complete text')
 assert(panelSource.includes("m.id === assistantId ? { ...m, content: '' } : m"), 'A retried attempt must not append to the abandoned partial reply')
 
-console.log('AgentChatStreamSafety.test.ts: 24 assertions passed')
+console.log('AgentChatStreamSafety.test.ts: 26 assertions passed')

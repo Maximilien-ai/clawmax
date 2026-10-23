@@ -724,6 +724,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       // does not prove the run streams (the CLI can still deliver the reply only at the end).
       let subscribedLive = false
       let sawLiveDelta = false
+      // Reply text from the Gateway (live, or its final snapshot) is the agent's own words: an error keeps it.
+      let sawGatewayText = false
 
       while (true) {
         const { done, value } = await reader.read()
@@ -741,16 +743,19 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
             if (data.type === 'start') {
               activeTurnIdRef.current = data.data?.turnId ?? null
               subscribedLive = data.data?.liveOutput === true
-              if (data.data?.liveOutput === false) setLiveOutput(false)
+              // The label describes this attempt, never an earlier turn: unclaimed until its live text arrives.
+              setLiveOutput(data.data?.liveOutput === false ? false : null)
               setSessionId(current => resolveDashboardChatSessionId(current, data))
               // Each runtime attempt starts its reply afresh. A retry after live text (fresh session,
               // backup model) must not append its reply to the abandoned attempt's partial one, and
               // whether its text is live is that attempt's own.
               setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: '' } : m))
               sawLiveDelta = false
+              sawGatewayText = false
             } else if (data.type === 'delta') {
               // The final `complete` text is authoritative; nothing may be appended after it.
               if (sawTerminalEvent) continue
+              if (data.data?.live === true || data.data?.final === true) sawGatewayText = true
               if (data.data?.live === true && !sawLiveDelta) {
                 sawLiveDelta = true
                 setLiveOutput(true)
@@ -779,7 +784,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               // above the error. Local output before an error is not reply text, so it gives way.
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
-                  ? { ...m, content: sawLiveDelta ? markIncompleteAgentReply(m.content, friendly) : friendly }
+                  ? { ...m, content: sawGatewayText ? markIncompleteAgentReply(m.content, friendly) : friendly }
                   : m
               ))
               setStreaming(false)

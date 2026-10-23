@@ -21,7 +21,8 @@ import { resolveNativeChatSessionKeys } from './native-chat-history'
  * logs that live output matched no text.
  */
 
-export type GatewayChatDelta = { text: string; replace: boolean }
+/** `final`: the Gateway's finished-reply snapshot, which proves nothing streamed before it. */
+export type GatewayChatDelta = { text: string; replace: boolean; final?: true }
 
 export interface GatewayChatDeltaObserver {
   /** Settles true once chat events are flowing, false once the observer has given up. Never rejects. */
@@ -110,7 +111,7 @@ export function observeGatewayChatDeltas(options: {
     // On `final` it is the finished reply; the CLI's own result follows and stays authoritative.
     const snapshot = snapshotText(payload.message)
     if (snapshot !== undefined && (payload.state === 'delta' || payload.state === 'final')) {
-      options.onDelta({ text: snapshot, replace: true })
+      options.onDelta(payload.state === 'final' ? { text: snapshot, replace: true, final: true } : { text: snapshot, replace: true })
     } else if (payload.state === 'delta' && typeof payload.deltaText === 'string') {
       options.onDelta({ text: payload.deltaText, replace: payload.replace === true })
     }

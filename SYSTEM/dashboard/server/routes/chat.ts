@@ -1172,12 +1172,16 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
           // result, and each retried attempt opens with a fresh `start`, on which the panel resets
           // the reply instead of appending to the abandoned attempt's partial text.
           let liveOutputForwarded = false
+          let liveTextStreamed = false
           const liveOutput: GatewayChatDeltaObserver | null = !transport && openclawCli && (forceGateway || !useLocal)
             ? await openGatewayChatLiveOutput(id, executionSessionId, (delta) => {
                 turn.touch()
                 liveOutputForwarded = true
-                // `live` tells the panel the reply is streaming as it is written.
-                send('delta', delta.replace ? { text: delta.text, replace: true, live: true } : { text: delta.text, live: true })
+                // `live` tells the panel the reply is streaming as it is written. The Gateway's final
+                // snapshot (`final`) is the finished reply: reply text to keep, but no proof of streaming.
+                const origin = delta.final ? { final: true } : { live: true }
+                if (!delta.final) liveTextStreamed = true
+                send('delta', delta.replace ? { text: delta.text, replace: true, ...origin } : { text: delta.text, ...origin })
               })
             : null
           return await new Promise<ChatAttemptResult>((resolve, reject) => {
@@ -1240,6 +1244,9 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
                 // Subscribed, yet the reply arrived only on stdout: the Gateway's event shapes or
                 // session-key format no longer match what gateway-chat-stream.ts expects.
                 console.warn(`[Chat Route] Live output for ${id} matched no Gateway text; the reply was shown only when the turn finished.`)
+              } else if (liveOutput && !liveTextStreamed && fullOutput.trim()) {
+                // The runtime produced the reply in one piece (or only after its tools ran): not a fault.
+                console.log(`[Chat Route] Live output for ${id} carried only the finished reply; nothing streamed before it.`)
               }
               turn.signal.removeEventListener('abort', onAttemptCancel)
               if (killEscalation) clearTimeout(killEscalation)
