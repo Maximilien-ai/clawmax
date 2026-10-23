@@ -17,6 +17,8 @@ import { createPromptAttachment } from '../lib/promptAttachments'
 import { useAuth } from '../contexts/AuthContext'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
+import { shouldSendChatOnKeyDown } from '../lib/chatComposer'
+import { readChatComposerExpanded, saveChatComposerExpanded } from '../lib/chatComposerSize'
 
 interface Message {
   id: string
@@ -151,6 +153,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   const cacheKey = buildCommunicationCacheKey(channel.type, channel.name)
   const [messages, setMessages] = useState<Message[]>(() => groupChatMessageCache.get(cacheKey) || [])
   const [input, setInput] = useState('')
+  const [composerExpanded, setComposerExpanded] = useState(readChatComposerExpanded)
   const [loading, setLoading] = useState(() => (groupChatMessageCache.get(cacheKey) || []).length === 0)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -176,7 +179,8 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   const [copyAttachmentsToMentionedAgents, setCopyAttachmentsToMentionedAgents] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [draggingAttachment, setDraggingAttachment] = useState(false)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<any>(null)
@@ -254,8 +258,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
     refreshDocEntries().catch(() => setDocEntries([]))
   }, [refreshDocEntries])
 
-  async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || [])
+  async function addAttachmentFiles(files: File[]) {
     if (!files.length) return
     try {
       const nextAttachments = await Promise.all(files.map(async (file) => {
@@ -268,11 +271,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       })
     } catch (err: any) {
       setError(err?.message || 'Failed to prepare attachments')
-    } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
     }
+  }
+
+  async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
+    await addAttachmentFiles(Array.from(event.target.files || []))
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   function removeAttachment(attachmentId: string) {
@@ -289,7 +293,8 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         method: 'POST',
         headers: {
           'Content-Type': attachment.type || 'application/octet-stream',
-          'x-file-name': attachment.name,
+          'x-file-name': encodeURIComponent(attachment.name),
+          'x-file-name-encoding': 'percent',
         },
         body: await attachment.file.arrayBuffer(),
       })
@@ -656,7 +661,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (showMentions && filteredMentionAgents.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
@@ -678,7 +683,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
           setExpandedMentionGroup(null)
           setSelectedMentionIndex(0)
         }
-      } else if (e.key === 'Enter') {
+      } else if (shouldSendChatOnKeyDown(e)) {
         e.preventDefault()
         const selected = filteredMentionAgents[selectedMentionIndex]
         if (selected && 'isGroup' in selected && (selected as any).isGroup) {
@@ -698,10 +703,10 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
           setShowMentions(false)
         }
       }
-    } else if (e.key === 'Enter') {
+    } else if (shouldSendChatOnKeyDown(e)) {
       e.preventDefault()
       sendMessage()
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === 'ArrowUp' && !input.includes('\n') && e.currentTarget.selectionStart === 0) {
       e.preventDefault()
       if (inputHistory.length > 0) {
         const newIndex = historyIndex === -1
@@ -710,7 +715,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         setHistoryIndex(newIndex)
         setInput(inputHistory[newIndex])
       }
-    } else if (e.key === 'ArrowDown') {
+    } else if (e.key === 'ArrowDown' && !input.includes('\n') && e.currentTarget.selectionStart === input.length) {
       e.preventDefault()
       if (historyIndex !== -1) {
         const newIndex = historyIndex + 1
@@ -1046,7 +1051,17 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         </div>
 
         {/* Input */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 shrink-0">
+        <div
+          className={`px-4 sm:px-6 py-3 sm:py-4 border-t shrink-0 ${draggingAttachment ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30' : 'border-gray-100'}`}
+          onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setDraggingAttachment(true) } }}
+          onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDraggingAttachment(false) }}
+          onDrop={(event) => {
+            event.preventDefault()
+            setDraggingAttachment(false)
+            if (!sending) void addAttachmentFiles(Array.from(event.dataTransfer.files))
+          }}
+        >
+          {draggingAttachment && <p className="mb-2 text-xs font-medium text-sky-700 dark:text-sky-300">Drop files to attach</p>}
           {!chatEnabled && (
             <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
               <div className="font-medium">Group chat is disabled because no AI execution path is configured</div>
@@ -1155,7 +1170,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
               </div>
             )}
 
-            <div className="flex gap-2">
+            <div className="flex items-end gap-2">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -1194,21 +1209,35 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                   </svg>
                 )}
               </button>
-              <input
+              <div className="relative min-w-0 flex-1">
+              <textarea
                 ref={inputRef}
-                type="text"
+                rows={composerExpanded ? 4 : 1}
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder={isListening ? "Listening..." : "Type, speak, or attach files... posts to everyone by default, or use @name"}
-                className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                placeholder={isListening ? "Listening..." : "Message..."}
+                title="Enter to send; Shift+Enter for a new line. Use @name to address an agent."
+                aria-label="Message group"
+                className="block w-full min-h-10 max-h-40 resize-y px-4 pr-10 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 disabled={sending || isListening || !chatEnabled}
               />
+              <button
+                type="button"
+                onClick={() => { if (inputRef.current) inputRef.current.style.height = ''; const next = !composerExpanded; saveChatComposerExpanded(next); setComposerExpanded(next) }}
+                className="absolute right-2 top-1.5 rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                aria-label={composerExpanded ? 'Collapse message box' : 'Expand message box'}
+                title={composerExpanded ? 'Collapse message box' : 'Expand message box'}
+                aria-expanded={composerExpanded}
+              >
+                <svg className={`h-4 w-4 transition-transform ${composerExpanded ? '' : 'rotate-180'}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 7 5 5 5-5" /></svg>
+              </button>
+              </div>
               <button
                 ref={sendButtonRef}
                 onClick={sendMessage}
                 disabled={(!input.trim() && attachments.length === 0) || sending || !chatEnabled}
-                className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
               >
                 {sending ? 'Sending...' : 'Send'}
               </button>

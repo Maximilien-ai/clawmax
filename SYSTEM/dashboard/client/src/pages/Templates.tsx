@@ -227,7 +227,7 @@ function ImportTemplateModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
@@ -410,7 +410,7 @@ function TemplateRegistryModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
       <div className="w-full max-w-6xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
           <div>
@@ -2576,7 +2576,7 @@ export default function Templates({ searchSelection }: { searchSelection?: { key
       )}
 
       {shareTemplateOpen && (
-        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" onClick={() => setShareTemplateOpen(false)}>
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
           <div className="w-full max-w-2xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
@@ -2638,7 +2638,7 @@ export default function Templates({ searchSelection }: { searchSelection?: { key
       )}
 
       {registryRatingTarget && (
-        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" onClick={() => setRegistryRatingTarget(null)}>
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
@@ -3063,7 +3063,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onApplyNow,
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between dark:border-gray-700">
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
@@ -3471,7 +3471,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onApplyNow,
       </div>
 
       {!isWorkflow && template.slug && showFeedbackDialog && (
-        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => setShowFeedbackDialog(false)}>
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
           <div className="w-full max-w-xl rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>

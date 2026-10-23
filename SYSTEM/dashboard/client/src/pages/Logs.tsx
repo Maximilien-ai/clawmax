@@ -323,7 +323,7 @@ export default function Logs() {
                   setDoctorFixing(false)
                 }}
                 disabled={doctorFixing}
-                className="text-xs px-2 py-1 bg-cyan-600 text-white rounded hover:bg-cyan-700 disabled:bg-gray-300 transition-colors"
+                className="text-xs px-2 py-1 bg-cyan-600 text-white rounded hover:bg-cyan-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 transition-colors"
               >{doctorFixing ? 'Fixing...' : 'Auto-Fix'}</button>
               <button onClick={() => setShowDoctor(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm">&times;</button>
             </div>

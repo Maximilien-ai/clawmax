@@ -18,6 +18,7 @@ import {
 } from '../lib/skills'
 import { extractZipBufferToWorkspace, resolveWorkspacePath } from '../lib/workspace'
 import { getCuratedPartnerInstaller, listCuratedPartnerInstallers } from '../lib/partner-installs'
+import { decodeUploadFilename } from '../lib/upload-filename'
 import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
 import { safeEnv } from '../lib/safe-env'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
@@ -988,11 +989,11 @@ router.post('/import', (req, res) => {
 // POST /api/skills/import-upload - Upload a ZIP archive from the client and import it into workspace custom skills
 router.post('/import-upload', express.raw({ type: '*/*', limit: '200mb' }), (req, res) => {
   const fileNameHeader = req.header('x-file-name') || req.header('x-upload-file-name') || ''
-  const fileName = path.basename(fileNameHeader.trim())
+  const fileName = decodeUploadFilename(fileNameHeader, req.header('x-file-name-encoding') || undefined)
   const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || [])
 
   if (!fileName) {
-    return res.status(400).json({ error: 'x-file-name header required' })
+    return res.status(400).json({ error: 'Valid x-file-name header required' })
   }
   if (!fileName.toLowerCase().endsWith('.zip')) {
     return res.status(400).json({ error: 'Only .zip skill uploads are supported right now' })

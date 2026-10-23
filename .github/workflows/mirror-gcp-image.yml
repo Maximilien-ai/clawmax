@@ -9,10 +9,14 @@ on:
       image_digest:
         description: Approved multiarchitecture index sha256 digest
         required: true
+  workflow_run:
+    workflows: [Test Container Image, Release Container Image]
+    types: [completed]
   pull_request:
     paths:
       - .github/workflows/mirror-gcp-image.yml
       - SYSTEM/mirror-gcp-image*.mjs
+      - SYSTEM/mirror-gcp-target*.mjs
 
 permissions:
   contents: read
@@ -22,10 +26,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - run: node --test SYSTEM/mirror-gcp-image.test.mjs
+      - run: node --test SYSTEM/mirror-gcp-image.test.mjs SYSTEM/mirror-gcp-target.test.mjs
+  prepare:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      image_tag: ${{ steps.target.outputs.image_tag }}
+      image_digest: ${{ steps.target.outputs.image_digest }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Download successful image workflow evidence
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: gcp-mirror-target
+          path: ${{ runner.temp }}/gcp-mirror-target
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate mirror target
+        id: target
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          TARGET_FILE: ${{ runner.temp }}/gcp-mirror-target/gcp-mirror-target.json
+        run: node SYSTEM/mirror-gcp-target.mjs resolve
   mirror:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    needs: contract
+    needs: [contract, prepare]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -37,13 +66,13 @@ jobs:
       matrix:
         region: [us-west1, us-east1]
     concurrency:
-      group: gcp-mirror-${{ matrix.region }}-${{ inputs.image_tag }}
+      group: gcp-mirror-${{ matrix.region }}-${{ needs.prepare.outputs.image_tag }}
       cancel-in-progress: false
     env:
       MIRROR_KIND: public
       MIRROR_REGION: ${{ matrix.region }}
-      IMAGE_TAG: ${{ inputs.image_tag }}
-      IMAGE_DIGEST: ${{ inputs.image_digest }}
+      IMAGE_TAG: ${{ needs.prepare.outputs.image_tag }}
+      IMAGE_DIGEST: ${{ needs.prepare.outputs.image_digest }}
       REGISTRY_AUTH_FILE: /tmp/clawmax-mirror-auth.json
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262

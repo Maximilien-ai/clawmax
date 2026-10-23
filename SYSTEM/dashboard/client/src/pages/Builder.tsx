@@ -1404,7 +1404,8 @@ export default function Builder({
   const [feedbackByRecommendation, setFeedbackByRecommendation] = useState<Record<string, 'up' | 'down'>>({})
   const [promptHistoryIndex, setPromptHistoryIndex] = useState<number | null>(null)
   const [promptDraftBeforeHistory, setPromptDraftBeforeHistory] = useState('')
-  const [showRightPane, setShowRightPane] = useState(true)
+  const [showRightPane, setShowRightPane] = useState(false)
+  const [promptExpanded, setPromptExpanded] = useState(true)
   const [showPromptEditor, setShowPromptEditor] = useState(false)
   const [showStarterPrompts, setShowStarterPrompts] = useState(false)
   const [hasAppliedTemplate, setHasAppliedTemplate] = useState(false)
@@ -1435,6 +1436,9 @@ export default function Builder({
     if (prompt.trim()) return prompt
     return historyItems[0]?.content || ''
   }, [historyItems, prompt])
+  useEffect(() => {
+    setShowRightPane(Boolean(recommendation))
+  }, [recommendation])
   const promptHistory = useMemo(() => {
     const seen = new Set<string>()
     const nextHistory: string[] = []
@@ -2331,6 +2335,15 @@ export default function Builder({
               </div>
               {recommendation && (
                 <div className="flex flex-wrap items-center gap-2">
+                  {!showRightPane && (
+                    <button
+                      type="button"
+                      onClick={() => setShowRightPane(true)}
+                      className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-200 lg:hidden"
+                    >
+                      Show recommendation
+                    </button>
+                  )}
                   <div className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-200">
                     {intentBadge(recommendation.intent)}
                   </div>
@@ -2563,8 +2576,21 @@ export default function Builder({
                     Start with the outcome you want.
                   </div>
                 </div>
-                <div className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[10px] font-medium text-sky-700 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300">
-                  Input
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { if (textareaRef.current) textareaRef.current.style.height = ''; setPromptExpanded(current => !current) }}
+                    aria-label={promptExpanded ? 'Shrink builder prompt' : 'Expand builder prompt'}
+                    title={promptExpanded ? 'Shrink builder prompt' : 'Expand builder prompt'}
+                    aria-expanded={promptExpanded}
+                    aria-controls="builder-prompt-input"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300 dark:hover:bg-gray-800"
+                  >
+                    <svg className={`h-4 w-4 transition-transform ${promptExpanded ? '' : 'rotate-180'}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 7 5 5 5-5" /></svg>
+                  </button>
+                  <div className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[10px] font-medium text-sky-700 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300">
+                    Input
+                  </div>
                 </div>
               </div>
               {attachments.length > 0 && (
@@ -2606,7 +2632,9 @@ export default function Builder({
                   </div>
                 )}
                 <textarea
+                  id="builder-prompt-input"
                   ref={textareaRef}
+                  rows={promptExpanded ? 7 : 3}
                   value={prompt}
                   onChange={(event) => {
                     const nextValue = event.target.value
@@ -2620,7 +2648,7 @@ export default function Builder({
                   onKeyUp={(event) => updatePromptMentionState(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
                   onKeyDown={handlePromptKeyDown}
                   placeholder="Describe what to build, use @ to mention an agent, or enter /question followed by a question."
-                  className="min-h-[7rem] max-h-[14rem] w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-base text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700 sm:min-h-[56px] sm:max-h-[96px] sm:text-sm"
+                  className={`w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-base text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700 sm:text-sm ${promptExpanded ? 'min-h-[12rem] max-h-[24rem]' : 'min-h-[5.5rem] max-h-[10rem]'}`}
                 />
               </div>
               <div className="mt-2">
@@ -2686,7 +2714,7 @@ export default function Builder({
                 <button
                   onClick={() => void submitPrompt()}
                   disabled={loading || !prompt.trim()}
-                  className="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-700"
+                  className="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300"
                 >
                   {loading ? (builderQuestion ? 'Asking…' : 'Finding a path…') : (builderQuestion ? 'Ask Builder' : 'Recommend Next Step')}
                 </button>
@@ -2794,7 +2822,7 @@ export default function Builder({
           qualityDomain="builder"
         />
 
-        {!showRightPane && (
+        {!showRightPane && recommendation && (
           <button
             onClick={() => setShowRightPane(true)}
             className="absolute right-5 top-1/2 z-10 hidden -translate-y-1/2 items-center gap-2 rounded-l-2xl rounded-r-xl border border-gray-200 bg-white/95 px-2 py-3 text-xs text-gray-600 shadow-sm transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200 lg:inline-flex"
@@ -2809,7 +2837,7 @@ export default function Builder({
         <aside className="relative min-h-0 min-w-0 w-full max-w-full overflow-hidden rounded-3xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80">
           <button
             onClick={() => setShowRightPane(false)}
-            className="absolute -left-3 top-6 z-10 hidden h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200 lg:inline-flex"
+            className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200 lg:-left-3 lg:right-auto lg:top-6"
             title="Hide right pane"
             aria-label="Hide right pane"
           >

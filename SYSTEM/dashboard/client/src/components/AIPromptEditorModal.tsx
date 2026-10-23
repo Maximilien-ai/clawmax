@@ -67,6 +67,7 @@ export default function AIPromptEditorModal({
   const [expandFormat, setExpandFormat] = useState<PromptExpandFormat>('markdown')
   const [expandGuidance, setExpandGuidance] = useState('')
   const [expandError, setExpandError] = useState<string | null>(null)
+  const [showAnthropicHelp, setShowAnthropicHelp] = useState(false)
   const [expandedFlash, setExpandedFlash] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [previewWidth, setPreviewWidth] = useState(380)
@@ -82,6 +83,7 @@ export default function AIPromptEditorModal({
     setExpandFormat(defaultExpandFormat)
     setExpandGuidance('')
     setExpandError(null)
+    setShowAnthropicHelp(false)
     setExpandedFlash(false)
     setPreviewWidth(380)
     if (flashTimeoutRef.current !== null) {
@@ -341,7 +343,34 @@ export default function AIPromptEditorModal({
                 >
                   {expanding ? 'Expanding…' : expandLabel}
                 </button>
+                <button
+                  type="button"
+                  aria-expanded={showAnthropicHelp}
+                  aria-controls="ai-editor-anthropic-help"
+                  onClick={() => setShowAnthropicHelp((current) => !current)}
+                  className="text-sm font-medium text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100"
+                >
+                  Using Anthropic?
+                </button>
               </div>
+              {showAnthropicHelp && (
+                <div id="ai-editor-anthropic-help" className="space-y-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-gray-700 dark:border-sky-800 dark:bg-sky-950/30 dark:text-gray-200">
+                  <p>Create an Anthropic developer API key in the Claude Console, then add it under BYOK → Anthropic and choose Check Key. A Claude chat subscription alone does not provide API access.</p>
+                  <div className="flex flex-wrap gap-3">
+                    <a href="https://platform.claude.com/docs/en/get-api-key" target="_blank" rel="noopener noreferrer" className="font-medium text-sky-700 underline underline-offset-2 dark:text-sky-300">How to get an API key</a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('open-byok-wizard', { detail: { step: 'models', provider: 'anthropic', fromAiEditor: true } }))
+                      }}
+                      className="font-medium text-sky-700 underline underline-offset-2 dark:text-sky-300"
+                    >
+                      Open Anthropic BYOK
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">Keep your API key in BYOK. Never paste it into an agent prompt or chat.</p>
+                </div>
+              )}
               {expandError ? (
                 <div role="alert" className="max-h-20 overflow-y-auto break-words rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
                   {expandError}

@@ -265,7 +265,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onExport, onDelet
                         onInstallRequirements()
                       }}
                       disabled={installingRequirements}
-                      className="mt-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700"
+                      className="mt-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300"
                     >
                       {installingRequirements ? 'Installing...' : 'Install Requirements'}
                     </button>

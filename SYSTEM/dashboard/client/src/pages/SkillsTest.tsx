@@ -1062,7 +1062,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         method: 'POST',
         headers: {
           'Content-Type': 'application/zip',
-          'x-file-name': file.name,
+          'x-file-name': encodeURIComponent(file.name),
+          'x-file-name-encoding': 'percent',
         },
         body: payload,
       })
@@ -2559,7 +2560,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                               onClick={() => void runPartnerPluginAction(partner, 'install')}
                               disabled={!!partnerInstalling || installed}
                               title={installed ? `${partner.name} plugin is already installed` : undefined}
-                              className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+                              className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed"
                             >
                               {running ? 'Running...' : 'Install OpenClaw Plugin'}
                             </button>
@@ -2698,7 +2699,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                     <button
                                       onClick={() => installRegistrySkill(skill.installName, provider, false, skill)}
                                       disabled={!!registryInstalling}
-                                      className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                      className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed"
                                     >
                                       {registryInstalling === skill.installName ? 'Installing...' : 'Install'}
                                     </button>
@@ -2798,7 +2799,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                     <button
                                       onClick={() => installRegistrySkill(skill.installName, provider, false, skill)}
                                       disabled={!!registryInstalling}
-                                      className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                      className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed"
                                     >
                                       {registryInstalling === skill.installName ? 'Installing...' : 'Install'}
                                     </button>
@@ -3086,7 +3087,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       <button
                         onClick={() => openInstallRequirementsModal(viewingSkill)}
                         disabled={installingSkillRequirementsName === viewingSkill.name}
-                        className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-sm font-medium"
+                        className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 text-sm font-medium"
                       >
                         {installingSkillRequirementsName === viewingSkill.name ? 'Installing...' : 'Install Requirements'}
                       </button>
@@ -3132,7 +3133,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       <button
                         onClick={saveSkillContent}
                         disabled={savingSkillContent}
-                        className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-sm font-medium"
+                        className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 text-sm font-medium"
                       >
                         {savingSkillContent ? 'Saving...' : 'Save and Mark Dirty'}
                       </button>
@@ -3527,7 +3528,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     }
                   }}
                   disabled={selectedBulkAgentIds.size === 0 || selectedSkillIds.size === 0 || bulkAssigningSkills}
-                  className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                  className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300"
                 >
                   {bulkAssigningSkills ? 'Assigning…' : 'Add Skills'}
                 </button>
@@ -3612,7 +3613,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     || installRequirementsDone
                     || !!(pendingInstallSkill.requirementStatus?.checkable && pendingInstallSkill.requirementStatus.installSatisfied)
                   }
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300"
                 >
                   {pendingInstallSkill.requirementStatus?.checkable && pendingInstallSkill.requirementStatus.installSatisfied
                     ? 'Requirements Installed'
@@ -3818,7 +3819,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       !!interactiveSkillSetupSessionId ||
                       (pendingSkillSetupHint?.inputs || []).some((input) => input.required && !String(skillSetupValues[input.key] || '').trim())
                     }
-                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300"
                   >
                     {runningSkillSetupName === pendingSetupSkill.name
                       ? (pendingSkillSupportsInteractiveSetup ? 'Setup Running…' : 'Running Setup…')
@@ -3895,7 +3896,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 <button
                   onClick={() => handleDeleteSelectedSkills(pendingDeletePartition.deletableSkills.map((skill) => skill.name))}
                   disabled={pendingDeletePartition.deletableSkills.length === 0 || deletingSkills}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300"
                 >
                   {deletingSkills ? 'Deleting…' : `Delete ${pendingDeletePartition.deletableSkills.length} User Skill${pendingDeletePartition.deletableSkills.length !== 1 ? 's' : ''}`}
                 </button>
@@ -4225,7 +4226,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       <button
                         onClick={() => searchRegistry(registryQuery)}
                         disabled={registrySearching}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed text-sm font-medium"
                       >
                         {registrySearching ? 'Searching...' : 'Search'}
                       </button>
@@ -4399,7 +4400,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                       onClick={() => void runPartnerPluginAction(partner, 'install')}
                                       disabled={!!partnerInstalling || installed}
                                       title={installed ? `${partner.name} plugin is already installed` : undefined}
-                                      className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                      className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed"
                                     >
                                       {running ? 'Running...' : 'Install OpenClaw Plugin'}
                                     </button>
@@ -4418,7 +4419,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                               <button
                                 onClick={() => void importPartnerCatalog(partner)}
                                 disabled={importing}
-                                className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
+                                className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed shrink-0"
                               >
                                 {importing ? 'Importing...' : 'Import Skills'}
                               </button>
@@ -4501,7 +4502,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       <button
                         onClick={() => handleGenerateSkill(false)}
                         disabled={!aiEnabled || aiSkillGenerating || !aiSkillPrompt.trim()}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium inline-flex items-center gap-2"
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed text-sm font-medium inline-flex items-center gap-2"
                       >
                         {!aiSkillGenerating && aiEnabled && (
                           <ProductIconCell iconName="ai" label="Generate skill draft" size="sm" className="border-white/20 bg-white/10 text-white" />
@@ -4568,7 +4569,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                             <button
                               onClick={() => handleGenerateSkill(true)}
                               disabled={aiSkillGenerating || !aiSkillRefinementPrompt.trim()}
-                              className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
+                              className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed text-sm font-medium"
                             >
                               {aiSkillGenerating ? 'Refining...' : 'Refine'}
                             </button>
