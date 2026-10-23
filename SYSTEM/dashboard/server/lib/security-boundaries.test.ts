@@ -2,7 +2,7 @@ import nodeAssert from 'assert'
 import fs from 'fs'
 import path from 'path'
 import { API_AUTHORIZATION_MATRIX } from './api-authorization-matrix'
-import { applyDashboardSecurityHeaders, isContainerRuntime, isHostNetworkContainer, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins, resolveDashboardBindHost } from './http-security'
+import { applyDashboardSecurityHeaders, isContainerRuntime, isHostNetworkContainer, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins, resolveDashboardBindHost, resolveDashboardClientHost } from './http-security'
 import { requireGitHubAuth } from './github-auth'
 
 // The passing count used to be a literal in the final console.log. It silently went stale as
@@ -143,6 +143,24 @@ assert(!isHostNetworkContainer(() => ['lo'], () => true), 'loopback alone is not
 assert(!isHostNetworkContainer(() => [], () => true), 'an unreadable /sys/class/net must not read as host networking')
 
 assert(indexSource.includes('const HOST = resolveDashboardBindHost(process.env)'), 'Server bind selection must account for authentication bypass')
+// The dev server proxies /api to that loopback-only API, so listening everywhere would re-expose it.
+// It fails closed on any bypass request: the API takes the deployment kind from the inherited
+// environment and Vite from .env, so a cloud kind here must not reopen every interface.
+const clientHostCases: Array<[Record<string, string>, 'localhost' | true]> = [
+  [{}, true],
+  [{ DASHBOARD_AUTH_MODE: 'github' }, true],
+  [{ BYPASS_OAUTH: 'true' }, 'localhost'],
+  [{ DASHBOARD_AUTH_DISABLED: 'true' }, 'localhost'],
+  [{ DASHBOARD_AUTH_MODE: ' Bypass ' }, 'localhost'],
+  [{ BYPASS_OAUTH: 'true', DASHBOARD_DEPLOYMENT_KIND: 'cloud' }, 'localhost'],
+  [{ BYPASS_OAUTH: 'true', CLAWMAX_DEPLOYMENT_KIND: 'cloud' }, 'localhost'],
+  [{ BYPASS_OAUTH: 'true', DASHBOARD_ALLOW_UNAUTHENTICATED_NETWORK_BIND: 'true' }, true],
+]
+for (const [env, host] of clientHostCases) {
+  assert.equal(resolveDashboardClientHost(env as NodeJS.ProcessEnv), host, `Dev client host for ${JSON.stringify(env)}`)
+}
+const viteConfigSource = fs.readFileSync(path.resolve(__dirname, '..', '..', 'vite.config.ts'), 'utf8')
+assert(viteConfigSource.includes('host: resolveDashboardClientHost(dashboardEnv)'), 'The dev server must take its host from the auth-aware rule')
 const composeSource = fs.readFileSync(path.resolve(__dirname, '..', '..', '..', '..', 'docker-compose.yml'), 'utf8')
 assert(composeSource.includes('${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_PORT:-3001}:3001'), 'Compose must publish the dashboard on host loopback by default')
 
