@@ -4,6 +4,8 @@
  * Run with: npx ts-node --transpileOnly server/lib/workflow-execution-env.test.ts
  */
 
+import fs from 'fs'
+import path from 'path'
 import { resolveWorkflowExecutionProviderKeys } from './dashboard-env'
 
 const GREEN = '\x1b[32m'
@@ -61,6 +63,14 @@ test('workflow execution keeps explicit OpenAI-compatible BYOK isolated from hos
   assert(keys.openaiCompatibleBaseUrl === 'http://127.0.0.1:1234/v1', 'Expected OpenAI-compatible base URL to win')
   assert(keys.openaiCompatibleDefaultModel === 'qwen3.6-27b', 'Expected OpenAI-compatible default model to win')
   assert(typeof keys.openai === 'undefined', 'Expected hosted system OpenAI key to stay out of OpenAI-compatible workflow execution')
+})
+
+test('workflow execution forwards the resolved Ollama base URL into temporary provider configuration', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'workflows.ts'), 'utf-8')
+  assert(
+    source.includes('ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL'),
+    'Expected local workflow execution to configure the same Ollama provider path used by agent chat',
+  )
 })
 
 console.log(`workflow-execution-env.test.ts: ${passed} tests passed`)

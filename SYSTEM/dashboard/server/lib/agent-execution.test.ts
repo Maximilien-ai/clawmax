@@ -7,6 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { createHash } from 'crypto'
 import {
   clearModelCache,
 } from './model-discovery'
@@ -24,6 +25,7 @@ import {
   resolvePinnedOpenClawAuthBridge,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
+  scopeStoredDashboardSessionId,
   shouldUpdateNativeAuthStore,
   shouldUseExplicitBackupModelRetry,
   shouldRetryWithBackupModel,
@@ -524,6 +526,42 @@ test('scopeSessionIdToModel isolates chats across model changes', () => {
   assert(scoped.includes('ollama-qwen2-5-latest'), 'Expected sanitized model suffix')
 })
 
+test('long session keys avoid the legacy collision and continue a stored dashboard chat', () => {
+  const prefix = 'group-demo-window-with-a-very-long-common-prefix-'
+  const first = scopeSessionIdToModel(`${prefix}1596`, 'openai/gpt-5')
+  const second = scopeSessionIdToModel(`${prefix}27592`, 'openai/gpt-5')
+  assert(first !== second, 'Distinct long sessions must not share the known legacy key')
+  assert(first.length <= 48 && second.length <= 48, 'Session IDs must stay within the runtime limit')
+
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-upgrade-'))
+  const agentId = 'upgrade-agent'
+  const seed = `dashboard-${agentId}-a-long-server-generated-stamp-chat`
+  const model = 'openai/gpt-5'
+  const combined = `${seed}-${model.replace(/[^a-zA-Z0-9_-]+/g, '-')}`
+  const oldHash = createHash('sha1').update(combined).digest('hex').slice(0, 8)
+  const legacy = `${seed.slice(0, 39)}-${oldHash}`
+  const sessionsDir = path.join(home, '.openclaw', 'agents', agentId, 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, `${legacy}.jsonl`), '{"message":"stored"}\n')
+  try {
+    assert(scopeStoredDashboardSessionId(agentId, seed, model, home) === legacy, 'Existing stored chat must keep its original session ID')
+    assert(resolvePersistedAgentSessionId(agentId, `agent:${agentId}:dashboard-chat`, legacy, home) === legacy, 'Existing chat history must remain readable')
+    assert(scopeStoredDashboardSessionId(agentId, seed, model, home) === legacy, 'A new lookup after restart must still select the stored session')
+    fs.unlinkSync(path.join(sessionsDir, `${legacy}.jsonl`))
+    assert(scopeStoredDashboardSessionId(agentId, seed, model, home) === scopeSessionIdToModel(seed, model), 'A new chat must use the wider digest')
+    const nativeDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(path.join(nativeDir, 'openclaw-agent.sqlite'))
+    db.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT); CREATE TABLE session_windows (session_id TEXT)')
+    db.prepare('INSERT INTO session_windows (session_id) VALUES (?)').run(legacy)
+    db.close()
+    assert(scopeStoredDashboardSessionId(agentId, seed, model, home) === legacy, 'Native stored sessions must also survive the key upgrade')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
 test('toExecutionModelOverride maps OpenClaw-retired OpenAI models to the supported mini model', () => {
   assert(toExecutionModelOverride('openai/gpt-4o-mini', 'openai') === 'openai/gpt-5.4-mini', 'Expected gpt-4o-mini execution remap')
   assert(toExecutionModelOverride('openai/gpt-4o', 'openai') === 'openai/gpt-5.4-mini', 'Expected gpt-4o execution remap')
@@ -694,6 +732,47 @@ test('readLatestAssistantTextFromPersistedSession extracts assistant text from r
   const latest = readLatestAssistantTextFromPersistedSession('ceo', 'agent:ceo:dashboard-chat', undefined, home)
   assert(latest?.sessionId === 'current-session', `Expected resolved session id, got ${latest?.sessionId}`)
   assert(latest?.content === "I'm the CEO agent.", `Expected assistant text from persisted session, got ${latest?.content}`)
+})
+
+test('readLatestAssistantTextFromPersistedSession recovers a compressed reply from the native agent store', () => {
+  // `openclaw agent --session-id X` records the turn under `agent:<id>:explicit:X` in the native
+  // SQLite store and writes no JSONL file, so a JSONL-only reader could never recover a reply.
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-session-'))
+  try {
+    const storeDir = path.join(home, '.openclaw', 'agents', 'nat', 'agent')
+    fs.mkdirSync(storeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(path.join(storeDir, 'openclaw-agent.sqlite'))
+    db.exec(`
+      CREATE TABLE session_nodes (session_key TEXT PRIMARY KEY, current_session_id TEXT);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, event_zstd BLOB);
+      INSERT INTO session_nodes VALUES ('agent:nat:explicit:nat-chat', 'nat-chat');
+    `)
+    const reply = JSON.stringify({ type: 'message', id: 'evt-reply', message: { role: 'assistant', content: [{ type: 'text', text: `Recovered reply ${'x'.repeat(2000)}` }], usage: { input: 3, output: 5 } } })
+    const zstd = (require('zlib') as { zstdCompressSync: (input: Buffer) => Buffer })
+    const insert = db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?, ?)')
+    insert.run('nat-chat', 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'hi' } }), null)
+    insert.run('nat-chat', 2, null, zstd.zstdCompressSync(Buffer.from(reply)))
+    db.close()
+
+    const latest = readLatestAssistantTextFromPersistedSession('nat', 'agent:nat:dashboard-chat', 'nat-chat', home)
+    assert(latest?.sessionId === 'nat-chat', `Expected the explicit session id, got ${latest?.sessionId}`)
+    assert(latest?.messageId === 'evt-reply', `Expected the reply's event id for turn attribution, got ${latest?.messageId}`)
+    assert(latest?.content?.startsWith('Recovered reply ') === true, `Expected the compressed native reply, got ${latest?.content?.slice(0, 40)}`)
+    const usage = readLatestAssistantUsageFromPersistedSession('nat', 'agent:nat:dashboard-chat', 'nat-chat', home)
+    assert(usage?.outputTokens === 5, `Expected native usage, got ${JSON.stringify(usage)}`)
+
+    // A chat migrated from the legacy index keeps its dashboard-chat key pointing at the old session.
+    // After Clear, the turn runs a new session: recovery must read that one, not the key's.
+    const legacy = new DatabaseSync(path.join(storeDir, 'openclaw-agent.sqlite'))
+    legacy.exec("INSERT INTO session_nodes VALUES ('agent:nat:dashboard-chat', 'old-chat')")
+    legacy.prepare('INSERT INTO transcript_events VALUES (?, ?, ?, ?)').run('old-chat', 1, JSON.stringify({ type: 'message', id: 'evt-old', message: { role: 'assistant', content: 'Old reply' } }), null)
+    legacy.close()
+    assert(readLatestAssistantTextFromPersistedSession('nat', 'agent:nat:dashboard-chat', 'nat-chat', home)?.messageId === 'evt-reply', 'The session the turn ran wins over the legacy key')
+    assert(resolvePersistedAgentSessionId('nat', 'agent:nat:dashboard-chat', 'not-run-yet', home) === 'old-chat', 'Before its first turn, the legacy key still resolves')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
 })
 
 test('session resolution prefers existing files and recovers from invalid indexes', () => {

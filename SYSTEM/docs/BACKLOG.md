@@ -1,11 +1,18 @@
 # Backlog
 
+- [ ] **RC93 residual CodeQL triage** — Dashboard: alert 579's session-key
+  collision is fixed in `6faee7a7`; assess the six remaining command/path
+  findings from RC92 PR #236, including CLI option parsing and local transcript
+  symlinks. Keep RC93 images internal until this review supports a bounded
+  disposition. See the
+  [dated triage](planning/RC93_CODEQL_TRIAGE_2026-10-21.md).
+
 - [ ] **RC89 development dependency advisory** — Dashboard: replace or update
   the Tailwind 3 `braces@3.0.3` chain when a maintained fix is available,
   remove the exact internal-RC audit exception, and verify full and production
   audits by October 17, 2026 UTC. Keep customer distribution gated on review.
 
-> Last updated: October 12, 2026
+> Last updated: October 21, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Priority: Dashboard 2.0 on MBP14 and test10

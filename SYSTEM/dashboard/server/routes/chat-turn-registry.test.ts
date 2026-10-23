@@ -368,6 +368,43 @@ async function run() {
     })
   })
 
+  await test('a turn that fails with no output reports the failure instead of replaying the previous reply', async () => {
+    await withScratchHome(async (home) => {
+      // The session already holds an earlier exchange; this turn's CLI fails with nothing on stdout.
+      // Reply recovery reads the latest persisted reply, which is the previous turn's.
+      const { DatabaseSync } = require('node:sqlite')
+      const { scopeSessionIdToModel } = require('../lib/agent-execution')
+      const agentId = 'failed-turn-agent'
+      const sessionId = scopeSessionIdToModel('failed-session', 'ollama/llama3')
+      const storePath = path.join(home, '.openclaw', 'agents', agentId, 'agent', 'openclaw-agent.sqlite')
+      fs.mkdirSync(path.dirname(storePath), { recursive: true })
+      const store = new DatabaseSync(storePath)
+      store.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT); CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT)')
+      const insert = store.prepare('INSERT INTO transcript_events VALUES (?, ?, ?)')
+      insert.run(sessionId, 1, JSON.stringify({ type: 'message', id: 'evt-q1', message: { role: 'user', content: 'first question' } }))
+      insert.run(sessionId, 2, JSON.stringify({ type: 'message', id: 'evt-a1', message: { role: 'assistant', content: [{ type: 'text', text: 'Answer to the first question.' }] } }))
+      store.close()
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-fake-openclaw-'))
+      const cli = writeFakeCli(dir, 'openclaw', `
+        process.stderr.write('Error: model provider unavailable\\n')
+        process.exit(1)
+      `)
+      try {
+        await withOpenclawReadiness(agentId, {}, () =>
+          withModuleOverrides(openclawCliModulePath, { resolveOpenClawCliPath: () => cli }, async () => {
+            const res = makeSseRes()
+            const req = makeReq({ params: { id: agentId }, body: { message: 'second question', sessionId: 'failed-session' }, on() {} })
+            await Promise.all([getRouteHandler('post', '/:id/chat')(req, res), res.done])
+            const complete = res.events.find((e) => e.type === 'complete')
+            assert.strictEqual(complete?.data?.text, '', `The failed turn must not complete with the previous reply, got ${JSON.stringify(complete)}`)
+            assert(res.events.some((e) => e.type === 'error'), 'The failure must be reported')
+          }))
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)

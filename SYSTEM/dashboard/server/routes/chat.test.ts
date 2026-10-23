@@ -590,6 +590,17 @@ test('retryAssistantTextLookup waits briefly for persisted assistant text to app
   assert(reads === 3, `Expected retry helper to poll until content appeared, got ${reads} reads`)
 })
 
+test('retryAssistantTextLookup never recovers the reply that existed before the turn', async () => {
+  // A turn that fails with empty stdout must report its failure, not show the previous answer: the
+  // latest persisted reply is only this turn's if it was not already there when the turn started.
+  const previous = { sessionId: 'chat-session', content: 'Answer to the previous question.', messageId: 'evt-prev' }
+  const stale = await retryAssistantTextLookup(() => previous, 2, 1, 'evt-prev')
+  assert(!stale?.content, `Expected no recovered text, got ${stale?.content}`)
+  let reads = 0
+  const fresh = await retryAssistantTextLookup(() => (++reads < 2 ? previous : { ...previous, content: 'This turn.', messageId: 'evt-new' }), 3, 1, 'evt-prev')
+  assert(fresh?.content === 'This turn.', `Expected this turn's reply once it is persisted, got ${fresh?.content}`)
+})
+
 testChain.then(() => {
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)

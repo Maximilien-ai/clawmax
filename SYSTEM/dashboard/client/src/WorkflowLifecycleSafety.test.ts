@@ -9,9 +9,12 @@ assert(
   'Workflow triggers must explain why a concurrent run is refused',
 )
 assert(
-  workflowSource.includes("disabled={runningWorkflows.has(selectedWorkflow.id) || selectedWorkflow.status === 'running'}"),
-  'The detail trigger control must be disabled while a workflow is running',
+  workflowSource.includes("disabled={startingWorkflowIds.has(selectedWorkflow.id) || runningWorkflows.has(selectedWorkflow.id) || selectedWorkflow.status === 'running'}"),
+  'The detail trigger control must be disabled while a workflow is starting or running',
 )
+assert(workflowSource.includes("if (workflowStartGateRef.current.has(triggeringWorkflow.id)) return"), 'The custom-parameter Run handler must reject a second click synchronously')
+assert(workflowSource.includes("disabled={startingWorkflowIds.has(triggeringWorkflow.id) || runningWorkflows.has(triggeringWorkflow.id) || triggeringWorkflow.status === 'running'}"), 'The custom-parameter Run button must visibly disable during submission')
+assert(workflowSource.includes("setTriggeringWorkflow(null)"), 'The custom-parameter dialog must close after a successful start')
 assert(
   workflowSource.includes("/cancel`, { method: 'POST' }"),
   'The workflow UI must call the execution cancellation endpoint',
@@ -31,4 +34,4 @@ assert(
   'Paused pipeline banner must explain both blocked starts and active-run behavior',
 )
 
-console.log('WorkflowLifecycleSafety.test.ts: 11 assertions passed')
+console.log('WorkflowLifecycleSafety.test.ts: 14 assertions passed')

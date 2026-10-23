@@ -2127,6 +2127,114 @@ async function run() {
     assert(!fs.existsSync(path.join(nativeDir, '..', 'sessions')), 'History read must not create legacy state')
   })
 
+  await test('chat history returns compressed assistant replies intact, with stable ids, and reports unreadable ones', async () => {
+    // Agent schema 23 compresses events of 1 KiB or more, which is exactly what substantial replies
+    // are: reading event_json alone returned the questions and silently dropped every answer.
+    const id = 'compressed-history-agent'
+    writeAgent(workspacePath, id, '**Name:** Compressed history\n**Model:** openai/gpt-4o-mini\n')
+    const nativeDir = path.join(tmpHome, '.openclaw', 'agents', id, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const zstd = require('zlib') as { zstdCompressSync: (input: Buffer) => Buffer }
+    const dbPath = path.join(nativeDir, 'openclaw-agent.sqlite')
+    const db = new DatabaseSync(dbPath)
+    db.exec(`
+      CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT);
+      CREATE TABLE session_windows (session_id TEXT);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER, event_zstd BLOB, event_utf8_bytes INTEGER);
+      CREATE TABLE session_transcript_index_state (session_id TEXT, needs_rebuild INTEGER);
+      CREATE TABLE session_transcript_active_events (session_id TEXT, event_seq INTEGER, active_position INTEGER);
+      INSERT INTO session_nodes VALUES ('agent:compressed-history-agent:dashboard-chat', 'compact-window');
+      INSERT INTO session_windows VALUES ('compact-window');
+      INSERT INTO session_transcript_index_state VALUES ('compact-window', 0);
+      INSERT INTO session_transcript_active_events VALUES ('compact-window', 1, 0), ('compact-window', 2, 1);
+    `)
+    const answer = `Plan:\n\n1. Validate the input.\n2. Store the record.\n\n${'Explanation. '.repeat(120)}`
+    const insert = db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?, 0, ?, NULL)')
+    insert.run('compact-window', 1, JSON.stringify({ type: 'message', id: 'evt-q', message: { role: 'user', content: 'Design an API', timestamp: 1 } }), null)
+    insert.run('compact-window', 2, null, zstd.zstdCompressSync(Buffer.from(JSON.stringify({ type: 'message', id: 'evt-a', message: { role: 'assistant', content: [{ type: 'text', text: answer }], timestamp: 2 } }))))
+    db.close()
+
+    const handler = getRouteHandler('get', '/:id/chat/messages')
+    const res = makeRes()
+    await handler(makeReq({ params: { id } }), res)
+    assert.strictEqual(res.statusCode, 200)
+    assert.deepStrictEqual(res.jsonBody.messages.map((message: any) => [message.id, message.role]), [['evt-q', 'user'], ['evt-a', 'assistant']])
+    assert.strictEqual(res.jsonBody.messages[1].content, answer.trim(), 'The long, compressed reply must come back unaltered')
+
+    const corrupt = new DatabaseSync(dbPath)
+    corrupt.exec("UPDATE transcript_events SET event_zstd = X'00010203' WHERE seq = 2")
+    corrupt.close()
+    const failed = makeRes()
+    await handler(makeReq({ params: { id } }), failed)
+    assert.strictEqual(failed.statusCode, 500, 'An unreadable reply must fail the request, never look like a shorter history')
+    assert.match(String(failed.jsonBody.error), /could not be decoded/)
+  })
+
+  await test('history shows what the agent has after an OpenClaw reset, not the turns before it', async () => {
+    // A Gateway `/new` or a daily reset keeps the session and appends a reset event; the agent's
+    // context then starts after it, plus any turns the boundary kept.
+    const id = 'reset-boundary-agent'
+    writeAgent(workspacePath, id, '**Name:** Reset boundary\n**Model:** openai/gpt-4o-mini\n')
+    const nativeDir = path.join(tmpHome, '.openclaw', 'agents', id, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(path.join(nativeDir, 'openclaw-agent.sqlite'))
+    db.exec(`
+      CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT);
+      CREATE TABLE session_windows (session_id TEXT);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT);
+      CREATE TABLE session_transcript_index_state (session_id TEXT, needs_rebuild INTEGER);
+      CREATE TABLE session_transcript_active_events (session_id TEXT, event_seq INTEGER, active_position INTEGER);
+      INSERT INTO session_nodes VALUES ('agent:reset-boundary-agent:dashboard-chat', 'w');
+      INSERT INTO session_windows VALUES ('w');
+      INSERT INTO session_transcript_index_state VALUES ('w', 0);
+    `)
+    const events = [
+      { type: 'message', id: 'e1', message: { role: 'user', content: 'Before the reset', timestamp: 1 } },
+      { type: 'message', id: 'e2', message: { role: 'assistant', content: 'Old reply', timestamp: 2 } },
+      { type: 'message', id: 'e3', message: { role: 'user', content: 'Kept question', timestamp: 3 } },
+      { type: 'message', id: 'e4', message: { role: 'assistant', content: 'Kept reply', timestamp: 4 } },
+      { type: 'reset', id: 'r1', parentId: 'e4', timestamp: '2026-10-15T00:00:00Z', reason: 'reset', firstKeptEntryId: 'e3' },
+      { type: 'message', id: 'e5', message: { role: 'user', content: 'After the reset', timestamp: 5 } },
+    ]
+    events.forEach((event, index) => {
+      db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?)').run('w', index + 1, JSON.stringify(event))
+      db.prepare('INSERT INTO session_transcript_active_events VALUES (?, ?, ?)').run('w', index + 1, index)
+    })
+    db.close()
+    const res = makeRes()
+    await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), res)
+    assert.deepStrictEqual(res.jsonBody.messages.map((message: any) => message.content), ['Kept question', 'Kept reply', 'After the reset'])
+  })
+
+  await test('history never shows OpenClaw\'s own prompts to the agent as messages the user wrote', async () => {
+    // After a Gateway restart interrupts a reply, OpenClaw resumes it by sending the agent an
+    // internal_system prompt in the same session; its own chat shows that as a notice, not a message.
+    const id = 'internal-prompt-agent'
+    writeAgent(workspacePath, id, '**Name:** Internal prompt\n**Model:** openai/gpt-4o-mini\n')
+    const nativeDir = path.join(tmpHome, '.openclaw', 'agents', id, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(path.join(nativeDir, 'openclaw-agent.sqlite'))
+    db.exec(`
+      CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT);
+      INSERT INTO session_nodes VALUES ('agent:internal-prompt-agent:dashboard-chat', 'w');
+    `)
+    const events = [
+      { type: 'message', id: 'e1', message: { role: 'user', content: 'Write an essay on maps', timestamp: 1 } },
+      { type: 'message', id: 'e2', message: { role: 'user', content: '[System] Your previous turn was interrupted by a gateway restart while OpenClaw was waiting on tool/model work.', timestamp: 2, provenance: { kind: 'internal_system', sourceTool: 'main_session_restart_recovery' } } },
+      { type: 'message', id: 'e3', message: { role: 'assistant', content: 'Maps began as sketches.', timestamp: 3 } },
+      { type: 'message', id: 'e4', message: { role: 'user', content: 'Thanks', timestamp: 4, provenance: { kind: 'external_user' } } },
+    ]
+    events.forEach((event, index) => db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?)').run('w', index + 1, JSON.stringify(event)))
+    db.close()
+    const res = makeRes()
+    await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), res)
+    assert.deepStrictEqual(res.jsonBody.messages.map((message: any) => message.content), ['Write an essay on maps', 'Maps began as sketches.', 'Thanks'])
+  })
+
   await test('chat archives route includes the current explicit conversation when no archived sessions exist yet', async () => {
     writeAgent(workspacePath, 'current-history-agent', [
       '# IDENTITY.md',
@@ -2271,6 +2379,16 @@ async function run() {
           timestamp: 2,
         },
       }),
+      JSON.stringify({
+        type: 'message',
+        timestamp: 3,
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: '[System] Your previous turn was interrupted by a gateway restart. Continue from the existing transcript.' }],
+          timestamp: 3,
+          provenance: { kind: 'internal_system', sourceTool: 'main_session_restart_recovery' },
+        },
+      }),
     ].join('\n'), 'utf-8')
 
     fs.writeFileSync(path.join(archiveDir, '1781888896343-agent-archive-agent-dashboard-chat--abcd1234.trajectory.jsonl'), [
@@ -2285,6 +2403,11 @@ async function run() {
     assert.strictEqual(listRes.jsonBody?.archives?.length, 1, 'Expected trajectory artifacts to be excluded from archive list')
     assert.strictEqual(listRes.jsonBody?.archives?.[0]?.timestamp, 1781888896343, 'Expected prefixed archive timestamps to be parsed correctly')
     assert(!String(listRes.jsonBody?.archives?.[0]?.title || '').includes('Conversation context for this single-turn execution'), 'Expected noisy injected context not to become the archive title')
+    // The list counts the messages opening the archive shows; OpenClaw's own prompt is neither.
+    const viewRes = makeRes()
+    await getRouteHandler('get', '/:id/chat/archives/:filename')(makeReq({ params: { id: 'archive-agent', filename: listRes.jsonBody.archives[0].filename } }), viewRes)
+    assert(!viewRes.jsonBody?.messages?.some((message: any) => message.content.includes('interrupted by a gateway restart')), 'Expected OpenClaw\'s own prompt not to show in the archive')
+    assert.strictEqual(listRes.jsonBody.archives[0].messageCount, viewRes.jsonBody.messages.length, 'Expected the archive list to count the messages the archive shows')
   })
 
   await test('chat archives route ignores runtime-only archive files with no visible chat messages', async () => {
@@ -3150,8 +3273,9 @@ async function run() {
     fakeProc.killed = false
     fakeProc.kill = () => { fakeProc.killed = true }
 
+    let spawnArgs: string[] = []
     await withChildProcessStubs({
-      spawn: () => fakeProc,
+      spawn: (_command: string, args: string[]) => { spawnArgs = args; return fakeProc },
     }, async () => {
       const handler = getRouteHandler('post', '/:id/chat/messages')
       const res = makeRes()
@@ -3166,6 +3290,12 @@ async function run() {
         if (!turn) await new Promise((resolve) => setTimeout(resolve, 10))
       }
       assert(turn, 'Expected the openclaw chat turn to be visible in the active-turn registry')
+      // The dashboard chat's own conversation, the one its history shows -- not a second scoping of it.
+      const { scopeSessionIdToModel, resolveAgentExecutionConfig } = require('../lib/agent-execution')
+      assert.strictEqual(
+        spawnArgs[spawnArgs.indexOf('--session-id') + 1],
+        scopeSessionIdToModel('agent:openclaw-dashboard-chat:dashboard-chat', resolveAgentExecutionConfig('openclaw-dashboard-chat').model),
+      )
 
       // Prove there is no timer standing between "still working" and "killed": letting the fake
       // CLI sit idle proves nothing fires on its own -- the only thing that can kill it now is an

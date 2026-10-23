@@ -138,6 +138,20 @@ console.log(`\n${YELLOW}=== Templates API Test Suite ===${RESET}\n`)
 ensureSuiteScaffold()
 
 // Test 1: List templates returns arrays
+test('bundled agent identities contain names without captured runtime configuration', () => {
+  const templatesDir = path.join(REPO_ROOT, 'TEMPLATES', 'agents')
+  const slugs = fs.readdirSync(templatesDir).filter(slug => fs.existsSync(path.join(templatesDir, slug, 'template.json')))
+  assert(slugs.length > 0, 'Expected bundled agent templates')
+
+  for (const slug of slugs) {
+    const identity = fs.readFileSync(path.join(templatesDir, slug, 'IDENTITY.md'), 'utf-8')
+    const template = JSON.parse(fs.readFileSync(path.join(templatesDir, slug, 'template.json'), 'utf-8'))
+    assert(identity.includes(`- **Name:** ${template.name}`), `${slug} must retain its canonical display name`)
+    assert(!identity.includes('## Live Configuration'), `${slug} must not copy captured runtime configuration`)
+    assert(!/\*\*(?:Workspace|Agent Dir):\*\*/.test(identity), `${slug} must not copy host paths`)
+  }
+})
+
 test('listTemplates() returns templates', () => {
   const templates = listTemplates()
   assert(Array.isArray(templates), 'Should return an array')

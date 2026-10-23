@@ -931,6 +931,36 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Chat composer keyboard unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/chatComposer.test.ts > /tmp/clawmax-chat-composer.out 2>&1 || true
+if grep -q 'Chat composer keyboard tests passed' /tmp/clawmax-chat-composer.out; then
+  pass "Chat composer keyboard unit tests"
+else
+  cat /tmp/clawmax-chat-composer.out
+  fail "Chat composer keyboard unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Chat composer size preference unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/chatComposerSize.test.ts > /tmp/clawmax-chat-composer-size.out 2>&1 || true
+if grep -q 'Chat composer size preference tests passed' /tmp/clawmax-chat-composer-size.out; then
+  pass "Chat composer size preference unit tests"
+else
+  cat /tmp/clawmax-chat-composer-size.out
+  fail "Chat composer size preference unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running BYOK open request unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/byokOpenRequest.test.ts > /tmp/clawmax-byok-open-request.out 2>&1 || true
+if grep -q 'BYOK open request tests passed' /tmp/clawmax-byok-open-request.out; then
+  pass "BYOK open request unit tests"
+else
+  cat /tmp/clawmax-byok-open-request.out
+  fail "BYOK open request unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Chat runtime errors helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/chatRuntimeErrors.test.ts > /tmp/clawmax-chat-runtime-errors.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-chat-runtime-errors.out; then
@@ -1724,6 +1754,14 @@ else
   fail "Communication message helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent chat Forward To unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentChatForward.test.ts > /tmp/clawmax-agent-chat-forward.out 2>&1; then
+  pass "Agent chat Forward To unit tests ($(grep -c '^✓ ' /tmp/clawmax-agent-chat-forward.out) tests)"
+else
+  cat /tmp/clawmax-agent-chat-forward.out
+  fail "Agent chat Forward To unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace file mention helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceFiles.test.ts > /tmp/clawmax-workspace-files.out 2>&1 || true
 if grep -q "workspaceFiles.test.ts:" /tmp/clawmax-workspace-files.out; then
@@ -1760,6 +1798,14 @@ if grep -q "workspaceDocNavigation.test.ts:" /tmp/clawmax-workspace-doc-navigati
 else
   cat /tmp/clawmax-workspace-doc-navigation.out
   fail "Workspace doc navigation helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Agent chat scroll-follow unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentChatScroll.test.ts > /tmp/clawmax-agent-chat-scroll.out 2>&1; then
+  pass "Agent chat scroll-follow unit tests ($(grep -o '[0-9]\+ tests passed' /tmp/clawmax-agent-chat-scroll.out | grep -o '[0-9]\+') tests)"
+else
+  cat /tmp/clawmax-agent-chat-scroll.out
+  fail "Agent chat scroll-follow unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Workspace doc navigation edge-case unit tests...${NC}"
@@ -1858,7 +1904,7 @@ fi
 
 echo -e "${YELLOW}→ Running App sidebar layout regression tests...${NC}"
 npx ts-node --transpileOnly client/src/AppSidebar.test.ts > /tmp/clawmax-app-sidebar.out 2>&1 || true
-if grep -q "AppSidebar.test.ts: 15 tests passed" /tmp/clawmax-app-sidebar.out; then
+if grep -q "AppSidebar.test.ts: 18 tests passed" /tmp/clawmax-app-sidebar.out; then
   pass "App sidebar layout regression tests (15 tests)"
 else
   cat /tmp/clawmax-app-sidebar.out
@@ -2110,6 +2156,15 @@ else
   fail "Agent grid responsive tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent detail navigation tests...${NC}"
+npx ts-node --transpileOnly client/src/AgentDetailNavigation.test.ts > /tmp/clawmax-agent-detail-navigation.out 2>&1 || true
+if grep -q "Agent detail navigation tests passed" /tmp/clawmax-agent-detail-navigation.out; then
+  pass "Agent detail navigation tests"
+else
+  cat /tmp/clawmax-agent-detail-navigation.out
+  fail "Agent detail navigation tests"
+fi
+
 echo -e "${YELLOW}→ Running Maximilien host-auth message boundary tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/maximilienHostAuth.test.ts > /tmp/clawmax-maximilien-host-auth.out 2>&1 || true
 if grep -q "maximilienHostAuth.test.ts: passed" /tmp/clawmax-maximilien-host-auth.out; then
@@ -2165,6 +2220,15 @@ if grep -q "builderMobileLayout.test.ts: ok" /tmp/clawmax-builder-mobile-layout.
 else
   cat /tmp/clawmax-builder-mobile-layout.out
   fail "Builder mobile layout helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Builder prompt layout tests...${NC}"
+npx ts-node --transpileOnly client/src/BuilderPromptLayout.test.ts > /tmp/clawmax-builder-prompt-layout.out 2>&1 || true
+if grep -q "Builder prompt layout tests passed" /tmp/clawmax-builder-prompt-layout.out; then
+  pass "Builder prompt layout tests"
+else
+  cat /tmp/clawmax-builder-prompt-layout.out
+  fail "Builder prompt layout tests"
 fi
 
 echo -e "${YELLOW}→ Running Builder question command unit tests...${NC}"
@@ -2242,6 +2306,16 @@ if grep -q "templateApplyProgress.test.ts: 10 tests passed" /tmp/clawmax-templat
 else
   cat /tmp/clawmax-template-apply-progress.out
   fail "Template apply progress unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running button theme audit tests...${NC}"
+npx ts-node --transpileOnly client/src/ButtonThemeAudit.test.ts > /tmp/clawmax-button-theme-audit.out 2>&1 || true
+if grep -q 'Button theme audit passed' /tmp/clawmax-button-theme-audit.out; then
+  pass "Button theme audit tests"
+else
+  cat /tmp/clawmax-button-theme-audit.out
+  fail "Button theme audit tests"
 fi
 
 echo -e "${YELLOW}→ Running Template apply readiness helper unit tests...${NC}"
@@ -2346,9 +2420,8 @@ else
 fi
 
 echo -e "${YELLOW}→ Running RC15 security baseline contract tests...${NC}"
-npx ts-node --transpileOnly server/lib/security-baseline.test.ts > /tmp/clawmax-security-baseline.out 2>&1 || true
-if grep -q "security-baseline.test.ts: 10 tests passed" /tmp/clawmax-security-baseline.out; then
-  pass "RC15 security baseline contract tests (10 tests)"
+if npx ts-node --transpileOnly server/lib/security-baseline.test.ts > /tmp/clawmax-security-baseline.out 2>&1; then
+  pass "RC15 security baseline contract tests (11 tests)"
 else
   cat /tmp/clawmax-security-baseline.out
   fail "RC15 security baseline contract tests"
@@ -2564,6 +2637,15 @@ if grep -q "RegistryResultRow.test.tsx: 8 assertions passed" /tmp/clawmax-regist
 else
   cat /tmp/clawmax-registry-result-row.out /tmp/clawmax-dochub-selection-actions.out /tmp/clawmax-dochub-tree-pane-layout.out /tmp/clawmax-dochub-asset-presentation.out
   fail "RC feedback presentation regression tests"
+fi
+
+echo -e "${YELLOW}→ Running agent chat internal-notice extraction tests...${NC}"
+npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/AgentChatPanel.test.tsx > /tmp/clawmax-agent-chat-panel.out 2>&1 || true
+if grep -q "AgentChatPanel.test.tsx: 14 assertions passed" /tmp/clawmax-agent-chat-panel.out; then
+  pass "Agent chat internal-notice extraction tests (14 assertions)"
+else
+  cat /tmp/clawmax-agent-chat-panel.out
+  fail "Agent chat internal-notice extraction tests"
 fi
 
 echo -e "${YELLOW}→ Running Named export filename unit tests...${NC}"
@@ -3045,6 +3127,13 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Version unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/versionLabel.test.ts > /tmp/clawmax-version-label.out 2>&1 || true
+if grep -q "Version label tests passed" /tmp/clawmax-version-label.out; then
+  pass "Version label tests"
+else
+  cat /tmp/clawmax-version-label.out
+  fail "Version label tests"
+fi
 npx ts-node --transpileOnly server/lib/version.test.ts > /tmp/clawmax-version.out 2>&1
 version_status=$?
 if [ "$version_status" -eq 0 ]; then
@@ -3557,11 +3646,20 @@ fi
 
 echo -e "${YELLOW}→ Running Workflow lifecycle safety tests...${NC}"
 npx ts-node --transpileOnly client/src/WorkflowLifecycleSafety.test.ts > /tmp/clawmax-workflow-lifecycle-safety.out 2>&1 || true
-if grep -q "WorkflowLifecycleSafety.test.ts: 11 assertions passed" /tmp/clawmax-workflow-lifecycle-safety.out; then
-  pass "Workflow lifecycle safety tests (11 assertions)"
+if grep -q "WorkflowLifecycleSafety.test.ts: 14 assertions passed" /tmp/clawmax-workflow-lifecycle-safety.out; then
+  pass "Workflow lifecycle safety tests (14 assertions)"
 else
   cat /tmp/clawmax-workflow-lifecycle-safety.out
   fail "Workflow lifecycle safety tests"
+fi
+
+echo -e "${YELLOW}→ Running Workflow start gate tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workflowStartGate.test.ts > /tmp/clawmax-workflow-start-gate.out 2>&1 || true
+if grep -q "Workflow start gate tests passed" /tmp/clawmax-workflow-start-gate.out; then
+  pass "Workflow start gate tests"
+else
+  cat /tmp/clawmax-workflow-start-gate.out
+  fail "Workflow start gate tests"
 fi
 
 echo ""
@@ -3708,8 +3806,8 @@ fi
 
 echo -e "${YELLOW}→ Running Chat composer multiline regression tests...${NC}"
 npx ts-node --transpileOnly client/src/ChatComposerMultiline.test.ts > /tmp/clawmax-chat-composer-multiline.out 2>&1 || true
-if grep -q "ChatComposerMultiline.test.ts: 12 assertions passed" /tmp/clawmax-chat-composer-multiline.out; then
-  pass "Chat composer multiline regression tests (12 assertions)"
+if grep -q "ChatComposerMultiline.test.ts: 39 assertions passed" /tmp/clawmax-chat-composer-multiline.out; then
+  pass "Chat composer multiline regression tests (39 assertions)"
 else
   cat /tmp/clawmax-chat-composer-multiline.out
   fail "Chat composer multiline regression tests"
