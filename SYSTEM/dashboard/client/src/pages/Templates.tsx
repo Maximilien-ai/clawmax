@@ -2886,26 +2886,29 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, ratingSu
           {isSelected ? '✓' : '□'}
         </button>
       )}
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="flex items-start gap-2 flex-1 min-w-0">
-          <ProductIconCell iconName={templateVisual.iconName} emoji={templateVisual.emoji} label={template.name} size="sm" className="mt-0.5 flex-shrink-0" />
+      {/* Icon, title and actions share one centerline whether the title takes one line or two. */}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <ProductIconCell iconName={templateVisual.iconName} emoji={templateVisual.emoji} label={template.name} size="sm" className="flex-shrink-0" />
           <h3 className="min-w-0 flex-1 break-words text-sm font-semibold leading-tight text-gray-900 line-clamp-2 dark:text-gray-100">
             {template.name}
           </h3>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-1 pr-6">
+        <div className={`flex flex-shrink-0 items-center gap-1 ${selectionMode && onToggleSelect ? 'pr-6' : ''}`}>
           <button
             onClick={(e) => { e.stopPropagation(); onApply(); }}
-            className="text-gray-300 hover:text-emerald-500 transition-colors text-xs p-1"
+            className="inline-flex items-center justify-center p-1 text-xs leading-none text-gray-300 hover:text-emerald-500 transition-colors"
             title="Apply template"
+            aria-label="Apply template"
           >
             ⚡
           </button>
           {canDelete && (
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
-              className="text-gray-300 hover:text-red-500 transition-colors text-xs p-1"
+              className="inline-flex items-center justify-center p-1 text-xs leading-none text-gray-300 hover:text-red-500 transition-colors"
               title="Delete template"
+              aria-label="Delete template"
             >
               🗑
             </button>

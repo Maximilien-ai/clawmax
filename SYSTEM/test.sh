@@ -2223,6 +2223,15 @@ else
   fail "Builder prompt layout tests"
 fi
 
+echo -e "${YELLOW}→ Running Template card header layout tests...${NC}"
+npx ts-node --transpileOnly client/src/TemplateCardHeaderLayout.test.ts > /tmp/clawmax-template-card-header-layout.out 2>&1 || true
+if grep -q "Template card header layout tests passed" /tmp/clawmax-template-card-header-layout.out; then
+  pass "Template card header layout tests"
+else
+  cat /tmp/clawmax-template-card-header-layout.out
+  fail "Template card header layout tests"
+fi
+
 echo -e "${YELLOW}→ Running Builder question command unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/builderQuestion.test.ts > /tmp/clawmax-builder-question.out 2>&1 || true
 if grep -q "builderQuestion.test.ts: ok" /tmp/clawmax-builder-question.out; then
