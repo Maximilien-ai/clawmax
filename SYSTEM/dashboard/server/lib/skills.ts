@@ -3,6 +3,7 @@ import { openClawConfigPath } from './openclaw-profile-paths'
 import path from 'path'
 import os from 'os'
 import matter from 'gray-matter'
+import { parseFrontMatter } from './front-matter'
 import { execFileSync } from 'child_process'
 import { getGatewayClient } from './gateway-rpc'
 import { getWorkspacePath } from './workspace'
@@ -1102,7 +1103,7 @@ function parseSkillFile(
 ): OpenClawSkill | null {
   try {
     const content = fs.readFileSync(filePath, 'utf-8')
-    const { data, content: markdownContent } = matter(content)
+    const { data, content: markdownContent } = parseFrontMatter(content)
 
     if (!data.name) {
       // Silently skip skills without names (common in OpenClaw dev skills)
@@ -1172,7 +1173,7 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
     const content = fs.readFileSync(filePath, 'utf-8')
 
     // Try parsing as YAML frontmatter first
-    const { data, content: markdownContent } = matter(content)
+    const { data, content: markdownContent } = parseFrontMatter(content)
 
     // Extract name and description
     const lines = markdownContent.split('\n').filter(l => l.trim())
@@ -1467,7 +1468,7 @@ export function updateSkillContent(
     throw new Error(`Skill "${skillId}" not found`)
   }
 
-  const parsed = matter(content)
+  const parsed = parseFrontMatter(content)
   const nextName = (overrides?.name ?? parsed.data?.name ?? skill.name ?? '').trim()
   const nextDescriptionRaw = overrides?.description ?? parsed.data?.description ?? skill.description ?? ''
   const nextDescription = String(nextDescriptionRaw).trim()
@@ -1572,7 +1573,7 @@ export function stampImportedRegistrySkillMetadata(
   if (!fs.existsSync(skillPath)) return
 
   const raw = fs.readFileSync(skillPath, 'utf-8')
-  const parsed = matter(raw)
+  const parsed = parseFrontMatter(raw)
   const nextTags = buildSkillTags({
     explicitTags: Array.isArray(parsed.data?.tags) ? parsed.data.tags : [],
     name: parsed.data?.name || metadata.registryName,
@@ -2033,7 +2034,7 @@ export function importWorkspaceSkill(sourcePath: string, tags?: string[]): { suc
 
       if (fs.existsSync(skillMdPath)) {
         const content = fs.readFileSync(skillMdPath, 'utf-8')
-        const { data, content: markdownContent} = matter(content)
+        const { data, content: markdownContent} = parseFrontMatter(content)
 
         // Add tags to frontmatter
         data.tags = tags
