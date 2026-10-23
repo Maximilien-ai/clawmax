@@ -161,7 +161,7 @@ function normalizeAgentLookup(value: string): string {
 type ViewMode = 'grid' | 'list' | 'table'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, initialAiDescription, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import' | 'chat' | 'edit'; initialAiDescription?: string; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, initialAiDescription, onInitialAgentHandled, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import' | 'chat' | 'edit'; initialAiDescription?: string; onInitialAgentHandled?: () => void; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const { config } = useAuth()
   const { activeWorkspace } = useWorkspace()
@@ -407,12 +407,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     localStorage.setItem('agents-view-mode', viewMode)
   }, [viewMode])
 
-  // Select initial agent if provided and scroll to it
+  // Keep the list at its current scroll position when leaving Agents, but close
+  // the detail panel so a later tab visit starts with a usable list.
   useEffect(() => {
-    if (initialAgentId && agents.length > 0) {
+    if (isActive === false) {
+      setSelectedAgent(null)
+      setBudgetEditorAgentId(null)
+    }
+  }, [isActive])
+
+  // An explicit agent link opens detail once; ordinary tab visits do not.
+  useEffect(() => {
+    if (isActive && initialAgentId && agents.length > 0) {
       const agent = agents.find(a => a.id === initialAgentId)
       if (agent) {
         setSelectedAgent(agent)
+        onInitialAgentHandled?.()
         // Scroll to agent card after a brief delay to ensure DOM is updated
         setTimeout(() => {
           const element = document.getElementById(`agent-card-${initialAgentId}`)
@@ -422,7 +432,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         }, 100)
       }
     }
-  }, [initialAgentId, agents])
+  }, [initialAgentId, agents, isActive, onInitialAgentHandled])
 
   useEffect(() => {
     if (!isActive || !initialAction) return
@@ -2269,7 +2279,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       )}
 
       {tagToRemove && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={() => setTagToRemove(null)}>
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 dark:text-gray-100">Remove Primary Tag</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -3075,10 +3085,9 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4">
       <div
         className="flex max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-800"
-        onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-6 dark:border-gray-700">
@@ -3401,7 +3410,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 dark:text-gray-100">Manage Tags</h3>
         <p className="text-xs text-gray-500 mb-4">Drag to reorder • First tag is primary</p>
@@ -3499,7 +3508,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 dark:text-gray-100">Rename Agent</h3>
         <p className="text-xs text-gray-500 mb-4">
@@ -4103,7 +4112,7 @@ const AgentCard = React.memo(function AgentCard({
               onNavigateToSkills ? (
                 <button
                   onClick={e => { e.stopPropagation(); onNavigateToSkills(agent.id); }}
-                  className="text-xs px-2 py-1 rounded bg-gray-50 dark:bg-gray-900 text-gray-500 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:bg-gray-800 hover:text-gray-700 dark:text-gray-300 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="text-xs px-2 py-1 rounded bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 hover:text-gray-700 transition-colors dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   + Add Skills
                 </button>

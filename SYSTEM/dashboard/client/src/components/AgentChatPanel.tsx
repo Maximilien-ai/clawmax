@@ -1,7 +1,8 @@
 import { channelLabel } from '../lib/channelLabel'
-import { useEffect, useState, useRef, useCallback, type ChangeEvent } from 'react'
+import { useEffect, useLayoutEffect, useState, useRef, useCallback, type ChangeEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { nextChatFollowState } from '../lib/agentChatScroll'
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import { buildPersistentDashboardChatSessionId, resolveDashboardChatSessionId } from '../lib/agentChatSession'
 import { buildAgentChatTimelineRows, shouldShowCalendarDate } from '../lib/agentChatTimeline'
@@ -11,6 +12,7 @@ import { AssistantCodeBlock, CopyIcon, UserCodeBlock } from './ChatCodeBlock'
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
+import { forwardChatMessage, loadForwardTargets, type ForwardTarget } from '../lib/agentChatForward'
 import { appendAgentInboxAttachmentContext, buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, type AgentInboxAttachmentRef } from '../lib/agentInbox'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { normalizeChatMessage } from '../../../server/lib/chat-normalization'
@@ -21,6 +23,8 @@ import { INCOMPLETE_AGENT_CHAT_MESSAGE, markIncompleteAgentReply } from '../lib/
 import { buildAgentChatMarkdown, getAgentChatDownloadState } from '../lib/agentChatExport'
 import { useToast } from './Toast'
 import { AgentAttention } from './AgentAttention'
+import { shouldSendChatOnKeyDown } from '../lib/chatComposer'
+import { readChatComposerExpanded, saveChatComposerExpanded } from '../lib/chatComposerSize'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -31,11 +35,8 @@ interface Message {
   id: string
 }
 
-interface GroupTarget {
-  type: 'group' | 'community'
-  name: string
-  displayName?: string
-}
+type ForwardTargetsState = { status: 'idle' | 'loading' | 'ready' | 'error'; targets: ForwardTarget[]; error?: string }
+const FORWARD_MENU_WIDTH_PX = 192 // w-48
 
 interface Props {
   agentId: string
@@ -94,6 +95,43 @@ function cleanMessageContent(content: string): string {
   return normalizeChatMessage(content) || '(processing...)'
 }
 
+/**
+ * OpenClaw's built-in memory-core tool, when its search index is stale, hands the model a tool
+ * result whose warning/action fields are literal second-person instructions ("Tell the user:
+ * memory search is paused...", "Tell the user to run: openclaw memory index --force."). The model
+ * follows that instruction like any other and appends it to its visible reply as ordinary prose —
+ * see https://github.com/Maximilien-ai/clawmax/issues/197. There is no structural signal
+ * distinguishing this from the model's real answer once it's written, so detection is by content:
+ * a paragraph mentioning a paused memory search alongside the operator command to fix it is
+ * reliably this notice and not something a user's own question would produce. Kept narrow (a
+ * specific, confirmed leak) rather than a general "looks like an aside" heuristic, which would
+ * risk swallowing real answers; extend this list if OpenClaw's other built-in tools are found to
+ * do the same thing.
+ */
+export function isMemoryIndexPausedNotice(paragraph: string): boolean {
+  const p = paragraph.toLowerCase()
+  return /memory (search|index)/.test(p)
+    && /paused/.test(p)
+    && (/embedding/.test(p) || /openclaw memory (index|status)/.test(p))
+}
+
+/**
+ * Pulls a recognized internal-tool notice (see isMemoryIndexPausedNotice) out of an assistant
+ * reply so it renders as a separate system note instead of inline conversational text. Returns
+ * the content unchanged when nothing matches. Paragraph-level, not line-level, since the notice is
+ * model-written prose (often a full sentence or two), unlike cleanMessageContent's raw log/tool
+ * artifact lines.
+ */
+export function splitTrailingSystemNotice(content: string): { text: string; notice?: string } {
+  if (!content) return { text: content }
+  const paragraphs = content.split(/\n{2,}/)
+  const noticeIndex = paragraphs.findIndex(isMemoryIndexPausedNotice)
+  if (noticeIndex === -1) return { text: content }
+  const notice = paragraphs[noticeIndex].trim()
+  const rest = paragraphs.filter((_, i) => i !== noticeIndex).join('\n\n').trim()
+  return { text: rest, notice }
+}
+
 export default function AgentChatPanel({ agentId, agentName, agentStatus, agentGeneration, onClose, onSuccess, onNavigateToDoc }: Props) {
   const { config } = useAuth()
   const { showSuccess, showError } = useToast()
@@ -105,6 +143,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [rawViewIds, setRawViewIds] = useState<Set<string>>(new Set())
   const [input, setInput] = useState('')
+  const [composerExpanded, setComposerExpanded] = useState(readChatComposerExpanded)
   const [sending, setSending] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -122,8 +161,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [chatEnabled, setChatEnabled] = useState(browserChatEnabled && !stagedTemplateAgent)
   const [resettingSession, setResettingSession] = useState(false)
   const [forwardTargetMsgId, setForwardTargetMsgId] = useState<string | null>(null)
-  const [forwardGroups, setForwardGroups] = useState<GroupTarget[]>([])
+  const [forwardTargets, setForwardTargets] = useState<ForwardTargetsState>({ status: 'idle', targets: [] })
   const [forwardingTo, setForwardingTo] = useState<string | null>(null)
+  const [forwardError, setForwardError] = useState<string | null>(null)
+  const [forwardMenuAlign, setForwardMenuAlign] = useState<'left' | 'right'>('right')
   const [isSlideMode, setIsSlideMode] = useState(() => {
     // Load saved preference from localStorage
     const saved = localStorage.getItem(`agent-chat-mode-${agentId}`)
@@ -141,8 +182,16 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [docEntries, setDocEntries] = useState<DocEntryRef[]>([])
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  // Follow new content only while the reader is at the end of the conversation: a poll, a re-render
+  // or a reconciled history must never pull someone reading older messages back down.
+  const messagesViewportRef = useRef<HTMLDivElement>(null)
+  const followingRef = useRef(true)
+  const lastScrollTopRef = useRef(0)
+  const latestContentRef = useRef('')
+  const [isFollowing, setIsFollowing] = useState(true)
+  const [hasUnseen, setHasUnseen] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [draggingAttachment, setDraggingAttachment] = useState(false)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -270,8 +319,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
     refreshDocEntries().catch(() => {})
   }, [refreshDocEntries])
 
-  async function handleAttachFiles(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || [])
+  async function addAttachmentFiles(files: File[]) {
     if (!files.length) return
     try {
       const nextAttachments = await Promise.all(files.map(async (file) => {
@@ -284,11 +332,12 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       })
     } catch (err: any) {
       setError(err?.message || 'Failed to prepare attachments')
-    } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
     }
+  }
+
+  async function handleAttachFiles(event: ChangeEvent<HTMLInputElement>) {
+    await addAttachmentFiles(Array.from(event.target.files || []))
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   function removeAttachment(attachmentId: string) {
@@ -307,7 +356,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
         method: 'POST',
         headers: {
           'Content-Type': attachment.type || 'application/octet-stream',
-          'x-file-name': attachment.name,
+          'x-file-name': encodeURIComponent(attachment.name),
+          'x-file-name-encoding': 'percent',
         },
         body: await attachment.file.arrayBuffer(),
       })
@@ -379,9 +429,50 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
     }
   }, [agentId, agentStatus, agentName, browserChatEnabled])
 
+  const setFollowing = useCallback((following: boolean) => {
+    followingRef.current = following
+    setIsFollowing(following)
+    if (following) setHasUnseen(false)
+  }, [])
+
+  // Scrolls only the conversation. scrollIntoView also scrolled every scrollable ancestor.
+  const scrollToLatest = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const viewport = messagesViewportRef.current
+    viewport?.scrollTo({ top: viewport.scrollHeight, behavior })
+  }, [])
+
+  const handleMessagesScroll = useCallback(() => {
+    const viewport = messagesViewportRef.current
+    if (!viewport) return
+    const following = nextChatFollowState(followingRef.current, lastScrollTopRef.current, viewport)
+    lastScrollTopRef.current = viewport.scrollTop
+    if (following !== followingRef.current) setFollowing(following)
+  }, [setFollowing])
+
+  function jumpToLatest() {
+    setFollowing(true)
+    scrollToLatest(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth')
+  }
+
+  // Before paint, so streamed text never flashes below the fold first. Runs only when the message
+  // list itself changes.
+  useLayoutEffect(() => {
+    const latest = messages[messages.length - 1]
+    const latestContent = `${messages.length}:${latest?.id ?? ''}:${latest?.content.length ?? 0}`
+    if (followingRef.current) scrollToLatest()
+    else if (latestContent !== latestContentRef.current) setHasUnseen(true)
+    latestContentRef.current = latestContent
+  }, [messages, scrollToLatest])
+
+  // The viewport also shrinks without a message change: the status bar appearing, an error, a
+  // phone keyboard opening. Keep the latest message in view then too, while following.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    const viewport = messagesViewportRef.current
+    if (!viewport || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => { if (followingRef.current) scrollToLatest() })
+    observer.observe(viewport)
+    return () => observer.disconnect()
+  }, [scrollToLatest])
 
   const renderMarkdown = (content: string, clean = false, role: AgentChatMarkdownRole = 'assistant') => (
     <ReactMarkdown
@@ -500,6 +591,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       setHistoryIndex(-1)
       setSessionId(buildPersistentDashboardChatSessionId(agentId))
       setShowClearConfirm(false)
+      setFollowing(true)
     } catch (err: any) {
       setError(err?.message || 'Failed to reset agent session')
     } finally {
@@ -581,6 +673,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
         timestamp: Date.now(),
         id: assistantId
       }
+      // Sending is a request to see the reply, wherever the reader had scrolled to.
+      setFollowing(true)
       setMessages(prev => [...prev, userMsg, assistantMsg])
       if (!messageText) {
         setAttachments([])
@@ -681,11 +775,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
         ))
       }
     } catch (e: any) {
-      if (e.name === 'AbortError') {
-        setError('Request cancelled')
-      } else {
-        setError(summarizeAgentChatFailure(String(e), { agentId }))
-      }
+      const friendly = e.name === 'AbortError'
+        ? 'Request cancelled'
+        : summarizeAgentChatFailure(String(e), { agentId, transportFailure: true })
+      setError(friendly)
       if (!messageText) {
         setInput(textToSend)
         if (preparedAttachments.length > 0) {
@@ -695,7 +788,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       if (assistantId) {
         setMessages(prev => prev.map(m =>
           m.id === assistantId
-            ? { ...m, content: summarizeAgentChatFailure(String(e), { agentId }), failed: true }
+            ? { ...m, content: friendly, failed: true }
             : m
         ))
       }
@@ -764,44 +857,43 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
     }
   }
 
-  const openForwardPicker = useCallback(async (messageId: string) => {
-    setForwardTargetMsgId(messageId)
-    if (forwardGroups.length === 0) {
-      try {
-        const [groupsResp, commsResp] = await Promise.all([
-          fetch('/api/groups').then(r => r.json()),
-          fetch('/api/communities').then(r => r.json()),
-        ])
-        const targets: GroupTarget[] = [
-          ...(groupsResp.groups || []).map((g: any) => ({ type: 'group' as const, name: g.name, displayName: g.displayName })),
-          ...(commsResp.communities || []).map((c: any) => ({ type: 'community' as const, name: c.name, displayName: c.displayName })),
-        ]
-        setForwardGroups(targets)
-      } catch {}
+  // Fetched on every open, so a group created meanwhile shows up; targets already loaded stay listed
+  // while the refresh runs.
+  const refreshForwardTargets = useCallback(async () => {
+    setForwardTargets(current => ({ status: 'loading', targets: current.targets }))
+    try {
+      setForwardTargets({ status: 'ready', targets: await loadForwardTargets() })
+    } catch (err) {
+      setForwardTargets(current => ({ status: 'error', targets: current.targets, error: err instanceof Error ? err.message : String(err) }))
     }
-  }, [forwardGroups.length])
+  }, [])
 
-  async function forwardToGroup(target: GroupTarget) {
+  // Opens toward the side with room: a short reply's Forward button sits near the panel's left edge,
+  // where a menu opening leftwards was cut off by the scrolling message list.
+  function openForwardPicker(messageId: string, anchor: HTMLElement) {
+    const viewport = anchor.closest('.overflow-y-auto')?.getBoundingClientRect()
+    setForwardMenuAlign(viewport && anchor.getBoundingClientRect().right - FORWARD_MENU_WIDTH_PX < viewport.left + 8 ? 'left' : 'right')
+    setForwardTargetMsgId(messageId)
+    setForwardError(null)
+    void refreshForwardTargets()
+  }
+
+  async function forwardToGroup(target: ForwardTarget) {
     const msg = messages.find(m => m.id === forwardTargetMsgId)
     if (!msg) return
     setForwardingTo(`${target.type}:${target.name}`)
+    setForwardError(null)
     try {
-      const endpoint = target.type === 'community'
-        ? `/api/communities/${encodeURIComponent(target.name)}/messages`
-        : `/api/groups/${encodeURIComponent(target.name)}/messages`
       const prefix = msg.role === 'assistant' ? `**[Forwarded from ${agentName}]**\n\n` : `**[Forwarded by user from chat with ${agentName}]**\n\n`
-      await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: prefix + msg.content,
-          from: msg.role === 'assistant' ? agentId : 'user',
-          mentions: [],
-        }),
+      await forwardChatMessage(target, {
+        content: prefix + msg.content,
+        from: msg.role === 'assistant' ? agentId : 'user',
       })
       setForwardTargetMsgId(null)
-      setForwardingTo(null)
-    } catch {
+      showSuccess(`Forwarded to ${channelLabel(target)}`)
+    } catch (err) {
+      setForwardError(err instanceof Error ? err.message : String(err))
+    } finally {
       setForwardingTo(null)
     }
   }
@@ -816,6 +908,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
         setInputHistory([]) // Clear input history when chat is archived
         setHistoryIndex(-1)
         fetchArchives()
+        setFollowing(true)
       }
     } catch (e) {
       setError(String(e))
@@ -863,6 +956,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       setViewingArchive(null)
       setShowArchives(false)
       setError(null)
+      setFollowing(true)
       fetchArchives()
       setTimeout(() => inputRef.current?.focus(), 0)
     } catch (e: any) {
@@ -1093,7 +1187,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
+        <div ref={messagesViewportRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
           {!chatEnabled && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
               <div className="font-medium">Agent chat is disabled because no AI execution path is configured</div>
@@ -1166,13 +1260,23 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               >
                 {msg.role === 'assistant' ? (
                   <>
+                    {(() => { const { text: bubbleText, notice: systemNotice } = splitTrailingSystemNotice(msg.content || ''); return (
+                    <>
                     {rawViewIds.has(msg.id) ? (
                       <pre className="text-xs whitespace-pre-wrap break-words font-mono overflow-auto max-h-60">{cleanMessageContent(msg.content)}</pre>
                     ) : (
                       <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                        {renderMarkdown(msg.content || (isStreamingPlaceholder ? '▌' : ''), true, 'assistant')}
+                        {renderMarkdown(bubbleText || (isStreamingPlaceholder ? '▌' : ''), true, 'assistant')}
                       </div>
                     )}
+                    {systemNotice && !rawViewIds.has(msg.id) && (
+                      <div className="mt-2 flex items-start gap-1.5 text-xs opacity-60" title="A note from the agent's tooling, not part of its answer">
+                        <span aria-hidden="true">ⓘ</span>
+                        <span className="whitespace-pre-wrap break-words">{systemNotice}</span>
+                      </div>
+                    )}
+                    </>
+                    ) })()}
                     {onNavigateToDoc && getResolvedFileMentions(msg.content || '').length > 0 && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="text-[11px] opacity-70">Files:</span>
@@ -1241,9 +1345,17 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                     <CopyIcon state={copiedMessageId === msg.id ? 'copied' : 'idle'} className="w-3 h-3" />
                   </button>
                   {/* Forward to group */}
-                  <div className="relative">
+                  <div
+                    className="relative"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape' && forwardTargetMsgId === msg.id) {
+                        e.stopPropagation()
+                        setForwardTargetMsgId(null)
+                      }
+                    }}
+                  >
                     <button
-                      onClick={(e) => { e.stopPropagation(); forwardTargetMsgId === msg.id ? setForwardTargetMsgId(null) : openForwardPicker(msg.id) }}
+                      onClick={(e) => { e.stopPropagation(); forwardTargetMsgId === msg.id ? setForwardTargetMsgId(null) : openForwardPicker(msg.id, e.currentTarget) }}
                       className="bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 rounded-full p-1.5 shadow-md hover:bg-purple-50 dark:hover:bg-purple-900/30"
                       title="Forward to group"
                     >
@@ -1252,12 +1364,24 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                       </svg>
                     </button>
                     {forwardTargetMsgId === msg.id && (
-                      <div className="absolute bottom-full right-0 mb-1 w-48 max-h-40 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50">
+                      <div className={`absolute bottom-full ${forwardMenuAlign === 'left' ? 'left-0' : 'right-0'} mb-1 w-48 max-h-40 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50`}>
                         <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase">Forward to</div>
-                        {forwardGroups.length === 0 && (
-                          <div className="px-3 py-2 text-xs text-gray-400">Loading...</div>
+                        {forwardTargets.targets.length === 0 && forwardTargets.status === 'loading' && (
+                          <div className="px-3 py-2 text-xs text-gray-400" role="status">Loading...</div>
                         )}
-                        {forwardGroups.map(g => (
+                        {forwardTargets.targets.length === 0 && forwardTargets.status === 'ready' && (
+                          <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">No groups or communities yet.</div>
+                        )}
+                        {forwardTargets.status === 'error' && (
+                          <div className="px-3 py-2 text-xs text-red-600 dark:text-red-400" role="alert">
+                            <p className="break-words">{forwardTargets.error}</p>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); void refreshForwardTargets() }} className="mt-1 font-medium underline">Retry</button>
+                          </div>
+                        )}
+                        {forwardError && (
+                          <div className="px-3 py-2 text-xs text-red-600 dark:text-red-400 break-words" role="alert">{forwardError}</div>
+                        )}
+                        {forwardTargets.targets.map(g => (
                           <button
                             key={`${g.type}:${g.name}`}
                             onClick={() => forwardToGroup(g)}
@@ -1291,7 +1415,24 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
             )
           })}
 
-          <div ref={messagesEndRef} />
+          {!isFollowing && (
+            // Sticky and zero-height: pinned to the bottom edge of the viewport without adding to the
+            // conversation's height, which would move the end the reader is trying to reach.
+            <div className="sticky bottom-3 !mt-0 flex h-0 items-start justify-center">
+              <button
+                type="button"
+                onClick={jumpToLatest}
+                className="-translate-y-full inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white/95 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-md backdrop-blur hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-gray-600 dark:bg-gray-800/95 dark:text-gray-100 dark:hover:bg-gray-700"
+              >
+                {hasUnseen && <span className="h-2 w-2 rounded-full bg-sky-500" aria-hidden="true" />}
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v10.638l3.96-4.158a.75.75 0 1 1 1.08 1.04l-5.25 5.5a.75.75 0 0 1-1.08 0l-5.25-5.5a.75.75 0 1 1 1.08-1.04l3.96 4.158V3.75A.75.75 0 0 1 10 3Z" clipRule="evenodd" />
+                </svg>
+                Jump to latest
+                {hasUnseen && <span className="sr-only">(new messages below)</span>}
+              </button>
+            </div>
+          )}
         </div>
 
         <span className="sr-only" aria-live="polite">{copiedMessageId ? 'Message copied' : ''}</span>
@@ -1320,7 +1461,17 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
         )}
 
         {/* Input */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 shrink-0 dark:border-gray-700">
+        <div
+          className={`px-4 sm:px-6 py-3 sm:py-4 border-t shrink-0 ${draggingAttachment ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30' : 'border-gray-200 dark:border-gray-700'}`}
+          onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setDraggingAttachment(true) } }}
+          onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDraggingAttachment(false) }}
+          onDrop={(event) => {
+            event.preventDefault()
+            setDraggingAttachment(false)
+            if (!sending) void addAttachmentFiles(Array.from(event.dataTransfer.files))
+          }}
+        >
+          {draggingAttachment && <p className="mb-2 text-xs font-medium text-sky-700 dark:text-sky-300">Drop files to attach</p>}
           {attachments.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
               {attachments.map((attachment) => (
@@ -1373,13 +1524,14 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                 </svg>
               )}
             </button>
+            <div className="relative min-w-0 flex-1">
             <textarea
               ref={inputRef}
-              rows={1}
+              rows={composerExpanded ? 4 : 1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !sending) {
+                if (shouldSendChatOnKeyDown(e) && !sending) {
                   e.preventDefault()
                   sendMessage()
                 } else if (e.key === 'Escape') {
@@ -1388,8 +1540,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                   } else {
                     onClose()
                   }
-                } else if (e.key === 'ArrowUp') {
-                  if (input.includes('\n')) return
+                } else if (e.key === 'ArrowUp' && !input.includes('\n') && e.currentTarget.selectionStart === 0) {
                   e.preventDefault()
                   if (inputHistory.length > 0) {
                     const newIndex = historyIndex === -1
@@ -1398,8 +1549,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                     setHistoryIndex(newIndex)
                     setInput(inputHistory[newIndex])
                   }
-                } else if (e.key === 'ArrowDown') {
-                  if (input.includes('\n')) return
+                } else if (e.key === 'ArrowDown' && !input.includes('\n') && e.currentTarget.selectionStart === input.length) {
                   e.preventDefault()
                   if (historyIndex !== -1) {
                     const newIndex = historyIndex + 1
@@ -1415,10 +1565,21 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               }}
               placeholder={isListening ? "Listening…" : "Message…"}
               aria-label="Message agent"
-              title="Type, speak, or attach files. Enter to send; Shift+Enter for a new line."
+              title="Type, speak, or drop files. Enter to send; Option+Enter or Shift+Enter for a new line."
               disabled={sending || streaming || !gatewayAvailable || isListening || !chatEnabled}
-              className="min-h-11 max-h-32 min-w-0 flex-1 resize-y px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
+              className="block w-full min-h-10 max-h-40 resize-y px-4 pr-10 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
             />
+            <button
+              type="button"
+              onClick={() => { if (inputRef.current) inputRef.current.style.height = ''; const next = !composerExpanded; saveChatComposerExpanded(next); setComposerExpanded(next) }}
+              className="absolute right-2 top-1.5 rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+              aria-label={composerExpanded ? 'Collapse message box' : 'Expand message box'}
+              title={composerExpanded ? 'Collapse message box' : 'Expand message box'}
+              aria-expanded={composerExpanded}
+            >
+              <svg className={`h-4 w-4 transition-transform ${composerExpanded ? '' : 'rotate-180'}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 7 5 5 5-5" /></svg>
+            </button>
+            </div>
             {streaming ? (
               <button
                 onClick={cancelStreaming}
@@ -1432,7 +1593,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                 ref={sendButtonRef}
                 onClick={() => sendMessage()}
                 disabled={(!input.trim() && attachments.length === 0) || sending || !gatewayAvailable || !chatEnabled}
-                className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors text-sm font-medium disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors text-sm font-medium disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed"
               >
                 Send
               </button>

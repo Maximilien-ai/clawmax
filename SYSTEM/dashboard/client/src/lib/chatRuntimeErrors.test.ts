@@ -40,6 +40,14 @@ test('summarizeAgentChatFailure normalizes missing provider credentials', () => 
   assert(!/provider "openai"/i.test(message), 'Expected raw provider string to be hidden')
 })
 
+test('transport failures keep the running turn ambiguous and avoid an unsafe retry', () => {
+  const message = summarizeAgentChatFailure('TypeError: network error', { agentId: 'astro-guide', transportFailure: true })
+  assert(/connection to this chat was interrupted/i.test(message), `Unexpected message: ${message}`)
+  assert(/may still be working/i.test(message), 'Do not claim the backend turn stopped with the browser connection')
+  assert(/before retrying/i.test(message), 'Warn before repeating a possible tool action')
+  assert(summarizeAgentChatFailure('TypeError: network error') === 'TypeError: network error', 'A provider-reported network error needs its own diagnosis')
+})
+
 test('summarizeAgentChatFailure normalizes invalid provider credentials', () => {
   const message = summarizeAgentChatFailure('FailoverError: 401 Incorrect API key provided: openai-cible.')
   assert(/api key was rejected/i.test(message), `Unexpected message: ${message}`)
@@ -115,7 +123,7 @@ test('formatAgentWorkStatus distinguishes long tool-enabled requests', () => {
   assert(formatAgentWorkStatus(5_000) === 'Agent is working...', 'Expected concise initial status')
   assert(/45s elapsed/.test(formatAgentWorkStatus(45_000)), 'Expected seconds elapsed')
   assert(/1m 15s elapsed/.test(formatAgentWorkStatus(75_000)), 'Expected minutes elapsed')
-  assert(/up to 3 minutes/.test(formatAgentWorkStatus(75_000)), 'Expected timeout expectation')
+  assert(/several minutes/.test(formatAgentWorkStatus(75_000)), 'Do not promise a runtime deadline that is not enforced')
 })
 
 test('isRuntimeDiagnosticText flags runtime diagnostics, never code or prose that mentions errors', () => {

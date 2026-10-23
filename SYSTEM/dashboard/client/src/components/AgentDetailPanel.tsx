@@ -141,14 +141,16 @@ export default function AgentDetailPanel({
 
   // Close on Escape
   const handleKey = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && !e.defaultPrevented) {
       if (showRenameDialog) {
         setShowRenameDialog(false)
+      } else if (editingCostLimit) {
+        setEditingCostLimit(false)
       } else {
         onClose()
       }
     }
-  }, [onClose, showRenameDialog])
+  }, [editingCostLimit, onClose, showRenameDialog])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKey)
@@ -303,7 +305,7 @@ export default function AgentDetailPanel({
   }, [docEntries, onClose, onNavigateToDoc, relDir])
 
   return (
-    <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20">
       {/* Panel */}
       <aside className="fixed top-0 right-0 h-[100dvh] max-h-[100dvh] w-full max-w-full bg-white shadow-2xl dark:bg-gray-800 sm:w-[30rem] lg:w-[36rem] z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
@@ -378,8 +380,8 @@ export default function AgentDetailPanel({
             <button
               onClick={onClose}
               className="h-9 w-9 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-lg leading-none"
-              aria-label="Close"
-              title="Close"
+              aria-label="Close details (Esc)"
+              title="Close details (Esc)"
             >
               <span aria-hidden="true">×</span>
             </button>
@@ -664,6 +666,7 @@ export default function AgentDetailPanel({
 
         {/* Footer path */}
         <div className="space-y-3 border-t border-gray-100 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shrink-0 dark:border-gray-700 dark:bg-gray-800 sm:px-5 sm:pb-3">
+          <span className="block text-xs text-gray-400 dark:text-gray-500">Press Esc to close details</span>
           <button
             type="button"
             onClick={onClose}
@@ -679,7 +682,7 @@ export default function AgentDetailPanel({
 
       {/* Rename Dialog */}
       {showRenameDialog && (
-        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onClick={() => setShowRenameDialog(false)}>
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Rename Agent</h3>
             <input
@@ -707,7 +710,7 @@ export default function AgentDetailPanel({
               <button
                 onClick={handleRename}
                 disabled={!newName.trim() || newName === agent.name}
-                className="px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-700 transition-colors disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-700 transition-colors disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed"
               >
                 Rename
               </button>

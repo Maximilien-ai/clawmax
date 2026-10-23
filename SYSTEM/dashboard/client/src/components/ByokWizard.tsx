@@ -3,6 +3,7 @@ import { readIntegrationValidationResponse } from '../lib/integrationValidationR
 import { createPortal } from 'react-dom'
 import { MobileSafeDialog } from './MobileSafeDialog'
 import { CLOUD_LOCAL_EXECUTION_NOTICE, cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
+import { resolveByokOpenRequest } from '../lib/byokOpenRequest'
 import { useAuth } from '../contexts/AuthContext'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { useToast } from './Toast'
@@ -245,6 +246,10 @@ export function ByokWizard({
   const needsAttention = initialStep === 'models' && Object.values(agentReadiness).some(entry => entry.attention && entry.attention.kind !== 'runtime')
   const { showSuccess, showInfo, showWarning } = useToast()
   const [open, setOpen] = useState(false)
+  const [openedOverAiEditor, setOpenedOverAiEditor] = useState(false)
+  useEffect(() => {
+    if (!open) setOpenedOverAiEditor(false)
+  }, [open])
   const [step, setStep] = useState<Step>('models')
   const [openaiKey, setOpenaiKey] = useState('')
   const [anthropicKey, setAnthropicKey] = useState('')
@@ -505,12 +510,14 @@ export function ByokWizard({
 
   useEffect(() => {
     const handleOpen = (event: Event) => {
-      const detail = (event as CustomEvent<{ step?: Step; focus?: string; provider?: string }>).detail || {}
+      const detail = (event as CustomEvent<{ step?: Step; focus?: string; provider?: string; fromAiEditor?: boolean }>).detail || {}
+      const target = resolveByokOpenRequest(detail, initialStep)
       const partnerSlug = detail.step?.startsWith('partner:') ? detail.step.slice('partner:'.length) : null
       searchedPartnerRef.current = partnerSlug
       if (partnerSlug) setSelectedPartners((current) => Array.from(new Set([...current, partnerSlug])))
       setOpen(true)
-      setStep(detail.step || initialStep)
+      setOpenedOverAiEditor(target.aboveAiEditor)
+      setStep(target.step)
       const modelProvider = detail.provider === 'openai-compatible' ? 'openaiCompatible' : detail.provider
       if (modelProvider && ['openai', 'anthropic', 'gemini', 'openrouter', 'xai', 'ollama', 'openaiCompatible'].includes(modelProvider)) {
         setModelTab(modelProvider as ModelTab)
@@ -2322,6 +2329,7 @@ export function ByokWizard({
         <MobileSafeDialog
           ariaLabelledBy={`integrations-title-${initialStep}`}
           panelClassName="max-w-3xl"
+          zIndexClassName={openedOverAiEditor ? 'z-[100]' : 'z-[70]'}
           header={
             <div className="flex items-start justify-between gap-3 sm:gap-4">
               <div className="min-w-0">
@@ -2558,7 +2566,8 @@ export function ByokWizard({
                         <div className="font-medium text-gray-900 dark:text-gray-100">Anthropic</div>
                         <button onClick={() => runValidation('anthropic')} disabled={validating} className="px-3 py-1.5 text-xs rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Key'}</button>
                       </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Strong reasoning models, especially useful for longer-form planning and analysis.</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Use an Anthropic developer API key from the Claude Console. A Claude chat subscription does not include API access. <a href="https://platform.claude.com/docs/en/get-api-key" target="_blank" rel="noopener noreferrer" className="font-medium text-sky-700 underline dark:text-sky-300">How to get a key</a></p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Paste the key below, choose Check Key, then save these workspace integrations. Keep the key out of prompts and chat.</p>
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <label htmlFor="byok-anthropic" className="block text-sm font-medium text-gray-700 dark:text-gray-300">API key</label>
                         {anthropicKey && (

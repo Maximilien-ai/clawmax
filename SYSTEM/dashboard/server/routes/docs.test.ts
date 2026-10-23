@@ -186,6 +186,28 @@ async function run() {
     assert.strictEqual(missingHeaderRes.statusCode, 400, 'Expected missing file name header to return HTTP 400')
   })
 
+  await test('upload route preserves encoded screenshot names with Unicode spaces', async () => {
+    const handler = getRouteHandler('post', '/upload')
+    const name = 'Screenshot 2026-10-16 at 9.54.44\u202fAM %.png'
+    const res = makeRes()
+    await handler(makeReq({
+      query: { target: 'AGENTS/test-agent/INBOX' },
+      body: Buffer.from('png payload'),
+      headers: { 'x-file-name': encodeURIComponent(name), 'x-file-name-encoding': 'percent' },
+    }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected Unicode filename upload to succeed')
+    assert.strictEqual(res.jsonBody?.path, `AGENTS/test-agent/INBOX/${name}`)
+    assert(fs.existsSync(path.join(workspacePath, 'AGENTS', 'test-agent', 'INBOX', name)))
+
+    const malformed = makeRes()
+    await handler(makeReq({
+      query: { target: 'AGENTS/test-agent/INBOX' },
+      body: Buffer.from('bad'),
+      headers: { 'x-file-name': '%broken', 'x-file-name-encoding': 'percent' },
+    }), malformed)
+    assert.strictEqual(malformed.statusCode, 400, 'Expected malformed encoding to be rejected')
+  })
+
   await test('upload route expands zip archives into inbox targets when extractZip=true', async () => {
     const handler = getRouteHandler('post', '/upload')
     const zipSourceRoot = fs.mkdtempSync(path.join(tmpHome, 'docs-upload-zip-src-'))

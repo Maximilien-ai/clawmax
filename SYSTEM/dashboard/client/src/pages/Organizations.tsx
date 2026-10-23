@@ -1937,7 +1937,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                     <button
                       key={agent.id}
                       onClick={() => onNavigateToAgent?.(agent.id)}
-                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-gray-200 bg-gray-50 font-medium hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
+                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-gray-200 bg-gray-50 text-gray-700 font-medium hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       title={`Go to ${agent.name} in Agents page`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
@@ -2679,7 +2679,7 @@ function RenameCommunityModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-gray-900 mb-2 dark:text-gray-100">Rename Community</h3>
         <p className="text-xs text-gray-500 mb-4">
@@ -2758,7 +2758,7 @@ function RenameGroupModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-gray-900 mb-2 dark:text-gray-100">Rename Group</h3>
         <p className="text-xs text-gray-500 mb-4">

@@ -26,6 +26,7 @@ import {
   runExclusiveAgentExecution,
   shouldUseExplicitBackupModelRetry,
   scopeSessionIdToModel,
+  scopeStoredDashboardSessionId,
   toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
@@ -378,13 +379,25 @@ function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: string): st
   return `dashboard-${agentId}-${stamp}-chat`
 }
 
+type PersistedAssistantText = { sessionId?: string; content?: string; messageId?: string }
+
+/**
+ * Wait briefly for this turn's reply to reach the transcript. The latest persisted reply belongs to
+ * this turn only if it was not already there when the turn started (`priorMessageId`): a turn that
+ * failed with no output must report its failure, not show the previous question's answer.
+ */
 export async function retryAssistantTextLookup(
-  reader: () => { sessionId?: string; content?: string } | null,
+  reader: () => PersistedAssistantText | null,
   attempts = 4,
-  delayMs = 250
-): Promise<{ sessionId?: string; content?: string } | null> {
-  for (let attempt = 0; attempt < attempts; attempt++) {
+  delayMs = 250,
+  priorMessageId?: string,
+): Promise<PersistedAssistantText | null> {
+  const read = () => {
     const latest = reader()
+    return latest?.messageId && latest.messageId === priorMessageId ? { sessionId: latest.sessionId } : latest
+  }
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const latest = read()
     if (latest?.content) {
       return latest
     }
@@ -392,20 +405,20 @@ export async function retryAssistantTextLookup(
       await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
   }
-  return reader()
+  return read()
 }
 
 async function readLatestAssistantTextWithRetry(
   agentId: string,
   sessionKey: string,
   preferredSessionId: string,
-  attempts = 4,
-  delayMs = 250
-): Promise<{ sessionId?: string; content?: string } | null> {
+  priorMessageId?: string,
+): Promise<PersistedAssistantText | null> {
   return retryAssistantTextLookup(
     () => readLatestAssistantTextFromPersistedSession(agentId, sessionKey, preferredSessionId),
-    attempts,
-    delayMs
+    4,
+    250,
+    priorMessageId,
   )
 }
 
@@ -867,7 +880,8 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     executionEnv.CLAWMAX_MAIL_BROKER_TOKEN = brokerCapability
     executionEnv.CLAWMAX_MAIL_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/mail`
   }
-  const sessionSeed = sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace)
+  const defaultSessionSeed = buildDashboardChatSeed(id, resolvedAgent.workspace)
+  const sessionSeed = sessionId || defaultSessionSeed
 
   console.log(`[Chat Route] Starting CLI chat for agent ${id}`)
 
@@ -892,7 +906,9 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   }, 2000)
   const chatStartedAt = Date.now()
   const dashboardSessionKey = `agent:${id}:dashboard-chat`
-  let currentSessionId = scopeSessionIdToModel(sessionSeed, resolvedAgent.model)
+  let currentSessionId = sessionId
+    ? scopeSessionIdToModel(sessionSeed, resolvedAgent.model)
+    : scopeStoredDashboardSessionId(id, sessionSeed, resolvedAgent.model)
   let chatSessionRetryAttempt = 0
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
@@ -1122,11 +1138,13 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
         forceGateway = false,
       ) => {
         const attemptSessionSeed = buildDashboardChatRetrySeed(sessionSeed, chatSessionRetryAttempt)
-        const executionSessionId = scopeSessionIdToModel(
-          attemptSessionSeed,
-          attemptModel,
-        )
+        const executionSessionId = !sessionId && chatSessionRetryAttempt === 0
+          ? scopeStoredDashboardSessionId(id, attemptSessionSeed, attemptModel)
+          : scopeSessionIdToModel(attemptSessionSeed, attemptModel)
         currentSessionId = executionSessionId
+        // The reply already persisted before this attempt, so recovery below never mistakes it for
+        // this attempt's answer.
+        const priorAssistantId = readLatestAssistantTextFromPersistedSession(id, dashboardSessionKey, executionSessionId)?.messageId
         const attemptUseOpenAiCompatible = attemptProvider === 'openai-compatible'
         const attemptExecutionModel = toExecutionModelOverride(attemptModel, attemptProvider)
         const args = [
@@ -1325,7 +1343,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
 
               const normalizedText = normalizeChatMessage(fullOutput.trim())
               const persistedAssistant = !incompleteReason && shouldRecoverPersistedAssistant(normalizedText)
-                ? await readLatestAssistantTextWithRetry(id, dashboardSessionKey, executionSessionId)
+                ? await readLatestAssistantTextWithRetry(id, dashboardSessionKey, executionSessionId, priorAssistantId)
                 : null
               const completionText = normalizedText || normalizeChatMessage(persistedAssistant?.content || '') || ''
               const usage = completionText
