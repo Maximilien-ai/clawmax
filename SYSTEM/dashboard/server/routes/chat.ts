@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express'
+import { json, Router, type Request, type Response } from 'express'
 import WebSocket from 'ws'
 import { spawn } from 'child_process'
 import fs from 'fs'
@@ -1511,7 +1511,9 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   })
 }
 
-router.post('/:id/chat', (req, res, next) => {
+// A send carries the last few messages as context and one reply may be up to 2 MB, far over the app's 100 KB
+// default (which skips this path, see server/index.ts). Parsed here, behind the router's authentication.
+router.post('/:id/chat', json({ limit: '16mb' }), (req, res, next) => {
   if (isDevHostSkillChatReady(req, req.params.id)) return executeDevHostSkillChat(req, res).catch(next)
   return executeAgentChat(req, res).catch(next)
 })
