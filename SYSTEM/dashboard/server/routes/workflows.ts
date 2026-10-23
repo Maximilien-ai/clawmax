@@ -33,6 +33,11 @@ import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../li
 
 const router = Router()
 
+// Both ids end up in file paths (`<id>.md`, `executions/<id>/<executionId>.json`) and Express decodes
+// `%2F` inside a parameter, so every route checks them before any lookup, read, write or delete.
+router.param('id', (_req, res, next, id) => (/^[a-z0-9-]+$/.test(id) ? next() : res.status(400).json({ error: 'Invalid workflow ID' })))
+router.param('executionId', (_req, res, next, executionId) => (/^[a-zA-Z0-9_-]+$/.test(executionId) ? next() : res.status(400).json({ error: 'Invalid execution ID' })))
+
 function devManualWorkflowRequest(req: any, id: string): boolean {
   if (!isDevTemplateWorkflowId(id)) return false
   const admitted = admitDevWorkflowReadRequest(req)
