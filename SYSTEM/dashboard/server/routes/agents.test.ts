@@ -2712,6 +2712,22 @@ async function run() {
     }
   })
 
+  await test('GET /models refuses provider keys in the URL instead of using them', async () => {
+    let discovered = 0
+    await withModelDiscoveryStubs({
+      discoverModels: async () => { discovered++; return { models: [], modelsByProvider: {} } },
+    }, async () => {
+      for (const param of ['openaiKey', 'anthropicKey', 'geminiKey', 'openrouterKey', 'xaiKey', 'openaiCompatibleApiKey']) {
+        const res = makeRes()
+        await getRouteHandler('get', '/models')(makeReq({ query: { [param]: 'fixture-secret-value' } }), res)
+        assert.strictEqual(res.statusCode, 400, `Expected ${param} in the URL to be refused`)
+        assert(res.jsonBody?.error?.includes('POST /api/agents/models/discover'), 'Expected the refusal to name the body-based route')
+        assert(!JSON.stringify(res.jsonBody).includes('fixture-secret-value'), 'The refusal must not echo the key')
+      }
+      assert.strictEqual(discovered, 0, 'A refused request must not reach a provider')
+    })
+  })
+
   await test('model search discovers configured BYOK models without clearing cache', async () => {
     const discoveryModule = require('../lib/model-discovery')
     const originalDiscoverModels = discoveryModule.discoverModels
