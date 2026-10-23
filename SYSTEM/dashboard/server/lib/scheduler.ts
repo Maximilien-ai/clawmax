@@ -1,6 +1,5 @@
 import * as cron from 'node-cron'
-import { listWorkflows, triggerWorkflow, updateWorkflow, resolveParticipants, syncWorkflowToCron, syncWorkflowToCronAsync } from './workflows'
-import { listAgents } from './workspace'
+import { listWorkflows, triggerWorkflow, updateWorkflow, syncWorkflowToCron, removeLegacyWorkflowCronJobsAsync } from './workflows'
 import { waitForGatewayResponsive } from './gateway-rpc'
 
 interface ScheduledJob {
@@ -68,9 +67,9 @@ export function getWorkflowScheduleOptions(timezone?: string) {
  */
 export function startScheduler(options: { syncGatewayCron?: boolean } = {}) {
   console.log('[Scheduler] Starting workflow scheduler...')
-  // Local scheduling is required, but Gateway cron registration is optional
-  // startup work. Keep it asynchronous so a populated workspace cannot starve
-  // /api/health while OpenClaw CLI calls wait or retry.
+  // Local scheduling is required. Removing the Gateway cron jobs earlier versions
+  // registered (see lib/workflows.ts) is optional startup work: keep it asynchronous
+  // so a populated workspace cannot starve /api/health while OpenClaw CLI calls wait or retry.
   syncAllWorkflows({ syncCronRegistrations: false })
   console.log(`[Scheduler] ${activeJobs.size} workflow(s) scheduled`)
   if (options.syncGatewayCron !== false) {
@@ -107,28 +106,30 @@ export async function syncGatewayCronRegistrations(): Promise<SchedulerDiagnosti
   }
 
   const workflows = listWorkflows()
-  const agents = listAgents()
   const failures: Array<{ workflowId: string; error: string }> = []
 
   for (const workflow of workflows) {
-    if (isTemplateWorkflow(workflow.id)) continue // Host-bound dev execution must never register a Gateway cron.
+    if (isTemplateWorkflow(workflow.id)) continue
     if (workflow.enabled && workflow.schedule !== 'manual' && !cron.validate(workflow.schedule)) {
       failures.push({ workflowId: workflow.id, error: `Invalid cron schedule: ${workflow.schedule}` })
-      continue
     }
+  }
 
-    try {
-      const participants = resolveParticipants(workflow, agents).map((participant) => participant.agentId)
-      const result = await syncWorkflowToCronAsync(workflow, participants)
-      if (!result.ok && workflow.enabled && workflow.schedule !== 'manual') {
-        failures.push({ workflowId: workflow.id, error: result.error || 'OpenClaw cron synchronization failed' })
-      } else if ((workflow.cronJobId || undefined) !== result.cronJobId) {
-        const persisted = updateWorkflow(workflow.id, { cronJobId: result.cronJobId })
+  // One pass over the Gateway's jobs removes every legacy workflow registration, including those of
+  // workflows deleted since; after it, no stored job id refers to anything this dashboard owns.
+  try {
+    const cleanup = await removeLegacyWorkflowCronJobsAsync()
+    if (!cleanup.ok) {
+      failures.push({ workflowId: '*', error: cleanup.error || 'OpenClaw cron synchronization failed' })
+    } else {
+      for (const workflow of workflows) {
+        if (!workflow.cronJobId) continue
+        const persisted = updateWorkflow(workflow.id, { cronJobId: undefined })
         if (!persisted.success) failures.push({ workflowId: workflow.id, error: persisted.error || 'Failed to persist cron registration' })
       }
-    } catch (error) {
-      failures.push({ workflowId: workflow.id, error: error instanceof Error ? error.message : String(error) })
     }
+  } catch (error) {
+    failures.push({ workflowId: '*', error: error instanceof Error ? error.message : String(error) })
   }
 
   schedulerDiagnostics = {
@@ -147,7 +148,6 @@ export async function syncGatewayCronRegistrations(): Promise<SchedulerDiagnosti
 export function syncAllWorkflows(options: { syncCronRegistrations?: boolean } = {}) {
   const workflows = listWorkflows()
   const shouldSyncCronRegistrations = options.syncCronRegistrations === true
-  const agents = shouldSyncCronRegistrations ? listAgents() : []
 
   // Track which workflows are still active
   const activeIds = new Set<string>()
@@ -160,12 +160,10 @@ export function syncAllWorkflows(options: { syncCronRegistrations?: boolean } = 
       if (!hasValidSchedule) {
         console.warn(`[Scheduler] Skipping invalid gateway cron for ${workflow.id}: ${workflow.schedule}`)
       } else {
-        const participants = resolveParticipants(workflow, agents).map((participant) => participant.agentId)
-        const syncResult = syncWorkflowToCron(workflow, participants)
+        const syncResult = syncWorkflowToCron(workflow)
         const nextCronJobId = syncResult.cronJobId
-        if (!syncResult.ok && workflow.enabled && workflow.schedule !== 'manual') {
-          console.warn(`[Scheduler] Failed to sync gateway cron for ${workflow.id}: ${syncResult.error}`)
-        } else if ((workflow.cronJobId || undefined) !== nextCronJobId) {
+        if (!syncResult.ok) console.warn(`[Scheduler] Failed to sync gateway cron for ${workflow.id}: ${syncResult.error}`)
+        if ((workflow.cronJobId || undefined) !== nextCronJobId) {
           updateWorkflow(workflow.id, { cronJobId: nextCronJobId })
         }
       }

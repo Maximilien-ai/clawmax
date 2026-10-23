@@ -290,7 +290,6 @@ async function run() {
         resolveParticipants: () => [],
         syncWorkflowToCron: () => ({ ok: false, error: 'cron sync failed', cronJobId: null }),
         updateWorkflow: () => ({ success: true }),
-        removeCronJob: (cronJobId: string) => { deletedCronJobId = cronJobId; return true },
         deleteWorkflow: (id: string) => ({ success: id === 'route-test-workflow' }),
       } as any,
     })
@@ -332,13 +331,13 @@ async function run() {
         deleteWorkflow: (id: string) => id === 'route-test-workflow'
           ? { success: true }
           : { success: false, error: 'Workflow not found' },
-        removeCronJob: (cronJobId: string) => { deletedCronJobId = cronJobId; return true },
+        syncWorkflowToCron: (workflow: any) => { deletedCronJobId = workflow.cronJobId; return { ok: true } },
       } as any,
     })
     let deleteRes = makeRes()
     await deleteHandler(makeReq({ id: 'route-test-workflow' }), deleteRes)
     assert(deleteRes.statusCode === 200, `Expected workflow delete success, got ${deleteRes.statusCode}`)
-    assert(deletedCronJobId === 'cron-123', 'Expected cron job removal for deleted workflow')
+    assert(deletedCronJobId === 'cron-123', 'Expected the deleted workflow\'s legacy cron job to be removed')
 
     deleteRes = makeRes()
     await deleteHandler(makeReq({ id: 'missing-workflow' }), deleteRes)
