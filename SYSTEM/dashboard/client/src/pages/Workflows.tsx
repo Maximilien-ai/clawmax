@@ -1335,7 +1335,11 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           author: 'dashboard',
           executionMode: data.executionMode,
           owner: data.owner,
-          content: data.content
+          content: data.content,
+          // The editor's run limit and handoff settings; leaving them out saved the workflow without them.
+          maxRuns: data.maxRuns || 0,
+          outputDefinitions: data.outputDefinitions,
+          inputRefs: data.inputRefs,
         })
       })
 
@@ -1369,7 +1373,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           executionMode: data.executionMode,
           owner: data.owner,
           content: data.content,
-          maxRuns: data.maxRuns || 0
+          maxRuns: data.maxRuns || 0,
+          outputDefinitions: data.outputDefinitions,
+          inputRefs: data.inputRefs,
         })
       })
 
