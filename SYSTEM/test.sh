@@ -931,6 +931,14 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Agent panel persistence tests...${NC}"
+if npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/AgentPanelPersistence.test.tsx > /tmp/clawmax-agent-panel-persistence.out 2>&1; then
+  pass "Agent panel persistence tests"
+else
+  cat /tmp/clawmax-agent-panel-persistence.out
+  fail "Agent panel persistence tests"
+fi
+
 echo -e "${YELLOW}→ Running Chat composer keyboard unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/chatComposer.test.ts > /tmp/clawmax-chat-composer.out 2>&1 || true
 if grep -q 'Chat composer keyboard tests passed' /tmp/clawmax-chat-composer.out; then

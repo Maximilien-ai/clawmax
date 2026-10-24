@@ -1,6 +1,8 @@
 import { channelLabel } from '../lib/channelLabel'
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
+import { KeepAgentPanelOpenButton } from '../components/KeepAgentPanelOpenButton'
+import { useAgentPanelPersistence } from '../lib/agentPanelPersistence'
 import { AgentAttention } from '../components/AgentAttention'
 import AddAgentWizard from '../components/AddAgentWizard'
 import { fetchModelsWithByok, refreshModelsWithByok, hasAiGenerationAccess } from '../lib/byok'
@@ -2796,6 +2798,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
+  const panelPersistence = useAgentPanelPersistence(onClose, !saving)
   const [error, setError] = React.useState<string | null>(null)
   const [warnings, setWarnings] = React.useState<string[]>([])
   const [validationErrors, setValidationErrors] = React.useState<string[]>([])
@@ -3085,7 +3088,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4" onClick={panelPersistence.onBackdropClick} onKeyDown={panelPersistence.onEscape}>
       <div
         className="flex max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-800"
       >
@@ -3095,9 +3098,12 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Agent Config</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{agent.name} <span className="font-mono text-xs">({agent.id})</span></p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none p-1">
-            &times;
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <KeepAgentPanelOpenButton keepOpen={panelPersistence.keepOpen} onToggle={panelPersistence.toggleKeepOpen} />
+            <button onClick={onClose} aria-label="Close config" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-xl leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300">
+              &times;
+            </button>
+          </div>
         </div>
 
         {/* Body */}

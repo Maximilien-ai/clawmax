@@ -12,6 +12,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
 import { forwardChatMessage, loadForwardTargets, type ForwardTarget } from '../lib/agentChatForward'
 import { useDismissiblePopover } from '../lib/dismissiblePopover'
+import { useAgentPanelPersistence } from '../lib/agentPanelPersistence'
+import { KeepAgentPanelOpenButton } from './KeepAgentPanelOpenButton'
 import { appendAgentInboxAttachmentContext, buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, type AgentInboxAttachmentRef } from '../lib/agentInbox'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { createPromptAttachment } from '../lib/promptAttachments'
@@ -233,6 +235,7 @@ export function splitTrailingSystemNotice(content: string): { text: string; noti
 }
 
 export default function AgentChatPanel({ agentId, agentName, agentStatus, agentGeneration, onClose, onSuccess, onNavigateToDoc }: Props) {
+  const panelPersistence = useAgentPanelPersistence(onClose)
   const { config } = useAuth()
   const { showSuccess, showError } = useToast()
   // Staged Template Agents can only chat when their server-owned dev runtime
@@ -1165,7 +1168,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
   if (gatewayAvailable === false) {
     return (
-      <div className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`}>
+      <div className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`} onClick={panelPersistence.onBackdropClick} onKeyDown={panelPersistence.onEscape}>
         <div className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full w-full sm:w-[600px] absolute right-0 top-0' : 'rounded-xl w-full sm:w-[600px] mx-2 sm:mx-0'} p-4 sm:p-6`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Agent Chat: {agentName}</h2>
@@ -1177,7 +1180,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               >
                 {isSlideMode ? '◧' : '»'}
               </button>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl p-2 min-w-[40px] min-h-[40px] flex items-center justify-center">×</button>
+              <KeepAgentPanelOpenButton keepOpen={panelPersistence.keepOpen} onToggle={panelPersistence.toggleKeepOpen} />
+              <button onClick={onClose} aria-label="Close chat" className="text-gray-400 hover:text-gray-600 text-xl p-2 min-w-[40px] min-h-[40px] flex items-center justify-center">×</button>
             </div>
           </div>
           <div className="text-center py-8">
@@ -1217,15 +1221,26 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
   const downloadState = getAgentChatDownloadState(messages, loadingHistory, streaming)
 
+  function handlePanelEscape(event: React.KeyboardEvent<HTMLElement>) {
+    if (event.key !== 'Escape' || event.defaultPrevented) return
+    // Dismiss the innermost surface before closing the conversation beneath it.
+    const dismissChild = forwardTargetMsgId !== null ? () => setForwardTargetMsgId(null)
+      : deleteConfirm !== null ? () => setDeleteConfirm(null)
+        : showClearConfirm ? () => setShowClearConfirm(false)
+          : viewingArchive !== null ? () => setViewingArchive(null)
+            : showArchives ? () => setShowArchives(false) : null
+    if (dismissChild) {
+      event.preventDefault()
+      event.stopPropagation()
+      dismissChild()
+    } else panelPersistence.onEscape(event)
+  }
+
   return (
     <div
       className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`}
-      onClick={(e) => {
-        // Close when clicking outside panel (backdrop)
-        if (e.target === e.currentTarget) {
-          onClose()
-        }
-      }}
+      onClick={panelPersistence.onBackdropClick}
+      onKeyDown={handlePanelEscape}
     >
       <div
         className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full absolute right-0 top-0' : 'rounded-xl h-[90vh] sm:h-[600px]'} w-full sm:w-[700px] flex flex-col`}
@@ -1249,8 +1264,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               <ProductIconCell iconName="download" label={downloadState.title} size="sm" className="border-transparent bg-transparent text-current" />
               <span>Download</span>
             </button>
+            <KeepAgentPanelOpenButton keepOpen={panelPersistence.keepOpen} onToggle={panelPersistence.toggleKeepOpen} />
             <button
               onClick={onClose}
+              aria-label="Close chat"
               className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
             >
               <ProductIconCell iconName="close" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
@@ -1664,6 +1681,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                   e.preventDefault()
                   sendMessage()
                 } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  e.stopPropagation()
                   if (streaming) {
                     cancelStreaming()
                   } else {
