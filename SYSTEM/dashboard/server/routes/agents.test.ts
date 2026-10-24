@@ -948,6 +948,21 @@ async function run() {
     })
   })
 
+  await test('bulk delete removes each agent from the running Gateway, like single delete', async () => {
+    const ids = ['bulk-delete-one', 'bulk-delete-two']
+    for (const id of ids) writeAgent(workspacePath, id, `# IDENTITY.md\n\n- **Name:** ${id}\n`)
+    const nativeDeleteCalls: string[] = []
+    await withGatewayRpcStubs({
+      isGatewayRunning: () => ({ running: true, port: 18789 }),
+      getGatewayClient: () => ({ deleteAgentNative: async (id: string) => { nativeDeleteCalls.push(id) } }),
+    }, async () => {
+      const res = makeRes()
+      await getRouteHandler('delete', '/bulk')(makeReq({ body: { agents: ids.map((id) => ({ id })) } }), res)
+      assert.strictEqual(res.jsonBody?.summary?.success, 2, `Unexpected bulk result: ${JSON.stringify(res.jsonBody)}`)
+      assert.deepStrictEqual(nativeDeleteCalls, ids, 'Each agent must also leave the running Gateway, not only the workspace')
+    })
+  })
+
   await test('agent channels route returns non-secret binding state and current provider availability', async () => {
     writeAgent(workspacePath, 'channel-reader', '# IDENTITY.md\n\n- **Name:** Channel Reader\n')
     const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
