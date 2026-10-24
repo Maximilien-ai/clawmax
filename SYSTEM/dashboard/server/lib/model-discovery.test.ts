@@ -285,6 +285,37 @@ test('provider discovery caches valid catalogs and filters malformed optional mo
   }
 })
 
+test('a model list is cached for the key that fetched it, and the Gemini key never goes into a URL', async () => {
+  const previousKind = process.env.DASHBOARD_DEPLOYMENT_KIND
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
+  const requests: Array<{ url: string; credential: string }> = []
+  clearModelCache()
+  global.fetch = (async (input: any, init: any) => {
+    const url = String(input)
+    const credential = String(init?.headers?.Authorization || init?.headers?.['x-goog-api-key'] || '')
+    requests.push({ url, credential })
+    const second = credential.includes('key-two')
+    const body = url.includes('generativelanguage')
+      ? { models: [{ name: second ? 'models/gemini-2.5-pro' : 'models/gemini-2.5-flash' }] }
+      : { data: [{ id: second ? 'gpt-5.5' : 'gpt-5.4-mini' }] }
+    return { ok: true, status: 200, json: async () => body }
+  }) as any
+  try {
+    const one = await discoverModels({ openai: 'key-one', gemini: 'key-one' }, { showAll: true })
+    const two = await discoverModels({ openai: 'key-two', gemini: 'key-two' }, { showAll: true })
+    assert(one.models.includes('openai/gpt-5.4-mini') && one.models.includes('google/gemini-2.5-flash'), 'Expected the first key\'s lists')
+    assert(two.models.includes('openai/gpt-5.5') && !two.models.includes('openai/gpt-5.4-mini'), 'A second key must get its own OpenAI list, not the first key\'s cached one')
+    assert(two.models.includes('google/gemini-2.5-pro') && !two.models.includes('google/gemini-2.5-flash'), 'A second key must get its own Gemini list')
+    const gemini = requests.filter((request) => request.url.includes('generativelanguage'))
+    assert(gemini.length === 2 && gemini.every((request) => !request.url.includes('key')), `The Gemini key must not be in a URL: ${gemini.map((request) => request.url).join(', ')}`)
+    assert(gemini.map((request) => request.credential).join(',') === 'key-one,key-two', 'Expected the Gemini key in the x-goog-api-key header')
+  } finally {
+    if (previousKind === undefined) delete process.env.DASHBOARD_DEPLOYMENT_KIND
+    else process.env.DASHBOARD_DEPLOYMENT_KIND = previousKind
+    clearModelCache()
+  }
+})
+
 testChain.then(() => {
   global.fetch = originalFetch
   console.log(`\nTests passed: ${testsPassed}`)

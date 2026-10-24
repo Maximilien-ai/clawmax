@@ -892,24 +892,24 @@ router.post('/validate-provision', async (req, res) => {
   res.json(result)
 })
 
+// A key in a URL is written wherever URLs are: the rate-limit log, proxies, browser history.
+const PROVIDER_KEY_QUERY_PARAMS = ['openaiKey', 'anthropicKey', 'geminiKey', 'openrouterKey', 'xaiKey', 'openaiCompatibleApiKey']
+
 // GET /api/agents/models — dynamic discovery from provider APIs (cached 1hr)
-// Must be defined before /:id routes.
+// Must be defined before /:id routes. Keys go in the body of POST /models/discover.
 router.get('/models', async (req, res) => {
+  if (PROVIDER_KEY_QUERY_PARAMS.some((param) => req.query[param] !== undefined)) {
+    return res.status(400).json({ error: 'Provider keys are not accepted in a URL. Send them in the body of POST /api/agents/models/discover.' })
+  }
   try {
     const byokKeys = {
-      openai: req.query.openaiKey as string | undefined,
-      anthropic: req.query.anthropicKey as string | undefined,
-      gemini: req.query.geminiKey as string | undefined,
-      openrouter: req.query.openrouterKey as string | undefined,
-      xai: req.query.xaiKey as string | undefined,
       ollamaBaseUrl: req.query.ollamaBaseUrl as string | undefined,
-      openaiCompatibleApiKey: req.query.openaiCompatibleApiKey as string | undefined,
       openaiCompatibleBaseUrl: req.query.openaiCompatibleBaseUrl as string | undefined,
       openaiCompatibleDefaultModel: req.query.openaiCompatibleDefaultModel as string | undefined,
     }
     const showAll = String(req.query.showAll || '').toLowerCase() === 'true'
     const result = await discoverModels(
-      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.openrouter || byokKeys.xai || byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl ? byokKeys : undefined,
+      byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl ? byokKeys : undefined,
       { showAll }
     )
     res.json(result)
@@ -922,8 +922,8 @@ router.get('/models', async (req, res) => {
 // POST /api/agents/models/discover — BYOK-aware discovery without putting keys in a URL or clearing the model cache.
 router.post('/models/discover', async (req, res) => {
   try {
-    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
-    res.json(await discoverModels(body))
+    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string; showAll?: boolean }
+    res.json(await discoverModels(body, { showAll: body.showAll === true }))
   } catch (err) {
     console.error('Model discovery failed:', err)
     res.status(500).json({ error: 'Failed to discover models' })

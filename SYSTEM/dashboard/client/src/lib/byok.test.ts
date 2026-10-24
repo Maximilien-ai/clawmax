@@ -7,7 +7,7 @@
 import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, hasCogneeConfiguration, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
 import { cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
 import strictAssert from 'node:assert/strict'
-import { buildByokVerificationFingerprint, byokModelParams, byokModelParamsWithOptions, fetchModelsWithByok, getByokStorageKey, hasAnyLLMKeys, readStoredByokKeys } from './byok'
+import { buildByokVerificationFingerprint, fetchModelsWithByok, getByokStorageKey, hasAnyLLMKeys, readStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -118,16 +118,16 @@ async function main() {
     } finally { window.dispatchEvent = originalDispatch }
   })
 
-  await test('model discovery encodes each browser credential and propagates HTTP failures', async () => {
+  await test('model discovery sends each browser credential in the request body, never in the URL, and propagates HTTP failures', async () => {
     localStorage.clear()
-    strictAssert.equal(byokModelParams(), '')
     writeStoredByokKeys({ openai: 'a&b', anthropic: 'anthropic', geminiApiKey: 'gemini', openrouter: 'router', xai: 'xai', ollamaBaseUrl: 'http://ollama', openaiCompatibleApiKey: 'compatible', openaiCompatibleBaseUrl: 'https://host/v1', openaiCompatibleDefaultModel: 'model' })
-    const params = new URLSearchParams(byokModelParamsWithOptions({ showAll: true }))
-    strictAssert.deepEqual(Object.fromEntries(params), { openaiKey: 'a&b', anthropicKey: 'anthropic', geminiKey: 'gemini', openrouterKey: 'router', xaiKey: 'xai', ollamaBaseUrl: 'http://ollama', openaiCompatibleApiKey: 'compatible', openaiCompatibleBaseUrl: 'https://host/v1', openaiCompatibleDefaultModel: 'model', showAll: 'true' })
     const originalFetch = globalThis.fetch
     try {
-      globalThis.fetch = (async (url: any) => {
-        strictAssert.equal(String(url), `/api/agents/models${byokModelParamsWithOptions({ showAll: true })}`)
+      globalThis.fetch = (async (url: any, init?: RequestInit) => {
+        // A URL is written to proxy, server and browser logs; the keys must only travel in the body.
+        strictAssert.equal(String(url), '/api/agents/models/discover')
+        strictAssert.equal(init?.method, 'POST')
+        strictAssert.deepEqual(JSON.parse(String(init?.body)), { openai: 'a&b', anthropic: 'anthropic', gemini: 'gemini', openrouter: 'router', xai: 'xai', ollamaBaseUrl: 'http://ollama', openaiCompatibleApiKey: 'compatible', openaiCompatibleBaseUrl: 'https://host/v1', openaiCompatibleDefaultModel: 'model', showAll: true })
         return { ok: true, json: async () => ({ models: ['model'], modelsByProvider: {} }) }
       }) as any
       strictAssert.deepEqual(await fetchModelsWithByok({ showAll: true }), { models: ['model'], modelsByProvider: {} })
