@@ -16,9 +16,13 @@ assert.match(source, /aria-label=\{promptExpanded \? 'Shrink builder prompt' : '
   'The prompt size toggle needs an accessible name')
 assert.match(source, /textareaRef\.current\.style\.height = ''/,
   'The size toggle must reset a manual drag height')
-assert.match(source, /!showRightPane && recommendation && \(/,
-  'The result pane reopen control should appear only when a result exists')
-assert.match(source, /className="absolute right-3 top-3 z-10 inline-flex/,
-  'The result pane close button must work on mobile')
+assert.match(source, /\{\(showRightPane \|\| recommendation\) && \(/,
+  'The result pane toggle should appear only when a result exists or the pane is open')
+assert.match(source, /aria-expanded=\{showRightPane\}\s+aria-controls="builder-side-panel"/,
+  'The result pane toggle must report its state and name the pane it controls')
+assert.doesNotMatch(source, /absolute -left-3|lg:-left-3/,
+  'The result pane toggle must stay in the page flow so it works on mobile and is never clipped by the pane')
+assert.match(source, /min-w-\[min\(100%,16rem\)\] flex-1/,
+  'The title column needs a minimum width so the recommendation badges wrap instead of covering the pane toggle')
 
 console.log('Builder prompt layout tests passed')
