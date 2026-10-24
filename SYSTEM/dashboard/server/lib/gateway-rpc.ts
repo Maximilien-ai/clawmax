@@ -153,7 +153,7 @@ function parseGatewayConfig(config: any): GatewayConfig | null {
   }
 }
 
-function loadGatewayConfigFromDisk(): GatewayConfig | null {
+export function loadGatewayConfigFromDisk(): GatewayConfig | null {
   try {
     const explicitConfigPath = String(process.env.OPENCLAW_CONFIG_PATH || '').trim()
     const stateDir = String(process.env.OPENCLAW_STATE_DIR || '').trim()

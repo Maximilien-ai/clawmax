@@ -16,7 +16,7 @@ import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { createPromptAttachment } from '../lib/promptAttachments'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import { formatAgentWorkStatus, summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
-import { INCOMPLETE_AGENT_CHAT_MESSAGE, markIncompleteAgentReply } from '../lib/agentChatStream'
+import { INCOMPLETE_AGENT_CHAT_MESSAGE, applyAgentChatDelta, markIncompleteAgentReply } from '../lib/agentChatStream'
 import { buildAgentChatMarkdown, getAgentChatDownloadState } from '../lib/agentChatExport'
 import { useToast } from './Toast'
 import { AgentAttention } from './AgentAttention'
@@ -251,6 +251,9 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const activeTurnIdRef = useRef<string | null>(null)
   const [streamingStartedAt, setStreamingStartedAt] = useState<number | null>(null)
   const [streamingElapsedMs, setStreamingElapsedMs] = useState(0)
+  // Whether the latest turn's text streams as it is written (the server's `start` says so); null
+  // until a turn reports it. Only this, never the runtime's name, may claim live streaming.
+  const [liveOutput, setLiveOutput] = useState<boolean | null>(null)
   // Time since the runtime last produced output, from GET /turns/active -- the only source for
   // this, since a page refresh or another tab can't see the deltas this tab isn't receiving.
   const [quietForMs, setQuietForMs] = useState<number | null>(null)
@@ -811,6 +814,12 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       // here. Without this flag the loop simply exits and the finally block clears the spinner,
       // leaving the user with a half-written bubble and no indication anything went wrong.
       let sawTerminalEvent = false
+      // Live streaming is claimed only once live text actually arrives: a Gateway subscription alone
+      // does not prove the run streams (the CLI can still deliver the reply only at the end).
+      let subscribedLive = false
+      let sawLiveDelta = false
+      // Reply text from the Gateway (live, or its final snapshot) is the agent's own words: an error keeps it.
+      let sawGatewayText = false
 
       while (true) {
         const { done, value } = await reader.read()
@@ -827,16 +836,32 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
             if (data.type === 'start') {
               activeTurnIdRef.current = data.data?.turnId ?? null
+              subscribedLive = data.data?.liveOutput === true
+              // The label describes this attempt, never an earlier turn: unclaimed until its live text arrives.
+              setLiveOutput(data.data?.liveOutput === false ? false : null)
               setSessionId(current => resolveDashboardChatSessionId(current, data))
+              // Each runtime attempt starts its reply afresh. A retry after live text (fresh session,
+              // backup model) must not append its reply to the abandoned attempt's partial one, and
+              // whether its text is live is that attempt's own.
+              setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: '' } : m))
+              sawLiveDelta = false
+              sawGatewayText = false
             } else if (data.type === 'delta') {
-              // Append delta to assistant message
+              // The final `complete` text is authoritative; nothing may be appended after it.
+              if (sawTerminalEvent) continue
+              if (data.data?.live === true || data.data?.final === true) sawGatewayText = true
+              if (data.data?.live === true && !sawLiveDelta) {
+                sawLiveDelta = true
+                setLiveOutput(true)
+              }
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
-                  ? { ...m, content: m.content + (data.data.text || '') }
+                  ? { ...m, content: applyAgentChatDelta(m.content, data.data) }
                   : m
               ))
             } else if (data.type === 'complete') {
               sawTerminalEvent = true
+              if (subscribedLive && !sawLiveDelta) setLiveOutput(false)
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
                   ? { ...m, content: data.data?.text?.trim() ? data.data.text : (m.content.trim() ? m.content : 'No reply from agent.') }
@@ -849,9 +874,11 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               sawTerminalEvent = true
               const friendly = summarizeAgentChatFailure(data.data || 'Chat error', { agentId })
               setError(friendly)
+              // Text the Gateway already streamed (a Gateway that stopped mid-reply) stays readable
+              // above the error. Local output before an error is not reply text, so it gives way.
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
-                  ? { ...m, content: friendly }
+                  ? { ...m, content: sawGatewayText ? markIncompleteAgentReply(m.content, friendly) : friendly }
                   : m
               ))
               setStreaming(false)
@@ -1216,7 +1243,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
             </button>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
-            <p className="min-w-0 text-xs text-gray-400">Real-time streaming from the active runtime</p>
+            {/* Only Gateway-run turns stream; a local CLI run delivers its reply when it finishes. */}
+            <p className="min-w-0 text-xs text-gray-400">
+              {liveOutput === true ? 'Replies stream live' : liveOutput === false ? 'Replies appear when complete' : ''}
+            </p>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
               <button
                 onClick={resetAgentSession}
@@ -1527,6 +1557,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
           <div className="px-6 py-2 bg-sky-50 dark:bg-sky-900/30 border-t border-sky-200 dark:border-sky-800">
             <p className="text-xs text-sky-600 dark:text-sky-400">
               {formatAgentWorkStatus(streamingElapsedMs)}
+              {sending && liveOutput === false && <> The reply will appear when it is complete.</>}
               {/* Agent turns have no time limit, so a run can go quiet for minutes and still be
                   fine -- say so explicitly once the gap is long enough to otherwise read as a
                   hang, instead of leaving the user staring at a stalled-looking spinner. */}
