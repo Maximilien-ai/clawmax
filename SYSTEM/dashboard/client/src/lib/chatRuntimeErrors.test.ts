@@ -1,4 +1,4 @@
-import { formatAgentWorkStatus, summarizeAgentChatFailure } from './chatRuntimeErrors'
+import { formatAgentWorkStatus, isRuntimeDiagnosticText, summarizeAgentChatFailure } from './chatRuntimeErrors'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -124,6 +124,21 @@ test('formatAgentWorkStatus distinguishes long tool-enabled requests', () => {
   assert(/45s elapsed/.test(formatAgentWorkStatus(45_000)), 'Expected seconds elapsed')
   assert(/1m 15s elapsed/.test(formatAgentWorkStatus(75_000)), 'Expected minutes elapsed')
   assert(/several minutes/.test(formatAgentWorkStatus(75_000)), 'Do not promise a runtime deadline that is not enforced')
+})
+
+test('isRuntimeDiagnosticText flags runtime diagnostics, never code or prose that mentions errors', () => {
+  const rows: Array<[string, boolean]> = [
+    ['[diagnostic] lane task error: lane=main', true],
+    ['Error: session file locked (timeout 10000ms)', true],
+    ['request failed error="model unavailable"', true],
+    ['Handle it:\n\n```python\ntry:\n    parse(x)\nexcept ValueError:\n    pass\n```', false],
+    ['Catch `TypeError:` explicitly.', false],
+    ['```\nError: raised by the example\n```', false],
+    ['The API returns an error when the token expires.', false],
+  ]
+  for (const [text, expected] of rows) {
+    assert(isRuntimeDiagnosticText(text) === expected, `${expected ? "Expected" : "Did not expect"} a diagnostic: ${text}`)
+  }
 })
 
 console.log('\n========================================')
