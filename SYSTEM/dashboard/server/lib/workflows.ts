@@ -1233,10 +1233,18 @@ export function validateCron(cronExpression: string): { valid: boolean; error?: 
 }
 
 // ========== OpenClaw Cron Integration ==========
+//
+// The in-process scheduler (lib/scheduler.ts) owns every workflow schedule: each tick starts one
+// tracked run of all participants, under the pause switch, the budget and the run limit. Earlier
+// versions also registered one Gateway cron job per OpenClaw participant, named
+// `clawmax-<workflow>-<agent>`, so every tick ran those agents a second time, untracked and
+// unbudgeted. Nothing registers such jobs any more; syncing a workflow removes the ones left behind.
 
 function runCronCmd(args: string[]): { ok: boolean; output: string; error?: string } {
   try {
-    const output = execFileSync('openclaw', ['cron', ...args], {
+    // The pinned CLI, never the bare name: an `openclaw` on PATH can be another version than the
+    // Gateway (its handshake then fails), and only the pin follows the dashboard's runtime.
+    const output = execFileSync(resolveWorkflowOpenClawCliPath(), ['cron', ...args], {
       encoding: 'utf-8',
       timeout: 15000,
       env: safeEnv()
@@ -1263,7 +1271,7 @@ async function runCronCmdAsync(
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      const { stdout } = await execFileAsync('openclaw', ['cron', ...args], {
+      const { stdout } = await execFileAsync(resolveWorkflowOpenClawCliPath(), ['cron', ...args], {
         encoding: 'utf-8',
         timeout: timeoutMs,
         env: safeEnv(),
@@ -1280,196 +1288,72 @@ async function runCronCmdAsync(
   return { ok: false, output: '', error: lastError, attempts }
 }
 
-function buildCronAddArgs(workflow: Workflow, agentId: string, jobName: string, agentModel: string): string[] {
-  return [
-    'add',
-    '--name', jobName,
-    '--agent', agentId,
-    '--cron', workflow.schedule,
-    '--tz', workflow.timezone || 'UTC',
-    '--message', JSON.stringify(workflow.content).slice(0, 2000),
-    ...(agentModel ? ['--model', agentModel] : []),
-    '--no-deliver',
-    '--json',
-  ]
+type WorkflowCronSyncResult = { ok: boolean; cronJobId?: string; error?: string }
+
+// The names earlier versions gave their jobs: `clawmax-<workflow id>-<agent id>`. Nothing else names Gateway
+// jobs this way, and only such a job is removed: a workflow file (it can be imported) may name any id.
+const LEGACY_WORKFLOW_CRON_JOB_NAME = /^clawmax-[a-z0-9-]+-[a-z][a-z0-9_-]*$/
+
+function storedCronJobIds(workflow: Workflow): string[] {
+  return (workflow.cronJobId || '').split(',').map((id) => id.trim()).filter(Boolean)
+}
+
+/** The Gateway's legacy workflow jobs, or null when the list is unreadable or not the whole inventory. */
+function parseLegacyWorkflowCronJobs(output: string): Array<{ id: string; name: string }> | null {
+  try {
+    const data = JSON.parse(output)
+    if (!Array.isArray(data?.jobs)) return null
+    // The CLI reads every page itself; a reply that still says more exist is not the whole list, and an id
+    // missing from a partial list is not proof the job is gone.
+    if (data.hasMore === true || (typeof data.total === 'number' && data.total > data.jobs.length)) return null
+    return data.jobs
+      .map((job: any) => ({ id: String(job?.id || ''), name: String(job?.name || '') }))
+      .filter((job: { id: string; name: string }) => job.id && LEGACY_WORKFLOW_CRON_JOB_NAME.test(job.name))
+  } catch {
+    return null
+  }
+}
+
+const LEGACY_REMOVAL_FAILED = "Could not remove a Gateway cron job an earlier version registered for this workflow; until it is removed it runs the workflow's OpenClaw agents a second time on schedule"
+
+/** Removes the legacy Gateway jobs stored on the workflow (see above); registers none. */
+export function syncWorkflowToCron(workflow: Workflow): WorkflowCronSyncResult {
+  const stored = storedCronJobIds(workflow)
+  if (stored.length === 0) return { ok: true }
+  const listed = runCronCmd(['list', '--json', '--all'])
+  const legacy = listed.ok ? parseLegacyWorkflowCronJobs(listed.output) : null
+  if (!legacy) {
+    return { ok: false, cronJobId: workflow.cronJobId, error: `${LEGACY_REMOVAL_FAILED} (the Gateway's job list could not be read: ${listed.error || 'incomplete or unreadable'})` }
+  }
+  const legacyIds = new Set(legacy.map((job) => job.id))
+  const remaining: string[] = []
+  const errors: string[] = []
+  // A stored id the Gateway does not list as a legacy job is gone already, or is not this dashboard's to remove.
+  for (const id of stored.filter((storedId) => legacyIds.has(storedId))) {
+    const removed = runCronCmd(['rm', id])
+    if (!removed.ok) {
+      remaining.push(id)
+      errors.push(removed.error || 'OpenClaw cron command failed')
+    }
+  }
+  if (remaining.length === 0) return { ok: true }
+  return { ok: false, cronJobId: remaining.join(','), error: `${LEGACY_REMOVAL_FAILED} (${errors.join('; ')})` }
 }
 
 /**
- * Sync a workflow to OpenClaw cron. Creates or updates the cron job.
- * Returns the cron job ID if successful.
+ * Startup, off the request path: removes every legacy workflow job on the Gateway, including jobs of
+ * workflows deleted since and jobs whose id was never stored.
  */
-export function syncWorkflowToCron(workflow: Workflow, participants: string[]): { ok: boolean; cronJobId?: string; error?: string } {
-  if (getWorkflowPipelineState().paused || !workflow.enabled || workflow.schedule === 'manual') {
-    // If disabled or manual, remove any existing cron job
-    if (workflow.cronJobId) {
-      removeCronJob(workflow.cronJobId)
-    }
-    return { ok: true }
+export async function removeLegacyWorkflowCronJobsAsync(): Promise<{ ok: boolean; error?: string }> {
+  const listed = await runCronCmdAsync(['list', '--json', '--all'])
+  const legacy = listed.ok ? parseLegacyWorkflowCronJobs(listed.output) : null
+  if (!legacy) return { ok: false, error: `Could not read the Gateway's cron jobs to remove old workflow registrations: ${listed.error || 'incomplete or unreadable list'}` }
+  const errors: string[] = []
+  for (const job of legacy) {
+    const removed = await runCronCmdAsync(['rm', job.id])
+    if (!removed.ok) errors.push(`${job.name}: ${removed.error || 'OpenClaw cron command failed'}`)
   }
-
-  if (participants.length === 0) {
-    return { ok: false, error: 'No participants resolved for workflow' }
-  }
-
-  // Use first participant as the cron agent (OpenClaw cron targets one agent per job)
-  // For multiagent workflows, we create one cron job per agent
-  const results: string[] = []
-  let skippedNonOpenClaw = 0
-
-  for (const agentId of participants) {
-    const jobName = `clawmax-${workflow.id}-${agentId}`
-
-    // Remove existing job if any (e.g. a stale registration from before the agent's runtime was
-    // switched away from openclaw)
-    const existingJobs = listCronJobs()
-    const existing = existingJobs.find(j => j.name === jobName)
-    if (existing) {
-      removeCronJob(existing.id)
-    }
-
-    // openclaw cron only knows how to invoke the openclaw CLI — claude/droid participants are
-    // scheduled entirely by the in-process node-cron scheduler in lib/scheduler.ts instead.
-    const agentRuntime = resolveAgentExecutionConfig(agentId).runtime
-    if (agentRuntime !== 'openclaw') {
-      skippedNonOpenClaw++
-      console.log(`[Cron] cron: skipped openclaw cron registration for ${agentId} (runtime ${agentRuntime}); in-process scheduler covers it`)
-      continue
-    }
-
-    // Try to get agent's model from IDENTITY.md
-    let agentModel = ''
-    try {
-      const { parseIdentity } = require('./workspace')
-      const identity = parseIdentity(agentId)
-      if (identity?.model) agentModel = identity.model
-    } catch {}
-
-    const args = buildCronAddArgs(workflow, agentId, jobName, agentModel)
-
-    const result = runCronCmd(args)
-    if (result.ok) {
-      try {
-        const parsed = JSON.parse(result.output)
-        results.push(parsed.id || parsed.jobId || jobName)
-      } catch {
-        results.push(jobName)
-      }
-    } else {
-      console.error(`[Cron] Failed to add job for agent ${agentId}:`, result.error)
-    }
-  }
-
-  // Every participant was a non-openclaw runtime — nothing was attempted, so this isn't a
-  // failure, there's simply no openclaw cron registration for the in-process scheduler to need.
-  const attemptedOpenClawRegistration = participants.length > skippedNonOpenClaw
-  return {
-    ok: attemptedOpenClawRegistration ? results.length > 0 : true,
-    cronJobId: results.length > 0 ? results.join(',') : undefined,
-  }
-}
-
-async function listCronJobsAsync(): Promise<Array<{ id: string; name: string; enabled: boolean }>> {
-  const result = await runCronCmdAsync(['list', '--json', '--all'])
-  if (!result.ok) return []
-  try {
-    const data = JSON.parse(result.output)
-    return data.jobs || []
-  } catch {
-    return []
-  }
-}
-
-/** Non-blocking startup variant used so optional Gateway cron work cannot starve core APIs. */
-export async function syncWorkflowToCronAsync(workflow: Workflow, participants: string[]): Promise<{ ok: boolean; cronJobId?: string; error?: string }> {
-  if (getWorkflowPipelineState().paused || !workflow.enabled || workflow.schedule === 'manual') {
-    if (workflow.cronJobId) {
-      for (const id of workflow.cronJobId.split(',')) {
-        await runCronCmdAsync(['rm', id.trim()])
-      }
-    }
-    return { ok: true }
-  }
-
-  if (participants.length === 0) return { ok: false, error: 'No participants resolved for workflow' }
-
-  const existingJobs = await listCronJobsAsync()
-  const results: string[] = []
-  let skippedNonOpenClaw = 0
-  const failures: string[] = []
-
-  for (const agentId of participants) {
-    const jobName = `clawmax-${workflow.id}-${agentId}`
-    const existing = existingJobs.find((job) => job.name === jobName)
-    if (existing) {
-      const removed = await runCronCmdAsync(['rm', existing.id])
-      if (!removed.ok) {
-        failures.push(`${agentId}: ${removed.error || 'failed to remove stale cron job'}`)
-        continue
-      }
-    }
-
-    const agentRuntime = resolveAgentExecutionConfig(agentId).runtime
-    if (agentRuntime !== 'openclaw') {
-      skippedNonOpenClaw++
-      continue
-    }
-
-    let agentModel = ''
-    try {
-      const { parseIdentity } = require('./workspace')
-      const identity = parseIdentity(agentId)
-      if (identity?.model) agentModel = identity.model
-    } catch {}
-
-    const added = await runCronCmdAsync(buildCronAddArgs(workflow, agentId, jobName, agentModel))
-    if (!added.ok) {
-      failures.push(`${agentId}: ${added.error || 'failed to add cron job'}`)
-      continue
-    }
-    try {
-      const parsed = JSON.parse(added.output)
-      results.push(parsed.id || parsed.jobId || jobName)
-    } catch {
-      results.push(jobName)
-    }
-  }
-
-  const attemptedOpenClawRegistration = participants.length > skippedNonOpenClaw
-  return {
-    ok: failures.length === 0 && (attemptedOpenClawRegistration ? results.length > 0 : true),
-    cronJobId: results.length > 0 ? results.join(',') : undefined,
-    ...(failures.length > 0 ? { error: failures.join('; ') } : {}),
-  }
-}
-
-export function removeCronJob(jobId: string): void {
-  // Handle comma-separated job IDs (multiagent workflows)
-  for (const id of jobId.split(',')) {
-    runCronCmd(['rm', id.trim()])
-  }
-}
-
-export function enableCronJob(jobId: string): void {
-  for (const id of jobId.split(',')) {
-    runCronCmd(['enable', id.trim()])
-  }
-}
-
-export function disableCronJob(jobId: string): void {
-  for (const id of jobId.split(',')) {
-    runCronCmd(['disable', id.trim()])
-  }
-}
-
-function listCronJobs(): Array<{ id: string; name: string; enabled: boolean }> {
-  const result = runCronCmd(['list', '--json', '--all'])
-  if (!result.ok) return []
-  try {
-    const data = JSON.parse(result.output)
-    return data.jobs || []
-  } catch {
-    return []
-  }
+  return errors.length === 0 ? { ok: true } : { ok: false, error: `${LEGACY_REMOVAL_FAILED} (${errors.join('; ')})` }
 }
 
 // List all workflows
@@ -2039,9 +1923,6 @@ export function triggerWorkflow(workflowId: string, options?: {
       // Schedule disable after execution completes
       setTimeout(() => {
         updateWorkflow(workflowId, { enabled: false })
-        if (workflow.cronJobId) {
-          disableCronJob(workflow.cronJobId)
-        }
       }, 5000)
     }
 

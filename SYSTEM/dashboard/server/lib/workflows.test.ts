@@ -4,6 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/workflows.test.ts
  */
 
+import nodeAssert from 'assert'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -775,69 +776,48 @@ test('resolveWorkflowOpenClawCliPath honors OPENCLAW_BIN override', () => {
   }
 })
 
-function withRuntimePinnedWorkspace<T>(agentRuntimes: Record<string, string | undefined>, fn: (workspaceRoot: string) => T): T {
-  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-cron-runtime-'))
-  const previousWorkspace = process.env.OPENCLAW_WORKSPACE
-  const previousHome = process.env.HOME
-  const previousEnabledRuntimes = process.env.WORKSPACES_INTEGRATIONS_RUNTIMES
-  const home = path.join(workspaceRoot, '.home')
+test('syncWorkflowToCron leaves scheduling to the in-process scheduler and only removes its own old Gateway jobs', () => {
+  // Earlier versions also registered a Gateway cron job per OpenClaw participant, so every tick ran those
+  // agents twice. A stub CLI answers `cron list` from jobs.json and records each call, so nothing reaches a
+  // real `openclaw` or Gateway.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-cron-'))
+  const calls = path.join(dir, 'calls.log')
+  const jobs = path.join(dir, 'jobs.json')
+  const fakeCli = path.join(dir, 'openclaw')
+  fs.writeFileSync(fakeCli, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${calls}'\ncase "$*" in *unreachable*) exit 1;; "cron list"*) cat '${jobs}';; esac\n`, 'utf-8')
+  fs.chmodSync(fakeCli, 0o755)
+  fs.writeFileSync(jobs, JSON.stringify({ jobs: [
+    { id: 'job-a', name: 'clawmax-wf-scheduled-agent-a' },
+    { id: 'job-b', name: 'clawmax-wf-scheduled-agent-b' },
+    { id: 'job-unreachable', name: 'clawmax-wf-scheduled-agent-c' },
+    { id: 'user-job', name: 'nightly-backup' },
+  ] }))
+  const readCalls = () => fs.existsSync(calls) ? fs.readFileSync(calls, 'utf-8').split('\n').filter(Boolean) : []
+  const original = process.env.OPENCLAW_BIN
+  process.env.OPENCLAW_BIN = fakeCli
   try {
-    process.env.OPENCLAW_WORKSPACE = workspaceRoot
-    process.env.HOME = home
-    // A runtime pin is only honored when that CLI is enabled for the workspace. The temp
-    // workspace has no integration config, so enable both CLIs explicitly rather than
-    // inheriting a developer's local .env — otherwise this test only passes on machines
-    // that happen to set WORKSPACES_INTEGRATIONS_RUNTIMES.
-    process.env.WORKSPACES_INTEGRATIONS_RUNTIMES = 'claude,droid'
-    fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
-    fs.mkdirSync(path.join(workspaceRoot, 'SYSTEM'), { recursive: true })
-    for (const [agentId, runtime] of Object.entries(agentRuntimes)) {
-      const agentDir = path.join(workspaceRoot, 'AGENTS', agentId)
-      fs.mkdirSync(agentDir, { recursive: true })
-      const identityLines = ['# Identity', '', '- **Name:** Test Agent']
-      if (runtime) identityLines.push(`- **Runtime:** ${runtime}`)
-      fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), identityLines.join('\n'), 'utf-8')
-    }
-    return fn(workspaceRoot)
+    const scheduled = { id: 'wf-scheduled', enabled: true, schedule: '0 9 * * *', timezone: 'UTC', content: 'Say hi' } as any
+    nodeAssert.deepStrictEqual(syncWorkflowToCron(scheduled), { ok: true })
+    nodeAssert.deepStrictEqual(readCalls(), [], 'An enabled, scheduled workflow must not be registered with the Gateway')
+
+    // A workflow file can be imported, so its stored ids are trusted only for jobs the Gateway lists under the
+    // legacy name: the user's own job and an id that no longer exists are left alone.
+    nodeAssert.deepStrictEqual(syncWorkflowToCron({ ...scheduled, cronJobId: 'job-a, job-b, user-job, gone' }), { ok: true }, 'Removed jobs leave no stored id')
+    nodeAssert.deepStrictEqual(readCalls(), ['cron list --json --all', 'cron rm job-a', 'cron rm job-b'], 'Expected only the legacy jobs to be removed, with the pinned CLI')
+
+    const failed = syncWorkflowToCron({ ...scheduled, enabled: false, cronJobId: 'job-a,job-unreachable' })
+    nodeAssert.strictEqual(failed.ok, false, 'A job that could not be removed must be reported')
+    nodeAssert.strictEqual(failed.cronJobId, 'job-unreachable', 'Only the job that is still registered stays stored, to retry')
+    nodeAssert(failed.error?.includes('second time'), `Expected the warning to say what the old job does, got ${failed.error}`)
+
+    fs.writeFileSync(jobs, JSON.stringify({ jobs: [{ id: 'job-a', name: 'clawmax-wf-scheduled-agent-a' }], hasMore: true }))
+    const partial = syncWorkflowToCron({ ...scheduled, cronJobId: 'job-a' })
+    nodeAssert.deepStrictEqual([partial.ok, partial.cronJobId], [false, 'job-a'], 'A partial job list removes nothing and keeps the stored id')
   } finally {
-    if (typeof previousWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
-    else process.env.OPENCLAW_WORKSPACE = previousWorkspace
-    if (typeof previousHome === 'undefined') delete process.env.HOME
-    else process.env.HOME = previousHome
-    if (typeof previousEnabledRuntimes === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_RUNTIMES
-    else process.env.WORKSPACES_INTEGRATIONS_RUNTIMES = previousEnabledRuntimes
-    fs.rmSync(workspaceRoot, { recursive: true, force: true })
+    if (typeof original === 'undefined') delete process.env.OPENCLAW_BIN
+    else process.env.OPENCLAW_BIN = original
+    fs.rmSync(dir, { recursive: true, force: true })
   }
-}
-
-test('syncWorkflowToCron skips openclaw cron registration for a claude/droid-pinned participant', () => {
-  withRuntimePinnedWorkspace({ 'droid-runner': 'droid' }, () => {
-    const result = syncWorkflowToCron({
-      id: 'wf-runtime-skip',
-      enabled: true,
-      schedule: '0 9 * * *',
-      timezone: 'UTC',
-      content: 'Say hi',
-    } as any, ['droid-runner'])
-    assert(result.ok === true, `Expected ok:true when every participant is non-openclaw, got ${JSON.stringify(result)}`)
-    assert(result.cronJobId === undefined, `Expected no cron job id, got ${result.cronJobId}`)
-  })
-})
-
-test('syncWorkflowToCron does not mask a real openclaw registration failure behind runtime skips', () => {
-  withRuntimePinnedWorkspace({ 'droid-runner': 'droid', 'openclaw-runner': undefined }, () => {
-    // No real openclaw CLI is on PATH in this test environment, so the openclaw-runner
-    // registration attempt fails — that must still surface as ok:false, not be swallowed
-    // by the unrelated droid-runner skip.
-    const result = syncWorkflowToCron({
-      id: 'wf-runtime-mixed',
-      enabled: true,
-      schedule: '0 9 * * *',
-      timezone: 'UTC',
-      content: 'Say hi',
-    } as any, ['droid-runner', 'openclaw-runner'])
-    assert(result.ok === false, `Expected ok:false when an openclaw participant's registration genuinely fails, got ${JSON.stringify(result)}`)
-  })
 })
 
 test('buildWorkflowSessionId stays within provider cache key limits for long ids', () => {

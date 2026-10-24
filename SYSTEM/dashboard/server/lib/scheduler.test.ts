@@ -61,7 +61,7 @@ async function run() {
   await test('syncAllWorkflows schedules enabled workflows and updates cron job ids', async () => {
     const scheduled: Array<{ schedule: string; options: any; stopCalled: boolean }> = []
     const updateCalls: Array<{ workflowId: string; updates: any }> = []
-    const syncCalls: Array<{ workflowId: string; participants: string[] }> = []
+    const syncCalls: string[] = []
     const scheduler = loadScheduler({
       cron: {
         validate: (value: string) => value === '0 9 * * *',
@@ -80,8 +80,8 @@ async function run() {
           cronJobId: 'old-job',
         }],
         resolveParticipants: () => [{ agentId: 'agent-1' }, { agentId: 'agent-2' }],
-        syncWorkflowToCron: (workflow: any, participants: string[]) => {
-          syncCalls.push({ workflowId: workflow.id, participants })
+        syncWorkflowToCron: (workflow: any) => {
+          syncCalls.push(workflow.id)
           return { ok: true, cronJobId: 'new-job' }
         },
         updateWorkflow: (workflowId: string, updates: any) => {
@@ -95,8 +95,8 @@ async function run() {
 
     scheduler.syncAllWorkflows({ syncCronRegistrations: true })
 
-    assert.strictEqual(syncCalls.length, 1, 'Expected cron sync to run for enabled workflow')
-    assert.deepStrictEqual(syncCalls[0], { workflowId: 'wf-enabled', participants: ['agent-1', 'agent-2'] }, 'Expected resolved participants to be forwarded')
+    // The sync only removes old Gateway jobs (lib/workflows.ts), so it needs no participants.
+    assert.deepStrictEqual(syncCalls, ['wf-enabled'], 'Expected cron sync to run for enabled workflow')
     assert.deepStrictEqual(updateCalls, [{ workflowId: 'wf-enabled', updates: { cronJobId: 'new-job' } }], 'Expected cron job id update when changed')
     assert.strictEqual(scheduled.length, 1, 'Expected enabled workflow to be scheduled')
     assert.deepStrictEqual(scheduled[0].options, { timezone: 'America/New_York' }, 'Expected scheduler to use normalized timezone')
@@ -185,8 +185,9 @@ async function run() {
     scheduler.stopScheduler()
   })
 
-  await test('async gateway cron sync isolates invalid schedules and records diagnostics', async () => {
-    const syncCalls: string[] = []
+  await test('startup removes legacy Gateway jobs once, clears stored ids, and still reports invalid schedules', async () => {
+    let cleanupCalls = 0
+    const updateCalls: Array<{ workflowId: string; updates: any }> = []
     const readinessCalls: Array<{ timeoutMs: number; pollMs: number }> = []
     const scheduler = loadScheduler({
       cron: {
@@ -195,16 +196,18 @@ async function run() {
       } as any,
       workflows: {
         listWorkflows: () => [
-          { id: 'wf-valid-a', enabled: true, schedule: '30 9 * * *', timezone: 'UTC' },
-          { id: 'wf-invalid', enabled: true, schedule: 'not a cron', timezone: 'UTC' },
+          { id: 'wf-valid-a', enabled: true, schedule: '30 9 * * *', timezone: 'UTC', cronJobId: 'legacy-a' },
+          { id: 'wf-invalid', enabled: true, schedule: 'not a cron', timezone: 'UTC', cronJobId: 'legacy-invalid' },
           { id: 'wf-valid-b', enabled: true, schedule: '0 */2 * * *', timezone: 'UTC' },
         ],
-        resolveParticipants: () => [{ agentId: 'agent-1' }],
-        syncWorkflowToCronAsync: async (workflow: any) => {
-          syncCalls.push(workflow.id)
-          return { ok: true, cronJobId: `${workflow.id}-cron` }
+        removeLegacyWorkflowCronJobsAsync: async () => {
+          cleanupCalls++
+          return { ok: true }
         },
-        updateWorkflow: () => ({ success: true }),
+        updateWorkflow: (workflowId: string, updates: any) => {
+          updateCalls.push({ workflowId, updates })
+          return { success: true }
+        },
       } as any,
       workspace: {
         listAgents: () => [{ id: 'agent-1' }],
@@ -223,7 +226,12 @@ async function run() {
       pollMs: scheduler.GATEWAY_CRON_READY_POLL_MS,
     }], 'Expected startup cron synchronization to wait through a slow Gateway convergence')
     assert.strictEqual(scheduler.GATEWAY_CRON_READY_TIMEOUT_MS, 120000, 'Expected readiness to cover the observed 45-103 second Gateway startup range')
-    assert.deepStrictEqual(syncCalls, ['wf-valid-a', 'wf-valid-b'], 'Expected valid schedules on both sides of an invalid entry to synchronize')
+    // Legacy jobs are removed in one pass over the Gateway (deleted workflows included), whatever the schedules say.
+    assert.strictEqual(cleanupCalls, 1, 'Expected one legacy cleanup pass')
+    assert.deepStrictEqual(updateCalls, [
+      { workflowId: 'wf-valid-a', updates: { cronJobId: undefined } },
+      { workflowId: 'wf-invalid', updates: { cronJobId: undefined } },
+    ], 'Expected stored legacy job ids to be cleared once the Gateway has none')
     assert.strictEqual(diagnostics.status, 'degraded', 'Expected invalid schedule to be visible in diagnostics')
     assert.strictEqual(diagnostics.failures.length, 1, 'Expected one isolated invalid-schedule diagnostic')
     assert.strictEqual(diagnostics.failures[0].workflowId, 'wf-invalid')
