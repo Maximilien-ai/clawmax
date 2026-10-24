@@ -3208,6 +3208,15 @@ else
   fail "Workspace import unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace .git boundary tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-git-boundary.test.ts > /tmp/clawmax-workspace-git-boundary.out 2>&1 || true
+if grep -q "workspace-git-boundary.test.ts: [0-9]* passed, 0 failed" /tmp/clawmax-workspace-git-boundary.out; then
+  pass "Workspace .git boundary tests"
+else
+  cat /tmp/clawmax-workspace-git-boundary.out
+  fail "Workspace .git boundary tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace export unit tests...${NC}"
 if npx ts-node --transpileOnly server/lib/native-chat-history.test.ts > /tmp/clawmax-native-chat-history.out 2>&1; then
   pass "Native chat history read-only and branch tests"

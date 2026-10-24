@@ -786,7 +786,8 @@ app.post('/api/docs/content', protect, async (req, res) => {
     const isRepo = await git.checkIsRepo()
 
     if (isRepo) {
-      await git.add(relPath)
+      // `--`: a document named `--pathspec-from-file=x.md` is a path, not an option.
+      await git.add(['--', relPath])
       const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0]
       const commitMessage = `docs: Update ${relPath}\n\nEdited via ClawMax Dashboard at ${timestamp}`
       await git.commit(commitMessage)
