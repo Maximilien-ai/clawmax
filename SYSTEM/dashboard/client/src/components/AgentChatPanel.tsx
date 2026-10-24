@@ -1224,7 +1224,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   function handlePanelEscape(event: React.KeyboardEvent<HTMLElement>) {
     if (event.key !== 'Escape' || event.defaultPrevented) return
     // Dismiss the innermost surface before closing the conversation beneath it.
-    const dismissChild = forwardTargetMsgId !== null ? () => setForwardTargetMsgId(null)
+    const dismissChild = forwardTargetMsgId !== null ? () => {
+      forwardTriggerRef.current?.focus()
+      setForwardTargetMsgId(null)
+    }
       : deleteConfirm !== null ? () => setDeleteConfirm(null)
         : showClearConfirm ? () => setShowClearConfirm(false)
           : viewingArchive !== null ? () => setViewingArchive(null)
