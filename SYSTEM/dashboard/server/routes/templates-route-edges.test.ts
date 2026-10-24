@@ -485,6 +485,23 @@ async function run() {
     assert(!res.jsonBody?.workflowConflicts.includes('Internal Dependency'), 'Internal dependency must not be mistaken for an external conflict')
   })
 
+  await test('workflow Markdown export refuses ids that leave the workflows directory', async () => {
+    const looked: string[] = []
+    const handler = getRouteHandler('get', '/workflows/:id/export-md', {
+      workflows: { getWorkflow: (id: string) => { looked.push(id); return null } } as any,
+    })
+    for (const id of ['../../SYSTEM/integrations', '..', 'nested/workflow']) {
+      const res = makeRes()
+      handler(makeReq({ params: { id } }), res)
+      assert.strictEqual(res.statusCode, 400, `Expected 400 for ${id}`)
+    }
+    assert.deepStrictEqual(looked, [], 'A rejected id must not reach the workflow file lookup')
+    const res = makeRes()
+    handler(makeReq({ params: { id: 'missing-workflow' } }), res)
+    assert.strictEqual(res.statusCode, 404)
+    assert.deepStrictEqual(looked, ['missing-workflow'])
+  })
+
   await test('agent template import validates input and reports import failures without partial success', async () => {
     let calls = 0
     const handler = getRouteHandler('post', '/agents/import', {

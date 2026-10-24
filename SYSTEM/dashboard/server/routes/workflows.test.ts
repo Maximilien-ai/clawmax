@@ -5,8 +5,10 @@
  */
 
 import fs from 'fs'
+import http from 'http'
 import os from 'os'
 import path from 'path'
+import express from 'express'
 import { createWorkflow } from '../lib/workflows'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 
@@ -735,6 +737,48 @@ async function run() {
     const res = makeRes()
     await handler(makeReq({}, { body: { paused: true } }), res)
     assert(res.statusCode === 500 && res.jsonBody?.error === 'Failed to update workflow pipeline state', 'Internal state paths must not be disclosed')
+  })
+
+  await test('workflow and execution ids that escape their directories are rejected before any file is touched', async () => {
+    const created = createWorkflow({
+      name: 'Path Id Test',
+      description: 'Ids must not leave the workflows directory',
+      schedule: 'manual',
+      content: '# Test\nStay inside.',
+      executionMode: 'managed',
+      owner: 'test-owner',
+      targeting: { agents: [], groups: [], tags: [], communities: [] },
+    } as any)
+    assert(!!(created.success && created.id), `Workflow should be created: ${created.error}`)
+    // executions/<workflow>/../../../outside.json is the workspace root's outside.json.
+    const outside = path.join(workspacePath, 'outside.json')
+    fs.writeFileSync(outside, JSON.stringify({ id: 'outside', workflowId: created.id, status: 'completed' }))
+
+    // A real app, so Express decodes `%2F` inside the parameter exactly as it does in production.
+    const app = express()
+    app.use(express.json())
+    app.use('/api/workflows', getRouter())
+    const server = http.createServer(app)
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const base = `http://127.0.0.1:${(server.address() as import('net').AddressInfo).port}/api/workflows`
+    try {
+      const escapingExecution = `${base}/${created.id}/executions/${encodeURIComponent('../../../outside')}`
+      const read = await fetch(escapingExecution)
+      assert(read.status === 400, `Reading an execution id with ../ must be rejected, got ${read.status}`)
+      const removed = await fetch(escapingExecution, { method: 'DELETE' })
+      assert(removed.status === 400, `Deleting an execution id with ../ must be rejected, got ${removed.status}`)
+      const archived = await fetch(`${escapingExecution}/archive`, { method: 'POST' })
+      assert(archived.status === 400, `Archiving an execution id with ../ must be rejected, got ${archived.status}`)
+      assert(fs.existsSync(outside), 'A file outside the executions directory must not be deleted or moved')
+
+      const completed = await fetch(`${base}/${encodeURIComponent('../outside')}/complete`, { method: 'POST' })
+      assert(completed.status === 400, `A workflow id with ../ must be rejected, got ${completed.status}`)
+
+      const missing = await fetch(`${base}/${created.id}/executions/exec-missing`)
+      assert(missing.status === 404, `A well-formed execution id must still reach the route, got ${missing.status}`)
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

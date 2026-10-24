@@ -820,6 +820,8 @@ router.post('/organizations/import', async (req, res) => {
 // GET /api/templates/workflows/:id/export-md — Export workflow as WORKFLOW.md
 // NOTE: must be before /:type/:slug/export-md to avoid being caught by it
 router.get('/workflows/:id/export-md', (req, res) => {
+  // Same id rule as the workflows router: the id is joined into a file path, and Express decodes %2F.
+  if (!/^[a-z0-9-]+$/.test(req.params.id)) return res.status(400).json({ error: 'Invalid workflow ID' })
   const workflow = getWorkflow(req.params.id)
   if (!workflow) return res.status(404).json({ error: 'Workflow not found' })
 
