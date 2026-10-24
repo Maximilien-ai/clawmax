@@ -319,6 +319,10 @@ async function registerAgentInConfig(agentId: string, profile: boolean): Promise
 }
 
 const router = Router()
+
+// Every `:id` here is an agent id that ends up in a path (`AGENTS/<id>`, `~/.openclaw/agents/<id>`), and
+// Express decodes `%2F` inside a parameter, so it is checked once for every route rather than per handler.
+router.param('id', (_req, res, next, id) => (/^[a-z][a-z0-9_-]*$/.test(id) ? next() : res.status(400).json({ ok: false, error: 'Invalid agent id' })))
 const AGENT_GENERATION_HEADER = 'x-clawmax-agent-generation'
 
 function rejectStaleAgentRoute(req: express.Request, res: express.Response, agentId: string): boolean {
