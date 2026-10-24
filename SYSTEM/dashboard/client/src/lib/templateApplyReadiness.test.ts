@@ -55,4 +55,12 @@ test('apply-now is allowed when only optional placeholders remain', () => {
   assert.equal(organizationTemplateCanApplyNow(template), true)
 })
 
+test('apply-now follows the inputs a workflow declares optional, like the apply form and the server', () => {
+  const content = '## Run Inputs\n- **Food and drink plan:** [food and drink plan]'
+  const declaredOptional = { workflows: [{ id: 'kickoff', content, inputs: [{ name: 'foodAndDrinkPlan', label: 'Food and drink plan', required: false }] }] }
+  assert.equal(organizationTemplateCanApplyNow(declaredOptional), true)
+  const undeclared = { workflows: [{ id: 'kickoff', content }] }
+  assert.equal(organizationTemplateCanApplyNow(undeclared), false)
+})
+
 console.log('templateApplyReadiness.test.ts: ok')

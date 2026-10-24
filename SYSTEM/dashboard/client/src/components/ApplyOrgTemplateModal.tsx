@@ -8,6 +8,7 @@ import { ProductIconCell } from '../lib/productIcons'
 import { beginSingleFlight, endSingleFlight } from '../lib/singleFlight'
 import { buildApplyOrgCustomizeSteps, resolveInitialApplyOrgWizardStep } from '../lib/applyOrgTemplateFlow'
 import TemplateApplyProgress from './TemplateApplyProgress'
+import { findMissingRequiredWorkflowFields } from '../../../server/lib/workflow-required-fields'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 
 interface TemplateParameter {
@@ -139,7 +140,7 @@ function parseWorkflowConfigFields(content?: string | null): WorkflowConfigField
     let options: string[] | undefined
     const phLower = ph.toLowerCase()
     const commaItems = ph.split(',').map(s => s.trim()).filter(Boolean)
-    if (/^(yes|no|true|false|enabled|disabled)/i.test(phLower) || /\btrue\/false\b|\byes\/no\b/i.test(phLower)) {
+    if (/^(yes|no|true|false|enabled|disabled)\b/i.test(phLower) || /\btrue\/false\b|\byes\/no\b/i.test(phLower)) {
       fieldType = 'checkbox'
     } else if (commaItems.length >= 3 && !phLower.startsWith('e.g.')) {
       fieldType = 'select'
@@ -191,6 +192,19 @@ function parseWorkflowConfigFields(content?: string | null): WorkflowConfigField
   return fields
 }
 
+const REQUIRED_WORKFLOW_FIELD_MESSAGE = 'Required before you can deploy this template.'
+
+/** DOM id of a workflow form field, from its `${workflowId}::${label}` key. */
+function workflowFieldDomId(key: string): string {
+  return `workflow-field-${key.replace(/[^a-zA-Z0-9_-]+/g, '-')}`
+}
+
+function describeMissingWorkflowFields(missing: Array<{ name: string; labels: string[] }>): string {
+  const count = missing.reduce((total, workflow) => total + workflow.labels.length, 0)
+  const details = missing.map((workflow) => `${workflow.name}: ${workflow.labels.join(', ')}`).join('; ')
+  return `Fill ${count} required workflow field${count === 1 ? '' : 's'} before applying this template (${details}).`
+}
+
 function isTemplateTokenValue(value: string): boolean {
   const trimmed = value.trim()
   return /^\[[^\]]*\]$/.test(trimmed) || /^\{\{[^}]+\}\}$/.test(trimmed)
@@ -226,7 +240,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
   const [hasCogneeConfig, setHasCogneeConfig] = useState(false)
   const [hasGithubAuth, setHasGithubAuth] = useState(false)
   const [showUnavailablePartnerOptions, setShowUnavailablePartnerOptions] = useState(false)
-  const [showWorkflowSection, setShowWorkflowSection] = useState(false)
+  const [showWorkflowSection, setShowWorkflowSection] = useState(true)
   const [workflowOverrides, setWorkflowOverrides] = useState<Record<string, string>>({})
   const [editableWorkflows, setEditableWorkflows] = useState<any[]>(() => (template.workflows || []).map((workflow: any) => ({ ...workflow })))
   const [existingWorkflowNames, setExistingWorkflowNames] = useState<string[]>([])
@@ -254,6 +268,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
   const [prefilledSensoDefault, setPrefilledSensoDefault] = useState(false)
   const { showSuccess, showError: showToastError } = useToast()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  // A required workflow field shows its error once left empty, or all of them once Deploy finds any.
+  const [touchedWorkflowFields, setTouchedWorkflowFields] = useState<Set<string>>(new Set())
+  const [revealRequiredWorkflowFields, setRevealRequiredWorkflowFields] = useState(false)
+  const [pendingWorkflowFieldFocus, setPendingWorkflowFieldFocus] = useState<string | null>(null)
   const [validatingRepo, setValidatingRepo] = useState<string | null>(null)
   const applyInFlightRef = useRef(false)
 
@@ -864,6 +882,62 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
     }
   }
 
+  // handleApply writes these values into workflow fields before the server checks them (the Context
+  // step's GitHub repo, non-sensitive template inputs), so the required-field check applies them too.
+  const withSubmittedFieldValues = (content: string): string => {
+    let next = useGithub && githubRepo.trim()
+      ? content.replace(/^(-\s+\*\*GitHub repo:\*\*)\s+.*$/gim, `$1 ${githubRepo.trim()}`)
+      : content
+    for (const requirement of secretRequirements) {
+      const value = templateSecrets[requirement.key] || ''
+      if (requirement.sensitive || !requirement.workflowFieldLabel || !value.trim()) continue
+      next = replaceWorkflowFieldValue(next, requirement.workflowFieldLabel, value)
+    }
+    return next
+  }
+
+  // Required fields still empty, by the rule validate-customization applies on the server.
+  const missingWorkflowFields = (editableWorkflows || []).map((workflow: any, index: number) => ({
+    index,
+    id: String(workflow.id),
+    name: String(workflow.name || workflow.id),
+    labels: findMissingRequiredWorkflowFields(withSubmittedFieldValues(workflowOverrides[workflow.id] ?? workflow.content ?? ''), workflow.inputs)
+      // Typed but not yet synced to the markdown (that happens on blur) still counts as filled.
+      .filter((label) => !(fieldInputs[`${workflow.id}::${label}`] || '').trim()),
+  })).filter((workflow) => workflow.labels.length > 0)
+  const missingWorkflowFieldCount = missingWorkflowFields.reduce((total, workflow) => total + workflow.labels.length, 0)
+
+  const goToMissingWorkflowFields = () => {
+    const first = missingWorkflowFields[0]
+    if (!first) return
+    const workflow = editableWorkflows[first.index]
+    // A placeholder the form does not render (e.g. {{name}}) can only be filled in the markdown editor.
+    const inForm = parseWorkflowConfigFields(workflow?.content || workflowOverrides[first.id] || '').some((field) => field.label === first.labels[0])
+    setWizardStep('customize')
+    setCustomizeStep('workflows')
+    setShowWorkflowSection(true)
+    setRawEditWorkflows((current) => {
+      const next = new Set(current)
+      if (inForm) next.delete(first.id)
+      else next.add(first.id)
+      return next
+    })
+    setWorkflowStep(first.index)
+    setRevealRequiredWorkflowFields(true)
+    setPendingWorkflowFieldFocus(`${first.id}::${first.labels[0]}`)
+  }
+
+  React.useEffect(() => {
+    if (!pendingWorkflowFieldFocus) return
+    const workflowId = pendingWorkflowFieldFocus.split('::')[0]
+    const field = document.getElementById(workflowFieldDomId(pendingWorkflowFieldFocus))
+      || document.getElementById(`workflow-markdown-${workflowId}`)
+    if (!field) return
+    field.focus()
+    field.scrollIntoView({ block: 'center' })
+    setPendingWorkflowFieldFocus(null)
+  }, [pendingWorkflowFieldFocus, wizardStep, customizeStep, workflowStep, showWorkflowSection])
+
   function announceApplyProgress(message: string, toast = false) {
     setApplyProgress(message)
     if (toast) {
@@ -904,6 +978,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
       const message = conflictResolutionErrors[0]
       setError(message)
       showToastError(message)
+      endSingleFlight(applyInFlightRef)
+      return
+    }
+    if (missingWorkflowFieldCount > 0) {
+      setError(describeMissingWorkflowFields(missingWorkflowFields))
+      setRevealRequiredWorkflowFields(true)
       endSingleFlight(applyInFlightRef)
       return
     }
@@ -991,7 +1071,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
       })
       const validation = await validationResp.json().catch(() => ({ valid: true, warnings: [], errors: [] }))
       if (!validationResp.ok && Array.isArray(validation.errors) && validation.errors.length > 0) {
-        const message = validation.errors.slice(0, 4).join(' ')
+        const hiddenErrorCount = validation.errors.length - 4
+        const message = validation.errors.slice(0, 4).join(' ') + (hiddenErrorCount > 0 ? ` (${hiddenErrorCount} more)` : '')
         setApplyProgress(null)
         setError(message)
         showToastError(message)
@@ -1908,12 +1989,20 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
               <button
                 type="button"
                 onClick={() => { setShowWorkflowSection(!showWorkflowSection); setWorkflowStep(0) }}
-                className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-700 transition-colors"
+                aria-expanded={showWorkflowSection}
+                className="w-full px-4 py-3 flex items-center justify-between gap-3 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-700 transition-colors"
               >
                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                   Customize Workflows ({editableWorkflows.length} workflow{editableWorkflows.length !== 1 ? 's' : ''})
                 </h3>
-                <span className="text-gray-400 text-xs">{showWorkflowSection ? '▼' : '▶'}</span>
+                <span className="flex items-center gap-3">
+                  {missingWorkflowFieldCount > 0 && (
+                    <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                      {missingWorkflowFieldCount} required field{missingWorkflowFieldCount === 1 ? '' : 's'} to fill
+                    </span>
+                  )}
+                  <span className="text-gray-400 text-xs" aria-hidden="true">{showWorkflowSection ? '▼' : '▶'}</span>
+                </span>
               </button>
               {showWorkflowSection && (() => {
                 const workflows = editableWorkflows || []
@@ -1926,9 +2015,30 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
                 const isEdited = wf.id in workflowOverrides
                 const editingRaw = rawEditWorkflows.has(wf.id)
 
-                const configFields = parseWorkflowConfigFields(currentContent)
+                // Fields come from the workflow as shipped, so a filled field keeps its place and its
+                // select options; values are read from the edited copy (getFieldValue below).
+                const configFields = parseWorkflowConfigFields(wf.content || currentContent)
 
                 const fieldKey = (label: string) => `${wf.id}::${label}`
+                // Required by the template as shipped; "missing" also covers fields an edit added.
+                const requiredFieldLabels = new Set(findMissingRequiredWorkflowFields(wf.content || '', wf.inputs))
+                const missingFieldLabels = new Set(missingWorkflowFields.find((entry) => entry.id === String(wf.id))?.labels || [])
+                const isRequiredField = (label: string) => requiredFieldLabels.has(label) || missingFieldLabels.has(label)
+                const markFieldTouched = (label: string) => setTouchedWorkflowFields((current) => new Set(current).add(fieldKey(label)))
+                const fieldError = (label: string): string | undefined => fieldErrors[fieldKey(label)]
+                  || (missingFieldLabels.has(label) && (revealRequiredWorkflowFields || touchedWorkflowFields.has(fieldKey(label)))
+                    ? REQUIRED_WORKFLOW_FIELD_MESSAGE
+                    : undefined)
+                const fieldA11y = (label: string) => {
+                  const error = fieldError(label)
+                  const domId = workflowFieldDomId(fieldKey(label))
+                  return {
+                    id: domId,
+                    'aria-required': isRequiredField(label) || undefined,
+                    'aria-invalid': error ? true : undefined,
+                    'aria-describedby': error ? `${domId}-error` : undefined,
+                  }
+                }
 
                 const getFieldValue = (label: string): string => {
                   // Use local input state if available, otherwise parse from markdown
@@ -1960,7 +2070,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
                       const escaped = f.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
                       const lineRegex = new RegExp(`^(-\\s+\\*\\*${escaped}:\\*\\*)\\s+.*$`, 'm')
                       if (lineRegex.test(content)) {
-                        content = content.replace(lineRegex, `$1 ${val || '[...]'}`)
+                        content = content.replace(lineRegex, `$1 ${val.trim() || '[...]'}`)
                       }
                     }
                     return { ...prev, [wf.id]: content }
@@ -2027,14 +2137,20 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
                 <div className="p-4">
                   {/* Step indicator */}
                   <div className="flex items-center gap-1.5 mb-3">
-                    {workflows.map((_: any, idx: number) => (
-                      <button
-                        key={idx}
-                        onClick={() => setWorkflowStep(idx)}
-                        className={`h-1.5 rounded-full transition-all ${idx === workflowStep ? 'bg-purple-500 w-6' : 'bg-gray-200 dark:bg-gray-700 w-3 hover:bg-gray-300'}`}
-                        title={workflows[idx].name}
-                      />
-                    ))}
+                    {workflows.map((_: any, idx: number) => {
+                      const missingCount = missingWorkflowFields.find((entry) => entry.index === idx)?.labels.length || 0
+                      const dotLabel = `${workflows[idx].name}${missingCount ? `: ${missingCount} required field${missingCount === 1 ? '' : 's'} to fill` : ''}`
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => setWorkflowStep(idx)}
+                          className={`h-1.5 rounded-full transition-all ${idx === workflowStep ? 'bg-purple-500 w-6' : missingCount ? 'bg-amber-400 w-3 hover:bg-amber-500' : 'bg-gray-200 dark:bg-gray-700 w-3 hover:bg-gray-300'}`}
+                          title={dotLabel}
+                          aria-label={dotLabel}
+                          aria-current={idx === workflowStep ? 'step' : undefined}
+                        />
+                      )
+                    })}
                     <span className="text-[10px] text-gray-400 ml-2">{workflowStep + 1} / {workflows.length}</span>
                   </div>
 
@@ -2088,6 +2204,8 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
 
                   {editingRaw ? (
                     <textarea
+                      id={`workflow-markdown-${wf.id}`}
+                      aria-label={`${wf.name} markdown`}
                       value={currentContent}
                       onChange={e => setWorkflowOverrides(prev => ({ ...prev, [wf.id]: e.target.value }))}
                       rows={Math.min(14, Math.max(4, currentContent.split('\n').length + 1))}
@@ -2097,10 +2215,20 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
                     <div className="space-y-3">
                       {configFields.map(field => (
                         <div key={field.key}>
-                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{field.label}</label>
+                          {field.type !== 'checkbox' && (
+                            <label htmlFor={workflowFieldDomId(fieldKey(field.label))} className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              {field.label}
+                              {isRequiredField(field.label) && <span className="ml-1 text-red-500" aria-hidden="true">*</span>}
+                              {isRequiredField(field.label) && <span className="sr-only"> (required)</span>}
+                            </label>
+                          )}
+                          {field.type === 'checkbox' && (
+                            <div className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{field.label}</div>
+                          )}
                           {field.type === 'checkbox' ? (
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input
+                                {...fieldA11y(field.label)}
                                 type="checkbox"
                                 checked={getFieldValue(field.label).toLowerCase() === 'true' || getFieldValue(field.label).toLowerCase() === 'yes'}
                                 onChange={e => {
@@ -2114,13 +2242,15 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
                             </label>
                           ) : field.type === 'select' && field.options ? (
                             <select
+                              {...fieldA11y(field.label)}
                               value={getFieldValue(field.label)}
                               onChange={e => {
                                 const nextValue = e.target.value
                                 setFieldValue(field.label, nextValue)
                                 syncFieldToMarkdown(field.label, { [field.label]: nextValue })
                               }}
-                              className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                              onBlur={() => markFieldTouched(field.label)}
+                              className={`w-full px-3 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 ${fieldError(field.label) ? 'border-amber-400 dark:border-amber-600' : 'border-gray-200 dark:border-gray-600'}`}
                             >
                               <option value="">Select...</option>
                               {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -2128,38 +2258,43 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
                           ) : field.type === 'textarea' ? (
                             <>
                               <textarea
+                                {...fieldA11y(field.label)}
                                 value={getFieldValue(field.label)}
                                 onChange={e => setFieldValue(field.label, e.target.value)}
                                 onBlur={e => {
                                   const nextValue = e.target.value
+                                  markFieldTouched(field.label)
                                   syncFieldToMarkdown(field.label, { [field.label]: nextValue })
                                   validateField(field.label, nextValue)
                                 }}
                                 placeholder={field.placeholder}
                                 rows={3}
-                                className={`w-full px-3 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y ${fieldErrors[fieldKey(field.label)] ? 'border-amber-400 dark:border-amber-600' : 'border-gray-200 dark:border-gray-600'}`}
+                                className={`w-full px-3 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y ${fieldError(field.label) ? 'border-amber-400 dark:border-amber-600' : 'border-gray-200 dark:border-gray-600'}`}
                               />
-                              {fieldErrors[fieldKey(field.label)] && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{fieldErrors[fieldKey(field.label)]}</p>}
                             </>
                           ) : (
                             <>
                               <div className="relative">
                                 <input
+                                  {...fieldA11y(field.label)}
                                   type="text"
                                   value={getFieldValue(field.label)}
                                   onChange={e => setFieldValue(field.label, e.target.value)}
                                   onBlur={e => {
                                     const nextValue = e.target.value
+                                    markFieldTouched(field.label)
                                     syncFieldToMarkdown(field.label, { [field.label]: nextValue })
                                     validateField(field.label, nextValue)
                                   }}
                                   placeholder={field.placeholder}
-                                  className={`w-full px-3 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 ${fieldErrors[fieldKey(field.label)] ? 'border-amber-400 dark:border-amber-600' : 'border-gray-200 dark:border-gray-600'}`}
+                                  className={`w-full px-3 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 ${fieldError(field.label) ? 'border-amber-400 dark:border-amber-600' : 'border-gray-200 dark:border-gray-600'}`}
                                 />
                                 {validatingRepo === fieldKey(field.label) && <span className="absolute right-2 top-2 text-xs text-gray-400 animate-pulse">checking...</span>}
                               </div>
-                              {fieldErrors[fieldKey(field.label)] && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{fieldErrors[fieldKey(field.label)]}</p>}
                             </>
+                          )}
+                          {fieldError(field.label) && (
+                            <p id={`${workflowFieldDomId(fieldKey(field.label))}-error`} className="mt-1 text-xs text-amber-600 dark:text-amber-400">{fieldError(field.label)}</p>
                           )}
                         </div>
                       ))}
@@ -2404,7 +2539,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 mt-6">
+        <div className="flex items-end justify-end gap-3 mt-6">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-500 dark:bg-gray-900 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:text-gray-400 transition-colors"
@@ -2517,6 +2652,17 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
                   )}
                 </div>
               )}
+              {missingWorkflowFieldCount > 0 && (
+                <div className="flex items-center gap-3 text-xs text-amber-700 dark:text-amber-300">
+                  <span>{describeMissingWorkflowFields(missingWorkflowFields)}</span>
+                  <button
+                    onClick={goToMissingWorkflowFields}
+                    className="shrink-0 font-medium text-amber-800 underline underline-offset-2 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-200"
+                  >
+                    Go to Workflows
+                  </button>
+                </div>
+              )}
               {applyBlockReason && (
                 <div className="text-xs text-amber-800 dark:text-amber-200">
                   {applyBlockReason}
@@ -2528,7 +2674,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
               />
               <button
                 onClick={handleApply}
-                disabled={applying || !!applyBlockReason || agentConflicts.length > 0 || (hasUnresolvedChannelConflicts && !acknowledgedChannelConflicts) || hasUnresolvedWorkflowConflicts || conflictResolutionErrors.length > 0}
+                disabled={applying || !!applyBlockReason || agentConflicts.length > 0 || (hasUnresolvedChannelConflicts && !acknowledgedChannelConflicts) || hasUnresolvedWorkflowConflicts || conflictResolutionErrors.length > 0 || missingWorkflowFieldCount > 0}
                 className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
               >
                 {applying ? 'Applying...' : '⚡ Apply Template'}
