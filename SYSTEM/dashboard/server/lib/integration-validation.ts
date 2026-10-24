@@ -438,7 +438,9 @@ export async function validateGeminiKey(apiKey: string, fetchImpl: FetchLike = f
   const mismatch = providerShapeMismatch('gemini', apiKey)
   if (mismatch) return mismatch
   try {
-    const res = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey.trim())}`, {
+    // In a header, not `?key=`: a URL ends up in proxy logs and in fetch error messages.
+    const res = await fetchImpl('https://generativelanguage.googleapis.com/v1beta/models', {
+      headers: { 'x-goog-api-key': apiKey.trim() },
       signal: AbortSignal.timeout(8000),
     })
     if (res.ok) return valid('Gemini key is valid')

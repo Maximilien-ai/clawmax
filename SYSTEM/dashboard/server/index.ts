@@ -293,7 +293,8 @@ const globalLimiter = rateLimit({
     authBypassMode
     || (req.method === 'GET' && /^\/api\/workspaces\/[^/]+\/export$/.test(req.path)),
   handler: (req, res, _next, options) => {
-    console.warn(`[rate-limit] global limiter exceeded for ${req.method} ${req.originalUrl} ip=${req.ip}`)
+    // The path only: a query string can carry a credential a client put there.
+    console.warn(`[rate-limit] global limiter exceeded for ${req.method} ${req.originalUrl.split('?')[0]} ip=${req.ip}`)
     res.status(options.statusCode).json({ error: 'Too many requests, please try again later' })
   },
 })
