@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 
 export const AGENT_PANEL_KEEP_OPEN_KEY = 'clawmax-agent-panels-keep-open'
 const CHANGE_EVENT = 'clawmax-agent-panel-preference'
@@ -10,6 +10,12 @@ export function readAgentPanelKeepOpen(): boolean {
 /** One browser preference for agent details, configuration and both chat layouts. */
 export function useAgentPanelPersistence(onClose: () => void, canDismiss = true) {
   const [keepOpen, setKeepOpen] = useState(readAgentPanelKeepOpen)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    if (!panelRef.current?.contains(document.activeElement)) panelRef.current?.focus()
+    return () => { if (previous?.isConnected) previous.focus() }
+  }, [])
   useEffect(() => {
     const changed = (event: Event) => {
       if (event instanceof CustomEvent) setKeepOpen(event.detail === true)
@@ -31,6 +37,7 @@ export function useAgentPanelPersistence(onClose: () => void, canDismiss = true)
   }
 
   return {
+    panelRef,
     keepOpen,
     toggleKeepOpen,
     onBackdropClick(event: MouseEvent<HTMLElement>) {

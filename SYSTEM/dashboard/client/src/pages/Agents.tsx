@@ -3088,7 +3088,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4" onClick={panelPersistence.onBackdropClick} onKeyDown={panelPersistence.onEscape}>
+    <div ref={panelPersistence.panelRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4" onClick={panelPersistence.onBackdropClick} onKeyDown={panelPersistence.onEscape}>
       <div
         className="flex max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-800"
       >

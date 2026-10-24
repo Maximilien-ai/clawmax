@@ -1168,7 +1168,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
   if (gatewayAvailable === false) {
     return (
-      <div className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`} onClick={panelPersistence.onBackdropClick} onKeyDown={panelPersistence.onEscape}>
+      <div ref={panelPersistence.panelRef} tabIndex={-1} className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`} onClick={panelPersistence.onBackdropClick} onKeyDown={panelPersistence.onEscape}>
         <div className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full w-full sm:w-[600px] absolute right-0 top-0' : 'rounded-xl w-full sm:w-[600px] mx-2 sm:mx-0'} p-4 sm:p-6`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Agent Chat: {agentName}</h2>
@@ -1238,6 +1238,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
   return (
     <div
+      ref={panelPersistence.panelRef}
+      tabIndex={-1}
       className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`}
       onClick={panelPersistence.onBackdropClick}
       onKeyDown={handlePanelEscape}
