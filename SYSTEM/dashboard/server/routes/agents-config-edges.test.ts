@@ -490,6 +490,13 @@ async function run() {
 
   await test('bulk delete reports per-agent failures and forwards state removal only when requested', async () => {
     const calls: Array<[string, boolean, boolean]> = []
+    // Bulk delete runs the single-delete safeguards: with state removal it first clears the pinned
+    // OpenClaw workspace state for each agent (and fails closed when that cannot be verified).
+    const workspaceState = require('../lib/openclaw-workspace-state')
+    const originalClear = workspaceState.clearPinnedOpenClawWorkspaceState
+    const cleared: string[] = []
+    workspaceState.clearPinnedOpenClawWorkspaceState = async (dir: string) => { cleared.push(path.basename(dir)) }
+    try {
     await withWorkspaceOverrides({
       deleteAgent: (id: string, removeStateDir: boolean, archived: boolean) => {
         calls.push([id, removeStateDir, archived])
@@ -508,8 +515,12 @@ async function run() {
       assert.equal(res.jsonBody.ok, false)
       assert.deepEqual(res.jsonBody.summary, { total: 2, success: 1, failure: 1 })
       assert.deepEqual(calls, [['plain-agent', true, false], ['failed', true, true]])
+      assert.deepEqual(cleared, ['plain-agent', 'failed'], 'State removal must clear each agent\'s pinned workspace state first')
       assert.match(res.jsonBody.results.failed.errors[0], /Synthetic failure/)
     })
+    } finally {
+      workspaceState.clearPinnedOpenClawWorkspaceState = originalClear
+    }
   })
 
   console.log(`\nTests passed: ${testsPassed}`)
