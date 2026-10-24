@@ -3067,6 +3067,20 @@ else
   fail "Default OpenClaw plugin shell tests"
 fi
 
+echo -e "${YELLOW}→ Running local Gateway lifecycle tests...${NC}"
+if node --test "$SYSTEM_DIR/local-gateway.test.mjs" > /tmp/clawmax-local-gateway.out 2>&1; then
+  pass "Local Gateway setup, reuse, ownership and fallback tests"
+else
+  cat /tmp/clawmax-local-gateway.out
+  fail "Local Gateway setup, reuse, ownership and fallback tests"
+fi
+if bash "$SYSTEM_DIR/start-gateway.test.sh" > /tmp/clawmax-start-gateway.out 2>&1; then
+  pass "start.sh Gateway and watchdog startup tests"
+else
+  cat /tmp/clawmax-start-gateway.out
+  fail "start.sh Gateway and watchdog startup tests"
+fi
+
 echo -e "${YELLOW}→ Running OpenClaw target prep shell tests...${NC}"
 if node "$SYSTEM_DIR/test-isolated-gateway.test.mjs" > /tmp/clawmax-isolated-gateway.out 2>&1; then
   pass "Isolated gateway startup and cleanup tests"

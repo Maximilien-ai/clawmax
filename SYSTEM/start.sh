@@ -193,30 +193,10 @@ restart_port_if_needed() {
   fi
 }
 
-ensure_local_gateway_ready() {
-  if [ "$(uname -s)" != "Darwin" ] || ! openclaw_cli_available; then
-    return
-  fi
-
-  if [ -n "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ]; then
-    return
-  fi
-
-  local gateway_status
-  gateway_status="$(openclaw_cli_run gateway status 2>/dev/null || true)"
-
-  if echo "$gateway_status" | grep -qi "Service not installed"; then
-    echo "↻ Installing local OpenClaw gateway LaunchAgent..."
-    openclaw_cli_run gateway install >/dev/null 2>&1 || true
-  fi
-
-  if ! echo "$gateway_status" | grep -qi "RPC probe: ok"; then
-    echo "↻ Ensuring local OpenClaw gateway is running..."
-    openclaw_cli_run gateway restart >/dev/null 2>&1 || true
-  fi
-}
-
-if [ -z "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ] && [ "$(uname -s)" = "Darwin" ] && openclaw_cli_available; then
+# The watchdog cannot restart a Gateway started by local-gateway.mjs, and OpenClaw's own Gateway
+# service already restarts itself (launchd KeepAlive), so it is installed only on request.
+GATEWAY_WATCHDOG="${CLAWMAX_GATEWAY_WATCHDOG:-$(read_dotenv_var CLAWMAX_GATEWAY_WATCHDOG)}"
+if [ "$GATEWAY_WATCHDOG" = "true" ] && [ -z "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ] && [ "$(uname -s)" = "Darwin" ] && openclaw_cli_available; then
   WATCHDOG_SCRIPT="$REPO_ROOT/SYSTEM/scripts/gateway-watchdog.sh"
   WATCHDOG_PLIST="$HOME/Library/LaunchAgents/ai.clawmax.gateway-watchdog.plist"
   mkdir -p "$HOME/Library/LaunchAgents" "$HOME/.openclaw/logs"
@@ -247,7 +227,18 @@ EOF
   launchctl load "$WATCHDOG_PLIST" >/dev/null 2>&1 || true
 fi
 
-ensure_local_gateway_ready
+# Chat replies stream live only through an OpenClaw Gateway: reuse a running one, start an installed
+# Gateway service, or start a loopback-only Gateway that stop.sh stops again. Without one, chat
+# falls back to replies that appear when finished. CLAWMAX_AUTO_START_GATEWAY=false opts out.
+# Brokered skills need CLI-only chat; only whether the broker is configured is passed on, not its key.
+if [ -z "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ]; then
+  broker_key="${CLAWMAX_SECRET_MASTER_KEY:-$(read_dotenv_var CLAWMAX_SECRET_MASTER_KEY)}"
+  broker_key="$(printf '%s' "$broker_key" | tr -d '[:space:]')"
+  CLAWMAX_SECRET_BROKER_CONFIGURED="$([ "${#broker_key}" -ge 32 ] && echo true || echo false)" \
+  CLAWMAX_AUTO_START_GATEWAY="${CLAWMAX_AUTO_START_GATEWAY:-$(read_dotenv_var CLAWMAX_AUTO_START_GATEWAY)}" \
+    node "$SCRIPT_DIR/local-gateway.mjs" ensure
+  unset broker_key
+fi
 
 # Force-restart before checking port state so stale dev servers do not keep serving old bundles
 if [ "$FORCE_RESTART" = true ]; then

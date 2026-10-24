@@ -30,6 +30,15 @@ if pkill -f "ngrok http" 2>/dev/null; then
   ((stopped++))
 fi
 
+# Stop the OpenClaw Gateway start.sh started, if any; never a Gateway service or one started elsewhere.
+if command -v node >/dev/null 2>&1; then
+  gateway_stopped="$(node "$(cd "$(dirname "$0")" && pwd)/local-gateway.mjs" stop)"
+  if [ -n "$gateway_stopped" ]; then
+    echo "$gateway_stopped"
+    ((stopped++))
+  fi
+fi
+
 sleep 1
 
 if [ $stopped -eq 0 ]; then

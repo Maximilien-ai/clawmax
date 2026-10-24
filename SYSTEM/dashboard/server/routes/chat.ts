@@ -4,7 +4,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { getActiveAgentLifecycleGeneration, getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
-import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
+import { openClawStateOwner, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
@@ -278,9 +278,11 @@ export function shouldUseLocalChatExecution(input: {
 }
 
 export function resolveGatewayChatReadinessWait(gatewayOwnsState: boolean): { timeoutMs: number; pollMs: number } {
+  // Without an owning Gateway one probe decides: waiting cannot make one appear, it only delays
+  // the local fallback. A Gateway that starts meanwhile is caught by the local-collision retry.
   return gatewayOwnsState
     ? { timeoutMs: 120_000, pollMs: 1_000 }
-    : { timeoutMs: 8_000, pollMs: 500 }
+    : { timeoutMs: 0, pollMs: 500 }
 }
 
 export function shouldUseManagedSecretStatelessChatSession(_input: {
@@ -914,13 +916,10 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.
   // Gateway + --local are openclaw-only concepts; non-openclaw runtimes spawn their own CLI directly.
-  const gatewayOwnsState = !isNonOpenclawChatRuntime(resolvedAgent.runtime) && (
-    isGatewayRunning().running || configuredAutoStartGatewayOwnsState({
-      configured: isGatewayConfigured(),
-      autoStartSetting: process.env.CLAWMAX_AUTO_START_GATEWAY,
-    })
-  )
-  const gatewayReadinessWait = resolveGatewayChatReadinessWait(gatewayOwnsState)
+  const stateOwner = isNonOpenclawChatRuntime(resolvedAgent.runtime) ? null : openClawStateOwner()
+  const gatewayOwnsState = stateOwner !== null
+  // A remote Gateway cannot answer a local probe: waiting for it only delays the turn.
+  const gatewayReadinessWait = resolveGatewayChatReadinessWait(gatewayOwnsState && stateOwner !== 'remote')
   const gatewayRunning = isNonOpenclawChatRuntime(resolvedAgent.runtime)
     ? false
     : shouldTreatGatewayAsRunning(
