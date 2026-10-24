@@ -2314,7 +2314,7 @@ export function ByokWizard({
     <>
       <button
         onClick={handleReopen}
-        className={`text-xs rounded-full border px-2.5 py-1 transition-colors ${
+        className={`shrink-0 whitespace-nowrap text-xs rounded-full border px-2.5 py-1 transition-colors ${
           triggerReady && !needsAttention
             ? 'border-emerald-300/60 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
             : 'border-amber-300/60 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
@@ -2322,7 +2322,8 @@ export function ByokWizard({
         title={needsAttention ? 'Needs attention: review agent configuration and readiness checks' : triggerTitle}
       >
         {triggerLabel}
-        {needsAttention && <span className="ml-1" aria-label="Needs attention">⚠ Needs attention</span>}
+        {/* The words give way to the icon where the header is narrow; screen readers always hear them. */}
+        {needsAttention && <span className="ml-1"><span aria-hidden="true">⚠</span><span className="sr-only 2xl:not-sr-only"> Needs attention</span></span>}
       </button>
 
       {!open ? null : createPortal(

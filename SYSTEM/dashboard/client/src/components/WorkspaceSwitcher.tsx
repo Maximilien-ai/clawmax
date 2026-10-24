@@ -467,12 +467,12 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Current workspace button */}
+    <div className="relative min-w-0 max-w-[18rem]" ref={dropdownRef}>
+      {/* Current workspace button; min-w-0 above lets a long name truncate in a crowded header. */}
       <button
         ref={workspaceButtonRef}
         onClick={() => { if (isOpen) setWorkspaceQuery(''); setIsOpen(!isOpen) }}
-        className="flex min-w-0 max-w-[18rem] items-center gap-2 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-gray-200 dark:bg-gray-800"
+        className="flex min-w-0 max-w-full items-center gap-2 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-gray-200 dark:bg-gray-800"
         title={activeWorkspace.name || 'Switch workspace'}
       >
         <div
