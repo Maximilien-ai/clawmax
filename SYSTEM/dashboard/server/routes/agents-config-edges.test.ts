@@ -359,6 +359,9 @@ async function run() {
       await handler(makeReq({ body }), invalid)
       assert.equal(invalid.statusCode, 400)
     }
+    // Both ids name real agents: an id without an IDENTITY.md is now refused before any write, so the
+    // config failure this test reports needs an existing agent to reach the config update.
+    writeAgentFiles(workspacePath, 'other-agent')
     await withAgentModelOverrides({
       upsertAgentModelInConfigFile: (_configPath: string, id: string) => id === 'plain-agent'
         ? { ok: true, changed: false, model: 'openai/gpt-4o-mini' }

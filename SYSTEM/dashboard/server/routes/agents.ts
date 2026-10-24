@@ -3113,6 +3113,17 @@ router.post('/bulk-model', async (req, res) => {
       results.push({ id: String(agentId), ok: false, error: 'Template Agent model is revision-owned; plan a new revision to change it' })
       continue
     }
+    // Each id becomes a config entry, a workspace path and a runtime sessions path, so it gets the
+    // single-agent routes' checks before anything is written.
+    if (!/^[a-z][a-z0-9_-]*$/.test(agentId)) {
+      results.push({ id: agentId, ok: false, error: 'Invalid agent id' })
+      continue
+    }
+    const identityPath = path.join(getWorkspacePath(), 'AGENTS', agentId, 'IDENTITY.md')
+    if (!fs.existsSync(identityPath)) {
+      results.push({ id: agentId, ok: false, error: 'Agent not found' })
+      continue
+    }
     try {
       const configUpdate = updateAgentModelInConfig(agentId, normalizedModel)
       if (!configUpdate.ok) {
@@ -3120,12 +3131,7 @@ router.post('/bulk-model', async (req, res) => {
         continue
       }
 
-      // Update IDENTITY.md
-      const agentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
-      const identityPath = path.join(agentDir, 'IDENTITY.md')
-      if (fs.existsSync(identityPath)) {
-        updateAgentIdentityModel(identityPath, normalizedModel)
-      }
+      updateAgentIdentityModel(identityPath, normalizedModel)
 
       if (configUpdate.changed) {
         resetAgentRuntimeForModelChange(agentId)
@@ -3797,6 +3803,10 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
   const { id, filename } = req.params
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
+  }
+  // Same rule as restore and delete: the name (and a `current:` session id) is joined into a path.
+  if (filename.includes('..') || filename.includes('/')) {
+    return res.status(400).json({ error: 'Invalid filename' })
   }
   if (rejectStaleAgentRoute(req, res, id)) return
 
