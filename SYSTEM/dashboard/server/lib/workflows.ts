@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { isPlainPathSegment } from './path-segment'
 import { openClawStatePath } from './openclaw-profile-paths'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
 import path from 'path'
@@ -565,6 +566,10 @@ export function deriveWorkflowExecutionOutputs(
   }
 }
 
+// Ids and output keys become file and directory names below WORKFLOWS/; they come from request bodies,
+// imported workflow files and other workflows' `inputRefs`, so each must stay one path segment.
+const WORKFLOW_ID_PATTERN = /^[a-z0-9-]+$/
+
 export function persistWorkflowExecutionOutputArtifacts(
   workflowId: string,
   outputs?: WorkflowExecution['outputs'],
@@ -578,7 +583,7 @@ export function persistWorkflowExecutionOutputArtifacts(
       if (!output || output.artifactPath) return [key, output]
 
       const normalizedKey = `${key || ''}`.trim()
-      if (!normalizedKey) return [key, output]
+      if (!isPlainPathSegment(normalizedKey) || !WORKFLOW_ID_PATTERN.test(workflowId)) return [key, output]
 
       if ((output.type === 'markdown' || output.type === 'text') && typeof output.value === 'string' && output.value.trim()) {
         const extension = output.type === 'markdown' ? 'md' : 'txt'
@@ -1879,6 +1884,7 @@ export function resolveParticipants(workflow: Workflow, agents: any[], teams: Te
 
 // List executions for a workflow
 export function listExecutions(workflowId: string, limit: number = 10): WorkflowExecution[] {
+  if (!WORKFLOW_ID_PATTERN.test(workflowId)) return []
   const executionDir = path.join(getExecutionsDir(), workflowId)
 
   if (!fs.existsSync(executionDir)) {
@@ -1916,6 +1922,7 @@ export function getLatestExecution(workflowId: string): WorkflowExecution | null
 
 // Get single execution
 export function getExecution(workflowId: string, executionId: string): WorkflowExecution | null {
+  if (!WORKFLOW_ID_PATTERN.test(workflowId) || !/^[a-zA-Z0-9_-]+$/.test(executionId)) return null
   const filePath = path.join(getExecutionsDir(), workflowId, `${executionId}.json`)
 
   if (!fs.existsSync(filePath)) {

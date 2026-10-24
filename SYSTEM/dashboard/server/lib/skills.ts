@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { isPlainPathSegment } from './path-segment'
 import { openClawConfigPath } from './openclaw-profile-paths'
 import path from 'path'
 import os from 'os'
@@ -1245,6 +1246,8 @@ export function getSkillById(id: string): OpenClawSkill | null {
   const skills = listAvailableSkills()
   const direct = skills.find(s => s.name === id || s.id === id)
   if (direct) return direct
+  // An id from a URL names a folder that is read and copied: it must stay inside the skills folder.
+  if (!isPlainPathSegment(id)) return null
 
   const repoSkillDir = path.join(REPO_CUSTOM_SKILLS_DIR, id)
   const uppercaseSkillPath = path.join(repoSkillDir, 'SKILL.md')
@@ -2058,13 +2061,16 @@ export function importWorkspaceSkill(sourcePath: string, tags?: string[]): { suc
 export function deleteWorkspaceSkill(skillIdOrName: string): { success: boolean; error?: string } {
   try {
     const workspaceSkillsDir = getWorkspaceSkillsDir()
-    let managedSkillPath = path.join(MANAGED_SKILLS_DIR, skillIdOrName)
+    // The value comes from a URL and may be a display name ("PDF Tools"); only a plain segment is joined to
+    // a folder that is removed recursively. Anything else is looked up by name below.
+    const direct = isPlainPathSegment(skillIdOrName)
+    let managedSkillPath = direct ? path.join(MANAGED_SKILLS_DIR, skillIdOrName) : ''
 
     // First try direct directory match (skillId)
-    let skillPath = path.join(workspaceSkillsDir, skillIdOrName)
+    let skillPath = direct ? path.join(workspaceSkillsDir, skillIdOrName) : ''
 
     // If not found, try to find by skill name
-    if (!fs.existsSync(skillPath)) {
+    if (!skillPath || !fs.existsSync(skillPath)) {
       const skills = listAvailableSkills().filter(s => s.source === 'workspace' || s.source === 'managed')
       const skill = skills.find(s => s.name === skillIdOrName || s.id === skillIdOrName)
 
@@ -2073,14 +2079,16 @@ export function deleteWorkspaceSkill(skillIdOrName: string): { success: boolean;
       }
 
       if (skill.source === 'managed') {
+        if (!isPlainPathSegment(skill.name)) return { success: false, error: 'Skill not found' }
         managedSkillPath = path.join(MANAGED_SKILLS_DIR, skill.name)
       } else if (skill.id) {
+        if (!isPlainPathSegment(skill.id)) return { success: false, error: 'Skill not found' }
         skillPath = path.join(workspaceSkillsDir, skill.id)
       }
     }
 
-    const existingWorkspacePath = fs.existsSync(skillPath) ? skillPath : null
-    const existingManagedPath = fs.existsSync(managedSkillPath) ? managedSkillPath : null
+    const existingWorkspacePath = skillPath && fs.existsSync(skillPath) ? skillPath : null
+    const existingManagedPath = managedSkillPath && fs.existsSync(managedSkillPath) ? managedSkillPath : null
 
     if (!existingWorkspacePath && !existingManagedPath) {
       return { success: false, error: 'Skill not found' }
@@ -2113,9 +2121,12 @@ function copyDirectorySync(src: string, dest: string): void {
     const srcPath = path.join(src, entry.name)
     const destPath = path.join(dest, entry.name)
 
+    // A skill arrives from a cloned repository, an upload or a registry; a symlink in it can point at any
+    // file of this machine (`key -> ~/.ssh/id_ed25519`), and copying would follow it. Skills never need one.
+    if (entry.isSymbolicLink()) continue
     if (entry.isDirectory()) {
       copyDirectorySync(srcPath, destPath)
-    } else {
+    } else if (entry.isFile()) {
       fs.copyFileSync(srcPath, destPath)
     }
   }
