@@ -2304,6 +2304,28 @@ async function run() {
     assert.strictEqual(detailRes.jsonBody?.messages?.[0]?.content, 'Need help with the current thread')
   })
 
+  await test('chat archive detail rejects names that climb out of the agent archive', async () => {
+    writeAgent(workspacePath, 'archive-path-agent', ['# IDENTITY.md', '- **Name:** Archive Path Agent', '- **Model:** openai/gpt-5.5'].join('\n'))
+    // Another agent's transcript, which neither route form may return for this agent.
+    const otherSessions = path.join(tmpHome, '.openclaw', 'agents', 'other-path-agent', 'sessions')
+    fs.mkdirSync(otherSessions, { recursive: true })
+    fs.writeFileSync(path.join(otherSessions, 'private.jsonl'), JSON.stringify({
+      type: 'message',
+      timestamp: 1,
+      message: { role: 'user', content: [{ type: 'text', text: 'another agent transcript' }], timestamp: 1 },
+    }) + '\n', 'utf-8')
+
+    const detailHandler = getRouteHandler('get', '/:id/chat/archives/:filename')
+    // The values Express hands the route after decoding `%2F`: one relative to `sessions/archive`,
+    // one to `sessions` (the `current:` form).
+    for (const filename of ['../../../other-path-agent/sessions/private.jsonl', 'current:../../other-path-agent/sessions/private']) {
+      const res = makeRes()
+      await detailHandler(makeReq({ params: { id: 'archive-path-agent', filename } }), res)
+      assert.strictEqual(res.statusCode, 400, `Expected 400 for ${filename}, got ${res.statusCode}`)
+      assert.ok(!JSON.stringify(res.jsonBody || {}).includes('another agent transcript'), `${filename} must not return another transcript`)
+    }
+  })
+
   await test('clearing a mixed openclaw+runtime chat archives both stores in timestamp order (droid P1 regression)', async () => {
     const { scopeSessionIdToModel } = require('../lib/agent-execution')
     writeAgent(workspacePath, 'mixed-agent', [
@@ -2912,6 +2934,25 @@ async function run() {
     res = makeRes()
     await patchModelHandler(makeReq({ params: { id: 'plain-agent' }, body: {} }), res)
     assert.strictEqual(res.statusCode, 400, 'Expected missing model to return HTTP 400')
+  })
+
+  await test('bulk model change skips ids that are malformed or name no agent, without writing for them', async () => {
+    // An IDENTITY.md outside the workspace AGENTS directory, where `../` in an id would lead.
+    const escapedDir = path.join(workspacePath, 'escaped-agent')
+    fs.mkdirSync(escapedDir, { recursive: true })
+    const escapedIdentity = path.join(escapedDir, 'IDENTITY.md')
+    const escapedBefore = '# IDENTITY.md\n- **Model:** openai/gpt-5.5\n'
+    fs.writeFileSync(escapedIdentity, escapedBefore, 'utf-8')
+
+    const res = makeRes()
+    await getRouteHandler('post', '/bulk-model')(makeReq({ body: { agentIds: ['../escaped-agent', 'no-such-agent'], model: 'openai/gpt-5.4-nano' } }), res)
+
+    assert.strictEqual(res.jsonBody?.updated, 0, `Expected no agent updated, got ${JSON.stringify(res.jsonBody)}`)
+    assert.deepStrictEqual(res.jsonBody?.results?.map((entry: any) => entry.error), ['Invalid agent id', 'Agent not found'])
+    assert.strictEqual(fs.readFileSync(escapedIdentity, 'utf-8'), escapedBefore, 'A file outside AGENTS must not be rewritten')
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    const configText = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf-8') : ''
+    assert.ok(!configText.includes('escaped-agent') && !configText.includes('no-such-agent'), 'No runtime config entry may be created for a rejected id')
   })
 
   await test('agent model route persists automatic selection mode and priority per agent', async () => {
