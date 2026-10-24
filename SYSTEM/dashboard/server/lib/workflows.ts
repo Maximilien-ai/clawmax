@@ -28,7 +28,7 @@ import { resolveOpenClawCliPath } from './openclaw-cli'
 import { createBrokerCapabilityToken } from './skill-secret-broker'
 import { executeAgentRuntimeTurn, isRuntimeCancelledError } from './agent-runtime'
 import { hasRuntimeSession } from './runtime-sessions'
-import { withRegisteredTurn } from './agent-turns'
+import { cancelTurn, withRegisteredTurn } from './agent-turns'
 import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from './process-tree'
 
 // Use dynamic workspace path to support multi-workspace
@@ -2343,6 +2343,8 @@ export function triggerWorkflow(workflowId: string, options?: {
           const agentResponse = await withRegisteredTurn(participant.agentId, (turn) => runExclusiveAgentExecution(participant.agentId, async () => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             if (resolvedAgent.runtime !== 'openclaw') {
+              // Stopped while this step waited for the agent's lock, as the openclaw path checks too.
+              if (isExecutionCancelled(executionId)) throw new Error('Workflow execution was cancelled')
               // 2.0 builds executionEnv per attempt inside executeAttempt(), so the runtime path
               // builds its own provider-isolated env instead of reusing an outer binding that no
               // longer exists. Mirrors executeAttempt() so claude/droid agents get the same
@@ -2374,21 +2376,35 @@ export function triggerWorkflow(workflowId: string, options?: {
 
               const runtimeSessionId = buildWorkflowSessionId(executionId, participant.agentId)
               const startedAt = Date.now()
-              const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
-                runtime: resolvedAgent.runtime,
-                agentId: participant.agentId,
-                agentDir: resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', participant.agentId),
-                message: executionMessage,
-                scopedSessionId: runtimeSessionId,
-                model: resolvedAgent.model,
-                mode: 'json',
-                env: runtimeExecutionEnv,
-                // No deadline: a workflow step runs until it finishes or is cancelled. The registered
-                // turn's signal is the only way this ever stops early -- a throwaway
-                // `new AbortController().signal` here was a signal nothing could ever call abort() on.
-                signal: turn.signal,
-                onActivity: turn.touch,
-              })
+              // An operator's Stop (cancelExecution) reaches this step through its turn: claude/droid run
+              // no process the openclaw canceller knows about, so Stop marked the run cancelled while the
+              // step kept working and the workflow refused new runs until it finished.
+              const executionProcesses = activeExecutionProcesses.get(executionId) || new Set<() => void>()
+              const cancelThisStep = () => { cancelTurn(turn.turnId) }
+              executionProcesses.add(cancelThisStep)
+              activeExecutionProcesses.set(executionId, executionProcesses)
+              let runtimeTurn: Awaited<ReturnType<typeof executeAgentRuntimeTurn>>
+              try {
+                runtimeTurn = await executeAgentRuntimeTurn({
+                  runtime: resolvedAgent.runtime,
+                  agentId: participant.agentId,
+                  agentDir: resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', participant.agentId),
+                  message: executionMessage,
+                  scopedSessionId: runtimeSessionId,
+                  model: resolvedAgent.model,
+                  mode: 'json',
+                  env: runtimeExecutionEnv,
+                  // No deadline: a workflow step runs until it finishes or is cancelled. The registered
+                  // turn's signal is the only way this ever stops early -- a throwaway
+                  // `new AbortController().signal` here was a signal nothing could ever call abort() on.
+                  signal: turn.signal,
+                  onActivity: turn.touch,
+                })
+              } finally {
+                executionProcesses.delete(cancelThisStep)
+                if (executionProcesses.size === 0) activeExecutionProcesses.delete(executionId)
+              }
+              const { text, errorText, missingCliError } = runtimeTurn
               if (missingCliError) throw new Error(missingCliError)
               if (errorText) {
                 throw new Error(isRuntimeCancelledError(errorText) ? 'Workflow step was stopped.' : errorText)
