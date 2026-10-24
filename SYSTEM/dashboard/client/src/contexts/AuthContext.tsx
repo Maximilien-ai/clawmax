@@ -114,7 +114,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' }),
         ])
 
-        const shouldRetry = cfgResp.status === 429 || meResp.status === 429
+        // 502-504: the dev proxy cannot reach the API yet (the client is ready first). Retry rather
+        // than reading that as "no sign-in configured", which strands the page on a sign-in wall.
+        const retryable = (status: number) => status === 429 || (status >= 502 && status <= 504)
+        const shouldRetry = retryable(cfgResp.status) || retryable(meResp.status)
         if (shouldRetry) {
           if (cancelled) return
           const retryDelayMs = Math.min(5000, 1000 * (attempt + 1))
