@@ -1222,6 +1222,21 @@ export function workflowToMarkdown(workflow: Workflow): string {
   return matter.stringify(workflow.content || '', fm)
 }
 
+/**
+ * An unknown IANA zone passes the schema (any non-empty string) but makes node-cron throw while
+ * scheduling, after the workflow was saved. Null when the zone is absent or valid.
+ */
+export function invalidWorkflowTimezoneError(timezone: unknown): string | null {
+  if (timezone === undefined || timezone === null || timezone === '') return null
+  if (typeof timezone === 'string') {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone })
+      return null
+    } catch {}
+  }
+  return `Invalid timezone "${String(timezone)}": use an IANA time zone such as UTC or America/New_York`
+}
+
 // Helper: Validate cron expression
 export function validateCron(cronExpression: string): { valid: boolean; error?: string; humanReadable?: string } {
   try {
@@ -1612,6 +1627,10 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
         return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }
       }
     }
+    const timezoneError = invalidWorkflowTimezoneError(data.timezone)
+    if (timezoneError) {
+      return { success: false, error: timezoneError }
+    }
 
     // Schema validation passed — these fields are guaranteed present
     const name = data.name!
@@ -1711,6 +1730,10 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
       if (!cronValidation.valid) {
         return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }
       }
+    }
+    const timezoneError = invalidWorkflowTimezoneError(data.timezone)
+    if (timezoneError) {
+      return { success: false, error: timezoneError }
     }
 
     const updated: Workflow = {
