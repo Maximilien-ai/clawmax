@@ -11,6 +11,8 @@ import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 import { normalizeAgentActivityPayload, type AgentActivity } from '../lib/agentActivity'
 import { type PluginRelationship } from '../lib/pluginRelationships'
 import { PluginRelationshipDetails } from './PluginRelationshipSummary'
+import { useAgentPanelPersistence } from '../lib/agentPanelPersistence'
+import { KeepAgentPanelOpenButton } from './KeepAgentPanelOpenButton'
 
 interface GroupEntry {
   name: string
@@ -125,6 +127,7 @@ export default function AgentDetailPanel({
   pluginRelationships?: PluginRelationship[]
 }) {
   const { showError, showSuccess } = useToast()
+  const panelPersistence = useAgentPanelPersistence(onClose)
   const [activity, setActivity] = useState<AgentActivity | null>(null)
   const [docEntries, setDocEntries] = useState<WorkspaceDocEntryRef[]>([])
   const [loading, setLoading] = useState(true)
@@ -305,7 +308,7 @@ export default function AgentDetailPanel({
   }, [docEntries, onClose, onNavigateToDoc, relDir])
 
   return (
-    <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20">
+    <div ref={panelPersistence.panelRef} tabIndex={-1} className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={panelPersistence.onBackdropClick}>
       {/* Panel */}
       <aside className="fixed top-0 right-0 h-[100dvh] max-h-[100dvh] w-full max-w-full bg-white shadow-2xl dark:bg-gray-800 sm:w-[30rem] lg:w-[36rem] z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
@@ -377,6 +380,7 @@ export default function AgentDetailPanel({
             >
               <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
+            <KeepAgentPanelOpenButton keepOpen={panelPersistence.keepOpen} onToggle={panelPersistence.toggleKeepOpen} />
             <button
               onClick={onClose}
               className="h-9 w-9 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-lg leading-none"

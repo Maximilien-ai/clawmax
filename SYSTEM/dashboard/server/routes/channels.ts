@@ -367,6 +367,9 @@ export async function callAgent(
   byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
   actor?: { userId?: string; login?: string; email?: string | null }
 ): Promise<string> {
+  // Ids arrive from a URL (`/direct-messages/:from/:to`) and from `mentions` in a body, and become paths:
+  // `AGENTS/<id>/IDENTITY.md`, the runtime's state and auth folders under `~/.openclaw/agents/<id>`.
+  if (!/^[a-z][a-z0-9_-]*$/.test(agentId)) throw new Error(`Invalid agent id: ${JSON.stringify(agentId).slice(0, 80)}`)
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const integrationConfig = readWorkspaceIntegrationConfig()
   const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'

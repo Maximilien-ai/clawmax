@@ -319,6 +319,10 @@ async function registerAgentInConfig(agentId: string, profile: boolean): Promise
 }
 
 const router = Router()
+
+// Every `:id` here is an agent id that ends up in a path (`AGENTS/<id>`, `~/.openclaw/agents/<id>`), and
+// Express decodes `%2F` inside a parameter, so it is checked once for every route rather than per handler.
+router.param('id', (_req, res, next, id) => (/^[a-z][a-z0-9_-]*$/.test(id) ? next() : res.status(400).json({ ok: false, error: 'Invalid agent id' })))
 const AGENT_GENERATION_HEADER = 'x-clawmax-agent-generation'
 
 function rejectStaleAgentRoute(req: express.Request, res: express.Response, agentId: string): boolean {
@@ -892,24 +896,24 @@ router.post('/validate-provision', async (req, res) => {
   res.json(result)
 })
 
+// A key in a URL is written wherever URLs are: the rate-limit log, proxies, browser history.
+const PROVIDER_KEY_QUERY_PARAMS = ['openaiKey', 'anthropicKey', 'geminiKey', 'openrouterKey', 'xaiKey', 'openaiCompatibleApiKey']
+
 // GET /api/agents/models — dynamic discovery from provider APIs (cached 1hr)
-// Must be defined before /:id routes.
+// Must be defined before /:id routes. Keys go in the body of POST /models/discover.
 router.get('/models', async (req, res) => {
+  if (PROVIDER_KEY_QUERY_PARAMS.some((param) => req.query[param] !== undefined)) {
+    return res.status(400).json({ error: 'Provider keys are not accepted in a URL. Send them in the body of POST /api/agents/models/discover.' })
+  }
   try {
     const byokKeys = {
-      openai: req.query.openaiKey as string | undefined,
-      anthropic: req.query.anthropicKey as string | undefined,
-      gemini: req.query.geminiKey as string | undefined,
-      openrouter: req.query.openrouterKey as string | undefined,
-      xai: req.query.xaiKey as string | undefined,
       ollamaBaseUrl: req.query.ollamaBaseUrl as string | undefined,
-      openaiCompatibleApiKey: req.query.openaiCompatibleApiKey as string | undefined,
       openaiCompatibleBaseUrl: req.query.openaiCompatibleBaseUrl as string | undefined,
       openaiCompatibleDefaultModel: req.query.openaiCompatibleDefaultModel as string | undefined,
     }
     const showAll = String(req.query.showAll || '').toLowerCase() === 'true'
     const result = await discoverModels(
-      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.openrouter || byokKeys.xai || byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl ? byokKeys : undefined,
+      byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl ? byokKeys : undefined,
       { showAll }
     )
     res.json(result)
@@ -922,8 +926,8 @@ router.get('/models', async (req, res) => {
 // POST /api/agents/models/discover — BYOK-aware discovery without putting keys in a URL or clearing the model cache.
 router.post('/models/discover', async (req, res) => {
   try {
-    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
-    res.json(await discoverModels(body))
+    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string; showAll?: boolean }
+    res.json(await discoverModels(body, { showAll: body.showAll === true }))
   } catch (err) {
     console.error('Model discovery failed:', err)
     res.status(500).json({ error: 'Failed to discover models' })
@@ -1875,7 +1879,7 @@ router.post('/bulk-impact', (req, res) => {
 })
 
 // DELETE /api/agents/bulk — bulk delete multiple agents
-router.delete('/bulk', (req, res) => {
+router.delete('/bulk', async (req, res) => {
   const { agents: agentsToDelete, removeStateDir } = req.body as { agents?: Array<{ id: string; archived?: boolean }>; removeStateDir?: boolean }
 
   if (!agentsToDelete || !Array.isArray(agentsToDelete) || agentsToDelete.length === 0) {
@@ -1894,10 +1898,12 @@ router.delete('/bulk', (req, res) => {
   let failureCount = 0
 
   for (const agent of agentsToDelete) {
-    const result = deleteAgent(agent.id, removeStateDir === true, agent.archived || false)
-    results[agent.id] = { ok: result.errors.length === 0, ...result }
+    const { status, body } = await deleteAgentSafely(agent.id, removeStateDir === true, agent.archived || false)
+    const steps: string[] = Array.isArray(body.steps) ? body.steps : []
+    const errors: string[] = Array.isArray(body.errors) ? body.errors : body.error ? [String(body.error)] : []
+    results[agent.id] = { ok: status === 200 && errors.length === 0, steps, errors }
 
-    if (result.errors.length === 0) {
+    if (results[agent.id].ok) {
       successCount++
     } else {
       failureCount++
@@ -1915,26 +1921,23 @@ router.delete('/bulk', (req, res) => {
   })
 })
 
-// DELETE /api/agents/:id
-router.delete('/:id', async (req, res) => {
-  const { id } = req.params
-  const { removeStateDir } = req.body as { removeStateDir?: boolean }
-  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
-    res.status(400).json({ ok: false, error: 'Invalid agent id' })
-    return
-  }
+/**
+ * Deletes one agent with every lifecycle safeguard: a per-agent lock, in-flight turns stopped first,
+ * the pinned workspace state cleared, and the Gateway registration removed before the files. Bulk
+ * delete runs the same steps; it used to call deleteAgent directly, leaving the agent registered in a
+ * running Gateway and its turns running.
+ */
+async function deleteAgentSafely(id: string, removeStateDir: boolean, archived = false): Promise<{ status: number; body: Record<string, any> }> {
   if (!beginAgentDeletion(id)) {
-    res.status(409).json({ ok: false, error: 'Agent deletion is already in progress' })
-    return
+    return { status: 409, body: { ok: false, error: 'Agent deletion is already in progress' } }
   }
   try {
     if (!await quiesceAgentForDeletion(id)) {
-      res.status(409).json({ ok: false, error: 'Agent is still stopping; retry deletion shortly' })
-      return
+      return { status: 409, body: { ok: false, error: 'Agent is still stopping; retry deletion shortly' } }
     }
     const agentWorkspaceDir = path.join(getAgentsDir(), id)
     const lifecycleSteps: string[] = []
-    if (removeStateDir === true) {
+    if (removeStateDir) {
       try {
         // OpenClaw 2026.8.2 removes the config entry before moving workspace
         // files to Trash. On persistent container volumes that move can fail,
@@ -1943,12 +1946,14 @@ router.delete('/:id', async (req, res) => {
         await clearPinnedOpenClawWorkspaceState(agentWorkspaceDir)
         lifecycleSteps.push(`Cleared OpenClaw workspace state for ${id}`)
       } catch (err: any) {
-        res.status(503).json({
-          ok: false,
-          steps: [],
-          errors: [String(err?.message || err || 'Failed to clear OpenClaw workspace state')],
-        })
-        return
+        return {
+          status: 503,
+          body: {
+            ok: false,
+            steps: [],
+            errors: [String(err?.message || err || 'Failed to clear OpenClaw workspace state')],
+          },
+        }
       }
     }
     if (isGatewayRunning().running) {
@@ -1957,20 +1962,34 @@ router.delete('/:id', async (req, res) => {
         // deleteAgent below owns the persistent-volume filesystem lifecycle.
         await getGatewayClient().deleteAgentNative(id, false)
       } catch (err: any) {
-        res.status(503).json({
-          ok: false,
-          steps: [],
-          errors: [`Failed to remove agent from OpenClaw lifecycle: ${String(err?.message || err || 'unknown error')}`],
-        })
-        return
+        return {
+          status: 503,
+          body: {
+            ok: false,
+            steps: [],
+            errors: [`Failed to remove agent from OpenClaw lifecycle: ${String(err?.message || err || 'unknown error')}`],
+          },
+        }
       }
     }
-    const result = deleteAgent(id, removeStateDir === true)
+    const result = deleteAgent(id, removeStateDir, archived)
     result.steps.unshift(...lifecycleSteps)
-    res.json({ ok: result.errors.length === 0, ...result })
+    return { status: 200, body: { ok: result.errors.length === 0, ...result } }
   } finally {
     finishAgentDeletion(id)
   }
+}
+
+// DELETE /api/agents/:id
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params
+  const { removeStateDir } = req.body as { removeStateDir?: boolean }
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    res.status(400).json({ ok: false, error: 'Invalid agent id' })
+    return
+  }
+  const outcome = await deleteAgentSafely(id, removeStateDir === true)
+  res.status(outcome.status).json(outcome.body)
 })
 
 // GET /api/agents/:id/impact — impact summary for delete confirmation
@@ -3113,6 +3132,17 @@ router.post('/bulk-model', async (req, res) => {
       results.push({ id: String(agentId), ok: false, error: 'Template Agent model is revision-owned; plan a new revision to change it' })
       continue
     }
+    // Each id becomes a config entry, a workspace path and a runtime sessions path, so it gets the
+    // single-agent routes' checks before anything is written.
+    if (!/^[a-z][a-z0-9_-]*$/.test(agentId)) {
+      results.push({ id: agentId, ok: false, error: 'Invalid agent id' })
+      continue
+    }
+    const identityPath = path.join(getWorkspacePath(), 'AGENTS', agentId, 'IDENTITY.md')
+    if (!fs.existsSync(identityPath)) {
+      results.push({ id: agentId, ok: false, error: 'Agent not found' })
+      continue
+    }
     try {
       const configUpdate = updateAgentModelInConfig(agentId, normalizedModel)
       if (!configUpdate.ok) {
@@ -3120,12 +3150,7 @@ router.post('/bulk-model', async (req, res) => {
         continue
       }
 
-      // Update IDENTITY.md
-      const agentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
-      const identityPath = path.join(agentDir, 'IDENTITY.md')
-      if (fs.existsSync(identityPath)) {
-        updateAgentIdentityModel(identityPath, normalizedModel)
-      }
+      updateAgentIdentityModel(identityPath, normalizedModel)
 
       if (configUpdate.changed) {
         resetAgentRuntimeForModelChange(agentId)
@@ -3797,6 +3822,10 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
   const { id, filename } = req.params
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
+  }
+  // Same rule as restore and delete: the name (and a `current:` session id) is joined into a path.
+  if (filename.includes('..') || filename.includes('/')) {
+    return res.status(400).json({ error: 'Invalid filename' })
   }
   if (rejectStaleAgentRoute(req, res, id)) return
 

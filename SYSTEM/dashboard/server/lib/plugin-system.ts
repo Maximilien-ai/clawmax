@@ -1109,15 +1109,15 @@ export function listPluginRecords(plugin: PluginManifest): PluginRecord[] {
     const legacyItemAbsolute = path.join(getWorkspacePath(), legacyItemPath)
     if (!fs.existsSync(canonicalItemAbsolute) || fs.existsSync(legacyItemAbsolute)) {
       writePluginItemFile(plugin, record)
-      if (legacyItemPath !== canonicalItemPath) removePluginFile(legacyItemPath)
+      if (legacyItemPath !== canonicalItemPath) removePluginFile(plugin, legacyItemPath)
     }
 
     if (record.document?.path) {
       const canonicalDocPath = buildPluginDocPath(plugin, record)
       if (record.document.path !== canonicalDocPath) {
-        const previousAbsolute = path.join(getWorkspacePath(), record.document.path)
+        const previousAbsolute = pluginOwnedAbsolutePath(plugin, record.document.path)
         const canonicalAbsolute = path.join(getWorkspacePath(), canonicalDocPath)
-        if (fs.existsSync(previousAbsolute)) {
+        if (previousAbsolute && fs.existsSync(previousAbsolute)) {
           fs.mkdirSync(path.dirname(canonicalAbsolute), { recursive: true })
           if (fs.existsSync(canonicalAbsolute)) fs.rmSync(canonicalAbsolute, { force: true })
           fs.renameSync(previousAbsolute, canonicalAbsolute)
@@ -1261,9 +1261,19 @@ function buildPluginItemPath(plugin: PluginManifest, record: PluginRecord): stri
   return `SYSTEM/plugins/${plugin.slug}/items/${pluginRecordFileStem(record)}.md`
 }
 
-function removePluginFile(relativePath: string): void {
-  const absolutePath = path.join(getWorkspacePath(), relativePath)
-  if (fs.existsSync(absolutePath)) fs.rmSync(absolutePath, { force: true })
+// Record ids and document paths come from request bodies and the stored records file, so a path built
+// from them (a legacy `items/<id>.md`, `document.path`) is only moved or removed when it is one of the
+// plugin's own record files: a `.md` below its `items/` or `docs/` folder, never `items.json` or settings.
+function pluginOwnedAbsolutePath(plugin: PluginManifest, relativePath: string): string | null {
+  const root = path.resolve(getWorkspacePath(), 'SYSTEM', 'plugins', plugin.slug)
+  const absolutePath = path.resolve(getWorkspacePath(), relativePath)
+  const [folder, ...rest] = path.relative(root, absolutePath).split(path.sep)
+  return (folder === 'items' || folder === 'docs') && rest.length > 0 && absolutePath.endsWith('.md') ? absolutePath : null
+}
+
+function removePluginFile(plugin: PluginManifest, relativePath: string): void {
+  const absolutePath = pluginOwnedAbsolutePath(plugin, relativePath)
+  if (absolutePath && fs.existsSync(absolutePath)) fs.rmSync(absolutePath, { force: true })
 }
 
 function removeSupersededPluginItemFiles(plugin: PluginManifest, previous: PluginRecord, next: PluginRecord): void {
@@ -1273,7 +1283,7 @@ function removeSupersededPluginItemFiles(plugin: PluginManifest, previous: Plugi
     `SYSTEM/plugins/${plugin.slug}/items/${previous.id}.md`,
   ]
   for (const previousPath of previousPaths) {
-    if (previousPath !== nextPath) removePluginFile(previousPath)
+    if (previousPath !== nextPath) removePluginFile(plugin, previousPath)
   }
 }
 
@@ -1338,10 +1348,10 @@ function writePluginDocument(plugin: PluginManifest, record: PluginRecord): Plug
   const generatedAt = new Date().toISOString()
   const documentPath = buildPluginDocPath(plugin, record)
   if (record.document?.path && record.document.path !== documentPath) {
-    removePluginFile(record.document.path)
+    removePluginFile(plugin, record.document.path)
   }
   const legacyPath = `SYSTEM/plugins/${plugin.slug}/docs/${record.id}.md`
-  if (legacyPath !== documentPath) removePluginFile(legacyPath)
+  if (legacyPath !== documentPath) removePluginFile(plugin, legacyPath)
   const absolutePath = path.join(getWorkspacePath(), documentPath)
   fs.mkdirSync(path.dirname(absolutePath), { recursive: true })
 
@@ -1816,10 +1826,10 @@ export function deletePluginRecord(plugin: PluginManifest, recordId: string): bo
   if (next.length === records.length) return false
   writePluginRecords(plugin, next)
   if (current) {
-    removePluginFile(buildPluginItemPath(plugin, current))
-    removePluginFile(`SYSTEM/plugins/${plugin.slug}/items/${current.id}.md`)
+    removePluginFile(plugin, buildPluginItemPath(plugin, current))
+    removePluginFile(plugin, `SYSTEM/plugins/${plugin.slug}/items/${current.id}.md`)
     if (current.document?.path) {
-      removePluginFile(current.document.path)
+      removePluginFile(plugin, current.document.path)
     }
   }
   return true

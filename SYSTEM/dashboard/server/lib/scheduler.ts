@@ -1,5 +1,5 @@
 import * as cron from 'node-cron'
-import { listWorkflows, triggerWorkflow, updateWorkflow, resolveParticipants, syncWorkflowToCron, syncWorkflowToCronAsync } from './workflows'
+import { getWorkflow, listWorkflows, triggerWorkflow, updateWorkflow, resolveParticipants, syncWorkflowToCron, syncWorkflowToCronAsync } from './workflows'
 import { listAgents } from './workspace'
 import { waitForGatewayResponsive } from './gateway-rpc'
 
@@ -23,6 +23,8 @@ export function scheduledWorkflowConfiguration(workflow: any) {
 }
 
 export function triggerScheduledWorkflow(workflowId: string): { success: boolean; executionId?: string; error?: string } {
+  // A tick of a job that outlived the workflow being disabled must not run it.
+  if (getWorkflow(workflowId)?.enabled === false) return { success: false, error: 'Workflow is disabled' }
   if (!isTemplateWorkflow(workflowId)) return triggerWorkflow(workflowId, { manual: false })
   try {
     const run = require('../routes/dev-template-workflow').startScheduledDevWorkflow(workflowId)
@@ -153,29 +155,37 @@ export function syncAllWorkflows(options: { syncCronRegistrations?: boolean } = 
   const activeIds = new Set<string>()
 
   for (const storedWorkflow of workflows) {
-    const workflow = scheduledWorkflowConfiguration(storedWorkflow)
-    if (!workflow) { unscheduleWorkflow(storedWorkflow.id); continue }
-    const hasValidSchedule = workflow.schedule === 'manual' || cron.validate(workflow.schedule)
-    if (shouldSyncCronRegistrations && !isTemplateWorkflow(workflow.id)) {
-      if (!hasValidSchedule) {
-        console.warn(`[Scheduler] Skipping invalid gateway cron for ${workflow.id}: ${workflow.schedule}`)
-      } else {
-        const participants = resolveParticipants(workflow, agents).map((participant) => participant.agentId)
-        const syncResult = syncWorkflowToCron(workflow, participants)
-        const nextCronJobId = syncResult.cronJobId
-        if (!syncResult.ok && workflow.enabled && workflow.schedule !== 'manual') {
-          console.warn(`[Scheduler] Failed to sync gateway cron for ${workflow.id}: ${syncResult.error}`)
-        } else if ((workflow.cronJobId || undefined) !== nextCronJobId) {
-          updateWorkflow(workflow.id, { cronJobId: nextCronJobId })
+    try {
+      const workflow = scheduledWorkflowConfiguration(storedWorkflow)
+      if (!workflow) { unscheduleWorkflow(storedWorkflow.id); continue }
+      const hasValidSchedule = workflow.schedule === 'manual' || cron.validate(workflow.schedule)
+      if (shouldSyncCronRegistrations && !isTemplateWorkflow(workflow.id)) {
+        if (!hasValidSchedule) {
+          console.warn(`[Scheduler] Skipping invalid gateway cron for ${workflow.id}: ${workflow.schedule}`)
+        } else {
+          const participants = resolveParticipants(workflow, agents).map((participant) => participant.agentId)
+          const syncResult = syncWorkflowToCron(workflow, participants)
+          const nextCronJobId = syncResult.cronJobId
+          if (!syncResult.ok && workflow.enabled && workflow.schedule !== 'manual') {
+            console.warn(`[Scheduler] Failed to sync gateway cron for ${workflow.id}: ${syncResult.error}`)
+          } else if ((workflow.cronJobId || undefined) !== nextCronJobId) {
+            updateWorkflow(workflow.id, { cronJobId: nextCronJobId })
+          }
         }
       }
-    }
 
-    if (workflow.enabled && workflow.schedule !== 'manual' && hasValidSchedule) {
-      activeIds.add(workflow.id)
-      scheduleWorkflow(workflow.id, workflow.schedule, workflow.timezone)
-    } else {
-      unscheduleWorkflow(workflow.id)
+      if (workflow.enabled && workflow.schedule !== 'manual' && hasValidSchedule) {
+        activeIds.add(workflow.id)
+        scheduleWorkflow(workflow.id, workflow.schedule, workflow.timezone)
+      } else {
+        unscheduleWorkflow(workflow.id)
+      }
+    } catch (err) {
+      // One workflow node-cron refuses (an unknown time zone saved before validation, an edited file)
+      // must not stop the rest from being scheduled, unscheduled or cleaned up below.
+      console.error(`[Scheduler] Could not schedule workflow ${storedWorkflow.id}:`, err)
+      activeIds.delete(storedWorkflow.id)
+      unscheduleWorkflow(storedWorkflow.id)
     }
   }
 

@@ -25,6 +25,7 @@ import {
   readWorkspaceAgentFilesForOrganizationTemplate,
   buildTemplateFeedbackMetadata,
 } from '../lib/templates'
+import { isPlainPathSegment } from '../lib/path-segment'
 import { listWorkflowTemplates, listWorkflows, getWorkflow, createWorkflow, parseWorkflowMd, workflowToMarkdown } from '../lib/workflows'
 import { generateTemplateFromNL, normalizeTemplateGenerationTarget, setRequestByokKeys } from '../lib/ai-generator'
 import { getWorkspacePath, listAgents as listWorkspaceAgents, parseGroups } from '../lib/workspace'
@@ -35,6 +36,12 @@ import { buildNamedExportFilename } from '../lib/export-filename'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 
 const router = Router()
+
+// A slug names a template's folder, which DELETE removes recursively: `..%2F..%2F` must not leave the templates folder.
+router.param('slug', (_req, res, next, slug) => {
+  if (!isPlainPathSegment(slug)) return res.status(400).json({ error: 'Invalid template slug' })
+  next()
+})
 
 function resolveSessionAuthor(req: any): string | undefined {
   const session = getAuthenticatedSession(req)
@@ -550,10 +557,10 @@ router.get('/agents/:slug/files', (req, res) => {
 
     const candidateDirs = [
       path.join(getAgentTemplatesDir(), slug),
-      template.metadata?.basedOnSlug && template.metadata?.basedOnSource === 'workspace'
+      isPlainPathSegment(template.metadata?.basedOnSlug) && template.metadata?.basedOnSource === 'workspace'
         ? path.join(getAgentTemplatesDir(), template.metadata.basedOnSlug)
         : null,
-      template.metadata?.basedOnSlug && template.metadata?.basedOnSource === 'system'
+      isPlainPathSegment(template.metadata?.basedOnSlug) && template.metadata?.basedOnSource === 'system'
         ? path.join(getGlobalAgentTemplatesDir(), template.metadata.basedOnSlug)
         : null,
       path.join(getGlobalAgentTemplatesDir(), slug),
@@ -820,6 +827,8 @@ router.post('/organizations/import', async (req, res) => {
 // GET /api/templates/workflows/:id/export-md — Export workflow as WORKFLOW.md
 // NOTE: must be before /:type/:slug/export-md to avoid being caught by it
 router.get('/workflows/:id/export-md', (req, res) => {
+  // Same id rule as the workflows router: the id is joined into a file path, and Express decodes %2F.
+  if (!/^[a-z0-9-]+$/.test(req.params.id)) return res.status(400).json({ error: 'Invalid workflow ID' })
   const workflow = getWorkflow(req.params.id)
   if (!workflow) return res.status(404).json({ error: 'Workflow not found' })
 

@@ -1,6 +1,8 @@
 import fs from 'fs'
+import { isPlainPathSegment } from './path-segment'
 import path from 'path'
 import matter from 'gray-matter'
+import { parseFrontMatter } from './front-matter'
 import { getSystemProviderKeys } from './dashboard-env'
 import Ajv from 'ajv'
 import { execSync } from 'child_process'
@@ -1124,7 +1126,7 @@ export function slugify(name: string): string {
  */
 export function parseTemplateMd(content: string): Template | null {
   try {
-    const { data, content: body } = matter(content)
+    const { data, content: body } = parseFrontMatter(content)
     if (!data.name || !data.type) return null
 
     const template: any = {
@@ -1722,6 +1724,7 @@ export function saveTemplate(
     // Check reserved names
     const slug = slugify(template.name)
     const existingSlug = options?.existingSlug?.trim()
+    if (existingSlug && !isPlainPathSegment(existingSlug)) return { ok: false, error: 'Invalid template slug' }
     const RESERVED_SLUGS = ['clawmax-system-test', 'system-test']
     if (RESERVED_SLUGS.includes(slug)) {
       return { ok: false, error: `Template name "${template.name}" is reserved for system use` }
@@ -1781,7 +1784,7 @@ export function saveTemplate(
     const templateMdPath = path.join(templateDir, 'TEMPLATE.md')
     fs.writeFileSync(templateMdPath, templateToMarkdown(normalizedTemplate), 'utf-8')
 
-    if (normalizedTemplate.type === 'agent' && normalizedTemplate.metadata?.basedOnSlug) {
+    if (normalizedTemplate.type === 'agent' && isPlainPathSegment(normalizedTemplate.metadata?.basedOnSlug)) {
       const sourceSlug = normalizedTemplate.metadata.basedOnSlug
       const sourceType = normalizedTemplate.metadata.basedOnSource || 'system'
       const sourceDir = sourceType === 'workspace'
@@ -1914,6 +1917,7 @@ export function resolveAgentTemplateSlug(templateSlug: string): string | null {
  * Checks workspace first (user templates), then global (system templates)
  */
 export function getTemplate(type: 'agent' | 'organization', slug: string): Template | null {
+  if (!isPlainPathSegment(slug)) return null
   ensureTemplateDirs()
 
   // Check workspace templates first (user-created, higher priority)
@@ -1951,6 +1955,7 @@ export function getTemplate(type: 'agent' | 'organization', slug: string): Templ
  * Delete a template
  */
 export function deleteTemplate(type: 'agent' | 'organization', slug: string): { ok: boolean; error?: string } {
+  if (!isPlainPathSegment(slug)) return { ok: false, error: 'Template not found' }
   try {
     const templateDir = type === 'agent'
       ? path.join(getAgentTemplatesDir(), slug)
@@ -2572,6 +2577,7 @@ export async function importOrganizationTemplate(
     workflowRenames?: Record<string, string>
   }
 ): Promise<{ ok: boolean; agentIds?: string[]; error?: string }> {
+  if (!isPlainPathSegment(templateSlug)) return { ok: false, error: 'Template not found' }
   try {
     // Check workspace templates first (user templates)
     let templateDir = path.join(getOrgTemplatesDir(), templateSlug)

@@ -623,11 +623,21 @@ export function listDocEntries(): DocEntry[] {
   })
 }
 
+/**
+ * The workspace is a git repository the dashboard commits to on every document save, and git runs what
+ * `.git/config` names (filter drivers, `core.fsmonitor`, hooks). No upload, document or import may write
+ * there. Case-insensitive: `.GIT` is the same folder on macOS.
+ */
+export function hasGitDirSegment(relativePath: string): boolean {
+  return relativePath.split(/[\\/]/).some((segment) => segment.toLowerCase() === '.git')
+}
+
 /** Validate a workspace path is inside the workspace root. */
 function isWorkspacePathSafe(full: string, workspacePath: string): boolean {
   const resolvedWorkspace = path.resolve(workspacePath)
   const resolvedFull = path.resolve(full)
   if (resolvedFull !== resolvedWorkspace && !resolvedFull.startsWith(`${resolvedWorkspace}${path.sep}`)) return false
+  if (hasGitDirSegment(path.relative(resolvedWorkspace, resolvedFull))) return false
 
   try {
     const realWorkspace = fs.realpathSync(resolvedWorkspace)
@@ -641,6 +651,7 @@ function isWorkspacePathSafe(full: string, workspacePath: string): boolean {
     }
     const realAncestor = fs.realpathSync(existingAncestor)
     const realFull = path.join(realAncestor, ...missingSegments)
+    if (hasGitDirSegment(path.relative(realWorkspace, realFull))) return false // e.g. through a link `ORG/l -> ../.git`
     return realFull === realWorkspace || realFull.startsWith(`${realWorkspace}${path.sep}`)
   } catch {
     return false
@@ -835,6 +846,9 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
       maxTotalBytes: 250 * 1024 * 1024,
     })
     const listing = extraction.files
+    if (listing.some(hasGitDirSegment)) {
+      return { ok: false, error: 'ZIP contains a .git folder, which cannot be added to the workspace' }
+    }
 
     const conflicts = listing
       .filter(Boolean)

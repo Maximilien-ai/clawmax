@@ -2,6 +2,7 @@
  * Dynamic model discovery for configured hosted and local model providers.
  * Results are cached for 1 hour. Falls back to hardcoded lists on API failure.
  */
+import { createHash } from 'crypto'
 import { getDashboardDeploymentKind, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
 import { cloudModelEndpointError } from './cloud-execution-policy'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
@@ -31,6 +32,14 @@ interface CacheEntry {
 
 const cache: Record<string, CacheEntry> = {}
 
+/**
+ * A provider's list belongs to the key that fetched it: another key (a second user, a key that turns
+ * out invalid) must not be answered with it. Keyed by a fingerprint, so no key is held in the cache.
+ */
+function keyedCacheKey(provider: string, apiKey: string | undefined): string {
+  return `${provider}:${createHash('sha256').update(String(apiKey || '').trim()).digest('hex').slice(0, 32)}`
+}
+
 function getCached(provider: string): string[] | null {
   const entry = cache[provider]
   if (!entry) return null
@@ -51,7 +60,7 @@ export function clearModelCache() {
 }
 
 export function getPreferredAnthropicModel(): string {
-  const cached = getCached('anthropic') || []
+  const cached = getCached(keyedCacheKey('anthropic', resolveApiKey('anthropic'))) || []
   const preferred = [...cached, ...FALLBACK_ANTHROPIC].find((model) => model.startsWith('anthropic/claude-'))
   return preferred || 'anthropic/claude-3-5-sonnet-20241022'
 }
@@ -154,7 +163,7 @@ function isOpenAICompatibleChatModel(id: string): boolean {
 // ── API fetchers ───────────────────────────────────────────────────────────────
 
 async function fetchOpenAIModels(apiKey: string): Promise<string[]> {
-  const cached = getCached('openai')
+  const cached = getCached(keyedCacheKey('openai', apiKey))
   if (cached) return cached
 
   try {
@@ -174,7 +183,7 @@ async function fetchOpenAIModels(apiKey: string): Promise<string[]> {
       .map(id => `openai/${id}`)
 
     if (models.length === 0) return FALLBACK_OPENAI
-    setCache('openai', models)
+    setCache(keyedCacheKey('openai', apiKey), models)
     return models
   } catch (err) {
     console.warn('Failed to fetch OpenAI models, using fallback:', (err as Error).message)
@@ -183,7 +192,7 @@ async function fetchOpenAIModels(apiKey: string): Promise<string[]> {
 }
 
 async function fetchAnthropicModels(apiKey: string): Promise<string[]> {
-  const cached = getCached('anthropic')
+  const cached = getCached(keyedCacheKey('anthropic', apiKey))
   if (cached) return cached
 
   try {
@@ -206,7 +215,7 @@ async function fetchAnthropicModels(apiKey: string): Promise<string[]> {
       .map(id => `anthropic/${id}`)
 
     if (models.length === 0) return FALLBACK_ANTHROPIC
-    setCache('anthropic', models)
+    setCache(keyedCacheKey('anthropic', apiKey), models)
     return models
   } catch (err) {
     console.warn('Failed to fetch Anthropic models, using fallback:', (err as Error).message)
@@ -215,11 +224,13 @@ async function fetchAnthropicModels(apiKey: string): Promise<string[]> {
 }
 
 async function fetchGeminiModels(apiKey: string): Promise<string[]> {
-  const cached = getCached('gemini')
+  const cached = getCached(keyedCacheKey('gemini', apiKey))
   if (cached) return cached
 
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`, {
+    // In a header, not `?key=`: a URL ends up in proxy logs and in fetch error messages.
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+      headers: { 'x-goog-api-key': apiKey },
       signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) {
@@ -234,7 +245,7 @@ async function fetchGeminiModels(apiKey: string): Promise<string[]> {
       .map((id) => `google/${id}`)
 
     if (models.length === 0) return FALLBACK_GEMINI
-    setCache('gemini', models)
+    setCache(keyedCacheKey('gemini', apiKey), models)
     return models
   } catch (err) {
     console.warn('Failed to fetch Gemini models, using fallback:', (err as Error).message)
@@ -243,7 +254,7 @@ async function fetchGeminiModels(apiKey: string): Promise<string[]> {
 }
 
 async function fetchOpenRouterModels(apiKey: string): Promise<string[]> {
-  const cached = getCached('openrouter')
+  const cached = getCached(keyedCacheKey('openrouter', apiKey))
   if (cached) return cached
 
   try {
@@ -263,7 +274,7 @@ async function fetchOpenRouterModels(apiKey: string): Promise<string[]> {
       .sort()
       .map((id) => `openrouter/${id}`)
     const resolved = Array.from(new Set([...FALLBACK_OPENROUTER, ...models]))
-    setCache('openrouter', resolved)
+    setCache(keyedCacheKey('openrouter', apiKey), resolved)
     return resolved
   } catch (err) {
     console.warn('Failed to fetch OpenRouter models, using fallback:', (err as Error).message)
@@ -272,7 +283,7 @@ async function fetchOpenRouterModels(apiKey: string): Promise<string[]> {
 }
 
 async function fetchXaiModels(apiKey: string): Promise<string[]> {
-  const cached = getCached('xai')
+  const cached = getCached(keyedCacheKey('xai', apiKey))
   if (cached) return cached
 
   try {
@@ -291,7 +302,7 @@ async function fetchXaiModels(apiKey: string): Promise<string[]> {
       .sort()
       .map((id) => `xai/${id}`)
     const resolved = Array.from(new Set(discovered.length ? discovered : FALLBACK_XAI))
-    setCache('xai', resolved)
+    setCache(keyedCacheKey('xai', apiKey), resolved)
     return resolved
   } catch (err) {
     console.warn('Failed to fetch xAI models, using fallback:', (err as Error).message)
@@ -334,7 +345,7 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
   if (getDashboardDeploymentKind() === 'cloud' && cloudModelEndpointError(baseUrl)) return []
   const normalizedBaseUrl = (baseUrl.trim() || '').replace(/\/+$/, '')
   if (!normalizedBaseUrl) return []
-  const cacheKey = `openai-compatible:${normalizedBaseUrl}`
+  const cacheKey = keyedCacheKey(`openai-compatible:${normalizedBaseUrl}`, apiKey)
   const cached = getCached(cacheKey)
   if (cached) return cached
 
@@ -494,19 +505,19 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
   const userKeys = getUserDefaultProviderKeys(rawEnv)
 
   if (anthropicKey) {
-    models.push(...(getCached('anthropic') || FALLBACK_ANTHROPIC))
+    models.push(...(getCached(keyedCacheKey('anthropic', anthropicKey)) || FALLBACK_ANTHROPIC))
   }
   if (openaiKey) {
-    models.push(...(getCached('openai') || FALLBACK_OPENAI))
+    models.push(...(getCached(keyedCacheKey('openai', openaiKey)) || FALLBACK_OPENAI))
   }
   if (geminiKey) {
-    models.push(...(getCached('gemini') || FALLBACK_GEMINI))
+    models.push(...(getCached(keyedCacheKey('gemini', geminiKey)) || FALLBACK_GEMINI))
   }
   if (openrouterKey) {
-    models.push(...(getCached('openrouter') || FALLBACK_OPENROUTER))
+    models.push(...(getCached(keyedCacheKey('openrouter', openrouterKey)) || FALLBACK_OPENROUTER))
   }
   if (xaiKey) {
-    models.push(...(getCached('xai') || FALLBACK_XAI))
+    models.push(...(getCached(keyedCacheKey('xai', xaiKey)) || FALLBACK_XAI))
   }
 
   const localDefaults: string[] = []

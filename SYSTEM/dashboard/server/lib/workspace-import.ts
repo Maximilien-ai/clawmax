@@ -4,6 +4,7 @@ import path from 'path'
 import { getWorkspaceManager, type Workspace } from './workspace-manager'
 import { sanitizeWorkspaceExportName, type WorkspaceExportManifest } from './workspace-export'
 import { extractZipSecurely } from './archive-security'
+import { hasGitDirSegment } from './workspace'
 
 function resolveSingleExtractedRoot(extractDir: string): string {
   const entries = fs.readdirSync(extractDir, { withFileTypes: true })
@@ -32,7 +33,9 @@ function ensureWorkspaceMissing(targetPath: string) {
 
 function copyDirectoryContents(sourceDir: string, targetDir: string) {
   fs.mkdirSync(targetDir, { recursive: true })
-  fs.cpSync(sourceDir, targetDir, { recursive: true })
+  // An export never contains .git (WORKSPACE_EXPORT_SECRET_GLOBS); an imported one would let the archive's
+  // .git/config run commands when the dashboard next commits a document (see hasGitDirSegment).
+  fs.cpSync(sourceDir, targetDir, { recursive: true, filter: (source) => !hasGitDirSegment(path.relative(sourceDir, source)) })
 }
 
 function registerImportedWorkspace(name: string, workspacePath: string, options?: { color?: string; tags?: string[]; activate?: boolean }): Workspace {
