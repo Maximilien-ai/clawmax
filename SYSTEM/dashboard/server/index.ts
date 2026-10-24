@@ -277,7 +277,14 @@ app.use(cors({
   origin: (origin, callback) => callback(null, isCorsOriginAllowed(origin, allowedCorsOrigins)),
   credentials: true,
 }))
-app.use(express.json())
+// A chat send carries the last few messages as context (Resend and managed-secret turns read them), and a
+// single reply may be up to 2 MB: under the default 100 KB limit every send after a long reply failed
+// with HTTP 413. The default parser skips these requests; the chat router parses them with a larger limit
+// on its send route, after authentication, so an unauthenticated client cannot make the server buffer 16 MB.
+// Keep CHAT_SEND_PATH in step with that route (server/routes/chat.ts).
+const CHAT_SEND_PATH = /^\/api\/agents\/[^/]+\/chat\/?$/
+const defaultJsonParser = express.json()
+app.use((req, res, next) => (CHAT_SEND_PATH.test(req.path) ? next() : defaultJsonParser(req, res, next)))
 app.use(cookieParser())
 app.use('/api', browserMutationGuard(allowedCorsOrigins))
 
