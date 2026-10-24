@@ -3604,6 +3604,15 @@ else
   fail "Runtime transcript store unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workflow runtime stop tests...${NC}"
+npx ts-node --transpileOnly server/lib/workflow-runtime-stop.test.ts > /tmp/clawmax-workflow-runtime-stop.out 2>&1 || true
+if grep -q "Workflow runtime stop tests passed" /tmp/clawmax-workflow-runtime-stop.out; then
+  pass "Workflow runtime stop tests"
+else
+  cat /tmp/clawmax-workflow-runtime-stop.out
+  fail "Workflow runtime stop tests"
+fi
+
 echo -e "${YELLOW}→ Running Workflow session regression tests...${NC}"
 npx ts-node --transpileOnly server/lib/workflow-session-regressions.test.ts > /tmp/clawmax-workflow-session-regressions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workflow-session-regressions.out; then
