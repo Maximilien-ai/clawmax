@@ -261,6 +261,44 @@ async function run() {
     scheduler.stopScheduler()
   })
 
+  await test('a workflow node-cron refuses does not stop the others from being scheduled, and a disabled one never runs', async () => {
+    const scheduled: string[] = []
+    const ticks = new Map<string, Function>()
+    let triggered = 0
+    const scheduler = loadScheduler({
+      cron: {
+        validate: () => true,
+        // node-cron throws synchronously for an unknown IANA zone.
+        schedule: (_value: string, fn: Function, options: any) => {
+          if (options?.timezone === 'America/New_Yrok') throw new RangeError('Invalid time zone specified: America/New_Yrok')
+          scheduled.push(options?.timezone)
+          ticks.set(options?.timezone, fn)
+          return { stop() {} }
+        },
+      } as any,
+      workflows: {
+        listWorkflows: () => [
+          { id: 'wf-bad-zone', enabled: true, schedule: '0 9 * * *', timezone: 'America/New_Yrok' },
+          { id: 'wf-good-zone', enabled: true, schedule: '0 9 * * *', timezone: 'Europe/Berlin' },
+        ],
+        resolveParticipants: () => [],
+        syncWorkflowToCron: () => ({ ok: true, cronJobId: null }),
+        updateWorkflow: () => undefined,
+        // Disabled since the job was scheduled; a tick must not start it.
+        getWorkflow: () => ({ id: 'wf-good-zone', enabled: false }),
+        triggerWorkflow: () => { triggered += 1; return { success: true, executionId: 'x' } },
+      } as any,
+      workspace: { listAgents: () => [] } as any,
+    })
+
+    assert.doesNotThrow(() => scheduler.syncAllWorkflows(), 'A refused workflow must not abort the sync')
+    assert.deepStrictEqual(scheduled, ['Europe/Berlin'], 'The workflow after the refused one must still be scheduled')
+    const tick = ticks.get('Europe/Berlin') as () => void
+    tick()
+    assert.strictEqual(triggered, 0, 'A tick of a disabled workflow must not run it')
+    scheduler.stopScheduler()
+  })
+
   await test('startScheduler schedules enabled workflows on startup', async () => {
     let scheduleCalls = 0
     const scheduler = loadScheduler({

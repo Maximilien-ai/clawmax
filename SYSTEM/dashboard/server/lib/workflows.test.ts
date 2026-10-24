@@ -1254,6 +1254,28 @@ test('triggerWorkflow mock mode completes immediately and persists output artifa
   assert(artifactContent.includes('Audience: Hack judges'), `Expected run inputs to appear in mock artifact, got ${artifactContent}`)
 })
 
+test('create and update refuse a time zone node-cron cannot schedule, before anything is saved', () => {
+  const base = {
+    name: 'Zone Check',
+    description: 'Testing time zones',
+    schedule: '0 9 * * *',
+    content: '# Test\nMorning.',
+    executionMode: 'automated' as const,
+    targeting: { agents: [], groups: [], tags: [], communities: [] },
+  }
+  const before = listWorkflows().length
+  const refused = createWorkflow({ ...base, timezone: 'America/New_Yrok' })
+  assert(!refused.success && /Invalid timezone "America\/New_Yrok"/.test(String(refused.error)), `Unexpected result: ${JSON.stringify(refused)}`)
+  assert(listWorkflows().length === before, 'A refused workflow must not be written')
+
+  const created = createWorkflow({ ...base, timezone: 'America/New_York' })
+  assert(created.success, `A valid zone must be accepted: ${created.error}`)
+  createdIds.push(created.id!)
+  const updated = updateWorkflow(created.id!, { timezone: 'Mars/Olympus' })
+  assert(!updated.success, 'An update to an unknown zone must be refused')
+  assert(getWorkflow(created.id!)?.timezone === 'America/New_York', 'The saved zone must stay unchanged')
+})
+
 // ============================================================================
 // Cleanup
 // ============================================================================
