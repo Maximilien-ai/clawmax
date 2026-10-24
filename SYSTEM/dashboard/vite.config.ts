@@ -1,11 +1,17 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import dotenv from 'dotenv'
+import fs from 'fs'
 import { resolve } from 'path'
+import { resolveDashboardClientHost } from './server/lib/http-security'
 
 const clientPort = parseInt(process.env.DASHBOARD_CLIENT_PORT || '5173', 10)
 const backendPort = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
 const allowedHosts = ['drmaximilien.ngrok.dev']
 const ngrokHost = process.env.NGROK_URL?.trim()
+// The API lets .env override the inherited environment for its auth settings (server/lib/dashboard-env.ts).
+const envPath = resolve(__dirname, '.env')
+const dashboardEnv = { ...process.env, ...(fs.existsSync(envPath) ? dotenv.parse(fs.readFileSync(envPath)) : {}) }
 
 if (ngrokHost) {
   allowedHosts.push(ngrokHost)
@@ -16,7 +22,7 @@ export default defineConfig({
   plugins: [react({ jsxRuntime: 'automatic' })],
   server: {
     port: clientPort,
-    host: true, // Allow external access
+    host: resolveDashboardClientHost(dashboardEnv), // External access only with authentication
     allowedHosts,
     proxy: {
       '/api': {
