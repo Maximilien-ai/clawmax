@@ -3,6 +3,7 @@ import { openClawStatePath } from './openclaw-profile-paths'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
 import path from 'path'
 import matter from 'gray-matter'
+import { parseFrontMatter } from './front-matter'
 import cronstrue from 'cronstrue'
 import { execFile, execFileSync, spawn } from 'child_process'
 import { promisify } from 'util'
@@ -1157,7 +1158,7 @@ function getRecursiveDownstreamWorkflowIds(workflowId: string, workflows: Workfl
  */
 export function parseWorkflowMd(content: string, id?: string): Workflow | null {
   try {
-    const { data, content: body } = matter(content)
+    const { data, content: body } = parseFrontMatter(content)
     if (!data.name && !id) return null
 
     return {
@@ -1510,7 +1511,7 @@ export function listWorkflowTemplates(): Workflow[] {
     const filePath = path.join(templatesDir, file)
     try {
       const content = fs.readFileSync(filePath, 'utf-8')
-      const { data, content: markdownContent } = matter(content)
+      const { data, content: markdownContent } = parseFrontMatter(content)
 
       const template: Workflow = {
         id: path.basename(file, '.md'),
@@ -1555,7 +1556,7 @@ export function getWorkflow(id: string): Workflow | null {
 
   try {
     const fileContent = fs.readFileSync(filePath, 'utf-8')
-    const { data, content } = matter(fileContent)
+    const { data, content } = parseFrontMatter(fileContent)
 
     return reconcileWorkflowStateFromExecutions({
       id,

@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
+import { parseFrontMatter } from './front-matter'
 import { getSystemProviderKeys } from './dashboard-env'
 import Ajv from 'ajv'
 import { execSync } from 'child_process'
@@ -1124,7 +1125,7 @@ export function slugify(name: string): string {
  */
 export function parseTemplateMd(content: string): Template | null {
   try {
-    const { data, content: body } = matter(content)
+    const { data, content: body } = parseFrontMatter(content)
     if (!data.name || !data.type) return null
 
     const template: any = {

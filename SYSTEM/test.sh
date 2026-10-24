@@ -3655,6 +3655,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Front matter tests...${NC}"
+npx ts-node --transpileOnly server/lib/front-matter.test.ts > /tmp/clawmax-front-matter.out 2>&1 || true
+if grep -q "Front matter tests passed" /tmp/clawmax-front-matter.out; then
+  pass "Front matter tests"
+else
+  cat /tmp/clawmax-front-matter.out
+  fail "Front matter tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Workflow integration defaults unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workflow-integration-defaults.test.ts > /tmp/clawmax-workflow-integration-defaults.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workflow-integration-defaults.out; then
