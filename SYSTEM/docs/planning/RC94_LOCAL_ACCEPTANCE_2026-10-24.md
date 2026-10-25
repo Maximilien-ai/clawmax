@@ -4,7 +4,7 @@ Status: pre-release integration; RC94 has not been tagged or built. The user mus
 complete local testing and explicitly confirm acceptance before RC94 is cut.
 
 October 25 handoff: earlier product/dependency source `04818ac56a58198ed08affa0c580e0a36060ca88`
-passes the clean local suite and CI. Latest feedback checkpoint `c79f7218` adds
+passes the clean local suite and CI. Latest feedback checkpoint `d092640c` includes
 searchable group membership and collapsed model suggestions, with focused
 verification below. The working checkout is already on the
 integration branch and is available at **http://localhost:5174** (API on 3001).
@@ -31,6 +31,14 @@ The displayed `2.0.0-test-rc94` is a local candidate label, not a published tag.
 These are Dashboard-owned checks, not acceptance tasks for reviewers.
 
 ### October 25 acceptance-feedback changes
+
+- Corrected the group jump in `d092640c`: the earlier `scrollIntoView` could
+  scroll panel ancestors and move its header out of view. The regression
+  reproduces that failure. Navigation now scrolls only the existing detail
+  body and preserves the original frame, header/footer, and page position.
+  Desktop/mobile browser checks, lint and focused tests pass; client TypeScript
+  adds zero diagnostics relative to the recorded baseline. A12 awaits user
+  retest. Maximilien accepted the AI-creation collapse (A11).
 
 - Follow-up to accepted A9/A10: the card group-count button opens details at
   Groups, scrolling and moving keyboard focus after activity loads. This passes
@@ -64,7 +72,7 @@ These are Dashboard-owned checks, not acceptance tasks for reviewers.
 - **The full-suite/CI results below belong to the earlier recorded source.**
   Full integration/validation/coverage and CI must be rerun on the final
   feedback candidate before RC94 is cut. These are engineering-owned gates;
-  A3–A8 and the follow-up A11/A12 checks are the remaining user acceptance checks.
+  A3–A8 and the corrected A12 check are the remaining user acceptance checks.
 
 - Server TypeScript: passed.
 - Changed panel code lint and focused TypeScript: passed.
@@ -133,7 +141,7 @@ agent-route tests (78 route tests), production build, and the subsequent clean
 
 ## Acceptance for Maximilien and Daniyar
 
-Maximilien confirmed A1, A2, A9, and A10 on October 25. Their criteria remain below with
+Maximilien confirmed A1, A2, A9, A10, and A11 on October 25. Their criteria remain below with
 strikethrough. Daniyar's independent results remain pending.
 
 Each reviewer should record their own result on the exact same source revision.
@@ -153,8 +161,8 @@ include provider keys or raw participant conversations in the report.
 | A8 | human-judgment | At desktop and mobile widths, check Builder first-use suggestions, long conversation scrolling, and the single result-panel toggle. Check long template names, card actions, the top bar, and Forward menu dismissal. Nothing overlaps or becomes unreachable. |
 | ~~A9~~ | external-environment | ~~In agent details or an expanded card, choose **Add to group**, search by group name, and add the agent. The membership badge appears and remains after reload. Remove it with × and reload again. Verify the group, its other members, the agent's other memberships, and communities remain intact. Test the empty-state Add action and check mobile usability.~~ **Maximilien: passed, October 25.** |
 | ~~A10~~ | human-judgment | ~~Reopen Edit Agent Config: **Automatic model suggestion** starts collapsed. Expand it to see the existing suggestion/priority controls. Expanding or collapsing does not change the selected model or save the agent. Close/reopen and confirm it starts collapsed again.~~ **Maximilien: passed, October 25.** |
-| A11 | human-judgment | After AI generation in Add Agent, Automatic model suggestion starts collapsed. Expand it only when needed; the suggestion, priority, and existing selection controls remain available. Check desktop/mobile and confirm generation does not provision an agent automatically. |
-| A12 | human-judgment | Click an agent card's group count. Details opens scrolled to Groups with focus there, including when the identity content is long. Clicking the rest of the card still opens details normally. |
+| ~~A11~~ | human-judgment | ~~After AI generation in Add Agent, Automatic model suggestion starts collapsed. Expand it only when needed; the suggestion, priority, and existing selection controls remain available. Check desktop/mobile and confirm generation does not provision an agent automatically.~~ **Maximilien: passed, October 25.** |
+| A12 | human-judgment | Click an agent card's group count. The same details panel opens and only its existing body scrolls to Groups; its header/footer and the underlying page stay fixed. Group add/remove controls remain available. **Previous jump rejected by Maximilien; fixed in `d092640c`, awaiting retest.** |
 
 Result format: `reviewer / source SHA / platform / A1–A12 pass, fail, or not run /
 brief evidence or reproduction`. A missing runtime is `not run`, not a pass.
