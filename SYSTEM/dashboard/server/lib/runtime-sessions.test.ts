@@ -7,7 +7,7 @@ import assert from 'assert'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { clearRuntimeSessions, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
+import { clearRuntimeSessions, getRuntimeSessionId, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -152,6 +152,32 @@ test('FIFO cap: store never grows past ~2000 entries, oldest evicted first', () 
     // Oldest (agent-0..agent-4) should have been evicted; most recent should still be present.
     assert.strictEqual(hasRuntimeSession('claude', 'agent-0', 'sess1'), false)
     assert.strictEqual(hasRuntimeSession('claude', 'agent-2004', 'sess1'), true)
+  })
+})
+
+test('getRuntimeSessionId returns the CLI-created id after it is recorded', () => {
+  withWorkspace(() => {
+    assert.strictEqual(getRuntimeSessionId('opencode', 'agent1', 'sess1'), undefined)
+    markRuntimeSession('opencode', 'agent1', 'sess1', 'ses_created_by_cli')
+    assert.strictEqual(getRuntimeSessionId('opencode', 'agent1', 'sess1'), 'ses_created_by_cli')
+  })
+})
+
+test('re-marking a session without an id keeps the id the CLI reported earlier', () => {
+  withWorkspace(() => {
+    markRuntimeSession('opencode', 'agent1', 'sess1', 'ses_created_by_cli')
+    markRuntimeSession('opencode', 'agent1', 'sess1')
+    // Losing the id would silently start a new conversation on the next turn.
+    assert.strictEqual(getRuntimeSessionId('opencode', 'agent1', 'sess1'), 'ses_created_by_cli')
+  })
+})
+
+test('a recorded session id is scoped to its agent and conversation', () => {
+  withWorkspace(() => {
+    markRuntimeSession('opencode', 'agent1', 'sess1', 'ses_agent1_sess1')
+    assert.strictEqual(getRuntimeSessionId('opencode', 'agent2', 'sess1'), undefined)
+    assert.strictEqual(getRuntimeSessionId('opencode', 'agent1', 'sess2'), undefined)
+    assert.strictEqual(getRuntimeSessionId('claude', 'agent1', 'sess1'), undefined)
   })
 })
 

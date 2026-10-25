@@ -448,15 +448,16 @@ function formatUnsupportedModelError(raw: string, context?: ChatErrorContext): s
 
 // Display labels for the runtime-specific deriveChatError() messages below. openclaw never
 // reaches these branches (its errors are classified by the generic patterns further down).
-const RUNTIME_CHAT_LABELS: Record<'claude' | 'droid', string> = {
+const RUNTIME_CHAT_LABELS: Record<'claude' | 'droid' | 'opencode', string> = {
   claude: 'Claude Code',
   droid: 'Factory Droid',
+  opencode: 'OpenCode',
 }
 
 // A missing/falsy runtime (e.g. an older resolvedAgent shape) defaults to openclaw, matching
 // resolveAgentRuntime()'s own default — never treat "unset" as "non-openclaw".
-function isNonOpenclawChatRuntime(runtime: unknown): runtime is 'claude' | 'droid' {
-  return runtime === 'claude' || runtime === 'droid'
+function isNonOpenclawChatRuntime(runtime: unknown): runtime is 'claude' | 'droid' | 'opencode' {
+  return runtime === 'claude' || runtime === 'droid' || runtime === 'opencode'
 }
 
 export function deriveChatError(raw: string, provider?: ChatProvider, context?: ChatErrorContext): string {
@@ -1085,9 +1086,9 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
 
         const completionText = normalizeChatMessage(text.trim())
         // OpenClaw's own CLI persists its turns to a JSONL session file the dashboard already reads
-        // (see readChatSessionMessages in routes/agents.ts); claude/droid have no such dashboard-local
-        // record, so this is the only place a non-openclaw dashboard chat turn gets persisted for
-        // refresh / archive / clear-history to find later.
+        // (see readChatSessionMessages in routes/agents.ts); the other CLIs have no such
+        // dashboard-local record, so this is the only place a non-openclaw dashboard chat turn gets
+        // persisted for refresh / archive / clear-history to find later.
         appendRuntimeTranscriptExchange(id, executionSessionId, message, completionText)
         if (completionText) {
           // Mirror the openclaw branch's consented activity export so a chat is captured the same way

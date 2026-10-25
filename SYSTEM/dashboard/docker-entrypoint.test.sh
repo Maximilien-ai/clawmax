@@ -302,8 +302,8 @@ if CLAWMAX_RUNTIME_PACKAGE_JSON="$TMP_DIR/package-old.json" CLAWMAX_VERSION="v1.
 fi
 
 # ensure_openclaw_cli: openclaw is optional as long as another agent runtime
-# CLI (claude/droid, on PATH or via CLAUDE_BIN/DROID_BIN) is available — warn,
-# don't hard-fail.
+# CLI (claude/droid/opencode, on PATH or via CLAUDE_BIN/DROID_BIN/OPENCODE_BIN)
+# is available — warn, don't hard-fail.
 WARN_LOG="$TMP_DIR/ensure-openclaw-warn.log"
 if ! PATH="$CLAUDE_ONLY_BIN_DIR" HOME="$TMP_DIR/home" OPENCLAW_WORKSPACE="$TMP_DIR/workspace" CLAWMAX_ENTRYPOINT_TEST_MODE=true /bin/sh -c '. "$1"; ensure_openclaw_cli' _ "$SCRIPT" 2>"$WARN_LOG"; then
   echo "Expected ensure_openclaw_cli to succeed (not exit) when a claude CLI is on PATH" >&2

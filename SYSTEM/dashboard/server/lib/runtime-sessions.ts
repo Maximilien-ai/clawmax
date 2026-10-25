@@ -2,8 +2,9 @@
  * Tracks which (runtime, agent, scoped session) triples have an established CLI-side session,
  * so callers know whether to pass a "resume" flag or a "create" flag on the next turn.
  *
- * Used ONLY for the claude runtime today (first-turn-vs-resume). Droid's -s flag creates-or-resumes
- * on its own and openclaw has its own session store, so neither needs this file.
+ * Used by claude (first-turn `--session-id` vs `--resume`) and opencode (whose first turn must
+ * let the CLI create the session, then resume the id the CLI reported). Droid's -s flag
+ * creates-or-resumes on its own and openclaw has its own session store, so neither needs this file.
  */
 import fs from 'fs'
 import path from 'path'
@@ -16,6 +17,11 @@ interface SessionEntry {
   runtime: AgentRuntimeId
   agentId: string
   scopedSessionId: string
+  /**
+   * The session id the CLI itself created, when the runtime does not accept a caller-supplied
+   * id on the first turn (opencode). Absent for runtimes that derive the id deterministically.
+   */
+  sessionId?: string
   markedAt: number
 }
 
@@ -53,13 +59,31 @@ export function hasRuntimeSession(rt: AgentRuntimeId, agentId: string, scopedSes
   return readEntries().some((e) => keyOf(e.runtime, e.agentId, e.scopedSessionId) === key)
 }
 
-export function markRuntimeSession(rt: AgentRuntimeId, agentId: string, scopedSessionId: string): void {
+export function markRuntimeSession(rt: AgentRuntimeId, agentId: string, scopedSessionId: string, sessionId?: string): void {
   const key = keyOf(rt, agentId, scopedSessionId)
-  const entries = readEntries().filter((e) => keyOf(e.runtime, e.agentId, e.scopedSessionId) !== key)
-  entries.push({ runtime: rt, agentId, scopedSessionId, markedAt: Date.now() })
+  const existing = readEntries()
+  // Keep an id the CLI reported earlier when a caller re-marks the same triple without one.
+  const knownSessionId = sessionId || existing.find((e) => keyOf(e.runtime, e.agentId, e.scopedSessionId) === key)?.sessionId
+  const entries = existing.filter((e) => keyOf(e.runtime, e.agentId, e.scopedSessionId) !== key)
+  entries.push({
+    runtime: rt,
+    agentId,
+    scopedSessionId,
+    ...(knownSessionId ? { sessionId: knownSessionId } : {}),
+    markedAt: Date.now(),
+  })
   // FIFO cap: drop the oldest entries first once we're over the limit.
   const capped = entries.length > MAX_ENTRIES ? entries.slice(entries.length - MAX_ENTRIES) : entries
   writeEntries(capped)
+}
+
+/**
+ * The session id the CLI reported for this conversation, when it had to create one itself.
+ * Callers that derive their own deterministic id can treat `undefined` as "no CLI session yet".
+ */
+export function getRuntimeSessionId(rt: AgentRuntimeId, agentId: string, scopedSessionId: string): string | undefined {
+  const key = keyOf(rt, agentId, scopedSessionId)
+  return readEntries().find((e) => keyOf(e.runtime, e.agentId, e.scopedSessionId) === key)?.sessionId
 }
 
 export function clearRuntimeSessions(agentId: string): void {

@@ -15,6 +15,7 @@ import {
   detectRuntimeStatuses,
   droidSessionId,
   normalizeAgentRuntime,
+  opencodeSessionId,
   parseRuntimeResult,
   readAgentIdentitySystemPrompt,
   resolveAgentRuntime,
@@ -26,7 +27,7 @@ import {
   DROID_POST_TURN_TOOLS,
   RUNTIME_CANCELLED, isRuntimeCancelledError,
 } from './agent-runtime'
-import { hasRuntimeSession } from './runtime-sessions'
+import { getRuntimeSessionId, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -131,6 +132,7 @@ console.log(`\n${YELLOW}=== Agent Runtime Adapter Test Suite ===${RESET}\n`)
 test('normalizeAgentRuntime accepts known ids case-insensitively and trims whitespace', () => {
   assert.strictEqual(normalizeAgentRuntime(' Claude '), 'claude')
   assert.strictEqual(normalizeAgentRuntime('DROID'), 'droid')
+  assert.strictEqual(normalizeAgentRuntime(' OpenCode '), 'opencode')
   assert.strictEqual(normalizeAgentRuntime('openclaw'), 'openclaw')
 })
 
@@ -143,14 +145,16 @@ test('normalizeAgentRuntime rejects unknown or non-string values', () => {
   assert.strictEqual(normalizeAgentRuntime({ id: 'claude' }), undefined)
 })
 
-test('AGENT_RUNTIME_IDS exposes exactly the three supported runtimes', () => {
-  assert.deepStrictEqual(AGENT_RUNTIME_IDS, ['openclaw', 'claude', 'droid'])
+test('AGENT_RUNTIME_IDS exposes exactly the four supported runtimes', () => {
+  assert.deepStrictEqual(AGENT_RUNTIME_IDS, ['openclaw', 'claude', 'droid', 'opencode'])
 })
 
-// ── resolveRuntimeCliPath precedence (claude + droid) ──
+// ── resolveRuntimeCliPath precedence (claude + droid + opencode) ──
 
-for (const rt of ['claude', 'droid'] as const) {
-  const envVar = rt === 'claude' ? 'CLAUDE_BIN' : 'DROID_BIN'
+const CLI_BIN_ENV = { claude: 'CLAUDE_BIN', droid: 'DROID_BIN', opencode: 'OPENCODE_BIN' } as const
+
+for (const rt of ['claude', 'droid', 'opencode'] as const) {
+  const envVar = CLI_BIN_ENV[rt]
 
   test(`resolveRuntimeCliPath(${rt}) prefers ${envVar} override when executable`, () => {
     withTempDir(`clawmax-agent-runtime-${rt}-override-`, (dir) => {
@@ -365,6 +369,40 @@ test('droidSessionId only ever produces droid-safe characters within the documen
   assert.ok(/^[0-9a-f]+$/.test(id), `Expected only [0-9a-f] characters, got ${id}`)
 })
 
+// ── opencodeSessionId ──
+//
+// opencode validates `--session`: a value that does not start with `ses` is rejected outright
+// ("Expected a string starting with \"ses\"", measured against opencode 2.1.4), so the prefix is
+// part of the contract, not cosmetic.
+
+test('opencodeSessionId is deterministic and always starts with the required ses prefix', () => {
+  const a = opencodeSessionId('session-1', 'agent-1')
+  const b = opencodeSessionId('session-1', 'agent-1')
+  assert.strictEqual(a, b)
+  assert.ok(a.startsWith('ses_'), `Expected a ses_ prefix, got ${a}`)
+  assert.ok(/^ses_[0-9a-f]+$/.test(a), `Expected only ses_ + [0-9a-f], got ${a}`)
+})
+
+test('opencodeSessionId differs when scopedSessionId or agentId changes', () => {
+  assert.notStrictEqual(
+    opencodeSessionId('session-1', 'agent-1'),
+    opencodeSessionId('session-2', 'agent-1'),
+  )
+  assert.notStrictEqual(
+    opencodeSessionId('session-1', 'agent-1'),
+    opencodeSessionId('session-1', 'agent-2'),
+  )
+})
+
+test('opencodeSessionId binds to the agent: a shared DM session key never collides across agents', () => {
+  // Two agents in one direct message share the raw scopedSessionId; they must still get distinct
+  // opencode sessions, exactly as droidSessionId guarantees for droid.
+  assert.notStrictEqual(
+    opencodeSessionId('dm-alice-bob', 'agent-alice'),
+    opencodeSessionId('dm-alice-bob', 'agent-bob'),
+  )
+})
+
 // ── runtimeModelArg / RuntimeModelError ──
 
 test('runtimeModelArg(claude) strips the anthropic/ prefix', () => {
@@ -410,6 +448,23 @@ test('runtimeModelArg(openclaw) passes the model through unchanged (ClawMax nota
   assert.strictEqual(runtimeModelArg('openclaw', undefined), undefined)
 })
 
+test('runtimeModelArg(opencode) passes provider/model through verbatim (its own notation)', () => {
+  // ClawMax stores `provider/model`; `opencode models` prints exactly that, so there is nothing to
+  // add or strip. Unlike claude (anthropic-only) and droid (prefix stripped), opencode accepts the
+  // stored value as-is for any provider it knows.
+  assert.strictEqual(runtimeModelArg('opencode', 'anthropic/claude-sonnet-4-5'), 'anthropic/claude-sonnet-4-5')
+  assert.strictEqual(runtimeModelArg('opencode', 'openai/gpt-5.5'), 'openai/gpt-5.5')
+  assert.strictEqual(runtimeModelArg('opencode', 'opencode/deepseek-v4.1-flash-free'), 'opencode/deepseek-v4.1-flash-free')
+})
+
+test('runtimeModelArg(opencode) forwards a bare model rather than dropping it', () => {
+  assert.strictEqual(runtimeModelArg('opencode', 'sonnet'), 'sonnet')
+})
+
+test('runtimeModelArg(opencode) returns undefined for an undefined model (CLI picks its default)', () => {
+  assert.strictEqual(runtimeModelArg('opencode', undefined), undefined)
+})
+
 // ── buildRuntimePlan: args for all runtime x mode x resume combos ──
 
 function withStubbedClis<T>(fn: (dir: string) => T): T {
@@ -417,10 +472,17 @@ function withStubbedClis<T>(fn: (dir: string) => T): T {
     const openclawCli = path.join(dir, 'openclaw')
     const claudeCli = path.join(dir, 'claude')
     const droidCli = path.join(dir, 'droid')
+    const opencodeCli = path.join(dir, 'opencode')
     writeFakeCli(openclawCli, 'openclaw 1.0.0')
     writeFakeCli(claudeCli, 'claude 1.0.0')
     writeFakeCli(droidCli, 'droid 1.0.0')
-    return withEnv({ OPENCLAW_BIN: openclawCli, CLAUDE_BIN: claudeCli, DROID_BIN: droidCli }, () => fn(dir))
+    writeFakeCli(opencodeCli, 'opencode v2.1.4')
+    return withEnv({
+      OPENCLAW_BIN: openclawCli,
+      CLAUDE_BIN: claudeCli,
+      DROID_BIN: droidCli,
+      OPENCODE_BIN: opencodeCli,
+    }, () => fn(dir))
   })
 }
 
@@ -669,6 +731,101 @@ test('buildRuntimePlan(droid) mode has no effect on streamsDeltas (always false)
   })
 })
 
+test('buildRuntimePlan(opencode) lets the CLI create the session on the first turn (no -s)', () => {
+  withStubbedClis(() => {
+    withWorkspace(null, () => {
+      const plan = buildRuntimePlan({
+        runtime: 'opencode', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+        message: 'hello', model: 'anthropic/claude-sonnet-4-5', agentDir: '/workspace/AGENTS/agent1', resume: false,
+      })
+      // `-s` with an id the CLI has never seen is not create-or-resume: opencode 2.1.4 answers
+      // 403 FreeTierError ("free tier can only be used from within OpenCode"). The first turn must
+      // let the CLI create the session and report its id.
+      assert.ok(!plan.args.includes('-s'), `first opencode turn must omit -s, got: ${plan.args.join(' ')}`)
+      assert.deepStrictEqual(plan.args, [
+        'run', 'hello',
+        '-m', 'anthropic/claude-sonnet-4-5',
+        '--auto',
+        '--format', 'json',
+      ])
+      // cwd is the only thing that scopes the project: opencode 2.1.4 rejects `--dir` on `run`.
+      assert.strictEqual(plan.cwd, '/workspace/AGENTS/agent1')
+      assert.strictEqual(plan.streamsDeltas, true)
+      assert.ok(!plan.args.includes('--dir'), 'opencode rejects --dir; cwd must carry the agent directory')
+    })
+  })
+})
+
+test('buildRuntimePlan(opencode) resumes the session id the CLI reported', () => {
+  withStubbedClis(() => {
+    withWorkspace(null, () => {
+      markRuntimeSession('opencode', 'agent1', 'sess1', 'ses_cli_created_by_opencode')
+      const plan = buildRuntimePlan({
+        runtime: 'opencode', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+        message: 'hello', model: 'anthropic/claude-sonnet-4-5', agentDir: '/workspace/AGENTS/agent1', resume: true,
+      })
+      assert.strictEqual(plan.args[plan.args.indexOf('-s') + 1], 'ses_cli_created_by_opencode')
+    })
+  })
+})
+
+test('buildRuntimePlan(opencode) omits -m when no model is configured (CLI uses its own default)', () => {
+  withStubbedClis(() => {
+    const plan = buildRuntimePlan({
+      runtime: 'opencode', mode: 'json', agentId: 'agent1', scopedSessionId: 'sess1',
+      message: 'hello', agentDir: '/workspace/AGENTS/agent1', resume: false,
+    })
+    assert.ok(!plan.args.includes('-m'), `Expected no -m flag, got: ${plan.args.join(' ')}`)
+    assert.ok(plan.args.includes('--format'), 'opencode always runs with --format json')
+    assert.strictEqual(plan.args[plan.args.indexOf('--format') + 1], 'json')
+  })
+})
+
+test('buildRuntimePlan(opencode) carries the identity prompt in the message (no --append-system-prompt flag)', () => {
+  withStubbedClis(() => {
+    const plan = buildRuntimePlan({
+      runtime: 'opencode', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+      message: 'hello', agentDir: '/workspace/AGENTS/agent1',
+      systemPrompt: 'You are TestBot.', resume: false,
+    })
+    // opencode has no system-prompt flag, so the identity must still reach the model via the prompt.
+    const message = plan.args[1]
+    assert.ok(message.includes('You are TestBot.'), `Expected identity in prompt, got: ${message}`)
+    assert.ok(message.includes('hello'), `Expected the user message in prompt, got: ${message}`)
+    assert.ok(!plan.args.includes('--append-system-prompt'))
+  })
+})
+
+test('buildRuntimePlan(opencode) falls back to a ses_-prefixed id for conversations marked before an id was recorded', () => {
+  withStubbedClis(() => {
+    withWorkspace(null, () => {
+      // Older state files only recorded "a session exists"; the deterministic id must still be a
+      // valid opencode id rather than the raw scoped key.
+      const plan = buildRuntimePlan({
+        runtime: 'opencode', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+        message: 'hi', agentDir: '/workspace/AGENTS/agent1', resume: true,
+      })
+      const sessionId = plan.args[plan.args.indexOf('-s') + 1]
+      assert.notStrictEqual(sessionId, 'sess1')
+      assert.ok(sessionId.startsWith('ses_'), `opencode rejects non-ses ids, got: ${sessionId}`)
+      assert.strictEqual(sessionId, opencodeSessionId('sess1', 'agent1'))
+    })
+  })
+})
+
+test('buildRuntimePlan(opencode) binds the fallback id to the agent: a shared scopedSessionId never collides', () => {
+  withStubbedClis(() => {
+    withWorkspace(null, () => {
+      const build = (agentId: string) => buildRuntimePlan({
+        runtime: 'opencode', mode: 'chat', agentId, scopedSessionId: 'shared-dm',
+        message: 'hi', agentDir: `/workspace/AGENTS/${agentId}`, resume: true,
+      })
+      const sessionIdOf = (plan: { args: string[] }) => plan.args[plan.args.indexOf('-s') + 1]
+      assert.notStrictEqual(sessionIdOf(build('agent-a')), sessionIdOf(build('agent-b')))
+    })
+  })
+})
+
 test('buildRuntimePlan returns the runtime-specific missingCliError and a null cliPath when the CLI is absent', () => {
   withTempDir('clawmax-agent-runtime-missing-', (dir) => {
     withEnv({ CLAUDE_BIN: undefined, PATH: path.join(dir, 'empty'), HOME: dir }, () => {
@@ -678,6 +835,19 @@ test('buildRuntimePlan returns the runtime-specific missingCliError and a null c
       })
       assert.strictEqual(plan.cliPath, null)
       assert.match(plan.missingCliError, /Claude Code CLI is not available.*CLAUDE_BIN/)
+    })
+  })
+})
+
+test('buildRuntimePlan(opencode) reports a missing CLI with an OPENCODE_BIN hint', () => {
+  withTempDir('clawmax-agent-runtime-missing-opencode-', (dir) => {
+    withEnv({ OPENCODE_BIN: undefined, PATH: path.join(dir, 'empty'), HOME: dir }, () => {
+      const plan = buildRuntimePlan({
+        runtime: 'opencode', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+        message: 'hi', agentDir: dir, resume: false,
+      })
+      assert.strictEqual(plan.cliPath, null)
+      assert.match(plan.missingCliError, /OpenCode CLI is not available.*OPENCODE_BIN/)
     })
   })
 })
@@ -755,6 +925,77 @@ test('parseRuntimeResult: droid bad-model failure has empty stdout, error on std
   assert.strictEqual(parsed.errorText, stderr.trim())
 })
 
+// ── parseRuntimeResult: opencode `--format json` raw event stream ──
+
+test('parseRuntimeResult: opencode reads assistant text out of the raw event stream (chat and json)', () => {
+  // opencode's --format json is a stream of raw events, not one envelope: step boundaries and
+  // tool progress arrive as events too, and only the text part is the answer.
+  const stdout = [
+    JSON.stringify({ type: 'step_start', sessionID: 'ses_1', part: { id: 'prt_1', type: 'step-start' } }),
+    JSON.stringify({ type: 'tool', part: { type: 'tool', tool: 'bash', state: { status: 'completed' } } }),
+    JSON.stringify({ type: 'text', part: { id: 'prt_2', type: 'text', text: 'PROBE_OK' } }),
+    JSON.stringify({ type: 'step_finish', part: { type: 'step-finish', reason: 'stop' } }),
+  ].join('\n')
+  for (const mode of ['chat', 'json'] as const) {
+    const parsed = parseRuntimeResult('opencode', mode, stdout, '', 0)
+    assert.strictEqual(parsed.text, 'PROBE_OK', `mode=${mode}`)
+    assert.strictEqual(parsed.errorText, undefined, `mode=${mode}`)
+  }
+})
+
+test('parseRuntimeResult: opencode reports the session id the CLI created', () => {
+  const stdout = [
+    JSON.stringify({ type: 'step_start', sessionID: 'ses_created_by_cli', part: { type: 'step-start' } }),
+    JSON.stringify({ type: 'text', sessionID: 'ses_created_by_cli', part: { type: 'text', text: 'PROBE_OK' } }),
+  ].join('\n')
+  const parsed = parseRuntimeResult('opencode', 'chat', stdout, '', 0)
+  assert.strictEqual(parsed.text, 'PROBE_OK')
+  // Without this the next turn would start a new conversation: `-s` cannot create a session.
+  assert.strictEqual(parsed.sessionId, 'ses_created_by_cli')
+})
+
+test('parseRuntimeResult: opencode joins multiple text parts and ignores non-text parts', () => {
+  const stdout = [
+    JSON.stringify({ type: 'text', part: { type: 'text', text: 'Hello ' } }),
+    JSON.stringify({ type: 'reasoning', part: { type: 'reasoning', text: 'internal thinking' } }),
+    JSON.stringify({ type: 'text', part: { type: 'text', text: 'world' } }),
+  ].join('\n')
+  const parsed = parseRuntimeResult('opencode', 'chat', stdout, '', 0)
+  assert.strictEqual(parsed.text, 'Hello world')
+  assert.ok(!parsed.text.includes('internal thinking'), 'reasoning must not be shown as the reply')
+})
+
+test('parseRuntimeResult: opencode surfaces a provider error event instead of partial text', () => {
+  // Measured shape: {"type":"error","error":{"type":"provider.auth","message":"...","status":403}}
+  const stdout = [
+    JSON.stringify({ type: 'text', part: { type: 'text', text: 'partial answer' } }),
+    JSON.stringify({
+      type: 'error',
+      sessionID: 'ses_1',
+      error: { type: 'provider.auth', message: "OpenCode's free tier can only be used from within OpenCode.", status: 403 },
+    }),
+  ].join('\n')
+  const parsed = parseRuntimeResult('opencode', 'chat', stdout, '', 1)
+  assert.strictEqual(parsed.text, '', 'a failing event must not be persisted as a successful reply')
+  assert.match(parsed.errorText || '', /free tier can only be used/)
+})
+
+test('parseRuntimeResult: opencode falls back to stderr, then to an actionable message, when nothing parsed', () => {
+  const withStderr = parseRuntimeResult('opencode', 'chat', '', 'boom', 1)
+  assert.strictEqual(withStderr.errorText, 'boom')
+
+  const silent = parseRuntimeResult('opencode', 'chat', '', '', 1)
+  assert.match(silent.errorText || '', /OpenCode CLI exited with code 1/)
+  // The hint must name a credential an operator can actually set for this runtime.
+  assert.match(silent.errorText || '', /opencode auth login|ANTHROPIC_API_KEY/)
+})
+
+test('parseRuntimeResult: opencode ignores an unparseable partial log rather than failing the turn', () => {
+  const stdout = '{"type":"text","part":{"type":"text","text":"ok"}}\n{"type":"text","part":{"ty'
+  const parsed = parseRuntimeResult('opencode', 'chat', stdout, '', 0)
+  assert.strictEqual(parsed.text, 'ok')
+})
+
 // ── classifyClaudeSessionError ──
 
 test('classifyClaudeSessionError recognizes "already in use"', () => {
@@ -806,21 +1047,25 @@ test('readAgentIdentitySystemPrompt caps output at 16000 characters', () => {
 test('detectRuntimeStatuses reports installed status, version, and active flag without throwing', () => {
   withStubbedClis(() => {
     const statuses = detectRuntimeStatuses('claude')
-    assert.strictEqual(statuses.length, 3)
+    assert.strictEqual(statuses.length, 4)
     const claude = statuses.find((s) => s.id === 'claude')
     assert.ok(claude?.installed)
     assert.strictEqual(claude?.active, true)
     assert.ok(claude?.version?.includes('claude'))
     const droid = statuses.find((s) => s.id === 'droid')
     assert.strictEqual(droid?.active, false)
+    const opencode = statuses.find((s) => s.id === 'opencode')
+    assert.ok(opencode?.installed)
+    assert.strictEqual(opencode?.label, 'OpenCode')
+    assert.strictEqual(opencode?.active, false)
   })
 })
 
 test('detectRuntimeStatuses never throws when no CLIs are present', () => {
   withTempDir('clawmax-agent-runtime-detect-none-', (dir) => {
-    withEnv({ CLAUDE_BIN: undefined, DROID_BIN: undefined, OPENCLAW_BIN: undefined, PATH: path.join(dir, 'empty'), HOME: dir }, () => {
+    withEnv({ CLAUDE_BIN: undefined, DROID_BIN: undefined, OPENCODE_BIN: undefined, OPENCLAW_BIN: undefined, PATH: path.join(dir, 'empty'), HOME: dir }, () => {
       const statuses = detectRuntimeStatuses('openclaw')
-      assert.strictEqual(statuses.length, 3)
+      assert.strictEqual(statuses.length, 4)
       assert.ok(statuses.every((s) => s.installed === false))
     })
   })
@@ -937,6 +1182,29 @@ async function run(): Promise<void> {
       })
       assert.strictEqual(result.text, 'Hello World')
       assert.ok(deltas.length >= 2, `Expected multiple streamed chunks, got ${deltas.length}`)
+    })
+  })
+
+  await testAsync('runRuntimeCli records the opencode session id the CLI created so the next turn can resume it', async () => {
+    await withWorkspaceAsync(null, async () => {
+      await withTempDirAsync('clawmax-agent-runtime-opencode-session-', async (dir) => {
+        const cli = path.join(dir, 'fake-opencode.js')
+        writeFakeNodeCli(cli, `
+          process.stdout.write(JSON.stringify({ type: 'step_start', sessionID: 'ses_created_by_cli', part: { type: 'step-start' } }) + '\\n')
+          process.stdout.write(JSON.stringify({ type: 'text', sessionID: 'ses_created_by_cli', part: { type: 'text', text: 'OK' } }) + '\\n')
+        `)
+        fs.chmodSync(cli, 0o755)
+        const result = await runRuntimeCli({
+          plan: { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: true },
+          env: process.env as NodeJS.ProcessEnv, signal: new AbortController().signal,
+          rebuildPlan: () => { throw new Error('opencode never retries') },
+          runtime: 'opencode', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+        })
+        assert.strictEqual(result.text, 'OK')
+        // `-s` cannot create a session, so the CLI-reported id is the only way to keep continuity.
+        assert.strictEqual(getRuntimeSessionId('opencode', 'agent1', 'sess1'), 'ses_created_by_cli')
+        assert.strictEqual(hasRuntimeSession('opencode', 'agent1', 'sess1'), true)
+      })
     })
   })
 

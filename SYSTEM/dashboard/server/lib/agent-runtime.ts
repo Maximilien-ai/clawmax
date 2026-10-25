@@ -1,10 +1,10 @@
 /**
- * Runtime adapter: resolves which agent CLI (openclaw / claude / droid) executes an agent,
- * and builds the spawn plan + shared executor for the non-openclaw runtimes.
+ * Runtime adapter: resolves which agent CLI (openclaw / claude / droid / opencode) executes an
+ * agent, and builds the spawn plan + shared executor for the non-openclaw runtimes.
  *
  * OpenClaw remains the default and its existing spawn call sites are untouched — this module
  * only centralizes *resolution* for openclaw (so callers stop hand-rolling CLI detection) and
- * owns the full spawn plan for claude/droid.
+ * owns the full spawn plan for claude/droid/opencode.
  */
 import fs from 'fs'
 import os from 'os'
@@ -14,15 +14,15 @@ import { execFile, execFileSync, spawn } from 'child_process'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { safeEnv } from './safe-env'
-import { clearRuntimeSession, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
+import { clearRuntimeSession, getRuntimeSessionId, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
 import { appendBoundedOutput } from './stream-bounds'
 import { cancelProcessTree, detachProcessStreams, signalProcessTree } from './process-tree'
 import { getDashboardDeploymentKind } from './dashboard-env'
 import { CLOUD_CLI_NOTICE } from './cloud-execution-policy'
 
-export type AgentRuntimeId = 'openclaw' | 'claude' | 'droid'
+export type AgentRuntimeId = 'openclaw' | 'claude' | 'droid' | 'opencode'
 
-export const AGENT_RUNTIME_IDS: AgentRuntimeId[] = ['openclaw', 'claude', 'droid']
+export const AGENT_RUNTIME_IDS: AgentRuntimeId[] = ['openclaw', 'claude', 'droid', 'opencode']
 
 export function normalizeAgentRuntime(v: unknown): AgentRuntimeId | undefined {
   if (typeof v !== 'string') return undefined
@@ -54,9 +54,10 @@ function resolveBinFromPath(bin: string): string | null {
   }
 }
 
-const RUNTIME_BIN_ENV: Record<'claude' | 'droid', string> = {
+const RUNTIME_BIN_ENV: Record<'claude' | 'droid' | 'opencode', string> = {
   claude: 'CLAUDE_BIN',
   droid: 'DROID_BIN',
+  opencode: 'OPENCODE_BIN',
 }
 
 // CLI locations do not change while the process runs, but resolution shells out to `which`.
@@ -110,6 +111,7 @@ const RUNTIME_LABELS: Record<AgentRuntimeId, string> = {
   openclaw: 'OpenClaw',
   claude: 'Claude Code',
   droid: 'Factory Droid',
+  opencode: 'OpenCode',
 }
 
 export function runtimeLabel(rt: AgentRuntimeId): string {
@@ -120,6 +122,7 @@ const RUNTIME_INSTALL_HINTS: Record<AgentRuntimeId, string> = {
   openclaw: 'Run: npm install -g openclaw',
   claude: 'Run: npm install -g @anthropic-ai/claude-code (or set CLAUDE_BIN to the executable path)',
   droid: 'Install the Factory Droid CLI and ensure it is on PATH (or set DROID_BIN to the executable path)',
+  opencode: 'Run: npm install -g @opencode/cli (or set OPENCODE_BIN to the executable path)',
 }
 
 export function detectRuntimeStatuses(active: AgentRuntimeId): RuntimeStatus[] {
@@ -181,7 +184,7 @@ export function resolveEnabledRuntimes(): AgentRuntimeId[] {
   const raw = Array.isArray(config) ? config : parseRuntimeEnvList(process.env.WORKSPACES_INTEGRATIONS_RUNTIMES)
   return raw
     .map((item) => normalizeAgentRuntime(item))
-    .filter((rt): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
+    .filter((rt): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid' || rt === 'opencode')
 }
 
 /**
@@ -205,8 +208,8 @@ export function resolveAgentRuntime(agentId: string, identityRuntime?: string): 
   // IDENTITY.md parsing can slot in here without changing every call site's signature.
   void agentId
   const pinned = normalizeAgentRuntime(identityRuntime)
-  // Unpinned agents (and openclaw pins) run on OpenClaw. A claude/droid pin is honored only when
-  // that CLI is enabled for the workspace; a pin to a disabled CLI falls back to OpenClaw.
+  // Unpinned agents (and openclaw pins) run on OpenClaw. A claude/droid/opencode pin is honored
+  // only when that CLI is enabled for the workspace; a pin to a disabled CLI falls back to OpenClaw.
   if (!pinned || pinned === 'openclaw') return 'openclaw'
   return resolveEnabledRuntimes().includes(pinned) ? pinned : 'openclaw'
 }
@@ -224,6 +227,7 @@ export const RUNTIME_DEFAULT_MODELS: Record<AgentRuntimeId, string | undefined> 
   openclaw: undefined,
   claude: 'sonnet',
   droid: undefined, // droid selects its own current default when handed none
+  opencode: undefined, // opencode resolves its own configured default when handed none
 }
 
 /**
@@ -298,6 +302,15 @@ export function runtimeModelArg(rt: AgentRuntimeId, model?: string): string | un
     return rest || model
   }
 
+  if (rt === 'opencode') {
+    // OpenCode is the one runtime whose model notation already matches what ClawMax stores: it
+    // takes `provider/model` verbatim (`opencode models` prints exactly that), so there is no
+    // prefix to add or strip. A bare id is still forwarded rather than dropped — opencode reports
+    // an unknown model itself, and refusing the turn here would be the same dead end that
+    // runtimeModelArg('claude') exists to avoid.
+    return model || undefined
+  }
+
   return model
 }
 
@@ -328,6 +341,27 @@ export function droidSessionId(scopedSessionId: string, agentId: string): string
   return hash.slice(0, DROID_SESSION_ID_MAX_LENGTH)
 }
 
+// ── Deterministic opencode session id ──
+
+/**
+ * OpenCode validates the `--session` value rather than trusting it: a prefixed-but-wrong id is
+ * rejected outright with `Expected a string starting with "ses"` (measured against opencode
+ * 2.1.4), and an id the CLI has never seen is rejected by the free tier with `403 FreeTierError`
+ * rather than silently created — so `-s` is resume-only. This deterministic id is therefore a
+ * fallback for conversations marked before the CLI-reported id was recorded, not the primary path.
+ *
+ * The hash mixes agentId in for the same reason droidSessionId() does: two agents sharing one raw
+ * scoped session key (a DM, a group thread) must never collide on the same underlying CLI session.
+ * Hex keeps it inside opencode's id alphabet, and the slice keeps it short enough to stay clear of
+ * any length bound.
+ */
+const OPENCODE_SESSION_ID_MAX_HASH = 40
+
+export function opencodeSessionId(scopedSessionId: string, agentId: string): string {
+  const hash = crypto.createHash('sha256').update(`clawmax:opencode:${agentId}:${scopedSessionId}`).digest('hex')
+  return `ses_${hash.slice(0, OPENCODE_SESSION_ID_MAX_HASH)}`
+}
+
 // ── Spawn plan ──
 
 export interface RuntimePlan {
@@ -342,6 +376,7 @@ const MISSING_CLI_ERRORS: Record<AgentRuntimeId, string> = {
   openclaw: 'OpenClaw CLI is not available in this runtime. Install or bundle the CLI, or set OPENCLAW_BIN to the executable path.',
   claude: 'Claude Code CLI is not available in this runtime. Install it or set CLAUDE_BIN to the executable path.',
   droid: 'Factory Droid CLI is not available in this runtime. Install it or set DROID_BIN to the executable path.',
+  opencode: 'OpenCode CLI is not available in this runtime. Install it or set OPENCODE_BIN to the executable path.',
 }
 
 /**
@@ -439,7 +474,7 @@ export function buildRuntimePlan(o: {
 
   // droid
   const droidModel = runtimeModelArg('droid', o.model)
-  const args = [
+  const droidArgs = [
     'exec', o.message,
     ...(droidModel ? ['-m', droidModel] : []),
     '-s', droidSessionId(o.scopedSessionId, o.agentId),
@@ -449,7 +484,42 @@ export function buildRuntimePlan(o: {
     '--disabled-tools', DROID_POST_TURN_TOOLS.join(','),
     ...(o.systemPrompt ? ['--append-system-prompt', o.systemPrompt] : []),
   ]
-  return { cliPath, args, missingCliError, streamsDeltas: false }
+  if (o.runtime === 'droid') {
+    return { cliPath, args: droidArgs, missingCliError, streamsDeltas: false }
+  }
+
+  // opencode
+  //
+  // `opencode run` is the headless equivalent of `claude -p`: the message is a positional arg,
+  // `--auto` is the permission bypass, and `--format json` is the only structured output it offers.
+  //
+  // `-s` is resume-only, never create. Measured against opencode 2.1.4: handing `-s` an id the CLI
+  // has never seen is not "create-or-resume" — the free tier answers `403 FreeTierError`
+  // ("OpenCode's free tier can only be used from within OpenCode"), while the same turn without
+  // `-s` succeeds and reports the session id it created. So the first turn omits `-s`, and every
+  // later turn resumes the id the CLI reported (runtime-sessions), falling back to the
+  // deterministic id only for conversations marked before that id was recorded.
+  //
+  // The project the turn sees comes from cwd alone. opencode 2.1.4 rejects `--dir` on `run`
+  // ("Unrecognized flag: --dir", verified end to end against the shipped binary) and its top-level
+  // directory argument is not accepted after the subcommand, so passing the agent directory as a
+  // flag would break every turn rather than scope it.
+  //
+  // OpenCode has no `--append-system-prompt` equivalent, so the agent's IDENTITY.md text is
+  // prepended to the prompt instead: it still reaches the model before the user's message, and
+  // re-sending it per turn is harmless for continuation.
+  const opencodeModel = runtimeModelArg('opencode', o.model)
+  const opencodeMessage = o.systemPrompt ? `${o.systemPrompt}\n\n---\n\n${o.message}` : o.message
+  const opencodeResumeId = getRuntimeSessionId('opencode', o.agentId, o.scopedSessionId)
+    ?? opencodeSessionId(o.scopedSessionId, o.agentId)
+  const opencodeArgs = [
+    'run', opencodeMessage,
+    ...(opencodeModel ? ['-m', opencodeModel] : []),
+    ...(o.resume ? ['-s', opencodeResumeId] : []),
+    '--auto',
+    '--format', 'json',
+  ]
+  return { cliPath, args: opencodeArgs, cwd: o.agentDir, missingCliError, streamsDeltas: o.mode === 'chat' }
 }
 
 // ── Result parsing ──
@@ -461,7 +531,14 @@ export function buildRuntimePlan(o: {
  */
 function silentExitMessage(rt: AgentRuntimeId, exitCode: number | null): string {
   const label = runtimeLabel(rt)
-  return `The ${label} CLI exited with code ${exitCode} and produced no output. It is most likely not authenticated in this environment — set ANTHROPIC_API_KEY / FACTORY_API_KEY, or log the CLI in.`
+  const credentialHint = rt === 'claude'
+    ? 'set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN, or log the CLI in'
+    : rt === 'droid'
+      ? 'set FACTORY_API_KEY, or log the CLI in (`droid` then `/login`)'
+      : rt === 'opencode'
+        ? 'set a provider key (for example ANTHROPIC_API_KEY or OPENAI_API_KEY) or run `opencode auth login`'
+        : 'check the CLI credentials'
+  return `The ${label} CLI exited with code ${exitCode} and produced no output. It is most likely not authenticated in this environment — ${credentialHint}.`
 }
 
 
@@ -540,17 +617,119 @@ export function parseClaudeStreamJson(
   return { text: '', errorText: failure || silentExitMessage('claude', exitCode) }
 }
 
+// ── OpenCode `--format json` event stream ──
+
+/**
+ * Pull the assistant's text out of an opencode `--format json` event.
+ *
+ * opencode's JSON format is a stream of raw events, not one final object: the same shape that
+ * carries `{"type":"step_start",...}` also carries assistant text parts and failures. A text part
+ * is reported as `{type:'text', part:{type:'text', text}}`; other part types are progress (tool
+ * calls, reasoning, step boundaries) and must not be rendered as the answer.
+ */
+export function opencodeEventText(event: any): string {
+  if (!event || typeof event !== 'object') return ''
+  const part = event.part
+  if (!part || typeof part !== 'object') return ''
+  if (part.type !== 'text' || typeof part.text !== 'string') return ''
+  return part.text
+}
+
+/** Message an opencode error event carries, flattened into something a user can act on. */
+export function opencodeEventError(event: any): string | undefined {
+  if (!event || event.type !== 'error') return undefined
+  const error = event.error
+  if (!error) return undefined
+  if (typeof error === 'string' && error.trim()) return error.trim()
+  const message = typeof error.message === 'string' ? error.message.trim() : ''
+  if (message) return message
+  // No message but a body: a provider rejection still says something useful in there.
+  const body = typeof error.response?.body === 'string' ? error.response.body.trim() : ''
+  if (body) return body
+  return typeof error.type === 'string' && error.type.trim()
+    ? `OpenCode reported an error (${error.type.trim()}).`
+    : 'OpenCode reported an error without a message.'
+}
+
+/**
+ * Turn an opencode `--format json` byte stream into readable deltas.
+ *
+ * Same buffering rule as the claude transformer: a chunk can split a line, so incomplete tails are
+ * held until the next chunk. Emitting text parts only keeps tool/progress events out of the chat.
+ */
+export function createOpencodeStreamDeltaTransformer(emit: (text: string) => void): (chunk: string) => void {
+  let buffer = ''
+  return (chunk: string) => {
+    buffer += chunk
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('{')) continue
+      let event: any
+      try { event = JSON.parse(trimmed) } catch { continue }
+      const text = opencodeEventText(event)
+      if (text) emit(text)
+    }
+  }
+}
+
+/**
+ * Collapse an opencode raw-event log into the assistant's reply.
+ *
+ * A failing event outranks anything already streamed, for the same reason a failing claude
+ * `result` does: a turn that emits partial text and then fails must not be persisted and shown as
+ * a successful reply. Anything unparseable is ignored — a partial log is normal when a turn is
+ * cancelled mid-stream.
+ */
+export function parseOpencodeStreamJson(
+  stdout: string,
+  stderr: string,
+  exitCode: number | null,
+): { text: string; errorText?: string; sessionId?: string } {
+  const parts: string[] = []
+  let errorFromEvents = ''
+  let sessionId: string | undefined
+  for (const line of stdout.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed.startsWith('{')) continue
+    let event: any
+    try { event = JSON.parse(trimmed) } catch { continue }
+    // Every event names the session, including the first one the CLI created itself. Capture it so
+    // the next turn can resume by id (`-s`) instead of starting a fresh conversation.
+    if (!sessionId && typeof event.sessionID === 'string' && event.sessionID.trim()) {
+      sessionId = event.sessionID.trim()
+    }
+    const eventError = opencodeEventError(event)
+    if (eventError) {
+      errorFromEvents = eventError
+      continue
+    }
+    const text = opencodeEventText(event)
+    if (text) parts.push(text)
+  }
+  if (errorFromEvents) return { text: '', errorText: errorFromEvents, sessionId }
+  const text = parts.join('').trim()
+  if (text) return { text, sessionId }
+  const failure = (stderr || '').trim()
+  return { text: '', errorText: failure || silentExitMessage('opencode', exitCode), sessionId }
+}
+
 export function parseRuntimeResult(
   rt: AgentRuntimeId,
   mode: 'chat' | 'json',
   stdout: string,
   stderr: string,
   exitCode: number | null
-): { text: string; errorText?: string } {
+): { text: string; errorText?: string; sessionId?: string } {
   const rawFailureText = () => (stderr || stdout).trim() || silentExitMessage(rt, exitCode)
 
   if (rt === 'claude' && mode === 'chat') {
     return parseClaudeStreamJson(stdout, stderr, exitCode)
+  }
+  // opencode emits its raw event stream in both modes — there is no single-envelope variant.
+  if (rt === 'opencode') {
+    return parseOpencodeStreamJson(stdout, stderr, exitCode)
   }
 
   // droid always emits its `-o json` envelope regardless of mode; claude only in json mode.
@@ -846,10 +1025,16 @@ export async function runRuntimeCli(o: {
 
   const attempt = async (plan: RuntimePlan) => {
     // claude chat streams JSON events, not prose: translate them before they reach the UI.
+    // opencode does the same in both modes (`--format json` raw events), so it needs its own
+    // translator rather than forwarding JSON into the chat window.
     const rawDelta = plan.streamsDeltas && o.onDelta ? o.onDelta : undefined
-    const onChunk = rawDelta && o.runtime === 'claude'
-      ? createClaudeStreamDeltaTransformer(rawDelta)
-      : rawDelta
+    const onChunk = !rawDelta
+      ? undefined
+      : o.runtime === 'claude'
+        ? createClaudeStreamDeltaTransformer(rawDelta)
+        : o.runtime === 'opencode'
+          ? createOpencodeStreamDeltaTransformer(rawDelta)
+          : rawDelta
     const result = await runOnce(plan, effectiveEnv, o.signal, onChunk, o.onActivity)
     if (result.runawayOutput) {
       // Distinct from a cancel: nobody asked for this, and "stopped" alone would read as though
@@ -869,7 +1054,7 @@ export async function runRuntimeCli(o: {
       // droid/others don't stream — deliver the final text once so callers get a uniform delta+complete shape.
       o.onDelta(parsed.text)
     }
-    return { result, text: parsed.text, errorText: parsed.errorText }
+    return { result, text: parsed.text, errorText: parsed.errorText, sessionId: parsed.sessionId }
   }
 
   const first = await attempt(o.plan)
@@ -901,6 +1086,12 @@ export async function runRuntimeCli(o: {
 
   if (!first.errorText && o.runtime === 'claude') {
     markRuntimeSession(o.runtime, o.agentId, o.scopedSessionId)
+  }
+
+  // opencode names the session it created on the first turn; record it so the next turn resumes
+  // that conversation with `-s` instead of starting a new one.
+  if (!first.errorText && o.runtime === 'opencode' && first.sessionId) {
+    markRuntimeSession(o.runtime, o.agentId, o.scopedSessionId, first.sessionId)
   }
 
   return { text: first.text, errorText: first.errorText }
@@ -1040,6 +1231,32 @@ async function probeDroidModels(cliPath: string): Promise<string[]> {
  */
 export const CLAUDE_MODEL_ALIASES = ['sonnet', 'opus', 'haiku', 'fable']
 
+/**
+ * OpenCode's own catalog is printable (`opencode models`, documented to list `provider/model`
+ * entries). That matches ClawMax's stored notation exactly, so the ids are offered verbatim.
+ *
+ * Async for the same reason as the droid probe: the dashboard is single-threaded, and a hanging
+ * CLI under execFileSync would block every other request, SSE streams included. A CLI that cannot
+ * enumerate yields [], which callers treat as "allow anything" rather than "nothing exists".
+ */
+async function probeOpencodeModels(cliPath: string): Promise<string[]> {
+  const output = await new Promise<string>((resolve) => {
+    execFile(cliPath, ['models'], {
+      encoding: 'utf-8',
+      timeout: 15000,
+      windowsHide: true,
+      // Only OpenCode-owned config: no provider credentials are needed to list a catalog.
+      env: safeEnv(),
+    }, (err: any, stdout, stderr) => {
+      resolve(String(stdout || '') + String(err?.stdout || '') + String(stderr || '') + String(err?.stderr || ''))
+    })
+  })
+  return output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._#:/-]*$/.test(line))
+}
+
 /** Models a runtime CLI accepts, or [] when the catalog cannot be enumerated. */
 export async function listRuntimeModels(runtime: AgentRuntimeId): Promise<string[]> {
   if (runtime === 'openclaw') return []
@@ -1058,6 +1275,9 @@ export async function listRuntimeModels(runtime: AgentRuntimeId): Promise<string
       models = cliPath ? await probeDroidModels(cliPath) : []
     } else if (runtime === 'claude') {
       models = resolveRuntimeCliPath(runtime) ? [...CLAUDE_MODEL_ALIASES] : []
+    } else if (runtime === 'opencode') {
+      const cliPath = resolveRuntimeCliPath(runtime)
+      models = cliPath ? await probeOpencodeModels(cliPath) : []
     }
   // Claude Code takes any Anthropic model id and has no enumerable catalog; runtimeModelArg()
   // already rejects non-Anthropic models, so leave this empty and let the provider list stand.

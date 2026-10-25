@@ -447,6 +447,15 @@ else
   warn "Factory Droid CLI not installed (optional — only needed for agents pinned to the droid runtime)"
   info "Fix: curl -fsSL https://app.factory.ai/cli | sh (or set DROID_BIN)"
 fi
+
+OPENCODE_CLI_PATH="$(resolve_agent_runtime_cli opencode "${OPENCODE_BIN:-}" || true)"
+if [ -n "$OPENCODE_CLI_PATH" ]; then
+  OPENCODE_CLI_VER=$("$OPENCODE_CLI_PATH" --version 2>&1 | head -1 || echo "unknown")
+  pass "OpenCode CLI: $OPENCODE_CLI_VER ($OPENCODE_CLI_PATH)"
+else
+  warn "OpenCode CLI not installed (optional — only needed for agents pinned to the opencode runtime)"
+  info "Fix: npm install -g @opencode/cli (or set OPENCODE_BIN)"
+fi
 echo ""
 
 # ── Summary ─────────────────────────────────────────────────────────

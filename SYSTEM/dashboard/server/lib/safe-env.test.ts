@@ -84,6 +84,14 @@ test('safeEnv preserves OpenClaw runtime selection without forwarding its gatewa
   assert(typeof env.OPENCLAW_GATEWAY_TOKEN === 'undefined', 'Expected gateway secret to remain out of shared child env')
 })
 
+test('safeEnv forwards the OpenCode config-file override (a path, not a credential)', () => {
+  process.env.OPENCODE_CONFIG = '/tmp/clawmax-opencode/opencode.json'
+
+  const env = safeEnv()
+
+  assert(env.OPENCODE_CONFIG === process.env.OPENCODE_CONFIG, 'Expected the OpenCode config override path')
+})
+
 test('user execution prefers BYOK request keys over env defaults', () => {
   const keys = resolveUserExecutionProviderKeys(
     {

@@ -476,17 +476,18 @@ Without system keys, the dashboard may still boot, but system-generated flows su
 
 ## 🤖 Agent Runtimes
 
-Agents execute via one of three CLIs. OpenClaw is always the default and needs no extra setup; Claude Code and Factory Droid are optional per-agent runtimes.
+Agents execute via one of four CLIs. OpenClaw is always the default and needs no extra setup; Claude Code, Factory Droid, and OpenCode are optional per-agent runtimes.
 
 | Runtime | CLI | Auth | Model notation |
 |---|---|---|---|
 | **OpenClaw** (default) | `openclaw` | ClawMax's normal key resolution (BYOK / system keys) | `<provider>/<model>`, e.g. `anthropic/claude-sonnet-4-20250514` |
 | **Claude Code** | `claude` | `ANTHROPIC_API_KEY` (or `claude login`) | Anthropic models only — `anthropic/<model>` |
 | **Factory Droid** | `droid` | `FACTORY_API_KEY` (or `droid login`) | any provider/model Droid supports |
+| **OpenCode** | `opencode` | any provider key OpenCode supports (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, …) or `opencode auth login` | `<provider>/<model>` exactly as `opencode models` prints it |
 
 **Selecting a runtime**
 - **Workspace default** — Integrations → Runtime, or `agentRuntime` in `PUT /api/config`. Each CLI shows a live detection chip (installed version, or an install hint).
-- **Per-agent pin** — the agent editor's Runtime field (Default / OpenClaw / Claude Code / Droid). A pin always wins over the workspace default. It's stored in the agent's `IDENTITY.md` (`- **Runtime:** claude`), not in `openclaw.json`, so switching an agent's runtime never touches its OpenClaw session state.
+- **Per-agent pin** — the agent editor's Runtime field (Default / OpenClaw / Claude Code / Droid / OpenCode). A pin always wins over the workspace default. It's stored in the agent's `IDENTITY.md` (`- **Runtime:** claude`), not in `openclaw.json`, so switching an agent's runtime never touches its OpenClaw session state.
 - Runtime resolution is consistent across every execution surface — direct chat, group/channel chat, workflows, and scheduled/cron runs all resolve the same way.
 
 **Installing the CLIs**
@@ -497,17 +498,21 @@ npm install -g @anthropic-ai/claude-code
 
 # Factory Droid
 curl -fsSL https://app.factory.ai/cli | sh
+
+# OpenCode
+npm install -g @opencode/cli
 ```
 
-Both are optional — `./setup.sh` and `./SYSTEM/doctor.sh` report the detected version of each CLI but never auto-install them. If a CLI isn't on `PATH`, point at it explicitly with `CLAUDE_BIN=/path/to/claude` / `DROID_BIN=/path/to/droid`.
+All three are optional — `./setup.sh` and `./SYSTEM/doctor.sh` report the detected version of each CLI but never auto-install them. If a CLI isn't on `PATH`, point at it explicitly with `CLAUDE_BIN=/path/to/claude`, `DROID_BIN=/path/to/droid`, or `OPENCODE_BIN=/path/to/opencode`.
 
-**Headless auth** — Claude Code and Factory Droid run with full autonomy (`claude --dangerously-skip-permissions`, `droid --auto high`), so they need non-interactive credentials rather than an interactive login:
+**Headless auth** — the optional runtimes execute with full autonomy (`claude --dangerously-skip-permissions`, `droid --auto high`, `opencode run --auto`), so they need non-interactive credentials rather than an interactive login:
 - Claude Code reads `ANTHROPIC_API_KEY` directly (`SYSTEM_ANTHROPIC_API_KEY` / `USER_ANTHROPIC_API_KEY` / BYOK all resolve into it for agent execution).
 - Factory Droid reads `FACTORY_API_KEY`.
+- OpenCode reads the provider keys the dashboard already resolves (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, plus `OPENAI_BASE_URL` for an OpenAI-compatible endpoint). There is no OpenCode-specific key; `OPENCODE_CONFIG` can point at a non-default OpenCode config file.
 
-Both CLIs also support an interactive `claude login` / `droid login` for local dev. Container deployments (see `docker-compose.yml`) can pass either key straight through as an environment variable.
+Each CLI also supports an interactive login (`claude login`, `droid login`, `opencode auth login`) for local dev. Container deployments (see `docker-compose.yml`) can pass a key straight through as an environment variable.
 
-**OpenClaw-only features** — a few features stay OpenClaw-specific because Claude Code/Droid have no equivalent: the Gateway (WebSocket skills/tools, Gateway Control UI pairing), `openclaw logs` streaming, and `openclaw cron` registration. Agents pinned to `claude`/`droid` still run on schedule via ClawMax's in-process scheduler — they're just not additionally registered with `openclaw cron`.
+**OpenClaw-only features** — a few features stay OpenClaw-specific because the other runtimes have no equivalent: the Gateway (WebSocket skills/tools, Gateway Control UI pairing), `openclaw logs` streaming, and `openclaw cron` registration. Agents pinned to `claude`/`droid`/`opencode` still run on schedule via ClawMax's in-process scheduler — they're just not additionally registered with `openclaw cron`.
 
 ## 🔐 Dashboard Auth Setup
 
