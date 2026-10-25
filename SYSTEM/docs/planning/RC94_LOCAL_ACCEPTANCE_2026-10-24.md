@@ -32,6 +32,13 @@ These are Dashboard-owned checks, not acceptance tasks for reviewers.
 
 ### October 25 acceptance-feedback changes
 
+- Follow-up to accepted A9/A10: the card group-count button opens details at
+  Groups, scrolling and moving keyboard focus after activity loads. This passes
+  the browser regression below a long identity at 1440px and 390px. Source:
+  `c29e1d2a`. AI creation now also uses the collapsed suggestion disclosure;
+  synthetic generation tests pass at desktop/mobile widths. New user checks
+  A11/A12 cover those small additions; A9/A10 remain accepted.
+
 - Maximilien accepted A1 and A2; their original criteria are preserved with
   strikethrough below. Daniyar's independent results remain pending.
 - Edit Agent Config now starts with the entire automatic model suggestion
@@ -57,7 +64,7 @@ These are Dashboard-owned checks, not acceptance tasks for reviewers.
 - **The full-suite/CI results below belong to the earlier recorded source.**
   Full integration/validation/coverage and CI must be rerun on the final
   feedback candidate before RC94 is cut. These are engineering-owned gates;
-  A3–A10 are the remaining user acceptance checks.
+  A3–A8 and the follow-up A11/A12 checks are the remaining user acceptance checks.
 
 - Server TypeScript: passed.
 - Changed panel code lint and focused TypeScript: passed.
@@ -126,7 +133,7 @@ agent-route tests (78 route tests), production build, and the subsequent clean
 
 ## Acceptance for Maximilien and Daniyar
 
-Maximilien confirmed A1 and A2 on October 25. Their criteria remain below with
+Maximilien confirmed A1, A2, A9, and A10 on October 25. Their criteria remain below with
 strikethrough. Daniyar's independent results remain pending.
 
 Each reviewer should record their own result on the exact same source revision.
@@ -144,10 +151,12 @@ include provider keys or raw participant conversations in the report.
 | A6 | external-environment | Bulk-delete disposable agents, including one with an active turn. Confirm activity stops, agents disappear from the Dashboard/runtime, and they remain absent after restart. Report partial failures visibly rather than retrying blindly. |
 | A7 | external-environment | Use BYOK model discovery with a real configured provider. Confirm the expected model list, successful chat, and isolation between different credentials. Do not paste keys into the result. |
 | A8 | human-judgment | At desktop and mobile widths, check Builder first-use suggestions, long conversation scrolling, and the single result-panel toggle. Check long template names, card actions, the top bar, and Forward menu dismissal. Nothing overlaps or becomes unreachable. |
-| A9 | external-environment | In agent details or an expanded card, choose **Add to group**, search by group name, and add the agent. The membership badge appears and remains after reload. Remove it with × and reload again. Verify the group, its other members, the agent's other memberships, and communities remain intact. Test the empty-state Add action and check mobile usability. |
-| A10 | human-judgment | Reopen Edit Agent Config: **Automatic model suggestion** starts collapsed. Expand it to see the existing suggestion/priority controls. Expanding or collapsing does not change the selected model or save the agent. Close/reopen and confirm it starts collapsed again. |
+| ~~A9~~ | external-environment | ~~In agent details or an expanded card, choose **Add to group**, search by group name, and add the agent. The membership badge appears and remains after reload. Remove it with × and reload again. Verify the group, its other members, the agent's other memberships, and communities remain intact. Test the empty-state Add action and check mobile usability.~~ **Maximilien: passed, October 25.** |
+| ~~A10~~ | human-judgment | ~~Reopen Edit Agent Config: **Automatic model suggestion** starts collapsed. Expand it to see the existing suggestion/priority controls. Expanding or collapsing does not change the selected model or save the agent. Close/reopen and confirm it starts collapsed again.~~ **Maximilien: passed, October 25.** |
+| A11 | human-judgment | After AI generation in Add Agent, Automatic model suggestion starts collapsed. Expand it only when needed; the suggestion, priority, and existing selection controls remain available. Check desktop/mobile and confirm generation does not provision an agent automatically. |
+| A12 | human-judgment | Click an agent card's group count. Details opens scrolled to Groups with focus there, including when the identity content is long. Clicking the rest of the card still opens details normally. |
 
-Result format: `reviewer / source SHA / platform / A1–A10 pass, fail, or not run /
+Result format: `reviewer / source SHA / platform / A1–A12 pass, fail, or not run /
 brief evidence or reproduction`. A missing runtime is `not run`, not a pass.
 
 ## Feedback for Daniyar before the remaining PRs land
