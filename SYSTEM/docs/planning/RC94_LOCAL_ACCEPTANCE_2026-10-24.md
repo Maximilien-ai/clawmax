@@ -3,8 +3,10 @@
 Status: pre-release integration; RC94 has not been tagged or built. The user must
 complete local testing and explicitly confirm acceptance before RC94 is cut.
 
-October 25 handoff: product/dependency source `04818ac56a58198ed08affa0c580e0a36060ca88`
-passes the clean local suite and CI. The working checkout is already on the
+October 25 handoff: earlier product/dependency source `04818ac56a58198ed08affa0c580e0a36060ca88`
+passes the clean local suite and CI. Latest feedback checkpoint `c79f7218` adds
+searchable group membership and collapsed model suggestions, with focused
+verification below. The working checkout is already on the
 integration branch and is available at **http://localhost:5174** (API on 3001).
 The displayed `2.0.0-test-rc94` is a local candidate label, not a published tag.
 
@@ -27,6 +29,35 @@ The displayed `2.0.0-test-rc94` is a local candidate label, not a published tag.
 ## Engineering evidence
 
 These are Dashboard-owned checks, not acceptance tasks for reviewers.
+
+### October 25 acceptance-feedback changes
+
+- Maximilien accepted A1 and A2; their original criteria are preserved with
+  strikethrough below. Daniyar's independent results remain pending.
+- Edit Agent Config now starts with the entire automatic model suggestion
+  collapsed. Expanding it does not change the model. Existing auto-selection
+  status and recommendation errors remain visible in the disclosure summary.
+  Source: `dae63012`; component tests, model-fit integration tests, lint,
+  TypeScript and desktop/mobile browser regression passed.
+- Agent details and expanded cards now show current group membership with
+  remove controls and **Add to group**. The picker lists available groups and
+  searches their names, display names, and descriptions. It exposes pending,
+  loading, empty, retry and save-failure states. Changes read fresh memberships,
+  update groups only, then verify persistence.
+- Fixed the membership writer treating `### group` headings as `## section`
+  headings. The regression failed before the fix and passed afterward. Source:
+  `8f8b79a0` (writer) and `c79f7218` (UI). All 79 agent-route tests pass,
+  including persisted add/remove, other-agent/community preservation, invalid
+  selections, and write failures. Client helper and 1440px/390px browser tests
+  pass, covering search, retry, saving, failed removal, reload persistence,
+  externally added memberships, and Escape.
+- Latest client TypeScript comparison: the same 291 baseline diagnostics, with
+  zero new diagnostics. Server TypeScript, changed-file lint, and focused
+  client TypeScript pass.
+- **The full-suite/CI results below belong to the earlier recorded source.**
+  Full integration/validation/coverage and CI must be rerun on the final
+  feedback candidate before RC94 is cut. These are engineering-owned gates;
+  A3–A10 are the remaining user acceptance checks.
 
 - Server TypeScript: passed.
 - Changed panel code lint and focused TypeScript: passed.
@@ -113,8 +144,10 @@ include provider keys or raw participant conversations in the report.
 | A6 | external-environment | Bulk-delete disposable agents, including one with an active turn. Confirm activity stops, agents disappear from the Dashboard/runtime, and they remain absent after restart. Report partial failures visibly rather than retrying blindly. |
 | A7 | external-environment | Use BYOK model discovery with a real configured provider. Confirm the expected model list, successful chat, and isolation between different credentials. Do not paste keys into the result. |
 | A8 | human-judgment | At desktop and mobile widths, check Builder first-use suggestions, long conversation scrolling, and the single result-panel toggle. Check long template names, card actions, the top bar, and Forward menu dismissal. Nothing overlaps or becomes unreachable. |
+| A9 | external-environment | In agent details or an expanded card, choose **Add to group**, search by group name, and add the agent. The membership badge appears and remains after reload. Remove it with × and reload again. Verify the group, its other members, the agent's other memberships, and communities remain intact. Test the empty-state Add action and check mobile usability. |
+| A10 | human-judgment | Reopen Edit Agent Config: **Automatic model suggestion** starts collapsed. Expand it to see the existing suggestion/priority controls. Expanding or collapsing does not change the selected model or save the agent. Close/reopen and confirm it starts collapsed again. |
 
-Result format: `reviewer / source SHA / platform / A1–A8 pass, fail, or not run /
+Result format: `reviewer / source SHA / platform / A1–A10 pass, fail, or not run /
 brief evidence or reproduction`. A missing runtime is `not run`, not a pass.
 
 ## Feedback for Daniyar before the remaining PRs land
