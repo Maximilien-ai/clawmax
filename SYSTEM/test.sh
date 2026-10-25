@@ -931,6 +931,14 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Model suggestion disclosure tests...${NC}"
+if npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/ModelFitDisclosure.test.tsx > /tmp/clawmax-model-fit-disclosure.out 2>&1; then
+  pass "Model suggestion disclosure tests"
+else
+  cat /tmp/clawmax-model-fit-disclosure.out
+  fail "Model suggestion disclosure tests"
+fi
+
 echo -e "${YELLOW}→ Running Agent panel persistence tests...${NC}"
 if npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/AgentPanelPersistence.test.tsx > /tmp/clawmax-agent-panel-persistence.out 2>&1; then
   pass "Agent panel persistence tests"

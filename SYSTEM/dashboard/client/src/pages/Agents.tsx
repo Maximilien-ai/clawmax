@@ -3264,6 +3264,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 )}
               </div>
               <ModelFitRecommendationPanel
+                collapsible
                 recommendation={modelRecommendation}
                 preference={modelPreference}
                 onPreferenceChange={setModelPreference}
