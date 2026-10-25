@@ -252,6 +252,60 @@ async function run() {
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
 
+  await test('group membership add/remove persists across route reloads and preserves other members and communities', () => {
+    writeAgent(workspacePath, 'membership-agent', '# IDENTITY.md\n\n- **Name:** Membership Agent\n')
+    const groupsFile = path.join(workspacePath, 'ORG', 'GROUPS.md')
+    const communitiesFile = path.join(workspacePath, 'ORG', 'COMMUNITIES.md')
+    const originalGroups = fs.readFileSync(groupsFile, 'utf8')
+    const originalCommunities = fs.readFileSync(communitiesFile, 'utf8')
+    const communities = '# Communities\n\n## Communities\n\n### all-hands\n- **Members:** membership-agent, other-agent\n'
+    fs.writeFileSync(communitiesFile, communities)
+    fs.writeFileSync(groupsFile, '# Groups\n\n## Groups\n\n### alpha\n- **Description:** Keep this description\n- **Members:** other-agent\n\n### beta\n- **Description:** Starts without a Members line\n')
+    try {
+      const update = getRouteHandler('post', '/:id/communities')
+      const added = makeRes()
+      update(makeReq({ params: { id: 'membership-agent' }, body: { groups: ['alpha', 'beta'] } }), added)
+      assert.strictEqual(added.statusCode, 200)
+      const read = makeRes()
+      getRouteHandler('get', '/:id')(makeReq({ params: { id: 'membership-agent' } }), read)
+      assert.deepStrictEqual(read.jsonBody.groups.map((group: any) => group.name).sort(), ['alpha', 'beta'])
+      assert(fs.readFileSync(groupsFile, 'utf8').includes('other-agent, membership-agent'))
+      assert(fs.readFileSync(groupsFile, 'utf8').includes('Keep this description'))
+      assert.strictEqual(fs.readFileSync(communitiesFile, 'utf8'), communities)
+      const beforeInvalid = fs.readFileSync(groupsFile, 'utf8')
+      const invalid = makeRes()
+      update(makeReq({ params: { id: 'membership-agent' }, body: { groups: ['missing-group'], communities: [] } }), invalid)
+      assert.strictEqual(invalid.statusCode, 400)
+      assert.strictEqual(fs.readFileSync(groupsFile, 'utf8'), beforeInvalid)
+      assert.strictEqual(fs.readFileSync(communitiesFile, 'utf8'), communities, 'Invalid groups cannot partially change communities')
+      const malformed = makeRes()
+      update(makeReq({ params: { id: 'membership-agent' }, body: { groups: [{}] } }), malformed)
+      assert.strictEqual(malformed.statusCode, 400)
+      const originalWrite = fs.writeFileSync
+      try {
+        fs.writeFileSync = ((file: any, ...args: any[]) => {
+          if (file === groupsFile) throw new Error('Read-only membership store')
+          return (originalWrite as any)(file, ...args)
+        }) as typeof fs.writeFileSync
+        const failed = makeRes()
+        update(makeReq({ params: { id: 'membership-agent' }, body: { groups: [] } }), failed)
+        assert.strictEqual(failed.statusCode, 500)
+      } finally { fs.writeFileSync = originalWrite }
+      assert.strictEqual(fs.readFileSync(groupsFile, 'utf8'), beforeInvalid, 'Failed writes retain the persisted memberships')
+      const removed = makeRes()
+      getRouteHandler('post', '/:id/communities')(makeReq({ params: { id: 'membership-agent' }, body: { groups: ['beta'] } }), removed)
+      assert.strictEqual(removed.statusCode, 200)
+      const reread = makeRes()
+      getRouteHandler('get', '/:id')(makeReq({ params: { id: 'membership-agent' } }), reread)
+      assert.deepStrictEqual(reread.jsonBody.groups.map((group: any) => group.name), ['beta'])
+      assert(fs.readFileSync(groupsFile, 'utf8').includes('- **Members:** other-agent\n'))
+      assert.strictEqual(fs.readFileSync(communitiesFile, 'utf8'), communities)
+    } finally {
+      fs.writeFileSync(groupsFile, originalGroups)
+      fs.writeFileSync(communitiesFile, originalCommunities)
+    }
+  })
+
   await test('doctor treats missing skills as neutral guidance instead of warning', async () => {
     writeAgent(workspacePath, 'plain-agent', [
       '# IDENTITY.md',

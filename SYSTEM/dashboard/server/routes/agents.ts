@@ -4264,6 +4264,9 @@ router.post('/:id/communities', (req, res) => {
   if (!Array.isArray(communities) && !Array.isArray(groups)) {
     return res.status(400).json({ error: 'Must provide communities or groups array' })
   }
+  if ([communities, groups].some(values => Array.isArray(values) && values.some(value => typeof value !== 'string' || !value.trim()))) {
+    return res.status(400).json({ error: 'Memberships must contain non-empty names' })
+  }
 
   const agents = listAgents()
   const agent = agents.find(a => a.id === id)
@@ -4289,6 +4292,9 @@ router.post('/:id/communities', (req, res) => {
 
     // Parse current communities and groups
     const { communities: allCommunities, groups: allGroups } = parseGroups(communitiesContent + '\n' + groupsContent)
+    if (Array.isArray(groups) && groups.some(name => !allGroups.some(group => group.name === name))) {
+      return res.status(400).json({ error: 'A selected group no longer exists. Refresh groups and try again.' })
+    }
 
     // Update communities if provided
     if (Array.isArray(communities)) {
@@ -4318,7 +4324,7 @@ router.post('/:id/communities', (req, res) => {
         }
 
         // Exit current community if we hit a section header
-        if (trimmed.startsWith('##')) {
+        if (/^##\s/.test(trimmed)) {
           if (currentCommunity && !currentCommunityHasMembers && communities.includes(currentCommunity) && currentCommunityIndex >= 0) {
             updatedCommunities.splice(i, 0, `- **Members:** ${id}`)
             i++
@@ -4378,7 +4384,7 @@ router.post('/:id/communities', (req, res) => {
         }
 
         // Exit current group if we hit a section header
-        if (trimmed.startsWith('##')) {
+        if (/^##\s/.test(trimmed)) {
           if (currentGroup && !currentGroupHasMembers && groups.includes(currentGroup) && lastMetadataLineIndex >= 0) {
             updatedGroups.splice(lastMetadataLineIndex + 1, 0, `- **Members:** ${id}`)
             i++
