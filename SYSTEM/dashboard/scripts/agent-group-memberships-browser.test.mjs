@@ -110,16 +110,35 @@ try {
     assert.deepEqual(agent.groups.map(group => group.name), ['ops-key'])
     await page.reload()
     await page.getByText('Additional agents (1)', { exact: false }).click()
-    await page.getByRole('button', { name: `View groups for ${agent.name}`, exact: true }).click()
+    const groupCount = page.getByRole('button', { name: `View groups for ${agent.name}`, exact: true })
+    const outsideScroll = () => groupCount.evaluate(element => {
+      const positions = []
+      for (let parent = element.parentElement; parent; parent = parent.parentElement) positions.push(parent.scrollTop)
+      return positions
+    })
+    const beforeScroll = await outsideScroll()
+    await groupCount.click()
     await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'agent-groups-section')
     const sectionBox = await page.getByTestId('agent-groups-section').boundingBox()
-    assert(sectionBox && sectionBox.y >= 0 && sectionBox.y < 700, 'The group-count action reveals Groups below a long identity')
+    const bodyBox = await page.getByTestId('agent-groups-section').locator('..').boundingBox()
+    assert(sectionBox && bodyBox && sectionBox.y >= bodyBox.y - 1 && sectionBox.y + sectionBox.height <= bodyBox.y + bodyBox.height + 1, `Groups is visible inside the existing scrollable body: ${JSON.stringify({ sectionBox, bodyBox })}`)
+    assert.deepEqual(await outsideScroll(), beforeScroll, 'The jump must not scroll the page or the panel ancestors')
+    const closeBox = await page.getByRole('button', { name: 'Close details (Esc)', exact: true }).boundingBox()
+    assert(closeBox && closeBox.y >= 0 && closeBox.y + closeBox.height <= 900, 'The original panel header remains visible')
+    const panelBox = await page.getByTestId('agent-groups-section').locator('xpath=ancestor::aside').boundingBox()
+    assert(panelBox && Math.abs(panelBox.y) <= 1 && Math.abs(panelBox.height - 900) <= 1, 'The original panel keeps its viewport-sized frame')
+    await page.screenshot({ path: path.join(artifactDir, `groups-jump-${width}.png`) })
     await region.getByRole('button', { name: `Remove ${agent.name} from Operations`, exact: true }).waitFor()
     assert.equal(await region.getByRole('button', { name: removeLabel, exact: true }).count(), 0)
     console.log(`PASS ${width}px: searchable add/remove, load retry, pending state, save failure, fresh membership preservation, reload persistence, Escape, and direct group navigation`)
   }
   assert.deepEqual(errors, [])
 } catch (error) {
+  console.log(await page.getByTestId('agent-groups-section').evaluate(element => {
+    const measurements = []
+    for (let parent = element; parent && measurements.length < 5; parent = parent.parentElement) measurements.push({ tag: parent.tagName, className: parent.className, scrollTop: parent.scrollTop, height: parent.clientHeight, scrollHeight: parent.scrollHeight, rect: { y: parent.getBoundingClientRect().y, height: parent.getBoundingClientRect().height } })
+    return measurements
+  }).catch(() => []))
   await page.screenshot({ path: path.join(artifactDir, 'groups-error.png') })
   console.error(errors)
   throw error

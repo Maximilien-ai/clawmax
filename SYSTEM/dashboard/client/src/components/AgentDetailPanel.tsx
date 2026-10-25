@@ -134,12 +134,18 @@ export default function AgentDetailPanel({
   const [activity, setActivity] = useState<AgentActivity | null>(null)
   const [docEntries, setDocEntries] = useState<WorkspaceDocEntryRef[]>([])
   const [loading, setLoading] = useState(true)
+  const detailsBodyRef = React.useRef<HTMLDivElement>(null)
   const groupsSectionRef = React.useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (initialSection !== 'groups' || loading) return
     const frame = window.requestAnimationFrame(() => {
-      groupsSectionRef.current?.scrollIntoView({ block: 'start' })
-      groupsSectionRef.current?.focus({ preventScroll: true })
+      const body = detailsBodyRef.current
+      const groups = groupsSectionRef.current
+      if (!body || !groups) return
+      // scrollIntoView also scrolls ancestor containers, which can move/clamp
+      // this fixed panel. Move only its existing body; keep header/footer fixed.
+      body.scrollTo({ top: body.scrollTop + groups.getBoundingClientRect().top - body.getBoundingClientRect().top - 16 })
+      groups.focus({ preventScroll: true })
     })
     return () => window.cancelAnimationFrame(frame)
   }, [agent.id, initialSection, loading])
@@ -405,7 +411,7 @@ export default function AgentDetailPanel({
         </div>
 
         {/* Body */}
-        <div className="min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 space-y-6 sm:px-5">
+        <div ref={detailsBodyRef} className="min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 space-y-6 sm:px-5">
           {loading && (
             <p className="text-sm text-gray-400">Loading activity...</p>
           )}
