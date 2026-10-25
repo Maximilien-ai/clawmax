@@ -1114,6 +1114,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
                   {modelRecommendation?.recommendedModel && (
                     <ModelFitRecommendationPanel
+                      collapsible
                       recommendation={modelRecommendation}
                       preference={modelPreference}
                       onPreferenceChange={setModelPreference}
