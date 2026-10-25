@@ -95,6 +95,9 @@ agent-route tests (78 route tests), production build, and the subsequent clean
 
 ## Acceptance for Maximilien and Daniyar
 
+Maximilien confirmed A1 and A2 on October 25. Their criteria remain below with
+strikethrough. Daniyar's independent results remain pending.
+
 Each reviewer should record their own result on the exact same source revision.
 Use disposable agents/workspaces for changes and deletion tests. Record the
 source SHA, platform, browser, result, and a short failure description. Never
@@ -102,8 +105,8 @@ include provider keys or raw participant conversations in the report.
 
 | ID | reviewReason | Check and expected result |
 | --- | --- | --- |
-| A1 | human-judgment | Open agent details and Edit Agent Config. The pin is visible beside X. Unpinned, an outside click closes the panel. Pinned, it stays open. Inside clicks never close it. X and Escape close it. Reopen/reload and confirm the choice is remembered. |
-| A2 | human-judgment | Open chat, pin it, switch to its right-side layout, and click outside. It stays open. Unpin and click outside; it closes. Open History/Forward and press Escape: the inner surface closes first. Confirm X closes only the chat when details are underneath. |
+| ~~A1~~ | human-judgment | ~~Open agent details and Edit Agent Config. The pin is visible beside X. Unpinned, an outside click closes the panel. Pinned, it stays open. Inside clicks never close it. X and Escape close it. Reopen/reload and confirm the choice is remembered.~~ **Maximilien: passed, October 25.** |
+| ~~A2~~ | human-judgment | ~~Open chat, pin it, switch to its right-side layout, and click outside. It stays open. Unpin and click outside; it closes. Open History/Forward and press Escape: the inner surface closes first. Confirm X closes only the chat when details are underneath.~~ **Maximilien: passed, October 25.** |
 | A3 | external-environment | With a real configured provider/runtime, send two chat turns, close/reopen, then restart Dashboard. Confirm replies/history remain accessible and a new turn succeeds. Record runtime and model identities. |
 | A4 | external-environment | Create a disposable manual workflow. Save/reopen its run limit and handoff settings. Run it and inspect the result. For Claude/Droid where installed, Stop must actually end the runtime step and permit a later run. |
 | A5 | external-environment | Save a scheduled disposable workflow with a valid timezone and verify its next tick. An invalid timezone is refused with an error; unrelated workflows still schedule. Do not infer that duplicate Gateway cron execution is fixed: #288 remains held. |
