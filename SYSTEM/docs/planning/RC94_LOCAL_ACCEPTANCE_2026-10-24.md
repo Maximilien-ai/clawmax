@@ -3,12 +3,20 @@
 Status: pre-release integration; RC94 has not been tagged or built. The user must
 complete local testing and explicitly confirm acceptance before RC94 is cut.
 
+October 25 handoff: product/dependency source `04818ac56a58198ed08affa0c580e0a36060ca88`
+passes the clean local suite and CI. The working checkout is already on the
+integration branch and is available at **http://localhost:5174** (API on 3001).
+The displayed `2.0.0-test-rc94` is a local candidate label, not a published tag.
+
 ## Source and merge status
 
 - Dashboard integration branch: `integration/rc94-daniyar`.
 - Integration PR: [#291](https://github.com/Maximilien-ai/clawmax/pull/291).
 - Eighteen of Daniyar's 27 open PRs are combined on this branch, preserving
   their original commits. This is not yet a merge to `main`.
+- Merge status: **0 landed on main; 18 combined in #291; nine held**. GitHub
+  requires an approving review on #291 (`REVIEW_REQUIRED`); no protection or
+  security gate has been bypassed. Daniyar can review the combined result.
 - Included: #246, #248, #250, #254, #256, #260, #262, #264, #266, #272,
   #274, #276, #278, #280, #282, #284, #286, #290.
 - Additional change: a remembered pin beside X on agent details, Edit Agent
@@ -25,22 +33,65 @@ These are Dashboard-owned checks, not acceptance tasks for reviewers.
 - Panel persistence and Forward-menu focused tests: passed.
 - Full client TypeScript: 291 diagnostics on both candidate and untouched
   `origin/main`; normalized diagnostic messages match, with no added errors.
-- Full isolated integration/validation/coverage: in progress. Runtime preparation
-  is included. Expected duration: 30–45 minutes, based on recent approximately
-  30-minute CI runs and clean local runtime preparation.
-- Browser interaction and responsive audit: in progress, using synthetic API
-  responses on a separate loopback preview. This does not establish real model,
+- Clean full isolated integration/validation/coverage at `04818ac5`: **545/545,
+  zero failed**. Statements/lines 83.12% (60708/73034), branches 80.66%
+  (19485/24156), functions 91.96% (2505/2724). Command:
+  `DASHBOARD_PORT=3003 DASHBOARD_CLIENT_PORT=5176 DASHBOARD_APP_URL=http://localhost:5176 ./SYSTEM/test-with-server.sh integration --with-validation --coverage`.
+  Private local log: `/private/tmp/clawmax-rc94-clean-validation.log`.
+  Expected duration recorded before execution: 30–45 minutes including clean
+  runtime preparation; subsequent runs reused the prepared runtime.
+- Browser interaction and responsive audit: **passed**, using synthetic API
+  responses on a separate loopback preview. Config/details/chat default and
+  pinned dismissal, remembered choice, modal/right-side chat, Escape/X,
+  nested Forward Escape/focus, and 390px controls passed without page errors.
+  Builder scrolling, long template-card titles and the top bar were visually
+  checked at 1440px, 390px and 320px. This does not establish real model,
   installed-runtime, or restart acceptance.
-- [Candidate CI](https://github.com/Maximilien-ai/clawmax/actions/runs/40104693024):
-  in progress.
-- [CodeQL analysis](https://github.com/Maximilien-ai/clawmax/actions/runs/40104690341)
+- Browser regression:
+  `SYSTEM/dashboard/scripts/agent-panel-persistence-browser.test.mjs`.
+  It accepts `PLAYWRIGHT_MODULE`, `CHROME_BIN`, `TEST_FRONTEND_URL`, and
+  `CLAWMAX_BROWSER_ARTIFACT_DIR`; it uses synthetic API responses only.
+- The real local Dashboard's `/api/system` and browser-rendered version both
+  show `2.0.0-test-rc94`. The local server was restarted with the pinned
+  OpenClaw 2026.9.7 CLI after patching dependencies, with gateway bootstrap
+  disabled so installed services were left alone.
+- [Candidate CI at 04818ac5](https://github.com/Maximilien-ai/clawmax/actions/runs/40121662437):
+  **passed**. A later documentation-only checkpoint may have its own pending CI;
+  use the recorded source SHA for the implementation evidence.
+- [CodeQL analysis](https://github.com/Maximilien-ai/clawmax/actions/runs/40121659695)
   completed, but the PR security gate reports 19 new-to-PR findings: two critical
   and 17 high. This is unresolved; successful scan execution is not clearance.
   Findings concern model-discovery outbound requests and hashing/regex handling,
   plus filesystem paths in skill, workspace-import, and deletion code. Dashboard
   owns disposition before merge/promotion. No alerts have been dismissed.
+  The two custom-URL model-discovery fetches and body-based discovery route
+  already exist on main; that observation alone does not clear the SSRF findings
+  or prove the cloud endpoint policy sufficient. Keep these findings open for
+  bounded source review and ask Daniyar to help trace the affected PR paths.
 - The six residual RC93 command/path findings remain separately tracked in
   [RC93 triage](RC93_CODEQL_TRIAGE_2026-10-21.md).
+
+### Dependency remediation
+
+The first integration CI stopped at production audit. Reproduced counts were
+five production findings (one high, four moderate) across 336 production
+dependencies; full graph: eight findings (one high, seven moderate), 593 total
+dependencies. Commit `edbbd53f` applies non-major updates to body-parser
+1.20.9, Express 4.22.3, fast-uri 3.1.9, ip-address 10.7.4,
+postcss-selector-parser 6.1.5, and qs 6.16.1. The high production advisory was
+[GHSA-27r3-jxmh-p828](https://github.com/advisories/GHSA-27r3-jxmh-p828).
+
+After remediation, `npm run security:audit` passes. `npm audit --omit=dev
+--json` reports **zero production findings**. Full `npm audit --json` reports
+**three moderate, zero high, zero critical**, comprising the development
+Tailwind/PostCSS chain for
+[GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf).
+Dashboard owns that residual review by November 1, 2026 UTC. The available full
+remediation proposes a Tailwind major upgrade; no forced major upgrade or audit
+exception was added. These dependency results do not constitute a complete
+security audit or resolve CodeQL findings. Focused security-boundary and
+agent-route tests (78 route tests), production build, and the subsequent clean
+545-check run passed.
 
 ## Acceptance for Maximilien and Daniyar
 
