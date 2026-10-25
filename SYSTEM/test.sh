@@ -931,6 +931,14 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Agent group membership tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentGroupMemberships.test.ts > /tmp/clawmax-agent-group-memberships.out 2>&1; then
+  pass "Agent group membership tests"
+else
+  cat /tmp/clawmax-agent-group-memberships.out
+  fail "Agent group membership tests"
+fi
+
 echo -e "${YELLOW}→ Running Model suggestion disclosure tests...${NC}"
 if npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/ModelFitDisclosure.test.tsx > /tmp/clawmax-model-fit-disclosure.out 2>&1; then
   pass "Model suggestion disclosure tests"

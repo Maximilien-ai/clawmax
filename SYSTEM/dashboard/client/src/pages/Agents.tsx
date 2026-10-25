@@ -1,6 +1,7 @@
 import { channelLabel } from '../lib/channelLabel'
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
+import AgentGroupMemberships from '../components/AgentGroupMemberships'
 import { KeepAgentPanelOpenButton } from '../components/KeepAgentPanelOpenButton'
 import { useAgentPanelPersistence } from '../lib/agentPanelPersistence'
 import { AgentAttention } from '../components/AgentAttention'
@@ -4052,7 +4053,6 @@ const AgentCard = React.memo(function AgentCard({
                 )}
               </div>
             </div>
-            {((agent.communities || []).length > 0 || (agent.groups || []).length > 0) ? (
               <div className="flex flex-wrap gap-1">
                 {(agent.communities || []).map(c => (
                   <button
@@ -4064,20 +4064,8 @@ const AgentCard = React.memo(function AgentCard({
                     {channelLabel(c)}
                   </button>
                 ))}
-                {agent.groups.map(g => (
-                  <button
-                    key={g.name}
-                    title={g.description ?? undefined}
-                    onClick={e => { e.stopPropagation(); if (onNavigateToGroup) onNavigateToGroup(g.name); }}
-                    className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors cursor-pointer"
-                  >
-                    {channelLabel(g)}
-                  </button>
-                ))}
+                <AgentGroupMemberships agentId={agent.id} agentName={agent.name} groups={agent.groups} onNavigateToGroup={onNavigateToGroup} />
               </div>
-            ) : (
-              <p className="text-xs text-gray-300">No groups configured</p>
-            )}
           </div>
 
           {/* Skills & Tools */}

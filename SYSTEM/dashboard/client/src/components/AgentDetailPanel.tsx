@@ -13,6 +13,7 @@ import { type PluginRelationship } from '../lib/pluginRelationships'
 import { PluginRelationshipDetails } from './PluginRelationshipSummary'
 import { useAgentPanelPersistence } from '../lib/agentPanelPersistence'
 import { KeepAgentPanelOpenButton } from './KeepAgentPanelOpenButton'
+import AgentGroupMemberships from './AgentGroupMemberships'
 
 interface GroupEntry {
   name: string
@@ -627,44 +628,17 @@ export default function AgentDetailPanel({
                 </Section>
               )}
 
-              {/* Groups */}
-              {(agent.communities.length > 0 || agent.groups.length > 0) && (
-                <Section title="WhatsApp presence" source="GROUPS.md">
-                  <div className="space-y-3">
-                    {agent.communities.length > 0 && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1.5">Communities</p>
-                        <div className="space-y-1.5">
-                          {[...agent.communities].sort((a, b) => a.name.localeCompare(b.name)).map(c => (
-                            <div key={c.name}>
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">{channelLabel(c)}</span>
-                              {c.description && (
-                                <p className="text-xs text-gray-400 mt-0.5 ml-1">{c.description}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {agent.groups.length > 0 && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1.5">Groups</p>
-                        <div className="space-y-1.5">
-                          {[...agent.groups].sort((a, b) => a.name.localeCompare(b.name)).map(g => (
-                            <div key={g.name}>
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium">{channelLabel(g)}</span>
-                              {g.description && (
-                                <p className="text-xs text-gray-400 mt-0.5 ml-1">{g.description}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Section>
-              )}
             </>
+          )}
+          <Section title="Groups" source="GROUPS.md">
+            <AgentGroupMemberships agentId={agent.id} agentName={agent.name} groups={agent.groups} />
+          </Section>
+          {agent.communities.length > 0 && (
+            <Section title="Communities" source="COMMUNITIES.md">
+              <div className="flex flex-wrap gap-1.5">
+                {agent.communities.map(community => <span key={community.name} title={community.description || undefined} className="max-w-full break-words rounded-full bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">{channelLabel(community)}</span>)}
+              </div>
+            </Section>
           )}
         </div>
 
