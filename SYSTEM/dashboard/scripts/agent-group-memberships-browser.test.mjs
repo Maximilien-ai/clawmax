@@ -38,7 +38,7 @@ await page.route('**/api/**', async route => {
     agent.groups = catalog.filter(group => payload.groups.includes(group.name))
     body = { ok: true }
   }
-  else if (p === '/api/agents/rc94-probe/activity') body = { recentFiles: [], recentMessages: [], skills: [], liveConfig: { model: agent.model, workspace: agent.workspacePath, agentDir: agent.workspacePath } }
+  else if (p === '/api/agents/rc94-probe/activity') body = { recentFiles: [], recentMessages: [], skills: [], identity: '# Long identity\n\n' + 'Instructions above the Groups section.\n\n'.repeat(80), liveConfig: { model: agent.model, workspace: agent.workspacePath, agentDir: agent.workspacePath } }
   else if (p === '/api/agents/rc94-probe/config') body = { identity: '# RC94 Probe', soul: '', tools: '', runtime: 'openclaw', model: agent.model }
   else if (p === '/api/agents/rc94-probe/identity') body = { metadata: { model: agent.model, runtime: 'openclaw' }, liveConfig: { model: agent.model } }
   else if (p === '/api/agents/rc94-probe/gateway') body = { available: true }
@@ -110,10 +110,13 @@ try {
     assert.deepEqual(agent.groups.map(group => group.name), ['ops-key'])
     await page.reload()
     await page.getByText('Additional agents (1)', { exact: false }).click()
-    await page.getByText(agent.name, { exact: true }).click()
+    await page.getByRole('button', { name: `View groups for ${agent.name}`, exact: true }).click()
+    await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'agent-groups-section')
+    const sectionBox = await page.getByTestId('agent-groups-section').boundingBox()
+    assert(sectionBox && sectionBox.y >= 0 && sectionBox.y < 700, 'The group-count action reveals Groups below a long identity')
     await region.getByRole('button', { name: `Remove ${agent.name} from Operations`, exact: true }).waitFor()
     assert.equal(await region.getByRole('button', { name: removeLabel, exact: true }).count(), 0)
-    console.log(`PASS ${width}px: searchable add/remove, load retry, pending state, save failure, fresh membership preservation, reload persistence, and Escape`)
+    console.log(`PASS ${width}px: searchable add/remove, load retry, pending state, save failure, fresh membership preservation, reload persistence, Escape, and direct group navigation`)
   }
   assert.deepEqual(errors, [])
 } catch (error) {

@@ -113,6 +113,7 @@ export default function AgentDetailPanel({
   onNavigateToSkills,
   onNavigateToDoc,
   initialEditCostLimit = false,
+  initialSection,
   costTrackingEnabled = true,
   pluginRelationships = [],
 }: {
@@ -124,6 +125,7 @@ export default function AgentDetailPanel({
   onNavigateToSkills?: (agentId: string, skillName?: string) => void
   onNavigateToDoc?: (file: string) => void
   initialEditCostLimit?: boolean
+  initialSection?: 'groups'
   costTrackingEnabled?: boolean
   pluginRelationships?: PluginRelationship[]
 }) {
@@ -132,6 +134,15 @@ export default function AgentDetailPanel({
   const [activity, setActivity] = useState<AgentActivity | null>(null)
   const [docEntries, setDocEntries] = useState<WorkspaceDocEntryRef[]>([])
   const [loading, setLoading] = useState(true)
+  const groupsSectionRef = React.useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (initialSection !== 'groups' || loading) return
+    const frame = window.requestAnimationFrame(() => {
+      groupsSectionRef.current?.scrollIntoView({ block: 'start' })
+      groupsSectionRef.current?.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [agent.id, initialSection, loading])
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
   const [cooling, setCooling] = useState(false)
@@ -630,9 +641,11 @@ export default function AgentDetailPanel({
 
             </>
           )}
-          <Section title="Groups" source="GROUPS.md">
-            <AgentGroupMemberships agentId={agent.id} agentName={agent.name} groups={agent.groups} />
-          </Section>
+          <div ref={groupsSectionRef} tabIndex={-1} data-testid="agent-groups-section" className="scroll-mt-4 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+            <Section title="Groups" source="GROUPS.md">
+              <AgentGroupMemberships agentId={agent.id} agentName={agent.name} groups={agent.groups} />
+            </Section>
+          </div>
           {agent.communities.length > 0 && (
             <Section title="Communities" source="COMMUNITIES.md">
               <div className="flex flex-wrap gap-1.5">

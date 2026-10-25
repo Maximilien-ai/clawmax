@@ -175,7 +175,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [doctorResults, setDoctorResults] = useState<any>(null)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [selectedAgent, setSelectedAgent] = useState<(Agent & { initialSection?: 'groups' }) | null>(null)
   const [budgetEditorAgentId, setBudgetEditorAgentId] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
@@ -1724,6 +1724,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         agent={agent}
                         selected={selectedAgent?.id === agent.id}
                         onClick={() => setSelectedAgent(agent)}
+                        onOpenGroups={() => setSelectedAgent({ ...agent, initialSection: 'groups' })}
                         onChat={() => setChatTarget(agent)}
                         onStatus={() => setStatusTarget(agent)}
                         onDelete={() => setDeleteTarget(agent.id)}
@@ -1776,6 +1777,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               agent={agent}
                               selected={selectedAgent?.id === agent.id}
                               onClick={() => setSelectedAgent(agent)}
+                              onOpenGroups={() => setSelectedAgent({ ...agent, initialSection: 'groups' })}
                               onChat={() => setChatTarget(agent)}
                               onStatus={() => setStatusTarget(agent)}
                               onDelete={() => setDeleteTarget(agent.id)}
@@ -1880,6 +1882,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               agent={agent}
               selected={selectedAgent?.id === agent.id}
               onClick={() => setSelectedAgent(agent)}
+              onOpenGroups={() => setSelectedAgent({ ...agent, initialSection: 'groups' })}
               onChat={() => setChatTarget(agent)}
               onStatus={() => setStatusTarget(agent)}
               onDelete={() => setDeleteTarget(agent.id)}
@@ -1934,6 +1937,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                           agent={agent}
                           selected={selectedAgent?.id === agent.id}
                           onClick={() => setSelectedAgent(agent)}
+                          onOpenGroups={() => setSelectedAgent({ ...agent, initialSection: 'groups' })}
                           onChat={() => setChatTarget(agent)}
                           onStatus={() => setStatusTarget(agent)}
                           onDelete={() => setDeleteTarget(agent.id)}
@@ -2086,6 +2090,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           agent={selectedAgent}
           pluginRelationships={pluginRelationships.agents[selectedAgent.id] || []}
           initialEditCostLimit={budgetEditorAgentId === selectedAgent.id}
+          initialSection={selectedAgent.initialSection}
           costTrackingEnabled={costTrackingEnabled}
           onClose={() => { setSelectedAgent(null); setBudgetEditorAgentId(null) }}
           onChat={() => setChatTarget(selectedAgent)}
@@ -4216,7 +4221,7 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true, relationships = [] }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onNavigateToSkills?: (agentId: string) => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean; relationships?: PluginRelationship[] }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onOpenGroups, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true, relationships = [] }: { agent: Agent; selected: boolean; onClick: () => void; onOpenGroups: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onNavigateToSkills?: (agentId: string) => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean; relationships?: PluginRelationship[] }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [actionsMenuView, setActionsMenuView] = React.useState<AgentActionsMenuView>('main')
   const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
@@ -4376,7 +4381,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           )}
         </div>
         {groupCountLabel && (
-          <div className="text-xs text-gray-400 shrink-0">{groupCountLabel}</div>
+          <button type="button" onClick={event => { event.stopPropagation(); onOpenGroups() }} aria-label={`View groups for ${agent.name}`} title="View groups" className="shrink-0 rounded text-xs text-gray-400 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:hover:text-sky-300">{groupCountLabel}</button>
         )}
         {usage && usage.totalTokens > 0 && (
           <div className="text-xs text-indigo-600 shrink-0 font-medium" title={`${(usage.totalTokens || 0).toLocaleString()} tokens (${(usage.inputTokens || 0).toLocaleString()} in / ${(usage.outputTokens || 0).toLocaleString()} out)${usage.totalCost > 0 ? ` • $${(usage.totalCost || 0).toFixed(2)}` : ''}`}>
