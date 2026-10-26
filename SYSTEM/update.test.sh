@@ -22,6 +22,7 @@ cat >"$fake_repo/setup.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" > /tmp/clawmax-update-setup-args.txt
+[ "${CLAWMAX_UPDATE_TEST_FAIL:-}" != true ] || exit 13
 EOF
 chmod +x "$fake_repo/setup.sh"
 
@@ -36,11 +37,19 @@ rm -f /tmp/clawmax-update-setup-args.txt /tmp/clawmax-update-install-args.txt
 
 (
   cd "$fake_repo"
-  ./update.sh
+  ./update.sh > "$tmp_dir/update-output"
 )
 
 [[ -f /tmp/clawmax-update-setup-args.txt ]] || fail "expected update.sh to invoke setup.sh"
 [[ "$(cat /tmp/clawmax-update-setup-args.txt)" == "--non-interactive" ]] || fail "expected update.sh to call setup.sh --non-interactive"
+grep -q './SYSTEM/start.sh' "$tmp_dir/update-output" || fail 'expected update start guidance'
+grep -q './SYSTEM/stop.sh' "$tmp_dir/update-output" || fail 'expected update stop guidance'
+if CLAWMAX_UPDATE_TEST_FAIL=true "$fake_repo/update.sh" > "$tmp_dir/failed-output" 2>&1; then
+  fail 'setup failure must fail the update'
+fi
+if grep -q 'Update prepared\|Update complete' "$tmp_dir/failed-output"; then
+  fail 'failed setup must not report a completed update'
+fi
 pass "update.sh reruns setup in non-interactive mode"
 
 rm -f /tmp/clawmax-update-setup-args.txt /tmp/clawmax-update-install-args.txt

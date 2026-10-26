@@ -38,4 +38,8 @@ fi
 
 info "Re-running setup in non-interactive mode"
 ./setup.sh --non-interactive
-ok "Update complete"
+ok "Update prepared. Restart the dashboard to use the updated source."
+echo "From the ClawMax repository root:"
+echo "  Stop before restarting: ./SYSTEM/stop.sh"
+echo "  Start the dashboard:    ./SYSTEM/start.sh"
+echo "  Follow startup logs:    ./SYSTEM/start.sh --follow"

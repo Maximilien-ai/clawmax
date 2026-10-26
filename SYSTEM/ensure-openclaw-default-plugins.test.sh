@@ -13,6 +13,10 @@ cat > "$fake_openclaw" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "${CLAWMAX_PLUGIN_TEST_LOG:?}"
+if [ "${1:-}" = plugins ] && [ "${3:-}" = --help ]; then
+  if [ "${CLAWMAX_PLUGIN_LEGACY_HELP:-}" != true ]; then printf '%s\n' '--accept-capabilities'; fi
+  exit 0
+fi
 if [ "${1:-}" = plugins ] && [ "${2:-}" = inspect ]; then
   exit "${CLAWMAX_PLUGIN_INSPECT_EXIT:-1}"
 fi
@@ -31,8 +35,19 @@ grep -Fxq 'plugins install npm:@openclaw/slack@2026.5.26 --accept-capabilities' 
 grep -Fxq 'plugins enable slack --accept-capabilities' "$log_file"
 
 : > "$log_file"
+if CLAWMAX_PLUGIN_TEST_LOG="$log_file" CLAWMAX_PLUGIN_LEGACY_HELP=true OPENCLAW_BIN="$fake_openclaw" bash "$script_file" > "$tmp_dir/legacy-output" 2>&1; then
+  echo 'FAIL: unsupported capability consent must fail before plugin changes' >&2
+  exit 1
+fi
+grep -q 'branch-pinned runtime' "$tmp_dir/legacy-output"
+if grep -E '^plugins (install|enable) ' "$log_file" | grep -v -- '--help'; then
+  echo 'FAIL: unsupported CLI must not mutate plugin configuration' >&2
+  exit 1
+fi
+
+: > "$log_file"
 CLAWMAX_PLUGIN_TEST_LOG="$log_file" CLAWMAX_PLUGIN_INSPECT_EXIT=0 OPENCLAW_BIN="$fake_openclaw" bash "$script_file" >/dev/null
-if grep -q 'plugins install' "$log_file"; then
+if grep -q '^plugins install npm:' "$log_file"; then
   echo "FAIL: installed an already-discoverable WhatsApp plugin" >&2
   exit 1
 fi

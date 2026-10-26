@@ -5,6 +5,22 @@ set -euo pipefail
 OPENCLAW_COMMAND=${OPENCLAW_BIN:-openclaw}
 OPENCLAW_PLUGIN_VERSION=${CLAWMAX_OPENCLAW_PLUGIN_VERSION:-}
 
+# Older CLIs cannot persist capability consent. Fail before any plugin mutation
+# rather than retrying an install without the required consent flag.
+for operation in install enable; do
+  if ! plugin_help="$("$OPENCLAW_COMMAND" plugins "$operation" --help 2>/dev/null)"; then
+    echo "Cannot inspect selected OpenClaw plugin capabilities. Run ./setup.sh to prepare the branch-pinned runtime." >&2
+    exit 1
+  fi
+  case "$plugin_help" in
+    *--accept-capabilities*) ;;
+    *)
+      echo "Selected OpenClaw lacks capability consent support for plugins $operation. Run ./setup.sh to prepare the branch-pinned runtime." >&2
+      exit 1
+      ;;
+  esac
+done
+
 if [ -z "$OPENCLAW_PLUGIN_VERSION" ]; then
   OPENCLAW_PLUGIN_VERSION="$("$OPENCLAW_COMMAND" --version 2>/dev/null | sed -n 's/.*\([0-9][0-9][0-9][0-9]\.[0-9][0-9]*\.[0-9][0-9]*\(-[0-9A-Za-z.-][0-9A-Za-z.-]*\)\{0,1\}\).*/\1/p' | head -n 1)"
 fi
