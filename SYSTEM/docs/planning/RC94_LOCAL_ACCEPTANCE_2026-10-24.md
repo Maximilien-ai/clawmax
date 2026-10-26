@@ -1,7 +1,7 @@
 # RC94 local acceptance — October 24, 2026
 
 Status: RC94 test-image preparation authorized by Maximilien's latest October 26
-instruction for Mike and the other testers. Full local validation passed **548/548**; image builds are in progress.
+instruction for Mike and the other testers. Full local validation passed **548/548**; both image workflows have passed; the pair is ready for tester deployment.
 See the [image handoff and monitor links](RC94_IMAGE_HANDOFF_2026-10-26.md). Remaining human acceptance checks stay open; this is not a
 production rollout or merge to main. Tagged RC94 source: `326f2684b49d43d72f710fc3408b9d1985177eb3`.
 Start with the [shareable review handoff](RC94_REVIEW_HANDOFF_2026-10-26.md).

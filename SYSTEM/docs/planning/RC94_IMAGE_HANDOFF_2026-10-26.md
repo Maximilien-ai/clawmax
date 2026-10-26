@@ -1,26 +1,30 @@
 # RC94 test-image handoff — October 26, 2026
 
-Status: **builds in progress; image pair not yet validated or ready for deployment**.
+Status: **both RC94 images passed build and validation; ready for tester deployment**.
+Production promotion and installed-environment acceptance remain open.
 Maximilien authorized these test images for Mike, Daniyar and the other reviewers
 before all human acceptance is complete. This does not promote production or
 merge integration PR #291 to main.
 
-## Monitor
+## Completed builds
 
-- [Public amd64/arm64 build and validation](https://github.com/Maximilien-ai/clawmax/actions/runs/40377088343)
-  started at 18:22 UTC. Recent observed public duration: 57–72 minutes.
-- [Combined-image workflow](https://github.com/Maximilien-ai/clawmax-plugins/actions/workflows/private-image.yml):
-  dispatch is waiting on successful public validation. A background coordinator
-  is set to dispatch with matching `base_tag` and `image_tag`; a private run has
-  not yet been dispatched. Recent observed combined duration: about 13–15 minutes.
-- [Candidate CI](https://github.com/Maximilien-ai/clawmax/actions/runs/40375089952)
-  was running when the image build began.
+- [Public amd64/arm64 build and validation](https://github.com/Maximilien-ai/clawmax/actions/runs/40377088343):
+  **passed**. Both architecture builds, manifest publication, registry smoke and
+  lifecycle acceptance passed. October 26, 18:22–19:23 UTC (about 62 minutes).
+- [Combined build and validation](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/40386991582):
+  **passed**. Contracts, runtime acceptance, multi-architecture build, and both
+  registry smoke jobs passed. October 26, 19:28–19:41 UTC (about 14 minutes).
+- [Exact tagged-source CI](https://github.com/Maximilien-ai/clawmax/actions/runs/40377009244):
+  **passed**. The earlier branch run was superseded/cancelled; this successful
+  run checks the actual RC94 tag and source.
 - [RC94 prerelease](https://github.com/Maximilien-ai/clawmax/releases/tag/v2.0.0-test-rc94).
 
-The coordinator checks near half the public estimate, then expected completion
-plus one minute, with sparse checks if the run overruns. A failed public job
-blocks combined dispatch. This document must be updated with both final run
-results and digests before the matching pair is reported ready.
+The combined workflow used `base_tag=2.0.0-test-rc94` and
+`image_tag=2.0.0-test-rc94`. Its packaged discovery and contract checks passed on
+both architectures; its ARM64 lifecycle check also verifies persisted state.
+Public lifecycle checks passed on both architectures, including restart
+persistence. Public packaging uses this public repository; private implementation
+is layered only by the private workflow. No private source was copied here.
 
 ## Fixed identity
 
@@ -30,12 +34,21 @@ results and digests before the matching pair is reported ready.
 - Combined image: `ghcr.io/maximilien-ai/clawmax-plugins:2.0.0-test-rc94`.
 - Required image platforms: `linux/amd64` and `linux/arm64`.
 - Expected visible and `/api/system` version: `2.0.0-test-rc94`.
-- Image digests and actual combined source SHA: **pending**.
+- Public manifest digest: `sha256:f629118343fb5308ac4f2ad93588e67da10e928c079967ca748e47327b549524`.
+- Combined manifest digest: `sha256:2be5f6585a028727455f2b08f938b86f175b14bfc1f2c2efc1515814725caa2e`.
+- Private combined source: `eb9af8eb05988a7c5ed307e7aff3788a81107fab`.
 
-Do not use a partial architecture tag or treat this intended image reference as
-proof that a complete registry image is available. Use the existing on-prem or
-cloud deployment configuration with the validated image identity; no deployment
-has been performed by Dashboard as part of this build request.
+Both registry tag digests match the respective workflow's validated
+`gcp-mirror-target` artifact, including source SHA and run ID. These are
+multi-architecture manifest identities; pin a digest when reproducibility is
+required.
+
+Use the existing on-prem or cloud deployment configuration with the validated
+image identity. No deployment has been performed by Dashboard as part of this
+build request. After deployment, verify the visible version and `/api/system`,
+provider/runtime connectivity, restart persistence, and reviewer acceptance on
+that actual environment. Image smoke success is not installed-environment
+acceptance.
 
 ## Verified local evidence
 
@@ -73,8 +86,8 @@ and verify persistence. The tagged fix prevents structured instructions becoming
 `[object Object]` and blocking save. Real-provider acceptance remains open.
 
 Before promotion, resolve failures, obtain human acceptance and required PR
-approval, and disposition the unresolved security findings. Before image handoff,
-verify both architectures, registry smoke, packaged identity, plugin discovery,
-restart persistence, and the public/private source boundary. If a combined smoke
+approval, and disposition the unresolved security findings. Image validation above covers both architectures, registry smoke, packaged
+identity, plugin discovery, restart persistence, and the public/private source
+boundary. Installed-environment acceptance remains open. If a combined smoke
 step flakes after packaging/contracts pass, inspect it and rerun failed smoke
 once; do not silently report the pair fully green.

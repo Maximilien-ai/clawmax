@@ -2,8 +2,8 @@
 
 From: Dashboard team / Maximilien. Reviewers: Daniyar (`zsz13`), Maximilien and Mike.
 Status: RC94 test-image preparation authorized by Maximilien's latest October 26
-instruction. Remaining acceptance stays open; all 548 local checks passed and image builds
-are in progress. See the [image handoff and monitor links](RC94_IMAGE_HANDOFF_2026-10-26.md). No production rollout is authorized by this handoff.
+instruction. Remaining acceptance stays open; all 548 local checks passed and both image workflows
+have passed and the pair is ready for tester deployment. See the [image handoff and monitor links](RC94_IMAGE_HANDOFF_2026-10-26.md). No production rollout is authorized by this handoff.
 
 ## Candidate and how to test
 
@@ -123,8 +123,8 @@ failed** on earlier source `1729992e9555002a8d34e91b644ecf9d153b27bb`.
 Statements/lines 83.18% (60981/73311),
 branches 80.65% (19566/24259), functions 91.81% (2512/2736). Cached run estimate
 10–20 minutes; observed about 11 minutes. The command and previous results are
-preserved in the linked acceptance file. RC94 test-image creation is now authorized and running; no image pair is
-reported ready before both workflows pass.
+preserved in the linked acceptance file. Both RC94 image workflows passed; the pair is ready for tester deployment.
+Installed-environment and human acceptance remain open.
 Saved browser regressions passed on October 26 for panel pinning/dismissal,
 group membership/direct scrolling, and AI-creation disclosures at desktop and
 mobile widths. The local browser and `/api/system` version were verified.
@@ -136,8 +136,8 @@ merge/promotion; Daniyar's help tracing the affected changes is requested.
 Full client TypeScript retains 291 baseline diagnostics, with no new diagnostics
 in the recorded comparison. No security gate or required approval was bypassed.
 
-RC94 test images are now being built for reviewer testing after the complete
-local gate passed. After reviewers return results, fix/retest failures, disposition
+RC94 test images passed both workflows after the complete local gate passed
+and are ready for reviewer deployment. After reviewers return results, fix/retest failures, disposition
 security findings, and obtain required approval before merge/promotion. Verify
 both architectures, registry smoke, packaged identity, plugin discovery,
 restart persistence, and the public/private boundary before image handoff.
