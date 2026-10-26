@@ -74,6 +74,49 @@ API port: 3001. Update does not restart a running Dashboard automatically.
 
 ## A16 — external-environment acceptance
 
+### Follow-up: existing Gateway belongs to another installation
+
+Mike's next attempt prepared OpenClaw 2026.9.7 successfully, then failed on
+legacy `meta.lastTouchedAt` and `commands.ownerDisplay` config keys. Doctor
+refused maintenance because the installed Gateway belongs to another OpenClaw
+installation. That refusal must not be bypassed. A16 remains open.
+
+Fix `94dccd7dfb1ea7edd79bb03776fe0394814b18a5` adds a read-only config check
+before plugin commands and an explicit isolated development launcher. Retry:
+
+```sh
+git fetch origin
+git switch integration/rc94-daniyar
+git pull --ff-only
+./SYSTEM/local-dev.sh
+```
+
+Open http://localhost:5178 after startup. Add a key in Model Integration, create
+a disposable agent and verify chat. Ctrl-C stops this Dashboard and foreground
+Gateway. Save the printed `./SYSTEM/local-dev.sh --root ...` command to restart
+with the same test data. Do not use normal SYSTEM/stop.sh for this isolated mode.
+The default API port is 3005; occupied ports cause an error before startup.
+
+This mode creates a committed public-source snapshot with its own HOME, config,
+workspace, registry and token. Existing global state/services are not migrated.
+Host provider secrets and private plugin paths are not inherited. It reuses
+the prepared runtime binaries; it does not test a cold runtime build. Reusing a
+root preserves its original source commit; a new invocation without `--root`
+tests the latest pulled commit. Data is temporary and may be cleaned by the OS.
+
+Engineering checks: credential/profile isolation and scoped process cleanup
+tests passed; affected plugin/setup/alignment suites passed. A real temporary
+snapshot of `97b87abe` prepared dependencies and default plugins, passed
+authenticated pinned-Gateway readiness, served UI HTTP 200 on localhost:5178
+and `/api/system` on 3005, then stopped and restarted with the same root.
+The restarted API reported `2.0.0-test-rc94-review.97b87abe` and the isolated
+workspace. Logs: `/private/tmp/clawmax-local-dev-live.log` and
+`/private/tmp/clawmax-local-dev-restart.log`. No provider-backed agent reply was
+tested in this clean environment; Mike must validate that on his machine.
+The complete suite was not rerun for this follow-up. Source CI:
+https://github.com/Maximilien-ai/clawmax/actions/runs/40416082935 (pending when
+recorded). These source changes do not alter the existing RC94 images.
+
 On Mike's actual machine with the older global CLI and no pnpm/Corepack, pull
 the review branch and rerun setup. Verify pinned runtime preparation succeeds,
 the unsupported consent-flag error is absent, Dashboard starts at the printed

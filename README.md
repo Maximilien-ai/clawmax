@@ -282,6 +282,16 @@ forces a branch change. A failed initial setup should be retried with
 `./setup.sh` after pulling the fix. See the
 [source setup fix and clean-machine acceptance](SYSTEM/docs/planning/RC94_SOURCE_SETUP_FIX_2026-10-26.md).
 
+If an older OpenClaw installation owns your config/Gateway and blocks setup,
+use `./SYSTEM/local-dev.sh` for a separate development environment. It snapshots
+the current committed source into a temporary directory, uses separate config
+and workspace data, and serves the UI at http://localhost:5178. Add keys through
+Model Integration. Ctrl-C stops its Dashboard and foreground Gateway; use the
+printed `--root` command to restart with the same data. This mode does not
+import existing agents, credentials or private plugins. A reused snapshot stays
+on its recorded commit; pull the branch and launch without `--root` for a fresh
+snapshot of updated source. Temporary data may be removed by OS cleanup.
+
 For local development, `./setup.sh` now offers:
 - `Email OTP` dev mode, which asks what login email you want in `SYSTEM/dashboard/.env`
 - `bypass` mode, if you explicitly do not want auth
