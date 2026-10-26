@@ -285,7 +285,10 @@ forces a branch change. A failed initial setup should be retried with
 If an older OpenClaw installation owns your config/Gateway and blocks setup,
 use `./SYSTEM/local-dev.sh` for a separate development environment. It snapshots
 the current committed source into a temporary directory, uses separate config
-and workspace data, and serves the UI at http://localhost:5178. Add keys through
+and workspace data, and serves the UI at http://localhost:5178. It waits for
+the API, UI and frontend API connection before printing **ClawMax is ready**
+and opening your browser. Keep the terminal running while using ClawMax;
+`--no-open` disables automatic browser opening. Add keys through
 Model Integration. Ctrl-C stops its Dashboard and foreground Gateway; use the
 printed `--root` command to restart with the same data. This mode does not
 import existing agents, credentials or private plugins. A reused snapshot stays

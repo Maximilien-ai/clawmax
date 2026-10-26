@@ -104,6 +104,25 @@ the prepared runtime binaries; it does not test a cold runtime build. Reusing a
 root preserves its original source commit; a new invocation without `--root`
 tests the latest pulled commit. Data is temporary and may be cleaned by the OS.
 
+First-run clarification (`17a5e6f8`): Mike's retry reached a running Dashboard
+successfully, then Ctrl-C stopped it. The live-log terminal had looked stuck.
+The launcher now waits for the API, UI and frontend API proxy to return the
+expected source version/workspace before printing **ClawMax is ready** and
+opening the browser. It explicitly says to keep the terminal running.
+`--no-open` supports headless testing; browser-launch failure prints the URL.
+Isolated setup no longer prints standard host start/stop commands or the wrong
+5173 URL; normal setup also uses its configured frontend URL throughout.
+Six launcher tests passed, including delayed/mismatched readiness, failure,
+process exit and browser-launch fallback. Setup/alignment suites and server
+TypeScript passed. A real reused environment passed the new API/UI/proxy gate.
+A fresh snapshot of `17a5e6f85d37ba5cf28d4cd8755668b7795eddba` then
+installed dependencies, started the isolated runtime and Dashboard, passed that
+gate and successfully invoked the macOS browser opener. Its output contained
+the correct 5178 URL and the keep-terminal-running instruction, without the
+conflicting 5173 URL or host start/stop commands. Log:
+`/private/tmp/clawmax-first-run-ready.log`. This used the prepared runtime cache;
+a provider-backed agent reply and Mike's machine acceptance remain open.
+
 Engineering checks: credential/profile isolation and scoped process cleanup
 tests passed; affected plugin/setup/alignment suites passed. A real temporary
 snapshot of `97b87abe` prepared dependencies and default plugins, passed
