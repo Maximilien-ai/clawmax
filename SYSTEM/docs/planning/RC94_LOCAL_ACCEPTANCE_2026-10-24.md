@@ -1,9 +1,9 @@
 # RC94 local acceptance — October 24, 2026
 
 Status: RC94 test-image preparation authorized by Maximilien's latest October 26
-instruction for Mike and the other testers. Local full validation must pass before
-image creation. Remaining human acceptance checks stay open; this is not a
-production rollout or merge to main. Latest product source: `990e9ad0a4e84dc8fecfb3917a668768713f464e`.
+instruction for Mike and the other testers. Full local validation passed **548/548**; image builds are in progress.
+See the [image handoff and monitor links](RC94_IMAGE_HANDOFF_2026-10-26.md). Remaining human acceptance checks stay open; this is not a
+production rollout or merge to main. Tagged RC94 source: `326f2684b49d43d72f710fc3408b9d1985177eb3`.
 Start with the [shareable review handoff](RC94_REVIEW_HANDOFF_2026-10-26.md).
 
 October 25 handoff: earlier product/dependency source `04818ac56a58198ed08affa0c580e0a36060ca88`
@@ -34,6 +34,13 @@ The displayed `2.0.0-test-rc94` is a local candidate label, not a published tag.
 These are Dashboard-owned checks, not acceptance tasks for reviewers.
 
 ### October 26 review-image candidate
+
+- RC94 tag `v2.0.0-test-rc94` fixes source `326f2684`. Final isolated
+  integration/validation/coverage passed **548/548**, zero failed. Statements/lines
+  83.26% (61146/73437), branches 80.71% (19659/24355), functions 91.86%
+  (2519/2742). See the image handoff for commands, logs, the corrected route
+  fixture, current build links, and pending image-specific gates. Local browser
+  and API versions were verified after restart as `2.0.0-test-rc94`.
 
 - Latest workflow-save correction: `990e9ad0`. AI could return structured content,
   which appeared as `[object Object]` and caused `.trim()` to throw before save.

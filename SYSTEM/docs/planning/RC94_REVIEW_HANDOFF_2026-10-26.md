@@ -2,12 +2,12 @@
 
 From: Dashboard team / Maximilien. Reviewers: Daniyar (`zsz13`), Maximilien and Mike.
 Status: RC94 test-image preparation authorized by Maximilien's latest October 26
-instruction. Remaining acceptance stays open; full local checks precede image
-creation. No production rollout is authorized by this handoff.
+instruction. Remaining acceptance stays open; all 548 local checks passed and image builds
+are in progress. See the [image handoff and monitor links](RC94_IMAGE_HANDOFF_2026-10-26.md). No production rollout is authorized by this handoff.
 
 ## Candidate and how to test
 
-Latest review source: `990e9ad0a4e84dc8fecfb3917a668768713f464e`, branch
+Tagged RC94 image source: `326f2684b49d43d72f710fc3408b9d1985177eb3`, branch
 `integration/rc94-daniyar`, [integration PR #291](https://github.com/Maximilien-ai/clawmax/pull/291).
 Eighteen of Daniyar's 27 PRs are combined here; **zero have landed on main and
 nine remain held**. Review the combined behavior, not each PR in isolation.
@@ -123,8 +123,8 @@ failed** on earlier source `1729992e9555002a8d34e91b644ecf9d153b27bb`.
 Statements/lines 83.18% (60981/73311),
 branches 80.65% (19566/24259), functions 91.81% (2512/2736). Cached run estimate
 10–20 minutes; observed about 11 minutes. The command and previous results are
-preserved in the linked acceptance file. Deployment-image creation is deferred
-until local acceptance; no image pair is reported ready.
+preserved in the linked acceptance file. RC94 test-image creation is now authorized and running; no image pair is
+reported ready before both workflows pass.
 Saved browser regressions passed on October 26 for panel pinning/dismissal,
 group membership/direct scrolling, and AI-creation disclosures at desktop and
 mobile widths. The local browser and `/api/system` version were verified.
@@ -136,13 +136,12 @@ merge/promotion; Daniyar's help tracing the affected changes is requested.
 Full client TypeScript retains 291 baseline diagnostics, with no new diagnostics
 in the recorded comparison. No security gate or required approval was bypassed.
 
-After both reviewers return results, fix and retest any failures, disposition
-security findings, and obtain the required PR approval. Only then select the
-official RC94 source, rerun the required release checks, and build matching
-public/combined images for on-prem and cloud validation. Verify both architectures,
-registry smoke tests, packaged identity, plugin discovery, restart persistence,
-and the public/private boundary before deployment handoff. Building an image
-does not establish an on-prem or cloud deployment.
+RC94 test images are now being built for reviewer testing after the complete
+local gate passed. After reviewers return results, fix/retest failures, disposition
+security findings, and obtain required approval before merge/promotion. Verify
+both architectures, registry smoke, packaged identity, plugin discovery,
+restart persistence, and the public/private boundary before image handoff.
+Building an image does not establish an on-prem or cloud deployment.
 
 Latest retirement change: **347 focused tests passed**, server TypeScript,
 changed-file lint, production build, and desktop/mobile browser regression
@@ -169,8 +168,8 @@ Latest workflow-save fix: `990e9ad0`. AI-generated structured instructions are
 normalized into Markdown before the form receives them; empty output fails with
 an actionable message. AI **57/57**, workflow routes **22/22**, server types,
 lint, production build and desktop/mobile save/reopen/error regressions pass.
-A15 awaits real-provider acceptance. Final full integration/validation/coverage
-is pending before RC94 image creation; image identities and CI links will follow.
+A15 awaits real-provider acceptance. Final isolated integration/validation/coverage passed **548/548** on tagged source
+`326f2684`. Image build identities and monitor links are in the linked image handoff.
 
 ## Short Slack handoff
 
