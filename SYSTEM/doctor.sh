@@ -9,6 +9,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/openclaw-cli.sh"
+. "$SCRIPT_DIR/openclaw-version.sh"
 
 # Colors
 RED='\033[0;31m'

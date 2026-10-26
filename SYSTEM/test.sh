@@ -19,6 +19,7 @@
 cd "$(dirname "$0")"
 SYSTEM_DIR="$(pwd)"
 . "$SYSTEM_DIR/openclaw-cli.sh"
+. "$SYSTEM_DIR/openclaw-version.sh"
 
 BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"

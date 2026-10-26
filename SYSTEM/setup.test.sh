@@ -84,7 +84,7 @@ fixture_path="$fixture_bin:$(dirname "$(command -v node)"):/usr/bin:/bin"
 run_setup() {
   env -i PATH="$fixture_path" HOME="$fixture_root/home" SETUP_TEST_BIN="$fixture_bin" \
     SETUP_TEST_LOG="$fixture_root/commands.log" SETUP_TEST_PREP_FAIL="${1:-false}" \
-    SETUP_TEST_PLUGIN_FAIL="${2:-false}" /bin/bash "$fixture_repo/setup.sh" --non-interactive
+    SETUP_TEST_PLUGIN_FAIL="${2:-false}" CLAWMAX_OPENCLAW_CACHE_DIR="$fixture_root/cache" /bin/bash "$fixture_repo/setup.sh" --non-interactive
 }
 run_setup > "$fixture_root/success.log" 2>&1 || { cat "$fixture_root/success.log"; fail 'expected setup to prepare a pinned runtime over an old global CLI'; }
 grep -q 'prepare:--print-bin' "$fixture_root/commands.log" || fail 'expected pinned preparation'
@@ -108,6 +108,7 @@ repo, root, path, bin_path = sys.argv[1:]
 for answer, fail_start in (('n', False), ('y', False), ('y', True)):
     master, slave = pty.openpty()
     env = dict(PATH=path, HOME=root+'/home', TERM='dumb', SETUP_TEST_BIN=bin_path, SETUP_TEST_LOG=root+'/commands.log')
+    env['CLAWMAX_OPENCLAW_CACHE_DIR'] = root+'/cache'
     if fail_start: env['SETUP_TEST_START_FAIL'] = 'true'
     process = subprocess.Popen(['/bin/bash', repo+'/setup.sh'], stdin=slave, stdout=slave, stderr=slave, env=env)
     os.close(slave)
@@ -138,5 +139,6 @@ for answer, fail_start in (('n', False), ('y', False), ('y', True)):
         if process.poll() is None: process.kill(); process.wait()
         os.close(master)
 PY
+bash "$repo_root/SYSTEM/openclaw-cli.test.sh"
 pass "setup verifies the pinned runtime before success and prints start/stop paths for all launch choices"
 pass "setup.sh defaults non-interactive auth to bypass and only advertises bypass/email otp"
