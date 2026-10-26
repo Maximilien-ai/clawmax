@@ -539,23 +539,23 @@ async function run() {
 
   await test('model fit ranks only runtime-visible models and explains uncertainty', async () => {
     await withModelDiscoveryStubs({
-      getAvailableModelsCached: () => ['openai/gpt-5.3-codex'],
+      getAvailableModelsCached: () => ['openai/gpt-5.5'],
     }, async () => {
       const handler = getRouteHandler('post', '/model-fit')
       const res = makeRes()
       await handler(makeReq({
         body: {
           description: 'Review a TypeScript repository and write code changes.',
-          availableModels: ['openai/gpt-5.3-codex', 'not-configured/imaginary-model'],
+          availableModels: ['openai/gpt-5.5', 'not-configured/imaginary-model'],
           preference: 'balanced',
         },
       }), res)
 
       assert.strictEqual(res.statusCode, 200, 'Expected model fit success')
-      assert.strictEqual(res.jsonBody?.recommendedModel, 'openai/gpt-5.3-codex')
+      assert.strictEqual(res.jsonBody?.recommendedModel, 'openai/gpt-5.5')
       assert.deepStrictEqual(
         res.jsonBody?.candidates.map((candidate: any) => candidate.model),
-        ['openai/gpt-5.3-codex'],
+        ['openai/gpt-5.5'],
         'Expected unavailable request models to be excluded',
       )
       assert(/not a quality or cost measurement/i.test(res.jsonBody?.disclaimer || ''), 'Expected advisory limitation')
