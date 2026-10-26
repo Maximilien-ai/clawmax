@@ -85,6 +85,7 @@ run_setup() {
   env -i PATH="$fixture_path" HOME="$fixture_root/home" SETUP_TEST_BIN="$fixture_bin" \
     SETUP_TEST_LOG="$fixture_root/commands.log" SETUP_TEST_PREP_FAIL="${1:-false}" \
     SETUP_TEST_PLUGIN_FAIL="${2:-false}" CLAWMAX_SKIP_GATEWAY_BOOTSTRAP="${3:-}" \
+    CLAWMAX_LOCAL_DEV="${4:-}" DASHBOARD_CLIENT_PORT="${5:-5173}" \
     CLAWMAX_OPENCLAW_CACHE_DIR="$fixture_root/cache" /bin/bash "$fixture_repo/setup.sh" --non-interactive
 }
 run_setup > "$fixture_root/success.log" 2>&1 || { cat "$fixture_root/success.log"; fail 'expected setup to prepare a pinned runtime over an old global CLI'; }
@@ -106,6 +107,12 @@ if grep -E '^pinned:(gateway|config)' "$fixture_root/commands.log" | grep -v '^p
   fail 'isolated setup must not configure or control an installed Gateway'
 fi
 grep -q 'Gateway service readiness not checked' "$fixture_root/skip-gateway.log" || fail 'skipped service must not be reported ready'
+run_setup false false true true 5178 > "$fixture_root/isolated-guidance.log" 2>&1
+grep -q 'Wait for the launcher to confirm readiness at http://localhost:5178' "$fixture_root/isolated-guidance.log" || fail 'expected readiness handoff for the actual isolated URL'
+grep -q 'Keep this terminal running; Ctrl-C stops both services' "$fixture_root/isolated-guidance.log" || fail 'expected foreground explanation'
+if grep -Eq 'localhost:5173|SYSTEM/(start|stop).sh' "$fixture_root/isolated-guidance.log"; then fail 'isolated setup must not print conflicting ports or host service commands'; fi
+run_setup false false false false 5178 > "$fixture_root/custom-port.log" 2>&1
+if grep -q 'localhost:5173' "$fixture_root/custom-port.log"; then fail 'custom-port setup must not advertise the default port'; fi
 
 # Exercise both interactive choices through a real pseudo-terminal, but replace
 # runtime/dependency/service commands with the fixtures above. No real user state.

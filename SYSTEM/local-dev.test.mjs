@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { isolatedEnv, stop } from './local-dev.mjs'
+import { isolatedEnv, stop, waitForDashboard, openBrowser } from './local-dev.mjs'
 
 test('local dev isolates credentials, profile, plugins and registry', () => {
   const names = ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENCLAW_PROFILE', 'CLAWMAX_PLUGIN_PATHS', 'CLAWMAX_TEST_WORKSPACE', 'OPENCLAW_STATE_DIR']
@@ -21,6 +21,34 @@ test('local dev isolates credentials, profile, plugins and registry', () => {
   } finally {
     names.forEach((name, i) => { if (saved[i] === undefined) delete process.env[name]; else process.env[name] = saved[i] })
   }
+})
+
+const expected = { version: 'review-sha', workspace: '/isolated/workspace' }
+const readiness = { apiUrl: 'http://api', uiUrl: 'http://ui', ...expected, interval: 1, timeout: 1000 }
+test('readiness waits for both servers and the frontend proxy to reach the expected instance', async () => {
+  let round = 0
+  const requested = []
+  await waitForDashboard({ ...readiness, request: async url => {
+    requested.push(url)
+    if (url === 'http://api/api/system') round++
+    return { ok: round > 1, json: async () => ({ ...expected, version: round > 2 ? expected.version : 'other-instance' }) }
+  } })
+  assert.equal(round, 3)
+  assert(requested.includes('http://ui/api/system'))
+})
+test('failed startup times out without reporting ready', async () => {
+  await assert.rejects(waitForDashboard({ ...readiness, timeout: 0, request: async () => { throw Error('connection refused') } }), /did not become ready.*Browser was not opened/)
+})
+test('readiness stops immediately when the supervised process exits', async () => {
+  let requested = false
+  await assert.rejects(waitForDashboard({ ...readiness, check: () => { throw Error('Dashboard exited') }, request: async () => { requested = true } }), /Dashboard exited/)
+  assert.equal(requested, false)
+})
+test('browser launch uses the ready URL and failure leaves manual opening available', () => {
+  const calls = []
+  assert.equal(openBrowser('http://localhost:5178', { platform: 'darwin', launch: (...args) => calls.push(args) }), true)
+  assert.deepEqual(calls[0].slice(0, 2), ['open', ['http://localhost:5178']])
+  assert.equal(openBrowser('http://localhost:5178', { platform: 'linux', launch: () => { throw Error('headless') } }), false)
 })
 
 test('stop terminates only its detached process group', async () => {

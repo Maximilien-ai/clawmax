@@ -21,6 +21,7 @@ export function isolatedEnv(root, binary, settings) {
     OPENCLAW_GATEWAY_TOKEN: settings.token, OPENCLAW_GATEWAY_PORT: String(settings.gatewayPort),
     OPENCLAW_NO_RESPAWN: '1', OPENCLAW_DISABLE_BONJOUR: '1',
     CLAWMAX_SKIP_GATEWAY_BOOTSTRAP: 'true',
+    CLAWMAX_LOCAL_DEV: 'true',
     DASHBOARD_HOST: '127.0.0.1', DASHBOARD_PORT: String(settings.apiPort),
     DASHBOARD_CLIENT_PORT: String(settings.clientPort),
     DASHBOARD_APP_URL: `http://localhost:${settings.clientPort}`,
@@ -34,6 +35,31 @@ async function freePort(port = 0) {
   await new Promise(resolve => server.close(resolve))
   return selected
 }
+export async function waitForDashboard({ apiUrl, uiUrl, version, workspace, check = () => {}, timeout = 120000, interval = 1000, request = fetch }) {
+  const deadline = Date.now() + timeout
+  while (true) {
+    check()
+    try {
+      const api = await request(`${apiUrl}/api/system`, { signal: AbortSignal.timeout(2000) })
+      const ui = await request(uiUrl, { signal: AbortSignal.timeout(2000) })
+      const proxy = await request(`${uiUrl}/api/system`, { signal: AbortSignal.timeout(2000) })
+      if (api.ok && ui.ok && proxy.ok) {
+        const direct = await api.json(), proxied = await proxy.json()
+        if ([direct, proxied].every(value => value.version === version && value.workspace === workspace)) return
+      }
+    } catch { /* server/client compilation and proxy startup may finish separately */ }
+    if (Date.now() >= deadline) throw new Error(`Dashboard did not become ready within ${timeout / 1000}s. Check the server/client errors above. Browser was not opened.`)
+    await delay(interval)
+  }
+}
+export function openBrowser(url, { platform = process.platform, launch = execFileSync } = {}) {
+  try {
+    if (platform === 'darwin') launch('open', [url], { timeout: 10000, stdio: 'ignore' })
+    else if (platform === 'linux') launch('xdg-open', [url], { timeout: 10000, stdio: 'ignore' })
+    else return false
+    return true
+  } catch { return false }
+}
 export async function stop(child) {
   if (!child?.pid) return
   // Descendants can remain even after their shell exits. Always stop the group.
@@ -42,9 +68,11 @@ export async function stop(child) {
   try { process.kill(-child.pid, 'SIGKILL') } catch { /* group exited */ }
 }
 async function main() {
-  const args = process.argv.slice(2)
+  const rawArgs = process.argv.slice(2)
+  const noOpen = rawArgs.includes('--no-open')
+  const args = rawArgs.filter(arg => arg !== '--no-open')
   if (args.includes('--help')) {
-    console.log('Usage: ./SYSTEM/local-dev.sh [--root /absolute/existing-dev-root]\nCreates an isolated committed-source snapshot. Ctrl-C stops Dashboard and Gateway.\nReuse the printed --root command to retain local agents and settings. Defaults: API 3005, UI 5178.')
+    console.log('Usage: ./SYSTEM/local-dev.sh [--root /absolute/existing-dev-root] [--no-open]\nCreates an isolated committed-source snapshot. Opens the browser after UI/API readiness.\nKeep this terminal running; Ctrl-C stops Dashboard and Gateway.\nReuse the printed --root command to retain local agents and settings. Defaults: API 3005, UI 5178.')
     return
   }
   if (args.length && (args.length !== 2 || args[0] !== '--root' || !path.isAbsolute(args[1]))) throw new Error('Use --help for supported arguments')
@@ -83,9 +111,21 @@ async function main() {
   let runner, gateway, interrupted = false, gatewayFailed = false
   const cancel = () => { interrupted = true; void stop(runner); void stop(gateway) }
   process.on('SIGINT', cancel); process.on('SIGTERM', cancel)
-  const run = async (command, argv) => {
+  const run = async (command, argv, ready) => {
     runner = spawn(command, argv, { env, cwd: source, detached: true, stdio: 'inherit' })
-    const code = await new Promise((resolve, reject) => { runner.once('error', reject); runner.once('exit', (code, signal) => resolve(signal ? 1 : code)) })
+    let spawnError
+    const completion = new Promise(resolve => {
+      runner.once('error', error => { spawnError = error; resolve(1) })
+      runner.once('exit', (code, signal) => resolve(signal ? 1 : code))
+    })
+    if (ready) await ready(() => {
+      if (spawnError) throw spawnError
+      if (interrupted) throw new Error('Local dev stopped')
+      if (gatewayFailed) throw new Error(`Gateway exited; inspect ${root}/gateway-process.log`)
+      if (runner.exitCode !== null || runner.signalCode !== null) throw new Error('Dashboard exited before readiness. Check the errors above.')
+    })
+    const code = await completion
+    if (spawnError) throw spawnError
     if (interrupted) throw new Error('Local dev stopped')
     if (gatewayFailed) throw new Error(`Gateway exited; inspect ${root}/gateway-process.log`)
     if (code !== 0) throw new Error(`${command} exited with ${code}`)
@@ -113,8 +153,17 @@ async function main() {
       await delay(1000)
     }
     gateway.once('exit', () => { gatewayFailed = true; void stop(runner) })
-    console.log(`Isolated Gateway ready. Dashboard: http://localhost:${settings.clientPort}`)
-    await run('bash', [path.join(source, 'SYSTEM', 'start.sh'), '--follow'])
+    console.log('Isolated Gateway ready. Starting Dashboard; waiting for the UI and API...')
+    await run('bash', [path.join(source, 'SYSTEM', 'start.sh'), '--follow'], async check => {
+      const url = `http://localhost:${settings.clientPort}`
+      await waitForDashboard({ apiUrl: `http://127.0.0.1:${settings.apiPort}`, uiUrl: url,
+        version: env.CLAWMAX_VERSION, workspace: env.OPENCLAW_WORKSPACE, check })
+      check()
+      console.log(`\n✓ ClawMax is ready: ${url}\nKeep this terminal running while using ClawMax. Ctrl-C stops Dashboard and Gateway.\nNext: add a key in Model Integration, create an agent, and try chat.`)
+      if (!noOpen) console.log(openBrowser(url) ? 'Opened ClawMax in your browser.' : `Open ${url} in your browser.`)
+    })
+  } catch (error) {
+    if (!interrupted) throw error
   } finally {
     await stop(runner); await stop(gateway); fs.closeSync(log)
     process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel)

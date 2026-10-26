@@ -902,6 +902,14 @@ print_header "Setup Complete!"
 
 echo -e "${GREEN}✓ Setup prerequisites verified.${NC}\n"
 
+if [ "${CLAWMAX_LOCAL_DEV:-}" = true ]; then
+  print_info "The local-dev launcher will now start its Gateway and Dashboard."
+  echo "  Wait for the launcher to confirm readiness at $SETUP_FRONTEND_URL."
+  echo "  It will open your browser. Keep this terminal running; Ctrl-C stops both services."
+  echo "  Reuse the launcher's printed --root command to restart with the same data."
+  exit 0
+fi
+
 echo -e "  ${BOLD}Dashboard commands (from the ClawMax repository root):${NC}"
 echo -e "    Start: ${CYAN}./SYSTEM/start.sh${NC}"
 echo -e "    Stop:  ${CYAN}./SYSTEM/stop.sh${NC}"
@@ -982,7 +990,7 @@ echo "    Contact: contact@clawmax.ai"
 echo ""
 echo -e "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo -e "  ${BOLD}👉 Open your dashboard:${NC}  ${CYAN}http://localhost:5173${NC}"
+echo -e "  ${BOLD}👉 Open your dashboard:${NC}  ${CYAN}$SETUP_FRONTEND_URL${NC}"
 echo ""
 echo -e "  Not running? Start with: ${CYAN}./SYSTEM/start.sh${NC}"
 echo ""
