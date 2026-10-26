@@ -84,7 +84,8 @@ fixture_path="$fixture_bin:$(dirname "$(command -v node)"):/usr/bin:/bin"
 run_setup() {
   env -i PATH="$fixture_path" HOME="$fixture_root/home" SETUP_TEST_BIN="$fixture_bin" \
     SETUP_TEST_LOG="$fixture_root/commands.log" SETUP_TEST_PREP_FAIL="${1:-false}" \
-    SETUP_TEST_PLUGIN_FAIL="${2:-false}" CLAWMAX_OPENCLAW_CACHE_DIR="$fixture_root/cache" /bin/bash "$fixture_repo/setup.sh" --non-interactive
+    SETUP_TEST_PLUGIN_FAIL="${2:-false}" CLAWMAX_SKIP_GATEWAY_BOOTSTRAP="${3:-}" \
+    CLAWMAX_OPENCLAW_CACHE_DIR="$fixture_root/cache" /bin/bash "$fixture_repo/setup.sh" --non-interactive
 }
 run_setup > "$fixture_root/success.log" 2>&1 || { cat "$fixture_root/success.log"; fail 'expected setup to prepare a pinned runtime over an old global CLI'; }
 grep -q 'prepare:--print-bin' "$fixture_root/commands.log" || fail 'expected pinned preparation'
@@ -99,6 +100,12 @@ for scenario in prepare plugins; do
   if run_setup "$prep_failure" "$plugin_failure" > "$fixture_root/$scenario-failure.log" 2>&1; then fail 'setup must fail when required runtime preparation fails'; fi
   if grep -q 'Setup Complete\|prerequisites verified' "$fixture_root/$scenario-failure.log"; then fail 'failed setup must not report completion'; fi
 done
+: > "$fixture_root/commands.log"
+run_setup false false true > "$fixture_root/skip-gateway.log" 2>&1
+if grep -q '^pinned:gateway\|^pinned:config' "$fixture_root/commands.log"; then
+  fail 'isolated setup must not configure or control an installed Gateway'
+fi
+grep -q 'Gateway service readiness not checked' "$fixture_root/skip-gateway.log" || fail 'skipped service must not be reported ready'
 
 # Exercise both interactive choices through a real pseudo-terminal, but replace
 # runtime/dependency/service commands with the fixtures above. No real user state.

@@ -783,7 +783,9 @@ echo ""
 
 print_header "9. OpenClaw Gateway"
 
-if [ "$OPENCLAW_INSTALLED" = true ]; then
+if [ -n "${CLAWMAX_SKIP_GATEWAY_BOOTSTRAP:-}" ]; then
+  print_info "Gateway service bootstrap skipped. Start a dedicated foreground Gateway for isolated local testing."
+elif [ "$OPENCLAW_INSTALLED" = true ]; then
   print_info "The gateway enables agent skills and tool-use (required for GitHub, Senso, etc.)"
 
   # Configure gateway mode
@@ -875,7 +877,9 @@ else
   print_warning "OpenClaw CLI not installed — agent features limited"
 fi
 
-if lsof -ti:18789 > /dev/null 2>&1; then
+if [ -n "${CLAWMAX_SKIP_GATEWAY_BOOTSTRAP:-}" ]; then
+  print_info "Gateway service readiness not checked (bootstrap disabled)"
+elif lsof -ti:18789 > /dev/null 2>&1; then
   print_success "Gateway running on port 18789 (skills enabled)"
 else
   print_warning "Gateway not running — agents will chat but can't use skills"
