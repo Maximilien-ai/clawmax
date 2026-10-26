@@ -102,7 +102,7 @@ for scenario in prepare plugins; do
 done
 : > "$fixture_root/commands.log"
 run_setup false false true > "$fixture_root/skip-gateway.log" 2>&1
-if grep -q '^pinned:gateway\|^pinned:config' "$fixture_root/commands.log"; then
+if grep -E '^pinned:(gateway|config)' "$fixture_root/commands.log" | grep -v '^pinned:config validate --json$'; then
   fail 'isolated setup must not configure or control an installed Gateway'
 fi
 grep -q 'Gateway service readiness not checked' "$fixture_root/skip-gateway.log" || fail 'skipped service must not be reported ready'

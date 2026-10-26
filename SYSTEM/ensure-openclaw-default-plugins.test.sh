@@ -13,6 +13,9 @@ cat > "$fake_openclaw" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "${CLAWMAX_PLUGIN_TEST_LOG:?}"
+if [ "${1:-}" = config ] && [ "${2:-}" = validate ]; then
+  exit "${CLAWMAX_PLUGIN_CONFIG_EXIT:-0}"
+fi
 if [ "${1:-}" = plugins ] && [ "${3:-}" = --help ]; then
   if [ "${CLAWMAX_PLUGIN_LEGACY_HELP:-}" != true ]; then printf '%s\n' '--accept-capabilities'; fi
   exit 0
@@ -55,4 +58,15 @@ grep -Fxq 'plugins enable whatsapp --accept-capabilities' "$log_file"
 grep -Fxq 'plugins enable discord --accept-capabilities' "$log_file"
 grep -Fxq 'plugins enable slack --accept-capabilities' "$log_file"
 
+: > "$log_file"
+printf '{}\n' > "$tmp_dir/invalid.json"
+if OPENCLAW_CONFIG_PATH="$tmp_dir/invalid.json" CLAWMAX_PLUGIN_TEST_LOG="$log_file" CLAWMAX_PLUGIN_CONFIG_EXIT=1 OPENCLAW_BIN="$fake_openclaw" bash "$script_file" > "$tmp_dir/config-output" 2>&1; then
+  echo 'FAIL: invalid config must stop setup' >&2
+  exit 1
+fi
+grep -q './SYSTEM/local-dev.sh' "$tmp_dir/config-output"
+if grep -Eq '^(plugins|doctor|gateway) ' "$log_file"; then
+  echo 'FAIL: invalid config must not trigger plugins, repair or service management' >&2
+  exit 1
+fi
 echo "PASS: default OpenClaw plugins install compatibly and idempotently"

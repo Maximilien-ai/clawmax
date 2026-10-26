@@ -3109,6 +3109,12 @@ else
 fi
 
 echo -e "${YELLOW}→ Running OpenClaw target prep shell tests...${NC}"
+if node --test "$SYSTEM_DIR/local-dev.test.mjs" > /tmp/clawmax-local-dev.out 2>&1; then
+  pass "Isolated local dev credentials and process cleanup tests"
+else
+  cat /tmp/clawmax-local-dev.out
+  fail "Isolated local dev credentials and process cleanup tests"
+fi
 if node "$SYSTEM_DIR/test-isolated-gateway.test.mjs" > /tmp/clawmax-isolated-gateway.out 2>&1; then
   pass "Isolated gateway startup and cleanup tests"
 else
