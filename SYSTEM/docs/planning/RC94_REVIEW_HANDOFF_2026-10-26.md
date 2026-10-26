@@ -7,7 +7,7 @@ authorized by this handoff.
 
 ## Candidate and how to test
 
-Public source: `1729992e9555002a8d34e91b644ecf9d153b27bb`, branch
+Latest product source: `99803424e27d922d06c09bb0a734896565783d35`, branch
 `integration/rc94-daniyar`, [integration PR #291](https://github.com/Maximilien-ai/clawmax/pull/291).
 Eighteen of Daniyar's 27 PRs are combined here; **zero have landed on main and
 nine remain held**. Review the combined behavior, not each PR in isolation.
@@ -17,11 +17,12 @@ OpenClaw/provider runtime:
 
 ```sh
 git fetch origin integration/rc94-daniyar
-git switch --detach 1729992e9555002a8d34e91b644ecf9d153b27bb
+git switch integration/rc94-daniyar
+git pull --ff-only
 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/start.sh --follow
 ```
 
-Open **http://localhost:5174**, select a disposable workspace, and run A1–A12
+Open **http://localhost:5174**, select a disposable workspace, and run A1–A13
 below. Maximilien can use the same URL in his existing checkout.
 Record the source SHA or image digest, displayed version, OS/architecture,
 browser, runtime, and model. Keep API keys and participant conversations out of
@@ -42,6 +43,18 @@ Additional acceptance-feedback improvements: remembered pin beside X on agent
 details/config/chat, searchable group add/remove with persistence, card group
 count scrolls the existing details body to Groups while keeping the frame fixed,
 and model suggestions start collapsed in Edit Agent Config and AI creation.
+
+Latest follow-up (`99803424`): a shared OpenAI shutdown schedule excludes retired
+models from discovery, refresh, advanced lists, and warm caches. New-agent
+defaults, saved primary/backup model resolution, and built-in AI helpers use
+active replacements. Retired original GPT-4 selects GPT-5.5; GPT-3.5 selects
+GPT-5.4-mini. Valid selections remain unchanged; currently operating GPT-4o/4.1
+variants remain available until their documented shutdown. This does not edit
+every saved identity in bulk: effective model resolution prevents the retired
+model from being used, including after reopen/restart. Explicit model-policy
+restrictions still apply; an unauthorized replacement must fail clearly.
+Known shutdown dates are evaluated automatically; newly announced retirements
+require a policy update. Other providers retain their own model lifecycles.
 
 ## What each person should validate
 
@@ -64,6 +77,7 @@ owns automated tests, image identity, architecture, and security review.
 | A10: Edit Agent Config suggestions collapsed; expanding never changes model | human-judgment | Independently test | Passed October 25 |
 | A11: AI-created agent suggestions collapsed; controls remain available on expand | human-judgment | Independently test | Passed October 25 |
 | A12: card group count opens the same details panel at Groups; header/footer/page remain fixed | human-judgment | Test | Retest corrected jump |
+| A13: refresh OpenAI BYOK models; retired GPT-4/3.5 stay absent, including advanced lists. Check a new agent, a disposable older agent with a retired primary/backup, and a built-in AI helper. Verify the effective active model and a real reply/generation without the deprecated-model 404; reopen/restart and repeat. Valid model choices remain unchanged. | external-environment | Test | Test |
 
 For each result, return:
 
@@ -72,12 +86,12 @@ Reviewer:
 Source SHA or image digest:
 Displayed version / OS / architecture / browser:
 Runtime and model (no keys):
-A1–A12: pass / fail / not run, with a brief note for each
+A1–A13: pass / fail / not run, with a brief note for each
 Failures: steps, expected result, actual result, redacted screenshot if useful
 ```
 
-Maximilien still has **A3, A4, A5, A6, A7, A8, and A12** to accept. Daniyar
-should independently test all twelve. A5 does not claim to fix duplicate
+Maximilien still has **A3, A4, A5, A6, A7, A8, A12, and A13** to accept. Daniyar
+should independently test all thirteen. A5 does not claim to fix duplicate
 Gateway cron execution; #288 is excluded.
 
 ## Nine PRs still held
@@ -100,10 +114,11 @@ PR update dates were checked October 26; none changed after the recorded review.
 
 ## Engineering evidence and promotion boundary
 
-Candidate CI passed:
+Pre-retirement candidate CI passed:
 https://github.com/Maximilien-ai/clawmax/actions/runs/40173948664.
 October 26 full local integration/validation/coverage: **547/547 passed, zero
-failed** on the exact source above. Statements/lines 83.18% (60981/73311),
+failed** on earlier source `1729992e9555002a8d34e91b644ecf9d153b27bb`.
+Statements/lines 83.18% (60981/73311),
 branches 80.65% (19566/24259), functions 91.81% (2512/2736). Cached run estimate
 10–20 minutes; observed about 11 minutes. The command and previous results are
 preserved in the linked acceptance file. Deployment-image creation is deferred
@@ -127,10 +142,31 @@ registry smoke tests, packaged identity, plugin discovery, restart persistence,
 and the public/private boundary before deployment handoff. Building an image
 does not establish an on-prem or cloud deployment.
 
+Latest retirement change: **347 focused tests passed**, server TypeScript,
+changed-file lint, production build, and desktop/mobile browser regression
+passed. Client TypeScript remains at 291 baseline diagnostics with zero added.
+The tests include scheduled shutdown and warm-cache boundaries, saved and
+built-in agent primary/backup resolution, validation refusal, and built-in
+request model/token compatibility. These use synthetic fixtures; A13 is the
+remaining real-provider acceptance. Latest-source
+[CI](https://github.com/Maximilien-ai/clawmax/actions/runs/40345278230) was running
+at handoff. Full integration/validation/coverage must be rerun on the final
+accepted source before images; the earlier 547 result is not a full-suite claim
+for the retirement follow-up.
+
+## Short Slack handoff
+
+> Daniyar — please pull `integration/rc94-daniyar` and restart local dev (commands
+> above). Latest product fix: `99803424`. Test A1–A13, especially new A13:
+> retired OpenAI models disappear after BYOK refresh and older/new/built-in agents
+> use active models without the deprecated-model 404. Please return your SHA,
+> pass/fail/not-run per item, and repro steps. The nine held PRs and requested
+> fixes/evidence are listed above. Images and official RC94 follow acceptance.
+
 ## Archived image-build attempt
 
 Before the local-dev-first clarification, review tag
-`v2.0.0-test-rc94-review1` was created at the exact source above, and
+`v2.0.0-test-rc94-review1` was created at earlier source `1729992e`, and
 [public image run 40335104423](https://github.com/Maximilien-ai/clawmax/actions/runs/40335104423)
 was started. Cancellation was requested following Maximilien's clarification;
 the prerelease was returned to draft. No combined image was dispatched. This

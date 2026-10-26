@@ -3,7 +3,7 @@
 Status: local-dev acceptance first. On October 26 Maximilien clarified that
 Daniyar and Maximilien should validate locally before images are built for
 on-prem/cloud testing and official RC94. Exact product source:
-`1729992e9555002a8d34e91b644ecf9d153b27bb`. The earlier review-image attempt
+`99803424e27d922d06c09bb0a734896565783d35`. The earlier review-image attempt
 was stopped; no combined image was dispatched. Official RC94 remains reserved.
 Start with the
 [shareable review handoff](RC94_REVIEW_HANDOFF_2026-10-26.md).
@@ -37,6 +37,17 @@ These are Dashboard-owned checks, not acceptance tasks for reviewers.
 
 ### October 26 review-image candidate
 
+- Latest follow-up `99803424` removes retired OpenAI models automatically at
+  known shutdown dates, including discovery/refresh/advanced/warm-cache paths.
+  New defaults, saved primary/backup resolution, and built-in AI helpers use
+  active replacements. Existing model-policy restrictions still apply. Valid
+  selections remain unchanged; newly announced dates require a policy update.
+  **347 focused tests**, server TypeScript, lint, production build, and
+  desktop/mobile browser regression pass. Client TypeScript adds zero errors
+  to the 291-diagnostic baseline. Latest-source
+  [CI](https://github.com/Maximilien-ai/clawmax/actions/runs/40345278230) was running
+  at handoff. A13 requires real-provider acceptance. The full-suite result below
+  belongs to the earlier source and must be rerun before final images.
 - Exact source: `1729992e9555002a8d34e91b644ecf9d153b27bb`.
 - Full isolated integration/validation/coverage: **547/547 passed, zero failed**.
   Statements/lines 83.18% (60981/73311), branches 80.65% (19566/24259),
@@ -190,8 +201,9 @@ include provider keys or raw participant conversations in the report.
 | ~~A10~~ | human-judgment | ~~Reopen Edit Agent Config: **Automatic model suggestion** starts collapsed. Expand it to see the existing suggestion/priority controls. Expanding or collapsing does not change the selected model or save the agent. Close/reopen and confirm it starts collapsed again.~~ **Maximilien: passed, October 25.** |
 | ~~A11~~ | human-judgment | ~~After AI generation in Add Agent, Automatic model suggestion starts collapsed. Expand it only when needed; the suggestion, priority, and existing selection controls remain available. Check desktop/mobile and confirm generation does not provision an agent automatically.~~ **Maximilien: passed, October 25.** |
 | A12 | human-judgment | Click an agent card's group count. The same details panel opens and only its existing body scrolls to Groups; its header/footer and the underlying page stay fixed. Group add/remove controls remain available. **Previous jump rejected by Maximilien; fixed in `d092640c`, awaiting retest.** |
+| A13 | external-environment | Refresh OpenAI BYOK models: retired GPT-4/3.5 must be absent, including advanced lists. Verify a new agent, a disposable older agent with a retired primary/backup, and built-in AI generation use active models and return a real reply/result without the deprecated-model 404. Reopen/restart and repeat. Confirm valid model choices remain unchanged; report any provider-access or explicit-policy failure. |
 
-Result format: `reviewer / source SHA / platform / A1–A12 pass, fail, or not run /
+Result format: `reviewer / source SHA / platform / A1–A13 pass, fail, or not run /
 brief evidence or reproduction`. A missing runtime is `not run`, not a pass.
 
 ## Feedback for Daniyar before the remaining PRs land
