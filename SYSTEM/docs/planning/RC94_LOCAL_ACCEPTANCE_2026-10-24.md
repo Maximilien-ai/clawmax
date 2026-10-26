@@ -1,12 +1,10 @@
 # RC94 local acceptance — October 24, 2026
 
-Status: local-dev acceptance first. On October 26 Maximilien clarified that
-Daniyar and Maximilien should validate locally before images are built for
-on-prem/cloud testing and official RC94. Exact product source:
-`b865da6fa340eae300ff1d1e40236da54efa95f0`. The earlier review-image attempt
-was stopped; no combined image was dispatched. Official RC94 remains reserved.
-Start with the
-[shareable review handoff](RC94_REVIEW_HANDOFF_2026-10-26.md).
+Status: RC94 test-image preparation authorized by Maximilien's latest October 26
+instruction for Mike and the other testers. Local full validation must pass before
+image creation. Remaining human acceptance checks stay open; this is not a
+production rollout or merge to main. Latest product source: `990e9ad0a4e84dc8fecfb3917a668768713f464e`.
+Start with the [shareable review handoff](RC94_REVIEW_HANDOFF_2026-10-26.md).
 
 October 25 handoff: earlier product/dependency source `04818ac56a58198ed08affa0c580e0a36060ca88`
 passes the clean local suite and CI. Latest feedback checkpoint `d092640c` includes
@@ -36,6 +34,15 @@ The displayed `2.0.0-test-rc94` is a local candidate label, not a published tag.
 These are Dashboard-owned checks, not acceptance tasks for reviewers.
 
 ### October 26 review-image candidate
+
+- Latest workflow-save correction: `990e9ad0`. AI could return structured content,
+  which appeared as `[object Object]` and caused `.trim()` to throw before save.
+  Provider responses and the client handoff now normalize structured instructions
+  into Markdown while preserving metadata. Empty output fails clearly and keeps
+  the prompt; failed save keeps the draft. AI tests **57/57**, workflow routes
+  **22/22**, server TypeScript, lint, production build, and desktop/mobile
+  generation/save/reopen regressions pass. Client diagnostics remain the same
+  291 baseline. A15 awaits human retest; final full-suite validation is pending.
 
 - Model Integration follow-up: `651e2181`, with active coding fixture correction
   `b865da6f`. The model dialog no longer duplicates runtime controls; the top
@@ -192,7 +199,7 @@ agent-route tests (78 route tests), production build, and the subsequent clean
 
 ## Acceptance for Maximilien and Daniyar
 
-Remaining for Maximilien: **A4, A5, A6, A7, A8, and A13**. The BYOK UI
+Remaining for Maximilien: **A4, A5, A6, A7, A8, A13, and A15**. The BYOK UI
 confirmation accepts A14; A7 still requires real-provider and credential-isolation
 evidence. Daniyar records independent results.
 
@@ -220,8 +227,9 @@ include provider keys or raw participant conversations in the report.
 | ~~A12~~ | human-judgment | ~~Click an agent card's group count. The same details panel opens and only its existing body scrolls to Groups; its header/footer and the underlying page stay fixed. Group add/remove controls remain available. **Previous jump rejected by Maximilien; fixed in `d092640c`, awaiting retest.**~~ **Maximilien: passed, October 26.** |
 | A13 | external-environment | Refresh OpenAI BYOK models: retired GPT-4/3.5 must be absent, including advanced lists. Verify a new agent, a disposable older agent with a retired primary/backup, and built-in AI generation use active models and return a real reply/result without the deprecated-model 404. Reopen/restart and repeat. Confirm valid model choices remain unchanged; report any provider-access or explicit-policy failure. |
 | ~~A14~~ | human-judgment | ~~Open BYOK: its title is Model Integration, and the duplicate Run via CLI section is absent. Both default model pickers have provider groups and hide unused deprecated models. An agent already using a deprecated model still shows that current selection and warning. The top Runtime pill retains working runtime controls. Save/reopen defaults and check desktop/mobile usability.~~ **Maximilien: passed, October 26 (BYOK/Model Integration looks good).** |
+| A15 | external-environment | Create a workflow through the AI Editor and Save & Generate. Verify readable Markdown instructions, the selected agents, schedule and timezone. Create Workflow must save successfully. Reopen/restart and confirm the instructions persist. If generation or save fails, the prompt/draft must remain available for retry. **User reported failure October 26; corrected in `990e9ad0`, awaiting retest.** |
 
-Result format: `reviewer / source SHA / platform / A1–A14 pass, fail, or not run /
+Result format: `reviewer / source SHA / platform / A1–A15 pass, fail, or not run /
 brief evidence or reproduction`. A missing runtime is `not run`, not a pass.
 
 ## Feedback for Daniyar before the remaining PRs land
@@ -245,12 +253,17 @@ brief evidence or reproduction`. A missing runtime is `not run`, not a pass.
 
 ## Release gate
 
-The latest October 26 instruction requires local-dev acceptance by both reviewers
-before deployment images and official RC94. Complete engineering validation, disposition
-security findings with evidence, and obtain the required PR approval before
-merge/promotion. No production rollout is authorized or claimed.
+The latest October 26 instruction authorizes RC94 test images for Mike and the
+other reviewers before all human acceptance is complete. Complete full local
+engineering validation first, then build and validate matching public/combined
+images. Remaining human acceptance, security disposition and required PR approval
+still gate merge/promotion. No production rollout is authorized or claimed.
 
 ## Archived release-gate wording — superseded October 26
+
+The preceding instruction required local-dev acceptance by both reviewers before
+images. Maximilien subsequently requested RC94 images so Mike and others can test;
+the final instruction now governs test-image preparation.
 
 An earlier October 26 instruction authorized review-only images tagged
 `rc94-review1` before acceptance. A review tag and public build were started;

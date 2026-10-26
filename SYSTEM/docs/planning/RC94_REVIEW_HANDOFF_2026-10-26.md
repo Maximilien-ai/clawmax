@@ -1,13 +1,13 @@
 # RC94 review handoff — October 26, 2026
 
-From: Dashboard team / Maximilien. Reviewers: Daniyar (`zsz13`) and Maximilien.
-Status: **local-dev acceptance first**. Official RC94 and deployment images are
-reserved until both reviewers validate the candidate. No production rollout is
-authorized by this handoff.
+From: Dashboard team / Maximilien. Reviewers: Daniyar (`zsz13`), Maximilien and Mike.
+Status: RC94 test-image preparation authorized by Maximilien's latest October 26
+instruction. Remaining acceptance stays open; full local checks precede image
+creation. No production rollout is authorized by this handoff.
 
 ## Candidate and how to test
 
-Latest review source: `b865da6fa340eae300ff1d1e40236da54efa95f0`, branch
+Latest review source: `990e9ad0a4e84dc8fecfb3917a668768713f464e`, branch
 `integration/rc94-daniyar`, [integration PR #291](https://github.com/Maximilien-ai/clawmax/pull/291).
 Eighteen of Daniyar's 27 PRs are combined here; **zero have landed on main and
 nine remain held**. Review the combined behavior, not each PR in isolation.
@@ -22,7 +22,7 @@ git pull --ff-only
 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/start.sh --follow
 ```
 
-Open **http://localhost:5174**, select a disposable workspace, and run A1–A14
+Open **http://localhost:5174**, select a disposable workspace, and run A1–A15
 below. Maximilien can use the same URL in his existing checkout.
 Record the source SHA or image digest, displayed version, OS/architecture,
 browser, runtime, and model. Keep API keys and participant conversations out of
@@ -79,6 +79,7 @@ owns automated tests, image identity, architecture, and security review.
 | A12: card group count opens the same details panel at Groups; header/footer/page remain fixed | human-judgment | Independently test | Passed October 26 |
 | A13: refresh OpenAI BYOK models; retired GPT-4/3.5 stay absent, including advanced lists. Check a new agent, a disposable older agent with a retired primary/backup, and a built-in AI helper. Verify the effective active model and a real reply/generation without the deprecated-model 404; reopen/restart and repeat. Valid model choices remain unchanged. | external-environment | Test | Test |
 | A14: Model Integration title; grouped active default models; unused deprecated models hidden; current deprecated selection/warning retained in its agent editor; runtime controls only in the top Runtime dialog; defaults persist on desktop/mobile | human-judgment | Test | Passed October 26 |
+| A15: AI Editor → Save & Generate carries readable Markdown into Create Workflow; save succeeds; agent/schedule/timezone remain correct; reopen/restart retains instructions; failures preserve prompt/draft | external-environment | Test | Retest reported failure |
 
 For each result, return:
 
@@ -87,12 +88,12 @@ Reviewer:
 Source SHA or image digest:
 Displayed version / OS / architecture / browser:
 Runtime and model (no keys):
-A1–A14: pass / fail / not run, with a brief note for each
+A1–A15: pass / fail / not run, with a brief note for each
 Failures: steps, expected result, actual result, redacted screenshot if useful
 ```
 
-Maximilien still has **A4, A5, A6, A7, A8, and A13** to accept. Daniyar
-should independently test all fourteen. A5 does not claim to fix duplicate
+Maximilien still has **A4, A5, A6, A7, A8, A13, and A15** to accept. Daniyar
+should independently test all fifteen. A5 does not claim to fix duplicate
 Gateway cron execution; #288 is excluded.
 
 ## Nine PRs still held
@@ -164,14 +165,21 @@ client TypeScript adds zero diagnostics. Maximilien accepted A3/A12 before this
 follow-up; their result history is preserved in the acceptance file. Maximilien subsequently accepted the BYOK/Model Integration UI (A14). A7
 real-provider/credential-isolation evidence remains unconfirmed.
 
+Latest workflow-save fix: `990e9ad0`. AI-generated structured instructions are
+normalized into Markdown before the form receives them; empty output fails with
+an actionable message. AI **57/57**, workflow routes **22/22**, server types,
+lint, production build and desktop/mobile save/reopen/error regressions pass.
+A15 awaits real-provider acceptance. Final full integration/validation/coverage
+is pending before RC94 image creation; image identities and CI links will follow.
+
 ## Short Slack handoff
 
 > Daniyar — please pull `integration/rc94-daniyar` and restart local dev (commands
-> above). Latest review source: `b865da6f`. Test A1–A14, especially A13/A14:
+> above). Latest review source: `b865da6f`. Test A1–A15, especially A13/A14:
 > retired OpenAI models disappear after BYOK refresh and older/new/built-in agents
 > use active models without the deprecated-model 404. Please return your SHA,
 > pass/fail/not-run per item, and repro steps. The nine held PRs and requested
-> fixes/evidence are listed above. Images and official RC94 follow acceptance.
+> fixes/evidence are listed above. RC94 test images are now authorized for Mike and the other reviewers; production promotion still requires acceptance.
 
 ## Archived image-build attempt
 
