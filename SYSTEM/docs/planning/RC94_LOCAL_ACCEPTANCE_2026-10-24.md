@@ -1,10 +1,11 @@
 # RC94 local acceptance — October 24, 2026
 
-Status: internal review candidate. On October 26 Maximilien requested review
-images for Daniyar and independent validation by both reviewers before official
-RC94. Review tag `v2.0.0-test-rc94-review1` points to
-`1729992e9555002a8d34e91b644ecf9d153b27bb`; image builds are pending.
-Official RC94 remains reserved. Start with the
+Status: local-dev acceptance first. On October 26 Maximilien clarified that
+Daniyar and Maximilien should validate locally before images are built for
+on-prem/cloud testing and official RC94. Exact product source:
+`1729992e9555002a8d34e91b644ecf9d153b27bb`. The earlier review-image attempt
+was stopped; no combined image was dispatched. Official RC94 remains reserved.
+Start with the
 [shareable review handoff](RC94_REVIEW_HANDOFF_2026-10-26.md).
 
 October 25 handoff: earlier product/dependency source `04818ac56a58198ed08affa0c580e0a36060ca88`
@@ -51,10 +52,10 @@ These are Dashboard-owned checks, not acceptance tasks for reviewers.
   completed, but its PR gate reports **20 unresolved findings: 2 critical and
   18 high**. The earlier 19-finding result below is historical. Dashboard owns
   disposition before merge/promotion; no alerts were dismissed.
-- Local Dashboard was restarted and browser/API version checked. The review
-  image uses `2.0.0-test-rc94-review1`; image availability and validation will
-  be recorded in the shareable handoff. Public and combined workflows must
-  both pass before the matching pair is reported ready.
+- Local Dashboard was restarted and browser/API version checked. Its local
+  label is `2.0.0-test-rc94-review1`; this does not establish a published image.
+  Image creation is deferred until local acceptance. Public and combined
+  workflows must both pass before a matching pair is reported ready.
 
 ### October 25 acceptance-feedback changes
 
@@ -214,13 +215,17 @@ brief evidence or reproduction`. A missing runtime is `not run`, not a pass.
 
 ## Release gate
 
-The October 26 request authorizes review-only images tagged `rc94-review1`
-before the remaining acceptance checks. Both reviewers must validate the
-candidate before official RC94. Complete engineering validation, disposition
+The latest October 26 instruction requires local-dev acceptance by both reviewers
+before deployment images and official RC94. Complete engineering validation, disposition
 security findings with evidence, and obtain the required PR approval before
 merge/promotion. No production rollout is authorized or claimed.
 
 ## Archived release-gate wording — superseded October 26
+
+An earlier October 26 instruction authorized review-only images tagged
+`rc94-review1` before acceptance. A review tag and public build were started;
+the build was stopped and prerelease returned to draft after the local-dev-first
+clarification. No combined image was dispatched.
 
 Complete engineering validation, resolve or explicitly disposition security
 findings with evidence, and obtain the user's local acceptance first. Only then

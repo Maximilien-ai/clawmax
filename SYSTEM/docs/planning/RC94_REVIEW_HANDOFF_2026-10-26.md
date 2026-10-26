@@ -1,8 +1,9 @@
 # RC94 review handoff — October 26, 2026
 
 From: Dashboard team / Maximilien. Reviewers: Daniyar (`zsz13`) and Maximilien.
-Status: internal review candidate; official RC94 is reserved until both reviewers
-validate the candidate. No production rollout is authorized by this handoff.
+Status: **local-dev acceptance first**. Official RC94 and deployment images are
+reserved until both reviewers validate the candidate. No production rollout is
+authorized by this handoff.
 
 ## Candidate and how to test
 
@@ -11,23 +12,17 @@ Public source: `1729992e9555002a8d34e91b644ecf9d153b27bb`, branch
 Eighteen of Daniyar's 27 PRs are combined here; **zero have landed on main and
 nine remain held**. Review the combined behavior, not each PR in isolation.
 
-Review image: **build running; not ready for image-based testing yet**. Intended tag:
-`ghcr.io/maximilien-ai/clawmax-dashboard:2.0.0-test-rc94-review1`.
-The matching combined image will be recorded after its separate validation.
-Public build: https://github.com/Maximilien-ai/clawmax/actions/runs/40335104423
-(started October 26 at 13:56 UTC; recent observed duration 57–72 minutes).
-Do not treat an intended tag as an available or validated image. The combined
-image requires GHCR package read access; Daniyar's access has not been verified.
-
-Source alternative, in a separate checkout:
+Get started in a clean development checkout with Node/npm and your configured
+OpenClaw/provider runtime:
 
 ```sh
 git fetch origin integration/rc94-daniyar
 git switch --detach 1729992e9555002a8d34e91b644ecf9d153b27bb
+DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/start.sh --follow
 ```
 
-Use the repository's normal local startup procedure and a disposable workspace.
-Maximilien's current source checkout is available at http://localhost:5174.
+Open **http://localhost:5174**, select a disposable workspace, and run A1–A12
+below. Maximilien can use the same URL in his existing checkout.
 Record the source SHA or image digest, displayed version, OS/architecture,
 browser, runtime, and model. Keep API keys and participant conversations out of
 reports. Do not test deletion against valuable agents. A missing runtime is
@@ -111,8 +106,8 @@ October 26 full local integration/validation/coverage: **547/547 passed, zero
 failed** on the exact source above. Statements/lines 83.18% (60981/73311),
 branches 80.65% (19566/24259), functions 91.81% (2512/2736). Cached run estimate
 10–20 minutes; observed about 11 minutes. The command and previous results are
-preserved in the linked acceptance file. Image results will be appended before
-the image pair is reported ready.
+preserved in the linked acceptance file. Deployment-image creation is deferred
+until local acceptance; no image pair is reported ready.
 Saved browser regressions passed on October 26 for panel pinning/dismissal,
 group membership/direct scrolling, and AI-creation disclosures at desktop and
 mobile widths. The local browser and `/api/system` version were verified.
@@ -126,5 +121,18 @@ in the recorded comparison. No security gate or required approval was bypassed.
 
 After both reviewers return results, fix and retest any failures, disposition
 security findings, and obtain the required PR approval. Only then select the
-official RC94 source and run its release validation. A passed review image is
-not automatically the official RC94 artifact.
+official RC94 source, rerun the required release checks, and build matching
+public/combined images for on-prem and cloud validation. Verify both architectures,
+registry smoke tests, packaged identity, plugin discovery, restart persistence,
+and the public/private boundary before deployment handoff. Building an image
+does not establish an on-prem or cloud deployment.
+
+## Archived image-build attempt
+
+Before the local-dev-first clarification, review tag
+`v2.0.0-test-rc94-review1` was created at the exact source above, and
+[public image run 40335104423](https://github.com/Maximilien-ai/clawmax/actions/runs/40335104423)
+was started. Cancellation was requested following Maximilien's clarification;
+the prerelease was returned to draft. No combined image was dispatched. This
+attempt is not official RC94 or deployment evidence; do not use any partial
+architecture tags it might have produced.
