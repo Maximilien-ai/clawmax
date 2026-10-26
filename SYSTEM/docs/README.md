@@ -15,6 +15,7 @@ and dual-instance acceptance remain open. Start with the
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
 | [planning/RC94_REVIEW_HANDOFF_2026-10-26.md](planning/RC94_REVIEW_HANDOFF_2026-10-26.md) | RC94 reviewer checklist and nine held PRs |
 | [planning/RC94_IMAGE_HANDOFF_2026-10-26.md](planning/RC94_IMAGE_HANDOFF_2026-10-26.md) | RC94 test-image monitoring, fixed source identity, local validation evidence, and pending image gates |
+| [planning/RC94_SOURCE_SETUP_FIX_2026-10-26.md](planning/RC94_SOURCE_SETUP_FIX_2026-10-26.md) | Source setup/start/update fix, pinned pnpm bootstrap, command guidance, and Mike clean-machine acceptance |
 | [planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md) | Active PR #212, image, MBP14, test10, and Template execution gates |
 | [planning/PRE_RC89_MAINTENANCE_PARITY_2026-09-29.md](planning/PRE_RC89_MAINTENANCE_PARITY_2026-09-29.md) | 1.9.10 feature reconciliation into 2.0, focused evidence and pre-RC89 acceptance |
 | [LESSONS_LEARNED_2026-09-27.md](LESSONS_LEARNED_2026-09-27.md) | Hackathon recap, Cognee4 canary evidence, pending branches and next-day owners |

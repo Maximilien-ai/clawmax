@@ -206,7 +206,7 @@ agent-route tests (78 route tests), production build, and the subsequent clean
 
 ## Acceptance for Maximilien and Daniyar
 
-Remaining for Maximilien: **A4, A5, A6, A7, A8, A13, and A15**. The BYOK UI
+Remaining for Maximilien: **A4, A5, A6, A7, A8, A13, A15, and A16**. The BYOK UI
 confirmation accepts A14; A7 still requires real-provider and credential-isolation
 evidence. Daniyar records independent results.
 
@@ -235,8 +235,9 @@ include provider keys or raw participant conversations in the report.
 | A13 | external-environment | Refresh OpenAI BYOK models: retired GPT-4/3.5 must be absent, including advanced lists. Verify a new agent, a disposable older agent with a retired primary/backup, and built-in AI generation use active models and return a real reply/result without the deprecated-model 404. Reopen/restart and repeat. Confirm valid model choices remain unchanged; report any provider-access or explicit-policy failure. |
 | ~~A14~~ | human-judgment | ~~Open BYOK: its title is Model Integration, and the duplicate Run via CLI section is absent. Both default model pickers have provider groups and hide unused deprecated models. An agent already using a deprecated model still shows that current selection and warning. The top Runtime pill retains working runtime controls. Save/reopen defaults and check desktop/mobile usability.~~ **Maximilien: passed, October 26 (BYOK/Model Integration looks good).** |
 | A15 | external-environment | Create a workflow through the AI Editor and Save & Generate. Verify readable Markdown instructions, the selected agents, schedule and timezone. Create Workflow must save successfully. Reopen/restart and confirm the instructions persist. If generation or save fails, the prompt/draft must remain available for retry. **User reported failure October 26; corrected in `990e9ad0`, awaiting retest.** |
+| A16 | external-environment | On Mike's machine with an older global OpenClaw and no pnpm/Corepack, pull the review branch and rerun setup. Verify pinned preparation and startup without the reported errors, clear SYSTEM start/stop commands, a disposable agent reply, stop/start, update/restart, and Doctor runtime identity. [Source fix and engineering evidence](RC94_SOURCE_SETUP_FIX_2026-10-26.md). |
 
-Result format: `reviewer / source SHA / platform / A1–A15 pass, fail, or not run /
+Result format: `reviewer / source SHA / platform / A1–A16 pass, fail, or not run /
 brief evidence or reproduction`. A missing runtime is `not run`, not a pass.
 
 ## Feedback for Daniyar before the remaining PRs land

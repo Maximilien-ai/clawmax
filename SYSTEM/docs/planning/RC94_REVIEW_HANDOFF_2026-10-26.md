@@ -22,7 +22,7 @@ git pull --ff-only
 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/start.sh --follow
 ```
 
-Open **http://localhost:5174**, select a disposable workspace, and run A1–A15
+Open **http://localhost:5174**, select a disposable workspace, and run A1–A16
 below. Maximilien can use the same URL in his existing checkout.
 Record the source SHA or image digest, displayed version, OS/architecture,
 browser, runtime, and model. Keep API keys and participant conversations out of
@@ -80,6 +80,7 @@ owns automated tests, image identity, architecture, and security review.
 | A13: refresh OpenAI BYOK models; retired GPT-4/3.5 stay absent, including advanced lists. Check a new agent, a disposable older agent with a retired primary/backup, and a built-in AI helper. Verify the effective active model and a real reply/generation without the deprecated-model 404; reopen/restart and repeat. Valid model choices remain unchanged. | external-environment | Test | Test |
 | A14: Model Integration title; grouped active default models; unused deprecated models hidden; current deprecated selection/warning retained in its agent editor; runtime controls only in the top Runtime dialog; defaults persist on desktop/mobile | human-judgment | Test | Passed October 26 |
 | A15: AI Editor → Save & Generate carries readable Markdown into Create Workflow; save succeeds; agent/schedule/timezone remain correct; reopen/restart retains instructions; failures preserve prompt/draft | external-environment | Test | Retest reported failure |
+| A16: source setup on Mike's machine prepares the pinned CLI with npm alone; launch, stop/start, update/restart, Doctor and disposable chat work; SYSTEM command paths are explicit | external-environment | Test if applicable | Mike/Maximilien: pending |
 
 For each result, return:
 
@@ -88,12 +89,12 @@ Reviewer:
 Source SHA or image digest:
 Displayed version / OS / architecture / browser:
 Runtime and model (no keys):
-A1–A15: pass / fail / not run, with a brief note for each
+A1–A16: pass / fail / not run, with a brief note for each
 Failures: steps, expected result, actual result, redacted screenshot if useful
 ```
 
-Maximilien still has **A4, A5, A6, A7, A8, A13, and A15** to accept. Daniyar
-should independently test all fifteen. A5 does not claim to fix duplicate
+Maximilien still has **A4, A5, A6, A7, A8, A13, A15, and A16** to accept. Daniyar
+should independently test all sixteen. A5 does not claim to fix duplicate
 Gateway cron execution; #288 is excluded.
 
 ## Nine PRs still held
@@ -170,6 +171,10 @@ an actionable message. AI **57/57**, workflow routes **22/22**, server types,
 lint, production build and desktop/mobile save/reopen/error regressions pass.
 A15 awaits real-provider acceptance. Final isolated integration/validation/coverage passed **548/548** on tagged source
 `326f2684`. Image build identities and monitor links are in the linked image handoff.
+
+Source-only follow-up: [setup/start/update repair](RC94_SOURCE_SETUP_FIX_2026-10-26.md).
+Pull the latest review branch for A16. The immutable RC94 image/source tag remains
+`326f2684`; later source-bootstrap fixes are separate from those validated images.
 
 ## Short Slack handoff
 

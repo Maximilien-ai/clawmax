@@ -180,12 +180,13 @@ ClawMax templates and workflows are open source and community-driven:
 
 ### Prerequisites
 
-- **Node.js** 22.19+ and npm
+- **Node.js** 24.16+ (24.x) or 26.1+, and npm, for the current 2.0 source checkout
 - **Git** for cloning the repository
 
 You do **not** need to pre-install OpenClaw or add model API keys before setup.
 
-- `./setup.sh` installs OpenClaw if it is missing
+- `./setup.sh` prepares the branch-pinned OpenClaw runtime in a local cache
+- if pnpm and Corepack are missing, setup uses npm to bootstrap the exact pnpm version declared by that runtime; no global pnpm install is required
 - model/provider keys can be added later in `BYOK` or `Keys & Secrets` after the dashboard is running
 
 ### Automated Installation (Recommended)
@@ -249,7 +250,7 @@ cd clawmax
 
 The setup script will:
 - ✅ Check prerequisites (Node.js, Git)
-- ✅ Install OpenClaw if needed
+- ✅ Prepare and verify the branch-pinned OpenClaw runtime and its package manager
 - ✅ Install dashboard dependencies
 - ✅ Configure workspace structure
 - ✅ Offer auth setup choices for local dev and production
@@ -260,6 +261,26 @@ The setup script will:
 After setup:
 - add provider/model keys in `BYOK` or `Keys & Secrets`
 - optionally add shared runtime keys in `SYSTEM/dashboard/.env`
+
+Start and stop from the ClawMax repository root:
+
+```bash
+./SYSTEM/start.sh          # Start Dashboard
+./SYSTEM/stop.sh           # Stop Dashboard
+./SYSTEM/start.sh --follow # Start with live logs
+```
+
+First preparation downloads/builds the pinned runtime; later starts reuse the
+verified cache. Setup prints these commands whether you launch immediately or
+choose to start later. For custom ports, use the same `DASHBOARD_PORT` and
+`DASHBOARD_CLIENT_PORT` values for both start and stop.
+
+For a working source installation, `./update.sh` fast-forwards the current
+branch's configured upstream, reruns setup, and prints restart instructions.
+It skips automatic pulls for dirty, detached, or untracked branches and never
+forces a branch change. A failed initial setup should be retried with
+`./setup.sh` after pulling the fix. See the
+[source setup fix and clean-machine acceptance](SYSTEM/docs/planning/RC94_SOURCE_SETUP_FIX_2026-10-26.md).
 
 For local development, `./setup.sh` now offers:
 - `Email OTP` dev mode, which asks what login email you want in `SYSTEM/dashboard/.env`
