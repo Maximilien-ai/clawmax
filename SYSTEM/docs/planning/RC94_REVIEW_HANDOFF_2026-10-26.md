@@ -78,7 +78,6 @@ owns automated tests, image identity, architecture, and security review.
 | A11: AI-created agent suggestions collapsed; controls remain available on expand | human-judgment | Independently test | Passed October 25 |
 | A12: card group count opens the same details panel at Groups; header/footer/page remain fixed | human-judgment | Independently test | Passed October 26 |
 | A13: refresh OpenAI BYOK models; retired GPT-4/3.5 stay absent, including advanced lists. Check a new agent, a disposable older agent with a retired primary/backup, and a built-in AI helper. Verify the effective active model and a real reply/generation without the deprecated-model 404; reopen/restart and repeat. Valid model choices remain unchanged. | external-environment | Test | Test |
-
 | A14: Model Integration title; grouped active default models; unused deprecated models hidden; current deprecated selection/warning retained in its agent editor; runtime controls only in the top Runtime dialog; defaults persist on desktop/mobile | human-judgment | Test | Test |
 
 For each result, return:
