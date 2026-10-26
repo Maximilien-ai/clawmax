@@ -997,6 +997,13 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running OpenAI model lifecycle helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/modelSelectGroups.test.ts > /tmp/clawmax-model-select-groups.out 2>&1
+if [ $? -eq 0 ]; then
+  pass "Grouped active model options unit tests (9 tests)"
+else
+  cat /tmp/clawmax-model-select-groups.out
+  fail "Grouped active model options unit tests"
+fi
 npx ts-node --transpileOnly client/src/lib/openAiModelLifecycle.test.ts > /tmp/clawmax-openai-model-lifecycle.out 2>&1 || true
 if grep -q "openAiModelLifecycle.test.ts:" /tmp/clawmax-openai-model-lifecycle.out; then
   openai_model_lifecycle_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-openai-model-lifecycle.out | head -1 | grep -o '[0-9]\+')

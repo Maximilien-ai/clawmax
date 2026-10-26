@@ -110,7 +110,7 @@ try {
     await page.locator('select').first().locator('option[value="openai/gpt-5.5"]').waitFor({ state: 'attached' })
     const options = await page.locator('select').first().locator('option').evaluateAll(options => options.map(option => option.value))
     assert(!options.includes('openai/gpt-4') && !options.includes('openai/gpt-3.5-turbo'), 'Retired models stay hidden even in a stale provider catalog')
-    assert(options.includes('openai/gpt-5.5') && options.includes('openai/gpt-4.1'), 'Active and upcoming-retirement models remain available')
+    assert(options.includes('openai/gpt-5.5') && !options.includes('openai/gpt-4.1'), 'Unused deprecated models stay hidden while active models remain available')
   }
   await assertRetirementOptions()
   await modelSuggestion.locator('summary').click()
@@ -131,6 +131,16 @@ try {
   await page.keyboard.press('Escape')
   await closeConfig.waitFor({ state: 'hidden' })
   console.log('PASS config Escape works immediately after open')
+  agent.model = 'openai/gpt-4.1'
+  await page.getByRole('button', { name: 'More actions', exact: true }).click()
+  await page.getByRole('button').filter({ hasText: /^\s*Edit\s*$/ }).click()
+  const legacyOption = page.locator('select').first().locator('option[value="openai/gpt-4.1"]')
+  await legacyOption.waitFor({ state: 'attached' })
+  assert(await legacyOption.isDisabled(), 'An existing deprecated model remains visible without being offered for new selection')
+  assert.equal(await page.locator('select').first().inputValue(), agent.model)
+  await closeConfig.click()
+  agent.model = 'openai/gpt-5'
+  console.log('PASS existing deprecated model stays visible with a lifecycle warning')
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('button', { name: 'More actions', exact: true }).click()
   await page.getByRole('button').filter({ hasText: /^\s*Edit\s*$/ }).click()

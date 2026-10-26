@@ -69,8 +69,8 @@ test('does not apply first-party lifecycle filtering to openai-compatible models
 
 test('keeps current deprecated selections visible in pickers', () => {
   assert.equal(isSelectableLifecycleModel('anthropic/claude-3-7-sonnet-20250219', 'anthropic/claude-3-7-sonnet-20250219'), true)
-  assert.equal(isSelectableLifecycleModel('openai/gpt-4', 'openai/gpt-4'), false)
-  assert.equal(isSelectableLifecycleModel('openai/gpt-4.1'), true)
+  assert.equal(isSelectableLifecycleModel('openai/gpt-4', 'openai/gpt-4'), true)
+  assert.equal(isSelectableLifecycleModel('openai/gpt-4.1'), false)
   assert.equal(resolveNonDeprecatedOpenAiModel(['openai/gpt-5.5', 'openai/gpt-4.1'], 'openai/gpt-4.1'), 'openai/gpt-4.1')
 })
 

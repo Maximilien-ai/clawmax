@@ -109,8 +109,6 @@ export function resolveNonDeprecatedOpenAiModel(models: string[], candidate?: st
 }
 
 export function isSelectableLifecycleModel(model: string, currentValue?: string | null): boolean {
-  const openai = getOpenAIModelRetirement(model)
-  if (openai) return openai.status !== 'retired'
   if (normalize(model) === normalize(currentValue)) return true
   const entry = getModelLifecycleEntry(model)
   if (!entry) return true

@@ -3240,13 +3240,13 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>
                         {provider.models.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
-                          <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                          <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                         ))}
                       </optgroup>
                     ))
                   ) : (
                     availableModels.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
-                      <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                      <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                     ))
                   )}
                 </select>
@@ -3301,7 +3301,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
                   {config?.deploymentKind === 'cloud' ? 'Local CLI runtimes are unavailable on cloud. Choose OpenClaw with model-provider keys.' : enabledRuntimes.length > 0
                     ? <>Run this agent on {runtimeCatalog.filter((rt) => enabledRuntimes.includes(rt.id)).map((rt) => rt.label).join(' or ')} using the CLI’s own login. Default keeps it on the model-provider keys.</>
-                    : <>Enable a CLI runtime first in BYOK &rarr; “Run via CLI” to make it selectable here.</>}
+                    : <>Enable a CLI using the Runtime pill at the top to make it selectable here.</>}
                 </p>
               </div>
               <div>
@@ -3316,13 +3316,13 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>
                         {provider.models.filter((option) => isSelectableLifecycleModel(option, backupModel || model)).map(option => (
-                          <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                          <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                         ))}
                       </optgroup>
                     ))
                   ) : (
                     availableModels.filter((option) => isSelectableLifecycleModel(option, backupModel || model)).map(option => (
-                      <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                      <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                     ))
                   )}
                 </select>

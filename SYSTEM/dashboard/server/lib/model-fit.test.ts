@@ -1,6 +1,13 @@
 import assert from 'assert'
 import { recommendModelsForDescription } from './model-fit'
 
+const lifecycleRecommendation = recommendModelsForDescription({
+  description: 'Help with general questions',
+  availableModels: ['openai/gpt-4.1', 'openai/gpt-4', 'openai/gpt-5.5'],
+})
+assert.equal(lifecycleRecommendation.recommendedModel, 'openai/gpt-5.5')
+assert.deepEqual(lifecycleRecommendation.candidates.map(candidate => candidate.model), ['openai/gpt-5.5'])
+
 const tests: Array<{ name: string; run: () => void }> = []
 function test(name: string, run: () => void) {
   tests.push({ name, run })
@@ -30,7 +37,7 @@ test('prefers an explicit coding model for repository work', () => {
 test('prefers a local model when privacy is explicit', () => {
   const result = recommendModelsForDescription({
     description: 'Summarize confidential HR documents using an offline private local model.',
-    availableModels: ['anthropic/claude-sonnet-4-20250514', 'ollama/qwen3:8b'],
+    availableModels: ['anthropic/claude-sonnet-4-6', 'ollama/qwen3:8b'],
   })
   assert.equal(result.recommendedModel, 'ollama/qwen3:8b')
   assert(result.requirements.privacy)
@@ -81,7 +88,7 @@ test('does not auto-select OpenAI reasoning aliases that reject the runtime web-
 test('quality preference explains local tool uncertainty and hosted privacy limits', () => {
   const result = recommendModelsForDescription({
     description: 'Privately reason through confidential code and return structured JSON using tools.',
-    availableModels: ['ollama/qwen3:8b', 'anthropic/claude-sonnet-4-20250514', 'custom/reasoning-pro'],
+    availableModels: ['ollama/qwen3:8b', 'anthropic/claude-sonnet-4-6', 'custom/reasoning-pro'],
     preference: 'quality', limit: 10,
   })
   assert(result.requirements.privacy && result.requirements.coding && result.requirements.reasoning)
