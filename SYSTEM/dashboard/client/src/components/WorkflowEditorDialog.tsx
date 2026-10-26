@@ -5,6 +5,7 @@ import { formatAgentOptionLabel } from '../lib/agentLabels'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { readStoredByokKeys } from '../lib/byok'
 import { workflowScheduleError } from '../lib/workflowSchedule'
+import { normalizeWorkflowContent } from '../../../server/lib/workflow-content'
 
 interface AgentTargeting {
   communities: string[]
@@ -112,6 +113,7 @@ function buildWorkflowFormData(initialData?: Partial<WorkflowFormData>): Workflo
   return {
     ...base,
     ...restInitialData,
+    content: normalizeWorkflowContent(restInitialData.content),
     timezone: initialTimezone || base.timezone,
     targeting: {
       ...base.targeting,

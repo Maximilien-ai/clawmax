@@ -8,6 +8,7 @@ import { CLAUDE_MODEL_ALIASES, executeAgentRuntimeTurn, resolveEnabledRuntimes, 
 import { withRegisteredTurn } from './agent-turns'
 import { getModelLifecycleEntry } from './openAiModelLifecycle'
 import { resolveActiveOpenAIModel } from './openai-model-retirements'
+import { normalizeGeneratedWorkflowDraft } from './workflow-content'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 
@@ -2273,7 +2274,7 @@ A workflow has:
   - tags: array of agent tags from the available list
   - groups: array of group names
   - communities: array of community names
-- content: the detailed instruction/prompt that agents will receive when the workflow runs
+- content: a nonempty Markdown STRING containing the detailed instructions agents receive when the workflow runs. Use JSON-escaped newlines. Never return an object or array in this field.
 
 Respond with ONLY valid JSON, no markdown fences or explanation.`
       },
@@ -2288,11 +2289,13 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
   const raw = completion.choices[0].message.content?.trim() || ''
   const jsonStr = extractJsonResponseText(raw)
 
+  let draft
   try {
-    return JSON.parse(jsonStr)
+    draft = JSON.parse(jsonStr)
   } catch {
-    throw new Error(`Generated output is not valid JSON: ${jsonStr.slice(0, 200)}`)
+    throw new Error('Generated workflow is not valid JSON. Your prompt is preserved; generate again.')
   }
+  return normalizeGeneratedWorkflowDraft(draft)
 }
 
 /**
