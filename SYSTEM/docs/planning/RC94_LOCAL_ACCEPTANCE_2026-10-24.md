@@ -1,7 +1,11 @@
 # RC94 local acceptance — October 24, 2026
 
-Status: pre-release integration; RC94 has not been tagged or built. The user must
-complete local testing and explicitly confirm acceptance before RC94 is cut.
+Status: internal review candidate. On October 26 Maximilien requested review
+images for Daniyar and independent validation by both reviewers before official
+RC94. Review tag `v2.0.0-test-rc94-review1` points to
+`1729992e9555002a8d34e91b644ecf9d153b27bb`; image builds are pending.
+Official RC94 remains reserved. Start with the
+[shareable review handoff](RC94_REVIEW_HANDOFF_2026-10-26.md).
 
 October 25 handoff: earlier product/dependency source `04818ac56a58198ed08affa0c580e0a36060ca88`
 passes the clean local suite and CI. Latest feedback checkpoint `d092640c` includes
@@ -29,6 +33,28 @@ The displayed `2.0.0-test-rc94` is a local candidate label, not a published tag.
 ## Engineering evidence
 
 These are Dashboard-owned checks, not acceptance tasks for reviewers.
+
+### October 26 review-image candidate
+
+- Exact source: `1729992e9555002a8d34e91b644ecf9d153b27bb`.
+- Full isolated integration/validation/coverage: **547/547 passed, zero failed**.
+  Statements/lines 83.18% (60981/73311), branches 80.65% (19566/24259),
+  functions 91.81% (2512/2736). The command below was rerun unchanged on this
+  exact source. Expected cached duration: 10–20 minutes; observed about 11
+  minutes. Local log: `/private/tmp/clawmax-rc94-image-validation.log`.
+- Saved panel, group membership/direct-scroll, and AI-creation disclosure
+  browser regressions all passed again at desktop/mobile widths. These use
+  synthetic API fixtures and do not replace real-provider acceptance.
+- `npm run security:audit`: passed with zero High/Critical advisories.
+- [Exact-source CI](https://github.com/Maximilien-ai/clawmax/actions/runs/40173948664):
+  passed. [CodeQL scan](https://github.com/Maximilien-ai/clawmax/actions/runs/40173946407)
+  completed, but its PR gate reports **20 unresolved findings: 2 critical and
+  18 high**. The earlier 19-finding result below is historical. Dashboard owns
+  disposition before merge/promotion; no alerts were dismissed.
+- Local Dashboard was restarted and browser/API version checked. The review
+  image uses `2.0.0-test-rc94-review1`; image availability and validation will
+  be recorded in the shareable handoff. Public and combined workflows must
+  both pass before the matching pair is reported ready.
 
 ### October 25 acceptance-feedback changes
 
@@ -187,6 +213,14 @@ brief evidence or reproduction`. A missing runtime is `not run`, not a pass.
   duplicate events, and final-response consistency.
 
 ## Release gate
+
+The October 26 request authorizes review-only images tagged `rc94-review1`
+before the remaining acceptance checks. Both reviewers must validate the
+candidate before official RC94. Complete engineering validation, disposition
+security findings with evidence, and obtain the required PR approval before
+merge/promotion. No production rollout is authorized or claimed.
+
+## Archived release-gate wording — superseded October 26
 
 Complete engineering validation, resolve or explicitly disposition security
 findings with evidence, and obtain the user's local acceptance first. Only then
