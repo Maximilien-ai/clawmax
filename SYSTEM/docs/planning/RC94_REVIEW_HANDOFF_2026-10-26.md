@@ -7,7 +7,7 @@ authorized by this handoff.
 
 ## Candidate and how to test
 
-Latest product source: `99803424e27d922d06c09bb0a734896565783d35`, branch
+Latest review source: `b865da6fa340eae300ff1d1e40236da54efa95f0`, branch
 `integration/rc94-daniyar`, [integration PR #291](https://github.com/Maximilien-ai/clawmax/pull/291).
 Eighteen of Daniyar's 27 PRs are combined here; **zero have landed on main and
 nine remain held**. Review the combined behavior, not each PR in isolation.
@@ -22,7 +22,7 @@ git pull --ff-only
 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/start.sh --follow
 ```
 
-Open **http://localhost:5174**, select a disposable workspace, and run A1–A13
+Open **http://localhost:5174**, select a disposable workspace, and run A1–A14
 below. Maximilien can use the same URL in his existing checkout.
 Record the source SHA or image digest, displayed version, OS/architecture,
 browser, runtime, and model. Keep API keys and participant conversations out of
@@ -67,7 +67,7 @@ owns automated tests, image identity, architecture, and security review.
 | --- | --- | --- | --- |
 | A1: details/config pin, outside click, Escape/X, remembered preference | human-judgment | Independently test | Passed October 25 |
 | A2: pinned modal/right-side chat; nested History/Forward dismissal | human-judgment | Independently test | Passed October 25 |
-| A3: two real chat turns; reopen/restart; history and another reply | external-environment | Test | Test |
+| A3: two real chat turns; reopen/restart; history and another reply | external-environment | Independently test | Passed October 26 |
 | A4: save manual workflow settings; run; actual Stop for installed Claude/Droid | external-environment | Test available runtimes | Test available runtimes |
 | A5: valid timezone and next tick; invalid timezone refused without breaking other workflows | external-environment | Test | Test |
 | A6: bulk-delete disposable agents, including an active turn; verify after restart | external-environment | Test | Test |
@@ -76,8 +76,10 @@ owns automated tests, image identity, architecture, and security review.
 | A9: searchable group add/remove; reload; preserve other memberships | external-environment | Independently test | Passed October 25 |
 | A10: Edit Agent Config suggestions collapsed; expanding never changes model | human-judgment | Independently test | Passed October 25 |
 | A11: AI-created agent suggestions collapsed; controls remain available on expand | human-judgment | Independently test | Passed October 25 |
-| A12: card group count opens the same details panel at Groups; header/footer/page remain fixed | human-judgment | Test | Retest corrected jump |
+| A12: card group count opens the same details panel at Groups; header/footer/page remain fixed | human-judgment | Independently test | Passed October 26 |
 | A13: refresh OpenAI BYOK models; retired GPT-4/3.5 stay absent, including advanced lists. Check a new agent, a disposable older agent with a retired primary/backup, and a built-in AI helper. Verify the effective active model and a real reply/generation without the deprecated-model 404; reopen/restart and repeat. Valid model choices remain unchanged. | external-environment | Test | Test |
+
+| A14: Model Integration title; grouped active default models; unused deprecated models hidden; current deprecated selection/warning retained in its agent editor; runtime controls only in the top Runtime dialog; defaults persist on desktop/mobile | human-judgment | Test | Test |
 
 For each result, return:
 
@@ -86,12 +88,12 @@ Reviewer:
 Source SHA or image digest:
 Displayed version / OS / architecture / browser:
 Runtime and model (no keys):
-A1–A13: pass / fail / not run, with a brief note for each
+A1–A14: pass / fail / not run, with a brief note for each
 Failures: steps, expected result, actual result, redacted screenshot if useful
 ```
 
-Maximilien still has **A3, A4, A5, A6, A7, A8, A12, and A13** to accept. Daniyar
-should independently test all thirteen. A5 does not claim to fix duplicate
+Maximilien still has **A4, A5, A6, A7, A8, A13, and A14** to accept. Daniyar
+should independently test all fourteen. A5 does not claim to fix duplicate
 Gateway cron execution; #288 is excluded.
 
 ## Nine PRs still held
@@ -154,10 +156,18 @@ at handoff. Full integration/validation/coverage must be rerun on the final
 accepted source before images; the earlier 547 result is not a full-suite claim
 for the retirement follow-up.
 
+Latest UI follow-up: `651e2181` / `b865da6f` simplifies Model Integration,
+uses provider groups in both default pickers, hides unused deprecated models,
+and preserves current deprecated choices in their agent editor. Runtime settings
+remain available through the top Runtime pill. Focused tests, lint, server
+TypeScript, production build and local/cloud browser checks at four widths pass;
+client TypeScript adds zero diagnostics. Maximilien accepted A3/A12 before this
+follow-up; their result history is preserved in the acceptance file. A14 is new.
+
 ## Short Slack handoff
 
 > Daniyar — please pull `integration/rc94-daniyar` and restart local dev (commands
-> above). Latest product fix: `99803424`. Test A1–A13, especially new A13:
+> above). Latest review source: `b865da6f`. Test A1–A14, especially A13/A14:
 > retired OpenAI models disappear after BYOK refresh and older/new/built-in agents
 > use active models without the deprecated-model 404. Please return your SHA,
 > pass/fail/not-run per item, and repro steps. The nine held PRs and requested

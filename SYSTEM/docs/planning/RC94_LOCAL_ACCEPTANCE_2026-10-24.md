@@ -3,7 +3,7 @@
 Status: local-dev acceptance first. On October 26 Maximilien clarified that
 Daniyar and Maximilien should validate locally before images are built for
 on-prem/cloud testing and official RC94. Exact product source:
-`99803424e27d922d06c09bb0a734896565783d35`. The earlier review-image attempt
+`b865da6fa340eae300ff1d1e40236da54efa95f0`. The earlier review-image attempt
 was stopped; no combined image was dispatched. Official RC94 remains reserved.
 Start with the
 [shareable review handoff](RC94_REVIEW_HANDOFF_2026-10-26.md).
@@ -36,6 +36,19 @@ The displayed `2.0.0-test-rc94` is a local candidate label, not a published tag.
 These are Dashboard-owned checks, not acceptance tasks for reviewers.
 
 ### October 26 review-image candidate
+
+- Model Integration follow-up: `651e2181`, with active coding fixture correction
+  `b865da6f`. The model dialog no longer duplicates runtime controls; the top
+  Runtime pill retains them. Both default selectors group active choices by
+  provider. Unused deprecated models are hidden, including fallback lists and
+  automatic recommendations. An existing agent's deprecated selection remains
+  visible with a warning; shutdown handling and replacement policy still apply.
+  Focused helper/model-fit/BYOK tests, lint, server TypeScript and production
+  build pass. Client TypeScript retains the same 291 baseline diagnostics.
+  Local/cloud browser tests pass at 1440, 1280, 390 and 320px, including grouped
+  choices, save failure, save/reload, runtime preservation, and separate Runtime
+  access. The agent-editor regression verifies the existing deprecated choice.
+  A14 requests independent human acceptance of the revised UI.
 
 - Latest follow-up `99803424` removes retired OpenAI models automatically at
   known shutdown dates, including discovery/refresh/advanced/warm-cache paths.
@@ -179,8 +192,8 @@ agent-route tests (78 route tests), production build, and the subsequent clean
 
 ## Acceptance for Maximilien and Daniyar
 
-Maximilien confirmed A1, A2, A9, A10, and A11 on October 25. Their criteria remain below with
-strikethrough. Daniyar's independent results remain pending.
+Maximilien confirmed A1, A2, A9, A10, and A11 on October 25, and A3/A12 on
+October 26. Their criteria remain below with strikethrough. Daniyar's independent results remain pending.
 
 Each reviewer should record their own result on the exact same source revision.
 Use disposable agents/workspaces for changes and deletion tests. Record the
@@ -191,7 +204,7 @@ include provider keys or raw participant conversations in the report.
 | --- | --- | --- |
 | ~~A1~~ | human-judgment | ~~Open agent details and Edit Agent Config. The pin is visible beside X. Unpinned, an outside click closes the panel. Pinned, it stays open. Inside clicks never close it. X and Escape close it. Reopen/reload and confirm the choice is remembered.~~ **Maximilien: passed, October 25.** |
 | ~~A2~~ | human-judgment | ~~Open chat, pin it, switch to its right-side layout, and click outside. It stays open. Unpin and click outside; it closes. Open History/Forward and press Escape: the inner surface closes first. Confirm X closes only the chat when details are underneath.~~ **Maximilien: passed, October 25.** |
-| A3 | external-environment | With a real configured provider/runtime, send two chat turns, close/reopen, then restart Dashboard. Confirm replies/history remain accessible and a new turn succeeds. Record runtime and model identities. |
+| ~~A3~~ | external-environment | ~~With a real configured provider/runtime, send two chat turns, close/reopen, then restart Dashboard. Confirm replies/history remain accessible and a new turn succeeds. Record runtime and model identities.~~ **Maximilien: passed, October 26.** |
 | A4 | external-environment | Create a disposable manual workflow. Save/reopen its run limit and handoff settings. Run it and inspect the result. For Claude/Droid where installed, Stop must actually end the runtime step and permit a later run. |
 | A5 | external-environment | Save a scheduled disposable workflow with a valid timezone and verify its next tick. An invalid timezone is refused with an error; unrelated workflows still schedule. Do not infer that duplicate Gateway cron execution is fixed: #288 remains held. |
 | A6 | external-environment | Bulk-delete disposable agents, including one with an active turn. Confirm activity stops, agents disappear from the Dashboard/runtime, and they remain absent after restart. Report partial failures visibly rather than retrying blindly. |
@@ -200,10 +213,12 @@ include provider keys or raw participant conversations in the report.
 | ~~A9~~ | external-environment | ~~In agent details or an expanded card, choose **Add to group**, search by group name, and add the agent. The membership badge appears and remains after reload. Remove it with × and reload again. Verify the group, its other members, the agent's other memberships, and communities remain intact. Test the empty-state Add action and check mobile usability.~~ **Maximilien: passed, October 25.** |
 | ~~A10~~ | human-judgment | ~~Reopen Edit Agent Config: **Automatic model suggestion** starts collapsed. Expand it to see the existing suggestion/priority controls. Expanding or collapsing does not change the selected model or save the agent. Close/reopen and confirm it starts collapsed again.~~ **Maximilien: passed, October 25.** |
 | ~~A11~~ | human-judgment | ~~After AI generation in Add Agent, Automatic model suggestion starts collapsed. Expand it only when needed; the suggestion, priority, and existing selection controls remain available. Check desktop/mobile and confirm generation does not provision an agent automatically.~~ **Maximilien: passed, October 25.** |
-| A12 | human-judgment | Click an agent card's group count. The same details panel opens and only its existing body scrolls to Groups; its header/footer and the underlying page stay fixed. Group add/remove controls remain available. **Previous jump rejected by Maximilien; fixed in `d092640c`, awaiting retest.** |
+| ~~A12~~ | human-judgment | ~~Click an agent card's group count. The same details panel opens and only its existing body scrolls to Groups; its header/footer and the underlying page stay fixed. Group add/remove controls remain available. **Previous jump rejected by Maximilien; fixed in `d092640c`, awaiting retest.**~~ **Maximilien: passed, October 26.** |
 | A13 | external-environment | Refresh OpenAI BYOK models: retired GPT-4/3.5 must be absent, including advanced lists. Verify a new agent, a disposable older agent with a retired primary/backup, and built-in AI generation use active models and return a real reply/result without the deprecated-model 404. Reopen/restart and repeat. Confirm valid model choices remain unchanged; report any provider-access or explicit-policy failure. |
 
-Result format: `reviewer / source SHA / platform / A1–A13 pass, fail, or not run /
+| A14 | human-judgment | Open BYOK: its title is Model Integration, and the duplicate Run via CLI section is absent. Both default model pickers have provider groups and hide unused deprecated models. An agent already using a deprecated model still shows that current selection and warning. The top Runtime pill retains working runtime controls. Save/reopen defaults and check desktop/mobile usability. |
+
+Result format: `reviewer / source SHA / platform / A1–A14 pass, fail, or not run /
 brief evidence or reproduction`. A missing runtime is `not run`, not a pass.
 
 ## Feedback for Daniyar before the remaining PRs land
