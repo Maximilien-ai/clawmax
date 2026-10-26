@@ -27,9 +27,9 @@ test('ranks only compatible models reported as available', () => {
 test('prefers an explicit coding model for repository work', () => {
   const result = recommendModelsForDescription({
     description: 'Review a TypeScript repository, debug failures, and write code changes.',
-    availableModels: ['openai/gpt-5.4-mini', 'openai/gpt-5.3-codex', 'google/gemini-2.5-flash'],
+    availableModels: ['openai/gpt-5.4-mini', 'custom/coder-pro', 'google/gemini-2.5-flash'],
   })
-  assert.equal(result.recommendedModel, 'openai/gpt-5.3-codex')
+  assert.equal(result.recommendedModel, 'custom/coder-pro')
   assert(result.requirements.coding)
   assert(result.candidates[0].reasons.some(reason => /coding specialization/i.test(reason)))
 })
