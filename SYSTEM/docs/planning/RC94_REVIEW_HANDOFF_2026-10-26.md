@@ -78,7 +78,7 @@ owns automated tests, image identity, architecture, and security review.
 | A11: AI-created agent suggestions collapsed; controls remain available on expand | human-judgment | Independently test | Passed October 25 |
 | A12: card group count opens the same details panel at Groups; header/footer/page remain fixed | human-judgment | Independently test | Passed October 26 |
 | A13: refresh OpenAI BYOK models; retired GPT-4/3.5 stay absent, including advanced lists. Check a new agent, a disposable older agent with a retired primary/backup, and a built-in AI helper. Verify the effective active model and a real reply/generation without the deprecated-model 404; reopen/restart and repeat. Valid model choices remain unchanged. | external-environment | Test | Test |
-| A14: Model Integration title; grouped active default models; unused deprecated models hidden; current deprecated selection/warning retained in its agent editor; runtime controls only in the top Runtime dialog; defaults persist on desktop/mobile | human-judgment | Test | Test |
+| A14: Model Integration title; grouped active default models; unused deprecated models hidden; current deprecated selection/warning retained in its agent editor; runtime controls only in the top Runtime dialog; defaults persist on desktop/mobile | human-judgment | Test | Passed October 26 |
 
 For each result, return:
 
@@ -91,7 +91,7 @@ A1–A14: pass / fail / not run, with a brief note for each
 Failures: steps, expected result, actual result, redacted screenshot if useful
 ```
 
-Maximilien still has **A4, A5, A6, A7, A8, A13, and A14** to accept. Daniyar
+Maximilien still has **A4, A5, A6, A7, A8, and A13** to accept. Daniyar
 should independently test all fourteen. A5 does not claim to fix duplicate
 Gateway cron execution; #288 is excluded.
 
@@ -161,7 +161,8 @@ and preserves current deprecated choices in their agent editor. Runtime settings
 remain available through the top Runtime pill. Focused tests, lint, server
 TypeScript, production build and local/cloud browser checks at four widths pass;
 client TypeScript adds zero diagnostics. Maximilien accepted A3/A12 before this
-follow-up; their result history is preserved in the acceptance file. A14 is new.
+follow-up; their result history is preserved in the acceptance file. Maximilien subsequently accepted the BYOK/Model Integration UI (A14). A7
+real-provider/credential-isolation evidence remains unconfirmed.
 
 ## Short Slack handoff
 

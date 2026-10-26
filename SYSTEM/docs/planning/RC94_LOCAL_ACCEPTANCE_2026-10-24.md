@@ -192,7 +192,11 @@ agent-route tests (78 route tests), production build, and the subsequent clean
 
 ## Acceptance for Maximilien and Daniyar
 
-Maximilien confirmed A1, A2, A9, A10, and A11 on October 25, and A3/A12 on
+Remaining for Maximilien: **A4, A5, A6, A7, A8, and A13**. The BYOK UI
+confirmation accepts A14; A7 still requires real-provider and credential-isolation
+evidence. Daniyar records independent results.
+
+Maximilien confirmed A1, A2, A9, A10, and A11 on October 25, and A3/A12/A14 on
 October 26. Their criteria remain below with strikethrough. Daniyar's independent results remain pending.
 
 Each reviewer should record their own result on the exact same source revision.
@@ -215,7 +219,7 @@ include provider keys or raw participant conversations in the report.
 | ~~A11~~ | human-judgment | ~~After AI generation in Add Agent, Automatic model suggestion starts collapsed. Expand it only when needed; the suggestion, priority, and existing selection controls remain available. Check desktop/mobile and confirm generation does not provision an agent automatically.~~ **Maximilien: passed, October 25.** |
 | ~~A12~~ | human-judgment | ~~Click an agent card's group count. The same details panel opens and only its existing body scrolls to Groups; its header/footer and the underlying page stay fixed. Group add/remove controls remain available. **Previous jump rejected by Maximilien; fixed in `d092640c`, awaiting retest.**~~ **Maximilien: passed, October 26.** |
 | A13 | external-environment | Refresh OpenAI BYOK models: retired GPT-4/3.5 must be absent, including advanced lists. Verify a new agent, a disposable older agent with a retired primary/backup, and built-in AI generation use active models and return a real reply/result without the deprecated-model 404. Reopen/restart and repeat. Confirm valid model choices remain unchanged; report any provider-access or explicit-policy failure. |
-| A14 | human-judgment | Open BYOK: its title is Model Integration, and the duplicate Run via CLI section is absent. Both default model pickers have provider groups and hide unused deprecated models. An agent already using a deprecated model still shows that current selection and warning. The top Runtime pill retains working runtime controls. Save/reopen defaults and check desktop/mobile usability. |
+| ~~A14~~ | human-judgment | ~~Open BYOK: its title is Model Integration, and the duplicate Run via CLI section is absent. Both default model pickers have provider groups and hide unused deprecated models. An agent already using a deprecated model still shows that current selection and warning. The top Runtime pill retains working runtime controls. Save/reopen defaults and check desktop/mobile usability.~~ **Maximilien: passed, October 26 (BYOK/Model Integration looks good).** |
 
 Result format: `reviewer / source SHA / platform / A1–A14 pass, fail, or not run /
 brief evidence or reproduction`. A missing runtime is `not run`, not a pass.
