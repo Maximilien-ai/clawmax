@@ -237,6 +237,9 @@ export function validateProvisionInput(
   }
   const deprecation = getModelLifecycleEntry(input.model)
   if (deprecation) {
+    if (deprecation.providerLabel === 'OpenAI' && deprecation.status === 'retired') {
+      errors.push(`Model "${input.model}" is retired and cannot be used. Select "openai/${deprecation.replacementModel}" or another available model.`)
+    }
     const shutdownDate = deprecation.shutdownDate ? ` and shuts off on ${deprecation.shutdownDate}` : ''
     const replacement = deprecation.replacementModel ? ` Prefer "${deprecation.replacementModel}".` : ''
     warnings.push(`Model "${input.model}" is ${deprecation.status} by ${deprecation.providerLabel}${shutdownDate}.${replacement}`)

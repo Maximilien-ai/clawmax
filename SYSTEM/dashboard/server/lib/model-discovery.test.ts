@@ -1,4 +1,5 @@
-import { __test, clearModelCache, discoverModels, FALLBACK_OPENAI } from './model-discovery'
+import { __test, clearModelCache, discoverModels, getAvailableModelsCached, FALLBACK_OPENAI } from './model-discovery'
+import { getOpenAIModelRetirement } from './openai-model-retirements'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -30,7 +31,7 @@ function assert(condition: boolean, message: string) {
 
 console.log(`\n${YELLOW}=== Model Discovery Test Suite ===${RESET}\n`)
 
-test('OpenAI discovery preserves older and newer provider-advertised chat models', () => {
+test('OpenAI discovery preserves active older and newer provider-advertised chat models', () => {
   const filtered = __test.filterCompatibleDiscoveredModels('openai', [
     'openai/gpt-5',
     'openai/gpt-5.5',
@@ -47,11 +48,56 @@ test('OpenAI discovery never treats the offline fallback as an allowlist, includ
   assert(JSON.stringify(FALLBACK_OPENAI) === JSON.stringify(approved), 'Fallback must only offer approved GPT-5.5')
   for (const showAll of [false, true]) {
     const filtered = __test.filterCompatibleDiscoveredModels('openai', [
-      ...approved, 'openai/gpt-5.3-chat-latest', 'openai/gpt-5.3-codex',
+      ...approved, 'openai/gpt-5.3', 'openai/gpt-5.3-codex',
       'openai/gpt-5.4', 'openai/gpt-5.4-mini', 'openai/gpt-5.4-nano', 'openai/gpt-5.4-pro',
       'openai/gpt-5.5-invented', 'openai/o3', 'openai/gpt-5.40', 'openai/gpt-5',
     ], showAll)
     assert(filtered.length === 11, 'All supplied chat model ids must remain selectable without hardcoded admission')
+  }
+})
+
+test('retired OpenAI models stay hidden in normal and advanced catalogs', () => {
+  const retired = ['gpt-4', 'gpt-4-0613', 'gpt-4-turbo', 'gpt-4-turbo-2024-04-09',
+    'gpt-3.5-turbo', 'gpt-3.5-turbo-0125', 'gpt-4.5-preview', 'gpt-4.1-nano',
+    'gpt-4o-2024-05-13', 'chatgpt-4o-latest', 'gpt-5.3-chat-latest', 'o3-mini']
+    .map(id => `openai/${id}`)
+  const active = ['openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/gpt-4.1', 'openai/gpt-4.1-mini', 'openai/gpt-5.5']
+  for (const showAll of [false, true]) {
+    const result = __test.filterCompatibleDiscoveredModels('openai', [...retired, ...active], showAll)
+    assert(JSON.stringify(result) === JSON.stringify(active), 'Only retired models should be removed')
+  }
+  const compatible = __test.filterCompatibleDiscoveredModels('openai-compatible', ['openai-compatible/gpt-4'])
+  assert(compatible.length === 1, 'Other providers own their model lifecycles')
+})
+
+test('shutdown dates automatically change lifecycle status at the UTC boundary', () => {
+  assert(getOpenAIModelRetirement('openai/gpt-4.1', Date.parse('2027-01-13T23:59:59Z'))?.status === 'deprecated', 'Must remain usable before shutdown')
+  assert(getOpenAIModelRetirement('openai/gpt-4.1', Date.parse('2027-01-14T00:00:00Z'))?.status === 'retired', 'Must retire on schedule')
+  assert(getOpenAIModelRetirement('openai-compatible/gpt-4') === null, 'Must not classify compatible-provider models')
+})
+
+test('BYOK discovery filters retired models on initial fetch and warm-cache reads', async () => {
+  clearModelCache()
+  const originalNow = Date.now
+  let calls = 0
+  global.fetch = (async (input: any) => {
+    if (String(input) === 'https://api.openai.com/v1/models') calls++
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: 'gpt-4' }, { id: 'gpt-4.1' }, { id: 'gpt-5.5' }] }) } as any
+  }) as any
+  try {
+    Date.now = () => Date.parse('2027-01-13T23:59:59Z')
+    const first = await discoverModels({ openai: 'retirement-fixture' })
+    assert(!first.modelsByProvider.openai.models.includes('openai/gpt-4'), 'Retired model must be removed on fetch')
+    assert(first.modelsByProvider.openai.models.includes('openai/gpt-4.1'), 'Upcoming shutdown must remain usable')
+    Date.now = () => Date.parse('2027-01-14T00:00:00Z')
+    const cached = await discoverModels({ openai: 'retirement-fixture' }, { showAll: true })
+    assert(calls === 1, 'Expected a warm catalog crossing the retirement boundary')
+    assert(JSON.stringify(cached.modelsByProvider.openai.models) === JSON.stringify(['openai/gpt-5.5']), 'Warm cache and show-all must not restore retired models')
+    const validationCatalog = getAvailableModelsCached({ SYSTEM_OPENAI_API_KEY: 'retirement-fixture' })
+    assert(!validationCatalog.includes('openai/gpt-4.1') && validationCatalog.includes('openai/gpt-5.5'), 'Synchronous validation must recheck cached retirement dates too')
+  } finally {
+    Date.now = originalNow
+    clearModelCache()
   }
 })
 

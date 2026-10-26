@@ -1,6 +1,7 @@
 import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
 import { getAvailableModelsCached } from './model-discovery'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
+import { isRetiredOpenAIModel, resolveActiveOpenAIModel } from './openai-model-retirements'
 
 type ResolveDefaultAgentModelOptions = {
   explicitModel?: string
@@ -14,7 +15,7 @@ type ResolveDefaultAgentModelOptions = {
 
 function normalizeCandidate(value?: string): string | undefined {
   const trimmed = value?.trim()
-  return trimmed || undefined
+  return trimmed ? resolveActiveOpenAIModel(trimmed) : undefined
 }
 
 function matchesAvailable(model: string | undefined, availableModels: string[]): boolean {
@@ -32,7 +33,7 @@ export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOption
   const integrations = readWorkspaceIntegrationConfig()
   const explicitAvailableModels = Array.isArray(options.availableModels)
   const availableModels = Array.isArray(options.availableModels)
-    ? options.availableModels.filter(Boolean)
+    ? options.availableModels.filter(model => model && !isRetiredOpenAIModel(model))
     : getAvailableModelsCached(rawEnv)
 
   const explicitModel = normalizeCandidate(options.explicitModel)
@@ -70,7 +71,7 @@ export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOption
     if (firstCompatible) return firstCompatible
   }
 
-  const recommendedHostedModel = getBestAvailableModel(rawEnv)
+  const recommendedHostedModel = resolveActiveOpenAIModel(getBestAvailableModel(rawEnv))
   const systemKeys = getSystemProviderKeys(rawEnv)
   const userKeys = getUserDefaultProviderKeys(rawEnv)
   const hasHostedProviderPath = !!(systemKeys.openai || systemKeys.anthropic || systemKeys.gemini || userKeys.openai || userKeys.anthropic || userKeys.gemini)

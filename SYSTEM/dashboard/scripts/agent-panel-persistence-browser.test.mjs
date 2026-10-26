@@ -11,6 +11,7 @@ const context = await browser.newContext({ viewport: { width: 1440, height: 1000
 const page = await context.newPage()
 page.setDefaultTimeout(10000)
 const agent = { id: 'rc94-probe', generation: 'rc94-browser-generation', name: 'RC94 Acceptance Agent With A Long Name', status: 'offline', workspacePath: '/tmp/rc94/AGENTS/rc94-probe', tags: [], communities: [], groups: [], skills: [], model: 'openai/gpt-5', runtime: 'openclaw' }
+const discoveredOpenAIModels = [agent.model, 'openai/gpt-5.5', 'openai/gpt-4.1', 'openai/gpt-4', 'openai/gpt-3.5-turbo']
 const workspace = { id: 'rc94-browser', name: 'RC94 Acceptance Workspace With A Long Name', path: '/tmp/rc94', agentCount: 1, isActive: true, tags: [] }
 const errors = []
 page.on('pageerror', error => errors.push(error.stack))
@@ -34,7 +35,7 @@ await page.route('**/api/**', async route => {
   else if (p === '/api/agents/turns/active') body = { turns: [] }
   else if (p === '/api/agents/rc94-probe/chat/messages') body = { messages: [{ id: 'rc94-reply', role: 'assistant', content: 'RC94 reply for forwarding', timestamp: 1720000000000 }] }
   else if (p === '/api/agents/rc94-probe/turns/active') body = { turns: [] }
-  else if (p.includes('/models')) body = { models: [agent.model], modelsByProvider: { openai: { name: 'OpenAI', models: [agent.model] } } }
+  else if (p.includes('/models')) body = { models: discoveredOpenAIModels, modelsByProvider: { openai: { name: 'OpenAI', models: discoveredOpenAIModels } } }
   else if (p === '/api/runtime/catalog' || p === '/api/integrations/runtimes') body = { runtimes: [{ id: 'openclaw', label: 'OpenClaw', enabled: true, models: [agent.model] }] }
   else if (p === '/api/plugins') body = { plugins: [] }
   else if (p === '/api/docs') body = { docs: [] }
@@ -105,6 +106,13 @@ try {
   const modelSuggestion = page.locator('details[aria-label="Model suggestion"]')
   assert.equal(await modelSuggestion.getAttribute('open'), null, 'Model suggestions start collapsed when editing')
   const selectedModel = await page.locator('select').first().inputValue()
+  const assertRetirementOptions = async () => {
+    await page.locator('select').first().locator('option[value="openai/gpt-5.5"]').waitFor({ state: 'attached' })
+    const options = await page.locator('select').first().locator('option').evaluateAll(options => options.map(option => option.value))
+    assert(!options.includes('openai/gpt-4') && !options.includes('openai/gpt-3.5-turbo'), 'Retired models stay hidden even in a stale provider catalog')
+    assert(options.includes('openai/gpt-5.5') && options.includes('openai/gpt-4.1'), 'Active and upcoming-retirement models remain available')
+  }
+  await assertRetirementOptions()
   await modelSuggestion.locator('summary').click()
   assert(await page.getByRole('group', { name: 'Model recommendation priority', exact: true }).isVisible())
   assert.equal(await page.locator('select').first().inputValue(), selectedModel, 'Expanding recommendations never changes the model')
@@ -127,6 +135,7 @@ try {
   await page.getByRole('button', { name: 'More actions', exact: true }).click()
   await page.getByRole('button').filter({ hasText: /^\s*Edit\s*$/ }).click()
   await closeConfig.waitFor()
+  await assertRetirementOptions()
   await pin.click()
   await page.screenshot({ path: path.join(artifactDir, 'config-mobile.png') })
   assert(await pin.isVisible() && await closeConfig.isVisible())

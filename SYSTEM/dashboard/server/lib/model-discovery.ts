@@ -6,6 +6,7 @@ import { createHash } from 'crypto'
 import { getDashboardDeploymentKind, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
 import { cloudModelEndpointError } from './cloud-execution-policy'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
+import { isRetiredOpenAIModel } from './openai-model-retirements'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -102,6 +103,8 @@ export const FALLBACK_XAI = [
 ]
 
 function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[], showAll = false): string[] {
+  // Retired models stay excluded even in advanced mode and with a warm catalog.
+  if (provider === 'openai') models = models.filter(model => !isRetiredOpenAIModel(model))
   // Provider catalogs determine availability. Never intersect them with static
   // fallback lists; retain only modality filtering for the normal chat picker.
   if (showAll || provider === 'ollama') return models
@@ -127,6 +130,7 @@ const OPENAI_EXCLUDE = ['instruct', 'realtime', 'audio', 'search']
 
 function isOpenAIChatModel(id: string): boolean {
   const lower = id.toLowerCase()
+  if (isRetiredOpenAIModel(`openai/${lower}`)) return false
   if (!OPENAI_CHAT_PREFIXES.some(p => lower.startsWith(p))) return false
   if (OPENAI_EXCLUDE.some(e => lower.includes(e))) return false
   return true
@@ -508,7 +512,7 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
     models.push(...(getCached(keyedCacheKey('anthropic', anthropicKey)) || FALLBACK_ANTHROPIC))
   }
   if (openaiKey) {
-    models.push(...(getCached(keyedCacheKey('openai', openaiKey)) || FALLBACK_OPENAI))
+    models.push(...filterCompatibleDiscoveredModels('openai', getCached(keyedCacheKey('openai', openaiKey)) || FALLBACK_OPENAI))
   }
   if (geminiKey) {
     models.push(...(getCached(keyedCacheKey('gemini', geminiKey)) || FALLBACK_GEMINI))

@@ -7,6 +7,7 @@ import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { CLAUDE_MODEL_ALIASES, executeAgentRuntimeTurn, resolveEnabledRuntimes, resolveRuntimeCliPath, type AgentRuntimeId, isRuntimeCancelledError } from './agent-runtime'
 import { withRegisteredTurn } from './agent-turns'
 import { getModelLifecycleEntry } from './openAiModelLifecycle'
+import { resolveActiveOpenAIModel } from './openai-model-retirements'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 
@@ -1026,8 +1027,10 @@ function resolveModel(requestedModel: string, providerOverride?: AIProvider, byo
   }
   const anthropicModel = getPreferredAnthropicGenerationModel()
   const preferredForProvider = resolveSystemGenerationModelForProvider(provider, systemPreferredModel, anthropicModel)
-  if (preferredForProvider) return preferredForProvider
-  if (provider === 'openai') return requestedModel
+  if (preferredForProvider) return provider === 'openai'
+    ? resolveActiveOpenAIModel(`openai/${preferredForProvider}`).replace(/^openai\//, '')
+    : preferredForProvider
+  if (provider === 'openai') return resolveActiveOpenAIModel(`openai/${requestedModel.replace(/^openai\//, '')}`).replace(/^openai\//, '')
   if (provider === 'gemini') return 'gemini-2.5-flash'
   // Map OpenAI models to Anthropic equivalents
   if (requestedModel.includes('gpt-4o-mini') || requestedModel.includes('gpt-4')) return anthropicModel
@@ -1046,7 +1049,7 @@ function stripProviderPrefix(model: string): string {
 export function shouldUseMaxCompletionTokens(model: string): boolean {
   if (model === CLI_RUNTIME_MODEL_SENTINEL) return false
   const { provider } = getAvailableProvider(_requestByokKeys)
-  return provider === 'openai' && /^gpt-5(?:-|$)/i.test(stripProviderPrefix(model))
+  return provider === 'openai' && /^gpt-[56](?:[.-]|$)/i.test(stripProviderPrefix(model))
 }
 
 function shouldOmitTemperature(model: string): boolean {

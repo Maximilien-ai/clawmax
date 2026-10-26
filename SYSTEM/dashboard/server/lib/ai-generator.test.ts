@@ -268,6 +268,7 @@ test('shouldUseMaxCompletionTokens enables GPT-5 token compatibility', () => {
   setRequestByokKeys({ openai: 'sk-test-openai-key' } as any)
   assert.strictEqual(shouldUseMaxCompletionTokens('gpt-5'), true)
   assert.strictEqual(shouldUseMaxCompletionTokens('openai/gpt-5'), true)
+  assert.strictEqual(shouldUseMaxCompletionTokens('gpt-5.5'), true)
   assert.strictEqual(shouldUseMaxCompletionTokens('gpt-4o'), false)
   setRequestByokKeys(undefined)
 })
@@ -283,6 +284,10 @@ test('buildResolvedModelRequestOptions uses max_completion_tokens for GPT-5 and 
   assert.strictEqual(gpt4o.model, 'gpt-4o')
   assert.strictEqual(gpt4o.max_tokens, 222)
   assert.strictEqual(gpt4o.max_completion_tokens, undefined)
+  const retired = buildResolvedModelRequestOptions('gpt-4', 250)
+  assert.strictEqual(retired.model, 'gpt-5.5')
+  assert.strictEqual(retired.max_completion_tokens, 250)
+  assert.strictEqual(retired.max_tokens, undefined)
   setRequestByokKeys(undefined)
 })
 
