@@ -1529,7 +1529,7 @@ function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onO
         <div data-tour="byok">
           <ByokWizard
             triggerLabel="BYOK"
-            triggerTitle="Configure model providers and local runtime"
+            triggerTitle="Configure model providers and default models"
             initialStep="models"
             openEventName="open-byok-wizard"
             suppressAutoOpen={onboardingVisible}
