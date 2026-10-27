@@ -42,6 +42,7 @@ import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '.
 import { isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
 import { assertTemplateRuntimeAdmitted } from '../lib/template-runtime-admission'
 import { executeDevHostSkillChat, isDevHostSkillChatReady } from './dev-host-skill-chat'
+import { checkOpenClawModelSupport } from '../lib/openclaw-model-catalog'
 
 const router = Router()
 const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
@@ -439,7 +440,11 @@ function formatUnsupportedModelError(raw: string, context?: ChatErrorContext): s
   const modelDetail = model ? `: \`${model}\`` : '.'
   const runtimeName = context?.runtimeLabel ? `${context.runtimeLabel} CLI` : 'installed OpenClaw runtime'
   const cause = `The model identifier is not recognized by the ${runtimeName}. It may have been removed or renamed, or it may belong to a provider that is not available in this deployment.`
-  const action = 'Choose a model listed by a configured provider, save the agent, and retry.'
+  // Dated snapshots of an aliased model are the common case: offer the id the runtime does list.
+  const support = context?.runtimeLabel ? undefined : checkOpenClawModelSupport(model)
+  const action = support?.status === 'unsupported' && support.replacement
+    ? `Change the agent's model to \`${support.replacement}\`, the id the installed OpenClaw runtime lists for it, save the agent, and retry.`
+    : 'Choose a model listed by a configured provider, save the agent, and retry.'
   const editLink = context?.agentId
     ? ` [Edit agent model](/agents?agent=${encodeURIComponent(context.agentId)}&action=edit)`
     : ''

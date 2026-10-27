@@ -15,6 +15,10 @@ import {
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { setOpenClawModelCatalogForTests } from '../lib/openclaw-model-catalog'
+
+// An OpenClaw installed on the machine must not change these messages; tests that need its catalog pin one.
+setOpenClawModelCatalogForTests(null)
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -113,6 +117,21 @@ test('deriveChatError surfaces unsupported models clearly', () => {
   assert(message.includes('`openai/gpt-super-pro`'), `Expected unsupported model identifier: ${message}`)
   assert(message.includes('/agents?agent=agent0&action=edit'), `Expected agent edit link: ${message}`)
   assert(/removed or renamed/i.test(message), `Expected explanatory remediation: ${message}`)
+})
+
+test('deriveChatError offers the runtime-listed id for an existing agent on a dated snapshot', () => {
+  // The exact runtime error from the CEO agent on OpenClaw 2026.9.7.
+  const raw = 'Unknown model: openai/gpt-5.4-mini-2026-03-17. Run `openclaw models list --refresh --provider openai` to inspect this provider\'s model choices, then retry with a model supported by your account.'
+  setOpenClawModelCatalogForTests({ version: '2026.9.7', providers: new Map([['openai', new Set(['gpt-5.5', 'gpt-5.4-mini'])]]) })
+  try {
+    const message = deriveChatError(raw, 'openai', { agentId: 'ceo', model: 'openai/gpt-5.4-mini-2026-03-17' })
+    assert(message.includes("Change the agent's model to `openai/gpt-5.4-mini`"), `Expected the explicit replacement: ${message}`)
+    assert(message.includes('/agents?agent=ceo&action=edit'), `Expected agent edit link: ${message}`)
+    const unknown = deriveChatError('Unknown model: openai/gpt-super-pro', 'openai', { agentId: 'agent0', model: 'openai/gpt-super-pro' })
+    assert(unknown.includes('Choose a model listed by a configured provider'), `No replacement may be invented: ${unknown}`)
+  } finally {
+    setOpenClawModelCatalogForTests(null)
+  }
 })
 
 testChain.then(() => {

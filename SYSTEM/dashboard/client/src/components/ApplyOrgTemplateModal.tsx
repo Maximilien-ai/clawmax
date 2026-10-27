@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { useToast } from './Toast'
 import { fetchModelsWithByok, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
-import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel, resolveNonDeprecatedOpenAiModel } from '../lib/openAiModelLifecycle'
+import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel, resolveOfferedDefaultModel } from '../lib/openAiModelLifecycle'
 import { CHANNEL_API_ENDPOINTS } from '../lib/channelApi'
 import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { ProductIconCell } from '../lib/productIcons'
@@ -631,10 +631,9 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
   const hasExecutionPath = hasChatExecutionAccess(executionConfig)
   const templateHasDefaultModel = agentsToCreate.some((agent) => !!agent.model?.trim())
   const browserPreferredModel = readStoredByokKeys().preferredModel?.trim() || ''
-  const resolvedDefaultModel = resolveNonDeprecatedOpenAiModel(
-    availableModels,
-    modelOverride || agentsToCreate.find((agent) => agent.model?.trim())?.model || executionConfig?.preferredModel || browserPreferredModel || executionConfig?.recommendedModel || ''
-  )
+  const resolvedDefaultModel = resolveOfferedDefaultModel(availableModels, [
+    modelOverride, agentsToCreate.find((agent) => agent.model?.trim())?.model, executionConfig?.preferredModel, browserPreferredModel, executionConfig?.recommendedModel,
+  ])
   const hasResolvedDefaultModel = !!resolvedDefaultModel
   const selectedModelDeprecation = formatOpenAiDeprecationNotice(modelOverride || resolvedDefaultModel)
   const applyBlockReason = !hasExecutionPath

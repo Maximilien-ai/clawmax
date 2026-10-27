@@ -6,6 +6,7 @@ import {
   getOpenAiModelReplacement,
   isSelectableLifecycleModel,
   resolveNonDeprecatedOpenAiModel,
+  resolveOfferedDefaultModel,
 } from './openAiModelLifecycle'
 
 function test(name: string, fn: () => void) {
@@ -74,4 +75,17 @@ test('keeps current deprecated selections visible in pickers', () => {
   assert.equal(resolveNonDeprecatedOpenAiModel(['openai/gpt-5.5', 'openai/gpt-4.1'], 'openai/gpt-4.1'), 'openai/gpt-4.1')
 })
 
-console.log('openAiModelLifecycle.test.ts: 9 tests passed')
+test('creation dialogs default to the first candidate the picker offers', () => {
+  // The picker holds what the installed runtime can run; a saved preference may predate that.
+  const offered = ['openai/gpt-5.4-mini', 'openai/gpt-5.5']
+  const rows: Array<[string[], Array<string | undefined>, string, string]> = [
+    [offered, [undefined, 'openai/gpt-5.4-mini-2026-03-17', 'openai/gpt-5.5'], 'openai/gpt-5.5', 'skips a preference the picker does not offer'],
+    [offered, ['openai/gpt-5.4-mini', 'openai/gpt-5.5'], 'openai/gpt-5.4-mini', 'keeps an explicit offered choice'],
+    [offered, ['', 'openai/gpt-5.4-mini-2026-03-17'], 'openai/gpt-5.4-mini-2026-03-17', 'keeps the first candidate when none is offered, so the server explains it'],
+    [[], ['openai/gpt-5.4-mini-2026-03-17', 'openai/gpt-5.5'], 'openai/gpt-5.4-mini-2026-03-17', 'does not judge before models load'],
+    [offered, [undefined, ''], '', 'no candidate, no default'],
+  ]
+  for (const [models, candidates, expected, label] of rows) assert.equal(resolveOfferedDefaultModel(models, candidates), expected, label)
+})
+
+console.log('openAiModelLifecycle.test.ts: 10 tests passed')
