@@ -4,7 +4,7 @@ ARG OPENCLAW_GIT_REF=v2026.9.7
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
-FROM --platform=$BUILDPLATFORM node:24.19.0-bookworm-slim AS openclaw-builder
+FROM --platform=$BUILDPLATFORM node:24.21.0-bookworm-slim AS openclaw-builder
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG OPENCLAW_GIT_REF
@@ -67,7 +67,7 @@ RUN node scripts/postinstall-bundled-plugins.mjs \
 # npm pack preserves workspace:* and makes the runtime npm install fail.
 RUN pnpm --config.ignore-scripts=true pack
 
-FROM --platform=$BUILDPLATFORM node:24.19.0-bookworm-slim AS builder
+FROM --platform=$BUILDPLATFORM node:24.21.0-bookworm-slim AS builder
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG CLAWMAX_VERSION
@@ -97,7 +97,7 @@ RUN retry() { \
 COPY SYSTEM/dashboard ./
 RUN npm run build
 
-FROM --platform=$TARGETPLATFORM node:24.19.0-bookworm-slim AS runtime
+FROM --platform=$TARGETPLATFORM node:24.21.0-bookworm-slim AS runtime
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 WORKDIR /app/SYSTEM/dashboard
