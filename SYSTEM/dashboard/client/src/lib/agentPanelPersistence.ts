@@ -8,7 +8,7 @@ export function readAgentPanelKeepOpen(): boolean {
 }
 
 /** One browser preference for agent details, configuration and both chat layouts. */
-export function useAgentPanelPersistence(onClose: () => void, canDismiss = true) {
+export function useAgentPanelPersistence(onClose: () => void, canDismiss = true, containFocus = false) {
   const [keepOpen, setKeepOpen] = useState(readAgentPanelKeepOpen)
   const panelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -44,6 +44,18 @@ export function useAgentPanelPersistence(onClose: () => void, canDismiss = true)
       if (event.target === event.currentTarget && !keepOpen && canDismiss) onClose()
     },
     onEscape(event: KeyboardEvent<HTMLElement>) {
+      if (containFocus && event.key === 'Tab' && !event.defaultPrevented) {
+        const panel = panelRef.current
+        if (!panel) return
+        const controls = Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'))
+          .filter(element => element.tabIndex >= 0 && element.getClientRects().length > 0)
+        const first = controls[0], last = controls[controls.length - 1]
+        if (!first || (event.shiftKey ? document.activeElement === first || document.activeElement === panel : document.activeElement === last || document.activeElement === panel)) {
+          event.preventDefault()
+          ;(event.shiftKey ? last : first)?.focus()
+        }
+        return
+      }
       if (event.key !== 'Escape' || event.defaultPrevented || !canDismiss) return
       event.preventDefault()
       event.stopPropagation()

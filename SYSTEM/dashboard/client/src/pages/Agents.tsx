@@ -2804,7 +2804,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
-  const panelPersistence = useAgentPanelPersistence(onClose, !saving)
+  const panelPersistence = useAgentPanelPersistence(onClose, !saving, true)
   const [error, setError] = React.useState<string | null>(null)
   const [warnings, setWarnings] = React.useState<string[]>([])
   const [validationErrors, setValidationErrors] = React.useState<string[]>([])
@@ -3094,14 +3094,17 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   }
 
   return (
-    <div ref={panelPersistence.panelRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4" onClick={panelPersistence.onBackdropClick} onKeyDown={panelPersistence.onEscape}>
+    <div ref={panelPersistence.panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-agent-config-title" tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4" onClick={panelPersistence.onBackdropClick} onKeyDown={panelPersistence.onEscape}>
       <div
         className="flex max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-800"
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-6 dark:border-gray-700">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Agent Config</h3>
+            <h3 id="edit-agent-config-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Agent Config</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{agent.name} <span className="font-mono text-xs">({agent.id})</span></p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -3784,7 +3787,7 @@ const AgentCard = React.memo(function AgentCard({
                       <div className="grid grid-cols-2 gap-1.5">
                         {onEdit && (
                           <button
-                            onClick={e => { e.stopPropagation(); onEdit(); setShowActionsMenu(false) }}
+                            onClick={e => { e.stopPropagation(); actionsButtonRef.current?.focus(); onEdit(); setShowActionsMenu(false) }}
                             className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
                           >
                             <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
@@ -4456,7 +4459,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                     <div className="grid grid-cols-2 gap-1.5">
                       {onEdit && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); onEdit(); setShowActionsMenu(false); }}
+                          onClick={(e) => { e.stopPropagation(); actionsButtonRef.current?.focus(); onEdit(); setShowActionsMenu(false); }}
                           className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
                         >
                           <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
@@ -4986,6 +4989,7 @@ const AgentTableView = React.memo(function AgentTableView({
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
+                            actionsButtonRefs.current[agent.id]?.focus()
                             setOpenDropdown(null)
                             onEdit(agent)
                           }}
