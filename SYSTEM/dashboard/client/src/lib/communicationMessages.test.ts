@@ -6,6 +6,7 @@ import {
   removeRespondedAgentsFromPending,
   resolveCommunicationDocPath,
   shouldUpdateChannelMessages,
+  cleanCommunicationMessage,
 } from './communicationMessages'
 
 function run() {
@@ -90,7 +91,42 @@ function run() {
     null
   )
 
-  console.log('communicationMessages.test.ts: 12 tests passed')
+  // A forwarded reply keeps its code: this panel's own filter used to empty every fenced JSON block
+  // and drop lines such as `Usage:` or a lone `}` wherever they appeared.
+  const forwarded = [
+    '**[Forwarded from Test Lead]**',
+    '',
+    '## Example response',
+    '',
+    '```json',
+    '{',
+    '  "status": "ok",',
+    '  "items": [1, 2]',
+    '}',
+    '```',
+    '',
+    'Usage: send the header shown above.',
+  ].join('\n')
+  assert.equal(cleanCommunicationMessage(forwarded), forwarded)
+  assert.equal(
+    cleanCommunicationMessage('FailoverError: Incorrect API key provided for openai'),
+    'Runtime auth error while contacting the configured model provider. Check the provider key/configuration and retry.',
+    'One-line runtime failures still read as a plain explanation',
+  )
+
+  const examples = [
+    '```text\nConnection error\n```',
+    '```json\n{"error":"FailoverError: Incorrect API key provided"}\n```',
+    '~~~text\nmodel fallback decision\nProvider example auth issue\n~~~',
+    'Use `Incorrect API key provided` as the example text.',
+    '`Connection error`',
+    'A Connection error means the example failed.',
+    'Connection error example:\n```text\nkeep config.json and this explanation\n```',
+  ]
+  for (const example of examples) {
+    assert.equal(cleanCommunicationMessage(example), example, 'Error-like phrases in examples must survive without blank separator lines')
+  }
+  console.log(`communicationMessages.test.ts: ${14 + examples.length} tests passed`)
 }
 
 run()
