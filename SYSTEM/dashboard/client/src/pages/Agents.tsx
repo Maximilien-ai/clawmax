@@ -4057,10 +4057,10 @@ const AgentCard = React.memo(function AgentCard({
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={e => { e.stopPropagation(); onManageCommunities(); }}
-                  className="text-xs px-1.5 py-0.5 rounded text-purple-600 hover:text-purple-700 hover:bg-purple-50 transition-colors font-medium"
+                  className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-purple-600 hover:text-purple-700 hover:bg-purple-50 transition-colors font-medium"
                   title="Manage communities & groups"
                 >
-                  🏘 Manage
+                  <ProductIconCell iconName="community" label="Communities and groups" size="sm" className="!h-4 !w-4 border-0 bg-transparent text-current dark:bg-transparent dark:text-current" /> Manage
                 </button>
                 {agent.whatsapp && (
                   <button

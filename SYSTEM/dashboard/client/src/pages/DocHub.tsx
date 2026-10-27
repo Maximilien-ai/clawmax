@@ -1,3 +1,4 @@
+import { ProductIconCell } from '../lib/productIcons'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -1411,7 +1412,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
         )}
         {!loading && !error && !selected && (
           <div className="flex flex-col items-center justify-center h-full text-gray-400">
-            <span className="text-4xl mb-4">📄</span>
+            <ProductIconCell iconName="docs" label="Document" size="lg" className="mb-4 border-0 bg-transparent text-gray-400 dark:bg-transparent dark:text-gray-400 [&>svg]:h-8 [&>svg]:w-8" />
             <p className="text-sm">Select a document to read</p>
           </div>
         )}
