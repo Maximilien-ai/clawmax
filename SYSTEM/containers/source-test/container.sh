@@ -29,8 +29,8 @@ assert_owned() {
   }
 }
 case "$operation" in
-  logs) assert_owned; exec podman logs --follow "$name" ;;
-  stop) assert_owned; exec podman stop --time 20 "$name" ;;
+  logs) assert_owned; podman logs --follow "$name"; exit 0 ;;
+  stop) assert_owned; podman stop --time 20 "$name"; exit 0 ;;
   remove)
     if exists; then assert_owned; podman rm --force "$name"; fi
     if podman volume exists "$volume"; then

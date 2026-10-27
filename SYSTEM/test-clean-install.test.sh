@@ -9,10 +9,13 @@ export TEST_VM_STATE="$fixture/machine"
 mkdir "$TEST_VM_STATE"
 cat > "$fixture/bin/podman" <<'SH'
 #!/usr/bin/env bash
+scoped=false
 if [ "${1:-}" = --connection ]; then
   [ "$2" = clawmax-test ] || exit 99
+  scoped=true
   shift 2
 fi
+case "$1" in machine|system) ;; *) [ "$scoped" = true ] || { echo 'FAIL: container command bypassed explicit connection' >&2; exit 98; } ;; esac
 printf '%s\n' "$*" >> "$TEST_LOG"
 case "$1 ${2:-}" in
   'machine inspect') [ -f "$TEST_VM_STATE/exists" ] ;;
@@ -62,6 +65,8 @@ grep -q '127.0.0.1:5181/api/health' "$TEST_LOG"
 TEST_EXISTS=true run > "$fixture/resume.log"
 grep -q 'Resuming clawmax-test with its recorded source/data' "$fixture/resume.log"
 if grep -Eq '^build |^run |^volume create' "$TEST_LOG"; then echo 'FAIL: resume replaced state'; exit 1; fi
+run logs >/dev/null
+run stop >/dev/null
 if TEST_RUNNING=false run > "$fixture/failure.log" 2>&1; then echo 'FAIL: exited container reported success'; exit 1; fi
 grep -q 'failed; container/data retained' "$fixture/failure.log"
 if grep -q '^READY:' "$fixture/failure.log"; then exit 1; fi
