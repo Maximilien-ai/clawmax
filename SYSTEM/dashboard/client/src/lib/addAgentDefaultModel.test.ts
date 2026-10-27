@@ -81,13 +81,13 @@ test('accepts AI suggested model when no current model is selected', () => {
   assert.equal(resolved, 'openai/gpt-4o-mini')
 })
 
-test('swaps deprecated preferred OpenAI snapshots for replacement models when available', () => {
+test('swaps retired preferred OpenAI models for active replacements when available', () => {
   const resolved = resolveAddAgentWizardDefaultModel({
-    models: ['openai/gpt-5', 'openai/gpt-5-2025-08-07'],
-    byok: { preferredModel: 'openai/gpt-5-2025-08-07' },
+    models: ['openai/gpt-5.5', 'openai/gpt-4'],
+    byok: { preferredModel: 'openai/gpt-4' },
     config: {},
   })
-  assert.equal(resolved, 'openai/gpt-5')
+  assert.equal(resolved, 'openai/gpt-5.5')
 })
 
 test('swaps deprecated Anthropic snapshots for replacement models when available', () => {

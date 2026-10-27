@@ -328,6 +328,17 @@ async function run() {
     assert(result.status === 'valid', 'Expected valid status')
   })
 
+  await test('validateGeminiKey sends the key in a header, never in the URL', async () => {
+    const requests: Array<{ url: string; headers: Record<string, string> }> = []
+    await validateGeminiKey(' gemini-secret-value ', (async (url: string, init?: RequestInit) => {
+      requests.push({ url: String(url), headers: (init?.headers || {}) as Record<string, string> })
+      return mockFetch(200)('https://unused.test')
+    }) as typeof fetch)
+    assert(requests.length === 1, 'Expected one validation request')
+    assert(!requests[0].url.includes('gemini-secret-value') && !requests[0].url.includes('key='), `Key must not be in the URL: ${requests[0].url}`)
+    assert(requests[0].headers['x-goog-api-key'] === 'gemini-secret-value', 'Expected the trimmed key in the x-goog-api-key header')
+  })
+
   await test('validateOpenRouterKey checks native catalog and completion endpoints', async () => {
     const requests: string[] = []
     const result = await validateOpenRouterKey('sk-or-test', (async (url: string) => {

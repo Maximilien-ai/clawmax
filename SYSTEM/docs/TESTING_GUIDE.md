@@ -303,6 +303,11 @@ That script is intended to exercise the same setup/start/test contract inside a 
 
 ## Pre-flight Checks
 
+For the current 2.0 source runtime, preparation requires Node.js 24.16+ on 24.x,
+or 26.1+. Setup/start prepare the pinned CLI; Doctor, direct tests and the Gateway
+watchdog reuse its completed cache. An explicit `OPENCLAW_BIN` takes precedence.
+Missing pnpm/Corepack is bootstrapped through npm into the local runtime cache.
+
 `test.sh` validates before running:
 - Node.js 22.19+
 - Dashboard dependencies installed

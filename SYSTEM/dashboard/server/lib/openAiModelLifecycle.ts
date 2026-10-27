@@ -1,3 +1,5 @@
+import { getOpenAIModelRetirement } from './openai-model-retirements'
+
 export type ModelLifecycleStatus = 'deprecated' | 'retired' | 'sunsetting'
 
 export type ProviderModelLifecycle = {
@@ -8,16 +10,10 @@ export type ProviderModelLifecycle = {
   sourceUrl: string
 }
 
-const OPENAI_DEPRECATIONS_URL = 'https://developers.openai.com/api/docs/deprecations'
 const ANTHROPIC_DEPRECATIONS_URL = 'https://platform.claude.com/docs/en/about-claude/model-deprecations'
 const GEMINI_DEPRECATIONS_URL = 'https://ai.google.dev/gemini-api/docs/deprecations'
 
 const MODEL_LIFECYCLE: Record<string, ProviderModelLifecycle> = {
-  'openai:gpt-4o': { providerLabel: 'OpenAI', status: 'retired', replacementModel: 'gpt-4.1', shutdownDate: '2026-07-01', sourceUrl: OPENAI_DEPRECATIONS_URL },
-  'openai:gpt-5-2025-08-07': { providerLabel: 'OpenAI', status: 'deprecated', replacementModel: 'gpt-5', shutdownDate: '2026-12-10', sourceUrl: OPENAI_DEPRECATIONS_URL },
-  'openai:gpt-5-mini-2025-08-07': { providerLabel: 'OpenAI', status: 'deprecated', replacementModel: 'gpt-5-mini', shutdownDate: '2026-12-10', sourceUrl: OPENAI_DEPRECATIONS_URL },
-  'openai:gpt-5-nano-2025-08-07': { providerLabel: 'OpenAI', status: 'deprecated', replacementModel: 'gpt-5-nano', shutdownDate: '2026-12-10', sourceUrl: OPENAI_DEPRECATIONS_URL },
-  'openai:gpt-5-pro-2025-10-06': { providerLabel: 'OpenAI', status: 'deprecated', replacementModel: 'gpt-5-pro', shutdownDate: '2026-12-10', sourceUrl: OPENAI_DEPRECATIONS_URL },
 
   'anthropic:claude-opus-4-1-20250805': { providerLabel: 'Anthropic', status: 'deprecated', replacementModel: 'claude-opus-4-8', shutdownDate: '2026-08-05', sourceUrl: ANTHROPIC_DEPRECATIONS_URL },
   'anthropic:claude-opus-4-20250514': { providerLabel: 'Anthropic', status: 'retired', replacementModel: 'claude-opus-4-8', shutdownDate: '2026-06-15', sourceUrl: ANTHROPIC_DEPRECATIONS_URL },
@@ -85,6 +81,7 @@ export function getModelLifecycleEntry(model?: string | null): ProviderModelLife
   const trimmed = normalize(model)
   if (!trimmed) return null
   const parsed = parseProviderModel(trimmed)
+  if (parsed.providerKey === 'openai') return getOpenAIModelRetirement(trimmed)
   return MODEL_LIFECYCLE[`${parsed.providerKey}:${parsed.baseModel}`] || null
 }
 

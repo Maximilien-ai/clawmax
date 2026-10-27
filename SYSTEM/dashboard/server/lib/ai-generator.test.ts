@@ -3,6 +3,8 @@ import fs from 'fs'
 import http from 'http'
 import os from 'os'
 import path from 'path'
+import { normalizeGeneratedWorkflowDraft, normalizeWorkflowContent } from './workflow-content'
+import { resetWorkspaceManagerForTests } from './workspace-manager'
 import {
   applyCompanyWorkflowExecutionDefaults,
   buildGeneratedExecutionSubteam,
@@ -21,6 +23,7 @@ import {
   extractJsonResponseText,
   generateBuilderStarterPromptsWithAI,
   generateCronFromText,
+  generateWorkflowFromNL,
   isOneTimeScheduleRequest,
   normalizeGeneratedSkillScaffold,
   normalizeGeneratedAgentMeta,
@@ -58,6 +61,59 @@ function test(name: string, fn: () => void | Promise<void>) {
 }
 
 console.log('\n\x1b[33m=== AI Generator Test Suite ===\x1b[0m\n')
+
+test('generated workflow content becomes Markdown while metadata stays intact', () => {
+  const draft = { name: 'Daily check', schedule: '0 9 * * *', timezone: 'America/Toronto',
+    targeting: { agents: ['analyst'] }, content: { objective: 'Check status', steps: ['Read the report', 'Publish findings'], waitSeconds: 60 } }
+  const result = normalizeGeneratedWorkflowDraft(draft)
+  assert.strictEqual(typeof result.content, 'string')
+  assert.match(result.content, /## objective\n\nCheck status/)
+  assert.match(result.content, /1\. Read the report/)
+  assert.match(result.content, /2\. Publish findings/)
+  assert.match(result.content, /wait Seconds\n\n60/)
+  assert(!result.content.includes('[object Object]'))
+  assert.strictEqual(result.schedule, draft.schedule)
+  assert.strictEqual(result.timezone, draft.timezone)
+  assert.deepStrictEqual(result.targeting, draft.targeting)
+})
+
+test('workflow content preserves Markdown and unwraps structured Markdown responses', () => {
+  const markdown = '# Instructions\n\n```json\n{"status":"ok"}\n```\n'
+  assert.strictEqual(normalizeWorkflowContent(markdown), markdown)
+  assert.strictEqual(normalizeWorkflowContent({ markdown }), markdown)
+  assert.match(normalizeWorkflowContent([{ action: 'Check status' }, { action: 'Report status' }]), /Report status/)
+})
+
+test('invalid generated workflow instructions fail clearly instead of creating an unsavable form', () => {
+  for (const content of [undefined, null, '', '  ', '[object Object]', {}, [], 42, false]) {
+    assert.throws(() => normalizeGeneratedWorkflowDraft({ name: 'Empty draft', content }), /did not return workflow instructions/)
+  }
+  assert.throws(() => normalizeGeneratedWorkflowDraft(null as any), /did not return a workflow definition/)
+})
+
+test('workflow generation normalizes the actual provider response before returning a draft', async () => {
+  const server = http.createServer((_request, response) => {
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+      name: 'Daily status', schedule: '0 9 * * *', timezone: 'America/Toronto',
+      targeting: { agents: ['analyst'] }, content: { instructions: ['Check status', 'Publish a report'] },
+    }) } }] }))
+  })
+  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
+  const address = server.address() as { port: number }
+  try {
+    setRequestByokKeys({ openaiCompatibleBaseUrl: `http://127.0.0.1:${address.port}/v1`, openaiCompatibleDefaultModel: 'fixture-model' })
+    const draft = await generateWorkflowFromNL('Check status daily', ['analyst'], [])
+    assert.strictEqual(typeof draft.content, 'string')
+    assert.match(draft.content, /1\. Check status/)
+    assert.match(draft.content, /2\. Publish a report/)
+    assert.deepStrictEqual(draft.targeting.agents, ['analyst'])
+  } finally {
+    setRequestByokKeys(undefined)
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+    resetWorkspaceManagerForTests()
+  }
+})
 
 test('OpenAI-compatible base URL trims trailing slashes without changing its path', () => {
   const selected = buildClientForSelection({ provider: 'openai-compatible', key: 'test-key', baseUrl: 'https://example.test/v1////', defaultModel: 'test-model' })
@@ -268,6 +324,7 @@ test('shouldUseMaxCompletionTokens enables GPT-5 token compatibility', () => {
   setRequestByokKeys({ openai: 'sk-test-openai-key' } as any)
   assert.strictEqual(shouldUseMaxCompletionTokens('gpt-5'), true)
   assert.strictEqual(shouldUseMaxCompletionTokens('openai/gpt-5'), true)
+  assert.strictEqual(shouldUseMaxCompletionTokens('gpt-5.5'), true)
   assert.strictEqual(shouldUseMaxCompletionTokens('gpt-4o'), false)
   setRequestByokKeys(undefined)
 })
@@ -283,6 +340,10 @@ test('buildResolvedModelRequestOptions uses max_completion_tokens for GPT-5 and 
   assert.strictEqual(gpt4o.model, 'gpt-4o')
   assert.strictEqual(gpt4o.max_tokens, 222)
   assert.strictEqual(gpt4o.max_completion_tokens, undefined)
+  const retired = buildResolvedModelRequestOptions('gpt-4', 250)
+  assert.strictEqual(retired.model, 'gpt-5.5')
+  assert.strictEqual(retired.max_completion_tokens, 250)
+  assert.strictEqual(retired.max_tokens, undefined)
   setRequestByokKeys(undefined)
 })
 

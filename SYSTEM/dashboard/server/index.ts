@@ -293,7 +293,8 @@ const globalLimiter = rateLimit({
     authBypassMode
     || (req.method === 'GET' && /^\/api\/workspaces\/[^/]+\/export$/.test(req.path)),
   handler: (req, res, _next, options) => {
-    console.warn(`[rate-limit] global limiter exceeded for ${req.method} ${req.originalUrl} ip=${req.ip}`)
+    // The path only: a query string can carry a credential a client put there.
+    console.warn(`[rate-limit] global limiter exceeded for ${req.method} ${req.originalUrl.split('?')[0]} ip=${req.ip}`)
     res.status(options.statusCode).json({ error: 'Too many requests, please try again later' })
   },
 })
@@ -786,7 +787,8 @@ app.post('/api/docs/content', protect, async (req, res) => {
     const isRepo = await git.checkIsRepo()
 
     if (isRepo) {
-      await git.add(relPath)
+      // `--`: a document named `--pathspec-from-file=x.md` is a path, not an option.
+      await git.add(['--', relPath])
       const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0]
       const commitMessage = `docs: Update ${relPath}\n\nEdited via ClawMax Dashboard at ${timestamp}`
       await git.commit(commitMessage)

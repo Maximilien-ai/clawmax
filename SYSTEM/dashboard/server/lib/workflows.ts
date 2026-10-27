@@ -1,8 +1,10 @@
 import fs from 'fs'
+import { isPlainPathSegment } from './path-segment'
 import { openClawStatePath } from './openclaw-profile-paths'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
 import path from 'path'
 import matter from 'gray-matter'
+import { parseFrontMatter } from './front-matter'
 import cronstrue from 'cronstrue'
 import { execFile, execFileSync, spawn } from 'child_process'
 import { promisify } from 'util'
@@ -28,7 +30,7 @@ import { resolveOpenClawCliPath } from './openclaw-cli'
 import { createBrokerCapabilityToken } from './skill-secret-broker'
 import { executeAgentRuntimeTurn, isRuntimeCancelledError } from './agent-runtime'
 import { hasRuntimeSession } from './runtime-sessions'
-import { withRegisteredTurn } from './agent-turns'
+import { cancelTurn, withRegisteredTurn } from './agent-turns'
 import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from './process-tree'
 
 // Use dynamic workspace path to support multi-workspace
@@ -564,6 +566,10 @@ export function deriveWorkflowExecutionOutputs(
   }
 }
 
+// Ids and output keys become file and directory names below WORKFLOWS/; they come from request bodies,
+// imported workflow files and other workflows' `inputRefs`, so each must stay one path segment.
+const WORKFLOW_ID_PATTERN = /^[a-z0-9-]+$/
+
 export function persistWorkflowExecutionOutputArtifacts(
   workflowId: string,
   outputs?: WorkflowExecution['outputs'],
@@ -577,7 +583,7 @@ export function persistWorkflowExecutionOutputArtifacts(
       if (!output || output.artifactPath) return [key, output]
 
       const normalizedKey = `${key || ''}`.trim()
-      if (!normalizedKey) return [key, output]
+      if (!isPlainPathSegment(normalizedKey) || !WORKFLOW_ID_PATTERN.test(workflowId)) return [key, output]
 
       if ((output.type === 'markdown' || output.type === 'text') && typeof output.value === 'string' && output.value.trim()) {
         const extension = output.type === 'markdown' ? 'md' : 'txt'
@@ -1157,7 +1163,7 @@ function getRecursiveDownstreamWorkflowIds(workflowId: string, workflows: Workfl
  */
 export function parseWorkflowMd(content: string, id?: string): Workflow | null {
   try {
-    const { data, content: body } = matter(content)
+    const { data, content: body } = parseFrontMatter(content)
     if (!data.name && !id) return null
 
     return {
@@ -1220,6 +1226,21 @@ export function workflowToMarkdown(workflow: Workflow): string {
   if (workflow.inputRefs?.length) fm.inputRefs = workflow.inputRefs
 
   return matter.stringify(workflow.content || '', fm)
+}
+
+/**
+ * An unknown IANA zone passes the schema (any non-empty string) but makes node-cron throw while
+ * scheduling, after the workflow was saved. Null when the zone is absent or valid.
+ */
+export function invalidWorkflowTimezoneError(timezone: unknown): string | null {
+  if (timezone === undefined || timezone === null || timezone === '') return null
+  if (typeof timezone === 'string') {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone })
+      return null
+    } catch {}
+  }
+  return `Invalid timezone "${String(timezone)}": use an IANA time zone such as UTC or America/New_York`
 }
 
 // Helper: Validate cron expression
@@ -1510,7 +1531,7 @@ export function listWorkflowTemplates(): Workflow[] {
     const filePath = path.join(templatesDir, file)
     try {
       const content = fs.readFileSync(filePath, 'utf-8')
-      const { data, content: markdownContent } = matter(content)
+      const { data, content: markdownContent } = parseFrontMatter(content)
 
       const template: Workflow = {
         id: path.basename(file, '.md'),
@@ -1555,7 +1576,7 @@ export function getWorkflow(id: string): Workflow | null {
 
   try {
     const fileContent = fs.readFileSync(filePath, 'utf-8')
-    const { data, content } = matter(fileContent)
+    const { data, content } = parseFrontMatter(fileContent)
 
     return reconcileWorkflowStateFromExecutions({
       id,
@@ -1611,6 +1632,10 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       if (!cronValidation.valid) {
         return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }
       }
+    }
+    const timezoneError = invalidWorkflowTimezoneError(data.timezone)
+    if (timezoneError) {
+      return { success: false, error: timezoneError }
     }
 
     // Schema validation passed — these fields are guaranteed present
@@ -1711,6 +1736,10 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
       if (!cronValidation.valid) {
         return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }
       }
+    }
+    const timezoneError = invalidWorkflowTimezoneError(data.timezone)
+    if (timezoneError) {
+      return { success: false, error: timezoneError }
     }
 
     const updated: Workflow = {
@@ -1855,6 +1884,7 @@ export function resolveParticipants(workflow: Workflow, agents: any[], teams: Te
 
 // List executions for a workflow
 export function listExecutions(workflowId: string, limit: number = 10): WorkflowExecution[] {
+  if (!WORKFLOW_ID_PATTERN.test(workflowId)) return []
   const executionDir = path.join(getExecutionsDir(), workflowId)
 
   if (!fs.existsSync(executionDir)) {
@@ -1892,6 +1922,7 @@ export function getLatestExecution(workflowId: string): WorkflowExecution | null
 
 // Get single execution
 export function getExecution(workflowId: string, executionId: string): WorkflowExecution | null {
+  if (!WORKFLOW_ID_PATTERN.test(workflowId) || !/^[a-zA-Z0-9_-]+$/.test(executionId)) return null
   const filePath = path.join(getExecutionsDir(), workflowId, `${executionId}.json`)
 
   if (!fs.existsSync(filePath)) {
@@ -2320,6 +2351,8 @@ export function triggerWorkflow(workflowId: string, options?: {
           const agentResponse = await withRegisteredTurn(participant.agentId, (turn) => runExclusiveAgentExecution(participant.agentId, async () => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             if (resolvedAgent.runtime !== 'openclaw') {
+              // Stopped while this step waited for the agent's lock, as the openclaw path checks too.
+              if (isExecutionCancelled(executionId)) throw new Error('Workflow execution was cancelled')
               // 2.0 builds executionEnv per attempt inside executeAttempt(), so the runtime path
               // builds its own provider-isolated env instead of reusing an outer binding that no
               // longer exists. Mirrors executeAttempt() so claude/droid agents get the same
@@ -2351,21 +2384,35 @@ export function triggerWorkflow(workflowId: string, options?: {
 
               const runtimeSessionId = buildWorkflowSessionId(executionId, participant.agentId)
               const startedAt = Date.now()
-              const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
-                runtime: resolvedAgent.runtime,
-                agentId: participant.agentId,
-                agentDir: resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', participant.agentId),
-                message: executionMessage,
-                scopedSessionId: runtimeSessionId,
-                model: resolvedAgent.model,
-                mode: 'json',
-                env: runtimeExecutionEnv,
-                // No deadline: a workflow step runs until it finishes or is cancelled. The registered
-                // turn's signal is the only way this ever stops early -- a throwaway
-                // `new AbortController().signal` here was a signal nothing could ever call abort() on.
-                signal: turn.signal,
-                onActivity: turn.touch,
-              })
+              // An operator's Stop (cancelExecution) reaches this step through its turn: claude/droid run
+              // no process the openclaw canceller knows about, so Stop marked the run cancelled while the
+              // step kept working and the workflow refused new runs until it finished.
+              const executionProcesses = activeExecutionProcesses.get(executionId) || new Set<() => void>()
+              const cancelThisStep = () => { cancelTurn(turn.turnId) }
+              executionProcesses.add(cancelThisStep)
+              activeExecutionProcesses.set(executionId, executionProcesses)
+              let runtimeTurn: Awaited<ReturnType<typeof executeAgentRuntimeTurn>>
+              try {
+                runtimeTurn = await executeAgentRuntimeTurn({
+                  runtime: resolvedAgent.runtime,
+                  agentId: participant.agentId,
+                  agentDir: resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', participant.agentId),
+                  message: executionMessage,
+                  scopedSessionId: runtimeSessionId,
+                  model: resolvedAgent.model,
+                  mode: 'json',
+                  env: runtimeExecutionEnv,
+                  // No deadline: a workflow step runs until it finishes or is cancelled. The registered
+                  // turn's signal is the only way this ever stops early -- a throwaway
+                  // `new AbortController().signal` here was a signal nothing could ever call abort() on.
+                  signal: turn.signal,
+                  onActivity: turn.touch,
+                })
+              } finally {
+                executionProcesses.delete(cancelThisStep)
+                if (executionProcesses.size === 0) activeExecutionProcesses.delete(executionId)
+              }
+              const { text, errorText, missingCliError } = runtimeTurn
               if (missingCliError) throw new Error(missingCliError)
               if (errorText) {
                 throw new Error(isRuntimeCancelledError(errorText) ? 'Workflow step was stopped.' : errorText)

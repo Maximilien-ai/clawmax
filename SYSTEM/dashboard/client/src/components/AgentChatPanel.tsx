@@ -1,5 +1,5 @@
 import { channelLabel } from '../lib/channelLabel'
-import { useEffect, useLayoutEffect, useState, useRef, useCallback, type ChangeEvent } from 'react'
+import { useEffect, useLayoutEffect, useState, useRef, useCallback, type ChangeEvent, type KeyboardEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { nextChatFollowState } from '../lib/agentChatScroll'
@@ -11,6 +11,9 @@ import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
 import { forwardChatMessage, loadForwardTargets, type ForwardTarget } from '../lib/agentChatForward'
+import { useDismissiblePopover } from '../lib/dismissiblePopover'
+import { useAgentPanelPersistence } from '../lib/agentPanelPersistence'
+import { KeepAgentPanelOpenButton } from './KeepAgentPanelOpenButton'
 import { appendAgentInboxAttachmentContext, buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, type AgentInboxAttachmentRef } from '../lib/agentInbox'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { createPromptAttachment } from '../lib/promptAttachments'
@@ -232,6 +235,7 @@ export function splitTrailingSystemNotice(content: string): { text: string; noti
 }
 
 export default function AgentChatPanel({ agentId, agentName, agentStatus, agentGeneration, onClose, onSuccess, onNavigateToDoc }: Props) {
+  const panelPersistence = useAgentPanelPersistence(onClose)
   const { config } = useAuth()
   const { showSuccess, showError } = useToast()
   // Staged Template Agents can only chat when their server-owned dev runtime
@@ -264,6 +268,20 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [forwardingTo, setForwardingTo] = useState<string | null>(null)
   const [forwardError, setForwardError] = useState<string | null>(null)
   const [forwardMenuAlign, setForwardMenuAlign] = useState<'left' | 'right'>('right')
+  // Only the open picker's elements carry these refs; one picker is open at a time.
+  const forwardRootRef = useRef<HTMLDivElement | null>(null)
+  const forwardTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const forwardMenuRef = useRef<HTMLDivElement | null>(null)
+  const forwardOpenedByKeyboardRef = useRef(false)
+  const closeForwardPicker = useCallback(() => setForwardTargetMsgId(null), [])
+  const forwardPopover = useDismissiblePopover({
+    open: forwardTargetMsgId !== null,
+    onClose: closeForwardPicker,
+    rootRef: forwardRootRef,
+    triggerRef: forwardTriggerRef,
+    // Stay open while a forward is sending, so a failure is reported where it was started.
+    holdOpen: forwardingTo !== null,
+  })
   const [isSlideMode, setIsSlideMode] = useState(() => {
     // Load saved preference from localStorage
     const saved = localStorage.getItem(`agent-chat-mode-${agentId}`)
@@ -969,12 +987,38 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
   // Opens toward the side with room: a short reply's Forward button sits near the panel's left edge,
   // where a menu opening leftwards was cut off by the scrolling message list.
-  function openForwardPicker(messageId: string, anchor: HTMLElement) {
+  function openForwardPicker(messageId: string, anchor: HTMLElement, byKeyboard: boolean) {
+    forwardOpenedByKeyboardRef.current = byKeyboard
     const viewport = anchor.closest('.overflow-y-auto')?.getBoundingClientRect()
     setForwardMenuAlign(viewport && anchor.getBoundingClientRect().right - FORWARD_MENU_WIDTH_PX < viewport.left + 8 ? 'left' : 'right')
     setForwardTargetMsgId(messageId)
     setForwardError(null)
     void refreshForwardTargets()
+  }
+
+  const forwardMenuItems = () => Array.from(forwardMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') || [])
+
+  // Opened from the keyboard, focus the first target once one is listed (targets load on open).
+  useEffect(() => {
+    if (!forwardTargetMsgId || !forwardOpenedByKeyboardRef.current) return
+    const [first] = forwardMenuItems()
+    if (!first) return
+    first.focus()
+    forwardOpenedByKeyboardRef.current = false
+  }, [forwardTargetMsgId, forwardTargets.targets.length])
+
+  // Menu-button keyboard pattern: arrows move between targets (wrapping), Home and End jump.
+  function handleForwardKeyDown(event: KeyboardEvent) {
+    if (!forwardTargetMsgId || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    const items = forwardMenuItems()
+    if (items.length === 0) return
+    event.preventDefault()
+    const current = items.indexOf(document.activeElement as HTMLButtonElement)
+    const next = event.key === 'Home' ? 0
+      : event.key === 'End' ? items.length - 1
+        : event.key === 'ArrowDown' ? (current + 1) % items.length
+          : current <= 0 ? items.length - 1 : current - 1
+    items[next].focus()
   }
 
   async function forwardToGroup(target: ForwardTarget) {
@@ -1124,7 +1168,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
   if (gatewayAvailable === false) {
     return (
-      <div className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`}>
+      <div ref={panelPersistence.panelRef} tabIndex={-1} className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`} onClick={panelPersistence.onBackdropClick} onKeyDown={panelPersistence.onEscape}>
         <div className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full w-full sm:w-[600px] absolute right-0 top-0' : 'rounded-xl w-full sm:w-[600px] mx-2 sm:mx-0'} p-4 sm:p-6`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Agent Chat: {agentName}</h2>
@@ -1136,7 +1180,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               >
                 {isSlideMode ? '◧' : '»'}
               </button>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl p-2 min-w-[40px] min-h-[40px] flex items-center justify-center">×</button>
+              <KeepAgentPanelOpenButton keepOpen={panelPersistence.keepOpen} onToggle={panelPersistence.toggleKeepOpen} />
+              <button onClick={onClose} aria-label="Close chat" className="text-gray-400 hover:text-gray-600 text-xl p-2 min-w-[40px] min-h-[40px] flex items-center justify-center">×</button>
             </div>
           </div>
           <div className="text-center py-8">
@@ -1176,15 +1221,31 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
   const downloadState = getAgentChatDownloadState(messages, loadingHistory, streaming)
 
+  function handlePanelEscape(event: React.KeyboardEvent<HTMLElement>) {
+    if (event.key !== 'Escape' || event.defaultPrevented) return
+    // Dismiss the innermost surface before closing the conversation beneath it.
+    const dismissChild = forwardTargetMsgId !== null ? () => {
+      forwardTriggerRef.current?.focus()
+      setForwardTargetMsgId(null)
+    }
+      : deleteConfirm !== null ? () => setDeleteConfirm(null)
+        : showClearConfirm ? () => setShowClearConfirm(false)
+          : viewingArchive !== null ? () => setViewingArchive(null)
+            : showArchives ? () => setShowArchives(false) : null
+    if (dismissChild) {
+      event.preventDefault()
+      event.stopPropagation()
+      dismissChild()
+    } else panelPersistence.onEscape(event)
+  }
+
   return (
     <div
+      ref={panelPersistence.panelRef}
+      tabIndex={-1}
       className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`}
-      onClick={(e) => {
-        // Close when clicking outside panel (backdrop)
-        if (e.target === e.currentTarget) {
-          onClose()
-        }
-      }}
+      onClick={panelPersistence.onBackdropClick}
+      onKeyDown={handlePanelEscape}
     >
       <div
         className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full absolute right-0 top-0' : 'rounded-xl h-[90vh] sm:h-[600px]'} w-full sm:w-[700px] flex flex-col`}
@@ -1208,8 +1269,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               <ProductIconCell iconName="download" label={downloadState.title} size="sm" className="border-transparent bg-transparent text-current" />
               <span>Download</span>
             </button>
+            <KeepAgentPanelOpenButton keepOpen={panelPersistence.keepOpen} onToggle={panelPersistence.toggleKeepOpen} />
             <button
               onClick={onClose}
+              aria-label="Close chat"
               className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
             >
               <ProductIconCell iconName="close" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
@@ -1422,29 +1485,38 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                 )}
 
                 {/* Action buttons on hover */}
-                <div className="absolute -bottom-2 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className={`absolute -bottom-2 right-0 flex items-center gap-1 ${forwardTargetMsgId === msg.id ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 focus-within:opacity-100 transition-opacity`}>
                   {/* Forward to group */}
                   <div
+                    ref={forwardTargetMsgId === msg.id ? forwardRootRef : undefined}
                     className="relative"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape' && forwardTargetMsgId === msg.id) {
-                        e.stopPropagation()
-                        setForwardTargetMsgId(null)
-                      }
-                    }}
+                    onKeyDown={handleForwardKeyDown}
+                    {...(forwardTargetMsgId === msg.id ? forwardPopover : {})}
                   >
                     <button
-                      onClick={(e) => { e.stopPropagation(); forwardTargetMsgId === msg.id ? setForwardTargetMsgId(null) : openForwardPicker(msg.id, e.currentTarget) }}
+                      ref={forwardTargetMsgId === msg.id ? forwardTriggerRef : undefined}
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); forwardTargetMsgId === msg.id ? setForwardTargetMsgId(null) : openForwardPicker(msg.id, e.currentTarget, e.detail === 0) }}
                       className="bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 rounded-full p-1.5 shadow-md hover:bg-purple-50 dark:hover:bg-purple-900/30"
                       title="Forward to group"
+                      aria-label="Forward message"
+                      aria-haspopup="menu"
+                      aria-expanded={forwardTargetMsgId === msg.id}
+                      aria-controls={forwardTargetMsgId === msg.id ? `forward-menu-${msg.id}` : undefined}
                     >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                       </svg>
                     </button>
                     {forwardTargetMsgId === msg.id && (
-                      <div className={`absolute bottom-full ${forwardMenuAlign === 'left' ? 'left-0' : 'right-0'} mb-1 w-48 max-h-40 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50`}>
-                        <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase">Forward to</div>
+                      <div
+                        ref={forwardMenuRef}
+                        id={`forward-menu-${msg.id}`}
+                        role="menu"
+                        aria-label="Forward to"
+                        className={`absolute bottom-full ${forwardMenuAlign === 'left' ? 'left-0' : 'right-0'} mb-1 w-48 max-h-40 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50`}
+                      >
+                        <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase" aria-hidden="true">Forward to</div>
                         {forwardTargets.targets.length === 0 && forwardTargets.status === 'loading' && (
                           <div className="px-3 py-2 text-xs text-gray-400" role="status">Loading...</div>
                         )}
@@ -1463,11 +1535,13 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                         {forwardTargets.targets.map(g => (
                           <button
                             key={`${g.type}:${g.name}`}
+                            type="button"
+                            role="menuitem"
                             onClick={() => forwardToGroup(g)}
                             disabled={forwardingTo === `${g.type}:${g.name}`}
-                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 focus:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500 dark:hover:bg-gray-700 dark:focus:bg-gray-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
                           >
-                            <span className="text-gray-400">{g.type === 'community' ? '🏘' : '👥'}</span>
+                            <span className="text-gray-400" aria-hidden="true">{g.type === 'community' ? '🏘' : '👥'}</span>
                             <span className="truncate text-gray-700 dark:text-gray-200">{channelLabel(g)}</span>
                             {forwardingTo === `${g.type}:${g.name}` && <span className="text-[10px] text-gray-400">sending...</span>}
                           </button>
@@ -1612,6 +1686,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                   e.preventDefault()
                   sendMessage()
                 } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  e.stopPropagation()
                   if (streaming) {
                     cancelStreaming()
                   } else {

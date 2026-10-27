@@ -4,6 +4,7 @@ import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import PromptQualityPanel from '../components/PromptQualityPanel'
 import { useToast } from '../components/Toast'
 import WorkflowEditorDialog from '../components/WorkflowEditorDialog'
+import { normalizeGeneratedWorkflowDraft } from '../../../server/lib/workflow-content'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { byokForRequest, readStoredByokKeys, getAiGenerationReadiness, hasAiGenerationAccess } from '../lib/byok'
@@ -1294,7 +1295,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       })
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || 'Generation failed')
-      setAiInitialData(data.workflow)
+      setAiInitialData(normalizeGeneratedWorkflowDraft(data.workflow))
       setShowAiPrompt(false)
       setShowEditorDialog(true)
       setAiPromptText('')
@@ -1335,7 +1336,11 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           author: 'dashboard',
           executionMode: data.executionMode,
           owner: data.owner,
-          content: data.content
+          content: data.content,
+          // The editor's run limit and handoff settings; leaving them out saved the workflow without them.
+          maxRuns: data.maxRuns || 0,
+          outputDefinitions: data.outputDefinitions,
+          inputRefs: data.inputRefs,
         })
       })
 
@@ -1369,7 +1374,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           executionMode: data.executionMode,
           owner: data.owner,
           content: data.content,
-          maxRuns: data.maxRuns || 0
+          maxRuns: data.maxRuns || 0,
+          outputDefinitions: data.outputDefinitions,
+          inputRefs: data.inputRefs,
         })
       })
 

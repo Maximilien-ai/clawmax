@@ -1,4 +1,6 @@
-import { __test, clearModelCache, discoverModels, FALLBACK_OPENAI } from './model-discovery'
+import { __test, clearModelCache, discoverModels, getAvailableModelsCached, FALLBACK_OPENAI } from './model-discovery'
+import { getOpenAIModelRetirement } from './openai-model-retirements'
+import { modelDiscoveryEndpoint, ModelEndpointPolicyError } from './model-endpoint-policy'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -9,6 +11,8 @@ let testsPassed = 0
 let testsFailed = 0
 let testChain: Promise<void> = Promise.resolve()
 const originalFetch = global.fetch
+const originalOrigins = process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS
+process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS = 'https://models.example.com,https://ollama.example.invalid,https://compatible.example.invalid'
 
 function test(name: string, fn: () => void | Promise<void>) {
   testChain = testChain.then(async () => {
@@ -30,7 +34,35 @@ function assert(condition: boolean, message: string) {
 
 console.log(`\n${YELLOW}=== Model Discovery Test Suite ===${RESET}\n`)
 
-test('OpenAI discovery preserves older and newer provider-advertised chat models', () => {
+test('cache identities are stable within a process and separate providers and credentials', () => {
+  const first = __test.keyedCacheKey('openai', 'fixture-key-one')
+  assert(first === __test.keyedCacheKey('openai', ' fixture-key-one '), 'A credential must retain its cache partition')
+  assert(first !== __test.keyedCacheKey('openai', 'fixture-key-two'), 'Different credentials must not share a cache partition')
+  assert(first.split(':')[1] !== __test.keyedCacheKey('anthropic', 'fixture-key-one').split(':')[1], 'Provider context must separate derived identities')
+  assert(!first.includes('fixture-key'), 'The cache must not retain a raw credential in its key')
+})
+
+test('model endpoint policy confines origins and does not forward credentials to arbitrary servers', async () => {
+  for (const value of ['http://169.254.169.254/latest/meta-data', 'http://2130706433:3001/api',
+    'https://unapproved.example/v1', 'https://models.example.com.attacker.invalid/v1',
+    'https://user:secret@models.example.com/v1', 'file:///etc/passwd',
+    'https://models.example.com/v1?token=secret', 'https://models.example.com/v1#fragment']) {
+    let rejected = false
+    try { modelDiscoveryEndpoint(value, '/models') } catch (error) { rejected = error instanceof ModelEndpointPolicyError }
+    assert(rejected, 'Expected forbidden endpoint rejection')
+  }
+  assert(modelDiscoveryEndpoint('https://models.example.com//another-service', '/models') === 'https://models.example.com//another-service/models', 'Double slash in path must not change the trusted origin')
+  let requests = 0
+  global.fetch = (async (url: string, init: any) => {
+    if (String(url).includes('unapproved.example') || init?.headers?.Authorization?.includes('private-key')) requests++
+    throw new Error('Synthetic offline provider')
+  }) as any
+  let rejected = false
+  try { await discoverModels({ openaiCompatibleBaseUrl: 'https://unapproved.example', openaiCompatibleApiKey: 'private-key' }) } catch (error) { rejected = error instanceof ModelEndpointPolicyError }
+  assert(rejected && requests === 0, 'No unapproved discovery request or credentials may leave the server')
+})
+
+test('OpenAI discovery preserves active older and newer provider-advertised chat models', () => {
   const filtered = __test.filterCompatibleDiscoveredModels('openai', [
     'openai/gpt-5',
     'openai/gpt-5.5',
@@ -47,11 +79,56 @@ test('OpenAI discovery never treats the offline fallback as an allowlist, includ
   assert(JSON.stringify(FALLBACK_OPENAI) === JSON.stringify(approved), 'Fallback must only offer approved GPT-5.5')
   for (const showAll of [false, true]) {
     const filtered = __test.filterCompatibleDiscoveredModels('openai', [
-      ...approved, 'openai/gpt-5.3-chat-latest', 'openai/gpt-5.3-codex',
+      ...approved, 'openai/gpt-5.3', 'openai/gpt-5.3-codex',
       'openai/gpt-5.4', 'openai/gpt-5.4-mini', 'openai/gpt-5.4-nano', 'openai/gpt-5.4-pro',
       'openai/gpt-5.5-invented', 'openai/o3', 'openai/gpt-5.40', 'openai/gpt-5',
     ], showAll)
     assert(filtered.length === 11, 'All supplied chat model ids must remain selectable without hardcoded admission')
+  }
+})
+
+test('retired OpenAI models stay hidden in normal and advanced catalogs', () => {
+  const retired = ['gpt-4', 'gpt-4-0613', 'gpt-4-turbo', 'gpt-4-turbo-2024-04-09',
+    'gpt-3.5-turbo', 'gpt-3.5-turbo-0125', 'gpt-4.5-preview', 'gpt-4.1-nano',
+    'gpt-4o-2024-05-13', 'chatgpt-4o-latest', 'gpt-5.3-chat-latest', 'o3-mini']
+    .map(id => `openai/${id}`)
+  const active = ['openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/gpt-4.1', 'openai/gpt-4.1-mini', 'openai/gpt-5.5']
+  for (const showAll of [false, true]) {
+    const result = __test.filterCompatibleDiscoveredModels('openai', [...retired, ...active], showAll)
+    assert(JSON.stringify(result) === JSON.stringify(active), 'Only retired models should be removed')
+  }
+  const compatible = __test.filterCompatibleDiscoveredModels('openai-compatible', ['openai-compatible/gpt-4'])
+  assert(compatible.length === 1, 'Other providers own their model lifecycles')
+})
+
+test('shutdown dates automatically change lifecycle status at the UTC boundary', () => {
+  assert(getOpenAIModelRetirement('openai/gpt-4.1', Date.parse('2027-01-13T23:59:59Z'))?.status === 'deprecated', 'Must remain usable before shutdown')
+  assert(getOpenAIModelRetirement('openai/gpt-4.1', Date.parse('2027-01-14T00:00:00Z'))?.status === 'retired', 'Must retire on schedule')
+  assert(getOpenAIModelRetirement('openai-compatible/gpt-4') === null, 'Must not classify compatible-provider models')
+})
+
+test('BYOK discovery filters retired models on initial fetch and warm-cache reads', async () => {
+  clearModelCache()
+  const originalNow = Date.now
+  let calls = 0
+  global.fetch = (async (input: any) => {
+    if (String(input) === 'https://api.openai.com/v1/models') calls++
+    return { ok: true, status: 200, json: async () => ({ data: [{ id: 'gpt-4' }, { id: 'gpt-4.1' }, { id: 'gpt-5.5' }] }) } as any
+  }) as any
+  try {
+    Date.now = () => Date.parse('2027-01-13T23:59:59Z')
+    const first = await discoverModels({ openai: 'retirement-fixture' })
+    assert(!first.modelsByProvider.openai.models.includes('openai/gpt-4'), 'Retired model must be removed on fetch')
+    assert(first.modelsByProvider.openai.models.includes('openai/gpt-4.1'), 'Upcoming shutdown must remain usable')
+    Date.now = () => Date.parse('2027-01-14T00:00:00Z')
+    const cached = await discoverModels({ openai: 'retirement-fixture' }, { showAll: true })
+    assert(calls === 1, 'Expected a warm catalog crossing the retirement boundary')
+    assert(JSON.stringify(cached.modelsByProvider.openai.models) === JSON.stringify(['openai/gpt-5.5']), 'Warm cache and show-all must not restore retired models')
+    const validationCatalog = getAvailableModelsCached({ SYSTEM_OPENAI_API_KEY: 'retirement-fixture' })
+    assert(!validationCatalog.includes('openai/gpt-4.1') && validationCatalog.includes('openai/gpt-5.5'), 'Synchronous validation must recheck cached retirement dates too')
+  } finally {
+    Date.now = originalNow
+    clearModelCache()
   }
 })
 
@@ -126,13 +203,28 @@ test('discoverModels loads LM Studio models from an OpenAI-compatible endpoint',
   assert(!result.modelsByProvider['openai-compatible']?.models.includes('openai-compatible/text-embedding-nomic-embed-text-v1.5'), 'Did not expect embedding model in default compatible discovery')
 })
 
+test('discovery normalizes very long trailing separators without a backtracking expression', async () => {
+  clearModelCache()
+  const requests: string[] = []
+  global.fetch = (async (url: string) => {
+    requests.push(String(url))
+    return { ok: true, json: async () => ({ data: [{ id: 'fixture' }], models: [{ name: 'fixture' }] }) } as any
+  }) as any
+  const suffix = '/'.repeat(100000)
+  await discoverModels({ ollamaBaseUrl: `http://127.0.0.1:11434${suffix}`, openaiCompatibleBaseUrl: `http://127.0.0.1:1234/v1${suffix}` })
+  assert(requests.includes('http://127.0.0.1:11434/api/tags'), 'Expected normalized Ollama URL')
+  assert(requests.includes('http://127.0.0.1:1234/v1/models'), 'Expected normalized compatible URL')
+  clearModelCache()
+})
+
 test('discoverModels loads Ollama models from the local tags endpoint', async () => {
   clearModelCache()
-  global.fetch = (async (url: string) => {
+  global.fetch = (async (url: string, init: any) => {
     if (url === 'https://api.openai.com/v1/models') {
       return { ok: true, status: 200, json: async () => ({ data: [{ id: 'gpt-5' }] }) } as any
     }
     assert(url === 'http://127.0.0.1:11434/api/tags', `Expected Ollama tags endpoint, got ${url}`)
+    assert(init.redirect === 'error', 'Discovery must not follow model-service redirects')
     return {
       ok: true,
       status: 200,
@@ -285,8 +377,41 @@ test('provider discovery caches valid catalogs and filters malformed optional mo
   }
 })
 
+test('a model list is cached for the key that fetched it, and the Gemini key never goes into a URL', async () => {
+  const previousKind = process.env.DASHBOARD_DEPLOYMENT_KIND
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
+  const requests: Array<{ url: string; credential: string }> = []
+  clearModelCache()
+  global.fetch = (async (input: any, init: any) => {
+    const url = String(input)
+    const credential = String(init?.headers?.Authorization || init?.headers?.['x-goog-api-key'] || '')
+    requests.push({ url, credential })
+    const second = credential.includes('key-two')
+    const body = url.includes('generativelanguage')
+      ? { models: [{ name: second ? 'models/gemini-2.5-pro' : 'models/gemini-2.5-flash' }] }
+      : { data: [{ id: second ? 'gpt-5.5' : 'gpt-5.4-mini' }] }
+    return { ok: true, status: 200, json: async () => body }
+  }) as any
+  try {
+    const one = await discoverModels({ openai: 'key-one', gemini: 'key-one' }, { showAll: true })
+    const two = await discoverModels({ openai: 'key-two', gemini: 'key-two' }, { showAll: true })
+    assert(one.models.includes('openai/gpt-5.4-mini') && one.models.includes('google/gemini-2.5-flash'), 'Expected the first key\'s lists')
+    assert(two.models.includes('openai/gpt-5.5') && !two.models.includes('openai/gpt-5.4-mini'), 'A second key must get its own OpenAI list, not the first key\'s cached one')
+    assert(two.models.includes('google/gemini-2.5-pro') && !two.models.includes('google/gemini-2.5-flash'), 'A second key must get its own Gemini list')
+    const gemini = requests.filter((request) => request.url.includes('generativelanguage'))
+    assert(gemini.length === 2 && gemini.every((request) => !request.url.includes('key')), `The Gemini key must not be in a URL: ${gemini.map((request) => request.url).join(', ')}`)
+    assert(gemini.map((request) => request.credential).join(',') === 'key-one,key-two', 'Expected the Gemini key in the x-goog-api-key header')
+  } finally {
+    if (previousKind === undefined) delete process.env.DASHBOARD_DEPLOYMENT_KIND
+    else process.env.DASHBOARD_DEPLOYMENT_KIND = previousKind
+    clearModelCache()
+  }
+})
+
 testChain.then(() => {
   global.fetch = originalFetch
+  if (originalOrigins === undefined) delete process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS
+  else process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS = originalOrigins
   console.log(`\nTests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)
 

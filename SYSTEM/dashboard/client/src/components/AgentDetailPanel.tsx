@@ -11,6 +11,9 @@ import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 import { normalizeAgentActivityPayload, type AgentActivity } from '../lib/agentActivity'
 import { type PluginRelationship } from '../lib/pluginRelationships'
 import { PluginRelationshipDetails } from './PluginRelationshipSummary'
+import { useAgentPanelPersistence } from '../lib/agentPanelPersistence'
+import { KeepAgentPanelOpenButton } from './KeepAgentPanelOpenButton'
+import AgentGroupMemberships from './AgentGroupMemberships'
 
 interface GroupEntry {
   name: string
@@ -110,6 +113,7 @@ export default function AgentDetailPanel({
   onNavigateToSkills,
   onNavigateToDoc,
   initialEditCostLimit = false,
+  initialSection,
   costTrackingEnabled = true,
   pluginRelationships = [],
 }: {
@@ -121,13 +125,30 @@ export default function AgentDetailPanel({
   onNavigateToSkills?: (agentId: string, skillName?: string) => void
   onNavigateToDoc?: (file: string) => void
   initialEditCostLimit?: boolean
+  initialSection?: 'groups'
   costTrackingEnabled?: boolean
   pluginRelationships?: PluginRelationship[]
 }) {
   const { showError, showSuccess } = useToast()
+  const panelPersistence = useAgentPanelPersistence(onClose)
   const [activity, setActivity] = useState<AgentActivity | null>(null)
   const [docEntries, setDocEntries] = useState<WorkspaceDocEntryRef[]>([])
   const [loading, setLoading] = useState(true)
+  const detailsBodyRef = React.useRef<HTMLDivElement>(null)
+  const groupsSectionRef = React.useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (initialSection !== 'groups' || loading) return
+    const frame = window.requestAnimationFrame(() => {
+      const body = detailsBodyRef.current
+      const groups = groupsSectionRef.current
+      if (!body || !groups) return
+      // scrollIntoView also scrolls ancestor containers, which can move/clamp
+      // this fixed panel. Move only its existing body; keep header/footer fixed.
+      body.scrollTo({ top: body.scrollTop + groups.getBoundingClientRect().top - body.getBoundingClientRect().top - 16 })
+      groups.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [agent.id, initialSection, loading])
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
   const [cooling, setCooling] = useState(false)
@@ -305,7 +326,7 @@ export default function AgentDetailPanel({
   }, [docEntries, onClose, onNavigateToDoc, relDir])
 
   return (
-    <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20">
+    <div ref={panelPersistence.panelRef} tabIndex={-1} className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={panelPersistence.onBackdropClick}>
       {/* Panel */}
       <aside className="fixed top-0 right-0 h-[100dvh] max-h-[100dvh] w-full max-w-full bg-white shadow-2xl dark:bg-gray-800 sm:w-[30rem] lg:w-[36rem] z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
@@ -377,6 +398,7 @@ export default function AgentDetailPanel({
             >
               <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
+            <KeepAgentPanelOpenButton keepOpen={panelPersistence.keepOpen} onToggle={panelPersistence.toggleKeepOpen} />
             <button
               onClick={onClose}
               className="h-9 w-9 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-lg leading-none"
@@ -389,7 +411,7 @@ export default function AgentDetailPanel({
         </div>
 
         {/* Body */}
-        <div className="min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 space-y-6 sm:px-5">
+        <div ref={detailsBodyRef} className="min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 space-y-6 sm:px-5">
           {loading && (
             <p className="text-sm text-gray-400">Loading activity...</p>
           )}
@@ -623,44 +645,19 @@ export default function AgentDetailPanel({
                 </Section>
               )}
 
-              {/* Groups */}
-              {(agent.communities.length > 0 || agent.groups.length > 0) && (
-                <Section title="WhatsApp presence" source="GROUPS.md">
-                  <div className="space-y-3">
-                    {agent.communities.length > 0 && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1.5">Communities</p>
-                        <div className="space-y-1.5">
-                          {[...agent.communities].sort((a, b) => a.name.localeCompare(b.name)).map(c => (
-                            <div key={c.name}>
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">{channelLabel(c)}</span>
-                              {c.description && (
-                                <p className="text-xs text-gray-400 mt-0.5 ml-1">{c.description}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {agent.groups.length > 0 && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1.5">Groups</p>
-                        <div className="space-y-1.5">
-                          {[...agent.groups].sort((a, b) => a.name.localeCompare(b.name)).map(g => (
-                            <div key={g.name}>
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium">{channelLabel(g)}</span>
-                              {g.description && (
-                                <p className="text-xs text-gray-400 mt-0.5 ml-1">{g.description}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Section>
-              )}
             </>
+          )}
+          <div ref={groupsSectionRef} tabIndex={-1} data-testid="agent-groups-section" className="scroll-mt-4 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+            <Section title="Groups" source="GROUPS.md">
+              <AgentGroupMemberships agentId={agent.id} agentName={agent.name} groups={agent.groups} />
+            </Section>
+          </div>
+          {agent.communities.length > 0 && (
+            <Section title="Communities" source="COMMUNITIES.md">
+              <div className="flex flex-wrap gap-1.5">
+                {agent.communities.map(community => <span key={community.name} title={community.description || undefined} className="max-w-full break-words rounded-full bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">{channelLabel(community)}</span>)}
+              </div>
+            </Section>
           )}
         </div>
 

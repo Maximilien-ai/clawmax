@@ -779,7 +779,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                 <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
                   {config?.deploymentKind === 'cloud' ? 'Cloud agents use model-provider API keys. Local models and CLI tools on your computer are unavailable.' : enabledRuntimes.length > 0
                     ? 'A CLI runtime uses its own login, so it needs no provider key — and the model list below becomes that CLI\u2019s own.'
-                    : 'Enable a CLI runtime in BYOK \u2192 \u201cRun via CLI\u201d to run agents without provider keys.'}
+                    : 'Enable a CLI using the Runtime pill at the top to run agents without provider keys.'}
                 </p>
               </div>
               <div>
@@ -1114,6 +1114,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
                   {modelRecommendation?.recommendedModel && (
                     <ModelFitRecommendationPanel
+                      collapsible
                       recommendation={modelRecommendation}
                       preference={modelPreference}
                       onPreferenceChange={setModelPreference}

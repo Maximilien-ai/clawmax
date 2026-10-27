@@ -186,4 +186,68 @@ fi
 [ ! -f "$cache_root/$target_dir/.prepared-commit" ] || fail "pnpm failure must not stamp cache readiness"
 [ ! -f "$source_root/dist/index.js" ] || fail "pnpm failure must not proceed to build"
 
+npm_root="$failure_root/npm-only"
+mkdir -p "$npm_root/bin"
+cp "$corepack_root/bin/git" "$corepack_root/bin/lsof" "$npm_root/bin/"
+real_node="$(command -v node)"
+cat > "$npm_root/bin/node" <<'EOF'
+#!/usr/bin/env bash
+if [ "${1:-}" = -e ]; then exec "$PREP_TEST_REAL_NODE" "$@"; fi
+if [ "$#" -eq 0 ]; then cat >/dev/null; fi
+EOF
+cat > "$npm_root/bin/npm" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$PREP_TEST_NPM_LOG"
+[ "${PREP_TEST_NPM_FAIL:-}" != true ] || exit 47
+[ "$1" = install ] && [ "$2" = --prefix ] || exit 48
+canonical_cache="$(cd "$CLAWMAX_OPENCLAW_CACHE_DIR" && pwd -P)"
+case "$3" in "$canonical_cache"/*/package-manager/install.*) ;; *) exit 49 ;; esac
+case " $* " in *' --ignore-scripts '*) ;; *) exit 50 ;; esac
+case " $* " in *' pnpm@12.5.1 '*) ;; *) exit 51 ;; esac
+mkdir -p "$3/node_modules/.bin"
+cp "$PREP_TEST_PNPM_FIXTURE" "$3/node_modules/.bin/pnpm"
+chmod +x "$3/node_modules/.bin/pnpm"
+EOF
+cat > "$npm_root/pnpm-fixture" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-}" in
+  --version) printf '12.5.1\n' ;;
+  install|plugins:assets:copy) exit 0 ;;
+  run) [ "$2" = build:docker ]; pnpm nested-build-smoke ;;
+  nested-build-smoke)
+    mkdir -p dist
+    printf 'export {};\n' > dist/index.js
+    printf '{"channelOptions":["whatsapp","discord","telegram","slack"]}\n' > dist/cli-startup-metadata.json
+    ;;
+  *) exit 52 ;;
+esac
+EOF
+chmod +x "$npm_root/bin/node" "$npm_root/bin/npm"
+export PREP_TEST_REAL_NODE="$real_node"
+export PREP_TEST_NPM_LOG="$npm_root/npm.log"
+export PREP_TEST_PNPM_FIXTURE="$npm_root/pnpm-fixture"
+for scenario in success failure; do
+  npm_cache="$npm_root/$scenario"
+  mkdir -p "$npm_cache/$target_dir/src/.git"
+  printf '{"packageManager":"pnpm@12.5.1+sha512.abcdef"}\n' > "$npm_cache/$target_dir/src/package.json"
+  npm_should_fail=false
+  [ "$scenario" != failure ] || npm_should_fail=true
+  if PATH="$npm_root/bin:/usr/bin:/bin" PREP_TEST_NPM_FAIL="$npm_should_fail" \
+    CLAWMAX_OPENCLAW_CACHE_DIR="$npm_cache" bash "$script_file" --print-bin > "$npm_root/$scenario.out" 2>&1; then
+    [ "$scenario" = success ] || fail "npm bootstrap failure must stop preparation"
+  else
+    [ "$scenario" = failure ] || { cat "$npm_root/$scenario.out"; fail "npm-only preparation must support nested pnpm builds"; }
+  fi
+done
+[ -f "$npm_root/success/$target_dir/.prepared-commit" ] || fail "npm-only build must mark verified artifacts ready"
+[ ! -f "$npm_root/failure/$target_dir/.prepared-commit" ] || fail "failed bootstrap must not mark readiness"
+grep -q 'Check npm registry access and retry' "$npm_root/failure.out" || fail "expected actionable npm failure"
+install_count="$(wc -l < "$PREP_TEST_NPM_LOG" | tr -d ' ')"
+PATH="$npm_root/bin:/usr/bin:/bin" CLAWMAX_OPENCLAW_CACHE_DIR="$npm_root/success" \
+  bash "$script_file" --print-bin > "$npm_root/reuse.out" 2>&1
+[ "$(wc -l < "$PREP_TEST_NPM_LOG" | tr -d ' ')" = "$install_count" ] || fail "prepared runtime must not reinstall pnpm"
+pass "npm-only preparation bootstraps exact cache-local pnpm, reuses it, and fails closed on install errors"
+
 pass "prepare-openclaw-target.sh uses the branch target Node/PNPM OpenClaw build flow"

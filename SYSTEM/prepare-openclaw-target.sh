@@ -75,8 +75,43 @@ EOF
     return 0
   fi
 
-  echo "pnpm or corepack is required to prepare OpenClaw ${CLAWMAX_OPENCLAW_TARGET}" >&2
-  exit 1
+  bootstrap_pnpm "$shim_dir"
+}
+
+bootstrap_pnpm() {
+  local shim_dir="$1" version manager_root staging actual
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "Preparing OpenClaw requires npm when pnpm and Corepack are unavailable. Install Node.js with npm and retry." >&2
+    return 1
+  fi
+  version="$(node -e '
+    const spec = require(process.cwd() + "/package.json").packageManager;
+    const match = typeof spec === "string" && /^pnpm@(\d+\.\d+\.\d+)(?:\+sha(?:224|512)\.[a-f0-9]+)?$/.exec(spec);
+    if (!match) { console.error("Pinned OpenClaw must declare an exact pnpm packageManager version."); process.exit(1); }
+    process.stdout.write(match[1]);
+  ')" || return 1
+  manager_root="${shim_dir}/../package-manager/pnpm-${version}"
+  if [ ! -x "$manager_root/node_modules/.bin/pnpm" ] || [ "$("$manager_root/node_modules/.bin/pnpm" --version 2>/dev/null || true)" != "$version" ]; then
+    mkdir -p "${shim_dir}/../package-manager"
+    staging="$(mktemp -d "${shim_dir}/../package-manager/install.XXXXXX")"
+    echo "Preparing cache-local pnpm ${version} with npm for OpenClaw ${CLAWMAX_OPENCLAW_TARGET}..." >&2
+    if ! npm install --prefix "$staging" --ignore-scripts --no-audit --no-fund --package-lock=false "pnpm@${version}" >&2; then
+      echo "Unable to prepare pinned pnpm ${version}. Check npm registry access and retry; incomplete files remain at $staging." >&2
+      return 1
+    fi
+    actual="$("$staging/node_modules/.bin/pnpm" --version 2>/dev/null || true)"
+    if [ "$actual" != "$version" ]; then
+      echo "Pinned pnpm verification failed: expected $version, got ${actual:-unavailable}." >&2
+      return 1
+    fi
+    if [ -e "$manager_root" ]; then
+      mv "$manager_root" "${staging}.previous"
+    fi
+    mv "$staging" "$manager_root"
+  fi
+  # Nested build scripts also invoke pnpm directly. Keep the selection scoped
+  # to this preparation process rather than changing global npm or shell state.
+  export PATH="${manager_root}/node_modules/.bin:${PATH}"
 }
 
 ensure_corepack_ready() {
@@ -251,4 +286,6 @@ main() {
   esac
 }
 
-main "$@"
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  main "$@"
+fi

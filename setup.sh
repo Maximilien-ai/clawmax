@@ -7,12 +7,13 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+. "$SCRIPT_DIR/SYSTEM/openclaw-cli.sh"
 if [ -f "$SCRIPT_DIR/SYSTEM/openclaw-version.sh" ]; then
   . "$SCRIPT_DIR/SYSTEM/openclaw-version.sh"
 fi
 
-# Keep local setup aligned with the branch-tested OpenClaw target when present.
-OPENCLAW_GIT_REF="${OPENCLAW_GIT_REF:-${CLAWMAX_OPENCLAW_TARGET:-1116ae97662cce066dd130bc07d925fdd1dd3f32}}"
+. "$SCRIPT_DIR/SYSTEM/openclaw-dev-runtime.sh"
 
 # Colors
 RED='\033[0;31m'
@@ -434,112 +435,19 @@ echo ""
 print_header "2. OpenClaw CLI"
 
 OPENCLAW_INSTALLED=false
-OPENCLAW_HOMEBREW_FORMULA="maximilien-ai/openclaw/openclaw"
-OPENCLAW_BREW_MANAGED=false
-if command -v openclaw &> /dev/null; then
-  OPENCLAW_INSTALLED=true
-  OPENCLAW_VER=$(openclaw --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo "unknown")
-  print_success "OpenClaw CLI: $OPENCLAW_VER"
-  if command -v brew &> /dev/null && brew list --formula "$OPENCLAW_HOMEBREW_FORMULA" &> /dev/null 2>&1; then
-    OPENCLAW_BREW_MANAGED=true
-    print_info "OpenClaw is managed by Homebrew — refreshing to latest tap formula..."
-    brew tap maximilien-ai/openclaw >/dev/null 2>&1 || true
-    brew update --quiet maximilien-ai/openclaw >/dev/null 2>&1 || brew update --quiet >/dev/null 2>&1 || true
-    if brew upgrade --formula "$OPENCLAW_HOMEBREW_FORMULA"; then
-      hash -r 2>/dev/null || true
-      OPENCLAW_VER=$(openclaw --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo "unknown")
-      print_success "OpenClaw CLI updated via Homebrew: $OPENCLAW_VER"
-    else
-      print_warning "Homebrew upgrade did not complete cleanly — keeping existing OpenClaw install"
-    fi
-  fi
+print_info "Preparing the branch-tested OpenClaw ${CLAWMAX_OPENCLAW_TARGET} for Dashboard..."
+if ! ensure_pinned_openclaw_for_dev || ! openclaw_cli_available; then
+  print_error "Pinned OpenClaw preparation failed. Resolve the error above and rerun ./setup.sh."
+  exit 1
+fi
+OPENCLAW_INSTALLED=true
+OPENCLAW_VER=$(openclaw_cli_run --version 2>&1 | head -1)
+print_success "Dashboard OpenClaw runtime ready: $OPENCLAW_VER"
+if "$SCRIPT_DIR/SYSTEM/ensure-openclaw-default-plugins.sh"; then
+  print_success "Default OpenClaw plugins ready"
 else
-  print_warning "OpenClaw CLI not found — required for agent management"
-  echo ""
-
-  if [ "$INTERACTIVE" = true ]; then
-    echo -e "  Choose an installation method:"
-    echo ""
-    echo -e "  ${BOLD}1)${NC} npm global install ${GREEN}← recommended (fastest)${NC}"
-    echo "     npm install -g github:openclaw/openclaw#$OPENCLAW_GIT_REF"
-    echo ""
-    echo -e "  ${BOLD}2)${NC} Homebrew (Maximilien-ai tap)"
-    echo "     brew tap maximilien-ai/openclaw && brew install openclaw"
-    echo ""
-    echo -e "  ${BOLD}3)${NC} Skip for now (dashboard will work but agent features limited)"
-    echo ""
-    echo -e "  ${YELLOW}Note:${NC} Tracks the upstream OpenClaw project (https://openclaw.ai)."
-    echo "  For production, we recommend staying current with upstream releases."
-    echo ""
-    echo -e "  Press ${BOLD}Enter${NC} for option 1 (recommended)"
-    read -p "  Choice (1/2/3) [1]: " -n 1 -r; echo
-
-    REPLY=${REPLY:-1}
-    case $REPLY in
-      1|"")
-        print_info "Installing OpenClaw via npm (fastest, pinned to tested ref)..."
-        if npm install -g "github:openclaw/openclaw#$OPENCLAW_GIT_REF"; then
-          hash -r 2>/dev/null || true
-          OPENCLAW_INSTALLED=true
-          print_success "OpenClaw CLI installed"
-        else
-          print_warning "npm install failed — trying Homebrew..."
-          brew tap maximilien-ai/openclaw || true
-          brew update --quiet maximilien-ai/openclaw >/dev/null 2>&1 || brew update --quiet >/dev/null 2>&1 || true
-          if brew install --formula "$OPENCLAW_HOMEBREW_FORMULA"; then
-            hash -r 2>/dev/null || true
-            OPENCLAW_INSTALLED=true
-            print_success "OpenClaw CLI installed via Homebrew"
-          else
-            print_warning "Installation failed"
-            echo "  Try manually: npm install -g github:openclaw/openclaw#$OPENCLAW_GIT_REF"
-          fi
-        fi
-        ;;
-      2)
-        print_info "Installing OpenClaw via Homebrew..."
-        brew tap maximilien-ai/openclaw || true
-        brew update --quiet maximilien-ai/openclaw >/dev/null 2>&1 || brew update --quiet >/dev/null 2>&1 || true
-        if brew install --formula "$OPENCLAW_HOMEBREW_FORMULA"; then
-          hash -r 2>/dev/null || true
-          OPENCLAW_INSTALLED=true
-          print_success "OpenClaw CLI installed via Homebrew"
-        else
-          print_warning "Homebrew install failed — try: npm install -g github:openclaw/openclaw#$OPENCLAW_GIT_REF"
-        fi
-        ;;
-      *)
-        print_info "Skipped OpenClaw installation"
-        ;;
-    esac
-  else
-    # Non-interactive: try npm install automatically
-    print_info "Installing OpenClaw CLI..."
-    if npm install -g "github:openclaw/openclaw#$OPENCLAW_GIT_REF" 2>/dev/null; then
-      hash -r 2>/dev/null || true
-      OPENCLAW_INSTALLED=true
-      print_success "OpenClaw CLI installed"
-    else
-      print_warning "OpenClaw install failed — try: npm install -g github:openclaw/openclaw#$OPENCLAW_GIT_REF"
-    fi
-  fi
-fi
-
-# Verify installation
-if [ "$OPENCLAW_INSTALLED" = false ] && command -v openclaw &> /dev/null; then
-  OPENCLAW_INSTALLED=true
-fi
-if [ "$OPENCLAW_INSTALLED" = true ]; then
-  OPENCLAW_VER=$(openclaw --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo "installed")
-  print_success "OpenClaw CLI ready: $OPENCLAW_VER"
-  if "$SCRIPT_DIR/SYSTEM/ensure-openclaw-default-plugins.sh"; then
-    print_success "Default OpenClaw plugins ready"
-  else
-    print_warning "Default OpenClaw plugin setup failed — agent chat may be blocked by stale channel configuration"
-  fi
-elif [ "$OPENCLAW_INSTALLED" = false ]; then
-  print_warning "OpenClaw CLI not installed — agent start/stop/chat will not work"
-  echo -e "  Install later: ${BOLD}npm install -g github:openclaw/openclaw#$OPENCLAW_GIT_REF${NC}"
+  print_error "Required OpenClaw plugin setup failed. Resolve the error above and rerun ./setup.sh."
+  exit 1
 fi
 
 echo ""
@@ -875,24 +783,26 @@ echo ""
 
 print_header "9. OpenClaw Gateway"
 
-if [ "$OPENCLAW_INSTALLED" = true ]; then
+if [ -n "${CLAWMAX_SKIP_GATEWAY_BOOTSTRAP:-}" ]; then
+  print_info "Gateway service bootstrap skipped. Start a dedicated foreground Gateway for isolated local testing."
+elif [ "$OPENCLAW_INSTALLED" = true ]; then
   print_info "The gateway enables agent skills and tool-use (required for GitHub, Senso, etc.)"
 
   # Configure gateway mode
-  GATEWAY_MODE=$(openclaw config get gateway.mode 2>/dev/null || echo "")
+  GATEWAY_MODE=$(openclaw_cli_run config get gateway.mode 2>/dev/null || echo "")
   if [ -z "$GATEWAY_MODE" ] || [ "$GATEWAY_MODE" = "unset" ] || [ "$GATEWAY_MODE" = "undefined" ]; then
-    openclaw config set gateway.mode local 2>/dev/null
+    openclaw_cli_run config set gateway.mode local 2>/dev/null
     print_success "Gateway mode set to local"
   else
     print_success "Gateway mode: $GATEWAY_MODE"
   fi
 
   # Generate auth token if missing
-  GATEWAY_TOKEN=$(openclaw config get gateway.auth.token 2>/dev/null || echo "")
+  GATEWAY_TOKEN=$(openclaw_cli_run config get gateway.auth.token 2>/dev/null || echo "")
   if [ -z "$GATEWAY_TOKEN" ] || [ "$GATEWAY_TOKEN" = "unset" ] || [ "$GATEWAY_TOKEN" = "undefined" ]; then
     # Generate a random token
     GW_TOKEN=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | od -An -tx1 | tr -d ' \n')
-    openclaw config set gateway.auth.token "$GW_TOKEN" 2>/dev/null
+    openclaw_cli_run config set gateway.auth.token "$GW_TOKEN" 2>/dev/null
     print_success "Gateway auth token generated"
   else
     print_success "Gateway auth token configured"
@@ -901,7 +811,7 @@ if [ "$OPENCLAW_INSTALLED" = true ]; then
   # Install gateway service on macOS only.
   if [ "$(uname -s)" = "Darwin" ]; then
     if ! launchctl list 2>/dev/null | grep -q "ai.openclaw.gateway"; then
-      openclaw gateway install 2>/dev/null && print_success "Gateway service installed" || print_warning "Gateway service install failed"
+      openclaw_cli_run gateway install 2>/dev/null && print_success "Gateway service installed" || print_warning "Gateway service install failed"
     else
       print_success "Gateway service already installed"
     fi
@@ -910,11 +820,11 @@ if [ "$OPENCLAW_INSTALLED" = true ]; then
   fi
 
   # Start/restart gateway
-  if openclaw gateway status 2>&1 | grep -q "running"; then
+  if openclaw_cli_run gateway status 2>&1 | grep -q "running"; then
     print_success "Gateway already running"
   else
     print_info "Starting gateway..."
-    openclaw gateway restart 2>/dev/null &
+    openclaw_cli_run gateway restart 2>/dev/null &
     GW_PID=$!
 
     # Wait up to 15s for gateway to start
@@ -933,7 +843,7 @@ if [ "$OPENCLAW_INSTALLED" = true ]; then
       print_success "Gateway running on port 18789"
     else
       print_warning "Gateway didn't start in 15s — agents will use --local mode (chat works, skills limited)"
-      echo -e "  Fix later: ${BOLD}openclaw config set gateway.mode local && openclaw gateway restart${NC}"
+      echo -e "  Fix later: ${BOLD}./SYSTEM/start.sh${NC}"
     fi
   fi
 
@@ -961,13 +871,15 @@ VALID=true
 [ ! -f "$ENV_FILE" ] && print_error ".env missing" && VALID=false
 
 # Check critical components
-if command -v openclaw &> /dev/null; then
-  print_success "OpenClaw CLI: $(openclaw --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo 'installed')"
+if openclaw_cli_available; then
+  print_success "OpenClaw CLI: $(openclaw_cli_run --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo 'installed')"
 else
   print_warning "OpenClaw CLI not installed — agent features limited"
 fi
 
-if lsof -ti:18789 > /dev/null 2>&1; then
+if [ -n "${CLAWMAX_SKIP_GATEWAY_BOOTSTRAP:-}" ]; then
+  print_info "Gateway service readiness not checked (bootstrap disabled)"
+elif lsof -ti:18789 > /dev/null 2>&1; then
   print_success "Gateway running on port 18789 (skills enabled)"
 else
   print_warning "Gateway not running — agents will chat but can't use skills"
@@ -988,27 +900,37 @@ echo ""
 
 print_header "Setup Complete!"
 
-echo -e "${GREEN}✓ ClawMax is ready!${NC}\n"
+echo -e "${GREEN}✓ Setup prerequisites verified.${NC}\n"
 
-# Offer to start the dashboard
+if [ "${CLAWMAX_LOCAL_DEV:-}" = true ]; then
+  print_info "The local-dev launcher will now start its Gateway and Dashboard."
+  echo "  Wait for the launcher to confirm readiness at $SETUP_FRONTEND_URL."
+  echo "  It will open your browser. Keep this terminal running; Ctrl-C stops both services."
+  echo "  Reuse the launcher's printed --root command to restart with the same data."
+  exit 0
+fi
+
+echo -e "  ${BOLD}Dashboard commands (from the ClawMax repository root):${NC}"
+echo -e "    Start: ${CYAN}./SYSTEM/start.sh${NC}"
+echo -e "    Stop:  ${CYAN}./SYSTEM/stop.sh${NC}"
+echo -e "    Logs:  ${CYAN}./SYSTEM/start.sh --follow${NC}"
+echo ""
+
+# Keep the commands visible whether the user launches now, declines, or runs unattended.
 if [ "$INTERACTIVE" = true ]; then
   if ask_yn "Start the dashboard now?"; then
     print_info "Starting ClawMax dashboard..."
-    ./SYSTEM/start.sh
-    echo ""
-    echo -e "  ${GREEN}Dashboard is running!${NC}"
-    echo -e "  Open ${CYAN}http://localhost:5173${NC} in your browser"
-    echo ""
-  else
-    echo ""
-    echo -e "  To start later, run:"
-    echo -e "    ${CYAN}./SYSTEM/start.sh${NC}"
-    echo ""
+    if "$SCRIPT_DIR/SYSTEM/start.sh"; then
+      print_success "Dashboard is running at $SETUP_FRONTEND_URL"
+    else
+      print_error "Dashboard did not start. Review the error above, then retry ./SYSTEM/start.sh."
+      exit 1
+    fi
   fi
-else
-  echo -e "  ${BOLD}Start the dashboard:${NC}"
-  echo -e "    ${CYAN}./SYSTEM/start.sh${NC}"
 fi
+echo ""
+echo -e "  Stop the dashboard: ${CYAN}./SYSTEM/stop.sh${NC}"
+echo -e "  Start it again:    ${CYAN}./SYSTEM/start.sh${NC}"
 echo ""
 echo -e "  ${BOLD}Open in browser:${NC}"
 echo -e "    ${CYAN}$SETUP_FRONTEND_URL${NC}"
@@ -1068,7 +990,7 @@ echo "    Contact: contact@clawmax.ai"
 echo ""
 echo -e "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo -e "  ${BOLD}👉 Open your dashboard:${NC}  ${CYAN}http://localhost:5173${NC}"
+echo -e "  ${BOLD}👉 Open your dashboard:${NC}  ${CYAN}$SETUP_FRONTEND_URL${NC}"
 echo ""
 echo -e "  Not running? Start with: ${CYAN}./SYSTEM/start.sh${NC}"
 echo ""

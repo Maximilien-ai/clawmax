@@ -1,6 +1,9 @@
 import { channelLabel } from '../lib/channelLabel'
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
+import AgentGroupMemberships from '../components/AgentGroupMemberships'
+import { KeepAgentPanelOpenButton } from '../components/KeepAgentPanelOpenButton'
+import { useAgentPanelPersistence } from '../lib/agentPanelPersistence'
 import { AgentAttention } from '../components/AgentAttention'
 import AddAgentWizard from '../components/AddAgentWizard'
 import { fetchModelsWithByok, refreshModelsWithByok, hasAiGenerationAccess } from '../lib/byok'
@@ -172,7 +175,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [doctorResults, setDoctorResults] = useState<any>(null)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [selectedAgent, setSelectedAgent] = useState<(Agent & { initialSection?: 'groups' }) | null>(null)
   const [budgetEditorAgentId, setBudgetEditorAgentId] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
@@ -1721,6 +1724,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         agent={agent}
                         selected={selectedAgent?.id === agent.id}
                         onClick={() => setSelectedAgent(agent)}
+                        onOpenGroups={() => setSelectedAgent({ ...agent, initialSection: 'groups' })}
                         onChat={() => setChatTarget(agent)}
                         onStatus={() => setStatusTarget(agent)}
                         onDelete={() => setDeleteTarget(agent.id)}
@@ -1773,6 +1777,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               agent={agent}
                               selected={selectedAgent?.id === agent.id}
                               onClick={() => setSelectedAgent(agent)}
+                              onOpenGroups={() => setSelectedAgent({ ...agent, initialSection: 'groups' })}
                               onChat={() => setChatTarget(agent)}
                               onStatus={() => setStatusTarget(agent)}
                               onDelete={() => setDeleteTarget(agent.id)}
@@ -1877,6 +1882,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               agent={agent}
               selected={selectedAgent?.id === agent.id}
               onClick={() => setSelectedAgent(agent)}
+              onOpenGroups={() => setSelectedAgent({ ...agent, initialSection: 'groups' })}
               onChat={() => setChatTarget(agent)}
               onStatus={() => setStatusTarget(agent)}
               onDelete={() => setDeleteTarget(agent.id)}
@@ -1931,6 +1937,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                           agent={agent}
                           selected={selectedAgent?.id === agent.id}
                           onClick={() => setSelectedAgent(agent)}
+                          onOpenGroups={() => setSelectedAgent({ ...agent, initialSection: 'groups' })}
                           onChat={() => setChatTarget(agent)}
                           onStatus={() => setStatusTarget(agent)}
                           onDelete={() => setDeleteTarget(agent.id)}
@@ -2083,6 +2090,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           agent={selectedAgent}
           pluginRelationships={pluginRelationships.agents[selectedAgent.id] || []}
           initialEditCostLimit={budgetEditorAgentId === selectedAgent.id}
+          initialSection={selectedAgent.initialSection}
           costTrackingEnabled={costTrackingEnabled}
           onClose={() => { setSelectedAgent(null); setBudgetEditorAgentId(null) }}
           onChat={() => setChatTarget(selectedAgent)}
@@ -2796,6 +2804,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
+  const panelPersistence = useAgentPanelPersistence(onClose, !saving)
   const [error, setError] = React.useState<string | null>(null)
   const [warnings, setWarnings] = React.useState<string[]>([])
   const [validationErrors, setValidationErrors] = React.useState<string[]>([])
@@ -3085,7 +3094,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4">
+    <div ref={panelPersistence.panelRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4" onClick={panelPersistence.onBackdropClick} onKeyDown={panelPersistence.onEscape}>
       <div
         className="flex max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-800"
       >
@@ -3095,9 +3104,12 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Agent Config</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{agent.name} <span className="font-mono text-xs">({agent.id})</span></p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none p-1">
-            &times;
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <KeepAgentPanelOpenButton keepOpen={panelPersistence.keepOpen} onToggle={panelPersistence.toggleKeepOpen} />
+            <button onClick={onClose} aria-label="Close config" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-xl leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300">
+              &times;
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -3228,13 +3240,13 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>
                         {provider.models.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
-                          <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                          <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                         ))}
                       </optgroup>
                     ))
                   ) : (
                     availableModels.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
-                      <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                      <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                     ))
                   )}
                 </select>
@@ -3258,6 +3270,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 )}
               </div>
               <ModelFitRecommendationPanel
+                collapsible
                 recommendation={modelRecommendation}
                 preference={modelPreference}
                 onPreferenceChange={setModelPreference}
@@ -3288,7 +3301,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
                   {config?.deploymentKind === 'cloud' ? 'Local CLI runtimes are unavailable on cloud. Choose OpenClaw with model-provider keys.' : enabledRuntimes.length > 0
                     ? <>Run this agent on {runtimeCatalog.filter((rt) => enabledRuntimes.includes(rt.id)).map((rt) => rt.label).join(' or ')} using the CLI’s own login. Default keeps it on the model-provider keys.</>
-                    : <>Enable a CLI runtime first in BYOK &rarr; “Run via CLI” to make it selectable here.</>}
+                    : <>Enable a CLI using the Runtime pill at the top to make it selectable here.</>}
                 </p>
               </div>
               <div>
@@ -3303,13 +3316,13 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>
                         {provider.models.filter((option) => isSelectableLifecycleModel(option, backupModel || model)).map(option => (
-                          <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                          <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                         ))}
                       </optgroup>
                     ))
                   ) : (
                     availableModels.filter((option) => isSelectableLifecycleModel(option, backupModel || model)).map(option => (
-                      <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                      <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                     ))
                   )}
                 </select>
@@ -4045,7 +4058,6 @@ const AgentCard = React.memo(function AgentCard({
                 )}
               </div>
             </div>
-            {((agent.communities || []).length > 0 || (agent.groups || []).length > 0) ? (
               <div className="flex flex-wrap gap-1">
                 {(agent.communities || []).map(c => (
                   <button
@@ -4057,20 +4069,8 @@ const AgentCard = React.memo(function AgentCard({
                     {channelLabel(c)}
                   </button>
                 ))}
-                {agent.groups.map(g => (
-                  <button
-                    key={g.name}
-                    title={g.description ?? undefined}
-                    onClick={e => { e.stopPropagation(); if (onNavigateToGroup) onNavigateToGroup(g.name); }}
-                    className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors cursor-pointer"
-                  >
-                    {channelLabel(g)}
-                  </button>
-                ))}
+                <AgentGroupMemberships agentId={agent.id} agentName={agent.name} groups={agent.groups} onNavigateToGroup={onNavigateToGroup} />
               </div>
-            ) : (
-              <p className="text-xs text-gray-300">No groups configured</p>
-            )}
           </div>
 
           {/* Skills & Tools */}
@@ -4221,7 +4221,7 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true, relationships = [] }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onNavigateToSkills?: (agentId: string) => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean; relationships?: PluginRelationship[] }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onOpenGroups, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true, relationships = [] }: { agent: Agent; selected: boolean; onClick: () => void; onOpenGroups: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onNavigateToSkills?: (agentId: string) => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean; relationships?: PluginRelationship[] }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [actionsMenuView, setActionsMenuView] = React.useState<AgentActionsMenuView>('main')
   const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
@@ -4381,7 +4381,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           )}
         </div>
         {groupCountLabel && (
-          <div className="text-xs text-gray-400 shrink-0">{groupCountLabel}</div>
+          <button type="button" onClick={event => { event.stopPropagation(); onOpenGroups() }} aria-label={`View groups for ${agent.name}`} title="View groups" className="shrink-0 rounded text-xs text-gray-400 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:hover:text-sky-300">{groupCountLabel}</button>
         )}
         {usage && usage.totalTokens > 0 && (
           <div className="text-xs text-indigo-600 shrink-0 font-medium" title={`${(usage.totalTokens || 0).toLocaleString()} tokens (${(usage.inputTokens || 0).toLocaleString()} in / ${(usage.outputTokens || 0).toLocaleString()} out)${usage.totalCost > 0 ? ` • $${(usage.totalCost || 0).toFixed(2)}` : ''}`}>

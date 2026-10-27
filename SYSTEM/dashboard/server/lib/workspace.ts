@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { resolvePathWithin } from './path-segment'
 import path from 'path'
 import net from 'net'
 import { createAgentGatewayProbeCache } from './agent-gateway-probe-cache'
@@ -623,11 +624,21 @@ export function listDocEntries(): DocEntry[] {
   })
 }
 
+/**
+ * The workspace is a git repository the dashboard commits to on every document save, and git runs what
+ * `.git/config` names (filter drivers, `core.fsmonitor`, hooks). No upload, document or import may write
+ * there. Case-insensitive: `.GIT` is the same folder on macOS.
+ */
+export function hasGitDirSegment(relativePath: string): boolean {
+  return relativePath.split(/[\\/]/).some((segment) => segment.toLowerCase() === '.git')
+}
+
 /** Validate a workspace path is inside the workspace root. */
 function isWorkspacePathSafe(full: string, workspacePath: string): boolean {
   const resolvedWorkspace = path.resolve(workspacePath)
   const resolvedFull = path.resolve(full)
   if (resolvedFull !== resolvedWorkspace && !resolvedFull.startsWith(`${resolvedWorkspace}${path.sep}`)) return false
+  if (hasGitDirSegment(path.relative(resolvedWorkspace, resolvedFull))) return false
 
   try {
     const realWorkspace = fs.realpathSync(resolvedWorkspace)
@@ -641,6 +652,7 @@ function isWorkspacePathSafe(full: string, workspacePath: string): boolean {
     }
     const realAncestor = fs.realpathSync(existingAncestor)
     const realFull = path.join(realAncestor, ...missingSegments)
+    if (hasGitDirSegment(path.relative(realWorkspace, realFull))) return false // e.g. through a link `ORG/l -> ../.git`
     return realFull === realWorkspace || realFull.startsWith(`${realWorkspace}${path.sep}`)
   } catch {
     return false
@@ -835,6 +847,9 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
       maxTotalBytes: 250 * 1024 * 1024,
     })
     const listing = extraction.files
+    if (listing.some(hasGitDirSegment)) {
+      return { ok: false, error: 'ZIP contains a .git folder, which cannot be added to the workspace' }
+    }
 
     const conflicts = listing
       .filter(Boolean)
@@ -2490,8 +2505,12 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
 
   const agentsDir = getAgentsDir()
   const archiveDir = getArchiveDir()
-  const agentDir = archived ? path.join(archiveDir, id) : path.join(agentsDir, id)
-  const sharedHomeAgentDir = path.join(process.env.HOME || '', '.openclaw', 'agents', id)
+  let agentDir: string, sharedHomeAgentDir: string, stateDir: string
+  try {
+    agentDir = resolvePathWithin(archived ? archiveDir : agentsDir, id)
+    sharedHomeAgentDir = resolvePathWithin(path.join(os.homedir(), '.openclaw', 'agents'), id)
+    stateDir = resolvePathWithin(os.homedir(), `.openclaw-${id}`)
+  } catch (error) { return { steps, errors: [`Unsafe agent path: ${error}`] } }
   const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', id)
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   let hasRemainingWorkspaceCopies = false
@@ -2544,7 +2563,6 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
 
   // Optionally remove profile state dir (~/.openclaw-<id>)
   if (removeStateDir) {
-    const stateDir = path.join(process.env.HOME || '', `.openclaw-${id}`)
     if (hasRemainingWorkspaceCopies) {
       steps.push(`Preserved state dir ~/.openclaw-${id}/ because another workspace still references ${id}`)
     } else if (fs.existsSync(stateDir)) {
@@ -2560,7 +2578,11 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
   }
 
   // Remove Desktop shortcut
-  const desktop = path.join(process.env.HOME || '', 'Desktop', id)
+  // Shortcuts are symlinks by design; confine their names and unlink the entry,
+  // without resolving or following its target.
+  const desktopRoot = path.resolve(os.homedir(), 'Desktop')
+  const desktop = path.resolve(desktopRoot, id)
+  if (!desktop.startsWith(`${desktopRoot}${path.sep}`)) throw new Error('Invalid shortcut path')
   try {
     if (fs.existsSync(desktop)) { fs.unlinkSync(desktop); steps.push(`Removed ~/Desktop/${id}`) }
   } catch {}

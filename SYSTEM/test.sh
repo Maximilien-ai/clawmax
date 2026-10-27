@@ -19,6 +19,7 @@
 cd "$(dirname "$0")"
 SYSTEM_DIR="$(pwd)"
 . "$SYSTEM_DIR/openclaw-cli.sh"
+. "$SYSTEM_DIR/openclaw-version.sh"
 
 BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
@@ -931,6 +932,30 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Agent group membership tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentGroupMemberships.test.ts > /tmp/clawmax-agent-group-memberships.out 2>&1; then
+  pass "Agent group membership tests"
+else
+  cat /tmp/clawmax-agent-group-memberships.out
+  fail "Agent group membership tests"
+fi
+
+echo -e "${YELLOW}→ Running Model suggestion disclosure tests...${NC}"
+if npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/ModelFitDisclosure.test.tsx > /tmp/clawmax-model-fit-disclosure.out 2>&1; then
+  pass "Model suggestion disclosure tests"
+else
+  cat /tmp/clawmax-model-fit-disclosure.out
+  fail "Model suggestion disclosure tests"
+fi
+
+echo -e "${YELLOW}→ Running Agent panel persistence tests...${NC}"
+if npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/AgentPanelPersistence.test.tsx > /tmp/clawmax-agent-panel-persistence.out 2>&1; then
+  pass "Agent panel persistence tests"
+else
+  cat /tmp/clawmax-agent-panel-persistence.out
+  fail "Agent panel persistence tests"
+fi
+
 echo -e "${YELLOW}→ Running Chat composer keyboard unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/chatComposer.test.ts > /tmp/clawmax-chat-composer.out 2>&1 || true
 if grep -q 'Chat composer keyboard tests passed' /tmp/clawmax-chat-composer.out; then
@@ -973,6 +998,13 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running OpenAI model lifecycle helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/modelSelectGroups.test.ts > /tmp/clawmax-model-select-groups.out 2>&1
+if [ $? -eq 0 ]; then
+  pass "Grouped active model options unit tests (9 tests)"
+else
+  cat /tmp/clawmax-model-select-groups.out
+  fail "Grouped active model options unit tests"
+fi
 npx ts-node --transpileOnly client/src/lib/openAiModelLifecycle.test.ts > /tmp/clawmax-openai-model-lifecycle.out 2>&1 || true
 if grep -q "openAiModelLifecycle.test.ts:" /tmp/clawmax-openai-model-lifecycle.out; then
   openai_model_lifecycle_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-openai-model-lifecycle.out | head -1 | grep -o '[0-9]\+')
@@ -1254,6 +1286,12 @@ if grep -q "All tests passed" /tmp/clawmax-model-discovery.out; then
   pass "Model discovery unit tests (${model_discovery_count:-?} tests)"
 else
   fail "Model discovery unit tests"
+fi
+if npx ts-node --transpileOnly server/lib/model-discovery-endpoint.test.ts > /tmp/clawmax-model-endpoint.out 2>&1; then
+  pass "Model discovery redirect and credential boundary HTTP tests"
+else
+  cat /tmp/clawmax-model-endpoint.out
+  fail "Model discovery redirect and credential boundary HTTP tests"
 fi
 
 echo ""
@@ -2223,6 +2261,15 @@ else
   fail "Builder prompt layout tests"
 fi
 
+echo -e "${YELLOW}→ Running Template card header layout tests...${NC}"
+npx ts-node --transpileOnly client/src/TemplateCardHeaderLayout.test.ts > /tmp/clawmax-template-card-header-layout.out 2>&1 || true
+if grep -q "Template card header layout tests passed" /tmp/clawmax-template-card-header-layout.out; then
+  pass "Template card header layout tests"
+else
+  cat /tmp/clawmax-template-card-header-layout.out
+  fail "Template card header layout tests"
+fi
+
 echo -e "${YELLOW}→ Running Builder question command unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/builderQuestion.test.ts > /tmp/clawmax-builder-question.out 2>&1 || true
 if grep -q "builderQuestion.test.ts: ok" /tmp/clawmax-builder-question.out; then
@@ -3068,6 +3115,12 @@ else
 fi
 
 echo -e "${YELLOW}→ Running OpenClaw target prep shell tests...${NC}"
+if node --test "$SYSTEM_DIR/local-dev.test.mjs" > /tmp/clawmax-local-dev.out 2>&1; then
+  pass "Isolated local dev credentials and process cleanup tests"
+else
+  cat /tmp/clawmax-local-dev.out
+  fail "Isolated local dev credentials and process cleanup tests"
+fi
 if node "$SYSTEM_DIR/test-isolated-gateway.test.mjs" > /tmp/clawmax-isolated-gateway.out 2>&1; then
   pass "Isolated gateway startup and cleanup tests"
 else
@@ -3199,6 +3252,15 @@ else
   fail "Workspace import unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace .git boundary tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-git-boundary.test.ts > /tmp/clawmax-workspace-git-boundary.out 2>&1 || true
+if grep -q "workspace-git-boundary.test.ts: [0-9]* passed, 0 failed" /tmp/clawmax-workspace-git-boundary.out; then
+  pass "Workspace .git boundary tests"
+else
+  cat /tmp/clawmax-workspace-git-boundary.out
+  fail "Workspace .git boundary tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace export unit tests...${NC}"
 if npx ts-node --transpileOnly server/lib/native-chat-history.test.ts > /tmp/clawmax-native-chat-history.out 2>&1; then
   pass "Native chat history read-only and branch tests"
@@ -3231,9 +3293,10 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Archive security unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/archive-security.test.ts > /tmp/clawmax-archive-security.out 2>&1 || true
-if grep -q "archive-security.test.ts: 8 tests passed" /tmp/clawmax-archive-security.out; then
-  pass "Archive security unit tests (8 tests)"
+if npx ts-node --transpileOnly server/lib/archive-security.test.ts > /tmp/clawmax-archive-security.out 2>&1 \
+  && grep -Eq "archive-security.test.ts: [0-9]+ tests passed" /tmp/clawmax-archive-security.out; then
+  archive_security_count=$(sed -n 's/.*archive-security.test.ts: \([0-9][0-9]*\) tests passed.*/\1/p' /tmp/clawmax-archive-security.out | tail -n 1)
+  pass "Archive security unit tests (${archive_security_count} tests)"
 else
   cat /tmp/clawmax-archive-security.out
   fail "Archive security unit tests"
@@ -3604,6 +3667,15 @@ else
   fail "Runtime transcript store unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workflow runtime stop tests...${NC}"
+npx ts-node --transpileOnly server/lib/workflow-runtime-stop.test.ts > /tmp/clawmax-workflow-runtime-stop.out 2>&1 || true
+if grep -q "Workflow runtime stop tests passed" /tmp/clawmax-workflow-runtime-stop.out; then
+  pass "Workflow runtime stop tests"
+else
+  cat /tmp/clawmax-workflow-runtime-stop.out
+  fail "Workflow runtime stop tests"
+fi
+
 echo -e "${YELLOW}→ Running Workflow session regression tests...${NC}"
 npx ts-node --transpileOnly server/lib/workflow-session-regressions.test.ts > /tmp/clawmax-workflow-session-regressions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workflow-session-regressions.out; then
@@ -3638,8 +3710,8 @@ fi
 
 echo -e "${YELLOW}→ Running Workflow lifecycle safety tests...${NC}"
 npx ts-node --transpileOnly client/src/WorkflowLifecycleSafety.test.ts > /tmp/clawmax-workflow-lifecycle-safety.out 2>&1 || true
-if grep -q "WorkflowLifecycleSafety.test.ts: 14 assertions passed" /tmp/clawmax-workflow-lifecycle-safety.out; then
-  pass "Workflow lifecycle safety tests (14 assertions)"
+if grep -q "WorkflowLifecycleSafety.test.ts: 16 assertions passed" /tmp/clawmax-workflow-lifecycle-safety.out; then
+  pass "Workflow lifecycle safety tests (16 assertions)"
 else
   cat /tmp/clawmax-workflow-lifecycle-safety.out
   fail "Workflow lifecycle safety tests"
@@ -3652,6 +3724,25 @@ if grep -q "Workflow start gate tests passed" /tmp/clawmax-workflow-start-gate.o
 else
   cat /tmp/clawmax-workflow-start-gate.out
   fail "Workflow start gate tests"
+fi
+
+echo -e "${YELLOW}→ Running Workflow schedule tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workflowSchedule.test.ts > /tmp/clawmax-workflow-schedule.out 2>&1 || true
+if grep -q "Workflow schedule tests passed" /tmp/clawmax-workflow-schedule.out; then
+  pass "Workflow schedule tests"
+else
+  cat /tmp/clawmax-workflow-schedule.out
+  fail "Workflow schedule tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Front matter tests...${NC}"
+npx ts-node --transpileOnly server/lib/front-matter.test.ts > /tmp/clawmax-front-matter.out 2>&1 || true
+if grep -q "Front matter tests passed" /tmp/clawmax-front-matter.out; then
+  pass "Front matter tests"
+else
+  cat /tmp/clawmax-front-matter.out
+  fail "Front matter tests"
 fi
 
 echo ""
@@ -3672,6 +3763,16 @@ if grep -q "All tests passed" /tmp/clawmax-workspace-dashboards.out; then
   pass "Workspace dashboard library unit tests (${workspace_dashboards_count:-?} tests)"
 else
   fail "Workspace dashboard library unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Path boundary tests...${NC}"
+npx ts-node --transpileOnly server/routes/path-boundaries.test.ts > /tmp/clawmax-path-boundaries.out 2>&1 || true
+if grep -q "path-boundaries.test.ts: [0-9]* passed, 0 failed" /tmp/clawmax-path-boundaries.out; then
+  pass "Path boundary tests"
+else
+  cat /tmp/clawmax-path-boundaries.out
+  fail "Path boundary tests"
 fi
 
 echo ""

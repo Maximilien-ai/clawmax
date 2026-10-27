@@ -34,6 +34,17 @@ async function main() {
   process.env.OPENCLAW_WORKSPACE = path.join(tmpHome, '.openclaw', 'workspace')
 
   try {
+    await test('new and built-in agents replace retired explicit or preferred models', () => {
+      for (const builtIn of [false, true]) {
+        assert.equal(resolveDefaultAgentModel({ explicitModel: 'openai/gpt-4', builtIn }), 'openai/gpt-5.5')
+        assert.equal(resolveDefaultAgentModel({ preferredModel: 'openai/gpt-4', builtIn,
+          systemPreferredModel: builtIn ? 'openai/gpt-4' : undefined,
+          availableModels: ['openai/gpt-4', 'openai/gpt-5.5'], rawEnv: { SYSTEM_OPENAI_API_KEY: 'fixture' },
+        }), 'openai/gpt-5.5')
+      }
+      assert.equal(resolveDefaultAgentModel({ explicitModel: 'openai/gpt-4.1' }), 'openai/gpt-4.1')
+      assert.equal(resolveDefaultAgentModel({ explicitModel: 'openai-compatible/gpt-4' }), 'openai-compatible/gpt-4')
+    })
     await test('workspace preferred model wins when available', () => {
       const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
       fs.mkdirSync(systemDir, { recursive: true })

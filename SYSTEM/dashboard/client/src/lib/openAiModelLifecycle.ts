@@ -1,3 +1,5 @@
+import { getOpenAIModelRetirement } from '../../../server/lib/openai-model-retirements'
+
 export type ModelLifecycleStatus = 'deprecated' | 'retired' | 'sunsetting'
 
 export type ProviderModelLifecycle = {
@@ -8,16 +10,10 @@ export type ProviderModelLifecycle = {
   sourceUrl: string
 }
 
-const OPENAI_DEPRECATIONS_URL = 'https://developers.openai.com/api/docs/deprecations'
 const ANTHROPIC_DEPRECATIONS_URL = 'https://platform.claude.com/docs/en/about-claude/model-deprecations'
 const GEMINI_DEPRECATIONS_URL = 'https://ai.google.dev/gemini-api/docs/deprecations'
 
 const MODEL_LIFECYCLE: Record<string, ProviderModelLifecycle> = {
-  'openai:gpt-4o': { providerLabel: 'OpenAI', status: 'retired', replacementModel: 'gpt-4.1', shutdownDate: '2026-07-01', sourceUrl: OPENAI_DEPRECATIONS_URL },
-  'openai:gpt-5-2025-08-07': { providerLabel: 'OpenAI', status: 'deprecated', replacementModel: 'gpt-5', shutdownDate: '2026-12-10', sourceUrl: OPENAI_DEPRECATIONS_URL },
-  'openai:gpt-5-mini-2025-08-07': { providerLabel: 'OpenAI', status: 'deprecated', replacementModel: 'gpt-5-mini', shutdownDate: '2026-12-10', sourceUrl: OPENAI_DEPRECATIONS_URL },
-  'openai:gpt-5-nano-2025-08-07': { providerLabel: 'OpenAI', status: 'deprecated', replacementModel: 'gpt-5-nano', shutdownDate: '2026-12-10', sourceUrl: OPENAI_DEPRECATIONS_URL },
-  'openai:gpt-5-pro-2025-10-06': { providerLabel: 'OpenAI', status: 'deprecated', replacementModel: 'gpt-5-pro', shutdownDate: '2026-12-10', sourceUrl: OPENAI_DEPRECATIONS_URL },
 
   'anthropic:claude-opus-4-1-20250805': { providerLabel: 'Anthropic', status: 'deprecated', replacementModel: 'claude-opus-4-8', shutdownDate: '2026-08-05', sourceUrl: ANTHROPIC_DEPRECATIONS_URL },
   'anthropic:claude-opus-4-20250514': { providerLabel: 'Anthropic', status: 'retired', replacementModel: 'claude-opus-4-8', shutdownDate: '2026-06-15', sourceUrl: ANTHROPIC_DEPRECATIONS_URL },
@@ -89,6 +85,7 @@ function lifecycleKey(model: string): string {
 export function getModelLifecycleEntry(model?: string | null): ProviderModelLifecycle | null {
   const trimmed = normalize(model)
   if (!trimmed) return null
+  if (trimmed.startsWith('openai/')) return getOpenAIModelRetirement(trimmed)
   return MODEL_LIFECYCLE[lifecycleKey(trimmed)] || null
 }
 
@@ -104,8 +101,10 @@ export function getModelLifecycleReplacement(model?: string | null): string | nu
 export function resolveNonDeprecatedOpenAiModel(models: string[], candidate?: string | null): string {
   const trimmed = normalize(candidate)
   if (!trimmed) return ''
+  if (getOpenAIModelRetirement(trimmed)?.status === 'deprecated') return trimmed
   const replacement = getModelLifecycleReplacement(trimmed)
   if (replacement && models.includes(replacement)) return replacement
+  if (getOpenAIModelRetirement(trimmed)?.status === 'retired') return models.find(model => isSelectableLifecycleModel(model)) || ''
   return trimmed
 }
 
@@ -129,6 +128,9 @@ export function formatOpenAiDeprecationNotice(model?: string | null): string | n
   const entry = getModelLifecycleEntry(model)
   if (!entry) return null
   const parsed = parseProviderModel(normalize(model))
+  if (entry.providerLabel === 'OpenAI' && entry.status === 'retired') {
+    return `OpenAI model "${parsed.baseModel}" retired on ${entry.shutdownDate}. Use ${entry.replacementModel} instead.`
+  }
   if (entry.replacementModel && entry.shutdownDate) {
     return `${entry.providerLabel} model "${parsed.baseModel}" is ${entry.status} and shuts off on ${entry.shutdownDate}. Use ${entry.replacementModel} instead.`
   }

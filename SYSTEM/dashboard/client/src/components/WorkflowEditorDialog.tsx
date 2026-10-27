@@ -4,6 +4,8 @@ import AIPromptEditorModal from './AIPromptEditorModal'
 import { formatAgentOptionLabel } from '../lib/agentLabels'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { readStoredByokKeys } from '../lib/byok'
+import { workflowScheduleError } from '../lib/workflowSchedule'
+import { normalizeWorkflowContent } from '../../../server/lib/workflow-content'
 
 interface AgentTargeting {
   communities: string[]
@@ -111,6 +113,7 @@ function buildWorkflowFormData(initialData?: Partial<WorkflowFormData>): Workflo
   return {
     ...base,
     ...restInitialData,
+    content: normalizeWorkflowContent(restInitialData.content),
     timezone: initialTimezone || base.timezone,
     targeting: {
       ...base.targeting,
@@ -220,31 +223,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   // Validate cron expression - basic client-side validation
   useEffect(() => {
     const validateCron = () => {
-      if (!formData.schedule) {
-        setCronError(null)
-        setCronHuman('')
-        return
-      }
-
-      // Basic cron format check: 5 or 6 fields separated by spaces
-      const parts = formData.schedule.trim().split(/\s+/)
-      if (parts.length < 5 || parts.length > 6) {
-        setCronError('Cron expression must have 5 or 6 fields')
-        setCronHuman('')
-        return
-      }
-
-      // Check for valid characters (numbers, *, /, -, ,)
-      const validPattern = /^[0-9*,\-/]+$/
-      const allValid = parts.every(part => validPattern.test(part))
-
-      if (!allValid) {
-        setCronError('Invalid characters in cron expression')
-        setCronHuman('')
-        return
-      }
-
-      setCronError(null)
+      setCronError(formData.schedule ? workflowScheduleError(formData.schedule) : null)
       setCronHuman('') // Real validation will happen on server
     }
 

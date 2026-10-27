@@ -384,6 +384,12 @@ export function resolveImportableRegistrySkillDirs(provider: SkillRegistryProvid
         const relativeSkillPath = entry?.path
         if (!relativeSkillPath || typeof relativeSkillPath !== 'string') continue
         const nestedDir = path.dirname(path.join(skillDir, relativeSkillPath))
+        // The manifest comes with the downloaded package: a `path` such as `../../../.ssh/x`, or one through a
+        // symlink in the package, must not turn a folder of this machine into an import source.
+        let realNested: string
+        try { realNested = fs.realpathSync(nestedDir) } catch { continue }
+        const realPackage = fs.realpathSync(skillDir)
+        if (realNested !== realPackage && !realNested.startsWith(`${realPackage}${path.sep}`)) continue
         const nestedHasSkillMd = ['SKILL.md', 'skill.md'].some((file) => fs.existsSync(path.join(nestedDir, file)))
         if (nestedHasSkillMd) {
           resolved.push(nestedDir)
