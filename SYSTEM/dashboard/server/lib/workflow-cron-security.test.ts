@@ -1,6 +1,10 @@
 import assert from 'assert'
 import childProcess from 'child_process'
 
+const cli = require('./openclaw-cli')
+const originalResolve = cli.resolveOpenClawCliPath
+cli.resolveOpenClawCliPath = () => '/synthetic/pinned/openclaw'
+
 const originalExecFileSync = childProcess.execFileSync
 const originalExecFile = childProcess.execFile
 const invocations: Array<{ command: string; args: string[]; options: any }> = []
@@ -47,7 +51,7 @@ try {
 
   assert(result.ok, 'Expected stubbed cron synchronization to succeed')
   assert(invocations.length >= 2, 'Expected list and add subprocess calls')
-  assert(invocations.every((call) => call.command === 'openclaw'), 'Expected a fixed executable')
+  assert(invocations.every((call) => call.command === '/synthetic/pinned/openclaw'), 'Expected a fixed executable')
   assert(invocations.every((call) => Array.isArray(call.args) && call.args[0] === 'cron'), 'Expected argument-array cron invocation')
   assert(invocations.every((call) => call.options?.shell !== true), 'Cron execution must not enable a shell')
 
@@ -69,7 +73,7 @@ try {
   }, ['security-agent'])
   assert(asyncResult.ok, 'Expected bounded retry to recover a transient Gateway failure')
   assert.strictEqual(asyncAddAttempts, 2, 'Expected one bounded retry after a transient Gateway failure')
-  assert(asyncInvocations.every((call) => call.command === 'openclaw'), 'Expected async cron sync to use a fixed executable')
+  assert(asyncInvocations.every((call) => call.command === '/synthetic/pinned/openclaw'), 'Expected async cron sync to use a fixed executable')
   assert(asyncInvocations.every((call) => call.args[0] === 'cron'), 'Expected async cron sync to use structured argv')
   assert(asyncInvocations.every((call) => call.options?.shell !== true), 'Async cron execution must not enable a shell')
   const asyncAdd = asyncInvocations.find((call) => call.args.includes('add'))
@@ -78,7 +82,15 @@ try {
   assert.strictEqual(asyncAdd!.args[asyncCronArgIndex + 1], '0 */2 * * *', 'Expected async five-field cron expression without embedded quotes')
 
   console.log('workflow-cron-security.test.ts: 17 tests passed')
+  cli.resolveOpenClawCliPath = () => null
+  const before = invocations.length + asyncInvocations.length
+  const missing = syncWorkflowToCron({ id: 'missing-pin', enabled: true, schedule: '0 8 * * *', content: 'Hello' } as any, ['security-agent'])
+  assert.equal(missing.ok, false)
+  const missingAsync = await syncWorkflowToCronAsync({ id: 'missing-pin-async', enabled: true, schedule: '0 8 * * *', content: 'Hello' } as any, ['security-agent'])
+  assert.equal(missingAsync.ok, false)
+  assert.equal(invocations.length + asyncInvocations.length, before, 'An unavailable pin must never fall back to global OpenClaw')
 } finally {
+  cli.resolveOpenClawCliPath = originalResolve
   ;(childProcess as any).execFileSync = originalExecFileSync
   ;(childProcess as any).execFile = originalExecFile
 }

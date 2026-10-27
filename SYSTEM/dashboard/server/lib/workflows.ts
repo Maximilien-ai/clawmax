@@ -1257,7 +1257,9 @@ export function validateCron(cronExpression: string): { valid: boolean; error?: 
 
 function runCronCmd(args: string[]): { ok: boolean; output: string; error?: string } {
   try {
-    const output = execFileSync('openclaw', ['cron', ...args], {
+    const executable = resolveOpenClawCliPath()
+    if (!executable) throw new Error('Selected OpenClaw runtime is unavailable. Restore the configured runtime before retrying.')
+    const output = execFileSync(executable, ['cron', ...args], {
       encoding: 'utf-8',
       timeout: 15000,
       env: safeEnv()
@@ -1284,7 +1286,9 @@ async function runCronCmdAsync(
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      const { stdout } = await execFileAsync('openclaw', ['cron', ...args], {
+      const executable = resolveOpenClawCliPath()
+      if (!executable) throw new Error('Selected OpenClaw runtime is unavailable. Restore the configured runtime before retrying.')
+      const { stdout } = await execFileAsync(executable, ['cron', ...args], {
         encoding: 'utf-8',
         timeout: timeoutMs,
         env: safeEnv(),
