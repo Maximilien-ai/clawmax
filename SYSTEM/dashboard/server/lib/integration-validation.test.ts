@@ -323,6 +323,64 @@ async function run() {
     assert(result.message.includes('claude-opus-5-5'), 'Expected successful model in result')
   })
 
+  // Mirrors api.anthropic.com: `lifecycle` is an array parameter that the API only accepts as
+  // `lifecycle[]`, and an omitted filter lists active and deprecated models (never retired ones).
+  function anthropicApi(keys: Record<string, string[]>, requests: Array<{ url: string; key: string; model?: string }>): typeof fetch {
+    return (async (url: string, init?: RequestInit) => {
+      const key = String((init?.headers as Record<string, string>)['x-api-key'])
+      const model = init?.body ? JSON.parse(String(init.body)).model : undefined
+      requests.push({ url, key, model })
+      if (!keys[key]) return mockFetch(401, { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } })('')
+      const query = new URL(url).searchParams
+      if (url.includes('/v1/models')) {
+        if (query.has('lifecycle')) {
+          return mockFetch(400, { type: 'error', error: { type: 'invalid_request_error', message: 'the parameter name is `lifecycle[]`' } })('')
+        }
+        const catalog = [
+          { id: 'claude-haiku-3-0', lifecycle: 'retired' },
+          { id: 'claude-haiku-4-5-20251001', lifecycle: 'deprecated' },
+          { id: 'claude-sonnet-5-5', lifecycle: 'active' },
+        ]
+        const stages = query.getAll('lifecycle[]')
+        const listed = catalog.filter((entry) => stages.length ? stages.includes(entry.lifecycle) : entry.lifecycle !== 'retired')
+        return mockFetch(200, { data: listed.filter((entry) => keys[key].includes(entry.id)), has_more: false })('')
+      }
+      return keys[key].includes(model) ? mockFetch(200)('') : mockFetch(404, { error: { type: 'not_found_error', message: `model: ${model} not found` } })('')
+    }) as typeof fetch
+  }
+
+  await test('validateAnthropicKey lists models with a query the Models API accepts and skips retired ones', async () => {
+    const requests: Array<{ url: string; key: string; model?: string }> = []
+    const result = await validateAnthropicKey('sk-ant-alpha', anthropicApi({ 'sk-ant-alpha': ['claude-haiku-3-0', 'claude-haiku-4-5-20251001', 'claude-sonnet-5-5'] }, requests))
+    assert(result.status === 'valid', `Expected a valid key, got ${result.status}: ${result.message}`)
+    assert(!/[?&]lifecycle=/.test(requests[0].url), `Bare lifecycle= is rejected by the API: ${requests[0].url}`)
+    const tried = requests.filter((request) => request.model).map((request) => request.model)
+    assert(!tried.includes('claude-haiku-3-0'), `A retired model must never be prompted: ${tried.join(',')}`)
+    assert(tried[0] === 'claude-sonnet-5-5', `An active model is tried before a deprecated one: ${tried.join(',')}`)
+  })
+
+  await test('validateAnthropicKey reports a rejected request as a request problem, not a bad key', async () => {
+    const result = await validateAnthropicKey('sk-ant-test', mockFetch(400, { type: 'error', error: { type: 'invalid_request_error', message: 'the parameter name is `lifecycle[]`' } }))
+    assert(result.status === 'error', `A 400 on the model list is not a credential verdict: ${result.status}`)
+    assert(/not.*key/i.test(result.message) && result.message.includes('lifecycle[]'), `Expected request-problem wording with the provider detail: ${result.message}`)
+  })
+
+  await test('validateAnthropicKey keeps each credential to its own request and verdict', async () => {
+    const requests: Array<{ url: string; key: string; model?: string }> = []
+    const api = anthropicApi({ 'sk-ant-alpha': ['claude-sonnet-5-5'], 'sk-ant-beta': ['claude-haiku-4-5-20251001'] }, requests)
+    const [alpha, beta, revoked] = await Promise.all([
+      validateAnthropicKey('sk-ant-alpha', api),
+      validateAnthropicKey('sk-ant-beta', api),
+      validateAnthropicKey('sk-ant-revoked', api),
+    ])
+    assert(alpha.status === 'valid' && alpha.message.includes('claude-sonnet-5-5'), `Unexpected alpha result: ${alpha.message}`)
+    assert(beta.status === 'valid' && beta.message.includes('claude-haiku-4-5-20251001'), `Beta must use its own catalog: ${beta.message}`)
+    assert(revoked.status === 'invalid', `A rejected key stays invalid alongside valid ones: ${revoked.status}`)
+    const promptedBy = (key: string) => requests.filter((request) => request.key === key && request.model).map((request) => request.model)
+    assert(promptedBy('sk-ant-alpha').join() === 'claude-sonnet-5-5' && promptedBy('sk-ant-beta').join() === 'claude-haiku-4-5-20251001', 'Each key must only prompt models from its own catalog')
+    assert(promptedBy('sk-ant-revoked').length === 0, 'A rejected key must not reach the prompt step')
+  })
+
   await test('validateGeminiKey returns valid on 200', async () => {
     const result = await validateGeminiKey('gemini-test', mockFetch(200))
     assert(result.status === 'valid', 'Expected valid status')
