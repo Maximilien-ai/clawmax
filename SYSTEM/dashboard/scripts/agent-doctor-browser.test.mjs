@@ -38,6 +38,8 @@ try {
       }
       await route.fulfill({ json })
     })
+    // After the catch-all so it takes precedence: the app mounts only once the API reports live.
+    await page.route('**/api/health/live', route => route.fulfill({ json: { alive: true } }))
     await page.goto(`${process.env.TEST_FRONTEND_URL || 'http://127.0.0.1:5174'}/agents?agent=atlas&action=edit`)
     const doctor = page.getByRole('button', { name: 'Doctor — fix draft', exact: true })
     await doctor.click()

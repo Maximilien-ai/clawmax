@@ -51,6 +51,8 @@ try {
       else if (path.includes('/agents') || path.includes('/workflows') || path.includes('/notifications')) json = []
       await route.fulfill({ status, json })
     })
+    // After the catch-all so it takes precedence: the app mounts only once the API reports live.
+    await page.route('**/api/health/live', route => route.fulfill({ json: { alive: true } }))
     await page.goto(`${base}/system/plugins#clawmax`)
     const save = page.getByRole('button', { name: 'Save', exact: true })
     await save.waitFor()
