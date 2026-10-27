@@ -1,6 +1,7 @@
 import { __test, clearModelCache, discoverModels, getAvailableModelsCached, FALLBACK_OPENAI } from './model-discovery'
 import { getOpenAIModelRetirement } from './openai-model-retirements'
 import { modelDiscoveryEndpoint, ModelEndpointPolicyError } from './model-endpoint-policy'
+import { setOpenClawModelCatalogForTests } from './openclaw-model-catalog'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -13,6 +14,9 @@ let testChain: Promise<void> = Promise.resolve()
 const originalFetch = global.fetch
 const originalOrigins = process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS
 process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS = 'https://models.example.com,https://ollama.example.invalid,https://compatible.example.invalid'
+// These fixtures describe provider discovery. Pin "no readable runtime catalog" so an OpenClaw
+// installed on the machine cannot narrow them; runtime-catalog filtering is tested on its own below.
+setOpenClawModelCatalogForTests(null)
 
 function test(name: string, fn: () => void | Promise<void>) {
   testChain = testChain.then(async () => {
@@ -404,6 +408,28 @@ test('a model list is cached for the key that fetched it, and the Gemini key nev
   } finally {
     if (previousKind === undefined) delete process.env.DASHBOARD_DEPLOYMENT_KIND
     else process.env.DASHBOARD_DEPLOYMENT_KIND = previousKind
+    clearModelCache()
+  }
+})
+
+test('the normal picker and default list drop dated snapshots the installed OpenClaw runtime cannot run', async () => {
+  clearModelCache()
+  // The OpenAI ids OpenClaw 2026.9.7 ships; it resolves `gpt-5.4-mini` but not its dated snapshot.
+  setOpenClawModelCatalogForTests({ version: '2026.9.7', providers: new Map([['openai', new Set(['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano'])]]) })
+  global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [
+    { id: 'gpt-5.4-mini-2026-03-17' }, { id: 'gpt-5.4-mini' }, { id: 'gpt-5.5' }, { id: 'gpt-4o-mini' },
+  ] }) })) as any
+  try {
+    const picker = await discoverModels({ openai: 'runtime-catalog-fixture' })
+    // `gpt-4o-mini` is not in the catalog either, but nothing shows OpenClaw rejects it, so it stays.
+    assert(JSON.stringify(picker.modelsByProvider.openai.models) === JSON.stringify(['openai/gpt-4o-mini', 'openai/gpt-5.4-mini', 'openai/gpt-5.5']), `Normal picker must drop only the unrunnable snapshot: ${picker.modelsByProvider.openai.models.join(', ')}`)
+    assert(JSON.stringify(picker.models) === JSON.stringify(picker.modelsByProvider.openai.models), 'The flat list must match the grouped list')
+    const advanced = await discoverModels({ openai: 'runtime-catalog-fixture' }, { showAll: true })
+    assert(advanced.modelsByProvider.openai.models.includes('openai/gpt-5.4-mini-2026-03-17'), 'Show all models still lists every provider id')
+    const defaults = getAvailableModelsCached({ SYSTEM_OPENAI_API_KEY: 'runtime-catalog-fixture' })
+    assert(!defaults.includes('openai/gpt-5.4-mini-2026-03-17') && defaults.includes('openai/gpt-5.4-mini'), `Defaults must come from runnable models: ${defaults.join(', ')}`)
+  } finally {
+    setOpenClawModelCatalogForTests(null)
     clearModelCache()
   }
 })

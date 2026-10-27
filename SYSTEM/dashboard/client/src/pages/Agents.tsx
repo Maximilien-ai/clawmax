@@ -3241,13 +3241,20 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                       </optgroup>
                     </>
                   ) : Object.keys(modelsByProvider).length > 0 ? (
-                    Object.entries(modelsByProvider).map(([providerId, provider]) => (
-                      <optgroup key={providerId} label={provider.name || providerId}>
-                        {provider.models.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
-                          <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
-                        ))}
-                      </optgroup>
-                    ))
+                    <>
+                      {/* A stored model the runtime cannot run is not in the list; show it as the
+                          current value instead of letting the select display another model. */}
+                      {model && !availableModels.includes(model) && (
+                        <option value={model}>{model} — current; not offered for this runtime</option>
+                      )}
+                      {Object.entries(modelsByProvider).map(([providerId, provider]) => (
+                        <optgroup key={providerId} label={provider.name || providerId}>
+                          {provider.models.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
+                            <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </>
                   ) : (
                     availableModels.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
                       <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
@@ -3316,6 +3323,9 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                 >
                   <option value="">No backup model</option>
+                  {backupModel && availableModels.length > 0 && !availableModels.includes(backupModel) && (
+                    <option value={backupModel}>{backupModel} — current; not offered for this runtime</option>
+                  )}
                   {Object.keys(modelsByProvider).length > 0 ? (
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>

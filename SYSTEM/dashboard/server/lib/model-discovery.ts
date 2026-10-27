@@ -6,6 +6,7 @@ import { hkdfSync, randomBytes } from 'crypto'
 import { getDashboardDeploymentKind, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
 import { cloudModelEndpointError } from './cloud-execution-policy'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
+import { filterOpenClawRunnableModels } from './openclaw-model-catalog'
 import { isRetiredOpenAIModel } from './openai-model-retirements'
 import { modelDiscoveryEndpoint } from './model-endpoint-policy'
 
@@ -117,9 +118,15 @@ export const FALLBACK_XAI = [
 function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[], showAll = false): string[] {
   // Retired models stay excluded even in advanced mode and with a warm catalog.
   if (provider === 'openai') models = models.filter(model => !isRetiredOpenAIModel(model))
+  if (showAll || provider === 'ollama') return models
+  // A provider listing a model does not make it runnable: the normal picker also drops ids the
+  // installed OpenClaw runtime's catalog cannot resolve, such as dated snapshots of an alias.
+  return filterOpenClawRunnableModels(filterProviderChatModels(provider, models))
+}
+
+function filterProviderChatModels(provider: ProviderId, models: string[]): string[] {
   // Provider catalogs determine availability. Never intersect them with static
   // fallback lists; retain only modality filtering for the normal chat picker.
-  if (showAll || provider === 'ollama') return models
   if (provider === 'openai') return models.filter(model => isOpenAIChatModel(model.replace(/^openai\//, '')))
   if (provider === 'anthropic') return models.filter(model => isAnthropicChatModel(model.replace(/^anthropic\//, '')))
   if (provider === 'gemini') return models.filter(model => isGeminiApiTextModel(model.replace(/^google\//, '')))
@@ -557,7 +564,7 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
     localDefaults.push(`openai-compatible/${compatibleDefaultModel}`)
   }
 
-  return Array.from(new Set([...models, ...localDefaults]))
+  return Array.from(new Set([...filterOpenClawRunnableModels(models), ...localDefaults]))
 }
 
 export const __test = {

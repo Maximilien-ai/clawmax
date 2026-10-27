@@ -1300,6 +1300,13 @@ if grep -q "All tests passed" /tmp/clawmax-model-discovery.out; then
 else
   fail "Model discovery unit tests"
 fi
+if npx ts-node --transpileOnly server/lib/openclaw-model-catalog.test.ts > /tmp/clawmax-openclaw-model-catalog.out 2>&1 \
+  && grep -Eq "openclaw-model-catalog.test.ts: [0-9]+ tests passed" /tmp/clawmax-openclaw-model-catalog.out; then
+  pass "OpenClaw runtime model catalog tests"
+else
+  cat /tmp/clawmax-openclaw-model-catalog.out
+  fail "OpenClaw runtime model catalog tests"
+fi
 if npx ts-node --transpileOnly server/lib/model-discovery-endpoint.test.ts > /tmp/clawmax-model-endpoint.out 2>&1; then
   pass "Model discovery redirect and credential boundary HTTP tests"
 else
