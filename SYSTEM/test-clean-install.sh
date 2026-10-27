@@ -60,10 +60,10 @@ else
   mkdir -p "$owned_dir/share"
   chmod 700 "$owned_dir"
   printf '%s\n' clawmax-clean-source-v1 > "$marker"
-  echo 'Creating dedicated test VM (2 CPUs, 10 GiB RAM, 30 GiB disk). First source setup may take 20–30 minutes including downloads.'
+  echo 'Creating dedicated test VM (2 CPUs, 24 GiB RAM, 30 GiB disk). First source setup may take 20–30 minutes including downloads.'
   # Explicit mount replaces Podman's broad default host-directory shares with
   # one empty, read-only task directory. Product code is cloned inside the VM.
-  if ! podman machine init --cpus 2 --memory 10240 --disk-size 30 \
+  if ! podman machine init --cpus 2 --memory 24576 --disk-size 30 \
     --volume "$owned_dir/share:/mnt/clawmax-test:ro" "$machine"; then
     restore_default
     echo 'Test VM creation failed. No existing VM was stopped.' >&2; exit 1

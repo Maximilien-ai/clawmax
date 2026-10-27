@@ -84,7 +84,7 @@ if TEST_OTHER_VM=true outer > "$fixture/other-vm.log" 2>&1; then echo 'FAIL: oth
 grep -q 'another Podman VM is active: podman-clawmax' "$fixture/other-vm.log"
 if grep -Eq '^machine (init|start|stop|rm)' "$TEST_LOG"; then echo 'FAIL: existing VM was changed'; exit 1; fi
 outer > "$fixture/vm.log"
-grep -q '^machine init --cpus 2 --memory 10240 --disk-size 30' "$TEST_LOG"
+grep -q '^machine init --cpus 2 --memory 24576 --disk-size 30' "$TEST_LOG"
 grep -q '^system connection default existing-context' "$TEST_LOG"
 grep -q '/share:/mnt/clawmax-test:ro clawmax-test' "$TEST_LOG"
 outer stop >/dev/null

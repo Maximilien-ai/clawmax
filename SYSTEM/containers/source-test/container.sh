@@ -62,7 +62,7 @@ else
   fi
   podman volume create --label "$owner=true" "$volume" >/dev/null
   podman run --detach --name "$name" --label "$owner=true" \
-    --cpus "${CLAWMAX_TEST_CPUS:-2}" --memory "${CLAWMAX_TEST_MEMORY:-8g}" \
+    --cpus "${CLAWMAX_TEST_CPUS:-2}" --memory "${CLAWMAX_TEST_MEMORY:-20g}" \
     --security-opt no-new-privileges --cap-drop all \
     --publish "127.0.0.1:$api_port:$api_port" --publish "127.0.0.1:$ui_port:$ui_port" \
     --volume "$volume:/home/node:U" \
