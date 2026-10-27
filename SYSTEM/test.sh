@@ -1287,6 +1287,12 @@ if grep -q "All tests passed" /tmp/clawmax-model-discovery.out; then
 else
   fail "Model discovery unit tests"
 fi
+if npx ts-node --transpileOnly server/lib/model-discovery-endpoint.test.ts > /tmp/clawmax-model-endpoint.out 2>&1; then
+  pass "Model discovery redirect and credential boundary HTTP tests"
+else
+  cat /tmp/clawmax-model-endpoint.out
+  fail "Model discovery redirect and credential boundary HTTP tests"
+fi
 
 echo ""
 echo -e "${YELLOW}→ Running Model fit recommendation unit tests...${NC}"

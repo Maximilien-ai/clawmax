@@ -1,5 +1,6 @@
 import { __test, clearModelCache, discoverModels, getAvailableModelsCached, FALLBACK_OPENAI } from './model-discovery'
 import { getOpenAIModelRetirement } from './openai-model-retirements'
+import { modelDiscoveryEndpoint, ModelEndpointPolicyError } from './model-endpoint-policy'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -10,6 +11,8 @@ let testsPassed = 0
 let testsFailed = 0
 let testChain: Promise<void> = Promise.resolve()
 const originalFetch = global.fetch
+const originalOrigins = process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS
+process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS = 'https://models.example.com,https://ollama.example.invalid,https://compatible.example.invalid'
 
 function test(name: string, fn: () => void | Promise<void>) {
   testChain = testChain.then(async () => {
@@ -30,6 +33,26 @@ function assert(condition: boolean, message: string) {
 }
 
 console.log(`\n${YELLOW}=== Model Discovery Test Suite ===${RESET}\n`)
+
+test('model endpoint policy confines origins and does not forward credentials to arbitrary servers', async () => {
+  for (const value of ['http://169.254.169.254/latest/meta-data', 'http://2130706433:3001/api',
+    'https://unapproved.example/v1', 'https://models.example.com.attacker.invalid/v1',
+    'https://user:secret@models.example.com/v1', 'file:///etc/passwd',
+    'https://models.example.com/v1?token=secret', 'https://models.example.com/v1#fragment']) {
+    let rejected = false
+    try { modelDiscoveryEndpoint(value, '/models') } catch (error) { rejected = error instanceof ModelEndpointPolicyError }
+    assert(rejected, 'Expected forbidden endpoint rejection')
+  }
+  assert(modelDiscoveryEndpoint('https://models.example.com//another-service', '/models') === 'https://models.example.com//another-service/models', 'Double slash in path must not change the trusted origin')
+  let requests = 0
+  global.fetch = (async (url: string, init: any) => {
+    if (String(url).includes('unapproved.example') || init?.headers?.Authorization?.includes('private-key')) requests++
+    throw new Error('Synthetic offline provider')
+  }) as any
+  let rejected = false
+  try { await discoverModels({ openaiCompatibleBaseUrl: 'https://unapproved.example', openaiCompatibleApiKey: 'private-key' }) } catch (error) { rejected = error instanceof ModelEndpointPolicyError }
+  assert(rejected && requests === 0, 'No unapproved discovery request or credentials may leave the server')
+})
 
 test('OpenAI discovery preserves active older and newer provider-advertised chat models', () => {
   const filtered = __test.filterCompatibleDiscoveredModels('openai', [
@@ -188,11 +211,12 @@ test('discovery normalizes very long trailing separators without a backtracking 
 
 test('discoverModels loads Ollama models from the local tags endpoint', async () => {
   clearModelCache()
-  global.fetch = (async (url: string) => {
+  global.fetch = (async (url: string, init: any) => {
     if (url === 'https://api.openai.com/v1/models') {
       return { ok: true, status: 200, json: async () => ({ data: [{ id: 'gpt-5' }] }) } as any
     }
     assert(url === 'http://127.0.0.1:11434/api/tags', `Expected Ollama tags endpoint, got ${url}`)
+    assert(init.redirect === 'error', 'Discovery must not follow model-service redirects')
     return {
       ok: true,
       status: 200,
@@ -378,6 +402,8 @@ test('a model list is cached for the key that fetched it, and the Gemini key nev
 
 testChain.then(() => {
   global.fetch = originalFetch
+  if (originalOrigins === undefined) delete process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS
+  else process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS = originalOrigins
   console.log(`\nTests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)
 

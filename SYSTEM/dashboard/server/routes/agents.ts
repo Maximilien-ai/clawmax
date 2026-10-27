@@ -42,6 +42,7 @@ import {
   resolveSystemExecutionProviderKeys,
 } from '../lib/dashboard-env'
 import { discoverModels, getAvailableModelsCached, clearModelCache } from '../lib/model-discovery'
+import { ModelEndpointPolicyError } from '../lib/model-endpoint-policy'
 import { recommendModelsForDescription, type ModelFitPreference } from '../lib/model-fit'
 import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
 import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleDirectory, importAgentFromOpenClaw, importAgentFromZipArchive, listImportableOpenClawAgents } from '../lib/openclaw-agent-transfer'
@@ -919,6 +920,7 @@ router.get('/models', async (req, res) => {
     res.json(result)
   } catch (err) {
     console.error('Model discovery failed:', err)
+    if (err instanceof ModelEndpointPolicyError) return res.status(400).json({ error: err.message })
     res.status(500).json({ error: 'Failed to discover models' })
   }
 })
@@ -930,6 +932,7 @@ router.post('/models/discover', async (req, res) => {
     res.json(await discoverModels(body, { showAll: body.showAll === true }))
   } catch (err) {
     console.error('Model discovery failed:', err)
+    if (err instanceof ModelEndpointPolicyError) return res.status(400).json({ error: err.message })
     res.status(500).json({ error: 'Failed to discover models' })
   }
 })
@@ -957,6 +960,7 @@ router.post('/models/refresh', async (req, res) => {
     res.json(result)
   } catch (err) {
     console.error('Model refresh failed:', err)
+    if (err instanceof ModelEndpointPolicyError) return res.status(400).json({ error: err.message })
     res.status(500).json({ error: 'Failed to refresh models' })
   }
 })

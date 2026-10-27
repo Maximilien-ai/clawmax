@@ -2840,6 +2840,18 @@ async function run() {
     }
   })
 
+  await test('model endpoint policy failures return actionable 400 errors on discovery and refresh', async () => {
+    const { ModelEndpointPolicyError } = require('../lib/model-endpoint-policy')
+    await withModelDiscoveryStubs({ discoverModels: async () => { throw new ModelEndpointPolicyError('Configure CLAWMAX_MODEL_ENDPOINT_ORIGINS') } }, async () => {
+      for (const [method, route] of [['get', '/models'], ['post', '/models/discover'], ['post', '/models/refresh']]) {
+        const res = makeRes()
+        await getRouteHandler(method as any, route)(makeReq({ body: {} }), res)
+        assert.strictEqual(res.statusCode, 400)
+        assert(res.jsonBody.error.includes('CLAWMAX_MODEL_ENDPOINT_ORIGINS'))
+      }
+    })
+  })
+
   await test('models refresh clears cache and forwards local model endpoints', async () => {
     const discoveryModule = require('../lib/model-discovery')
     const originalDiscoverModels = discoveryModule.discoverModels

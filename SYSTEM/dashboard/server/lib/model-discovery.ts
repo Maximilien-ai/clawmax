@@ -7,6 +7,7 @@ import { getDashboardDeploymentKind, getDefaultOllamaBaseUrl, getSystemProviderK
 import { cloudModelEndpointError } from './cloud-execution-policy'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { isRetiredOpenAIModel } from './openai-model-retirements'
+import { modelDiscoveryEndpoint } from './model-endpoint-policy'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -327,12 +328,14 @@ async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
   if (getDashboardDeploymentKind() === 'cloud') return []
   const normalizedBaseUrl = trimTrailingSlashes(baseUrl.trim() || getDefaultOllamaBaseUrl())
   if (!normalizedBaseUrl) return []
+  const endpoint = modelDiscoveryEndpoint(normalizedBaseUrl, '/api/tags')
   const cacheKey = `ollama:${normalizedBaseUrl}`
   const cached = getCached(cacheKey)
   if (cached) return cached
 
   try {
-    const res = await fetch(`${normalizedBaseUrl}/api/tags`, {
+    const res = await fetch(endpoint, {
+      redirect: 'error',
       signal: AbortSignal.timeout(5000),
     })
     if (!res.ok) {
@@ -358,6 +361,7 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
   if (getDashboardDeploymentKind() === 'cloud' && cloudModelEndpointError(baseUrl)) return []
   const normalizedBaseUrl = trimTrailingSlashes(baseUrl.trim())
   if (!normalizedBaseUrl) return []
+  const endpoint = modelDiscoveryEndpoint(normalizedBaseUrl, '/models')
   const cacheKey = keyedCacheKey(`openai-compatible:${normalizedBaseUrl}`, apiKey)
   const cached = getCached(cacheKey)
   if (cached) return cached
@@ -367,7 +371,8 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
     if (apiKey?.trim()) {
       headers.Authorization = `Bearer ${apiKey.trim()}`
     }
-    const res = await fetch(`${normalizedBaseUrl}/models`, {
+    const res = await fetch(endpoint, {
+      redirect: 'error',
       headers,
       signal: AbortSignal.timeout(5000),
     })
@@ -554,6 +559,7 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
 }
 
 export const __test = {
+  fetchOpenAICompatibleModels,
   filterCompatibleDiscoveredModels,
   isGeminiApiTextModel,
   isOpenAICompatibleChatModel,
