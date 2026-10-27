@@ -169,6 +169,23 @@ latest CodeQL findings gate, full-suite result, independent reviewer approval
 and outstanding external/human acceptance must be checked before merging.
 Existing RC94 images do not include these later source fixes.
 
+Follow-up `50530a1f` uses HKDF with a process-random salt and provider/purpose
+context for cache identities; these are ephemeral identities derived from API
+key material, not password verifiers. [Node crypto reference](https://nodejs.org/api/crypto.html#cryptohkdfsyncdigest-ikm-salt-info-keylen).
+All 21 model tests and server TypeScript passed. Its CodeQL findings gate passed
+with no PR findings reported; all three analysis jobs also passed. No alerts
+were dismissed and no scanner suppression was added.
+
+The first full run completed 549/550, with integration workflows/chat passing.
+The archive/path suite itself passed 16 assertions, but the harness still
+required the old literal “8 tests passed.” Follow-up `aaea269e` checks the suite
+exit status and reads the updated count. The 16 archive/path assertions and
+shell syntax check pass. A complete rerun is required before final merge.
+First-run coverage: statements/lines 82.88% (60951/73541), branches 80.72%
+(19754/24472), functions 91.47% (2531/2767). Those coverage values do not turn a
+failed overall run into a pass. Latest validation and merge status will be
+recorded on [PR #291](https://github.com/Maximilien-ai/clawmax/pull/291).
+
 Engineering checks: credential/profile isolation and scoped process cleanup
 tests passed; affected plugin/setup/alignment suites passed. A real temporary
 snapshot of `97b87abe` prepared dependencies and default plugins, passed
