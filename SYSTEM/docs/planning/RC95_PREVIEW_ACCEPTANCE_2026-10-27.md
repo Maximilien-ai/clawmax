@@ -288,3 +288,40 @@ build it after local review. Report `P# — version — expected — actual — 
 Immediate checks: refresh localhost:5182, verify version 014f2411, create a group/community from Communications, review/edit members and save/reload, then rerun Daily Morning Agent Status and inspect both participant responses. Record the new result separately from the earlier failed run.
 
 Code CI at handoff: [014f2411 checks](https://github.com/Maximilien-ai/clawmax/actions/runs/40585120708), still running when checked. No RC95 image workflow was dispatched.
+
+## RC95 freeze and tester-image handoff — October 27
+
+Max reported the latest fixes worked and authorized RC95 for additional testers, with remaining Daniyar findings targeted for RC96. This supersedes the pending retest notes above without removing prior failed-run history.
+
+- Frozen Dashboard source: `v2.0.0-test-rc95` → `402e451640406dc048e6f9ec2890f349097fbc7d`.
+- Frozen private-plugin source: `v2.0.0-test-rc95` → `eb9af8eb05988a7c5ed307e7aff3788a81107fab`.
+- Final full local integration/validation/coverage gate: **557 passed, 0 failed**. Statements/lines 83.52% (62350/74647), branches 81.08% (20344/25091), functions 91.92% (2585/2812). Automated paid-provider chat skipped (`no-api-key`); Max's manual acceptance is separate evidence. Log: `/private/tmp/rc95-final-release-validation.log`.
+- [Public image build](https://github.com/Maximilien-ai/clawmax/actions/runs/40592692135) dispatched from the frozen tag for amd64 and arm64. Expected duration about 62 minutes based on the preceding successful run.
+- Combined build is queued locally after public success; both `base_tag` and `image_tag` are `2.0.0-test-rc95`. Queue state: `/private/tmp/rc95-image-build-state.json`; log: `/private/tmp/rc95-combined-build-queue.log`. A failed public build blocks dispatch. The queue requires this machine to remain running.
+- Target images: `ghcr.io/maximilien-ai/clawmax-dashboard:2.0.0-test-rc95` and `ghcr.io/maximilien-ai/clawmax-plugins:2.0.0-test-rc95`. Neither publication nor smoke success is claimed yet. Do not deploy before the appropriate image validation passes; record final digests afterward.
+- Held PRs remain #227, #228, #229, #288. No pending implementation changes were left in the owning worktrees at freeze. Documentation after this tag records release evidence only.
+
+Daniyar — RC95 tester candidate
+
+RC95 includes the RC94 baseline, your 13 integrated PRs, and Max's accepted follow-up fixes. Latest source: integration/rc95-daniyar, Dashboard checkpoint 402e4516 (behavior through 014f2411). Images are being prepared; use the build links when provided and wait for validation before pulling.
+
+For local source testing:
+git fetch origin
+git switch integration/rc95-daniyar
+git pull --ff-only
+./SYSTEM/local-dev.sh
+Use the URL printed by the launcher. Start without --root for a new source snapshot; an old --root reuses its previous snapshot. Ctrl-C stops this isolated dev environment.
+
+Please focus on:
+1. BYOK default model is honored for AI-created agents; unsupported models show an actionable warning, and changing the model refreshes an already-open panel.
+2. AI workflow creation fills required fields, saves and reloads. Run it and inspect both participant responses: ordinary report headings must not produce false failures.
+3. Communications OR Organization → Create Group/Community → Generate draft. Review/edit name, purpose and existing agents; save, reload and check membership. Imported cards should show readable names.
+4. Chat/config pins, chat expand/collapse, updated icons and mobile layouts.
+5. Extensions → Review: use the RC95 suggested checklist, record results plus revision/environment and evidence. Preserve previous results. Actions → Export / submit release review sends an explicitly previewed report to max@maximilien.ai if Resend is configured; otherwise download and share the report. Please also suggest Review UI improvements.
+
+Max reports the latest fixes worked. Please independently finish the remaining review items. Keep new findings for RC96 unless they are serious enough to block distribution.
+
+Not included: #227 session migration/lifecycle, #228 Gateway ownership/recovery, #229 streaming reconnect/cancellation/persistence, #288 observable legacy-schedule cleanup. Each still needs focused recovery/restart evidence before integration.
+
+Detailed checklist: SYSTEM/docs/planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md
+Report: P# — exact version — expected — actual — evidence.
