@@ -59,6 +59,7 @@ else
   if [ -e "$owned_dir" ] && ! owned; then echo "Unowned test-state directory: $owned_dir" >&2; exit 1; fi
   mkdir -p "$owned_dir/share"
   chmod 700 "$owned_dir"
+  printf '%s\n' clawmax-clean-source-v1 > "$marker"
   echo 'Creating dedicated test VM (2 CPUs, 6 GiB RAM, 30 GiB disk). First source setup may take 20–30 minutes including downloads.'
   # Explicit mount replaces Podman's broad default host-directory shares with
   # one empty, read-only task directory. Product code is cloned inside the VM.
@@ -68,7 +69,6 @@ else
     echo 'Test VM creation failed. No existing VM was stopped.' >&2; exit 1
   fi
   restore_default
-  printf '%s\n' clawmax-clean-source-v1 > "$marker"
 fi
 if ! running; then
   if ! podman machine start "$machine"; then restore_default; exit 1; fi

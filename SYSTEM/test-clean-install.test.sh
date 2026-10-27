@@ -19,7 +19,7 @@ case "$1 ${2:-}" in
   'machine list')
     if [ "${TEST_OTHER_VM:-false}" = true ]; then echo 'podman-clawmax* true';
     elif [ -f "$TEST_VM_STATE/running" ]; then echo 'clawmax-test true'; fi ;;
-  'machine init') touch "$TEST_VM_STATE/exists" ;;
+  'machine init') [ "${TEST_INIT_FAIL:-false}" != true ] || exit 2; touch "$TEST_VM_STATE/exists" ;;
   'machine start') touch "$TEST_VM_STATE/running" ;;
   'machine stop') rm -f "$TEST_VM_STATE/running" ;;
   'machine rm') rm -f "$TEST_VM_STATE/exists" "$TEST_VM_STATE/running" ;;
@@ -94,6 +94,12 @@ grep -q '^machine rm --force clawmax-test$' "$TEST_LOG"
 touch "$TEST_VM_STATE/exists"
 if outer remove >/dev/null 2>&1; then echo 'FAIL: unowned VM removed'; exit 1; fi
 if grep -q '^machine rm' "$TEST_LOG"; then exit 1; fi
+rm -f "$TEST_VM_STATE/exists"
+if TEST_INIT_FAIL=true outer > "$fixture/init-failure.log" 2>&1; then echo 'FAIL: failed VM creation reported success'; exit 1; fi
+grep -q 'Test VM creation failed' "$fixture/init-failure.log"
+test -f "$CLAWMAX_TEST_STATE_DIR/clawmax-test/owner"
+outer > "$fixture/init-retry.log"
+grep -q '^READY:' "$fixture/init-retry.log"
 grep -q '^FROM docker.io/library/node:' "$system_dir/containers/source-test/Containerfile"
 [ "$(grep -c '^COPY ' "$system_dir/containers/source-test/Containerfile")" -eq 1 ]
 grep -q 'git clone --depth 1 --single-branch --branch' "$system_dir/containers/source-test/entrypoint.sh"
