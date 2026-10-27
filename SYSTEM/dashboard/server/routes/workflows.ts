@@ -188,7 +188,7 @@ router.post('/generate', async (req, res) => {
     const activeAgents = agents.filter(agent => !agent.archived)
     const workflow = completeGeneratedWorkflowExecution(generated, {
       availableAgentIds: agentIds,
-      participantIds: resolveParticipants({ ...generated, targeting: generated.targeting || {} }, activeAgents).map(participant => participant.agentId),
+      participantIds: resolveParticipants({ ...generated, targeting: { agents: [], tags: [], groups: [], communities: [], teamIds: [], ...(generated.targeting || {}) } }, activeAgents).map(participant => participant.agentId),
       description,
       timezone: timezone || 'UTC',
     })

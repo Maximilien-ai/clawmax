@@ -67,6 +67,7 @@ function ensureWorkspaceScaffold(workspacePath: string) {
 }
 
 function getRouter(overrides: {
+  workspace?: Partial<typeof import('../lib/workspace')>
   aiGenerator?: Partial<typeof import('../lib/ai-generator')>
   workflows?: Partial<typeof import('../lib/workflows')>
   notifications?: Partial<typeof import('../lib/notifications')>
@@ -74,6 +75,7 @@ function getRouter(overrides: {
 } = {}) {
   const moduleOverrides: Array<[string, Record<string, any> | undefined]> = [
     ['../lib/ai-generator', overrides.aiGenerator as any],
+    ['../lib/workspace', overrides.workspace as any],
     ['../lib/workflows', overrides.workflows as any],
     ['../lib/notifications', overrides.notifications as any],
     ['../lib/scheduler', overrides.scheduler as any],
@@ -93,6 +95,7 @@ function getRouteHandler(
   method: 'get' | 'post' | 'delete' | 'put',
   routePath: string,
   overrides: {
+    workspace?: Partial<typeof import('../lib/workspace')>
     aiGenerator?: Partial<typeof import('../lib/ai-generator')>
     workflows?: Partial<typeof import('../lib/workflows')>
     notifications?: Partial<typeof import('../lib/notifications')>
@@ -710,6 +713,22 @@ async function run() {
       await handler(makeReq({}, { body: { text: 'Run daily', tz: 123 } }), res)
       await new Promise(resolve => setImmediate(resolve))
       assert(res.statusCode === scenario.status && res.jsonBody?.valid === scenario.valid, `Unexpected cron result: ${JSON.stringify(res.jsonBody)}`)
+    }
+  })
+
+  await test('AI managed workflow generation returns a real owner and complete saveable draft', async () => {
+    for (const targeting of [{ agents: ['reviewer'] }, { groups: ['Review'] }]) {
+      const handler = getRouteHandler('post', '/generate', {
+        workspace: { listAgents: () => [{ id: 'reviewer', name: 'Reviewer', tags: [], groups: [{ name: 'Review' }], communities: [] }] as any },
+        aiGenerator: { setRequestByokKeys: () => {}, generateWorkflowFromNL: async () => ({ name: 'Weekly review', schedule: '0 9 * * 1', executionMode: 'managed', targeting, content: '# Review\nReview weekly progress.' }) },
+      })
+      const res = makeRes()
+      await handler(makeReq({}, { body: { description: 'Review progress weekly', timezone: 'America/Toronto' } }), res)
+      assert(res.statusCode === 200, JSON.stringify(res.jsonBody))
+      const draft = res.jsonBody.workflow
+      assert(draft.owner === 'reviewer', 'A managed draft needs a real owner before the editor opens')
+      assert(draft.description === 'Review progress weekly' && draft.timezone === 'America/Toronto', 'Required settings must be complete')
+      assert(Array.isArray(draft.targeting.communities), 'Missing optional target arrays must normalize safely')
     }
   })
 
