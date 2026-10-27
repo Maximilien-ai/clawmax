@@ -134,6 +134,36 @@ async function run() {
   process.env.CLAWMAX_TEST_WORKSPACE = workspacePath
   resetWorkspaceManagerForTests()
 
+  await test('AI channel generation validates requests, returns drafts without persistence, and reports failure', async () => {
+    const ai = require('../lib/ai-generator')
+    const original = ai.generateChannelDraft
+    const before = fs.readFileSync(path.join(workspacePath, 'ORG', 'GROUPS.md'), 'utf8')
+    let calls = 0
+    try {
+      ai.generateChannelDraft = async (input: any, keys: any) => {
+        calls++
+        assert.strictEqual(keys?.openai, 'synthetic-key')
+        assert(['group', 'community'].includes(input.kind))
+        return { name: 'Draft only', description: 'Review', members: [], community: '' }
+      }
+      const handler = getRouteHandler('post', '/channel-draft')
+      for (const body of [{ kind: 'invalid', description: 'Review' }, { kind: 'group', description: '' }]) {
+        const res = makeRes(); await handler(makeReq({ body }), res); assert.strictEqual(res.statusCode, 400)
+      }
+      assert.strictEqual(calls, 0)
+      for (const kind of ['group', 'community']) {
+        const res = makeRes()
+        await handler(makeReq({ body: { kind, description: 'Review', byokKeys: { openai: 'synthetic-key' } } }), res)
+        assert.strictEqual(res.statusCode, 200); assert.strictEqual(res.jsonBody.draft.name, 'Draft only')
+        assert(!JSON.stringify(res.jsonBody).includes('synthetic-key'))
+      }
+      assert.strictEqual(fs.readFileSync(path.join(workspacePath, 'ORG', 'GROUPS.md'), 'utf8'), before)
+      ai.generateChannelDraft = async () => { throw new Error('No API key configured') }
+      const failed = makeRes(); await handler(makeReq({ body: { kind: 'group', description: 'Review' } }), failed)
+      assert.strictEqual(failed.statusCode, 400); assert.match(failed.jsonBody.error, /BYOK/)
+    } finally { ai.generateChannelDraft = original }
+  })
+
   await test('template groups expose authored display names without changing resource IDs', async () => {
     const groupId = 'tr-test-group-123'
     const groupsFile = path.join(workspacePath, 'ORG', 'GROUPS.md')

@@ -24,6 +24,7 @@ import {
   generateBuilderStarterPromptsWithAI,
   generateCronFromText,
   generateWorkflowFromNL,
+  normalizeChannelDraft,
   isOneTimeScheduleRequest,
   normalizeGeneratedSkillScaffold,
   normalizeGeneratedAgentMeta,
@@ -1047,6 +1048,17 @@ test('buildPromptExpansionSystemPrompt reflects requested format', () => {
   assert.match(textPrompt, /AI agent generation wizard/i)
   assert.match(guidedPrompt, /Additional user direction/i)
   assert.match(guidedPrompt, /Make it shorter and emphasize testing\./i)
+})
+
+test('channel drafts preserve real members and reject invented membership before saving', () => {
+  const context = { kind: 'group' as const, agents: [{ id: 'one' }], communities: ['Engineering'] }
+  const draft = { name: ' Review ', description: ' Review changes ', members: ['one', 'one'], community: 'Engineering' }
+  assert.deepStrictEqual(normalizeChannelDraft(draft, context), { name: 'Review', description: 'Review changes', members: ['one'], community: 'Engineering' })
+  assert.throws(() => normalizeChannelDraft({ ...draft, members: ['invented'] }, context), /unavailable agents/)
+  assert.throws(() => normalizeChannelDraft({ ...draft, community: 'invented' }, context), /unavailable community/)
+  assert.throws(() => normalizeChannelDraft({ ...draft, name: '' }, context), /invalid name/)
+  assert.throws(() => normalizeChannelDraft({ ...draft, description: '' }, context), /no description/)
+  assert.deepStrictEqual(normalizeChannelDraft({ ...draft, members: [] }, { ...context, kind: 'community' }), { name: 'Review', description: 'Review changes', members: [], community: '' })
 })
 
 async function runTests() {

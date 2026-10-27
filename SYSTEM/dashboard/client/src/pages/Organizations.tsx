@@ -1,3 +1,4 @@
+import { byokForRequest } from '../lib/byok'
 import { channelLabel } from '../lib/channelLabel'
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import SaveAsOrgTemplateModal from '../components/SaveAsOrgTemplateModal'
@@ -21,6 +22,7 @@ interface GroupEntry {
 }
 
 interface Agent {
+  archived?: boolean
   id: string
   name: string
   status: 'online' | 'offline' | 'unknown'
@@ -582,6 +584,12 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const [orgDraftDescription, setOrgDraftDescription] = useState('')
   const [showCreateCommunity, setShowCreateCommunity] = useState(false)
   const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [channelPrompt, setChannelPrompt] = useState('')
+  const [channelGenerating, setChannelGenerating] = useState(false)
+  const [channelError, setChannelError] = useState('')
+  const [channelSaving, setChannelSaving] = useState(false)
+  const [channelMembers, setChannelMembers] = useState<string[]>([])
+  useEffect(() => { setChannelPrompt(''); setChannelError(''); setChannelMembers([]) }, [showCreateCommunity, showCreateGroup])
   const [newCommunityName, setNewCommunityName] = useState('')
   const [newCommunityDesc, setNewCommunityDesc] = useState('')
   const [newGroupName, setNewGroupName] = useState('')
@@ -1152,15 +1160,52 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     setExpandedGroups(new Set())
   }
 
+  const generateChannel = async () => {
+    setChannelGenerating(true)
+    setChannelError('')
+    try {
+      const response = await fetch('/api/channel-draft', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: showCreateGroup ? 'group' : 'community', description: channelPrompt, byokKeys: byokForRequest() }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Could not generate a draft')
+      if (showCreateGroup) {
+        setNewGroupName(result.draft.name); setNewGroupDesc(result.draft.description); setNewGroupCommunity(result.draft.community || '')
+      } else {
+        setNewCommunityName(result.draft.name); setNewCommunityDesc(result.draft.description)
+      }
+      setChannelMembers(result.draft.members)
+    } catch (error: any) { setChannelError(error.message || 'Could not generate a draft. Try again.') }
+    finally { setChannelGenerating(false) }
+  }
+
+  const channelAiControls = <div className="space-y-2">
+    <label className="block text-sm font-medium" htmlFor="channel-ai-prompt">Create with AI</label>
+    <textarea id="channel-ai-prompt" value={channelPrompt} onChange={event => setChannelPrompt(event.target.value)} placeholder="Describe the purpose and which agents should participate…" rows={3} className="w-full rounded border p-2 bg-white dark:bg-gray-800" disabled={channelGenerating || channelSaving} />
+    <button type="button" onClick={generateChannel} disabled={!channelPrompt.trim() || channelGenerating || channelSaving} className="px-3 py-2 rounded border disabled:opacity-50">{channelGenerating ? 'Generating…' : 'Generate draft'}</button>
+    <p className="text-xs text-gray-500">Review the draft below. Nothing is saved until you click Create.</p>
+  </div>
+  const channelMemberControls = <fieldset className="space-y-2">
+    <legend className="text-sm font-medium">Agent members</legend>
+    <div className="max-h-40 overflow-y-auto space-y-1">
+      {agents.filter(agent => !agent.archived).map(agent => <label key={agent.id} className="flex items-center gap-2 break-all text-sm"><input type="checkbox" checked={channelMembers.includes(agent.id)} onChange={event => setChannelMembers(current => event.target.checked ? [...current, agent.id] : current.filter(id => id !== agent.id))} />{agent.id}</label>)}
+      {agents.length === 0 && <p className="text-sm text-gray-500">No agents yet. You can add members later.</p>}
+    </div>
+  </fieldset>
+
   const handleCreateCommunity = async () => {
     if (!newCommunityName.trim()) return
 
+    setChannelError('')
+    if (channelSaving || channelGenerating) return
     // Check for duplicate names
     if (communities.some(c => c.name.toLowerCase() === newCommunityName.trim().toLowerCase())) {
-      showToast(`Community "${newCommunityName}" already exists`, 'error')
+      setChannelError(`Community "${newCommunityName}" already exists`)
       return
     }
 
+    setChannelSaving(true)
     try {
       const response = await fetch('/api/communities', {
         method: 'POST',
@@ -1168,6 +1213,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
         body: JSON.stringify({
           name: newCommunityName.trim(),
           description: newCommunityDesc.trim() || undefined,
+          members: channelMembers,
           channels: ['whatsapp']
         })
       })
@@ -1180,23 +1226,26 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
         window.dispatchEvent(new CustomEvent('channels-updated'))
         fetchData()
       } else {
-        showToast('Failed to create community', 'error')
+        setChannelError('Failed to create community. Your draft is preserved; try again.')
       }
     } catch (err) {
       console.error('Error creating community:', err)
-      showToast('Failed to create community', 'error')
-    }
+      setChannelError('Failed to create community. Your draft is preserved; try again.')
+    } finally { setChannelSaving(false) }
   }
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) return
 
+    setChannelError('')
+    if (channelSaving || channelGenerating) return
     // Check for duplicate names
     if (groups.some(g => g.name.toLowerCase() === newGroupName.trim().toLowerCase())) {
-      showToast(`Group "${newGroupName}" already exists`, 'error')
+      setChannelError(`Group "${newGroupName}" already exists`)
       return
     }
 
+    setChannelSaving(true)
     try {
       const response = await fetch('/api/groups', {
         method: 'POST',
@@ -1205,6 +1254,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
           name: newGroupName.trim(),
           description: newGroupDesc.trim() || undefined,
           community: newGroupCommunity.trim() || undefined,
+          members: channelMembers,
           channels: ['whatsapp']
         })
       })
@@ -1218,12 +1268,12 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
         window.dispatchEvent(new CustomEvent('channels-updated'))
         fetchData()
       } else {
-        showToast('Failed to create group', 'error')
+        setChannelError('Failed to create group. Your draft is preserved; try again.')
       }
     } catch (err) {
       console.error('Error creating group:', err)
-      showToast('Failed to create group', 'error')
-    }
+      setChannelError('Failed to create group. Your draft is preserved; try again.')
+    } finally { setChannelSaving(false) }
   }
 
   const handleDeleteCommunity = (communityName: string) => {
@@ -1951,7 +2001,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
           </div>
 
           {/* Communities */}
-          {communities.length > 0 && (
+          {(communities.length > 0 || groups.length > 0) && (
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 shadow-sm dark:border-gray-700">
               <div className="px-4 py-3 border-b border-gray-200 bg-purple-50 dark:bg-purple-900/30 flex items-center justify-between dark:border-gray-700">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCommunitiesSectionCollapsed(!communitiesSectionCollapsed)}>
@@ -2149,7 +2199,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
           )}
 
           {/* Groups */}
-          {groups.length > 0 && (
+          {(groups.length > 0 || communities.length > 0) && (
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 shadow-sm dark:border-gray-700">
               <div className="px-4 py-3 border-b border-gray-200 bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-between dark:border-gray-700">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setGroupsSectionCollapsed(!groupsSectionCollapsed)}>
@@ -2404,11 +2454,12 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       {/* Create Community Modal */}
       {showCreateCommunity && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+          <div role="dialog" aria-label={showCreateGroup ? "Create Group" : "Create Community"} aria-modal="true" className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90dvh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Community</h2>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto">
+              {channelAiControls}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                   Community Name *
@@ -2434,9 +2485,12 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                   placeholder="Describe this community..."
                 />
               </div>
+              {channelMemberControls}
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3 dark:border-gray-700">
+            <div className="px-6 py-4 border-t border-gray-200 flex flex-wrap justify-end gap-3 dark:border-gray-700">
+              {channelError && <p role="alert" className="w-full text-sm text-red-600">{channelError}</p>}
               <button
+                disabled={channelGenerating || channelSaving}
                 onClick={() => {
                   setShowCreateCommunity(false)
                   setNewCommunityName('')
@@ -2448,14 +2502,14 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
               </button>
               <button
                 onClick={handleCreateCommunity}
-                disabled={!newCommunityName.trim()}
+                disabled={!newCommunityName.trim() || channelGenerating || channelSaving}
                 className={`px-4 py-2 text-sm rounded transition-colors ${
                   newCommunityName.trim()
                     ? 'bg-purple-600 text-white hover:bg-purple-700'
                     : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                 }`}
               >
-                Create
+                {channelSaving ? 'Creating…' : 'Create'}
               </button>
             </div>
           </div>
@@ -2465,11 +2519,12 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       {/* Create Group Modal */}
       {showCreateGroup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+          <div role="dialog" aria-label={showCreateGroup ? "Create Group" : "Create Community"} aria-modal="true" className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90dvh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Group</h2>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto">
+              {channelAiControls}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                   Group Name *
@@ -2525,9 +2580,12 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                   </p>
                 )}
               </div>
+              {channelMemberControls}
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3 dark:border-gray-700">
+            <div className="px-6 py-4 border-t border-gray-200 flex flex-wrap justify-end gap-3 dark:border-gray-700">
+              {channelError && <p role="alert" className="w-full text-sm text-red-600">{channelError}</p>}
               <button
+                disabled={channelGenerating || channelSaving}
                 onClick={() => {
                   setShowCreateGroup(false)
                   setNewGroupName('')
@@ -2540,14 +2598,14 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
               </button>
               <button
                 onClick={handleCreateGroup}
-                disabled={!newGroupName.trim()}
+                disabled={!newGroupName.trim() || channelGenerating || channelSaving}
                 className={`px-4 py-2 text-sm rounded transition-colors ${
                   newGroupName.trim()
                     ? 'bg-indigo-600 text-white hover:bg-indigo-700'
                     : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                 }`}
               >
-                Create
+                {channelSaving ? 'Creating…' : 'Create'}
               </button>
             </div>
           </div>

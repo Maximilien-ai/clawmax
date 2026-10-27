@@ -2249,6 +2249,40 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
 /**
  * Generate a workflow definition from natural language description.
  */
+export async function generateChannelDraft(input: {
+  kind: 'group' | 'community'; description: string;
+  agents: Array<{ id: string; tags: string[] }>; communities: string[];
+}, keys?: ProviderKeys) {
+  const { client, model } = getAIClient(keys)
+  const completion = await createChatCompletionWithCompatibilityRetry(client, {
+    model,
+    messages: [
+      { role: 'system', content: `Generate a ClawMax ${input.kind} draft for review. Return only JSON with name (short plain text), description (plain text), members (array of existing agent IDs), and community (optional existing community name, only for groups). Never invent agents or communities. Select members relevant to the request; select all only when requested. Do not claim anything was saved. Available agents: ${JSON.stringify(input.agents)}. Available communities: ${JSON.stringify(input.communities)}.` },
+      { role: 'user', content: input.description },
+    ],
+    temperature: 0.3,
+  })
+  let draft: any
+  try { draft = JSON.parse(extractJsonResponseText(completion.choices[0].message.content || '')) }
+  catch { throw new Error('AI returned an unreadable draft. Your prompt is preserved; try again.') }
+  return normalizeChannelDraft(draft, input)
+}
+
+export function normalizeChannelDraft(draft: any, input: {
+  kind: 'group' | 'community'; agents: Array<{ id: string }>; communities: string[];
+}) {
+  if (!draft || typeof draft.name !== 'string' || !draft.name.trim() || /[\r\n]/.test(draft.name) || draft.name.length > 120) {
+    throw new Error('AI returned an invalid name. Your prompt is preserved; try again.')
+  }
+  if (typeof draft.description !== 'string' || !draft.description.trim()) throw new Error('AI returned no description. Your prompt is preserved; try again.')
+  const ids = new Set(input.agents.map(agent => agent.id))
+  if (!Array.isArray(draft.members) || draft.members.some((id: unknown) => typeof id !== 'string' || !ids.has(id))) {
+    throw new Error('AI selected unavailable agents. Your prompt is preserved; try again.')
+  }
+  if (input.kind === 'group' && draft.community && !input.communities.includes(draft.community)) throw new Error('AI selected an unavailable community. Your prompt is preserved; try again.')
+  return { name: draft.name.trim(), description: draft.description.trim(), members: [...new Set<string>(draft.members)], community: input.kind === 'group' ? draft.community || '' : '' }
+}
+
 export async function generateWorkflowFromNL(description: string, availableAgents: string[], availableTags: string[]): Promise<any> {
   getAvailableProvider(_requestByokKeys)
 
