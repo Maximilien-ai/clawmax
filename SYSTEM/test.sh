@@ -2825,6 +2825,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Release review export unit tests...${NC}"
+if npx ts-node --transpileOnly server/lib/review-submissions.test.ts; then
+  pass "Review email submission persistence and consent"
+else
+  fail "Review email submission persistence and consent"
+fi
 npx ts-node --transpileOnly client/src/lib/reviewExport.test.ts > /tmp/clawmax-review-export.out 2>&1 || true
 if grep -q "reviewExport.test.ts: 12 tests passed" /tmp/clawmax-review-export.out; then
   pass "Release review export unit tests (12 tests)"
