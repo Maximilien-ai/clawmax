@@ -2,7 +2,22 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { isolatedEnv, stop, waitForDashboard, openBrowser, checkDevPorts, sourcePreviewVersion } from './local-dev.mjs'
+import { isolatedEnv, stop, waitForDashboard, openBrowser, checkDevPorts, sourcePreviewVersion, requestedPlugins } from './local-dev.mjs'
+import path from 'node:path'
+
+test('external plugins require explicit opt-in and retain the selected paths on restart', () => {
+  assert.throws(() => requestedPlugins({}), /requires CLAWMAX_PLUGIN_PATHS/)
+  assert.throws(() => requestedPlugins({ CLAWMAX_PLUGIN_PATHS: 'relative' }), /absolute/)
+  assert.throws(() => requestedPlugins({ CLAWMAX_ENABLED_PLUGINS: '../bad' }), /Invalid plugin id/)
+  const plugins = requestedPlugins({ CLAWMAX_PLUGIN_PATHS: ['/private/plugins/a', '/private/plugins/b', '/private/plugins/a'].join(path.delimiter), CLAWMAX_ENABLED_PLUGINS: 'example-a, example-b,example-a' })
+  assert.deepEqual(plugins, { paths: ['/private/plugins/a', '/private/plugins/b'], enabledPluginIds: ['example-a', 'example-b'] })
+  const restored = JSON.parse(JSON.stringify({ plugins, sha: '12345678' }))
+  const env = isolatedEnv('/tmp/dev', '/cache/openclaw', restored)
+  assert.equal(env.CLAWMAX_PLUGIN_PATHS, plugins.paths.join(path.delimiter))
+  assert.equal(env.CLAWMAX_ENABLED_PLUGINS, undefined, 'Persisted instance selection, including empty selection, owns enablement')
+  assert.deepEqual(requestedPlugins({ CLAWMAX_ENABLED_PLUGINS: '' }).enabledPluginIds, [])
+  assert.equal(requestedPlugins({ CLAWMAX_PLUGIN_PATHS: '/private/plugins' }).enabledPluginIds, undefined)
+})
 
 test('preview identity follows the source branch and stays attached to its saved snapshot', () => {
   assert.equal(sourcePreviewVersion('1234567890', 'integration/rc95-daniyar'), '2.0.0-test-rc95-review1.12345678')
