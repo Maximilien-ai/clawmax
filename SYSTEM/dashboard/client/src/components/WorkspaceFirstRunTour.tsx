@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { DashboardPage } from '../lib/navigation'
 import { WORKSPACE_TOUR_STEPS } from '../lib/onboardingTour'
 
@@ -19,6 +19,9 @@ export function WorkspaceFirstRunTour({
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
 
   const step = WORKSPACE_TOUR_STEPS[stepIndex]
+  const isFinalStep = stepIndex === WORKSPACE_TOUR_STEPS.length - 1
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [finalCardHeight, setFinalCardHeight] = useState<number | null>(null)
   const isDarkMode = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
 
   function getUnionRect(targets: Array<HTMLElement>): DOMRect | null {
@@ -105,6 +108,21 @@ export function WorkspaceFirstRunTour({
     }
   }, [visible, step.target, stepIndex])
 
+  // The final step's copy is longer than the 280px the other steps are placed for, so its card
+  // is placed by its rendered height, which the viewport-height cap below already bounds.
+  useLayoutEffect(() => {
+    const card = cardRef.current
+    if (!visible || !isFinalStep || !card) {
+      setFinalCardHeight(null)
+      return
+    }
+    const measure = () => setFinalCardHeight(card.offsetHeight)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(card)
+    return () => observer.disconnect()
+  }, [visible, isFinalStep])
+
   const cardStyle = useMemo(() => {
     if (!targetRect) {
       return {
@@ -129,8 +147,18 @@ export function WorkspaceFirstRunTour({
       ? clamp(targetRect.bottom + gap, 24, viewportHeight - 280)
       : clamp(targetRect.top - 8, 24, viewportHeight - 280)
 
+    if (isFinalStep) {
+      // Lift the card until it fits, and past that let its description scroll inside it.
+      const maxHeight = Math.max(viewportHeight - 48, 0)
+      const height = Math.min(finalCardHeight ?? 280, maxHeight)
+      const finalTop = placeBelow
+        ? clamp(targetRect.bottom + gap, 24, viewportHeight - height - 24)
+        : clamp(targetRect.top - 8, 24, viewportHeight - height - 24)
+      return { left, top: finalTop, width, maxHeight } as React.CSSProperties
+    }
+
     return { left, top, width } as React.CSSProperties
-  }, [targetRect])
+  }, [targetRect, isFinalStep, finalCardHeight])
 
   if (!visible) return null
 
@@ -160,8 +188,9 @@ export function WorkspaceFirstRunTour({
           isDarkMode
             ? 'border border-sky-800 bg-gray-900 text-gray-100 shadow-2xl'
             : 'border border-slate-200 bg-white text-slate-950 shadow-[0_28px_80px_rgba(15,23,42,0.22)]'
-        }`}
+        }${isFinalStep ? ' flex flex-col' : ''}`}
         style={cardStyle}
+        ref={cardRef}
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -184,7 +213,7 @@ export function WorkspaceFirstRunTour({
           </button>
         </div>
 
-        <p className={`mt-3 text-sm leading-6 ${isDarkMode ? 'text-gray-300' : 'text-slate-700'}`}>{step.description}</p>
+        <p className={`mt-3 text-sm leading-6 ${isDarkMode ? 'text-gray-300' : 'text-slate-700'}${isFinalStep ? ' min-h-0 overflow-y-auto' : ''}`}>{step.description}</p>
 
         <div className="mt-4 flex flex-wrap gap-2">
           {WORKSPACE_TOUR_STEPS.map((tourStep, index) => (
