@@ -138,6 +138,37 @@ review approval and its CodeQL findings gate failed with 2 critical and 18 high
 alerts. Successful CodeQL analysis jobs do not clear that findings gate. These
 startup improvements do not resolve those alerts or establish merge readiness.
 
+### PR #291 security remediation — validation in progress
+
+The 20-alert gate was inspected rather than dismissed. Remediation source:
+
+- `25fddc46`: process-secret HMAC cache partitions replace reusable API-key
+  fingerprints; linear trailing-slash normalization replaces the flagged
+  backtracking expressions. Model discovery: 19 tests passed at this checkpoint.
+- `717cb72e`: confined paths and symlink rejection for skill/agent deletion,
+  repository subdirectories and workspace import destinations. Import roots are
+  restricted to home or `CLAWMAX_WORKSPACE_IMPORT_ROOTS`. The membership write
+  failure fixture now simulates a write failure without forwarding arbitrary
+  paths. Archive/path checks: 16; agent deletion: 7; skills: 65; skill routes: 38;
+  workspace imports: 2; agent routes: 79. All passed; server TypeScript passed.
+- `95b071a1`: model discovery requires operator-trusted origins, reconstructs
+  the request origin from server configuration and rejects redirects. Policy
+  failures return actionable 400 responses. Additional origins use
+  `CLAWMAX_MODEL_ENDPOINT_ORIGINS` (comma-separated) or server base-URL settings;
+  default local/on-prem model endpoints remain enabled. Model tests: 20; agent
+  routes: 80; redirect HTTP assertions: 3. All passed; server TypeScript passed.
+  The HTTP regression observed one authorized request and zero requests to the
+  redirect destination, with only a disposable test credential.
+
+Full integration/validation/coverage started on isolated ports 3007/5180,
+expected 10–20 minutes (prior run about 10). Log:
+`/private/tmp/clawmax-pr291-remediation-full.log`. Source CI:
+https://github.com/Maximilien-ai/clawmax/actions/runs/40435091176.
+These are focused remediation results, not a completed security audit. The
+latest CodeQL findings gate, full-suite result, independent reviewer approval
+and outstanding external/human acceptance must be checked before merging.
+Existing RC94 images do not include these later source fixes.
+
 Engineering checks: credential/profile isolation and scoped process cleanup
 tests passed; affected plugin/setup/alignment suites passed. A real temporary
 snapshot of `97b87abe` prepared dependencies and default plugins, passed

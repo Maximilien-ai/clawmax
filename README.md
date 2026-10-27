@@ -295,6 +295,21 @@ import existing agents, credentials or private plugins. A reused snapshot stays
 on its recorded commit; pull the branch and launch without `--root` for a fresh
 snapshot of updated source. Temporary data may be removed by OS cleanup.
 
+Custom model discovery endpoints require a server-trusted origin. Standard
+local Ollama (11434) and LM Studio (1234) origins are enabled for local/on-prem
+use. For another service, configure its base URL on the server or set
+`CLAWMAX_MODEL_ENDPOINT_ORIGINS` to comma-separated HTTP(S) origins, such as
+`https://models.example.com,http://192.168.1.20:11434`, and restart Dashboard.
+Requests cannot enable an origin themselves; discovery rejects redirects and
+URLs with embedded credentials, queries or fragments. Cloud deployment retains
+its restriction on machine-local endpoints.
+
+Workspace imports use the default workspace directory or a destination within
+the server user's home. To allow another destination root, set
+`CLAWMAX_WORKSPACE_IMPORT_ROOTS` to operator-approved directories separated by
+the platform path delimiter (`:` on macOS/Linux). Imported/deleted paths reject
+traversal and symlinks within the selected root.
+
 For local development, `./setup.sh` now offers:
 - `Email OTP` dev mode, which asks what login email you want in `SYSTEM/dashboard/.env`
 - `bypass` mode, if you explicitly do not want auth
