@@ -1224,6 +1224,12 @@ else
 fi
 
 echo ""
+if npx ts-node --transpileOnly client/src/lib/authBootstrap.test.ts; then
+  pass "Auth startup recovery and bounded retries"
+else
+  fail "Auth startup recovery and bounded retries"
+fi
+
 if npx ts-node --transpileOnly server/lib/chat-request-body.test.ts; then
   pass "Chat HTTP body limits and authentication"
 else
