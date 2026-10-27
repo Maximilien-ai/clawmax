@@ -1,5 +1,6 @@
 import './lib/dashboard-env'
 import express from 'express'
+import { parseDefaultJsonBody } from './lib/chat-request-body'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import rateLimit from 'express-rate-limit'
@@ -277,7 +278,7 @@ app.use(cors({
   origin: (origin, callback) => callback(null, isCorsOriginAllowed(origin, allowedCorsOrigins)),
   credentials: true,
 }))
-app.use(express.json())
+app.use(parseDefaultJsonBody)
 app.use(cookieParser())
 app.use('/api', browserMutationGuard(allowedCorsOrigins))
 

@@ -1224,6 +1224,13 @@ else
 fi
 
 echo ""
+if npx ts-node --transpileOnly server/lib/chat-request-body.test.ts; then
+  pass "Chat HTTP body limits and authentication"
+else
+  fail "Chat HTTP body limits and authentication"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent doctor and channel route unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/agents.test.ts > /tmp/clawmax-agent-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-routes.out; then
