@@ -4,6 +4,10 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC95 source preview (October 27, 2026)
+- Integrate Daniyar PRs #219, #252, #258, #268 and #270: chat formatting/copy, authenticated long context, required workflow inputs, config keyboard access, and bounded sign-in startup recovery.
+- Include clean-source VM testing, consistent Node prerequisites and isolated native dev previews with source-specific version labels. See the [RC95 acceptance and remaining holds](SYSTEM/docs/planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md). No RC95 images or stable promotion yet.
+
 ### Current 2.0 development (October 12, 2026)
 - Discover current OpenAI, Anthropic, and xAI prompt models from each provider catalog when checking credentials, try up to three suitable models before reporting limited validation, and stop depending on retired fixed model IDs.
 - RC91 is a tagged test candidate, not a stable promotion. The active goal is a single identified next candidate accepted on MBP14 and test10; see the [dual-instance gate](SYSTEM/docs/planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md).

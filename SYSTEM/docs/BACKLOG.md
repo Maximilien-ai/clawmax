@@ -1,5 +1,10 @@
 # Backlog
 
+- [ ] **RC95 preview acceptance and remaining PRs** — Dashboard: complete the
+  [four focused reviewer checks and engineering gates](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md),
+  resolve/disposition CodeQL alert #705 before RC95 release, and obtain lifecycle
+  evidence for Daniyar PRs #227, #228, #229 and #288 before adding them.
+
 - [ ] **RC93 residual CodeQL triage** — Dashboard: alert 579's session-key
   collision is fixed in `6faee7a7`; assess the six remaining command/path
   findings from RC92 PR #236, including CLI option parsing and local transcript

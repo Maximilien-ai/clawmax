@@ -1,19 +1,20 @@
 # ClawMax Documentation
 
-> Last updated: October 12, 2026
+> Last updated: October 27, 2026
 
 Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
-`v1.9.9`. RC91 is the latest tagged test candidate in this checkout. PR #212
-and dual-instance acceptance remain open. Start with the
-[current Dashboard gate](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md).
+`v1.9.9`. Start with the [RC95 source preview and acceptance](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md).
+Existing RC94 images retain their original source; RC95 images have not been built.
+Older release evidence and installed-instance gates remain linked below.
 
 ## Active Documents
 
 | Document | Description |
 |----------|-------------|
+| [planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) | RC95 source preview: five included PRs, four holds, four human/provider acceptance checks and engineering evidence |
 | [FIRST_AGENT_TUTORIAL.md](FIRST_AGENT_TUTORIAL.md) | Low-code guide to define, create, test, and improve a first ClawMax agent |
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
-| [planning/RC94_REVIEW_HANDOFF_2026-10-26.md](planning/RC94_REVIEW_HANDOFF_2026-10-26.md) | RC94 reviewer checklist and nine held PRs |
+| [planning/RC94_REVIEW_HANDOFF_2026-10-26.md](planning/RC94_REVIEW_HANDOFF_2026-10-26.md) | Historical RC94 reviewer checklist; current PR disposition is in the RC95 preview |
 | [planning/RC94_IMAGE_HANDOFF_2026-10-26.md](planning/RC94_IMAGE_HANDOFF_2026-10-26.md) | RC94 test-image monitoring, fixed source identity, local validation evidence, and pending image gates |
 | [planning/RC94_SOURCE_SETUP_FIX_2026-10-26.md](planning/RC94_SOURCE_SETUP_FIX_2026-10-26.md) | Source setup/start/update fix, pinned pnpm bootstrap, command guidance, and Mike clean-machine acceptance |
 | [planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md) | Active PR #212, image, MBP14, test10, and Template execution gates |

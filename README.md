@@ -295,6 +295,9 @@ import existing agents, credentials or private plugins. A reused snapshot stays
 on its recorded commit; pull the branch and launch without `--root` for a fresh
 snapshot of updated source. Temporary data may be removed by OS cleanup.
 
+The RC95 source preview and its focused reviewer checks are documented in
+[RC95 preview acceptance](SYSTEM/docs/planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md).
+
 Custom model discovery endpoints require a server-trusted origin. Standard
 local Ollama (11434) and LM Studio (1234) origins are enabled for local/on-prem
 use. For another service, configure its base URL on the server or set

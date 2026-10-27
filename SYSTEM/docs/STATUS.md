@@ -4,9 +4,19 @@
 
 **Development Line**: 2.0.0
 
-**Last Updated**: October 12, 2026
+**Last Updated**: October 27, 2026
 
-**Status**: `v1.9.9` remains stable. `v2.0.0-test-rc91` is the latest tagged test candidate in this checkout, not a stable release. [PR #212](https://github.com/Maximilien-ai/clawmax/pull/212) is open for owner-scoped inert Template staging and dev-only chat; it does not establish public Template Workflow execution. MBP14 reported an installed RC91 chat/plugin compatibility failure, while test10 acceptance on the same next candidate is not yet recorded. The [active dual-instance gate](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md) separates source, images, deployment, and user acceptance.
+**Status**: `v1.9.9` remains stable. RC94 images were published from `326f2684`; later source fixes landed on main through PR #291. The active RC95 source preview is on `integration/rc95-daniyar` in draft PR #304 and has no release image yet. Independent acceptance, candidate CI and the recorded security gate remain open. See the [RC95 preview acceptance](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md). Older installed-instance gates remain in their dated release records.
+
+## RC95 source preview on October 27
+
+[Draft PR #304](https://github.com/Maximilien-ai/clawmax/pull/304) combines five of
+Daniyar's nine remaining PRs on `integration/rc95-daniyar`, with four held for
+lifecycle evidence. The local code checkpoint passed 552/552 checks. See the
+[RC95 acceptance file](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) for the exact
+source, engineering limitations, CI/security gate and four independent reviewer
+checks. Main contains merged RC94 PR #291; this preview has not landed on main.
+The existing RC94 images are unchanged; RC95 has no release tag or image yet.
 
 ## Earlier release evidence (retained history)
 
