@@ -148,6 +148,42 @@ restart_port_if_needed() {
   fi
 }
 
+# Classifies `openclaw gateway status --json` as "<state>\t<detail>". The structured fields are
+# stable across OpenClaw releases; the human-readable wording is not (2026.9 prints "Service
+# unit not found." where earlier releases printed "Service not installed").
+gateway_status_state() {
+  node -e '
+let raw = ""
+process.stdin.on("data", chunk => { raw += chunk }).on("end", () => {
+  let status
+  try { status = JSON.parse(raw) } catch { process.stdout.write("unknown\tno status JSON"); return }
+  const rpc = status?.rpc || {}
+  const detail = [rpc.connectFailure?.kind, String(rpc.error || "").split("\n")[0]].filter(Boolean).join(": ")
+    .replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 200)
+  const state = rpc.ok === true ? "ready"
+    : status?.port?.status !== "free" ? "port-busy"
+    : status?.service?.runtime?.missingUnit === true ? "missing-unit"
+    : status?.service ? "stopped"
+    : "unknown"
+  process.stdout.write(`${state}\t${detail}`)
+})'
+}
+
+# CLI failure output, indented, with control characters stripped and anything that may be a
+# credential redacted: long opaque strings and the value of token/secret/key/password settings.
+redact_cli_output() {
+  node -e '
+let raw = ""
+process.stdin.on("data", chunk => { raw += chunk }).on("end", () => {
+  for (const line of raw.split("\n").filter(Boolean)) {
+    const safe = line.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "")
+      .replace(/((?:token|secret|key|password|authorization)\w*["\x27]?\s*[:=]\s*)\S+/gi, "$1<redacted>")
+      .replace(/[A-Za-z0-9_+\/=.-]{32,}/g, "<redacted>")
+    process.stdout.write(`    ${safe}\n`)
+  }
+})'
+}
+
 ensure_local_gateway_ready() {
   if [ "$(uname -s)" != "Darwin" ] || ! openclaw_cli_available; then
     return
@@ -157,18 +193,44 @@ ensure_local_gateway_ready() {
     return
   fi
 
-  local gateway_status
-  gateway_status="$(openclaw_cli_run gateway status 2>/dev/null || true)"
+  local state detail action output attempt
+  IFS=$'\t' read -r state detail <<< "$(openclaw_cli_run gateway status --json 2>/dev/null | gateway_status_state)"
+  case "$state" in
+    ready) return ;;
+    missing-unit)
+      action=install
+      echo "↻ Installing and starting the local OpenClaw gateway LaunchAgent..."
+      ;;
+    stopped)
+      action=restart
+      echo "↻ Starting the local OpenClaw gateway..."
+      ;;
+    port-busy)
+      # Another process owns the port (a gateway still booting, or one rejecting this config's
+      # credentials). Replacing it could start a second gateway on the same state directory.
+      echo "⚠ The OpenClaw gateway port is in use but did not accept this Dashboard's connection (${detail:-no detail}). Leaving it untouched; agent chat may fail. Check: openclaw gateway status"
+      return
+      ;;
+    *)
+      echo "⚠ Could not read the OpenClaw gateway status (${detail:-no detail}); agent chat may fail. Check: openclaw gateway status"
+      return
+      ;;
+  esac
 
-  if echo "$gateway_status" | grep -qi "Service not installed"; then
-    echo "↻ Installing local OpenClaw gateway LaunchAgent..."
-    openclaw_cli_run gateway install >/dev/null 2>&1 || true
+  if ! output="$(openclaw_cli_run gateway "$action" 2>&1)"; then
+    echo "⚠ 'openclaw gateway $action' failed; agent chat will not work until the gateway runs:"
+    printf '%s\n' "$output" | tail -n 5 | redact_cli_output
+    return
   fi
-
-  if ! echo "$gateway_status" | grep -qi "RPC probe: ok"; then
-    echo "↻ Ensuring local OpenClaw gateway is running..."
-    openclaw_cli_run gateway restart >/dev/null 2>&1 || true
-  fi
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    IFS=$'\t' read -r state detail <<< "$(openclaw_cli_run gateway status --json 2>/dev/null | gateway_status_state)"
+    if [ "$state" = "ready" ]; then
+      echo "✓ OpenClaw gateway is ready"
+      return
+    fi
+    sleep 2
+  done
+  echo "⚠ The OpenClaw gateway is not answering yet (${detail:-no detail}); agent chat waits for it. Check: openclaw gateway status"
 }
 
 if [ -z "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ] && [ "$(uname -s)" = "Darwin" ] && openclaw_cli_available; then

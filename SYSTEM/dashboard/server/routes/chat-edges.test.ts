@@ -107,6 +107,31 @@ test('buildManagedResendDispatch returns null when there is no explicit recipien
   assert(noIntent === null, 'Expected no managed dispatch when no email/send intent is present')
 })
 
+test('deriveChatError tells Gateway failures apart without echoing raw details', () => {
+  // OpenClaw 2026.9.7's text when the configured Gateway is not running (captured from the CLI).
+  const unreachable = [
+    'Gateway not reachable at ws://127.0.0.1:18789 (ECONNREFUSED).',
+    'Start it with `openclaw gateway run` or check `openclaw gateway status`.',
+    'Gateway target: ws://127.0.0.1:18789',
+    'Config: /Users/someone/.openclaw/openclaw.json',
+  ].join('\n')
+  const cases: Array<[string, RegExp]> = [
+    [unreachable, /^OpenClaw Gateway is not running at 127\.0\.0\.1:18789, so agent chat cannot start\. Restart the Dashboard with SYSTEM\/start\.sh/],
+    ['gateway connect failed: AUTH_TOKEN_MISMATCH (gateway token mismatch)', /^OpenClaw Gateway rejected the Dashboard's connection \(AUTH_TOKEN_MISMATCH\)\. .*gateway\.auth\.token/],
+    ['gateway closed (1008): pairing required', /^OpenClaw Gateway rejected the Dashboard's connection\. /],
+    ['gateway remote mode misconfigured: gateway.remote.url missing\nConfig: /x/openclaw.json', /^OpenClaw Gateway is set to remote mode without gateway\.remote\.url\./],
+    ['gateway closed (1006): ', /^OpenClaw Gateway closed the connection \(code 1006\)\. It may be restarting/],
+    // An unrecognized Gateway failure keeps the existing generic message.
+    ['gateway request failed: something new', /^Agent chat could not reach the gateway runtime\.$/],
+  ]
+  for (const [raw, expected] of cases) {
+    const message = deriveChatError(raw, 'openai')
+    assert(expected.test(message), `Unexpected message for ${JSON.stringify(raw)}: ${message}`)
+    assert(!/Config:|openclaw\.json:|\/Users\/|\/x\//.test(message), `Raw detail leaked: ${message}`)
+  }
+})
+
+
 test('deriveChatError surfaces unsupported models clearly', () => {
   const message = deriveChatError('Unknown model: openai/gpt-super-pro', 'openai', { agentId: 'agent0', model: 'openai/gpt-super-pro' })
   assert(/configured with a model that the current runtime does not support/i.test(message), `Unexpected unsupported-model message: ${message}`)
