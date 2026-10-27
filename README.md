@@ -295,6 +295,20 @@ import existing agents, credentials or private plugins. A reused snapshot stays
 on its recorded commit; pull the branch and launch without `--root` for a fresh
 snapshot of updated source. Temporary data may be removed by OS cleanup.
 
+Lifecycle and Review are included under **Extensions**. To attach additional
+plugins you already have locally, explicitly opt in when launching:
+
+```sh
+CLAWMAX_PLUGIN_PATHS=/absolute/path/to/plugin CLAWMAX_ENABLED_PLUGINS=plugin-id,clawmax-lifecycle,plugin-review-notes ./SYSTEM/local-dev.sh --with-plugins
+```
+
+The selected paths and instance selection persist for that dev root. Use
+Extensions to change the selection afterward; restarting with `--root` retains
+it. Add `--with-plugins` again only when deliberately replacing the configured
+paths or selection. Plugin source stays in its original directory and is not
+copied into the public checkout. No provider keys or other host settings are
+imported by this option.
+
 The RC95 source preview and its focused reviewer checks are documented in
 [RC95 preview acceptance](SYSTEM/docs/planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md).
 

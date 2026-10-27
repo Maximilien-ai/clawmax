@@ -13,7 +13,9 @@ The tested code checkpoint is `131c2a2ebe7351860d5e8d4417d5c8e01b3b2c06`.
 
 Maximilien's running preview: **http://localhost:5182**. It has its own initially
 empty workspace. Add your provider key through Model Integration and create a
-disposable agent or apply a team template. Host agents and keys are not imported.
+disposable agent or apply a team template. Host agents and keys are not imported. Its existing local extension sources
+are explicitly attached, and the five configured product plugins are available
+under Extensions. This local configuration is separate from the public checkout.
 
 Daniyar can use a clean clone on his own machine:
 
@@ -28,7 +30,9 @@ committed-source snapshot, prepares the branch-tested OpenClaw runtime, and open
 the browser after readiness. Keep that terminal running. **Ctrl-C stops both
 Dashboard and its dedicated Gateway.** Reuse its printed `--root` command to keep
 your test data. For newer source, pull this branch and launch without `--root`.
-No Podman VM is needed.
+No Podman VM is needed. Lifecycle and Review are included by default under
+Extensions. To add other authorized local plugins, use the README's explicit
+`--with-plugins` option; those paths and your selection persist for the dev root.
 
 The visible version should be `2.0.0-test-rc95-review1.<snapshot SHA>`. Record that
 version, browser, runtime/model and your result for each check. Each reviewer
@@ -42,6 +46,9 @@ records their own pass/fail/not-run; a missing provider is not a pass.
 | P2 | In a conversation containing a long assistant reply, send a follow-up and try Resend. The actual provider/runtime should continue the conversation without a request-size error. Keep the reply/context size and any error in your report; do not include keys or private conversation content. | external-environment | Pending | Pending |
 | P3 | Apply a team template containing required workflow inputs. Leave a required field blank: Deploy should explain what is missing and take you to that field. Fill it, leave an optional field empty, and apply. Open the created workflow and confirm the intended input values and neighboring fields were preserved. | human-judgment | Pending | Pending |
 | P4 | Open Edit Agent Config using the agent's Actions menu. Tab and Shift-Tab should stay in the dialog. Escape closes it and returns focus to the Actions button. Verify pin/unpin, outside-click dismissal, scrolling, Save and Cancel still feel correct at desktop and mobile widths. | human-judgment | Pending | Pending |
+
+These four checks are also selected in **Extensions → Review** in Maximilien’s
+running preview, under release `2.0.0-test-rc95`. Other machines can use this file.
 
 Report failures as: `P# — version — runtime/model — steps — expected — actual`.
 Keep RC94 results in their original release files; this is the RC95 review queue.
@@ -90,4 +97,7 @@ produce fixes and reproductions, then we can update this preview and retest:
   also open on main since October 1. Existing origin-admission tests pass;
   this is not a security clearance or an alert dismissal. Dashboard owns its
   disposition before RC95 release, along with CI completion and reviewer acceptance.
+- Launcher follow-up `aff1d421` adds explicit, persistent external-plugin opt-in;
+  all nine launcher tests pass. The running app keeps the tested code checkpoint
+  and its existing workspace while loading the explicitly selected local plugins.
 - No RC95 release tag, image build, deployment or stable promotion has been made.
