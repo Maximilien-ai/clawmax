@@ -177,6 +177,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<(Agent & { initialSection?: 'groups' }) | null>(null)
+  const [agentConfigRevision, setAgentConfigRevision] = useState(0)
   const [budgetEditorAgentId, setBudgetEditorAgentId] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
@@ -303,6 +304,11 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         } else {
           setAgents(prev => [...prev, ...normalized])
         }
+        setSelectedAgent(current => {
+          if (!current) return current
+          const refreshed = normalized.find((agent: Agent) => agent.id === current.id)
+          return refreshed ? { ...refreshed, initialSection: current.initialSection } : current
+        })
         setHasMore(d.hasMore || false)
         setNextCursor(d.nextCursor || null)
         setTotal(d.total || 0)
@@ -2089,6 +2095,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {selectedAgent && (
         <AgentDetailPanel
           agent={selectedAgent}
+          configRevision={agentConfigRevision}
           pluginRelationships={pluginRelationships.agents[selectedAgent.id] || []}
           initialEditCostLimit={budgetEditorAgentId === selectedAgent.id}
           initialSection={selectedAgent.initialSection}
@@ -2469,7 +2476,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         <EditAgentConfigModal
           agent={editTarget}
           onClose={() => setEditTarget(null)}
-          onSaved={() => { fetchAgents(); setEditTarget(null) }}
+          onSaved={() => { fetchAgents(true, true); setAgentConfigRevision(value => value + 1); setEditTarget(null) }}
         />
       )}
     </div>
