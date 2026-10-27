@@ -2,7 +2,7 @@
  * Dynamic model discovery for configured hosted and local model providers.
  * Results are cached for 1 hour. Falls back to hardcoded lists on API failure.
  */
-import { createHmac, randomBytes } from 'crypto'
+import { hkdfSync, randomBytes } from 'crypto'
 import { getDashboardDeploymentKind, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
 import { cloudModelEndpointError } from './cloud-execution-policy'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
@@ -33,8 +33,9 @@ interface CacheEntry {
 }
 
 const cache: Record<string, CacheEntry> = {}
-// Ephemeral cache partitioning, never a stored password verifier. A process-local
-// secret also prevents cache identifiers from being reusable key fingerprints.
+// Derive ephemeral cache identities from API-key material, not password
+// verifiers. A random process salt and purpose/provider context prevent reuse
+// of an identity across processes or providers. Nothing is stored on disk.
 const cacheSecret = randomBytes(32)
 
 /**
@@ -42,7 +43,8 @@ const cacheSecret = randomBytes(32)
  * out invalid) must not be answered with it. Keyed by a fingerprint, so no key is held in the cache.
  */
 function keyedCacheKey(provider: string, apiKey: string | undefined): string {
-  return `${provider}:${createHmac('sha256', cacheSecret).update(String(apiKey || '').trim()).digest('hex')}`
+  const identity = hkdfSync('sha256', String(apiKey || '').trim(), cacheSecret, `clawmax:model-catalog:${provider}`, 32)
+  return `${provider}:${Buffer.from(identity).toString('hex')}`
 }
 
 function trimTrailingSlashes(value: string): string {
@@ -559,6 +561,7 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
 }
 
 export const __test = {
+  keyedCacheKey,
   fetchOpenAICompatibleModels,
   filterCompatibleDiscoveredModels,
   isGeminiApiTextModel,

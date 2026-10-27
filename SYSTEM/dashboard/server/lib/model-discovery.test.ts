@@ -34,6 +34,14 @@ function assert(condition: boolean, message: string) {
 
 console.log(`\n${YELLOW}=== Model Discovery Test Suite ===${RESET}\n`)
 
+test('cache identities are stable within a process and separate providers and credentials', () => {
+  const first = __test.keyedCacheKey('openai', 'fixture-key-one')
+  assert(first === __test.keyedCacheKey('openai', ' fixture-key-one '), 'A credential must retain its cache partition')
+  assert(first !== __test.keyedCacheKey('openai', 'fixture-key-two'), 'Different credentials must not share a cache partition')
+  assert(first.split(':')[1] !== __test.keyedCacheKey('anthropic', 'fixture-key-one').split(':')[1], 'Provider context must separate derived identities')
+  assert(!first.includes('fixture-key'), 'The cache must not retain a raw credential in its key')
+})
+
 test('model endpoint policy confines origins and does not forward credentials to arbitrary servers', async () => {
   for (const value of ['http://169.254.169.254/latest/meta-data', 'http://2130706433:3001/api',
     'https://unapproved.example/v1', 'https://models.example.com.attacker.invalid/v1',
