@@ -10,7 +10,7 @@ RC95 images. The existing RC94 images do not contain these changes.
 ## Start the preview
 
 Branch: `integration/rc95-daniyar`; [draft PR #304](https://github.com/Maximilien-ai/clawmax/pull/304).
-Current code checkpoint: `1b1f20ba`. The complete local suite passed **557/557** on `de5fe817`; the subsequent two icon-only replacements passed desktop/mobile visual checks and icon tests, with no new TypeScript diagnostics. Repeat the complete gate on the eventual image candidate before cutting RC95.
+Current code checkpoint: `014f2411`. The complete local suite passed **557/557** on `de5fe817`; subsequent icon, Communications, readable-name, workflow-report and pinned-cron changes have focused validation. The complete gate has not yet been repeated on this latest checkpoint. Repeat the complete gate on the eventual image candidate before cutting RC95.
 
 Maximilien's running preview: **http://localhost:5182**. It retains its existing isolated workspace and plugin selection after the source refresh. Add your provider key through Model Integration and create a
 disposable agent or apply a team template. Host agents and keys are not imported. Its existing local extension sources
@@ -49,7 +49,7 @@ warn about confirmed unsupported models in agent configuration and retain the
 chat link to edit the model. Custom profiles and unverified runtime versions
 remain conservative exceptions; this is not a guarantee for every provider model.
 
-Retest on **`2.0.0-test-rc95-review1.1b1f20ba`**:
+Retest on **`2.0.0-test-rc95-review1.014f2411`**:
 
 1. Save GPT-5.4 Mini as the new-agent default; AI-create another disposable agent.
    Confirm its saved model remains GPT-5.4 Mini and complete a real chat.
@@ -91,8 +91,8 @@ and an on-prem/cloud rehearsal; a local preview pass does not establish those.
 | P9 | Save GPT-5.4 Mini as the new-agent default, then AI-create an agent and verify its saved model and real chat. Open the earlier unsupported agent: confirm a clear model warning, explicitly select GPT-5.4 Mini, Save, and retry chat. The warning should clear after repair; merely opening config must not change the model. | external-environment | Passed model/default repair on d32199cc per Maximilien; open-panel refresh follow-up P10 | Pending |
 
 | P10 | Keep the agent details panel open, change its model through Edit Agent Config, and Save. The open panel should immediately show the saved model without closing/reopening it. | human-judgment | Pending | Pending |
-| P11 | AI-create a managed weekly workflow with your available agents. Confirm content, schedule, timezone, target agents and Owner Agent are populated appropriately; edit if needed, Create, and reopen the saved workflow. Required-field errors must be visible and take you to the field. Accept the generated choices for your intended workflow. | human-judgment | Pending (previous AI Create failed without an owner; fixed in 3224f474) | Pending |
-| P12 | Organization → Create Community → describe its purpose and members → Generate draft. Review/edit the name, description and selected existing agents; Create, reload and inspect membership. Repeat for Create Group, optionally choosing that community. Accept that the AI choices and editable draft are useful, and neither creation action disappears after creating the first item. | human-judgment | Pending | Pending |
+| P11 | AI-create a managed weekly workflow with your available agents. Confirm content, schedule, timezone, target agents and Owner Agent are populated appropriately; edit if needed, Create, and reopen the saved workflow. Required-field errors must be visible and take you to the field. Accept the generated choices for your intended workflow. | human-judgment | Creation accepted by Max. Manual run failed on 1b1f20ba; heading detection fixed in c0607c3f, pinned cron runtime fixed in 014f2411. Rerun pending. | Pending |
+| P12 | Communications or Organization → Create Community → describe its purpose and members → Generate draft. Review/edit the name, description and selected existing agents; Create, reload and inspect membership. Repeat for Create Group, optionally choosing that community. Accept that the AI choices and editable draft are useful, and neither creation action disappears after creating the first item. Check readable group/community card names and membership after reload. | human-judgment | Pending | Pending |
 
 These twelve checks are also selected in **Extensions → Review** in Maximilien’s
 running preview, under release `2.0.0-test-rc95`. Other machines can use this file.
@@ -229,7 +229,7 @@ produce fixes and reproductions, then we can update this preview and retest:
 ## Paste-ready Slack handoff to Daniyar
 
 Daniyar — RC95 is ready for local source review on `integration/rc95-daniyar`
-([PR #304](https://github.com/Maximilien-ai/clawmax/pull/304)), code `1b1f20ba` or later.
+([PR #304](https://github.com/Maximilien-ai/clawmax/pull/304)), code `014f2411` or later.
 It includes 13 of your PRs (all eight #320–#327), plus the latest acceptance fixes.
 
 For a fresh test:
@@ -247,7 +247,7 @@ without `--root`; that flag reuses the old snapshot and its data.
 Prioritize:
 - P9/P10: AI agents keep the BYOK default; repairing a model refreshes an already-open details panel.
 - P11: AI workflow draft includes instructions, targets, schedule/timezone and an owner when managed; Create saves and reopening preserves the choices.
-- P12: Organization → Create Community/Group → Generate draft → review/edit existing-agent members → Create → reload.
+- P12: Communications or Organization → Create Community/Group → Generate draft → review/edit existing-agent members → Create → reload.
 - P4/UI: pin/unpin in agent details, config and chat; outside click/Escape/X; message-box expand/collapse chevron; outline icons in Documents and group management.
 
 **The checklist is in the app too:** expand **Extensions → Review**. Open
@@ -274,3 +274,17 @@ We can include each after its focused lifecycle evidence passes; details are abo
 icon checks also pass. Real-provider testing, your acceptance, CI/security disposition
 and exact packaged-image validation remain open. No RC95 image exists yet; we will
 build it after local review. Report `P# — version — expected — actual — evidence`.
+
+## October 27 follow-up: Communications and workflow run
+
+- `b44b66ee`: shared AI draft form on both Organization and Communications. Review/edit name, purpose and existing-agent selection before explicit Create. Generation/save errors retain the draft for retry.
+- `71f830c5`: imported channels retain authored display names separately from routing IDs. Older shipped-template imports recover names only when authored name and purpose match; unknown/edited legacy entries retain their original label. Mobile cards use one column and wrap names. Membership IDs remain unchanged.
+- `c0607c3f`: report headings such as “Failed or Missing Responses” no longer mark an otherwise successful participant response as failed. Explicit FAIL/FAILED status and runtime errors still fail.
+- `014f2411`: synchronous and asynchronous cron operations honor the selected OpenClaw binary; an unavailable pin never falls back to the globally installed CLI.
+- Focused evidence: 83 template tests, 23 channel-route tests, 82 workflow tests, pinned cron invocation/retry/missing-runtime checks, server TypeScript, and desktop/mobile browser checks passed. Client TypeScript remains at the existing 291 diagnostics, with no additions from Communications changes. Standalone runtime tests require `DASHBOARD_DEPLOYMENT_KIND=local`; without it this checkout defaults to cloud and intentionally disables local CLI runtimes.
+- User acceptance: workflow creation passed. The manual run on 1b1f20ba failed; retain that history and rerun on 014f2411. No successful real-provider rerun is claimed yet.
+- Preview refresh preserved 1,221 workspace/home files, backed up under `refresh-backup-1793136583`. Images remain deferred.
+
+Immediate checks: refresh localhost:5182, verify version 014f2411, create a group/community from Communications, review/edit members and save/reload, then rerun Daily Morning Agent Status and inspect both participant responses. Record the new result separately from the earlier failed run.
+
+Code CI at handoff: [014f2411 checks](https://github.com/Maximilien-ai/clawmax/actions/runs/40585120708), still running when checked. No RC95 image workflow was dispatched.
