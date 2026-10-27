@@ -2181,10 +2181,14 @@ router.get('/:id/identity', (req, res) => {
     // If we can't read live config, fall back to IDENTITY.md metadata
   }
 
+  const selectedModel = liveConfig?.model || metadata.model || runtimeIdentity.model
+  const modelWarning = resolveAgentRuntime(id, runtimeIdentity.runtime) === 'openclaw'
+    ? describeOpenClawModelRejection([{ model: selectedModel, label: 'current model' }]) : null
   res.json({
     content,
     metadata,
     liveConfig,
+    modelWarning: modelWarning ? { model: selectedModel, message: modelWarning } : null,
     modelFit: {
       selectionMode: runtimeIdentity.modelSelection === 'auto' ? 'auto' : 'manual',
       preference: ['quality', 'balanced', 'cost'].includes(runtimeIdentity.modelPreference)

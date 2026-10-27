@@ -26,7 +26,7 @@ try {
       else if (path === '/api/system') json = { version: 'fixture', agentCount: 1, onlineCount: 0 }
       else if (path === '/api/agents') json = { total: 1, agents: [{ id: 'atlas', name: 'Atlas', status: 'offline', workspacePath: '/fixture/AGENTS/atlas', tags: [], groups: [], communities: [], skills: [] }] }
       else if (path === '/api/agents/atlas/config') json = { identity: '# Unsaved identity', soul: '# Soul\nKeep existing instructions.', tools: '' }
-      else if (path === '/api/agents/atlas/identity') json = { metadata: {}, liveConfig: { model: 'openai/gpt-5.4-mini-2026-03-17' } }
+      else if (path === '/api/agents/atlas/identity') json = { metadata: {}, liveConfig: { model: 'openai/gpt-5.4-mini-2026-03-17' }, modelWarning: { model: 'openai/gpt-5.4-mini-2026-03-17', message: 'Use openai/gpt-5.4-mini, a model listed by the runtime.' } }
       else if (path === '/api/agents/models/discover') json = { models: ['openai/gpt-5.5'], modelsByProvider: { openai: { name: 'OpenAI', models: ['openai/gpt-5.5'] } } }
       else if (path === '/api/agents/validate-config') {
         const body = request.postDataJSON()
@@ -46,8 +46,11 @@ try {
     await current.waitFor()
     assert.equal(await current.inputValue(), 'openai/gpt-5.4-mini-2026-03-17')
     assert.match(await current.locator('option:checked').innerText(), /current; not offered/)
+    await page.getByText('This model is not supported by the current runtime.', { exact: true }).waitFor()
+    await page.screenshot({ path: `/private/tmp/rc95-model-warning-${width}.png` })
     await current.selectOption('openai/gpt-5.5')
     assert.equal(await current.inputValue(), 'openai/gpt-5.5')
+    assert.equal(await page.getByText('This model is not supported by the current runtime.', { exact: true }).count(), 0)
     assert.equal(writes, 0, 'changing draft does not silently save')
     await current.scrollIntoViewIfNeeded()
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)

@@ -237,10 +237,14 @@ async function run() {
 
       // An existing agent already on the snapshot (created before this check) stays editable:
       // saving other settings never forces a change to its model.
-      const legacy = 'openai/gpt-5.4-mini-2026-03-17'
+      const legacy = 'openai/o3-2025-04-16'
       const legacyIdentity = originalIdentity.split('openai/gpt-4o-mini').join(legacy)
       fs.writeFileSync(configPath, originalConfig.split('openai/gpt-4o-mini').join(legacy))
       fs.writeFileSync(identityPath, legacyIdentity)
+      const warning = makeRes()
+      await getRouteHandler('get', '/:id/identity')(makeReq({ params: { id: 'plain-agent' } }), warning)
+      assert.equal(warning.jsonBody.modelWarning.model, legacy)
+      assert.match(warning.jsonBody.modelWarning.message, /gpt-5.4-mini/)
       const unchanged = makeRes()
       await getRouteHandler('put', '/:id/config')(makeReq({ params: { id: 'plain-agent' }, body: { identity: legacyIdentity, soul: '# SOUL\n\nEdited soul\n', tools: originalTools } }), unchanged)
       assert.equal(unchanged.statusCode, 200, `An unchanged legacy model must not block other edits: ${JSON.stringify(unchanged.jsonBody)}`)
@@ -251,10 +255,14 @@ async function run() {
       await getRouteHandler('patch', '/:id/model')(makeReq({ params: { id: 'plain-agent' }, body: { model: 'openai/gpt-5.4-mini' } }), replaced)
       assert.equal(replaced.statusCode, 200, JSON.stringify(replaced.jsonBody))
       assert.equal(savedModel(), 'openai/gpt-5.4-mini')
+      const repaired = makeRes()
+      await getRouteHandler('get', '/:id/identity')(makeReq({ params: { id: 'plain-agent' } }), repaired)
+      assert.equal(repaired.jsonBody.modelWarning, null)
 
       // A new agent is rejected before anything is provisioned.
       const agentsBefore = fs.readdirSync(path.join(workspacePath, 'AGENTS')).sort()
       for (const body of [
+        { name: 'runtime-probe', model: 'openai/o3-2025-04-16' },
         { name: 'runtime-probe', model: 'openai/gpt-5.4-mini-2026-03-17' },
         { name: 'runtime-probe', model: 'openai/gpt-5.4-mini', backupModel: 'openai/gpt-5.4-mini-2026-03-17' },
       ]) {

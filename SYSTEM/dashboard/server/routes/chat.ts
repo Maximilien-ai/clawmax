@@ -444,7 +444,7 @@ function formatUnsupportedModelError(raw: string, context?: ChatErrorContext): s
   // Dated snapshots of an aliased model are the common case: offer the id the runtime does list.
   const support = context?.runtimeLabel ? undefined : checkOpenClawModelSupport(model)
   const action = support?.status === 'unsupported' && support.replacement
-    ? `Change the agent's model to \`${support.replacement}\`, the id the installed OpenClaw runtime lists for it, save the agent, and retry.`
+    ? `Change the agent's model to \`${support.replacement}\`, a model listed by the installed OpenClaw runtime, save the agent, and retry.`
     : 'Choose a model listed by a configured provider, save the agent, and retry.'
   const editLink = context?.agentId
     ? ` [Edit agent model](/agents?agent=${encodeURIComponent(context.agentId)}&action=edit)`

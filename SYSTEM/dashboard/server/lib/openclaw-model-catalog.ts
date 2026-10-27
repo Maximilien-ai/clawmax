@@ -138,6 +138,11 @@ export function checkOpenClawModelSupport(model: string | undefined, catalog = g
     // Missing config means stock defaults; unreadable or JSON5 config proves nothing.
     if (error?.code !== 'ENOENT') return { status: 'unverified' }
   }
+  // Reproduced against 2026.9.7: OpenAI lists this snapshot, but the pinned runtime
+  // has neither a catalog entry nor a forward resolver for it.
+  if (id === 'o3-2025-04-16' && ids.has('gpt-5.4-mini')) {
+    return { status: 'unsupported', replacement: 'openai/gpt-5.4-mini' }
+  }
   const alias = id.replace(SNAPSHOT_SUFFIX, '')
   return alias !== id && ids.has(alias)
     ? { status: 'unsupported', replacement: `${provider}/${alias}` }
@@ -163,7 +168,7 @@ export function describeOpenClawModelRejection(
     if (support.status !== 'unsupported') continue
     const runtime = `OpenClaw${catalog?.version ? ` ${catalog.version}` : ''}`
     const provider = String(model).slice(0, String(model).indexOf('/'))
-    const remedy = `Use \`${support.replacement}\`, the id ${runtime} lists for this model, or choose another model from the list.`
+    const remedy = `Use \`${support.replacement}\`, a model listed by ${runtime}, or choose another model from the list.`
     return `The ${label} \`${model}\` is not in the ${provider} model catalog of the installed ${runtime} runtime, so the runtime would reject every chat with it ("Unknown model"). The provider offering a model does not make it runnable here. ${remedy}`
   }
   return null

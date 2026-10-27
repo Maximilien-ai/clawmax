@@ -2769,6 +2769,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [soul, setSoul] = React.useState('')
   const [tools, setTools] = React.useState('')
   const [model, setModel] = React.useState('')
+  const [modelWarning, setModelWarning] = React.useState<{ model: string; message: string } | null>(null)
   const [runtime, setRuntime] = React.useState('default')
   // Driven off the server's runtime registry (id + label + models) rather than hardcoded ids, so
   // adding a CLI runtime needs no change here.
@@ -2913,6 +2914,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         const loadedModel = identityData?.liveConfig?.model || identityData?.metadata?.model || ''
         manualModelRef.current = loadedModel
         setModel(loadedModel)
+        setModelWarning(identityData?.modelWarning || null)
         setRuntime(identityData?.metadata?.runtime || 'default')
         setBackupModel(identityData?.liveConfig?.backupModel || identityData?.metadata?.backupModel || '')
         setModelPreference(persistedModelFit.preference)
@@ -3212,6 +3214,13 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     Refresh models
                   </button>
                 </div>
+                {modelWarning?.model === model && (runtime === 'default' || runtime === 'openclaw') && (
+                  <div role="alert" className="mb-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+                    <strong>This model is not supported by the current runtime.</strong>
+                    <p className="mt-1 break-words">{modelWarning.message}</p>
+                    <p className="mt-1">Choose a supported model below and Save before retrying chat. Your model will not change automatically.</p>
+                  </div>
+                )}
                 <select
                   value={model}
                   disabled={autoModelSelection}

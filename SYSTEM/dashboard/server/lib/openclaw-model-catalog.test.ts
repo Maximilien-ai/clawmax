@@ -101,6 +101,7 @@ try {
     process.env.OPENCLAW_BIN = launcher
     clearOpenClawModelCatalogCache()
     const rows: Array<[string, ReturnType<typeof checkOpenClawModelSupport>]> = [
+      ['openai/o3-2025-04-16', { status: 'unsupported', replacement: 'openai/gpt-5.4-mini' }],
       ['openai/gpt-5.4-mini-2026-03-17', { status: 'unsupported', replacement: 'openai/gpt-5.4-mini' }],
       ['openai/gpt-5.5-2026-04-23', { status: 'unsupported', replacement: 'openai/gpt-5.5' }],
       // OpenClaw 2026.9.7 resolves these unlisted ids through forward-compat rules.
