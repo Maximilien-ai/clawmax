@@ -1,5 +1,6 @@
 import { channelLabel } from '../lib/channelLabel'
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import AgentDetailPanel from '../components/AgentDetailPanel'
 import AgentGroupMemberships from '../components/AgentGroupMemberships'
 import { KeepAgentPanelOpenButton } from '../components/KeepAgentPanelOpenButton'
@@ -36,7 +37,7 @@ import { formatAgentGroupCount, getAgentBudgetPresentation, getVisibleAgentTags,
 import { getAgentWorkspaceLoadKey, shouldFetchAgentsForWorkspace } from '../lib/agentLoading'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
-import { getSmartDropdownPlacement, getViewportSafeDropdownStyle, type DropdownPlacement } from '../lib/dropdownPosition'
+import { getViewportSafeDropdownStyle, useViewportBoundedMenu } from '../lib/dropdownPosition'
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
 import { getAttachmentFilename } from '../lib/downloadFilename'
 import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelationship } from '../lib/pluginRelationships'
@@ -3607,31 +3608,14 @@ const AgentCard = React.memo(function AgentCard({
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [actionsMenuView, setActionsMenuView] = React.useState<AgentActionsMenuView>('main')
-  const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
-  const menuWidth = 224
+  const closeActionsMenu = React.useCallback(() => { setShowActionsMenu(false); setActionsMenuView('main') }, [])
+  const { menuRef, menuStyle } = useViewportBoundedMenu(showActionsMenu, actionsButtonRef, 224, closeActionsMenu)
   const { usedPct: budgetUsedPct, barColor: budgetBarColor } = getAgentBudgetPresentation({
     costTrackingEnabled,
     costLimit,
     meteringCost: metering?.cost,
   })
-
-  React.useEffect(() => {
-    if (!showActionsMenu || !actionsButtonRef.current) return
-
-    const updatePlacement = () => {
-      if (!actionsButtonRef.current) return
-      setMenuPlacement(getSmartDropdownPlacement(actionsButtonRef.current.getBoundingClientRect()))
-    }
-
-    updatePlacement()
-    window.addEventListener('resize', updatePlacement)
-    window.addEventListener('scroll', updatePlacement, true)
-    return () => {
-      window.removeEventListener('resize', updatePlacement)
-      window.removeEventListener('scroll', updatePlacement, true)
-    }
-  }, [showActionsMenu])
 
   return (
     <div
@@ -3724,12 +3708,13 @@ const AgentCard = React.memo(function AgentCard({
             >
               ⋮
             </button>
-            {showActionsMenu && (
+            {showActionsMenu && createPortal(
               <>
-                <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setShowActionsMenu(false); setActionsMenuView('main') }} />
+                <div className="fixed inset-0 z-40" onClick={e => { e.stopPropagation(); setShowActionsMenu(false); setActionsMenuView('main') }} />
                 <div
-                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto"
-                  style={actionsButtonRef.current ? getViewportSafeDropdownStyle(actionsButtonRef.current.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
+                  ref={menuRef}
+                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1 dark:border-gray-700"
+                  style={menuStyle}
                 >
                   <div className="px-3 py-2 space-y-3">
                     <div>
@@ -3947,7 +3932,8 @@ const AgentCard = React.memo(function AgentCard({
                     </div>
                   </div>
                 </div>
-              </>
+              </>,
+              document.body
             )}
           </div>
           <button
@@ -4224,9 +4210,9 @@ const AgentCard = React.memo(function AgentCard({
 const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onOpenGroups, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true, relationships = [] }: { agent: Agent; selected: boolean; onClick: () => void; onOpenGroups: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onNavigateToSkills?: (agentId: string) => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean; relationships?: PluginRelationship[] }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [actionsMenuView, setActionsMenuView] = React.useState<AgentActionsMenuView>('main')
-  const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
-  const menuWidth = 224
+  const closeActionsMenu = React.useCallback(() => { setShowActionsMenu(false); setActionsMenuView('main') }, [])
+  const { menuRef, menuStyle } = useViewportBoundedMenu(showActionsMenu, actionsButtonRef, 224, closeActionsMenu)
   const totalGroups = (agent.communities || []).length + (agent.groups || []).length
   const groupCountLabel = formatAgentGroupCount(totalGroups)
   const tagPreview = getVisibleAgentTags(agent.tags, 3)
@@ -4235,23 +4221,6 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
     costLimit,
     meteringCost: metering?.cost,
   })
-
-  React.useEffect(() => {
-    if (!showActionsMenu || !actionsButtonRef.current) return
-
-    const updatePlacement = () => {
-      if (!actionsButtonRef.current) return
-      setMenuPlacement(getSmartDropdownPlacement(actionsButtonRef.current.getBoundingClientRect()))
-    }
-
-    updatePlacement()
-    window.addEventListener('resize', updatePlacement)
-    window.addEventListener('scroll', updatePlacement, true)
-    return () => {
-      window.removeEventListener('resize', updatePlacement)
-      window.removeEventListener('scroll', updatePlacement, true)
-    }
-  }, [showActionsMenu])
 
   // Format token count for display
   const formatTokens = (count: number): string => {
@@ -4398,12 +4367,13 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           >
             ⋮
           </button>
-          {showActionsMenu && (
+          {showActionsMenu && createPortal(
             <>
-              <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); setActionsMenuView('main'); }} />
+              <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); setActionsMenuView('main'); }} />
               <div
-                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto"
-                style={actionsButtonRef.current ? getViewportSafeDropdownStyle(actionsButtonRef.current.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
+                ref={menuRef}
+                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1 dark:border-gray-700"
+                style={menuStyle}
               >
                 <div className="px-3 py-2 space-y-3">
                   <div>
@@ -4616,7 +4586,8 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                   </div>
                 </div>
               </div>
-            </>
+            </>,
+            document.body
           )}
         </div>
       </div>
@@ -4673,9 +4644,9 @@ const AgentTableView = React.memo(function AgentTableView({
   pluginRelationships: Record<string, PluginRelationship[]>
 }) {
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
-  const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('bottom')
-  const actionsButtonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({})
-  const menuWidth = 224
+  const openDropdownTriggerRef = React.useRef<HTMLButtonElement | null>(null)
+  const closeDropdown = React.useCallback(() => setOpenDropdown(null), [])
+  const { menuRef, menuStyle } = useViewportBoundedMenu(openDropdown, openDropdownTriggerRef, 224, closeDropdown)
 
   // Close dropdown when clicking outside
   React.useEffect(() => {
@@ -4683,24 +4654,6 @@ const AgentTableView = React.memo(function AgentTableView({
     document.addEventListener('click', handleClick)
     return () => document.removeEventListener('click', handleClick)
   }, [])
-
-  React.useEffect(() => {
-    if (!openDropdown) return
-
-    const updatePlacement = () => {
-      const button = actionsButtonRefs.current[openDropdown]
-      if (!button) return
-      setMenuPlacement(getSmartDropdownPlacement(button.getBoundingClientRect()))
-    }
-
-    updatePlacement()
-    window.addEventListener('resize', updatePlacement)
-    window.addEventListener('scroll', updatePlacement, true)
-    return () => {
-      window.removeEventListener('resize', updatePlacement)
-      window.removeEventListener('scroll', updatePlacement, true)
-    }
-  }, [openDropdown])
 
   // Sort agents
   const sortedAgents = React.useMemo(() => {
@@ -4933,9 +4886,9 @@ const AgentTableView = React.memo(function AgentTableView({
                     <ProductIconCell iconName="details" label="View Details & Files" size="sm" className="border-transparent bg-transparent text-current" />
                   </button>
                   <button
-                    ref={(el) => { actionsButtonRefs.current[agent.id] = el }}
                     onClick={(e) => {
                       e.stopPropagation()
+                      openDropdownTriggerRef.current = e.currentTarget
                       setOpenDropdown(openDropdown === agent.id ? null : agent.id)
                     }}
                     className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:bg-gray-800 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
@@ -4944,10 +4897,11 @@ const AgentTableView = React.memo(function AgentTableView({
                     ⋮
                   </button>
 
-                  {openDropdown === agent.id && (
+                  {openDropdown === agent.id && createPortal(
                     <div
-                      className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20 max-h-[70vh] overflow-y-auto"
-                      style={actionsButtonRefs.current[agent.id] ? getViewportSafeDropdownStyle(actionsButtonRefs.current[agent.id]!.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
+                      ref={menuRef}
+                      className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50"
+                      style={menuStyle}
                     >
                       <button
                         onClick={(e) => {
@@ -5073,7 +5027,8 @@ const AgentTableView = React.memo(function AgentTableView({
                         <ProductIconCell iconName="delete" label="Delete" size="sm" className="border-red-200 bg-red-50 text-red-600 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300" />
                         Delete
                       </button>
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </div>
               </td>
