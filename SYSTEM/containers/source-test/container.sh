@@ -62,14 +62,14 @@ else
   fi
   podman volume create --label "$owner=true" "$volume" >/dev/null
   podman run --detach --name "$name" --label "$owner=true" \
-    --cpus "${CLAWMAX_TEST_CPUS:-2}" --memory "${CLAWMAX_TEST_MEMORY:-4g}" \
+    --cpus "${CLAWMAX_TEST_CPUS:-2}" --memory "${CLAWMAX_TEST_MEMORY:-8g}" \
     --security-opt no-new-privileges --cap-drop all \
     --publish "127.0.0.1:$api_port:$api_port" --publish "127.0.0.1:$ui_port:$ui_port" \
     --volume "$volume:/home/node:U" \
     --env "DASHBOARD_PORT=$api_port" --env "DASHBOARD_CLIENT_PORT=$ui_port" \
     --env "CLAWMAX_TEST_REF=${CLAWMAX_TEST_REF:-main}" \
     --env "CLAWMAX_TEST_REPOSITORY=${CLAWMAX_TEST_REPOSITORY:-https://github.com/Maximilien-ai/clawmax.git}" \
-    --env NODE_OPTIONS=--max-old-space-size=2560 "$image" >/dev/null
+    --env NODE_OPTIONS=--max-old-space-size=6144 "$image" >/dev/null
 fi
 echo "Logs: $launcher logs"
 echo "Shutdown test VM: $launcher stop"
