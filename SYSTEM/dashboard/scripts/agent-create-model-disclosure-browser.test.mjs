@@ -14,11 +14,12 @@ const agent = { id: 'rc94-probe', generation: 'rc94-browser-generation', name: '
 const workspace = { id: 'rc94-browser', name: 'RC94 Acceptance Workspace With A Long Name', path: '/tmp/rc94', agentCount: 1, isActive: true, tags: [] }
 const errors = []
 let generateCalls = 0
+const preferred = 'openai/gpt-5.4-mini'
 page.on('pageerror', error => errors.push(error.stack))
 await page.route('**/api/**', async route => {
   const url = new URL(route.request().url()), p = url.pathname
   let body = {}
-  if (p === '/api/auth/config') body = { authDisabled: true, githubEnabled: false, deploymentKind: 'local', enabledRuntimes: ['openclaw'], userKeyDefaults: { openai: true, anthropic: false } }
+  if (p === '/api/auth/config') body = { authDisabled: true, githubEnabled: false, deploymentKind: 'local', preferredModel: preferred, enabledRuntimes: ['openclaw'], userKeyDefaults: { openai: true, anthropic: false } }
   else if (p === '/api/auth/me') body = { authenticated: true, user: { id: 'rc94', login: 'rc94', name: 'RC94 Browser', role: 'admin' } }
   else if (p === '/api/system') body = { version: '2.0.0-test-rc94', hostname: 'browser-fixture', machineName: 'RC94', agentCount: 1, onlineCount: 0, workspacePath: workspace.path }
   else if (p === '/api/activity-export/status') body = { agentforge: { configured: false, connected: false }, destinations: [], queuedEvents: 0 }
@@ -26,7 +27,7 @@ await page.route('**/api/**', async route => {
   else if (p === '/api/workspaces/active') body = { workspace }
   else if (p === '/api/agents/generate') {
     generateCalls++
-    body = { identity: '# Synthetic Research Agent', soul: 'Use sources', tools: 'No tools', generatedBy: 'Synthetic acceptance fixture', suggestedName: 'research-agent', suggestedModel: agent.model, modelRecommendation: { recommendedModel: agent.model, confidence: 'medium', summary: 'Synthetic model fit', disclaimer: 'Advisory fixture', candidates: [{ model: agent.model, score: 1, tier: 'balanced', reasons: ['Synthetic reason'], caveats: [] }] } }
+    body = { identity: '# Synthetic Research Agent', soul: 'Use sources', tools: 'No tools', generatedBy: 'Synthetic acceptance fixture', suggestedName: 'research-agent', suggestedModel: 'openai/o3-2025-04-16', modelRecommendation: { recommendedModel: agent.model, confidence: 'medium', summary: 'Synthetic model fit', disclaimer: 'Advisory fixture', candidates: [{ model: agent.model, score: 1, tier: 'balanced', reasons: ['Synthetic reason'], caveats: [] }] } }
   }
   else if (p === '/api/agents/model-fit') body = { recommendedModel: agent.model, confidence: 'medium', summary: 'Synthetic model fit', disclaimer: 'Advisory fixture', candidates: [{ model: agent.model, score: 1, tier: 'balanced', reasons: ['Synthetic reason'], caveats: [] }] }
   else if (p === '/api/agents') body = { agents: [agent], total: 1, hasMore: false }
@@ -64,6 +65,10 @@ try {
     await prompt.fill('Create a research assistant who returns a concise sourced report. Ask before any external action.')
     await page.getByRole('button', { name: 'Generate with AI', exact: true }).click()
     await page.getByText('Files generated successfully', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Back', exact: true }).click()
+    const modelSelect = page.locator('select').filter({ has: page.locator(`option[value="${preferred}"]`) }).first()
+    assert.equal(await modelSelect.inputValue(), preferred, 'AI must preserve saved default even when discovery omits it')
+    await page.getByRole('button', { name: 'Next', exact: true }).click()
     const disclosure = page.locator('details[aria-label="Model suggestion"]')
     assert.equal(await disclosure.getAttribute('open'), null)
     await disclosure.locator('summary').click()

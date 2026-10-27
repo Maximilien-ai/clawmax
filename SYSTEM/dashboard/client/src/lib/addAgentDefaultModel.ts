@@ -35,11 +35,11 @@ export function resolveAddAgentWizardDefaultModel(args: {
   const config = args.config || {}
   const byok = args.byok || {}
 
-  const browserPreferred = resolveNonDeprecatedOpenAiModel(models, normalize(byok.preferredModel || byok.systemPreferredModel))
+  const browserPreferred = resolveNonDeprecatedOpenAiModel(models, normalize(byok.preferredModel))
   const configPreferred = resolveNonDeprecatedOpenAiModel(models, normalize(config.preferredModel))
   const configRecommended = resolveNonDeprecatedOpenAiModel(models, normalize(config.recommendedModel))
 
-  const explicitPreferred = matches(models, browserPreferred) || matches(models, configPreferred)
+  const explicitPreferred = browserPreferred || configPreferred
   if (explicitPreferred) return resolveNonDeprecatedOpenAiModel(models, explicitPreferred)
   if (models.length === 0) return browserPreferred || configPreferred || configRecommended
 
@@ -81,8 +81,8 @@ export function resolveAddAgentWizardSuggestedModel(args: {
 
   if (currentModel) {
     if (models.length === 0) return currentModel
-    const currentMatch = matches(models, currentModel)
-    if (currentMatch) return currentMatch
+    // Catalog discovery is advisory; never replace an explicit selection with AI's choice.
+    return currentModel
   }
 
   if (!suggestedModel) return currentModel

@@ -212,10 +212,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
           Object.entries(d.modelsByProvider || {}).filter(([providerId]) => ollamaEnabled || providerId !== 'ollama')
         )
         setAvailableModels(models)
-        setModelsLoaded(true)
         setModelsByProvider(filteredModelsByProvider)
 
-        fetch('/api/auth/config').then(r => r.json()).then(cfg => {
+        return fetch('/api/auth/config').then(r => r.json()).then(cfg => {
           const defaultModel = resolveAddAgentWizardDefaultModel({
             models,
             config: {
@@ -236,13 +235,15 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
             setForm(f => ({ ...f, model: defaultModel }))
           }
         }).catch(() => {
-          if (models.length > 0) {
-            manualModelRef.current = models[0]
-            setForm(f => ({ ...f, model: models[0] }))
+          const defaultModel = resolveAddAgentWizardDefaultModel({ models, byok: readStoredByokKeys() })
+          if (defaultModel) {
+            manualModelRef.current = defaultModel
+            setForm(f => ({ ...f, model: defaultModel }))
           }
         })
       })
-      .catch(() => { setModelsLoaded(true) })
+      .catch(() => {})
+      .finally(() => setModelsLoaded(true))
 
     // If cloning, skip initial fetch - the cloneFrom effect will handle it
     if (!defaultCloneFrom) {
@@ -577,11 +578,11 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       if (data.suggestedTags?.length > 0) set('tags', [...new Set(data.suggestedTags)])
       if (data.suggestedModel) {
         if (!manualModelRef.current) manualModelRef.current = form.model
-        set('model', resolveAddAgentWizardSuggestedModel({
+        setForm(current => ({ ...current, model: resolveAddAgentWizardSuggestedModel({
           models: modelFitCandidates(runtimeModelOptions, availableModels),
-          currentModel: form.model,
-          suggestedModel: isModelAllowedForRuntime(data.suggestedModel) ? data.suggestedModel : form.model,
-        }))
+          currentModel: current.model,
+          suggestedModel: isModelAllowedForRuntime(data.suggestedModel) ? data.suggestedModel : current.model,
+        }) }))
       }
       if (data.suggestedSkills?.length > 0) set('skills', [...new Set(data.suggestedSkills)])
 
@@ -801,6 +802,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                 >
                   {runtimeModelOptions.length === 0 && availableModels.length === 0 && (
                     <option value="">{modelsLoaded ? 'No models available — add API keys to .env' : 'Loading models...'}</option>
+                  )}
+                  {form.model && !availableModels.includes(form.model) && !runtimeModelOptions.includes(form.model) && (
+                    <option value={form.model}>{form.model} — selected; availability unverified</option>
                   )}
                   {runtimeModelOptions.length > 0 ? (
                     <optgroup label={`${runtimeLabelFor(runtimeCatalog, runtime)} models`}>
@@ -1078,7 +1082,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
               <button
                 onClick={generateWithAI}
-                disabled={!form.aiDescription.trim() || generating || !!generatedFiles || !aiEnabled}
+                disabled={!form.aiDescription.trim() || generating || !!generatedFiles || !aiEnabled || !modelsLoaded || !form.model}
                 className={`w-full px-4 py-2 text-sm rounded font-medium transition-colors ${
                   generating || !!generatedFiles
                     ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
@@ -1088,7 +1092,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                 }`}
                 title={!aiEnabled ? 'Configure browser keys and a preferred model to enable AI generation' : ''}
               >
-                {generating ? 'Generating...' : generatedFiles ? '✓ Generated' : !aiEnabled ? 'Generate with AI (set up keys first)' : 'Generate with AI'}
+                {!modelsLoaded ? 'Loading model defaults...' : generating ? 'Generating...' : generatedFiles ? '✓ Generated' : !aiEnabled ? 'Generate with AI (set up keys first)' : 'Generate with AI'}
               </button>
               <AIGenerationProgress active={generating} label="Generating agent files…" />
 
