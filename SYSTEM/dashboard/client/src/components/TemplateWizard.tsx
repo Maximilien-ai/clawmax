@@ -62,6 +62,8 @@ interface WizardWorkflow {
   dependsOn?: string[]
   outputDefinitions?: Array<{ key: string; label?: string; type?: string; help?: string }>
   inputRefs?: Array<{ workflowId: string; outputKey: string; label?: string; required?: boolean }>
+  // Declared run inputs; their `required` flags decide which fields Apply must collect.
+  inputs?: Array<{ name?: string; label?: string; type?: string; required?: boolean; options?: string[] }>
   content: string
 }
 
@@ -554,6 +556,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           dependsOn: w.dependsOn || [],
           outputDefinitions: w.outputDefinitions || [],
           inputRefs: w.inputRefs || [],
+          inputs: Array.isArray(w.inputs) ? w.inputs : undefined,
           content: w.content || '',
         })),
         parameters: (initialTemplate.parameters || []).map((p: any) => ({
@@ -664,6 +667,9 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             dependsOn: w.dependsOn || [],
             outputDefinitions: w.outputDefinitions || [],
             inputRefs: w.inputRefs || [],
+            // Only from the same workflow: regeneration may reorder them, and another workflow's
+            // declarations would make same-named fields optional.
+            inputs: Array.isArray(w.inputs) ? w.inputs : currentWorkflow && currentWorkflow.id === w.id ? currentWorkflow.inputs : undefined,
             content: mergedContent,
           }
         })
@@ -806,6 +812,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         dependsOn: w.dependsOn,
         outputDefinitions: w.outputDefinitions && w.outputDefinitions.length > 0 ? w.outputDefinitions : undefined,
         inputRefs: w.inputRefs && w.inputRefs.length > 0 ? w.inputRefs : undefined,
+        inputs: w.inputs && w.inputs.length > 0 ? w.inputs : undefined,
         content: w.content,
       })) : undefined,
     }

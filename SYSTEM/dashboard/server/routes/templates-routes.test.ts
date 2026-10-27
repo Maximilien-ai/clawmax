@@ -434,6 +434,27 @@ async function run() {
     }
   })
 
+  await test("organization customization route honors a template's declared optional inputs and keeps blank fields empty", async () => {
+    const handler = getRouteHandler('post', '/organizations/validate-customization')
+    const missingIn = (res: any): string[] => (res.jsonBody?.errors || [])
+      .map((error: string) => error.match(/empty required field: (.+)\.$/)?.[1])
+      .filter(Boolean)
+
+    let res = makeRes()
+    await handler(makeReq({ body: { templateSlug: 'small-event-planning-desk' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected the unfilled template to be rejected')
+    assert(missingIn(res).includes('Event type'), `Expected Event type to be required: ${JSON.stringify(res.jsonBody?.errors)}`)
+    assert(!missingIn(res).includes('Food and drink plan'), 'Expected the input the template declares optional not to block deployment')
+
+    // A value cleared to spaces is still empty, and must not borrow the next line as its value.
+    const templatePath = path.resolve(__dirname, '../../../../TEMPLATES/organizations/small-event-planning-desk/template.json')
+    const kickoff = JSON.parse(fs.readFileSync(templatePath, 'utf-8')).workflows.find((workflow: any) => workflow.id === 'small-event-kickoff')
+    const blanked = kickoff.content.replace(/^(- \*\*Event type:\*\*).*$/m, '$1   ')
+    res = makeRes()
+    await handler(makeReq({ body: { templateSlug: 'small-event-planning-desk', workflowOverrides: { 'small-event-kickoff': blanked } } }), res)
+    assert(missingIn(res).includes('Event type') && missingIn(res).includes('Event date and time'), `Expected both fields to stay missing: ${JSON.stringify(res.jsonBody?.errors)}`)
+  })
+
   await test('template markdown import routes validate required content', async () => {
     const templateImportHandler = getRouteHandler('post', '/import-md')
     let res = makeRes()
