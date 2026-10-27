@@ -131,6 +131,10 @@ const DASHBOARD_RUNTIME_ENV_KEYS = [
   'MAINTENANCE_BANNER_DISMISSIBLE',
   'DASHBOARD_PORT',
   'DASHBOARD_HOST',
+  // Launchers (start.sh) derive both from the frontend port they start; a stale .env must not
+  // replace them, or the CSRF guard trusts a different origin than the one actually served.
+  'DASHBOARD_APP_URL',
+  'CORS_ORIGIN',
   'CLAWMAX_PLUGIN_PATHS',
   'CLAWMAX_ENABLED_PLUGINS',
   'CLAWMAX_DISABLE_DEFAULT_PLUGINS',
@@ -143,7 +147,7 @@ const EMPTY_RUNTIME_OVERRIDE_KEYS = new Set([
   'CLAWMAX_DISABLE_DEFAULT_PLUGINS',
 ])
 
-function getDashboardRuntimeEnvOverrides(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
+export function getDashboardRuntimeEnvOverrides(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const overrides: Record<string, string> = {}
   for (const key of DASHBOARD_RUNTIME_ENV_KEYS) {
     const value = source[key]
