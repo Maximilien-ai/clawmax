@@ -1,7 +1,7 @@
 # Backlog
 
 - [ ] **RC95 preview acceptance and remaining PRs** — Dashboard: complete the
-  [four focused reviewer checks and engineering gates](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md),
+  [eight focused reviewer checks and engineering gates](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md),
   resolve/disposition CodeQL alert #705 before RC95 release, and obtain lifecycle
   evidence for Daniyar PRs #227, #228, #229 and #288 before adding them.
 

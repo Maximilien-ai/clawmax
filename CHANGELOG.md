@@ -6,6 +6,7 @@ All notable changes to ClawMax are documented here.
 
 ### RC95 source preview (October 27, 2026)
 - Integrate Daniyar PRs #219, #252, #258, #268 and #270: chat formatting/copy, authenticated long context, required workflow inputs, config keyboard access, and bounded sign-in startup recovery.
+- Integrate new PRs #320–#327: local-origin handling, bounded API startup readiness, Gateway diagnostics, conservative model/runtime compatibility, Anthropic validation, template categories, viewport-safe menus and the final tour step. Custom model configurations remain selectable.
 - Include clean-source VM testing, consistent Node prerequisites and isolated native dev previews with source-specific version labels. See the [RC95 acceptance and remaining holds](SYSTEM/docs/planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md). No RC95 images or stable promotion yet.
 
 ### Current 2.0 development (October 12, 2026)

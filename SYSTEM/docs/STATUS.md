@@ -10,11 +10,11 @@
 
 ## RC95 source preview on October 27
 
-[Draft PR #304](https://github.com/Maximilien-ai/clawmax/pull/304) combines five of
-Daniyar's nine remaining PRs on `integration/rc95-daniyar`, with four held for
-lifecycle evidence. The local code checkpoint passed 552/552 checks. See the
+[Draft PR #304](https://github.com/Maximilien-ai/clawmax/pull/304) combines 13 of
+Daniyar's 17 reviewed PRs (all eight new #320–#327 included) on `integration/rc95-daniyar`, with four held for
+lifecycle evidence. The local code checkpoint passed 556/556 checks. See the
 [RC95 acceptance file](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) for the exact
-source, engineering limitations, CI/security gate and four independent reviewer
+source, engineering limitations, CI/security gate and eight independent reviewer
 checks. Main contains merged RC94 PR #291; this preview has not landed on main.
 The existing RC94 images are unchanged; RC95 has no release tag or image yet.
 
