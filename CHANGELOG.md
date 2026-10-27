@@ -5,6 +5,7 @@ All notable changes to ClawMax are documented here.
 ## [Unreleased]
 
 ### RC95 source preview (October 27, 2026)
+- Preserve the saved new-agent default through AI generation even when discovery omits it; wait for defaults before Generate. Show confirmed runtime model incompatibilities in config, reject the reproduced unsupported o3 snapshot on the pinned runtime, and keep repairs explicit.
 - Integrate Daniyar PRs #219, #252, #258, #268 and #270: chat formatting/copy, authenticated long context, required workflow inputs, config keyboard access, and bounded sign-in startup recovery.
 - Integrate new PRs #320–#327: local-origin handling, bounded API startup readiness, Gateway diagnostics, conservative model/runtime compatibility, Anthropic validation, template categories, viewport-safe menus and the final tour step. Custom model configurations remain selectable.
 - Include clean-source VM testing, consistent Node prerequisites and isolated native dev previews with source-specific version labels. See the [RC95 acceptance and remaining holds](SYSTEM/docs/planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md). No RC95 images or stable promotion yet.

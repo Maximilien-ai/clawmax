@@ -10,7 +10,7 @@ RC95 images. The existing RC94 images do not contain these changes.
 ## Start the preview
 
 Branch: `integration/rc95-daniyar`; [draft PR #304](https://github.com/Maximilien-ai/clawmax/pull/304).
-The tested code checkpoint is `7f179387379add6ec412a6168f13aa5e88ee177b`.
+The tested code checkpoint is `d32199ccf4d5aae6bf1f20537a5c99e6bc6518cf`.
 
 Maximilien's running preview: **http://localhost:5182**. It retains its existing isolated workspace and plugin selection after the source refresh. Add your provider key through Model Integration and create a
 disposable agent or apply a team template. Host agents and keys are not imported. Its existing local extension sources
@@ -38,6 +38,29 @@ The visible version should be `2.0.0-test-rc95-review1.<snapshot SHA>`. Record t
 version, browser, runtime/model and your result for each check. Each reviewer
 records their own pass/fail/not-run; a missing provider is not a pass.
 
+## P5 retest after acceptance feedback
+
+Maximilien reported P5 **failed** on `7f179387`: AI creation selected
+`openai/o3-2025-04-16` despite a saved `openai/gpt-5.4-mini` new-agent default.
+Do not mark that earlier run passed. Fixes `974d4018` and `d32199cc` preserve the
+saved default even when discovery omits it, prevent AI suggestions from replacing
+an explicit choice, and wait for default loading before generation. They also
+warn about confirmed unsupported models in agent configuration and retain the
+chat link to edit the model. Custom profiles and unverified runtime versions
+remain conservative exceptions; this is not a guarantee for every provider model.
+
+Retest on **`2.0.0-test-rc95-review1.d32199cc`**:
+
+1. Save GPT-5.4 Mini as the new-agent default; AI-create another disposable agent.
+   Confirm its saved model remains GPT-5.4 Mini and complete a real chat.
+2. Open the earlier unsupported agent's configuration. Confirm the warning,
+   choose GPT-5.4 Mini explicitly, Save, and retry chat. Opening the dialog alone
+   must not modify the model. The warning should disappear after the saved repair.
+3. Record a new result with this version; preserve the previous failed result.
+
+A future Doctor model-repair action is tracked separately: preview the saved
+default or a user-selected model and require an explicit apply action.
+
 ## Quick acceptance list
 
 Use the detailed P-number checks below when needed. Record your own result in
@@ -62,7 +85,7 @@ and an on-prem/cloud rehearsal; a local preview pass does not establish those.
 | P3 | Apply a team template containing required workflow inputs. Leave a required field blank: Deploy should explain what is missing and take you to that field. Fill it, leave an optional field empty, and apply. Open the created workflow and confirm the intended input values and neighboring fields were preserved. | human-judgment | Pending | Pending |
 | P4 | Open Edit Agent Config using the agent's Actions menu. Tab and Shift-Tab should stay in the dialog. Escape closes it and returns focus to the Actions button. Verify pin/unpin, outside-click dismissal, scrolling, Save and Cancel still feel correct at desktop and mobile widths. | human-judgment | Pending | Pending |
 
-| P5 | Validate the provider keys you will actually use in Model Integration (include Anthropic if available). Apply an agent template such as CEO with an offered model and complete a real chat. An existing unsupported snapshot should remain visibly selected until you explicitly replace it; saving unrelated edits must not silently change it. Report provider/model and outcome without keys. | external-environment | Pending | Pending |
+| P5 | Validate the provider keys you will actually use in Model Integration (include Anthropic if available). Apply an agent template such as CEO with an offered model and complete a real chat. An existing unsupported snapshot should remain visibly selected until you explicitly replace it; saving unrelated edits must not silently change it. Report provider/model and outcome without keys. | external-environment | Failed on 7f179387; retest requested | Pending |
 | P6 | Find a useful agent/team/company template using categories, search and source/rating filters. Switch grid/list and reset filters. Accept that the results, labels and navigation make it easy to find the template you intended. | human-judgment | Pending | Pending |
 | P7 | On your normal screen and a narrow window, use agent Actions near the top and bottom of the page in grid/list/table. All actions should be reachable without awkward scrolling; Escape/outside click should close the menu. Run the workspace tour and accept that Back/Finish and the final explanation are usable. | human-judgment | Pending | Pending |
 | P8 | On your own machine, start this branch using the isolated dev launcher, add the key and team intended for Thursday, and run a representative chat plus workflow to completion. Stop with Ctrl-C and restart using the printed --root command. Confirm the agents, workflow result and enabled plugins remain and chat works again. Record machine/runtime and failures; do not substitute health checks for completion. | external-environment | Pending | Pending |
@@ -107,7 +130,12 @@ produce fixes and reproductions, then we can update this preview and retest:
 
 ## Engineering evidence and release gates
 
-- Current code checkpoint **7f179387** passed **556/556** local integration,
+- Current checkpoint **d32199cc**: focused default-model, runtime-catalog, agent-config
+  and chat tests passed; desktop/mobile AI creation and warning/manual-selection
+  browser checks passed. Server TypeScript passed and client diagnostics remain
+  at 291 with zero new. Full regression rerun is in progress.
+
+- Previous code checkpoint **7f179387** passed **556/556** local integration,
   validation and coverage checks on October 27. Statements/lines **83.48%**
   (62,100/74,385), branches **81.04%** (20,161/24,876), functions **91.91%**
   (2,571/2,797). Log: `/private/tmp/rc95-review2-full-validation.log`.
@@ -139,7 +167,7 @@ produce fixes and reproductions, then we can update this preview and retest:
 ## Short handoff to Daniyar
 
 > RC95 preview is ready for source testing on `integration/rc95-daniyar` (PR #304),
-> code checkpoint `7f179387`. It includes all eight new PRs #320–#327 plus the five
+> code checkpoint `d32199cc`. It includes all eight new PRs #320–#327 plus the five
 > earlier fixes. Clone that branch and run `./SYSTEM/local-dev.sh`; keep the
 > terminal open, use the printed URL, and Ctrl-C stops it. Use the Quick acceptance
 > list above and report P-number, version, pass/fail/not-run and brief notes.
