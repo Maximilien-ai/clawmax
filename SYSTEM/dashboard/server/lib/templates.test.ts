@@ -1994,6 +1994,9 @@ test('importOrganizationTemplate namespaces groups and communities for prefixed 
     const communitiesMd = fs.readFileSync(path.join(tempWorkspace, 'ORG', 'COMMUNITIES.md'), 'utf-8')
     const kickoff = getWorkflow('test-leadership-kickoff')
 
+    const { channelDisplayName } = require('./channel-display-name')
+    assert(channelDisplayName(tempWorkspace, 'group', 'test-Leadership') === 'Leadership', 'Expected readable group name')
+    assert(channelDisplayName(tempWorkspace, 'community', 'test-Build-a-Company') === 'Build-a-Company', 'Expected readable community name')
     assert(groupsMd.includes('### test-Leadership'), 'Expected prefixed import to namespace workspace group names')
     assert(communitiesMd.includes('### test-Build-a-Company'), 'Expected prefixed import to namespace workspace community names')
     assert(kickoff !== null, 'Expected kickoff workflow to exist after prefixed import')

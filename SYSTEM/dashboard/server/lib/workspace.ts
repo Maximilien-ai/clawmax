@@ -890,7 +890,7 @@ export interface GroupEntry {
 }
 
 function withChannelDisplayName<T extends GroupEntry>(entry: T, type: 'group' | 'community'): T {
-  const displayName = channelDisplayName(getWorkspacePath(), type, entry.name)
+  const displayName = channelDisplayName(getWorkspacePath(), type, entry.name, entry.description)
   return displayName === entry.name ? entry : { ...entry, displayName }
 }
 

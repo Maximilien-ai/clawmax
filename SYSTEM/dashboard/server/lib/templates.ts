@@ -1,3 +1,4 @@
+import { saveChannelDisplayName } from './channel-display-name'
 import fs from 'fs'
 import { isPlainPathSegment } from './path-segment'
 import path from 'path'
@@ -3090,6 +3091,18 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               console.warn(`Failed to create GROUPS.md for ${targetAgentId}:`, err)
             }
           }
+        }
+      }
+
+      // Keep human names separate from namespaced routing/membership IDs.
+      for (const kind of ['group', 'community'] as const) {
+        const originals = kind === 'group' ? template.groups : template.communities
+        const renames = kind === 'group' ? groupRenames : communityRenames
+        const explicitRenames = kind === 'group' ? options?.groupRenames : options?.communityRenames
+        for (const channel of originals || []) {
+          const id = renames[channel.name] || channel.name
+          const label = explicitRenames?.[channel.name]?.trim() || channel.name
+          saveChannelDisplayName(getWorkspacePath(), kind, id, label)
         }
       }
 

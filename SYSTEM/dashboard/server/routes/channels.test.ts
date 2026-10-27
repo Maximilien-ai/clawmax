@@ -192,6 +192,19 @@ async function run() {
     fs.writeFileSync(groupsFile, '# Groups\n\n## Groups\n\n')
   })
 
+  await test('legacy names recover only matching authored names and purposes', async () => {
+    const { channelDisplayName, saveChannelDisplayName } = require('../lib/channel-display-name')
+    assert.equal(channelDisplayName(workspacePath, 'group', 'dev-team-DevOps', 'CI/CD pipeline, deployments, and infrastructure'), 'DevOps')
+    assert.equal(channelDisplayName(workspacePath, 'community', 'dev-team-Dev Team', 'All engineering team coordination and announcements'), 'Dev Team')
+    assert.equal(channelDisplayName(workspacePath, 'group', 'dev-team-DevOps', 'A different purpose'), 'dev-team-DevOps')
+    assert.equal(channelDisplayName(workspacePath, 'group', 'customer-success'), 'customer-success')
+    assert.equal(channelDisplayName(workspacePath, 'group', '../DevOps'), '../DevOps')
+    saveChannelDisplayName(workspacePath, 'group', 'company-A-Platform-suffix', 'Platform')
+    assert.equal(channelDisplayName(workspacePath, 'group', 'company-A-Platform-suffix'), 'Platform')
+    saveChannelDisplayName(workspacePath, 'group', 'company-A-Platform-suffix', 'Do not overwrite')
+    assert.equal(channelDisplayName(workspacePath, 'group', 'company-A-Platform-suffix'), 'Platform')
+  })
+
   await test('temporary Template chat replies through admitted dev Agents without starting a Group', async () => {
     const dev = require('./dev-host-skill-chat')
     const originalReady = dev.isDevHostSkillChatReady

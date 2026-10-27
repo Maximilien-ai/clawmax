@@ -1165,7 +1165,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                   </span>
                 </h2>
               </div>
-              <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {sortedCommunities.map(channel => (
                   <ChannelGridCard
                     key={`community-${channel.name}`}
@@ -1204,7 +1204,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                   </span>
                 </h2>
               </div>
-              <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {sortedGroups.map(channel => (
                   <ChannelGridCard
                     key={`group-${channel.name}`}
@@ -2053,7 +2053,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate dark:text-gray-100">{channel.displayName || channel.name}</h3>
+            <h3 title={channel.name} className="font-semibold text-gray-900 dark:text-gray-100 text-sm break-words min-w-0">{channel.displayName || channel.name}</h3>
             {unreadCount > 0 && (
               <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 dark:bg-red-500 text-white text-[10px] font-bold shrink-0 shadow-sm">
                 {unreadCount > 99 ? '99+' : unreadCount}
@@ -2501,7 +2501,7 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode,
       )}
       <div className="flex items-center gap-1.5 mb-2">
         <ProductIconCell iconName={channel.type === 'community' ? 'community' : 'group'} label={channel.type === 'community' ? 'Community' : 'Group'} size="sm" />
-        <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100">{channel.displayName || channel.name}</span>
+        <span title={channel.name} className="font-semibold text-gray-900 dark:text-gray-100 text-sm break-words min-w-0 flex-1">{channel.displayName || channel.name}</span>
         {unreadCount > 0 && (
           <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 dark:bg-red-500 text-white text-[10px] font-bold shrink-0 shadow-sm">
             {unreadCount > 99 ? '99+' : unreadCount}

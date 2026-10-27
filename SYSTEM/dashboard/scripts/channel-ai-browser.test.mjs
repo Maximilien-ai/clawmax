@@ -56,6 +56,14 @@ try {
    if (surface === 'organizations') await page.getByText(kind === 'Community' ? 'Communities (1)' : 'Groups (1)', { exact: true }).click()
    await page.getByText(`AI ${kind.toLowerCase()}`, { exact: true }).first().waitFor()
   }
+  if (surface === 'communication') {
+   stored.groups[0] = { ...stored.groups[0], name: 'dev-team-Engineering', displayName: 'Engineering' }
+   await page.reload()
+   const title = page.locator('[title="dev-team-Engineering"]')
+   await title.waitFor()
+   assert.equal(await title.textContent(), 'Engineering')
+   await page.screenshot({ path: `/private/tmp/rc95-channel-names-${width}.png`, fullPage: true })
+  }
   console.log(`PASS ${surface} ${width}px: AI group/community generation, membership, error recovery, save and reload`); await page.close()
  }
 } } finally { await browser.close() }
