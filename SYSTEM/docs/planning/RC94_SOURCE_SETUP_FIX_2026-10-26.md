@@ -123,6 +123,21 @@ conflicting 5173 URL or host start/stop commands. Log:
 `/private/tmp/clawmax-first-run-ready.log`. This used the prepared runtime cache;
 a provider-backed agent reply and Mike's machine acceptance remain open.
 
+Repeated-start feedback: Mike later reported port 3005 already occupied on
+both a new invocation and `--root` restart. This does not identify the listener
+or prove an agent workflow works. Try the existing UI at localhost:5178 and
+inspect the listener with `lsof -nP -iTCP:3005 -sTCP:LISTEN`. Stop the original
+session with Ctrl-C before restarting it. A root retains its saved ports and
+cannot run twice. For another new environment choose unused ports, for example
+`DASHBOARD_PORT=3006 DASHBOARD_CLIENT_PORT=5179 ./SYSTEM/local-dev.sh`.
+Fix `148755df` prints these recovery steps on a port conflict without stopping
+any existing process. Seven launcher tests passed, including this conflict path.
+
+Merge status checked at `ae8a4aab`: test CI passed, but PR #291 still required
+review approval and its CodeQL findings gate failed with 2 critical and 18 high
+alerts. Successful CodeQL analysis jobs do not clear that findings gate. These
+startup improvements do not resolve those alerts or establish merge readiness.
+
 Engineering checks: credential/profile isolation and scoped process cleanup
 tests passed; affected plugin/setup/alignment suites passed. A real temporary
 snapshot of `97b87abe` prepared dependencies and default plugins, passed
