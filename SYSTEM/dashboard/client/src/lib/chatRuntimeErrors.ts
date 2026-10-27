@@ -1,4 +1,30 @@
 import { createFenceTracker } from '../../../server/lib/chat-normalization'
+/** Mirrors describeGatewayFailure in server/routes/chat.ts, and keeps its already-specific
+ * messages ("OpenClaw Gateway ...") instead of replacing them with the generic gateway text. */
+function describeGatewayFailure(text: string): string | null {
+  const unavailableHost = text.match(/^OpenClaw Gateway is not running at ([a-zA-Z0-9.:[\]-]+), so agent chat cannot start\./)?.[1]
+  if (unavailableHost) return describeGatewayFailure(`Gateway not reachable at ws://${unavailableHost}`)
+  const unreachable = text.match(/Gateway not reachable at (wss?:\/\/[^\s()]+?)\.?(?:\s|\(|$)/i)
+  if (unreachable) {
+    let host = ''
+    try { host = new URL(unreachable[1]).host } catch { /* keep the message generic */ }
+    return `OpenClaw Gateway is not running${host ? ` at ${host}` : ''}, so agent chat cannot start. Restart the Dashboard with SYSTEM/start.sh (it installs and starts a missing Gateway), or run \`openclaw gateway status\`, then retry.`
+  }
+  if (/gateway/i.test(text)) {
+    const authCode = text.match(/\b(?:DEVICE_)?AUTH_[A-Z_]{3,}\b/)?.[0]
+    if (authCode || /gateway token (?:mismatch|missing)|pairing required|^OpenClaw Gateway rejected the Dashboard/i.test(text)) {
+      return `OpenClaw Gateway rejected the Dashboard's connection${authCode ? ` (${authCode})` : ''}. Check that the Dashboard and the Gateway use the same ~/.openclaw/openclaw.json (gateway.auth.token); restart the Gateway if its token changed, then retry.`
+    }
+  }
+  if (/gateway remote mode misconfigured|^OpenClaw Gateway is set to remote mode/i.test(text)) {
+    return 'OpenClaw Gateway is set to remote mode without gateway.remote.url. Set gateway.remote.url, or set gateway.mode to local, then retry.'
+  }
+  const closeCode = text.match(/gateway closed (?:the connection )?\((?:code )?(\d{3,4})\)/i)?.[1]
+  if (closeCode) {
+    return `OpenClaw Gateway closed the connection (code ${closeCode}). It may be restarting; retry in a moment, and run \`openclaw gateway status\` if it continues.`
+  }
+  return null
+}
 
 export function summarizeAgentChatFailure(message: string, options?: { agentId?: string; transportFailure?: boolean }): string {
   const text = String(message || '').trim()
@@ -33,6 +59,8 @@ export function summarizeAgentChatFailure(message: string, options?: { agentId?:
     || /selected model is blocked by this instance or agent model policy/i.test(text)) {
     return 'The selected model is blocked by this instance or agent model policy. Ask the instance owner to review the allowed models, or choose an allowed model. This is not a gateway connectivity failure.'
   }
+  const gatewayFailure = describeGatewayFailure(text)
+  if (gatewayFailure) return gatewayFailure
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
   if (/timeout/i.test(text)) {
     const editLink = options?.agentId

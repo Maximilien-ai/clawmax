@@ -3072,6 +3072,15 @@ else
   fail "Local plugin startup contract tests"
 fi
 
+echo -e "${YELLOW}→ Running local gateway startup recovery tests...${NC}"
+bash "$SYSTEM_DIR/start-gateway-ready.test.sh" > /tmp/clawmax-start-gateway-ready.out 2>&1 || true
+if grep -q "start-gateway-ready.test.sh: 13 tests passed" /tmp/clawmax-start-gateway-ready.out; then
+  pass "Local gateway startup recovery tests (13 tests)"
+else
+  cat /tmp/clawmax-start-gateway-ready.out
+  fail "Local gateway startup recovery tests"
+fi
+
 echo -e "${YELLOW}→ Running external plugin test launcher shell tests...${NC}"
 bash "$SYSTEM_DIR/test-plugins.test.sh" > /tmp/clawmax-test-plugins.out 2>&1 || true
 if grep -q "test-plugins.test.sh: 6 tests passed" /tmp/clawmax-test-plugins.out; then
