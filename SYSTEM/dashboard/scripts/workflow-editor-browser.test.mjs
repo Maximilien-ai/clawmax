@@ -25,7 +25,7 @@ try {
       else if (path === '/api/plugins') json = { plugins: [] }
       else if (path === '/api/metering') json = { byAgent: [] }
       else if (path === '/api/workflows/generate') {
-        json = { workflow: { ...workflow, id: undefined, name: 'Generated Example', executionMode: 'managed', owner: undefined, content: emptyGeneration ? {} : { Objective: 'Check daily status', Steps: ['Read the report', 'Publish findings'] } } }
+        json = { workflow: { ...workflow, id: undefined, name: 'Generated Example', executionMode: 'managed', owner: 'collector', content: emptyGeneration ? {} : { Objective: 'Check daily status', Steps: ['Read the report', 'Publish findings'] } } }
       }
       else if (path === '/api/workflows' && route.request().method() === 'POST') {
         if (failCreate) { failCreate = false; await route.fulfill({ status: 503, json: { details: 'Synthetic save unavailable' } }); return }
@@ -65,6 +65,9 @@ try {
     await generatedContent.waitFor()
     const markdown = await generatedContent.inputValue()
     assert(markdown.includes('## Objective') && markdown.includes('Publish findings') && !markdown.includes('[object Object]'))
+    const initialOwner = createDialog.locator('select').filter({ has: page.locator('option[value="collector"]') }).first()
+    assert.equal(await initialOwner.inputValue(), 'collector', 'AI draft carries a save-ready owner')
+    await initialOwner.selectOption('') // Manual edits still need visible validation.
     await generatedContent.scrollIntoViewIfNeeded()
     await page.screenshot({ path: `/private/tmp/workflow-ai-content-${width}.png` })
     await createDialog.getByRole('button', { name: 'Create Workflow', exact: true }).click()

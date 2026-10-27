@@ -2269,6 +2269,8 @@ A workflow has:
 - description: what the workflow does
 - schedule: a cron expression (e.g., "0 9 * * 1-5" for weekdays at 9am) or "manual"
 - executionMode: "automated" (agents run independently) or "managed" (sequential with coordination)
+- owner: REQUIRED for managed workflows; choose one real available agent ID, preferably a selected participant. Omit for automated workflows.
+- When the user requests all workspace agents, include every available agent ID in targeting.agents. Never invent agent IDs or select only a subset via tags.
 - targeting: which agents participate, defined by:
   - agents: array of agent IDs from the available list
   - tags: array of agent tags from the available list

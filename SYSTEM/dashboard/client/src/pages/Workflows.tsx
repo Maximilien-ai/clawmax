@@ -1282,6 +1282,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: promptText,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           byokKeys: (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl)
             ? {
                 openai: byok.openai,

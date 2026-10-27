@@ -3,7 +3,7 @@ import fs from 'fs'
 import http from 'http'
 import os from 'os'
 import path from 'path'
-import { normalizeGeneratedWorkflowDraft, normalizeWorkflowContent } from './workflow-content'
+import { completeGeneratedWorkflowExecution, normalizeGeneratedWorkflowDraft, normalizeWorkflowContent } from './workflow-content'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import {
   applyCompanyWorkflowExecutionDefaults,
@@ -75,6 +75,21 @@ test('generated workflow content becomes Markdown while metadata stays intact', 
   assert.strictEqual(result.schedule, draft.schedule)
   assert.strictEqual(result.timezone, draft.timezone)
   assert.deepStrictEqual(result.targeting, draft.targeting)
+})
+
+test('managed AI workflow drafts always have a real owner and complete save fields', () => {
+  const draft = { name: 'Weekly health', schedule: '0 9 * * 1', executionMode: 'managed', content: '# Check all agents', targeting: { tags: ['health'] } }
+  const options = { availableAgentIds: ['lead', 'analyst'], participantIds: ['analyst'], description: 'Check health weekly', timezone: 'America/Toronto' }
+  const ready = completeGeneratedWorkflowExecution(draft, options)
+  assert.equal(ready.owner, 'analyst')
+  assert.equal(ready.description, options.description)
+  assert.equal(ready.timezone, options.timezone)
+  assert.deepEqual(ready.targeting.agents, [], 'Preserve dynamic tag targeting')
+  assert.equal(completeGeneratedWorkflowExecution({ ...draft, owner: 'lead' }, options).owner, 'lead')
+  assert.equal(completeGeneratedWorkflowExecution({ ...draft, owner: 'invented' }, options).owner, 'analyst')
+  assert.equal(completeGeneratedWorkflowExecution({ ...draft, executionMode: 'automated' }, options).owner, undefined)
+  assert.throws(() => completeGeneratedWorkflowExecution(draft, { ...options, participantIds: [] }), /did not select any available agents/)
+  assert.throws(() => completeGeneratedWorkflowExecution({ ...draft, schedule: '' }, options), /did not return a schedule/)
 })
 
 test('workflow content preserves Markdown and unwraps structured Markdown responses', () => {

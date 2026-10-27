@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { completeGeneratedWorkflowExecution } from '../lib/workflow-content'
 import {
   listWorkflows,
   getWorkflow,
@@ -9,6 +10,7 @@ import {
   listExecutions,
   getExecution,
   validateCron,
+  invalidWorkflowTimezoneError,
   triggerWorkflow,
   cancelExecution,
   completeWorkflow,
@@ -168,8 +170,9 @@ router.post('/generate-cron', async (req, res) => {
  * Generate a complete workflow definition from natural language using AI
  */
 router.post('/generate', async (req, res) => {
-  const { description, byokKeys } = req.body as {
+  const { description, byokKeys, timezone } = req.body as {
     description?: string
+    timezone?: string
     byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
   if (!description || typeof description !== 'string') {
@@ -181,7 +184,18 @@ router.post('/generate', async (req, res) => {
     const agents = listAgents()
     const agentIds = agents.filter(a => !a.archived).map(a => a.id)
     const allTags = [...new Set(agents.flatMap(a => a.tags))]
-    const workflow = await generateWorkflowFromNL(description, agentIds, allTags)
+    const generated = await generateWorkflowFromNL(description, agentIds, allTags)
+    const activeAgents = agents.filter(agent => !agent.archived)
+    const workflow = completeGeneratedWorkflowExecution(generated, {
+      availableAgentIds: agentIds,
+      participantIds: resolveParticipants({ ...generated, targeting: generated.targeting || {} }, activeAgents).map(participant => participant.agentId),
+      description,
+      timezone: timezone || 'UTC',
+    })
+    const scheduleCheck = validateCron(workflow.schedule)
+    if (!scheduleCheck.valid) throw new Error(`AI returned an invalid schedule: ${scheduleCheck.error}. Your prompt is preserved; generate again.`)
+    const timezoneError = invalidWorkflowTimezoneError(workflow.timezone)
+    if (timezoneError) throw new Error(timezoneError)
     const session = getAuthenticatedSession(req)
     const author = resolveSessionAuthor(req)
     if (author && (!workflow.author || workflow.author === 'dashboard' || workflow.author === 'ClawMax AI')) {
