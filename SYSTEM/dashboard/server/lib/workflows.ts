@@ -730,7 +730,7 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
   }
 
   for (const line of lines) {
-    if (/^(FAIL|FAILED)\b/i.test(line)) {
+    if (/^(?:FAIL|FAILED)(?:$|\s*[:—-]\s*\S)/i.test(line) || /^Failed to\s+\S/i.test(line)) {
       return line
     }
     if (/\b[A-Z0-9_-]+\s+FAIL\b/.test(line)) {
