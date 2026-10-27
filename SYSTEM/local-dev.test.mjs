@@ -2,7 +2,16 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { isolatedEnv, stop, waitForDashboard, openBrowser, checkDevPorts } from './local-dev.mjs'
+import { isolatedEnv, stop, waitForDashboard, openBrowser, checkDevPorts, sourcePreviewVersion } from './local-dev.mjs'
+
+test('preview identity follows the source branch and stays attached to its saved snapshot', () => {
+  assert.equal(sourcePreviewVersion('1234567890', 'integration/rc95-daniyar'), '2.0.0-test-rc95-review1.12345678')
+  assert.equal(sourcePreviewVersion('1234567890', 'main'), '2.0.0-dev.12345678')
+  assert.equal(sourcePreviewVersion(undefined), '2.0.0-dev.local')
+  const settings = { version: '2.0.0-test-rc95-review1.12345678', sha: '1234567890' }
+  assert.equal(isolatedEnv('/tmp/dev', '/cache/openclaw', settings).CLAWMAX_VERSION, settings.version)
+  assert.equal(isolatedEnv('/tmp/dev', '/cache/openclaw', { sha: 'old-sha' }).CLAWMAX_VERSION, '2.0.0-dev.old-sha', 'An older saved root is not relabeled as a new RC')
+})
 
 test('local dev isolates credentials, profile, plugins and registry', () => {
   const names = ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENCLAW_PROFILE', 'CLAWMAX_PLUGIN_PATHS', 'CLAWMAX_TEST_WORKSPACE', 'OPENCLAW_STATE_DIR']

@@ -8,6 +8,11 @@ import { fileURLToPath } from 'node:url'
 
 const system = path.dirname(fileURLToPath(import.meta.url))
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+export function sourcePreviewVersion(sha, branch = '') {
+  const candidate = /^integration\/rc(\d+)(?:-|$)/.exec(branch)
+  const identity = sha?.slice(0, 8) || 'local'
+  return candidate ? `2.0.0-test-rc${candidate[1]}-review1.${identity}` : `2.0.0-dev.${identity}`
+}
 export function isolatedEnv(root, binary, settings) {
   const env = {}
   for (const name of ['PATH', 'TMPDIR', 'LANG', 'LC_ALL', 'TERM']) {
@@ -25,7 +30,7 @@ export function isolatedEnv(root, binary, settings) {
     DASHBOARD_HOST: '127.0.0.1', DASHBOARD_PORT: String(settings.apiPort),
     DASHBOARD_CLIENT_PORT: String(settings.clientPort),
     DASHBOARD_APP_URL: `http://localhost:${settings.clientPort}`,
-    CLAWMAX_VERSION: `2.0.0-test-rc94-review.${settings.sha?.slice(0, 8) || 'local'}`,
+    CLAWMAX_VERSION: settings.version || sourcePreviewVersion(settings.sha),
     DASHBOARD_AUTH_MODE: 'bypass', BYPASS_OAUTH: 'true' }
 }
 async function freePort(port = 0) {
@@ -93,6 +98,7 @@ async function main() {
     gatewayPort: await freePort(), token: crypto.randomBytes(32).toString('hex'),
     sha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: system, encoding: 'utf8' }).trim(),
   }
+  if (!reuse) settings.version = sourcePreviewVersion(settings.sha, execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: system, encoding: 'utf8' }).trim())
   await checkDevPorts(settings)
   if (new Set([settings.apiPort, settings.clientPort, settings.gatewayPort]).size !== 3) throw new Error('All three ports must differ')
   const source = path.join(root, 'source')
