@@ -27,6 +27,8 @@ try {
       else if (/agents|notifications|groups|communities/.test(path)) json = []
       await route.fulfill({ json })
     })
+    // After the catch-all so it takes precedence: the app mounts only once the API reports live.
+    await page.route('**/api/health/live', route => route.fulfill({ json: { alive: true } }))
     for (status of ['completed', 'failed']) {
       await page.goto(`${base}/workflows`)
       const label = page.locator('span').filter({ hasText: /^Daily Site Health$/ })

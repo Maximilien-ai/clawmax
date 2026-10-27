@@ -38,6 +38,8 @@ try {
       else if (pathname === '/api/activity-export/consent') { consentCalls++; throw new Error('Configuration must never grant consent') }
       await route.fulfill({ json })
     })
+    // After the catch-all so it takes precedence: the app mounts only once the API reports live.
+    await page.route('**/api/health/live', route => route.fulfill({ json: { alive: true } }))
     await page.goto(`${base}/builder`)
     const openPartner = async () => {
       await page.getByRole('button', { name: 'Search ClawMax' }).click()

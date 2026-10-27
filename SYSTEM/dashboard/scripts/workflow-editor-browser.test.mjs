@@ -47,6 +47,8 @@ try {
       else if (path === '/api/teams') json = { teams: [] }
       await route.fulfill({ json })
     })
+    // After the catch-all so it takes precedence: the app mounts only once the API reports live.
+    await page.route('**/api/health/live', route => route.fulfill({ json: { alive: true } }))
     await page.goto(`${base}/workflows`)
     console.log(`${width}px: opened fixture`)
     const beginGeneration = async () => {

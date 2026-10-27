@@ -1620,6 +1620,11 @@ if npx ts-node --transpileOnly client/src/lib/workspaceSwitchResponse.test.ts; t
 else
   fail "Workspace switch unavailable-response tests"
 fi
+if npx ts-node --transpileOnly client/src/lib/apiReadiness.test.ts; then
+  pass "Frontend waits for a delayed API start with bounded retries"
+else
+  fail "Frontend waits for a delayed API start with bounded retries"
+fi
 if npx ts-node --transpileOnly client/src/lib/integrationValidationResponse.test.ts; then
   pass "Integration validation unavailable-response tests"
 else

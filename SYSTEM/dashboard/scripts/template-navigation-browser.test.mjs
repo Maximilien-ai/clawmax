@@ -31,6 +31,8 @@ try {
       else if (path.includes('/agents') || path.includes('/skills') || path.includes('/workflows') || path.includes('/notifications') || path.includes('/groups') || path.includes('/communities')) json = []
       await route.fulfill({ status, json })
     })
+    // After the catch-all so it takes precedence: the app mounts only once the API reports live.
+    await page.route('**/api/health/live', route => route.fulfill({ json: { alive: true } }))
     await page.goto(`${base}/templates`)
     await page.getByText('Navigation Agent', { exact: true }).waitFor()
     for (const name of ['Navigation Agent', 'Navigation Team']) {
