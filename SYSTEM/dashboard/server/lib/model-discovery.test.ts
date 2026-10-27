@@ -172,6 +172,20 @@ test('discoverModels loads LM Studio models from an OpenAI-compatible endpoint',
   assert(!result.modelsByProvider['openai-compatible']?.models.includes('openai-compatible/text-embedding-nomic-embed-text-v1.5'), 'Did not expect embedding model in default compatible discovery')
 })
 
+test('discovery normalizes very long trailing separators without a backtracking expression', async () => {
+  clearModelCache()
+  const requests: string[] = []
+  global.fetch = (async (url: string) => {
+    requests.push(String(url))
+    return { ok: true, json: async () => ({ data: [{ id: 'fixture' }], models: [{ name: 'fixture' }] }) } as any
+  }) as any
+  const suffix = '/'.repeat(100000)
+  await discoverModels({ ollamaBaseUrl: `http://127.0.0.1:11434${suffix}`, openaiCompatibleBaseUrl: `http://127.0.0.1:1234/v1${suffix}` })
+  assert(requests.includes('http://127.0.0.1:11434/api/tags'), 'Expected normalized Ollama URL')
+  assert(requests.includes('http://127.0.0.1:1234/v1/models'), 'Expected normalized compatible URL')
+  clearModelCache()
+})
+
 test('discoverModels loads Ollama models from the local tags endpoint', async () => {
   clearModelCache()
   global.fetch = (async (url: string) => {

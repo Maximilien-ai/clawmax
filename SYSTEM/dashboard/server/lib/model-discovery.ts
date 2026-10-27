@@ -2,7 +2,7 @@
  * Dynamic model discovery for configured hosted and local model providers.
  * Results are cached for 1 hour. Falls back to hardcoded lists on API failure.
  */
-import { createHash } from 'crypto'
+import { createHmac, randomBytes } from 'crypto'
 import { getDashboardDeploymentKind, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
 import { cloudModelEndpointError } from './cloud-execution-policy'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
@@ -32,13 +32,22 @@ interface CacheEntry {
 }
 
 const cache: Record<string, CacheEntry> = {}
+// Ephemeral cache partitioning, never a stored password verifier. A process-local
+// secret also prevents cache identifiers from being reusable key fingerprints.
+const cacheSecret = randomBytes(32)
 
 /**
  * A provider's list belongs to the key that fetched it: another key (a second user, a key that turns
  * out invalid) must not be answered with it. Keyed by a fingerprint, so no key is held in the cache.
  */
 function keyedCacheKey(provider: string, apiKey: string | undefined): string {
-  return `${provider}:${createHash('sha256').update(String(apiKey || '').trim()).digest('hex').slice(0, 32)}`
+  return `${provider}:${createHmac('sha256', cacheSecret).update(String(apiKey || '').trim()).digest('hex')}`
+}
+
+function trimTrailingSlashes(value: string): string {
+  let end = value.length
+  while (end > 0 && value[end - 1] === '/') end--
+  return value.slice(0, end)
 }
 
 function getCached(provider: string): string[] | null {
@@ -316,7 +325,7 @@ async function fetchXaiModels(apiKey: string): Promise<string[]> {
 
 async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
   if (getDashboardDeploymentKind() === 'cloud') return []
-  const normalizedBaseUrl = (baseUrl.trim() || getDefaultOllamaBaseUrl()).replace(/\/+$/, '')
+  const normalizedBaseUrl = trimTrailingSlashes(baseUrl.trim() || getDefaultOllamaBaseUrl())
   if (!normalizedBaseUrl) return []
   const cacheKey = `ollama:${normalizedBaseUrl}`
   const cached = getCached(cacheKey)
@@ -347,7 +356,7 @@ async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
 
 async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Promise<string[]> {
   if (getDashboardDeploymentKind() === 'cloud' && cloudModelEndpointError(baseUrl)) return []
-  const normalizedBaseUrl = (baseUrl.trim() || '').replace(/\/+$/, '')
+  const normalizedBaseUrl = trimTrailingSlashes(baseUrl.trim())
   if (!normalizedBaseUrl) return []
   const cacheKey = keyedCacheKey(`openai-compatible:${normalizedBaseUrl}`, apiKey)
   const cached = getCached(cacheKey)
