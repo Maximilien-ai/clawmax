@@ -17,16 +17,12 @@ cd "$SCRIPT_DIR/dashboard"
 
 BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
-FRONTEND_ORIGIN="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
+FRONTEND_ORIGIN="http://localhost:${FRONTEND_PORT}"
 API_ORIGIN="${DASHBOARD_PUBLIC_URL:-http://localhost:${BACKEND_PORT}}"
 REPO_ROOT="$(pwd | sed 's|/SYSTEM/dashboard||')"
 export DASHBOARD_PORT="$BACKEND_PORT"
 export DASHBOARD_CLIENT_PORT="$FRONTEND_PORT"
-export DASHBOARD_APP_URL="$FRONTEND_ORIGIN"
 export DASHBOARD_PUBLIC_URL="$API_ORIGIN"
-if [ -z "$CORS_ORIGIN" ]; then
-  export CORS_ORIGIN="$FRONTEND_ORIGIN"
-fi
 
 # Default to auth bypass for local dev unless auth was explicitly configured.
 # This keeps `./SYSTEM/start.sh` friction-free while allowing callers to opt back
@@ -67,6 +63,34 @@ append_delimited_value() {
     printf '%s%s%s' "$current" "$delimiter" "$value"
   fi
 }
+
+# The API gives these two launcher values precedence over .env (server/lib/dashboard-env.ts),
+# so they are resolved here from both sources:
+# - DASHBOARD_APP_URL: the shell value, else .env, else the origin this script serves.
+# - CORS_ORIGIN: a shell value is used exactly as given. Otherwise the .env origins (for
+#   example an ngrok URL), the app URL and the served origin are trusted, so a .env written
+#   for another port cannot lock the Dashboard out of the origin it actually serves. An app
+#   URL set in the shell names the served origin itself, so the local port is not added to it.
+resolve_dashboard_origins() {
+  local served_origin="$1" dotenv_app_url="$2" dotenv_cors_origin="$3"
+  if [ -n "$DASHBOARD_APP_URL" ]; then
+    served_origin=""
+  fi
+  export DASHBOARD_APP_URL="${DASHBOARD_APP_URL:-${dotenv_app_url:-$served_origin}}"
+  if [ -n "$CORS_ORIGIN" ]; then
+    return 0
+  fi
+  local origins="" origin entries
+  IFS=',' read -ra entries <<< "$dotenv_cors_origin,$DASHBOARD_APP_URL,$served_origin"
+  for origin in "${entries[@]}"; do
+    origin="${origin//[[:space:]]/}"
+    if [ -n "$origin" ]; then
+      origins="$(append_delimited_value "$origins" "$origin" ",")"
+    fi
+  done
+  export CORS_ORIGIN="$origins"
+}
+resolve_dashboard_origins "$FRONTEND_ORIGIN" "$(read_dotenv_var DASHBOARD_APP_URL)" "$(read_dotenv_var CORS_ORIGIN)"
 
 # Public development always exposes the public product plugins. Additional
 # development repositories are opt-in through generic roots; this host must not
