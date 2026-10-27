@@ -25,7 +25,7 @@ try {
       else if (path === '/api/plugins') json = { plugins: [] }
       else if (path === '/api/metering') json = { byAgent: [] }
       else if (path === '/api/workflows/generate') {
-        json = { workflow: { ...workflow, id: undefined, name: 'Generated Example', content: emptyGeneration ? {} : { Objective: 'Check daily status', Steps: ['Read the report', 'Publish findings'] } } }
+        json = { workflow: { ...workflow, id: undefined, name: 'Generated Example', executionMode: 'managed', owner: undefined, content: emptyGeneration ? {} : { Objective: 'Check daily status', Steps: ['Read the report', 'Publish findings'] } } }
       }
       else if (path === '/api/workflows' && route.request().method() === 'POST') {
         if (failCreate) { failCreate = false; await route.fulfill({ status: 503, json: { details: 'Synthetic save unavailable' } }); return }
@@ -68,11 +68,20 @@ try {
     await generatedContent.scrollIntoViewIfNeeded()
     await page.screenshot({ path: `/private/tmp/workflow-ai-content-${width}.png` })
     await createDialog.getByRole('button', { name: 'Create Workflow', exact: true }).click()
-    await page.getByText('Synthetic save unavailable', { exact: true }).waitFor()
+    await createDialog.getByRole('alert').filter({ hasText: 'Owner is required' }).waitFor()
+    assert.equal(created, undefined)
+    const owner = createDialog.locator('select').filter({ has: page.locator('option[value="collector"]') }).first()
+    await page.waitForFunction(() => document.activeElement?.getAttribute('aria-invalid') === 'true')
+    assert(await owner.evaluate(el => el === document.activeElement), 'Missing owner gets focus')
+    await page.screenshot({ path: `/private/tmp/workflow-owner-error-${width}.png` })
+    await owner.selectOption('collector')
+    await createDialog.getByRole('button', { name: 'Create Workflow', exact: true }).click()
+    await createDialog.getByRole('alert').filter({ hasText: 'Synthetic save unavailable' }).waitFor()
     assert.equal(await generatedContent.inputValue(), markdown, 'Failed save retains generated instructions')
     await createDialog.getByRole('button', { name: 'Create Workflow', exact: true }).click()
     await createDialog.waitFor({ state: 'hidden' })
     assert.equal(created.content, markdown)
+    assert.equal(created.owner, 'collector')
     assert.equal(created.schedule, workflow.schedule)
     assert.equal(created.timezone, workflow.timezone)
     assert.deepEqual(created.targeting.agents, workflow.targeting.agents)
