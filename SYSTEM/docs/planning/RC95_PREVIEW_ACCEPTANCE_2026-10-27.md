@@ -90,7 +90,9 @@ and an on-prem/cloud rehearsal; a local preview pass does not establish those.
 | P7 | On your normal screen and a narrow window, use agent Actions near the top and bottom of the page in grid/list/table. All actions should be reachable without awkward scrolling; Escape/outside click should close the menu. Run the workspace tour and accept that Back/Finish and the final explanation are usable. | human-judgment | Pending | Pending |
 | P8 | On your own machine, start this branch using the isolated dev launcher, add the key and team intended for Thursday, and run a representative chat plus workflow to completion. Stop with Ctrl-C and restart using the printed --root command. Confirm the agents, workflow result and enabled plugins remain and chat works again. Record machine/runtime and failures; do not substitute health checks for completion. | external-environment | Pending | Pending |
 
-These eight checks are also selected in **Extensions → Review** in Maximilien’s
+| P9 | Save GPT-5.4 Mini as the new-agent default, then AI-create an agent and verify its saved model and real chat. Open the earlier unsupported agent: confirm a clear model warning, explicitly select GPT-5.4 Mini, Save, and retry chat. The warning should clear after repair; merely opening config must not change the model. | external-environment | Pending retest on d32199cc | Pending |
+
+These nine checks are also selected in **Extensions → Review** in Maximilien’s
 running preview, under release `2.0.0-test-rc95`. Other machines can use this file.
 
 Report failures as: `P# — version — runtime/model — steps — expected — actual`.
@@ -133,7 +135,10 @@ produce fixes and reproductions, then we can update this preview and retest:
 - Current checkpoint **d32199cc**: focused default-model, runtime-catalog, agent-config
   and chat tests passed; desktop/mobile AI creation and warning/manual-selection
   browser checks passed. Server TypeScript passed and client diagnostics remain
-  at 291 with zero new. Full regression rerun is in progress.
+  at 291 with zero new. Full rerun: 555/556 passed; the sole failure was an outdated source-shape assertion.
+  Test-only follow-up `5c580b98` corrects it; its 39-check suite and the 13
+  default-model tests pass. No production code changed after this full run.
+  A fresh all-green aggregate run remains required before the RC image.
 
 - Previous code checkpoint **7f179387** passed **556/556** local integration,
   validation and coverage checks on October 27. Statements/lines **83.48%**

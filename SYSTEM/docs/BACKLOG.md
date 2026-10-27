@@ -7,7 +7,7 @@
   preserves the creation default and provides an unsupported-model warning/link;
   one-click repair remains future work.
 - [ ] **RC95 preview acceptance and remaining PRs** — Dashboard: complete the
-  [eight focused reviewer checks and engineering gates](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md),
+  [nine focused reviewer checks and engineering gates](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md),
   resolve/disposition CodeQL alert #705 before RC95 release, and obtain lifecycle
   evidence for Daniyar PRs #227, #228, #229 and #288 before adding them.
 
