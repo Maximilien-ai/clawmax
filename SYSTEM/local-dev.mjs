@@ -35,6 +35,14 @@ async function freePort(port = 0) {
   await new Promise(resolve => server.close(resolve))
   return selected
 }
+export async function checkDevPorts(settings, probe = freePort) {
+  for (const port of [settings.apiPort, settings.clientPort, settings.gatewayPort]) {
+    try { await probe(port) } catch (error) {
+      if (error.code !== 'EADDRINUSE') throw error
+      throw new Error(`Port ${port} is already in use. An earlier local-dev session may still be running.\nTry opening http://localhost:${settings.clientPort} in your browser.\nTo stop that session, press Ctrl-C in its original terminal.\nTo identify the listener: lsof -nP -iTCP:${port} -sTCP:LISTEN\nFor a separate NEW environment, choose unused ports, for example:\nDASHBOARD_PORT=3006 DASHBOARD_CLIENT_PORT=5179 ./SYSTEM/local-dev.sh\nA --root restart retains its saved ports; it cannot start twice. No existing process was stopped.`)
+    }
+  }
+}
 export async function waitForDashboard({ apiUrl, uiUrl, version, workspace, check = () => {}, timeout = 120000, interval = 1000, request = fetch }) {
   const deadline = Date.now() + timeout
   while (true) {
@@ -85,7 +93,7 @@ async function main() {
     gatewayPort: await freePort(), token: crypto.randomBytes(32).toString('hex'),
     sha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: system, encoding: 'utf8' }).trim(),
   }
-  for (const port of [settings.apiPort, settings.clientPort, settings.gatewayPort]) await freePort(port)
+  await checkDevPorts(settings)
   if (new Set([settings.apiPort, settings.clientPort, settings.gatewayPort]).size !== 3) throw new Error('All three ports must differ')
   const source = path.join(root, 'source')
   if (!reuse) {

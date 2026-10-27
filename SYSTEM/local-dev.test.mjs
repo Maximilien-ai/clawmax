@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { isolatedEnv, stop, waitForDashboard, openBrowser } from './local-dev.mjs'
+import { isolatedEnv, stop, waitForDashboard, openBrowser, checkDevPorts } from './local-dev.mjs'
 
 test('local dev isolates credentials, profile, plugins and registry', () => {
   const names = ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENCLAW_PROFILE', 'CLAWMAX_PLUGIN_PATHS', 'CLAWMAX_TEST_WORKSPACE', 'OPENCLAW_STATE_DIR']
@@ -24,6 +24,17 @@ test('local dev isolates credentials, profile, plugins and registry', () => {
 })
 
 const expected = { version: 'review-sha', workspace: '/isolated/workspace' }
+test('occupied dev port explains existing session, saved ports and safe recovery', async () => {
+  const checked = []
+  await assert.rejects(checkDevPorts({ apiPort: 3005, clientPort: 5178, gatewayPort: 19000 }, async port => {
+    checked.push(port)
+    throw Object.assign(new Error('occupied'), { code: 'EADDRINUSE' })
+  }), error => {
+    for (const text of ['Port 3005', 'http://localhost:5178', 'Ctrl-C', 'lsof', '--root restart retains its saved ports', 'No existing process was stopped']) assert(error.message.includes(text))
+    return true
+  })
+  assert.deepEqual(checked, [3005])
+})
 const readiness = { apiUrl: 'http://api', uiUrl: 'http://ui', ...expected, interval: 1, timeout: 1000 }
 test('readiness waits for both servers and the frontend proxy to reach the expected instance', async () => {
   let round = 0
