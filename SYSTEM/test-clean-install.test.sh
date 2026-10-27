@@ -54,6 +54,7 @@ grep -q -- '--publish 127.0.0.1:3008:3008 --publish 127.0.0.1:5181:5181' "$TEST_
 grep -q -- '--env CLAWMAX_TEST_REF=main' "$TEST_LOG"
 grep -q -- '--env CLAWMAX_TEST_REPOSITORY=https://github.com/Maximilien-ai/clawmax.git' "$TEST_LOG"
 grep -q -- '--volume clawmax-test-data:/home/node:U' "$TEST_LOG"
+grep -q -- '--env OPENCLAW_DOCKER_BUILD_TSDOWN_MAX_OLD_SPACE_MB=4352' "$TEST_LOG"
 if grep -Eq 'privileged|docker.sock|podman.sock|:/src|:/app|volume .*clawmax-codex' "$TEST_LOG"; then echo 'FAIL: inherited host code or capabilities'; exit 1; fi
 grep -q '127.0.0.1:3008/api/health' "$TEST_LOG"
 grep -q '127.0.0.1:5181/api/health' "$TEST_LOG"

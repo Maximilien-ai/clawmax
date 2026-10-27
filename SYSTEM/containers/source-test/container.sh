@@ -69,7 +69,9 @@ else
     --env "DASHBOARD_PORT=$api_port" --env "DASHBOARD_CLIENT_PORT=$ui_port" \
     --env "CLAWMAX_TEST_REF=${CLAWMAX_TEST_REF:-main}" \
     --env "CLAWMAX_TEST_REPOSITORY=${CLAWMAX_TEST_REPOSITORY:-https://github.com/Maximilien-ai/clawmax.git}" \
-    --env NODE_OPTIONS=--max-old-space-size=6144 "$image" >/dev/null
+    --env NODE_OPTIONS=--max-old-space-size=4352 \
+    --env OPENCLAW_TSDOWN_MAX_OLD_SPACE_MB=4352 \
+    --env OPENCLAW_DOCKER_BUILD_TSDOWN_MAX_OLD_SPACE_MB=4352 "$image" >/dev/null
 fi
 echo "Logs: $launcher logs"
 echo "Shutdown test VM: $launcher stop"
