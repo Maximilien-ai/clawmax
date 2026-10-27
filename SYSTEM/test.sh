@@ -3293,9 +3293,10 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Archive security unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/archive-security.test.ts > /tmp/clawmax-archive-security.out 2>&1 || true
-if grep -q "archive-security.test.ts: 8 tests passed" /tmp/clawmax-archive-security.out; then
-  pass "Archive security unit tests (8 tests)"
+if npx ts-node --transpileOnly server/lib/archive-security.test.ts > /tmp/clawmax-archive-security.out 2>&1 \
+  && grep -Eq "archive-security.test.ts: [0-9]+ tests passed" /tmp/clawmax-archive-security.out; then
+  archive_security_count=$(sed -n 's/.*archive-security.test.ts: \([0-9][0-9]*\) tests passed.*/\1/p' /tmp/clawmax-archive-security.out | tail -n 1)
+  pass "Archive security unit tests (${archive_security_count} tests)"
 else
   cat /tmp/clawmax-archive-security.out
   fail "Archive security unit tests"
