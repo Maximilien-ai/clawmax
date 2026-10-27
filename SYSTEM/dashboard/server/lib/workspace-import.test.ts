@@ -8,7 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { execFileSync } from 'child_process'
-import { importWorkspaceFromZipArchive } from './workspace-import'
+import { importWorkspaceFromZipArchive, resolveWorkspaceImportTarget } from './workspace-import'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -68,6 +68,27 @@ process.env.OPENCLAW_WORKSPACE = defaultWorkspacePath
 resetWorkspaceManagerForTests()
 
 async function run() {
+  await test('custom import destinations require a trusted root and reject symlink escapes', () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-import-outside-'))
+    const originalRoots = process.env.CLAWMAX_WORKSPACE_IMPORT_ROOTS
+    try {
+      delete process.env.CLAWMAX_WORKSPACE_IMPORT_ROOTS
+      let rejected = false
+      try { resolveWorkspaceImportTarget(path.join(outside, 'new'), 'unused') } catch { rejected = true }
+      assert(rejected, 'Arbitrary outside destination must fail')
+      fs.symlinkSync(outside, path.join(tmpHome, 'linked-destination'), 'dir')
+      rejected = false
+      try { resolveWorkspaceImportTarget(path.join(tmpHome, 'linked-destination', 'new'), 'unused') } catch { rejected = true }
+      assert(rejected, 'Symlinked destination must fail')
+      process.env.CLAWMAX_WORKSPACE_IMPORT_ROOTS = outside
+      assert(resolveWorkspaceImportTarget(path.join(outside, 'new'), 'unused') === path.join(outside, 'new'), 'Operator root must permit a child destination')
+      assert(!fs.existsSync(path.join(outside, 'new')), 'Validation must not create external files')
+    } finally {
+      if (originalRoots === undefined) delete process.env.CLAWMAX_WORKSPACE_IMPORT_ROOTS
+      else process.env.CLAWMAX_WORKSPACE_IMPORT_ROOTS = originalRoots
+      fs.rmSync(outside, { recursive: true, force: true })
+    }
+  })
   await test('importWorkspaceFromZipArchive restores workspace and activates it', () => {
     const exportRoot = path.join(tmpHome, 'export-root')
     const archiveWorkspace = path.join(exportRoot, 'my-imported-workspace')

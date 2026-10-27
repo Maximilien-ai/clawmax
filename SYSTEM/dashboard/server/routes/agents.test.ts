@@ -283,10 +283,7 @@ async function run() {
       assert.strictEqual(malformed.statusCode, 400)
       const originalWrite = fs.writeFileSync
       try {
-        fs.writeFileSync = ((file: any, ...args: any[]) => {
-          if (file === groupsFile) throw new Error('Read-only membership store')
-          return (originalWrite as any)(file, ...args)
-        }) as typeof fs.writeFileSync
+        fs.writeFileSync = (() => { throw new Error('Read-only membership store') }) as typeof fs.writeFileSync
         const failed = makeRes()
         update(makeReq({ params: { id: 'membership-agent' }, body: { groups: [] } }), failed)
         assert.strictEqual(failed.statusCode, 500)

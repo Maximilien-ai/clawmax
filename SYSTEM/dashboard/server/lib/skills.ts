@@ -1,5 +1,5 @@
 import fs from 'fs'
-import { isPlainPathSegment } from './path-segment'
+import { isPlainPathSegment, resolvePathWithin } from './path-segment'
 import { openClawConfigPath } from './openclaw-profile-paths'
 import path from 'path'
 import os from 'os'
@@ -2064,10 +2064,10 @@ export function deleteWorkspaceSkill(skillIdOrName: string): { success: boolean;
     // The value comes from a URL and may be a display name ("PDF Tools"); only a plain segment is joined to
     // a folder that is removed recursively. Anything else is looked up by name below.
     const direct = isPlainPathSegment(skillIdOrName)
-    let managedSkillPath = direct ? path.join(MANAGED_SKILLS_DIR, skillIdOrName) : ''
+    let managedSkillPath = direct ? resolvePathWithin(MANAGED_SKILLS_DIR, skillIdOrName) : ''
 
     // First try direct directory match (skillId)
-    let skillPath = direct ? path.join(workspaceSkillsDir, skillIdOrName) : ''
+    let skillPath = direct ? resolvePathWithin(workspaceSkillsDir, skillIdOrName) : ''
 
     // If not found, try to find by skill name
     if (!skillPath || !fs.existsSync(skillPath)) {
@@ -2080,10 +2080,10 @@ export function deleteWorkspaceSkill(skillIdOrName: string): { success: boolean;
 
       if (skill.source === 'managed') {
         if (!isPlainPathSegment(skill.name)) return { success: false, error: 'Skill not found' }
-        managedSkillPath = path.join(MANAGED_SKILLS_DIR, skill.name)
+        managedSkillPath = resolvePathWithin(MANAGED_SKILLS_DIR, skill.name)
       } else if (skill.id) {
         if (!isPlainPathSegment(skill.id)) return { success: false, error: 'Skill not found' }
-        skillPath = path.join(workspaceSkillsDir, skill.id)
+        skillPath = resolvePathWithin(workspaceSkillsDir, skill.id)
       }
     }
 

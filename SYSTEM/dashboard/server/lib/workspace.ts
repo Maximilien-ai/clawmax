@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { resolvePathWithin } from './path-segment'
 import path from 'path'
 import net from 'net'
 import { createAgentGatewayProbeCache } from './agent-gateway-probe-cache'
@@ -2504,8 +2505,12 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
 
   const agentsDir = getAgentsDir()
   const archiveDir = getArchiveDir()
-  const agentDir = archived ? path.join(archiveDir, id) : path.join(agentsDir, id)
-  const sharedHomeAgentDir = path.join(process.env.HOME || '', '.openclaw', 'agents', id)
+  let agentDir: string, sharedHomeAgentDir: string, stateDir: string
+  try {
+    agentDir = resolvePathWithin(archived ? archiveDir : agentsDir, id)
+    sharedHomeAgentDir = resolvePathWithin(path.join(os.homedir(), '.openclaw', 'agents'), id)
+    stateDir = resolvePathWithin(os.homedir(), `.openclaw-${id}`)
+  } catch (error) { return { steps, errors: [`Unsafe agent path: ${error}`] } }
   const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', id)
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   let hasRemainingWorkspaceCopies = false
@@ -2558,7 +2563,6 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
 
   // Optionally remove profile state dir (~/.openclaw-<id>)
   if (removeStateDir) {
-    const stateDir = path.join(process.env.HOME || '', `.openclaw-${id}`)
     if (hasRemainingWorkspaceCopies) {
       steps.push(`Preserved state dir ~/.openclaw-${id}/ because another workspace still references ${id}`)
     } else if (fs.existsSync(stateDir)) {
@@ -2574,7 +2578,11 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
   }
 
   // Remove Desktop shortcut
-  const desktop = path.join(process.env.HOME || '', 'Desktop', id)
+  // Shortcuts are symlinks by design; confine their names and unlink the entry,
+  // without resolving or following its target.
+  const desktopRoot = path.resolve(os.homedir(), 'Desktop')
+  const desktop = path.resolve(desktopRoot, id)
+  if (!desktop.startsWith(`${desktopRoot}${path.sep}`)) throw new Error('Invalid shortcut path')
   try {
     if (fs.existsSync(desktop)) { fs.unlinkSync(desktop); steps.push(`Removed ~/Desktop/${id}`) }
   } catch {}
