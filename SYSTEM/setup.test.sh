@@ -3,6 +3,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+bash "$repo_root/SYSTEM/openclaw-node-version.test.sh"
 setup_file="$repo_root/setup.sh"
 
 fail() {

@@ -379,20 +379,10 @@ offer_install() {
 }
 
 # Node.js
-if command -v node &> /dev/null; then
-  NODE_VERSION=$(node --version)
-  NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'.' -f1 | sed 's/v//')
-  if [ "$NODE_MAJOR" -lt 18 ]; then
-    print_error "Node.js 18+ required (found $NODE_VERSION)"
-    if ! offer_install "Node.js 18+" "node" "https://nodejs.org/"; then
-      exit 1
-    fi
-  fi
-  print_success "Node.js: $(node --version)"
-else
+if ! command -v node &> /dev/null; then
   if offer_install "Node.js" "node" "https://nodejs.org/"; then
     if command -v node &> /dev/null; then
-      print_success "Node.js: $(node --version)"
+      : # Validate the installed version below before reporting success.
     else
       print_error "Node.js still not found after install attempt"
       exit 1
@@ -401,6 +391,16 @@ else
     exit 1
   fi
 fi
+if [ "${CLAWMAX_ALLOW_UNPINNED_OPENCLAW:-}" != true ]; then
+  if ! ensure_supported_source_node; then
+    offer_install "Node.js 24.16+ (24.x) or 26.1+" "node" "https://nodejs.org/" || exit 1
+    ensure_supported_source_node || exit 1
+  fi
+elif [ "$(node -p 'Number(process.versions.node.split(".")[0])')" -lt 18 ]; then
+  print_error "Node.js 18+ required for the explicitly unpinned development mode"
+  exit 1
+fi
+print_success "Node.js: $(node --version)"
 
 # npm (comes with Node.js)
 if command -v npm &> /dev/null; then
