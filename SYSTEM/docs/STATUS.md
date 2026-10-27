@@ -12,9 +12,9 @@
 
 [Draft PR #304](https://github.com/Maximilien-ai/clawmax/pull/304) combines 13 of
 Daniyar's 17 reviewed PRs (all eight new #320–#327 included) on `integration/rc95-daniyar`, with four held for
-lifecycle evidence. The local code checkpoint passed 556/556 checks. See the
+lifecycle evidence. Acceptance fixes now cover save-ready AI workflows, AI group/community drafts, and refreshed open agent details. The final local integration/validation/coverage suite passes 557/557. Review now ships the RC95 checklist and explicit email submission with retained delivery evidence; live-provider acceptance remains open. See the
 [RC95 acceptance file](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) for the exact
-source, engineering limitations, CI/security gate and nine independent reviewer
+source, engineering limitations, CI/security gate and twelve independent reviewer
 checks. Main contains merged RC94 PR #291; this preview has not landed on main.
 The existing RC94 images are unchanged; RC95 has no release tag or image yet.
 
