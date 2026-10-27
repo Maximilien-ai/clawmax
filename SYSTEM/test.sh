@@ -3115,6 +3115,12 @@ else
 fi
 
 echo -e "${YELLOW}→ Running OpenClaw target prep shell tests...${NC}"
+if bash "$SYSTEM_DIR/test-clean-install.test.sh" > /tmp/clawmax-clean-install-contract.out 2>&1; then
+  pass "Clean-source Podman VM lifecycle and isolation tests"
+else
+  cat /tmp/clawmax-clean-install-contract.out
+  fail "Clean-source Podman VM lifecycle and isolation tests"
+fi
 if node --test "$SYSTEM_DIR/local-dev.test.mjs" > /tmp/clawmax-local-dev.out 2>&1; then
   pass "Isolated local dev credentials and process cleanup tests"
 else

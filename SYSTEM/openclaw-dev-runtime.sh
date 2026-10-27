@@ -2,10 +2,24 @@
 # Source after openclaw-cli.sh and openclaw-version.sh. Shared setup/start contract.
 CLAWMAX_OPENCLAW_RUNTIME_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+ensure_supported_source_node() {
+  node - "${1:-}" <<'NODE'
+const version = process.argv[2] || process.versions.node;
+const [major, minor, patch] = version.split('.').map(Number);
+const valid = [major, minor, patch].every(value => Number.isInteger(value) && value >= 0)
+  && ((major === 24 && minor >= 16) || (major === 26 && minor >= 1) || major > 26);
+if (!valid) {
+  console.error(`Source runtime requires Node.js 24.16.0+ (24.x) or 26.1.0+ (current: ${version})`);
+  process.exit(1);
+}
+NODE
+}
+
 ensure_pinned_openclaw_for_dev() {
   if [ "${CLAWMAX_ALLOW_UNPINNED_OPENCLAW:-}" = "true" ]; then
     return 0
   fi
+  ensure_supported_source_node || return 1
 
   local expected_version="${CLAWMAX_OPENCLAW_TARGET#v}"
   local selected_bin="${OPENCLAW_BIN:-}"

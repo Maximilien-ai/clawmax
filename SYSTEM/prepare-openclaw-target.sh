@@ -20,25 +20,8 @@ EOF
 }
 
 ensure_supported_node() {
-  node <<'EOF'
-const [majorRaw = "0", minorRaw = "0", patchRaw = "0"] = process.versions.node.split(".");
-const major = Number(majorRaw);
-const minor = Number(minorRaw);
-const patch = Number(patchRaw);
-const atLeast = (wantedMinor, wantedPatch) =>
-  minor > wantedMinor || (minor === wantedMinor && patch >= wantedPatch);
-if (
-  (major === 24 && atLeast(16, 0)) ||
-  (major === 26 && atLeast(1, 0)) ||
-  major > 26
-) {
-  process.exit(0);
-}
-console.error(
-  `prepare-openclaw-target.sh requires Node.js 24.16.0+ (24.x) or 26.1.0+ (current: ${process.versions.node})`,
-);
-process.exit(1);
-EOF
+  . "$SCRIPT_DIR/openclaw-dev-runtime.sh"
+  ensure_supported_source_node
 }
 
 run_pnpm() {
