@@ -1,4 +1,4 @@
-import { byokForRequest } from '../lib/byok'
+import { ChannelAiDraftEditor, ChannelMemberPicker } from '../components/ChannelAiDraftEditor'
 import { channelLabel } from '../lib/channelLabel'
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import SaveAsOrgTemplateModal from '../components/SaveAsOrgTemplateModal'
@@ -584,12 +584,11 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const [orgDraftDescription, setOrgDraftDescription] = useState('')
   const [showCreateCommunity, setShowCreateCommunity] = useState(false)
   const [showCreateGroup, setShowCreateGroup] = useState(false)
-  const [channelPrompt, setChannelPrompt] = useState('')
   const [channelGenerating, setChannelGenerating] = useState(false)
   const [channelError, setChannelError] = useState('')
   const [channelSaving, setChannelSaving] = useState(false)
   const [channelMembers, setChannelMembers] = useState<string[]>([])
-  useEffect(() => { setChannelPrompt(''); setChannelError(''); setChannelMembers([]) }, [showCreateCommunity, showCreateGroup])
+  useEffect(() => { setChannelError(''); setChannelMembers([]) }, [showCreateCommunity, showCreateGroup])
   const [newCommunityName, setNewCommunityName] = useState('')
   const [newCommunityDesc, setNewCommunityDesc] = useState('')
   const [newGroupName, setNewGroupName] = useState('')
@@ -1160,39 +1159,12 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     setExpandedGroups(new Set())
   }
 
-  const generateChannel = async () => {
-    setChannelGenerating(true)
-    setChannelError('')
-    try {
-      const response = await fetch('/api/channel-draft', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: showCreateGroup ? 'group' : 'community', description: channelPrompt, byokKeys: byokForRequest() }),
-      })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.error || 'Could not generate a draft')
-      if (showCreateGroup) {
-        setNewGroupName(result.draft.name); setNewGroupDesc(result.draft.description); setNewGroupCommunity(result.draft.community || '')
-      } else {
-        setNewCommunityName(result.draft.name); setNewCommunityDesc(result.draft.description)
-      }
-      setChannelMembers(result.draft.members)
-    } catch (error: any) { setChannelError(error.message || 'Could not generate a draft. Try again.') }
-    finally { setChannelGenerating(false) }
-  }
-
-  const channelAiControls = <div className="space-y-2">
-    <label className="block text-sm font-medium" htmlFor="channel-ai-prompt">Create with AI</label>
-    <textarea id="channel-ai-prompt" value={channelPrompt} onChange={event => setChannelPrompt(event.target.value)} placeholder="Describe the purpose and which agents should participate…" rows={3} className="w-full rounded border p-2 bg-white dark:bg-gray-800" disabled={channelGenerating || channelSaving} />
-    <button type="button" onClick={generateChannel} disabled={!channelPrompt.trim() || channelGenerating || channelSaving} className="px-3 py-2 rounded border disabled:opacity-50">{channelGenerating ? 'Generating…' : 'Generate draft'}</button>
-    <p className="text-xs text-gray-500">Review the draft below. Nothing is saved until you click Create.</p>
-  </div>
-  const channelMemberControls = <fieldset className="space-y-2">
-    <legend className="text-sm font-medium">Agent members</legend>
-    <div className="max-h-40 overflow-y-auto space-y-1">
-      {agents.filter(agent => !agent.archived).map(agent => <label key={agent.id} className="flex items-center gap-2 break-all text-sm"><input type="checkbox" checked={channelMembers.includes(agent.id)} onChange={event => setChannelMembers(current => event.target.checked ? [...current, agent.id] : current.filter(id => id !== agent.id))} />{agent.id}</label>)}
-      {agents.length === 0 && <p className="text-sm text-gray-500">No agents yet. You can add members later.</p>}
-    </div>
-  </fieldset>
+  const channelAiControls = <ChannelAiDraftEditor kind={showCreateGroup ? 'group' : 'community'} disabled={channelSaving} onBusyChange={setChannelGenerating} onDraft={draft => {
+    if (showCreateGroup) { setNewGroupName(draft.name); setNewGroupDesc(draft.description); setNewGroupCommunity(draft.community || '') }
+    else { setNewCommunityName(draft.name); setNewCommunityDesc(draft.description) }
+    setChannelMembers(draft.members)
+  }} />
+  const channelMemberControls = <ChannelMemberPicker agents={agents} members={channelMembers} onChange={setChannelMembers} />
 
   const handleCreateCommunity = async () => {
     if (!newCommunityName.trim()) return

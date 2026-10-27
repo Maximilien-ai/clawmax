@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const browser = await chromium.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true })
 try {
+ for (const surface of ['organizations', 'communication']) {
  for (const width of [1440, 390]) {
   const page = await browser.newPage({ viewport: { width, height: 900 } }); page.setDefaultTimeout(15000)
   const stored = { groups: [], communities: [] }; let failGenerate = true, failSave = true, saves = 0
@@ -29,9 +30,10 @@ try {
    }
    await route.fulfill({ json })
   })
-  await page.goto(`${process.env.TEST_FRONTEND_URL || 'http://localhost:5183'}/organizations`)
+  await page.goto(`${process.env.TEST_FRONTEND_URL || 'http://localhost:5183'}/${surface}`)
   for (const kind of ['Community', 'Group']) {
-   await page.getByRole('button', { name: `+ Create ${kind}`, exact: true }).first().click()
+   if (surface === 'communication') await page.getByTitle('Create communication channel', { exact: true }).click()
+   await page.getByRole('button', { name: surface === 'organizations' ? `+ Create ${kind}` : new RegExp(`Create ${kind}`) }).first().click()
    const dialog = page.getByRole('dialog', { name: `Create ${kind}`, exact: true })
    await dialog.locator('#channel-ai-prompt').fill('Create a release review team with reviewer')
    await dialog.getByRole('button', { name: 'Generate draft', exact: true }).click()
@@ -43,17 +45,17 @@ try {
    await page.waitForFunction(name => [...document.querySelectorAll('[role="dialog"] input')].some(input => input.value === name), `AI ${kind.toLowerCase()}`)
    assert.equal(saves, kind === 'Community' ? 0 : 2)
    assert.equal(await dialog.getByRole('checkbox', { name: 'reviewer', exact: true }).isChecked(), true)
-   await dialog.screenshot({ path: `/private/tmp/rc95-ai-${kind.toLowerCase()}-${width}.png` })
+   await dialog.screenshot({ path: `/private/tmp/rc95-ai-${surface}-${kind.toLowerCase()}-${width}.png` })
    assert.equal(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth + 1), true)
-   await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+   await dialog.getByRole('button', { name: surface === 'organizations' ? 'Create' : `Create ${kind}`, exact: true }).click()
    if (kind === 'Community') {
     await dialog.getByRole('alert').filter({ hasText: 'Failed to create community' }).waitFor()
-    await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+    await dialog.getByRole('button', { name: surface === 'organizations' ? 'Create' : `Create ${kind}`, exact: true }).click()
    }
    await dialog.waitFor({ state: 'hidden' }); await page.reload()
-   await page.getByText(kind === 'Community' ? 'Communities (1)' : 'Groups (1)', { exact: true }).click()
+   if (surface === 'organizations') await page.getByText(kind === 'Community' ? 'Communities (1)' : 'Groups (1)', { exact: true }).click()
    await page.getByText(`AI ${kind.toLowerCase()}`, { exact: true }).first().waitFor()
   }
-  console.log(`PASS ${width}px: AI group/community generation, membership, error recovery, save and reload`); await page.close()
+  console.log(`PASS ${surface} ${width}px: AI group/community generation, membership, error recovery, save and reload`); await page.close()
  }
-} finally { await browser.close() }
+} } finally { await browser.close() }

@@ -1,3 +1,4 @@
+import { ChannelAiDraftEditor, ChannelMemberPicker } from '../components/ChannelAiDraftEditor'
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import GroupChatPanel from '../components/GroupChatPanel'
 import { useToast } from '../components/Toast'
@@ -114,6 +115,11 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const channelActionsMenuButtonRef = useRef<HTMLButtonElement>(null)
   const [showCreateCommunity, setShowCreateCommunity] = useState(false)
   const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [channelGenerating, setChannelGenerating] = useState(false)
+  const [channelSaving, setChannelSaving] = useState(false)
+  const [channelError, setChannelError] = useState('')
+  const [channelMembers, setChannelMembers] = useState<string[]>([])
+  useEffect(() => { setChannelError(''); setChannelMembers([]) }, [showCreateCommunity, showCreateGroup])
   const [newCommunityName, setNewCommunityName] = useState('')
   const [newCommunityDesc, setNewCommunityDesc] = useState('')
   const [newGroupName, setNewGroupName] = useState('')
@@ -304,12 +310,15 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   }
 
   const handleCreateCommunity = async () => {
+    if (channelGenerating || channelSaving) return
+    setChannelError('')
     if (!newCommunityName.trim()) return
     if (workspaceCommunities.some((community) => community.name.toLowerCase() === newCommunityName.trim().toLowerCase())) {
-      showSuccess(`Community "${newCommunityName}" already exists`)
+      setChannelError(`Community "${newCommunityName}" already exists`)
       return
     }
 
+    setChannelSaving(true)
     try {
       const response = await fetch('/api/communities', {
         method: 'POST',
@@ -317,6 +326,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         body: JSON.stringify({
           name: newCommunityName.trim(),
           description: newCommunityDesc.trim() || undefined,
+          members: channelMembers,
           channels: ['whatsapp'],
         }),
       })
@@ -330,17 +340,20 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       window.dispatchEvent(new CustomEvent('channels-updated'))
       fetchAgents()
     } catch (error) {
-      console.error('Failed to create community:', error)
-    }
+      setChannelError('Failed to create community. Your draft is preserved; try again.')
+    } finally { setChannelSaving(false) }
   }
 
   const handleCreateGroup = async () => {
+    if (channelGenerating || channelSaving) return
+    setChannelError('')
     if (!newGroupName.trim()) return
     if (workspaceGroups.some((group) => group.name.toLowerCase() === newGroupName.trim().toLowerCase())) {
-      showSuccess(`Group "${newGroupName}" already exists`)
+      setChannelError(`Group "${newGroupName}" already exists`)
       return
     }
 
+    setChannelSaving(true)
     try {
       const response = await fetch('/api/groups', {
         method: 'POST',
@@ -349,6 +362,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           name: newGroupName.trim(),
           description: newGroupDesc.trim() || undefined,
           community: newGroupCommunity.trim() || undefined,
+          members: channelMembers,
           channels: ['whatsapp'],
         }),
       })
@@ -363,8 +377,8 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       window.dispatchEvent(new CustomEvent('channels-updated'))
       fetchAgents()
     } catch (error) {
-      console.error('Failed to create group:', error)
-    }
+      setChannelError('Failed to create group. Your draft is preserved; try again.')
+    } finally { setChannelSaving(false) }
   }
 
   const handleDeleteChannel = async (channel: Channel) => {
@@ -1292,12 +1306,17 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
 
     {showCreateCommunity && (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+        <div role="dialog" aria-label={showCreateGroup ? "Create Group" : "Create Community"} aria-modal="true" className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90dvh] flex flex-col" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Community</h2>
-            <button onClick={() => setShowCreateCommunity(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
+            <button disabled={channelGenerating || channelSaving} onClick={() => setShowCreateCommunity(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto">
+            <ChannelAiDraftEditor kind={showCreateGroup ? 'group' : 'community'} disabled={channelSaving} onBusyChange={setChannelGenerating} onDraft={draft => {
+              if (showCreateGroup) { setNewGroupName(draft.name); setNewGroupDesc(draft.description); setNewGroupCommunity(draft.community || '') }
+              else { setNewCommunityName(draft.name); setNewCommunityDesc(draft.description) }
+              setChannelMembers(draft.members)
+            }} />
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
               <input
@@ -1318,10 +1337,12 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                 placeholder="Optional description"
               />
             </div>
+            <ChannelMemberPicker agents={agents} members={channelMembers} onChange={setChannelMembers} />
           </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <button onClick={() => setShowCreateCommunity(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
-            <button onClick={handleCreateCommunity} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Community</button>
+          <div className="mt-6 flex flex-wrap justify-end gap-3 shrink-0">
+            {channelError && <p role="alert" className="w-full text-sm text-red-600">{channelError}</p>}
+            <button disabled={channelGenerating || channelSaving} onClick={() => setShowCreateCommunity(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
+            <button disabled={channelGenerating || channelSaving || !newCommunityName.trim()} onClick={handleCreateCommunity} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Community</button>
           </div>
         </div>
       </div>
@@ -1329,12 +1350,17 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
 
     {showCreateGroup && (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+        <div role="dialog" aria-label={showCreateGroup ? "Create Group" : "Create Community"} aria-modal="true" className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90dvh] flex flex-col" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Group</h2>
-            <button onClick={() => setShowCreateGroup(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
+            <button disabled={channelGenerating || channelSaving} onClick={() => setShowCreateGroup(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto">
+            <ChannelAiDraftEditor kind={showCreateGroup ? 'group' : 'community'} disabled={channelSaving} onBusyChange={setChannelGenerating} onDraft={draft => {
+              if (showCreateGroup) { setNewGroupName(draft.name); setNewGroupDesc(draft.description); setNewGroupCommunity(draft.community || '') }
+              else { setNewCommunityName(draft.name); setNewCommunityDesc(draft.description) }
+              setChannelMembers(draft.members)
+            }} />
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
               <input
@@ -1365,10 +1391,12 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                 placeholder="Optional description"
               />
             </div>
+            <ChannelMemberPicker agents={agents} members={channelMembers} onChange={setChannelMembers} />
           </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <button onClick={() => setShowCreateGroup(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
-            <button onClick={handleCreateGroup} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Group</button>
+          <div className="mt-6 flex flex-wrap justify-end gap-3 shrink-0">
+            {channelError && <p role="alert" className="w-full text-sm text-red-600">{channelError}</p>}
+            <button disabled={channelGenerating || channelSaving} onClick={() => setShowCreateGroup(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
+            <button disabled={channelGenerating || channelSaving || !newGroupName.trim()} onClick={handleCreateGroup} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Group</button>
           </div>
         </div>
       </div>
