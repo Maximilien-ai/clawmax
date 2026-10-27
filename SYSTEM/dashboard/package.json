@@ -30,7 +30,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "cronstrue": "^3.13.0",
-    "dotenv": "^17.3.1",
+    "dotenv": "^18.0.8",
     "express": "^4.18.2",
     "express-rate-limit": "^8.3.1",
     "gray-matter": "^4.0.3",
