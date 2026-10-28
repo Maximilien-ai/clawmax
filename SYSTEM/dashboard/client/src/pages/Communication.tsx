@@ -1162,6 +1162,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                     isSelected={selectedChannelKeys.has(`community:${channel.name}`)}
                     onToggleSelect={() => toggleChannelSelection(channel)}
                     onManageTags={() => setTagManageTarget(channel)}
+                    onManageMembers={() => setMemberManageTarget(channel)}
                     onNavigateToAgent={onNavigateToAgent}
                     onOpenChat={() => openChat(channel)}
                     onDelete={() => handleDeleteChannel(channel)}
@@ -1201,6 +1202,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                     isSelected={selectedChannelKeys.has(`group:${channel.name}`)}
                     onToggleSelect={() => toggleChannelSelection(channel)}
                     onManageTags={() => setTagManageTarget(channel)}
+                    onManageMembers={() => setMemberManageTarget(channel)}
                     onNavigateToAgent={onNavigateToAgent}
                     onOpenChat={() => openChat(channel)}
                     onDelete={() => handleDeleteChannel(channel)}
@@ -1598,10 +1600,19 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
     onSave(Array.from(selectedMembers))
   }
 
+  // Focus starts in the search box; closing returns it to the control that opened the dialog.
+  // Only a real close does: StrictMode's rehearsal unmount leaves the dialog in the document.
+  const dialogRef = React.useRef<HTMLDivElement>(null)
+  const [returnFocus] = React.useState(() => document.activeElement as HTMLElement | null)
+  React.useEffect(() => {
+    const dialog = dialogRef.current
+    return () => { if (!dialog?.isConnected) returnFocus?.focus() }
+  }, [returnFocus])
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Members</h3>
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="manage-members-title" className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <h3 id="manage-members-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Members</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 inline-flex items-center gap-2">
           <ProductIconCell iconName={channel.type === 'community' ? 'community' : 'group'} label={channel.type === 'community' ? 'Community' : 'Group'} size="sm" className="border-transparent bg-transparent text-current" />
           {channel.displayName || channel.name}
@@ -1616,6 +1627,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            autoFocus
             placeholder="Search agents by name or ID..."
             className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-sky-400 text-sm"
           />
@@ -2441,7 +2453,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
   )
 }
 
-function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode, isSelected, onToggleSelect, onManageTags, onNavigateToAgent, onOpenChat, onDelete, unreadCount = 0 }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; selectionMode: boolean; isSelected: boolean; onToggleSelect: () => void; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; onDelete?: () => void; unreadCount?: number }) {
+function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode, isSelected, onToggleSelect, onManageTags, onManageMembers, onNavigateToAgent, onOpenChat, onDelete, unreadCount = 0 }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; selectionMode: boolean; isSelected: boolean; onToggleSelect: () => void; onManageTags: () => void; onManageMembers: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; onDelete?: () => void; unreadCount?: number }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const typeColor = channel.type === 'community'
     ? 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30'
@@ -2501,12 +2513,25 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode,
           </div>
         )}
       </div>
-      <div className="text-xs text-gray-500 mb-2">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          if (selectionMode) {
+            onToggleSelect()
+            return
+          }
+          onManageMembers()
+        }}
+        aria-label={`Members of ${channel.displayName || channel.name}: ${channel.members.length} member${channel.members.length !== 1 ? 's' : ''}${onlineCount > 0 ? `, ${onlineCount} online` : ''}`}
+        title="View and manage members"
+        className="block text-left text-xs text-gray-500 mb-2 rounded hover:text-sky-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+      >
         {channel.members.length} member{channel.members.length !== 1 ? 's' : ''}
         {onlineCount > 0 && (
           <span className="ml-1 text-green-600 dark:text-green-400">· {onlineCount} online</span>
         )}
-      </div>
+      </button>
       <div className="mt-2 flex items-end gap-0.5">
       <div className="flex flex-wrap gap-0.5 flex-1" onClick={(e) => { e.stopPropagation(); onManageTags(); }}>
         {channel.tags.length > 0 ? (
