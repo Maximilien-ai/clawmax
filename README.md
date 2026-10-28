@@ -520,14 +520,23 @@ ClawMax has two key scopes and one explicit precedence policy:
   used by the logged-in user's own agents and workflows by default.
 
 Important:
-- provider keys are resolved from `SYSTEM/dashboard/.env` policy, not from shell exports like `~/.zshrc`
+- provider keys come from `SYSTEM/dashboard/.env` or explicitly injected Dashboard process/container environment variables; supported deployment variables take precedence over the file
 - user execution precedence is:
   1. BYOK keys provided in-app
-  2. `USER_*` defaults from `SYSTEM/dashboard/.env`
+  2. `USER_*` defaults supplied to the Dashboard process or in `SYSTEM/dashboard/.env`
   3. system keys only if `ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true`
 - system/dashboard-owned execution precedence is:
   1. `SYSTEM_*` keys from `SYSTEM/dashboard/.env`
   2. `USER_*` fallback only if no system key is configured
+
+For an instance provisioned with OpenAI access, inject `OPENAI_API_KEY` and
+`USER_OPENAI_API_KEY` as secret container environment variables. Restart or recreate
+the container after changing them. Model Integration shows **deployment default**;
+users can create and chat with agents without re-entering the key. The secret stays
+server-side. Fresh OpenAI instances select `openai/gpt-5.4-mini` for new-agent and
+system defaults, while saved workspace model choices always win. A model used by
+the deployment service only to validate the key does not change those defaults.
+An explicit browser BYOK key overrides the deployment default.
 
 Recommended `SYSTEM/dashboard/.env` setup:
 
