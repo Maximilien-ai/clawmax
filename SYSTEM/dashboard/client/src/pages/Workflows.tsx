@@ -1,3 +1,4 @@
+import { updateMentionSelection } from '../lib/agentMentions'
 import { loadWorkflowAgents } from '../lib/workflowAgents'
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -432,8 +433,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [aiPromptText, setAiPromptText] = useState('')
   const [aiAgents, setAiAgents] = useState<any[]>([])
   const [aiAgentIds, setAiAgentIds] = useState<string[]>([])
+  const updateAiPrompt = (text: string) => { setAiAgentIds(ids => updateMentionSelection(aiPromptText, text, ids, aiAgents)); setAiPromptText(text) }
   const [aiAgentSearch, setAiAgentSearch] = useState('')
   const [aiAgentError, setAiAgentError] = useState('')
+  useEffect(() => { setAiAgentIds(ids => updateMentionSelection('', aiPromptText, ids, aiAgents)) }, [aiAgents])
   useEffect(() => {
     if (!showAiPrompt) return
     let cancelled = false
@@ -494,6 +497,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   useEffect(() => {
     const handleBuilderGenerateWorkflow = (event: Event) => {
       const detail = (event as CustomEvent<{ prompt?: string }>).detail
+      setAiAgentIds([]); setAiAgentSearch(''); setAiPromptText('')
       if (typeof detail?.prompt === 'string') {
         setAiPromptText(detail.prompt)
       }
@@ -1293,7 +1297,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: promptText,
-          agentIds: aiAgentIds.length ? aiAgentIds : undefined,
+          agentIds: updateMentionSelection(aiPromptText, promptText, aiAgentIds, aiAgents),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           byokKeys: (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl)
             ? {
@@ -1767,6 +1771,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       onClick={() => {
                         if (!aiEnabled) return
                         setShowWorkflowCreateMenu(false)
+                        setAiPromptText(''); setAiAgentIds([]); setAiAgentSearch('')
                         setShowAiPrompt(true)
                       }}
                       disabled={!aiEnabled}
@@ -3278,7 +3283,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           )}
           <textarea
             value={aiPromptText}
-            onChange={(e) => setAiPromptText(e.target.value)}
+            onChange={(e) => updateAiPrompt(e.target.value)}
             placeholder="e.g., Every weekday at 9am, have the engineering team share status updates and the PM summarize blockers"
             className="min-h-[100px] w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
             autoFocus
@@ -3287,7 +3292,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           <div className="mt-2">
             <fieldset className="my-3 rounded border border-gray-200 p-3 dark:border-gray-700">
               <legend className="text-sm font-medium">Include agents</legend>
-              <p className="text-xs text-gray-500 mb-2">Choose participants, or leave empty for AI to suggest them. Select all includes the current workspace agents.</p>
+              <p className="text-xs text-gray-500 mb-2">Mention @agent-slug, @agent-name or @all in your prompt, or choose participants below.</p>
               {aiAgentError && <p role="alert">{aiAgentError}</p>}
               <input aria-label="Search workflow agents" placeholder="Search agents" value={aiAgentSearch} onChange={e => setAiAgentSearch(e.target.value)} className="w-full rounded border p-2 dark:bg-gray-800" />
               <div className="flex gap-3 py-2 text-xs"><button type="button" onClick={() => setAiAgentIds(aiAgents.map(a => a.id))}>Select all ({aiAgents.length})</button><button type="button" onClick={() => setAiAgentIds([])}>Clear selection</button><span>{aiAgentIds.length} selected</span></div>
@@ -3313,7 +3318,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         initialValue={aiPromptText}
         placeholder="e.g., Every weekday at 9am, have the engineering team share status updates and the PM summarize blockers"
         onClose={() => setShowAiPromptEditor(false)}
-        onSave={setAiPromptText}
+        onSave={updateAiPrompt}
         onSaveAndGenerate={(value) => {
           setAiPromptText(value)
           window.setTimeout(() => {

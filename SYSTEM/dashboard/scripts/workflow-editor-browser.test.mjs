@@ -55,10 +55,17 @@ try {
     const beginGeneration = async () => {
       await page.getByTitle('Create workflow', { exact: true }).click()
       await page.getByRole('button', { name: /Create with AI/ }).click()
+      assert.equal(await page.getByText('0 selected', { exact: true }).count(), 1, 'New draft must reset participants')
+      const textarea = page.getByRole('dialog', { name: 'Generate Workflow with AI', exact: true }).locator('textarea')
+      await textarea.fill('Manual test for @collector')
+      await page.waitForFunction(() => [...document.querySelectorAll('label')].some(el => el.textContent.trim() === 'Collector' && el.querySelector('input')?.checked))
+      assert.equal(await page.getByRole('checkbox', { name: 'Analyst', exact: true }).isChecked(), false)
+      await textarea.fill('Manual test for @all')
+      assert.equal(await page.getByRole('checkbox', { name: 'Analyst', exact: true }).isChecked(), true)
       await page.getByRole('button', { name: 'Select all (2)', exact: true }).click()
       await page.getByRole('button', { name: 'Open AI Editor', exact: true }).click()
       const aiEditor = page.getByRole('dialog', { name: 'Workflow AI Editor', exact: true })
-      await aiEditor.getByRole('textbox', { name: 'Prompt', exact: true }).fill('Have the analyst check daily status every day at 9am and publish findings.')
+      await aiEditor.getByRole('textbox', { name: 'Prompt', exact: true }).fill('Have @all check daily status every day at 9am and publish findings.')
       await aiEditor.getByRole('button', { name: 'Save & Generate', exact: true }).click()
     }
     await beginGeneration()

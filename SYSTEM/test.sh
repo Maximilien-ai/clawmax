@@ -3783,6 +3783,14 @@ else
   fail "Workflow start gate tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent mention and workflow participant tests...${NC}"
+if npx ts-node client/src/lib/agentMentions.test.ts > /tmp/clawmax-agent-mentions.out 2>&1 && npx ts-node client/src/lib/workflowAgents.test.ts >> /tmp/clawmax-agent-mentions.out 2>&1; then
+  pass "Agent mention and workflow participant tests"
+else
+  cat /tmp/clawmax-agent-mentions.out
+  fail "Agent mention and workflow participant tests"
+fi
+
 echo -e "${YELLOW}→ Running Workflow schedule tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workflowSchedule.test.ts > /tmp/clawmax-workflow-schedule.out 2>&1 || true
 if grep -q "Workflow schedule tests passed" /tmp/clawmax-workflow-schedule.out; then
