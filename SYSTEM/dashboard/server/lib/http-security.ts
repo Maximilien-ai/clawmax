@@ -9,12 +9,19 @@ export function browserMutationGuard(allowedOrigins: string[]): RequestHandler {
     const referer = req.get('Referer')
     const hasCookies = Boolean(req.get('Cookie'))
     const site = req.get('Sec-Fetch-Site')
+    // Host is caller-controlled, not an origin allowlist. Only literal loopback
+    // addresses may derive same-origin trust; external/proxy origins must be configured.
     const sameOrigin = `${req.protocol}://${req.get('host')}`
+    let loopbackOrigin = ''
+    try {
+      const candidate = new URL(sameOrigin)
+      if (LOOPBACK_HOSTS.has(candidate.hostname) && !candidate.username && !candidate.password) loopbackOrigin = candidate.origin
+    } catch { /* Invalid Host cannot establish trust. */ }
     const trusted = (value: string): boolean => {
       try {
         const url = new URL(value)
         return !url.username && !url.password && ['http:', 'https:'].includes(url.protocol)
-          && (url.origin === sameOrigin || allowedOrigins.includes(url.origin))
+          && (url.origin === loopbackOrigin || allowedOrigins.includes(url.origin))
       } catch { return false }
     }
     const allowed = origin ? origin !== 'null' && trusted(origin)

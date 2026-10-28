@@ -42,7 +42,12 @@ async function run() {
   const baseUrl = `http://127.0.0.1:${address.port}`
 
   try {
-    const forgedHeaders: Array<Record<string, string>> = [{ Origin: 'https://attacker.example', Cookie: 'session=fixture' }, { Cookie: 'session=fixture' }]
+    const forgedHeaders: Array<Record<string, string>> = [
+      { Origin: 'https://attacker.example', Cookie: 'session=fixture' }, { Cookie: 'session=fixture' },
+      { Origin: 'http://attacker.example', Host: 'attacker.example', Cookie: 'session=fixture' },
+      { Referer: 'http://attacker.example/form', Host: 'attacker.example', Cookie: 'session=fixture' },
+      { Origin: 'https://attacker.example', Host: 'attacker.example', 'X-Forwarded-Proto': 'https', 'X-Forwarded-Host': 'attacker.example', Cookie: 'session=fixture' },
+    ]
     for (const headers of forgedHeaders) {
       const denied = await fetch(`${baseUrl}/api/mutation-fixture`, { method: 'POST', headers })
       assert.equal(denied.status, 403)
@@ -53,6 +58,8 @@ async function run() {
     const cli = await fetch(`${baseUrl}/api/mutation-fixture`, { method: 'POST' })
     assert.equal(cli.status, 200)
     assert.equal(mutations, 2)
+    const loopback = await fetch(`${baseUrl}/api/mutation-fixture`, { method: 'POST', headers: { Origin: baseUrl, Cookie: 'session=fixture' } })
+    assert.equal(loopback.status, 200, 'Literal loopback deployments remain usable without trusting arbitrary Host names')
     const publicResponse = await fetch(`${baseUrl}/api/health`)
     assert.equal(publicResponse.status, 200, 'Public health request should succeed')
     assert.equal(publicResponse.headers.get('x-powered-by'), null)
