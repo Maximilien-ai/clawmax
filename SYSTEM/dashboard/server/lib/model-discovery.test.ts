@@ -74,6 +74,17 @@ test('OpenAI discovery preserves active older and newer provider-advertised chat
   assert(filtered.includes('openai/gpt-5.5'), 'Expected approved gpt-5.5')
 })
 
+test('OpenAI discovery keeps image, speech and transcription models out of the agent chat picker', () => {
+  // With retired chatgpt-4o-latest removed, chatgpt-image-latest sorted first and became the
+  // first-listed default for ordinary text agents.
+  const discovered = ['chatgpt-4o-latest', 'chatgpt-image-latest', 'gpt-4o-mini-transcribe', 'gpt-4o-mini-tts',
+    'gpt-4o-transcribe', 'gpt-image-1', 'gpt-image-1-mini', 'gpt-5.4-mini', 'gpt-5.5'].map(id => `openai/${id}`)
+  const chat = __test.filterCompatibleDiscoveredModels('openai', discovered)
+  assert(JSON.stringify(chat) === JSON.stringify(['openai/gpt-5.4-mini', 'openai/gpt-5.5']), `Only chat models belong in the picker, got ${chat.join(', ')}`)
+  const all = __test.filterCompatibleDiscoveredModels('openai', discovered, true)
+  assert(all.includes('openai/chatgpt-image-latest') && all.includes('openai/gpt-4o-mini-tts'), 'Show all models still lists them on request')
+})
+
 test('OpenAI discovery never treats the offline fallback as an allowlist, including show-all', () => {
   const approved = ['openai/gpt-5.5']
   assert(JSON.stringify(FALLBACK_OPENAI) === JSON.stringify(approved), 'Fallback must only offer approved GPT-5.5')
