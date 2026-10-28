@@ -146,7 +146,7 @@ function filterProviderChatModels(provider: ProviderId, models: string[]): strin
 // ── Model name filters (skip embedding, tts, whisper, dall-e, etc.) ────────
 
 const OPENAI_CHAT_PREFIXES = ['gpt-', 'o1', 'o3', 'o4', 'chatgpt-']
-const OPENAI_EXCLUDE = ['instruct', 'realtime', 'audio', 'search']
+const OPENAI_EXCLUDE = ['instruct', 'realtime', 'audio', 'search', 'image', 'tts', 'transcribe']
 
 function isOpenAIChatModel(id: string): boolean {
   const lower = id.toLowerCase()
