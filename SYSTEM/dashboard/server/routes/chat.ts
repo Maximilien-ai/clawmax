@@ -42,6 +42,7 @@ import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '.
 import { isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
 import { assertTemplateRuntimeAdmitted } from '../lib/template-runtime-admission'
 import { executeDevHostSkillChat, isDevHostSkillChatReady } from './dev-host-skill-chat'
+import { openGatewayChatLiveOutput, type GatewayChatDeltaObserver } from '../lib/gateway-chat-stream'
 
 const router = Router()
 const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
@@ -1181,6 +1182,26 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
           openaiCompatibleBaseUrl: attemptUseOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
           openaiCompatibleDefaultModel: attemptUseOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel || attemptModel) : undefined,
         }, attemptModel, attemptProvider, async () => {
+          // The CLI prints a Gateway-run reply only once the turn ends; the Gateway streams it as
+          // chat events meanwhile. Subscribe before the CLI starts so the run's start is not missed.
+          // Browser SSE only: the public CLI transport (instance-chat.ts) appends every delta and
+          // keeps its own one-shot contract, so it still receives the CLI's filtered stdout.
+          // Live text does not set hadVisibleOutput: retry decisions stay with the CLI's own
+          // result, and each retried attempt opens with a fresh `start`, on which the panel resets
+          // the reply instead of appending to the abandoned attempt's partial text.
+          let liveOutputForwarded = false
+          let liveTextStreamed = false
+          const liveOutput: GatewayChatDeltaObserver | null = !transport && openclawCli && (forceGateway || !useLocal)
+            ? await openGatewayChatLiveOutput(id, executionSessionId, (delta) => {
+                turn.touch()
+                liveOutputForwarded = true
+                // `live` tells the panel the reply is streaming as it is written. The Gateway's final
+                // snapshot (`final`) is the finished reply: reply text to keep, but no proof of streaming.
+                const origin = delta.final ? { final: true } : { live: true }
+                if (!delta.final) liveTextStreamed = true
+                send('delta', delta.replace ? { text: delta.text, replace: true, ...origin } : { text: delta.text, ...origin })
+              })
+            : null
           return await new Promise<ChatAttemptResult>((resolve, reject) => {
             if (!openclawCli) {
               reject(new Error('OpenClaw CLI is not available in this runtime. Install or bundle the CLI, or set OPENCLAW_BIN to the executable path.'))
@@ -1206,7 +1227,10 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
             proc = spawned
             procExited = false
 
-            send('start', { sessionId: executionSessionId, resumeSessionId: attemptSessionSeed, turnId: turn.turnId })
+            // `liveOutput: false`: this attempt can only deliver its reply when it finishes. true only
+            // means a Gateway subscription is open; the panel claims live streaming once a `live` delta
+            // actually arrives.
+            send('start', { sessionId: executionSessionId, resumeSessionId: attemptSessionSeed, turnId: turn.turnId, liveOutput: liveOutput !== null })
             invalidateAgentStatusCache(id)
 
             /**
@@ -1226,12 +1250,22 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
               if (!tail) return
               fullOutput = appendBoundedOutput(fullOutput, tail, MAX_RETAINED_CHAT_OUTPUT)
               hadVisibleOutput = true
-              send('delta', { text: tail })
+              if (!liveOutputForwarded) send('delta', { text: tail })
             }
 
             const resolveAttempt = (result: ChatAttemptResult) => {
               if (attemptSettled) return
               attemptSettled = true
+              // Synchronously, so no live delta can land after this attempt's result.
+              liveOutput?.close()
+              if (liveOutput && !liveOutputForwarded && fullOutput.trim()) {
+                // Subscribed, yet the reply arrived only on stdout: the Gateway's event shapes or
+                // session-key format no longer match what gateway-chat-stream.ts expects.
+                console.warn(`[Chat Route] Live output for ${id} matched no Gateway text; the reply was shown only when the turn finished.`)
+              } else if (liveOutput && !liveTextStreamed && fullOutput.trim()) {
+                // The runtime produced the reply in one piece (or only after its tools ran): not a fault.
+                console.log(`[Chat Route] Live output for ${id} carried only the finished reply; nothing streamed before it.`)
+              }
               turn.signal.removeEventListener('abort', onAttemptCancel)
               if (killEscalation) clearTimeout(killEscalation)
               // Mirrors settle() in agent-runtime.ts's runOnce: without this, the 'data' listeners
@@ -1321,7 +1355,9 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
               if (!text) return
               fullOutput = appendBoundedOutput(fullOutput, text, MAX_RETAINED_CHAT_OUTPUT)
               hadVisibleOutput = true
-              send('delta', { text })
+              // Already streamed live: this is the CLI's one-shot copy of the same reply, and the
+              // `complete` event carries the authoritative text.
+              if (!liveOutputForwarded) send('delta', { text })
             })
 
             spawned.stderr.on('data', (chunk: Buffer) => {
@@ -1370,7 +1406,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
               console.error(`[Chat Route] CLI spawn error for ${id}:`, err)
               reject(err)
             })
-          })
+          }).finally(() => liveOutput?.close())
         }, { persistAuthProfiles: true, skipModelConfigMutation: true })
       }
 

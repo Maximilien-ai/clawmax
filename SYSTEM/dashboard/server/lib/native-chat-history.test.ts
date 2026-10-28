@@ -3,7 +3,7 @@ import fs from 'fs'
 import os from 'os'
 import zlib from 'zlib'
 import path from 'path'
-import { hasNativeChatStore, resolveNativeChatSession, readNativeChatTranscript, readPersistedChatTranscript } from './native-chat-history'
+import { hasNativeChatStore, resolveNativeChatSession, resolveNativeChatSessionKeys, readNativeChatTranscript, readPersistedChatTranscript } from './native-chat-history'
 
 const { DatabaseSync } = require('node:sqlite')
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'native-chat-test-'))
@@ -36,6 +36,9 @@ try {
   const before = fs.readFileSync(filename)
   assert.equal(resolveNativeChatSession('alpha', 'agent:alpha:dashboard-chat', home), 'chat-window')
   assert.equal(resolveNativeChatSession('alpha', 'missing', home), undefined)
+  assert.deepEqual(resolveNativeChatSessionKeys('alpha', 'chat-window', home), ['agent:alpha:dashboard-chat'], 'A migrated session keeps its original key, which the runtime reuses')
+  assert.deepEqual(resolveNativeChatSessionKeys('alpha', 'unknown-window', home), [])
+  assert.deepEqual(resolveNativeChatSessionKeys('no-store', 'chat-window', home), [])
   const expected = [message('first'), message('last')].join('\n')
   assert.equal(readNativeChatTranscript('alpha', 'chat-window', home), expected)
   assert.equal(readPersistedChatTranscript('alpha', 'chat-window', home), expected)
