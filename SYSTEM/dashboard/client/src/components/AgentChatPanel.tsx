@@ -595,6 +595,12 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       remarkPlugins={[remarkGfm]}
       urlTransform={transformWorkspaceMarkdownUrl}
       components={{
+        // A wide table scrolls inside its own box; on its own it would widen the message list.
+        table: ({ children }) => (
+          <div className="max-w-full overflow-x-auto">
+            <table>{children}</table>
+          </div>
+        ),
         a: ({ href, children }) => {
           if (href?.startsWith('workspace-file:') && onNavigateToDoc) {
             const file = href.replace('workspace-file:', '')
