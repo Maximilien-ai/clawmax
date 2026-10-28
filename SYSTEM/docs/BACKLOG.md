@@ -14,6 +14,24 @@
     or exported. Recover only the selected owned Gateway using its supported
     lifecycle; do not assume every deployment uses `systemctl --user`, or stop
     unrelated/shared services. Confirm real re-pair and messaging in acceptance.
+  - Present an ordered guide in the pairing dialog, with clear Dashboard and
+    Phone labels and visible progress for the current step:
+    1. Dashboard: select the intended agent/account, check shared-session impact,
+       and enter the phone number with country code. For a failed prior session,
+       use the separately confirmed recovery action before starting a new attempt.
+    2. Dashboard: click Start pairing, wait for a fresh code, and keep the dialog
+       open. Do not ask users to send a pairing command in the agent chat.
+    3. Phone: open WhatsApp → Settings/menu → Linked devices → Link a device →
+       Link with phone number instead; enter the code shown by Dashboard. Verify
+       current Android/iOS wording during real-phone acceptance.
+    4. Dashboard: wait for confirmed Linked/Connected before choosing Done.
+       A displayed code or a closed process is not completed pairing. Show clear
+       retry/cancel/recovery instructions if the code expires or linkage fails.
+    5. Verify the agent: confirm the intended agent/account shows the connection,
+       send a test WhatsApp message from an allowed sender, and verify the agent's
+       reply reaches WhatsApp. Use the same checks after reset/re-pair.
+    Keep the phone steps and current code together, reachable on mobile; explain
+    that a retry replaces the old code and avoid showing stale codes as usable.
   - Allow pairing again after failure, expired code, cancellation, interrupted
     stream, modal reopen and Dashboard restart. End every attempt visibly and
     restore usable controls; provide cancellation while pairing is active.
