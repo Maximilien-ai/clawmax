@@ -242,27 +242,35 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       const d = discovered.status === 'fulfilled' ? discovered.value : null
       const cfg = auth.status === 'fulfilled' ? auth.value : null
       const models = visibleModels(d)
-      const defaultModel = resolveAddAgentWizardDefaultModel({
-        models,
-        config: cfg && {
-          preferredModel: cfg.preferredModel,
-          recommendedModel: cfg.recommendedModel,
-          ollamaEnabled,
-          defaultOllamaBaseUrl: cfg.defaultOllamaBaseUrl,
-          defaultOpenAiCompatibleBaseUrl: cfg.defaultOpenAiCompatibleBaseUrl,
-        },
-        byok: readStoredByokKeys(),
-      })
+      const byok = readStoredByokKeys()
+      // Without the config answer the server-saved default is unknown, and falling back to the first
+      // listed model would replace it silently; only a default saved in this browser applies then.
+      const defaultModel = cfg || byok.preferredModel?.trim()
+        ? resolveAddAgentWizardDefaultModel({
+          models,
+          config: cfg && {
+            preferredModel: cfg.preferredModel,
+            recommendedModel: cfg.recommendedModel,
+            ollamaEnabled,
+            defaultOllamaBaseUrl: cfg.defaultOllamaBaseUrl,
+            defaultOpenAiCompatibleBaseUrl: cfg.defaultOpenAiCompatibleBaseUrl,
+          },
+          byok,
+        })
+        : ''
       if (defaultModel && models.length === 0) setAvailableModels(current => (current.length > 0 ? current : [defaultModel]))
       if (defaultModel) {
         if (!providerModelRef.current) providerModelRef.current = defaultModel
         if (!modelChosenRef.current) manualModelRef.current = defaultModel
         setForm(f => (modelChosenRef.current && f.model ? f : { ...f, model: defaultModel }))
       }
-      if (!d) {
-        const reason = discovered.status === 'rejected' ? discovered.reason : null
-        setModelsError(reason instanceof Error && reason.message ? reason.message : 'The model list could not be loaded.')
-      }
+      const reason = (result: PromiseSettledResult<unknown>) =>
+        result.status === 'rejected' && result.reason instanceof Error && result.reason.message ? result.reason.message : 'request failed'
+      const failures = [
+        !d && `Could not load the model list (${reason(discovered)}).`,
+        !cfg && `Could not load the saved default model (${reason(auth)}).`,
+      ].filter(Boolean)
+      setModelsError(failures.length > 0 ? failures.join(' ') : null)
       setModelsLoaded(true)
     })
     return () => { cancelled = true }
@@ -449,7 +457,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   // without them only failed later, at review, as "Choose a model before provisioning this agent".
   const identityIssue = !modelsLoaded && !form.model ? null
     : !form.model ? (modelsError
-      ? `No model is selected because the model list could not load: ${modelsError}`
+      ? `No model is selected. ${modelsError}`
       : 'No model is selected for this agent. Choose one in Identity, or set a new-agent default model in BYOK.')
     : !nameOk ? 'Enter a valid agent name in Identity.'
     : templateSelectionMissing || cloneSelectionMissing ? 'The template or clone source chosen in Identity is no longer available.'
@@ -468,7 +476,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   const generateDisabled = !!generateBlockedReason || generating || !!generatedFiles
   const modelsErrorNotice = modelsError && (
     <div role="alert" className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
-      Could not load the model list: {modelsError}{form.model ? ' The saved default model is still selected.' : ''}
+      {modelsError}{form.model ? ` ${form.model} is still selected.` : ''}
       <button type="button" onClick={() => setModelsReload(n => n + 1)} className="ml-2 font-medium underline">Retry</button>
     </div>
   )
