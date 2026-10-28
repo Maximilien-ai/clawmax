@@ -331,7 +331,7 @@ export function ByokWizard({
   const [mailOAuthBusy, setMailOAuthBusy] = useState<string | null>(null)
   const [mailOAuthError, setMailOAuthError] = useState<string | null>(null)
   const mailOAuthPopupRef = useRef<Window | null>(null)
-  const preferredModelRef = useRef<HTMLSelectElement | null>(null)
+  const preferredModelRef = useRef<HTMLButtonElement | null>(null)
   const searchedPartnerRef = useRef<string | null>(null)
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
   const [modelTab, setModelTab] = useState<ModelTab>('openai')

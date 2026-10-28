@@ -78,7 +78,8 @@ await page.route('**/api/**', async (route) => {
   await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 })
 
-const modelSelect = () => wizard().getByRole('combobox', { name: 'models', exact: true })
+const modelButton = () => wizard().getByRole('button', { name: 'models', exact: true })
+const modelSelect = () => wizard().getByRole('listbox', { name: 'Matching models', exact: true })
 const generateButton = () => page.locator('button').filter({ hasText: /^(Generate with AI|Loading model defaults\.\.\.|Generating\.\.\.)$/ }).first()
 const wizard = () => page.locator('div.fixed.inset-0').filter({ has: page.getByRole('heading', { name: 'Add Agent', level: 2 }) })
 const next = () => wizard().getByRole('button', { name: 'Next', exact: true })
@@ -168,11 +169,11 @@ try {
     fixture.configFails = true
     await openWizard('wizard')
     await wizard().getByText('Could not load the saved default model', { exact: false }).waitFor()
-    assert.equal(await modelSelect().inputValue(), '', 'The first listed model must not stand in for an unknown saved default')
+    assert.equal(await modelButton().getAttribute('data-model-value'), '', 'The first listed model must not stand in for an unknown saved default')
     assert.equal(await next().isDisabled(), true)
     fixture.configFails = false
     await wizard().getByRole('button', { name: 'Retry', exact: true }).click()
-    await page.waitForFunction((saved) => [...document.querySelectorAll('select')].some((s) => s.value === saved), SAVED)
+    await page.waitForFunction((saved) => [...document.querySelectorAll('button[data-model-value]')].some((s) => s.dataset.modelValue === saved), SAVED)
   })
 
   await check('an answer from a superseded model-list request does not replace the newer list', async () => {
@@ -180,6 +181,7 @@ try {
     fixture.conservativeListHold = deferred()
     await openWizard('wizard')
     await page.getByLabel('Show all models').check()
+    if (await modelButton().getAttribute('aria-expanded') !== 'true') await modelButton().click()
     await modelSelect().locator(`option[value="${LISTED_WITH_SHOW_ALL}"]`).waitFor({ state: 'attached' })
     fixture.conservativeListHold.release()
     fixture.conservativeListHold = null
@@ -191,26 +193,29 @@ try {
     await reset()
     fixture.configHold = deferred()
     await openWizard('wizard')
+    if (await modelButton().getAttribute('aria-expanded') !== 'true') await modelButton().click()
     await modelSelect().locator(`option[value="${OTHER}"]`).waitFor({ state: 'attached' })
     await page.getByPlaceholder('agent0').fill('my-agent')
+    if (await modelButton().getAttribute('aria-expanded') !== 'true') await modelButton().click()
     await modelSelect().selectOption(OTHER)
     fixture.configHold.release()
     fixture.configHold = null
     await page.waitForTimeout(500)
-    assert.equal(await modelSelect().inputValue(), OTHER, 'The late saved default must not replace the user choice')
+    assert.equal(await modelButton().getAttribute('data-model-value'), OTHER, 'The late saved default must not replace the user choice')
     await page.getByLabel('Show all models').check()
     await page.waitForTimeout(500)
-    assert.equal(await modelSelect().inputValue(), OTHER, 'Reloading the list must not replace the user choice')
+    assert.equal(await modelButton().getAttribute('data-model-value'), OTHER, 'Reloading the list must not replace the user choice')
     assert.equal(await page.getByPlaceholder('agent0').inputValue(), 'my-agent', 'Reloading the list must not reset the typed name')
   })
 
   await check('model search filters options without changing the saved selection', async () => {
     await reset()
     await openWizard('wizard')
+    await modelButton().click()
     const search = wizard().getByRole('searchbox', { name: 'Search models', exact: true })
     await search.fill('no-matching-model')
-    assert.equal(await modelSelect().inputValue(), SAVED)
-    assert.equal(await modelSelect().locator('option').count(), 1)
+    assert.equal(await modelButton().getAttribute('data-model-value'), SAVED)
+    await page.getByText('No matching models', { exact: true }).waitFor()
     await search.fill('OpenAI')
     assert(await modelSelect().locator('option').count() > 1)
     await search.fill('')
@@ -241,7 +246,7 @@ try {
     assert.equal(await inView(page.locator('summary', { hasText: 'IDENTITY.md Preview' })), true, 'The previews must be discoverable')
     await page.getByText(`Agent model: ${SAVED}`, { exact: false }).waitFor()
     await wizard().getByRole('button', { name: 'Back', exact: true }).click()
-    assert.equal(await modelSelect().inputValue(), SAVED, 'The AI suggestion must not replace the saved default')
+    assert.equal(await modelButton().getAttribute('data-model-value'), SAVED, 'The AI suggestion must not replace the saved default')
     await page.screenshot({ path: path.join(artifactDir, 'generated.png') })
   })
 
@@ -267,7 +272,7 @@ try {
     assert.equal(await next().isDisabled(), true, 'An unresolved model must not reach a later step')
     assert.equal(await looksDisabled(generateButton()), true)
     await alert.getByRole('button', { name: 'Go to Identity' }).click()
-    await modelSelect().waitFor()
+    await modelButton().waitFor()
     fixture.preferred = SAVED
     fixture.discoverFails = false
   })
@@ -276,12 +281,12 @@ try {
     fixture.enabledRuntimes = ['claude']
     await reset()
     await openWizard('wizard')
-    await page.waitForFunction((saved) => [...document.querySelectorAll('select')].some((s) => s.value === saved), SAVED)
+    await page.waitForFunction((saved) => [...document.querySelectorAll('button[data-model-value]')].some((s) => s.dataset.modelValue === saved), SAVED)
     const runtime = page.locator('select').first()
     await runtime.selectOption('claude')
-    assert.equal(await modelSelect().inputValue(), 'sonnet')
+    assert.equal(await modelButton().getAttribute('data-model-value'), 'sonnet')
     await runtime.selectOption('default')
-    assert.equal(await modelSelect().inputValue(), SAVED, 'OpenClaw must not keep the CLI-only model id')
+    assert.equal(await modelButton().getAttribute('data-model-value'), SAVED, 'OpenClaw must not keep the CLI-only model id')
     fixture.enabledRuntimes = []
   })
 
@@ -292,12 +297,15 @@ try {
       await page.getByRole('button', { name: 'BYOK', exact: true }).click()
       const select = page.locator('#new-agent-default-model')
       await select.waitFor()
-      const before = await select.inputValue()
+      const before = await select.getAttribute('data-model-value')
+      await select.click()
       const search = page.getByRole('searchbox', { name: 'Search models', exact: true })
       await search.fill('no-such-model')
-      assert.equal(await select.inputValue(), before)
+      assert.equal(await select.getAttribute('data-model-value'), before)
       await search.fill('OpenAI')
-      assert(await select.locator('optgroup').count() > 0)
+      assert(await page.getByRole('listbox', { name: 'Matching models' }).locator('optgroup').count() > 0)
+      await search.press('Escape')
+      await page.locator('#system-agent-default-model').click()
       await page.getByRole('searchbox', { name: 'Search system agent models', exact: true }).fill('mini')
       await select.scrollIntoViewIfNeeded()
       await page.screenshot({ path: `/private/tmp/rc96-byok-search-${width}.png` })
