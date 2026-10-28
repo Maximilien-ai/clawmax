@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { getWorkspacePath } from './workspace'
+import { getBestAvailableModel, getSystemProviderKeys, resolveUserExecutionProviderKeys } from './dashboard-env'
 import { normalizeAgentRuntime } from './agent-runtime'
 
 export interface WorkspaceIntegrationConfig {
@@ -102,6 +103,10 @@ export function getResolvedWorkspaceIntegrationConfig(): WorkspaceIntegrationCon
 
   return {
     ...config,
+    // Non-secret effective defaults for a deployment-provided OpenAI account.
+    // Saved workspace choices always win; no browser key copy or config write is needed.
+    preferredModel: config.preferredModel || (resolveUserExecutionProviderKeys().openai ? 'openai/gpt-5.4-mini' : undefined),
+    systemPreferredModel: config.systemPreferredModel || ((getSystemProviderKeys().openai || resolveUserExecutionProviderKeys().openai) ? getBestAvailableModel() : undefined),
     partners: Object.keys(partners).length > 0 ? partners : config.partners,
   }
 }

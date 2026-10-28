@@ -772,7 +772,7 @@ export function ByokWizard({
     const resolveSource = (provider: ProviderKey | 'openaiCompatible') => {
       if (provider === 'openai') {
         if (openaiKey) return 'browser BYOK'
-        if (config?.userKeyDefaults?.openai) return 'user default'
+        if (config?.userKeyDefaults?.openai) return 'deployment default'
         if (config?.systemKeyDefaults?.openai) return 'system default'
         return 'not configured'
       }
@@ -1333,6 +1333,7 @@ export function ByokWizard({
     const providerScope = scope === 'openai' || scope === 'openaiCompatible' || scope === 'anthropic' || scope === 'gemini' || scope === 'openrouter' || scope === 'xai' || scope === 'ollama' ? scope : null
     const scopedPayload = {
       openai: scope === 'all' || providerScope === 'openai' ? openaiKey.trim() : '',
+      useConfiguredOpenaiKey: (scope === 'all' || providerScope === 'openai') && !openaiKey.trim() && !!config?.userKeyDefaults?.openai,
       openaiCompatibleApiKey: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleApiKey.trim() : '',
       openaiCompatibleBaseUrl: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleBaseUrl.trim() : '',
       openaiCompatibleDefaultModel: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleDefaultModel.trim() : '',
@@ -2326,7 +2327,7 @@ export function ByokWizard({
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {initialStep === 'partners'
                     ? 'Choose and configure independent, optional integrations for this workspace.'
-                    : 'Provider secrets stay local to this browser. Workspace defaults persist per workspace for template apply and runtime follow-through.'}
+                    : 'Keys you enter stay in this browser. Deployment-provided keys stay on the server. Model defaults apply to new agents in this workspace.'}
                 </p>
               </div>
               <button
@@ -2435,7 +2436,7 @@ export function ByokWizard({
                     <div className="min-w-0">
                       <div className="font-medium text-gray-900 dark:text-gray-100">Model providers (BYOK)</div>
                       <div className="mt-1 text-sm">
-                        System keys may be limited or unavailable. Bring Your Own Keys (BYOK) to ensure your agents can run with the models and providers you choose, billed to your own account.
+                        {hasDefaultUserKeys ? 'Your deployment provides model access. You can create agents now, or enter your own key to override the deployment default.' : 'System keys may be limited or unavailable. Bring Your Own Keys (BYOK) to ensure your agents can run with the models and providers you choose, billed to your own account.'}
                       </div>
                     </div>
                     <div className="text-xs opacity-80 max-w-xl sm:text-right">
@@ -2542,7 +2543,8 @@ export function ByokWizard({
                           </button>
                         )}
                       </div>
-                      <input id="byok-openai" type="password" value={openaiKey} onChange={(e) => { setOpenaiKey(e.target.value); setValidation((current) => ({ ...current, openai: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openai; return next }) }} placeholder="sk-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                      <input id="byok-openai" type="password" value={openaiKey} onChange={(e) => { setOpenaiKey(e.target.value); setValidation((current) => ({ ...current, openai: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openai; return next }) }} placeholder={config?.userKeyDefaults?.openai ? "Configured by deployment — enter a key to override" : "sk-..."} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                      {!openaiKey && config?.userKeyDefaults?.openai && <p className="mt-2 text-sm text-green-700 dark:text-green-300">OpenAI is configured by your deployment. No key entry is needed to create or chat with agents. The key stays on the server.</p>}
                       {renderValidation('openai')}
                     </div>
                   )}

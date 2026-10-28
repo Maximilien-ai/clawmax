@@ -54,7 +54,7 @@ import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, updatedBudgetConfi
 import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardDeploymentKind, getDashboardEnvRaw, getDashboardInstanceLabel, getDefaultOllamaBaseUrl, getDefaultOpenAICompatibleBaseUrl, isManagedRuntime, isOllamaUiEnabled, resolveSystemExecutionProviderKeys } from './lib/dashboard-env'
 import { getResolvedMaintenanceBanner } from './lib/cloud-maintenance-status'
 import { getHostAgentStatus } from './lib/host-agent-status'
-import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
+import { getResolvedWorkspaceIntegrationConfig } from './lib/workspace-integrations'
 import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
 import { detectRuntimeStatuses, resolveEnabledRuntimes, resolveWorkspaceRuntime } from './lib/agent-runtime'
@@ -377,7 +377,7 @@ app.get('/api/auth/config', (_req, res) => {
   const systemKeys = getSystemProviderKeys()
   const userKeys = getUserDefaultProviderKeys()
   const executionKeys = resolveSystemExecutionProviderKeys(rawEnv)
-  const integrationConfig = readWorkspaceIntegrationConfig()
+  const integrationConfig = getResolvedWorkspaceIntegrationConfig()
   const managedRuntime = isManagedRuntime(rawEnv)
   const deploymentKind = getDashboardDeploymentKind(rawEnv)
   const devHostAuthReady = process.env.CLAWMAX_DEV_MAXIMILIEN_AUTH_BRIDGE === '1'

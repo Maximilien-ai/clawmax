@@ -13,7 +13,7 @@ import {
 import { getEnabledPartnerSlugs, listPartnerDefinitions } from '../lib/partners'
 import { checkGitHubPrereqs, getGitHubAuthMode } from '../lib/prereqs'
 import { safeEnv } from '../lib/safe-env'
-import { getDashboardDeploymentKind, getDashboardEnvRaw, isOllamaUiEnabled } from '../lib/dashboard-env'
+import { getDashboardDeploymentKind, getDashboardEnvRaw, isOllamaUiEnabled, resolveUserExecutionProviderKeys } from '../lib/dashboard-env'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getWorkspaceResendApiKey, resolveResendTestRecipient, sendResendTestEmail } from '../lib/resend-partner'
 import { detectRuntimeStatuses, listRuntimeModels, normalizeAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime } from '../lib/agent-runtime'
@@ -142,6 +142,11 @@ router.put('/config', (req, res) => {
 router.post('/validate', async (req, res) => {
   try {
     const body = { ...(req.body || {}) } as Record<string, unknown>
+    // Explicitly requested validation of the deployment default; never return its key.
+    if (body.useConfiguredOpenaiKey === true && !body.openai) {
+      body.openai = resolveUserExecutionProviderKeys().openai || ''
+    }
+    delete body.useConfiguredOpenaiKey
     if (getDashboardDeploymentKind(getDashboardEnvRaw()) === 'cloud') {
       const endpointError = cloudModelEndpointError(typeof body.openaiCompatibleBaseUrl === 'string' ? body.openaiCompatibleBaseUrl : '')
       if (endpointError) {

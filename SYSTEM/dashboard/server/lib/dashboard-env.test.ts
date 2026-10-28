@@ -6,6 +6,10 @@
 
 import {
   allowSystemKeysForUserExecution,
+  getSystemProviderKeys,
+  getUserDefaultProviderKeys,
+  resolveUserExecutionProviderKeys,
+  resolveSystemExecutionProviderKeys,
   getDashboardDeploymentKind,
   getDashboardInstanceLabel,
   getBestAvailableModel,
@@ -45,6 +49,25 @@ function test(name: string, fn: () => void) {
 }
 
 console.log(`\n${YELLOW}=== Dashboard Env Test Suite ===${RESET}\n`)
+
+test('Web-injected OpenAI keys reach generation and user execution without browser BYOK', () => {
+  const names = ['OPENAI_API_KEY', 'USER_OPENAI_API_KEY', 'SYSTEM_OPENAI_API_KEY', 'ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION']
+  const before = Object.fromEntries(names.map(name => [name, process.env[name]]))
+  try {
+    process.env.OPENAI_API_KEY = 'synthetic-web-deployment-key'
+    process.env.USER_OPENAI_API_KEY = 'synthetic-web-deployment-key'
+    delete process.env.SYSTEM_OPENAI_API_KEY
+    process.env.ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION = 'false'
+    assert(getUserDefaultProviderKeys().openai === 'synthetic-web-deployment-key', 'Injected user key must be visible without passing raw env explicitly')
+    assert(getSystemProviderKeys().openai === 'synthetic-web-deployment-key', 'Injected standard key must reach generation')
+    assert(resolveSystemExecutionProviderKeys().openai === 'synthetic-web-deployment-key', 'Generation must resolve deployment key')
+    assert(resolveUserExecutionProviderKeys().openai === 'synthetic-web-deployment-key', 'User agent chat must use deployed user default without system fallback permission')
+    assert(resolveUserExecutionProviderKeys(undefined, {openai: 'synthetic-browser-override'}).openai === 'synthetic-browser-override', 'Explicit BYOK must still win')
+    assert(getBestAvailableModel() === 'openai/gpt-5.4-mini', 'Fresh OpenAI deployment must select a text model')
+  } finally {
+    for (const name of names) { if (before[name] === undefined) delete process.env[name]; else process.env[name] = before[name] }
+  }
+})
 
 test('managed runtime is detected when dashboard env is empty', () => {
   assert(isManagedRuntime({}) === true, 'Expected empty env to be treated as managed runtime')

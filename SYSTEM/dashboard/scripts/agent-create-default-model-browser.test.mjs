@@ -31,6 +31,8 @@ await page.route('**/api/**', async (route) => {
     if (fixture.configHold) await fixture.configHold.promise
     if (fixture.configFails) status = 503
     body = { authDisabled: true, githubEnabled: false, deploymentKind: 'local', preferredModel: fixture.preferred, enabledRuntimes: fixture.enabledRuntimes, userKeyDefaults: { openai: true, anthropic: false } }
+  } else if (p === '/api/integrations/config') {
+    body = { config: { preferredModel: fixture.preferred, systemPreferredModel: SAVED } }
   } else if (p === '/api/agents/models/discover') {
     const showAll = route.request().postDataJSON()?.showAll === true
     if (fixture.discoverHold) await fixture.discoverHold.promise
@@ -46,6 +48,7 @@ await page.route('**/api/**', async (route) => {
     }
   } else if (p === '/api/agents/generate') {
     fixture.generateCalls++
+    fixture.generatedBody = route.request().postDataJSON()
     if (fixture.generateHold) await fixture.generateHold.promise
     if (fixture.generateFails) { status = 502; body = { error: 'OpenAI rejected the generation request (401). Run Check Key in BYOK.' } }
     else body = { identity: '# Lead Software Engineer\n\n**Name:** agent0', soul: 'Plan, review and ship.', tools: 'Repository and tests.', generatedBy: { label: 'OpenAI (BYOK)' }, suggestedName: 'lead-software-engineer', suggestedModel: OTHER, modelRecommendation: recommendation }
@@ -115,6 +118,33 @@ async function check(name, fn) {
 }
 
 try {
+  await check('deployment OpenAI works with empty browser keys and visible defaults', async () => {
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 })
+      await reset(null)
+      await page.getByRole('button', { name: 'BYOK', exact: true }).click()
+      await page.getByText('OpenAI is configured by your deployment.', { exact: false }).waitFor()
+      assert.equal(await page.locator('#byok-openai').inputValue(), '', 'Deployment secret must not enter the input')
+      await page.waitForFunction((model) => document.querySelector('#new-agent-default-model')?.getAttribute('data-model-value') === model, SAVED)
+      assert.equal(await page.locator('#system-agent-default-model').getAttribute('data-model-value'), SAVED)
+      await page.screenshot({ path: path.join(artifactDir, `deployment-key-${width}.png`) })
+      await reset(null)
+      await openWizard('ai')
+      await describe().fill('A simple helpful test assistant')
+      await page.getByText(`Agent model: ${SAVED}`, { exact: false }).waitFor()
+      assert.equal(await generateButton().isEnabled(), true)
+      await generateButton().click()
+      await page.getByText('Files generated successfully', { exact: false }).waitFor()
+      assert(!fixture.generatedBody?.byok?.openai, 'No browser key is sent for deployed defaults')
+      await next().click()
+      await next().click()
+      await wizard().getByRole('button', { name: 'Provision', exact: true }).waitFor()
+      assert.equal(fixture.validatedModel, SAVED)
+      const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('clawmax-byok-preview') || '{}'))
+      assert(!stored.openai, 'No deployment secret in browser storage')
+    }
+  })
+
   await check('direct AI creation keeps the saved default when model discovery fails, and offers a retry', async () => {
     await reset()
     fixture.discoverFails = true

@@ -392,7 +392,7 @@ export function usableProviderKeys(keys: ProviderKeys, rawEnv: Record<string, st
   return { ...keys, openaiCompatibleBaseUrl: undefined, openaiCompatibleApiKey: undefined, openaiCompatibleDefaultModel: undefined }
 }
 
-export function getSystemProviderKeys(rawEnv: Record<string, string> = dashboardEnv): ProviderKeys {
+export function getSystemProviderKeys(rawEnv: Record<string, string> = getDashboardEnvRaw()): ProviderKeys {
   const allowProcessFallback = rawEnv === dashboardEnv && isContainerMode
   const lookup = allowProcessFallback
     ? (key: string) => firstNonEmpty(rawEnv, key) || (process.env[key]?.trim() || undefined)
@@ -409,7 +409,7 @@ export function getSystemProviderKeys(rawEnv: Record<string, string> = dashboard
   }, rawEnv)
 }
 
-export function getUserDefaultProviderKeys(rawEnv: Record<string, string> = dashboardEnv): ProviderKeys {
+export function getUserDefaultProviderKeys(rawEnv: Record<string, string> = getDashboardEnvRaw()): ProviderKeys {
   return usableProviderKeys({
     openai: firstNonEmpty(rawEnv, 'USER_OPENAI_API_KEY'),
     anthropic: firstNonEmpty(rawEnv, 'USER_ANTHROPIC_API_KEY'),
@@ -422,7 +422,7 @@ export function getUserDefaultProviderKeys(rawEnv: Record<string, string> = dash
   }, rawEnv)
 }
 
-export function allowSystemKeysForUserExecution(rawEnv: Record<string, string> = dashboardEnv): boolean {
+export function allowSystemKeysForUserExecution(rawEnv: Record<string, string> = getDashboardEnvRaw()): boolean {
   const fromEnvFile = firstNonEmpty(rawEnv, 'ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION')
   if (fromEnvFile !== undefined) {
     return fromEnvFile === 'true'
@@ -434,7 +434,7 @@ export function allowSystemKeysForUserExecution(rawEnv: Record<string, string> =
 }
 
 export function resolveUserExecutionProviderKeys(
-  rawEnv: Record<string, string> = dashboardEnv,
+  rawEnv: Record<string, string> = getDashboardEnvRaw(),
   byokOverrides?: ProviderKeys
 ): ProviderKeys {
   if (byokOverrides) byokOverrides = usableProviderKeys(byokOverrides, rawEnv)
@@ -460,7 +460,7 @@ export function resolveUserExecutionProviderKeys(
 }
 
 export function resolveWorkflowExecutionProviderKeys(
-  rawEnv: Record<string, string> = dashboardEnv,
+  rawEnv: Record<string, string> = getDashboardEnvRaw(),
   byokOverrides?: ProviderKeys
 ): ProviderKeys {
   const userKeys = resolveUserExecutionProviderKeys(rawEnv, byokOverrides)
@@ -473,7 +473,7 @@ export function resolveWorkflowExecutionProviderKeys(
  * Workspace-level Ollama preference is handled in integrations/template apply UI paths.
  * Provider order: OpenAI → Gemini → Anthropic.
  */
-export function getBestAvailableModel(rawEnv: Record<string, string> = dashboardEnv): string {
+export function getBestAvailableModel(rawEnv: Record<string, string> = getDashboardEnvRaw()): string {
   const keys = resolveSystemExecutionProviderKeys(rawEnv)
   if (keys.openai) return 'openai/gpt-5.4-mini'
   if (keys.gemini) return 'google/gemini-2.5-flash'
@@ -487,7 +487,7 @@ export function getBestAvailableModel(rawEnv: Record<string, string> = dashboard
  * Get a cost-efficient hosted model for bulk/test operations.
  * Provider order: OpenAI → Gemini → Anthropic.
  */
-export function getCostEfficientModel(rawEnv: Record<string, string> = dashboardEnv): string {
+export function getCostEfficientModel(rawEnv: Record<string, string> = getDashboardEnvRaw()): string {
   const keys = resolveSystemExecutionProviderKeys(rawEnv)
   if (keys.openai) return 'openai/gpt-5.4-mini'
   if (keys.gemini) return 'google/gemini-2.5-flash'
@@ -497,7 +497,7 @@ export function getCostEfficientModel(rawEnv: Record<string, string> = dashboard
   return 'openai/gpt-4o-mini'
 }
 
-export function resolveSystemExecutionProviderKeys(rawEnv: Record<string, string> = dashboardEnv): ProviderKeys {
+export function resolveSystemExecutionProviderKeys(rawEnv: Record<string, string> = getDashboardEnvRaw()): ProviderKeys {
   const systemKeys = getSystemProviderKeys(rawEnv)
   if (hasAnyProviderKey(systemKeys)) {
     return systemKeys
