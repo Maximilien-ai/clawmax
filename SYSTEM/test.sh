@@ -1224,6 +1224,19 @@ else
 fi
 
 echo ""
+if npx ts-node --transpileOnly client/src/lib/authBootstrap.test.ts; then
+  pass "Auth startup recovery and bounded retries"
+else
+  fail "Auth startup recovery and bounded retries"
+fi
+
+if npx ts-node --transpileOnly server/lib/chat-request-body.test.ts; then
+  pass "Chat HTTP body limits and authentication"
+else
+  fail "Chat HTTP body limits and authentication"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent doctor and channel route unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/agents.test.ts > /tmp/clawmax-agent-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-routes.out; then
@@ -1286,6 +1299,13 @@ if grep -q "All tests passed" /tmp/clawmax-model-discovery.out; then
   pass "Model discovery unit tests (${model_discovery_count:-?} tests)"
 else
   fail "Model discovery unit tests"
+fi
+if npx ts-node --transpileOnly server/lib/openclaw-model-catalog.test.ts > /tmp/clawmax-openclaw-model-catalog.out 2>&1 \
+  && grep -Eq "openclaw-model-catalog.test.ts: [0-9]+ tests passed" /tmp/clawmax-openclaw-model-catalog.out; then
+  pass "OpenClaw runtime model catalog tests"
+else
+  cat /tmp/clawmax-openclaw-model-catalog.out
+  fail "OpenClaw runtime model catalog tests"
 fi
 if npx ts-node --transpileOnly server/lib/model-discovery-endpoint.test.ts > /tmp/clawmax-model-endpoint.out 2>&1; then
   pass "Model discovery redirect and credential boundary HTTP tests"
@@ -1591,6 +1611,13 @@ else
   fail "Brokered skill command wrapper tests"
 fi
 
+if npx ts-node --transpileOnly server/lib/ai-generation-context.test.ts > /tmp/clawmax-ai-generation-context.out 2>&1; then
+  pass "AI generation request isolation tests"
+else
+  cat /tmp/clawmax-ai-generation-context.out
+  fail "AI generation request isolation tests"
+fi
+
 echo -e "${YELLOW}→ Running BYOK helper unit tests...${NC}"
 if node --test scripts/openclaw-schema-gate.test.cjs; then
   pass "Persisted agent schema startup gate"
@@ -1606,6 +1633,11 @@ if npx ts-node --transpileOnly client/src/lib/workspaceSwitchResponse.test.ts; t
   pass "Workspace switch unavailable-response tests"
 else
   fail "Workspace switch unavailable-response tests"
+fi
+if npx ts-node --transpileOnly client/src/lib/apiReadiness.test.ts; then
+  pass "Frontend waits for a delayed API start with bounded retries"
+else
+  fail "Frontend waits for a delayed API start with bounded retries"
 fi
 if npx ts-node --transpileOnly client/src/lib/integrationValidationResponse.test.ts; then
   pass "Integration validation unavailable-response tests"
@@ -2800,6 +2832,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Release review export unit tests...${NC}"
+if npx ts-node --transpileOnly server/lib/review-submissions.test.ts; then
+  pass "Review email submission persistence and consent"
+else
+  fail "Review email submission persistence and consent"
+fi
 npx ts-node --transpileOnly client/src/lib/reviewExport.test.ts > /tmp/clawmax-review-export.out 2>&1 || true
 if grep -q "reviewExport.test.ts: 12 tests passed" /tmp/clawmax-review-export.out; then
   pass "Release review export unit tests (12 tests)"
@@ -3054,6 +3091,15 @@ else
   fail "Local plugin startup contract tests"
 fi
 
+echo -e "${YELLOW}→ Running local gateway startup recovery tests...${NC}"
+bash "$SYSTEM_DIR/start-gateway-ready.test.sh" > /tmp/clawmax-start-gateway-ready.out 2>&1 || true
+if grep -q "start-gateway-ready.test.sh: 13 tests passed" /tmp/clawmax-start-gateway-ready.out; then
+  pass "Local gateway startup recovery tests (13 tests)"
+else
+  cat /tmp/clawmax-start-gateway-ready.out
+  fail "Local gateway startup recovery tests"
+fi
+
 echo -e "${YELLOW}→ Running external plugin test launcher shell tests...${NC}"
 bash "$SYSTEM_DIR/test-plugins.test.sh" > /tmp/clawmax-test-plugins.out 2>&1 || true
 if grep -q "test-plugins.test.sh: 6 tests passed" /tmp/clawmax-test-plugins.out; then
@@ -3120,6 +3166,12 @@ else
 fi
 
 echo -e "${YELLOW}→ Running OpenClaw target prep shell tests...${NC}"
+if bash "$SYSTEM_DIR/test-clean-install.test.sh" > /tmp/clawmax-clean-install-contract.out 2>&1; then
+  pass "Clean-source Podman VM lifecycle and isolation tests"
+else
+  cat /tmp/clawmax-clean-install-contract.out
+  fail "Clean-source Podman VM lifecycle and isolation tests"
+fi
 if node --test "$SYSTEM_DIR/local-dev.test.mjs" > /tmp/clawmax-local-dev.out 2>&1; then
   pass "Isolated local dev credentials and process cleanup tests"
 else
@@ -3731,6 +3783,14 @@ else
   fail "Workflow start gate tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent mention and workflow participant tests...${NC}"
+if npx ts-node client/src/lib/agentMentions.test.ts > /tmp/clawmax-agent-mentions.out 2>&1 && npx ts-node client/src/lib/workflowAgents.test.ts >> /tmp/clawmax-agent-mentions.out 2>&1; then
+  pass "Agent mention and workflow participant tests"
+else
+  cat /tmp/clawmax-agent-mentions.out
+  fail "Agent mention and workflow participant tests"
+fi
+
 echo -e "${YELLOW}→ Running Workflow schedule tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workflowSchedule.test.ts > /tmp/clawmax-workflow-schedule.out 2>&1 || true
 if grep -q "Workflow schedule tests passed" /tmp/clawmax-workflow-schedule.out; then
@@ -3900,6 +3960,14 @@ if npx ts-node --transpileOnly client/src/DevHostSkillChatPresentation.test.ts >
 else
   cat /tmp/clawmax-dev-host-skill-presentation.out
   fail "Dev host Skill chat presentation tests"
+fi
+
+echo -e "${YELLOW}→ Running Agent chat code block Copy tests...${NC}"
+if npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/ChatCodeBlock.test.tsx > /tmp/clawmax-agent-chat-code-block.out 2>&1; then
+  pass "Agent chat code block Copy tests"
+else
+  cat /tmp/clawmax-agent-chat-code-block.out
+  fail "Agent chat code block Copy tests"
 fi
 
 echo -e "${YELLOW}→ Running Chat composer multiline regression tests...${NC}"

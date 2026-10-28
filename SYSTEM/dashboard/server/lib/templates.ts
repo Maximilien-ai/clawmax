@@ -1,3 +1,4 @@
+import { saveChannelDisplayName } from './channel-display-name'
 import fs from 'fs'
 import { isPlainPathSegment } from './path-segment'
 import path from 'path'
@@ -15,6 +16,7 @@ import { validateAgentConfigSections } from './agent-config-validation'
 import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile } from './agent-model'
 import { recordTemplateApply, type CanonicalTemplateFeedbackSource, type CanonicalTemplateFeedbackType } from './template-feedback'
 import { resolveDefaultAgentModel } from './agent-default-model'
+import { describeOpenClawModelRejection } from './openclaw-model-catalog'
 import { applyGeneratedWorkflowHandoffs, normalizeGeneratedWorkflowReferences } from './ai-generator'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
@@ -2168,6 +2170,8 @@ export async function importAgentFromTemplate(
     if (!effectiveModel) {
       return { ok: false, error: 'No default model could be resolved for this agent template. Configure a provider key/runtime or choose a model explicitly.' }
     }
+    const modelRejection = describeOpenClawModelRejection([{ model: effectiveModel, label: 'model' }])
+    if (modelRejection) return { ok: false, error: modelRejection }
 
     const fileValidation = validateAgentTemplateFiles(templateDir, sourceAgent.id)
     if (!fileValidation.valid) {
@@ -2836,6 +2840,8 @@ export async function importOrganizationTemplate(
         if (!appliedModel) {
           throw new Error(`No default model could be resolved for agent ${targetAgentId}. Configure a provider key/runtime or choose a model override first.`)
         }
+        const modelRejection = describeOpenClawModelRejection([{ model: appliedModel, label: `model for agent ${targetAgentId}` }])
+        if (modelRejection) throw new Error(modelRejection)
         appliedModelsByAgentId[targetAgentId] = appliedModel
 
         // Validate target agent ID
@@ -3085,6 +3091,18 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               console.warn(`Failed to create GROUPS.md for ${targetAgentId}:`, err)
             }
           }
+        }
+      }
+
+      // Keep human names separate from namespaced routing/membership IDs.
+      for (const kind of ['group', 'community'] as const) {
+        const originals = kind === 'group' ? template.groups : template.communities
+        const renames = kind === 'group' ? groupRenames : communityRenames
+        const explicitRenames = kind === 'group' ? options?.groupRenames : options?.communityRenames
+        for (const channel of originals || []) {
+          const id = renames[channel.name] || channel.name
+          const label = explicitRenames?.[channel.name]?.trim() || channel.name
+          saveChannelDisplayName(getWorkspacePath(), kind, id, label)
         }
       }
 

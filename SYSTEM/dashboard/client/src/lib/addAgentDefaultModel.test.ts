@@ -108,4 +108,14 @@ test('does not rewrite openai-compatible models that only look like OpenAI snaps
   assert.equal(resolved, 'openai-compatible/gpt-5-2025-08-07')
 })
 
-console.log('addAgentDefaultModel.test.ts: 11 tests passed')
+test('preserves the saved default when discovery omits it and AI suggests an available model', () => {
+  const models = ['openai/o3-2025-04-16']
+  const selected = resolveAddAgentWizardDefaultModel({ models, byok: { preferredModel: 'openai/gpt-5.4-mini' } })
+  assert.equal(selected, 'openai/gpt-5.4-mini')
+  assert.equal(resolveAddAgentWizardSuggestedModel({ models, currentModel: selected, suggestedModel: models[0] }), selected)
+})
+test('system-only default does not override the new-agent workspace default', () => {
+  assert.equal(resolveAddAgentWizardDefaultModel({ models: ['openai/gpt-5.4'],
+    byok: { systemPreferredModel: 'openai/gpt-5.4' }, config: { preferredModel: 'openai/gpt-5.4-mini' } }), 'openai/gpt-5.4-mini')
+})
+console.log('addAgentDefaultModel.test.ts: 13 tests passed')

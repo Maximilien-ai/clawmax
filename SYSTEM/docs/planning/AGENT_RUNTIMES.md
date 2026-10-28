@@ -1,10 +1,12 @@
-# 🤖 Agent Runtimes
+# Agent runtimes — development notes
 
-**Feature branch:** `feature/agent-runtimes`
+**Status: in development.** This historical implementation note is not a supported-feature or release-readiness guarantee. Runtime behavior and deployment support require validation on the current candidate.
+
+**Original feature branch:** `feature/agent-runtimes`
 
 This branch lets a ClawMax agent execute through the **Claude Code** (`claude`) or **Factory Droid** (`droid`) CLI instead of **OpenClaw** — chosen per workspace and pinned per agent, applied identically across every execution surface (direct chat, group/channel chat, workflows, and scheduled/cron runs). OpenClaw stays the default and every existing OpenClaw call site is untouched; this branch adds a runtime **adapter** that centralizes *which* CLI runs an agent and owns the spawn plan for the two new CLIs.
 
-This document covers **only the changes on this branch**. For everything else about ClawMax, see the main [`README.md`](README.md).
+This document covers **only the changes on this branch**. For everything else about ClawMax, see the main [`README.md`](../../../README.md).
 
 ---
 
@@ -13,7 +15,7 @@ This document covers **only the changes on this branch**. For everything else ab
 | Capability | Summary |
 |---|---|
 | **Two new agent runtimes** | Agents can run on Claude Code or Factory Droid, not just OpenClaw. |
-| **Multi-select enablement** | Enable Claude Code and/or Factory Droid independently for a workspace (BYOK → Models → *Run via CLI*). Enabling one does not disable the other. |
+| **Multi-select enablement** | Enable Claude Code and/or Factory Droid independently for a workspace (Runtime → CLI enablement). Enabling one does not disable the other. |
 | **Per-agent runtime pin** | Each agent can be pinned to a runtime in the agent editor; the pin lives in the agent's `IDENTITY.md`, never in `openclaw.json`. |
 | **Consistent resolution everywhere** | Direct chat, channels/groups, workflows, and cron all resolve an agent's runtime the same way through one adapter. |
 | **Headless, full-autonomy execution** | `claude --dangerously-skip-permissions` and `droid --auto high`, authenticated via API keys with no interactive prompt. |
@@ -51,13 +53,13 @@ The env default mirrors the existing `WORKSPACES_INTEGRATIONS_THIRD_PARTIES` par
 
 ### Enable the CLIs (workspace level)
 
-**BYOK → Models → “Run via CLI — enable the CLIs you want”** shows Claude Code and Factory Droid as multi-select toggles, each with a live detection chip (`detected 2.1.205` or `not installed` + an install hint). Toggling is independent — enable neither, either, or both. Enabling a CLI only makes it *available*; it doesn't move any agent onto it.
+**The Runtime dialog** shows Claude Code and Factory Droid as multi-select toggles, each with a live detection chip (`detected 2.1.205` or `not installed` + an install hint). Toggling is independent — enable neither, either, or both. Enabling a CLI only makes it *available*; it doesn't move any agent onto it.
 
 Equivalent programmatic control:
 
 | Method | How |
 |---|---|
-| **UI** | BYOK → Models → *Run via CLI* checkboxes |
+| **UI** | Runtime → CLI enablement checkboxes |
 | **API** | `PUT /api/integrations/config` with `enabledRuntimes: ["claude","droid"]` (explicit `[]` = all CLIs off) |
 | **Env default** | `WORKSPACES_INTEGRATIONS_RUNTIMES=claude,droid` (deployment default; workspace config overrides) |
 

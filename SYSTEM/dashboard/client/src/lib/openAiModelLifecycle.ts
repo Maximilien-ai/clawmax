@@ -108,6 +108,16 @@ export function resolveNonDeprecatedOpenAiModel(models: string[], candidate?: st
   return trimmed
 }
 
+/**
+ * The default a creation dialog shows and sends: the first candidate the picker offers, so a saved
+ * preference the installed runtime cannot run is skipped. With nothing offered (models still
+ * loading, or none qualifying) the first candidate stands and the server explains any rejection.
+ */
+export function resolveOfferedDefaultModel(models: string[], candidates: Array<string | null | undefined>): string {
+  const resolved = candidates.map(normalize).filter(Boolean).map((candidate) => resolveNonDeprecatedOpenAiModel(models, candidate))
+  return resolved.find((candidate) => candidate && models.includes(candidate)) || resolved[0] || ''
+}
+
 export function isSelectableLifecycleModel(model: string, currentValue?: string | null): boolean {
   if (normalize(model) === normalize(currentValue)) return true
   const entry = getModelLifecycleEntry(model)

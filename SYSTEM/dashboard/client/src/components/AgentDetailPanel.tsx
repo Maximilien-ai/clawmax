@@ -109,11 +109,13 @@ export default function AgentDetailPanel({
   onClose,
   onChat,
   onClone,
+  onEditConfig,
   onDelete,
   onNavigateToSkills,
   onNavigateToDoc,
   initialEditCostLimit = false,
   initialSection,
+  configRevision = 0,
   costTrackingEnabled = true,
   pluginRelationships = [],
 }: {
@@ -121,11 +123,13 @@ export default function AgentDetailPanel({
   onClose: () => void
   onChat: () => void
   onClone?: () => void
+  onEditConfig?: () => void
   onDelete?: (agentId: string) => void
   onNavigateToSkills?: (agentId: string, skillName?: string) => void
   onNavigateToDoc?: (file: string) => void
   initialEditCostLimit?: boolean
   initialSection?: 'groups'
+  configRevision?: number
   costTrackingEnabled?: boolean
   pluginRelationships?: PluginRelationship[]
 }) {
@@ -178,16 +182,18 @@ export default function AgentDetailPanel({
     return () => window.removeEventListener('keydown', handleKey)
   }, [handleKey])
 
+  const activityRequest = React.useRef(0)
   const fetchActivity = useCallback(() => {
+    const request = ++activityRequest.current
     fetch(`/api/agents/${agent.id}/activity`)
       // The route answers errors with { error } (e.g. "Agent not found" right after a failed
       // provision, or when the workspace path moves). Storing that shape crashed the panel on
       // the first activity.recentFiles.map() below and white-screened the whole page.
       // normalizeAgentActivityPayload rejects the error shape and fills render-safe defaults.
       .then(async r => r.ok ? normalizeAgentActivityPayload(await r.json().catch(() => null)) : null)
-      .then(d => { setActivity(d); setLoading(false); setLastRefreshed(Date.now()) })
-      .catch(() => { setActivity(null); setLoading(false) })
-  }, [agent.id])
+      .then(d => { if (request !== activityRequest.current) return; setActivity(d); setLoading(false); setLastRefreshed(Date.now()) })
+      .catch(() => { if (request !== activityRequest.current) return; setActivity(null); setLoading(false) })
+  }, [agent.id, configRevision])
 
   useEffect(() => {
     setLoading(true)
@@ -378,6 +384,9 @@ export default function AgentDetailPanel({
             >
               <ProductIconCell iconName="communication" label="Chat with agent" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
+            {onEditConfig && <button onClick={onEditConfig} aria-label="Edit agent configuration" title="Edit agent configuration" className="h-9 w-9 inline-flex items-center justify-center rounded-full text-sky-600 hover:bg-sky-50">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/></svg>
+            </button>}
             {onClone && (
               <button
                 onClick={onClone}

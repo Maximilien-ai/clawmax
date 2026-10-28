@@ -8,12 +8,30 @@ import { fileURLToPath } from 'node:url'
 
 const system = path.dirname(fileURLToPath(import.meta.url))
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+export function sourcePreviewVersion(sha, branch = '') {
+  const candidate = /^integration\/rc(\d+)(?:-|$)/.exec(branch)
+  const identity = sha?.slice(0, 8) || 'local'
+  return candidate ? `2.0.0-test-rc${candidate[1]}-review1.${identity}` : `2.0.0-dev.${identity}`
+}
+export function requestedPlugins(env) {
+  if (env.CLAWMAX_PLUGIN_PATHS === undefined && env.CLAWMAX_ENABLED_PLUGINS === undefined) {
+    throw new Error('--with-plugins requires CLAWMAX_PLUGIN_PATHS or CLAWMAX_ENABLED_PLUGINS. No host settings are imported automatically.')
+  }
+  const paths = [...new Set(String(env.CLAWMAX_PLUGIN_PATHS || '').split(path.delimiter).map(value => value.trim()).filter(Boolean))]
+  if (paths.some(value => !path.isAbsolute(value))) throw new Error('CLAWMAX_PLUGIN_PATHS must contain absolute directories')
+  const enabledPluginIds = env.CLAWMAX_ENABLED_PLUGINS === undefined ? undefined
+    : [...new Set(env.CLAWMAX_ENABLED_PLUGINS.split(',').map(value => value.trim()).filter(Boolean))]
+  if (enabledPluginIds?.some(value => !/^[a-z0-9][a-z0-9_-]*$/i.test(value))) throw new Error('Invalid plugin id in CLAWMAX_ENABLED_PLUGINS')
+  return { paths, enabledPluginIds }
+}
 export function isolatedEnv(root, binary, settings) {
   const env = {}
   for (const name of ['PATH', 'TMPDIR', 'LANG', 'LC_ALL', 'TERM']) {
     if (process.env[name]) env[name] = process.env[name]
   }
-  return { ...env, HOME: path.join(root, 'home'), OPENCLAW_BIN: binary,
+  return { ...env,
+    ...(settings.plugins ? { CLAWMAX_PLUGIN_PATHS: settings.plugins.paths.join(path.delimiter) } : {}),
+    HOME: path.join(root, 'home'), OPENCLAW_BIN: binary,
     OPENCLAW_STATE_DIR: path.join(root, 'home', '.openclaw'),
     OPENCLAW_CONFIG_PATH: path.join(root, 'home', '.openclaw', 'openclaw.json'),
     OPENCLAW_WORKSPACE: path.join(root, 'source', 'WORKSPACES', 'default'),
@@ -25,7 +43,7 @@ export function isolatedEnv(root, binary, settings) {
     DASHBOARD_HOST: '127.0.0.1', DASHBOARD_PORT: String(settings.apiPort),
     DASHBOARD_CLIENT_PORT: String(settings.clientPort),
     DASHBOARD_APP_URL: `http://localhost:${settings.clientPort}`,
-    CLAWMAX_VERSION: `2.0.0-test-rc94-review.${settings.sha?.slice(0, 8) || 'local'}`,
+    CLAWMAX_VERSION: settings.version || sourcePreviewVersion(settings.sha),
     DASHBOARD_AUTH_MODE: 'bypass', BYPASS_OAUTH: 'true' }
 }
 async function freePort(port = 0) {
@@ -78,9 +96,10 @@ export async function stop(child) {
 async function main() {
   const rawArgs = process.argv.slice(2)
   const noOpen = rawArgs.includes('--no-open')
-  const args = rawArgs.filter(arg => arg !== '--no-open')
+  const withPlugins = rawArgs.includes('--with-plugins')
+  const args = rawArgs.filter(arg => !['--no-open', '--with-plugins'].includes(arg))
   if (args.includes('--help')) {
-    console.log('Usage: ./SYSTEM/local-dev.sh [--root /absolute/existing-dev-root] [--no-open]\nCreates an isolated committed-source snapshot. Opens the browser after UI/API readiness.\nKeep this terminal running; Ctrl-C stops Dashboard and Gateway.\nReuse the printed --root command to retain local agents and settings. Defaults: API 3005, UI 5178.')
+    console.log('Usage: ./SYSTEM/local-dev.sh [--root /absolute/existing-dev-root] [--no-open] [--with-plugins]\nCreates an isolated committed-source snapshot. Opens the browser after UI/API readiness.\nKeep this terminal running; Ctrl-C stops Dashboard and Gateway.\nReuse the printed --root command to retain local agents and settings. Defaults: API 3005, UI 5178.\n--with-plugins explicitly imports CLAWMAX_PLUGIN_PATHS and CLAWMAX_ENABLED_PLUGINS from the command environment, saving them for this root. Plugin source remains external. Manage selection in Extensions afterwards.')
     return
   }
   if (args.length && (args.length !== 2 || args[0] !== '--root' || !path.isAbsolute(args[1]))) throw new Error('Use --help for supported arguments')
@@ -92,6 +111,13 @@ async function main() {
     apiPort: Number(process.env.DASHBOARD_PORT || 3005), clientPort: Number(process.env.DASHBOARD_CLIENT_PORT || 5178),
     gatewayPort: await freePort(), token: crypto.randomBytes(32).toString('hex'),
     sha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: system, encoding: 'utf8' }).trim(),
+  }
+  if (!reuse) settings.version = sourcePreviewVersion(settings.sha, execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: system, encoding: 'utf8' }).trim())
+  if (withPlugins) {
+    settings.plugins = requestedPlugins(process.env)
+    for (const directory of settings.plugins.paths) {
+      if (!fs.statSync(directory).isDirectory()) throw new Error(`Plugin path is not a directory: ${directory}`)
+    }
   }
   await checkDevPorts(settings)
   if (new Set([settings.apiPort, settings.clientPort, settings.gatewayPort]).size !== 3) throw new Error('All three ports must differ')
@@ -105,6 +131,12 @@ async function main() {
     fs.unlinkSync(archive)
     fs.mkdirSync(path.join(root, 'home', '.openclaw'), { recursive: true, mode: 0o700 })
     fs.writeFileSync(manifest, JSON.stringify(settings), { mode: 0o600 })
+  }
+  if (withPlugins) {
+    fs.writeFileSync(manifest, JSON.stringify(settings), { mode: 0o600 })
+    if (settings.plugins.enabledPluginIds !== undefined) fs.writeFileSync(
+      path.join(root, 'home', '.openclaw', 'clawmax-plugin-settings.json'),
+      JSON.stringify({ version: 1, enabledPluginIds: settings.plugins.enabledPluginIds }), { mode: 0o600 })
   }
   console.log(`Local dev root: ${root}\nSource: ${settings.sha}\nRestart: ./SYSTEM/local-dev.sh --root ${root}\nStop: Ctrl-C (stops this Dashboard and Gateway).`)
   const binary = process.env.OPENCLAW_BIN || execFileSync('bash', [path.join(system, 'prepare-openclaw-target.sh'), '--print-bin'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()

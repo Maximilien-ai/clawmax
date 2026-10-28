@@ -788,6 +788,9 @@ async function run() {
     assert(documentContent.includes('**Release:** 2.0.0-test-rc4'), 'Expected release boundary in generated document')
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
+    const rc95 = listPluginTemplates(plugin!).filter(template => 'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc95')
+    assert.strictEqual(rc95.length, 12, 'Fresh installations need all RC95 acceptance checks')
+    assert(rc95.every(template => 'fields' in template.payload && template.payload.fields?.outcome === 'pending' && ['human-judgment', 'external-environment'].includes(String(template.payload.fields?.reviewReason))), 'RC95 must not copy another reviewer outcomes')
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
       'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc46'
     ))
@@ -1117,6 +1120,14 @@ async function run() {
       } as any),
       (error: any) => error instanceof PluginContractError && error.statusCode === 400 && error.message.includes('email'),
       'Expected invalid reviewer email to be rejected',
+    )
+    assert.throws(
+      () => upsertPluginRecord(plugin!, {
+        name: 'Overlong reviewer',
+        experiment: { judge: 'human', humanReviewerEmail: `${'a'.repeat(243)}@example.com` },
+      } as any),
+      (error: any) => error instanceof PluginContractError && error.statusCode === 400 && error.message.includes('email'),
+      'Expected a reviewer email over 254 characters to be rejected',
     )
     assert.throws(
       () => upsertPluginRecord(plugin!, {

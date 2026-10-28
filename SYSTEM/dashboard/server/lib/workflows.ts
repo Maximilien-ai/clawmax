@@ -730,7 +730,7 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
   }
 
   for (const line of lines) {
-    if (/^(FAIL|FAILED)\b/i.test(line)) {
+    if (/^(?:FAIL|FAILED)(?:$|\s*[:—-]\s*\S)/i.test(line) || /^Failed to\s+\S/i.test(line)) {
       return line
     }
     if (/\b[A-Z0-9_-]+\s+FAIL\b/.test(line)) {
@@ -1245,11 +1245,12 @@ export function invalidWorkflowTimezoneError(timezone: unknown): string | null {
 
 // Helper: Validate cron expression
 export function validateCron(cronExpression: string): { valid: boolean; error?: string; humanReadable?: string } {
+  if (cronExpression?.trim() === 'manual') return { valid: true, humanReadable: 'Manual only' }
   try {
     const humanReadable = cronstrue.toString(cronExpression)
     return { valid: true, humanReadable }
   } catch (error: any) {
-    return { valid: false, error: error.message }
+    return { valid: false, error: error instanceof Error ? error.message : String(error) }
   }
 }
 
@@ -1257,7 +1258,9 @@ export function validateCron(cronExpression: string): { valid: boolean; error?: 
 
 function runCronCmd(args: string[]): { ok: boolean; output: string; error?: string } {
   try {
-    const output = execFileSync('openclaw', ['cron', ...args], {
+    const executable = resolveOpenClawCliPath()
+    if (!executable) throw new Error('Selected OpenClaw runtime is unavailable. Restore the configured runtime before retrying.')
+    const output = execFileSync(executable, ['cron', ...args], {
       encoding: 'utf-8',
       timeout: 15000,
       env: safeEnv()
@@ -1284,7 +1287,9 @@ async function runCronCmdAsync(
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      const { stdout } = await execFileAsync('openclaw', ['cron', ...args], {
+      const executable = resolveOpenClawCliPath()
+      if (!executable) throw new Error('Selected OpenClaw runtime is unavailable. Restore the configured runtime before retrying.')
+      const { stdout } = await execFileAsync(executable, ['cron', ...args], {
         encoding: 'utf-8',
         timeout: timeoutMs,
         env: safeEnv(),

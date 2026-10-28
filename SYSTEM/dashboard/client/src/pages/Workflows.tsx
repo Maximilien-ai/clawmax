@@ -1,3 +1,5 @@
+import { updateMentionSelection } from '../lib/agentMentions'
+import { loadWorkflowAgents } from '../lib/workflowAgents'
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
@@ -429,6 +431,18 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const workflowCreateMenuButtonRef = useRef<HTMLButtonElement>(null)
   const workflowActionsMenuButtonRef = useRef<HTMLButtonElement>(null)
   const [aiPromptText, setAiPromptText] = useState('')
+  const [aiAgents, setAiAgents] = useState<any[]>([])
+  const [aiAgentIds, setAiAgentIds] = useState<string[]>([])
+  const updateAiPrompt = (text: string) => { setAiAgentIds(ids => updateMentionSelection(aiPromptText, text, ids, aiAgents)); setAiPromptText(text) }
+  const [aiAgentSearch, setAiAgentSearch] = useState('')
+  const [aiAgentError, setAiAgentError] = useState('')
+  useEffect(() => { setAiAgentIds(ids => updateMentionSelection('', aiPromptText, ids, aiAgents)) }, [aiAgents])
+  useEffect(() => {
+    if (!showAiPrompt) return
+    let cancelled = false
+    loadWorkflowAgents().then(items => { if (!cancelled) { setAiAgents(items); setAiAgentError('') } }).catch(error => { if (!cancelled) setAiAgentError(error.message) })
+    return () => { cancelled = true }
+  }, [showAiPrompt])
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiInitialData, setAiInitialData] = useState<any>(null)
   const [selectionMode, setSelectionMode] = useState(false)
@@ -483,6 +497,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   useEffect(() => {
     const handleBuilderGenerateWorkflow = (event: Event) => {
       const detail = (event as CustomEvent<{ prompt?: string }>).detail
+      setAiAgentIds([]); setAiAgentSearch(''); setAiPromptText('')
       if (typeof detail?.prompt === 'string') {
         setAiPromptText(detail.prompt)
       }
@@ -1242,7 +1257,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
     setDeleteDialog({
       itemName: workflow.name,
-      consequences: getWorkflowDeleteConsequences([workflow]),
+      consequences: getWorkflowDeleteConsequences([workflow], workflows),
       onConfirm: async () => {
         try {
           const resp = await fetch(`/api/workflows/${workflow.id}`, {
@@ -1282,6 +1297,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: promptText,
+          agentIds: updateMentionSelection(aiPromptText, promptText, aiAgentIds, aiAgents),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           byokKeys: (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl)
             ? {
                 openai: byok.openai,
@@ -1474,7 +1491,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
     setDeleteDialog({
       itemName: `${selectedWorkflowsList.length} workflow${selectedWorkflowsList.length !== 1 ? 's' : ''}`,
-      consequences: getWorkflowDeleteConsequences(selectedWorkflowsList),
+      consequences: getWorkflowDeleteConsequences(selectedWorkflowsList, workflows),
       onConfirm: async () => {
         try {
           await Promise.all(
@@ -1754,6 +1771,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       onClick={() => {
                         if (!aiEnabled) return
                         setShowWorkflowCreateMenu(false)
+                        setAiPromptText(''); setAiAgentIds([]); setAiAgentSearch('')
                         setShowAiPrompt(true)
                       }}
                       disabled={!aiEnabled}
@@ -2000,6 +2018,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               onToggleSelect={toggleWorkflowSelection}
               onSelect={(id) => fetchWorkflowDetails(id)}
               onToggleEnabled={handleToggleEnabled}
+              onDelete={handleDelete}
               editable={dagEditing}
               onAddDependency={async (fromId, toId) => {
                 const wf = sortedWorkflows.find(w => w.id === toId)
@@ -3265,13 +3284,21 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           )}
           <textarea
             value={aiPromptText}
-            onChange={(e) => setAiPromptText(e.target.value)}
+            onChange={(e) => updateAiPrompt(e.target.value)}
             placeholder="e.g., Every weekday at 9am, have the engineering team share status updates and the PM summarize blockers"
             className="min-h-[100px] w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
             autoFocus
             onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) handleAiGenerate() }}
           />
           <div className="mt-2">
+            <fieldset className="my-3 rounded border border-gray-200 p-3 dark:border-gray-700">
+              <legend className="text-sm font-medium">Include agents</legend>
+              <p className="text-xs text-gray-500 mb-2">Mention @agent-slug, @agent-name or @all in your prompt, or choose participants below.</p>
+              {aiAgentError && <p role="alert">{aiAgentError}</p>}
+              <input aria-label="Search workflow agents" placeholder="Search agents" value={aiAgentSearch} onChange={e => setAiAgentSearch(e.target.value)} className="w-full rounded border p-2 dark:bg-gray-800" />
+              <div className="flex gap-3 py-2 text-xs"><button type="button" onClick={() => setAiAgentIds(aiAgents.map(a => a.id))}>Select all ({aiAgents.length})</button><button type="button" onClick={() => setAiAgentIds([])}>Clear selection</button><span>{aiAgentIds.length} selected</span></div>
+              <div className="max-h-32 overflow-auto">{aiAgents.filter(a => `${a.name} ${a.id}`.toLowerCase().includes(aiAgentSearch.toLowerCase())).map(a => <label key={a.id} className="flex items-center gap-2 py-1 text-sm"><input type="checkbox" checked={aiAgentIds.includes(a.id)} onChange={e => setAiAgentIds(ids => e.target.checked ? [...ids, a.id] : ids.filter(id => id !== a.id))} />{a.name || a.id}</label>)}</div>
+            </fieldset>
             <PromptQualityPanel prompt={aiPromptText} domain="workflow" compact />
           </div>
           <div className="mt-2 flex justify-end">
@@ -3292,7 +3319,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         initialValue={aiPromptText}
         placeholder="e.g., Every weekday at 9am, have the engineering team share status updates and the PM summarize blockers"
         onClose={() => setShowAiPromptEditor(false)}
-        onSave={setAiPromptText}
+        onSave={updateAiPrompt}
         onSaveAndGenerate={(value) => {
           setAiPromptText(value)
           window.setTimeout(() => {
@@ -3447,12 +3474,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   )
 }
 
-function getWorkflowDeleteConsequences(workflows: Workflow[]): string[] {
+function getWorkflowDeleteConsequences(workflows: Workflow[], allWorkflows: Workflow[] = []): string[] {
   const consequences: string[] = []
 
   workflows.forEach(workflow => {
     consequences.push(`${workflow.name} — ${workflow.scheduleHuman || workflow.schedule || 'Manual'}`)
     consequences.push(`  • ${workflow.participantCount} targeted agent${workflow.participantCount !== 1 ? 's' : ''}`)
+    consequences.push(`  • Current run count: ${workflow.runCount || 0}`)
     consequences.push(`  • WORKFLOWS/${workflow.id}.md will be removed`)
     if (workflow.targeting?.groups?.length > 0) {
       consequences.push(`  • targets ${workflow.targeting.groups.length} group${workflow.targeting.groups.length !== 1 ? 's' : ''}`)
@@ -3462,6 +3490,10 @@ function getWorkflowDeleteConsequences(workflows: Workflow[]): string[] {
     }
   })
 
+  const ids = new Set(workflows.map(w => w.id))
+  const dependents = allWorkflows.filter(w => !ids.has(w.id) && (w.dependsOn || []).some(id => ids.has(id)))
+  if (dependents.length) consequences.push(`Dependent workflows need updating: ${dependents.map(w => w.name).join(', ')}`)
+  consequences.push('Targeted agents are not deleted')
   consequences.push('All execution history for deleted workflows will be lost')
   return consequences
 }

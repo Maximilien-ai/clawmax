@@ -1,0 +1,190 @@
+{
+  "release": "2.0.0-test-rc95",
+  "description": "Independent acceptance of the RC95 combined source preview. Engineering tests are recorded separately.",
+  "defaults": {
+    "enabled": true,
+    "tags": [
+      "release",
+      "current",
+      "2.0.0-test-rc95"
+    ],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "rc95-p1",
+      "name": "P1 \u2014 Chat formatting and copying",
+      "description": "Test: Ask an agent for fenced JSON, code and a text diagram. Formatting and indentation should remain readable. Copy each code block and the full message into a text editor; copied text should match what you intended to copy. Check the same controls at a narrow/mobile width. Pass: Formatting and copied text remain readable and faithful at both widths.",
+      "tags": [
+        "rc95",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "human-judgment",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc95-p2",
+      "name": "P2 \u2014 Follow-up after a long reply",
+      "description": "Test: In a conversation containing a long assistant reply, send a follow-up and try Resend. The actual provider/runtime should continue the conversation without a request-size error. Keep the reply/context size and any error in your report; do not include keys or private conversation content. Pass: Follow-up and Resend complete on the actual provider without a request-size error.",
+      "tags": [
+        "rc95",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "external-environment",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc95-p3",
+      "name": "P3 \u2014 Required workflow inputs",
+      "description": "Test: Apply a team template containing required workflow inputs. Leave a required field blank: Deploy should explain what is missing and take you to that field. Fill it, leave an optional field empty, and apply. Open the created workflow and confirm the intended input values and neighboring fields were preserved. Pass: Missing inputs are explained and completed values persist in the created workflow.",
+      "tags": [
+        "rc95",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "human-judgment",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc95-p4",
+      "name": "P4 \u2014 Configuration keyboard and pin behavior",
+      "description": "Test: Open Edit Agent Config using the agent's Actions menu. Tab and Shift-Tab should stay in the dialog. Escape closes it and returns focus to the Actions button. Verify pin/unpin, outside-click dismissal, scrolling, Save and Cancel still feel correct at desktop and mobile widths. Pass: Keyboard, pinning, dismissal and saving remain predictable.",
+      "tags": [
+        "rc95",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "human-judgment",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc95-p5",
+      "name": "P5 \u2014 Provider models and real chat",
+      "description": "Test: Validate the provider keys you will actually use in Model Integration (include Anthropic if available). Apply an agent template such as CEO with an offered model and complete a real chat. An existing unsupported snapshot should remain visibly selected until you explicitly replace it; saving unrelated edits must not silently change it. Report provider/model and outcome without keys. Pass: Real chat completes and unsupported model repair remains an explicit choice.",
+      "tags": [
+        "rc95",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "external-environment",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc95-p6",
+      "name": "P6 \u2014 Find templates with filters",
+      "description": "Test: Find a useful agent/team/company template using categories, search and source/rating filters. Switch grid/list and reset filters. Accept that the results, labels and navigation make it easy to find the template you intended. Pass: Filters and views help find the intended template.",
+      "tags": [
+        "rc95",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "human-judgment",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc95-p7",
+      "name": "P7 \u2014 Agent menus and workspace tour",
+      "description": "Test: On your normal screen and a narrow window, use agent Actions near the top and bottom of the page in grid/list/table. All actions should be reachable without awkward scrolling; Escape/outside click should close the menu. Run the workspace tour and accept that Back/Finish and the final explanation are usable. Pass: Menus stay reachable and the tour is understandable.",
+      "tags": [
+        "rc95",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "human-judgment",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc95-p8",
+      "name": "P8 \u2014 Event rehearsal and restart",
+      "description": "Test: On your own machine, start this branch using the isolated dev launcher, add the key and team intended for Thursday, and run a representative chat plus workflow to completion. Stop with Ctrl-C and restart using the printed --root command. Confirm the agents, workflow result and enabled plugins remain and chat works again. Record machine/runtime and failures; do not substitute health checks for completion. Pass: Representative work completes and data survives a local restart.",
+      "tags": [
+        "rc95",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "external-environment",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc95-p9",
+      "name": "P9 \u2014 Saved AI-agent model default and manual repair",
+      "description": "Test: Save GPT-5.4 Mini as the new-agent default, then AI-create an agent and verify its saved model and real chat. Open the earlier unsupported agent: confirm a clear model warning, explicitly select GPT-5.4 Mini, Save, and retry chat. The warning should clear after repair; merely opening config must not change the model. Pass: The new agent uses the saved default and explicit model repair clears the warning.",
+      "tags": [
+        "rc95",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "external-environment",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc95-p10",
+      "name": "P10 \u2014 Open agent details refresh after saving",
+      "description": "Test: Keep the agent details panel open, change its model through Edit Agent Config, and Save. The open panel should immediately show the saved model without closing/reopening it. Pass: The already-open panel shows the new model immediately.",
+      "tags": [
+        "rc95",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "human-judgment",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc95-p11",
+      "name": "P11 \u2014 Save-ready AI workflow creation",
+      "description": "Test: AI-create a managed weekly workflow with your available agents. Confirm content, schedule, timezone, target agents and Owner Agent are populated appropriately; edit if needed, Create, and reopen the saved workflow. Required-field errors must be visible and take you to the field. Accept the generated choices for your intended workflow. Pass: The generated workflow is ready to save, and required-field problems are visible.",
+      "tags": [
+        "rc95",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "human-judgment",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc95-p12",
+      "name": "P12 \u2014 AI Groups and Communities",
+      "description": "Test: Organization \u2192 Create Community \u2192 describe its purpose and members \u2192 Generate draft. Review/edit the name, description and selected existing agents; Create, reload and inspect membership. Repeat for Create Group, optionally choosing that community. Accept that the AI choices and editable draft are useful, and neither creation action disappears after creating the first item. Pass: Both drafts are editable, memberships persist, and both creation actions remain available.",
+      "tags": [
+        "rc95",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "human-judgment",
+        "notes": ""
+      }
+    }
+  ],
+  "recommended": false
+}

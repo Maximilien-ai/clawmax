@@ -94,6 +94,11 @@ test('validateCron accepts valid cron expressions', () => {
   assert(validateCron('30 9 * * 1-5').valid, 'weekdays should be valid')
 })
 
+test('validateCron accepts manual and provides useful invalid errors', () => {
+  assert(validateCron('manual').valid, 'manual should be valid')
+  assert(!!validateCron('nonsense').error, 'Invalid schedules must explain the failure')
+})
+
 test('validateCron rejects invalid expressions', () => {
   assert(!validateCron('invalid').valid, 'invalid should fail')
   assert(!validateCron('60 * * * *').valid, '60 minutes should fail')
@@ -511,6 +516,13 @@ test('resolveParticipants includes team-targeted agents as direct execution targ
   assert(!participants.some((p) => p.agentId === 'analyst'), 'Expected unrelated group agent to be excluded when teamIds create direct targets')
 })
 
+test('workflow report headings do not turn successful responses into failures', () => {
+  assert(detectParticipantReportedFailure('Executive Summary\nAll agents healthy.\nFailed or Missing Responses\nNone.') === null, 'A requested report section is not a runtime failure')
+  assert(detectParticipantReportedFailure('Failed checks\n0 failures') === null, 'Descriptive headings are not failure markers')
+  assert(detectParticipantReportedFailure('FAILED: gateway unavailable') === 'FAILED: gateway unavailable', 'Explicit failed status must remain visible')
+  assert(detectParticipantReportedFailure('Failed to connect to gateway') !== null, 'Action failure must remain visible')
+})
+
 test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
   assert(detectParticipantReportedFailure('COMMS FAIL') === 'COMMS FAIL', 'Expected COMMS FAIL to be treated as failure')
   assert(detectParticipantReportedFailure('FAIL\nNeed retry') === 'FAIL', 'Expected FAIL line to be treated as failure')
@@ -777,11 +789,13 @@ test('resolveWorkflowOpenClawCliPath honors OPENCLAW_BIN override', () => {
 
 function withRuntimePinnedWorkspace<T>(agentRuntimes: Record<string, string | undefined>, fn: (workspaceRoot: string) => T): T {
   const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-cron-runtime-'))
+  const previousTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
   const previousWorkspace = process.env.OPENCLAW_WORKSPACE
   const previousHome = process.env.HOME
   const previousEnabledRuntimes = process.env.WORKSPACES_INTEGRATIONS_RUNTIMES
   const home = path.join(workspaceRoot, '.home')
   try {
+    process.env.CLAWMAX_TEST_WORKSPACE = workspaceRoot
     process.env.OPENCLAW_WORKSPACE = workspaceRoot
     process.env.HOME = home
     // A runtime pin is only honored when that CLI is enabled for the workspace. The temp
@@ -800,6 +814,8 @@ function withRuntimePinnedWorkspace<T>(agentRuntimes: Record<string, string | un
     }
     return fn(workspaceRoot)
   } finally {
+    if (previousTestWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+    else process.env.CLAWMAX_TEST_WORKSPACE = previousTestWorkspace
     if (typeof previousWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
     else process.env.OPENCLAW_WORKSPACE = previousWorkspace
     if (typeof previousHome === 'undefined') delete process.env.HOME

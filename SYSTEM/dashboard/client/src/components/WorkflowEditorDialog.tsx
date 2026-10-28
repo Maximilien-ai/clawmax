@@ -1,5 +1,6 @@
+import { loadWorkflowAgents } from '../lib/workflowAgents'
 import { channelLabel } from '../lib/channelLabel'
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import AIPromptEditorModal from './AIPromptEditorModal'
 import { formatAgentOptionLabel } from '../lib/agentLabels'
 import { expandPromptWithAI } from '../lib/aiPrompt'
@@ -179,7 +180,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   useEffect(() => {
     if (isOpen) {
       Promise.all([
-        fetch('/api/agents').then(r => r.json()),
+        loadWorkflowAgents().then(agents => ({ agents })),
         fetch('/api/communities').then(r => r.json()),
         fetch('/api/groups').then(r => r.json()),
         fetch('/api/teams').then(r => r.json()),
@@ -197,7 +198,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
           ;(agent.tags || []).forEach((tag: string) => tagSet.add(tag))
         })
         setAllTags(Array.from(tagSet).sort())
-      })
+      }).catch(error => setDetailsError(error.message || 'Unable to load workspace participants. Close and reopen to retry.'))
     }
   }, [isOpen])
 
@@ -271,7 +272,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     }
   }
 
+  const fieldRefs = useRef<Record<string, HTMLElement | null>>({})
+  const [saveError, setSaveError] = useState('')
+  const validationMessages = Object.values(validationErrors).filter(Boolean)
   const handleSave = async () => {
+    setSaveError('')
     if (loadingDetails || detailsError || saving) return
     // Validation
     const errors: typeof validationErrors = {}
@@ -313,6 +318,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     // If there are errors, show them and don't save
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors)
+      const first = Object.keys(errors)[0]
+      requestAnimationFrame(() => {
+        fieldRefs.current[first]?.scrollIntoView({ block: 'center', behavior: 'auto' })
+        fieldRefs.current[first]?.focus({ preventScroll: true })
+      })
       return
     }
 
@@ -358,7 +368,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
       })
       onClose()
     } catch (err) {
-      // Error handling is done by parent
+      setSaveError(err instanceof Error ? err.message : 'Could not save workflow. Your draft is preserved; please retry.')
     } finally {
       setSaving(false)
     }
@@ -413,6 +423,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               </label>
               <input
                 type="text"
+                ref={el => { fieldRefs.current.name = el }}
+                aria-invalid={!!validationErrors.name}
                 value={formData.name}
                 onChange={e => {
                   setFormData({ ...formData, name: e.target.value })
@@ -436,6 +448,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 Description *
               </label>
               <textarea
+                ref={el => { fieldRefs.current.description = el }}
+                aria-invalid={!!validationErrors.description}
                 value={formData.description}
                 onChange={e => {
                   setFormData({ ...formData, description: e.target.value })
@@ -646,6 +660,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               {/* Manual input */}
               <input
                 type="text"
+                ref={el => { fieldRefs.current.schedule = el }}
+                aria-invalid={!!validationErrors.schedule}
                 value={formData.schedule}
                 onChange={e => {
                   setFormData({ ...formData, schedule: e.target.value })
@@ -728,6 +744,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                   Owner Agent *
                 </label>
                 <select
+                  ref={el => { fieldRefs.current.owner = el }}
+                  aria-invalid={!!validationErrors.owner}
                   value={formData.owner || ''}
                   onChange={e => {
                     setFormData({ ...formData, owner: e.target.value })
@@ -754,7 +772,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
             {/* Agent Targeting */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
+              <label ref={el => { fieldRefs.current.targeting = el }} tabIndex={-1} className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
                 Target Agents (OR logic) *
               </label>
               <div className={`space-y-4 bg-gray-50 dark:bg-gray-900 border rounded-md p-4 ${
@@ -790,6 +808,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 {/* Specific Agents */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Specific Agents</label>
+                  <div className="flex gap-3 mb-2 text-xs"><button type="button" onClick={() => setFormData({ ...formData, targeting: { ...formData.targeting, agents: agents.map(a => a.id) } })}>Select all agents ({agents.length})</button><button type="button" onClick={() => setFormData({ ...formData, targeting: { ...formData.targeting, agents: [] } })}>Clear agents</button></div>
                   {/* Search */}
                   <div className="relative mb-2">
                     <input
@@ -987,6 +1006,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 Workflow Content (Markdown) *
               </label>
               <textarea
+                ref={el => { fieldRefs.current.content = el }}
+                aria-invalid={!!validationErrors.content}
                 value={formData.content}
                 onChange={e => {
                   setFormData({ ...formData, content: e.target.value })
@@ -1251,7 +1272,12 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-3 dark:border-gray-700 dark:bg-gray-900">
+          <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex flex-wrap items-center justify-end gap-3 dark:border-gray-700 dark:bg-gray-900">
+            {(saveError || validationMessages.length > 0) && (
+              <div role="alert" className="w-full text-sm text-red-700 dark:text-red-300">
+                {saveError || `Cannot save yet: ${validationMessages.join('. ')}.`}
+              </div>
+            )}
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors dark:text-gray-100 dark:text-gray-300"
@@ -1262,7 +1288,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
             <button
               onClick={handleSave}
               className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={saving || loadingDetails || !!detailsError || !!cronError}
+              disabled={saving || loadingDetails || !!detailsError}
             >
               {loadingDetails ? 'Loading workflow...' : saving ? 'Saving...' : mode === 'create' ? 'Create Workflow' : 'Save Changes'}
             </button>

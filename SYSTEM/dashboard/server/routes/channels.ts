@@ -1,3 +1,4 @@
+import { generateChannelDraft } from '../lib/ai-generator'
 import { Router } from 'express'
 import { spawn } from 'child_process'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
@@ -118,6 +119,22 @@ router.get('/groups', (req, res) => {
     }) })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
+  }
+})
+
+// Generation produces a reviewable draft; creation remains an explicit separate request.
+router.post('/channel-draft', async (req, res) => {
+  const { kind, description, byokKeys } = req.body || {}
+  if (!['group', 'community'].includes(kind) || typeof description !== 'string' || !description.trim() || description.length > 20000) {
+    return res.status(400).json({ error: 'Choose a group or community and describe what you want (up to 20,000 characters).' })
+  }
+  try {
+    const communitiesPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
+    const communities = fs.existsSync(communitiesPath) ? parseGroupsWithMembers(fs.readFileSync(communitiesPath, 'utf8')).communities.map(item => item.name) : []
+    const draft = await generateChannelDraft({ kind, description, communities, agents: listAgents().filter(agent => !agent.archived).map(agent => ({ id: agent.id, tags: agent.tags || [] })) }, byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
+    res.json({ draft })
+  } catch (error: any) {
+    res.status(400).json({ error: /No API key configured/i.test(error.message) ? 'Configure a model provider in BYOK before generating a draft.' : error.message || 'Could not generate a draft. Try again.' })
   }
 })
 

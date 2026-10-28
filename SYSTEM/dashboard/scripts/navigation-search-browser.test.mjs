@@ -39,6 +39,8 @@ try {
       else if (path === '/api/communities') json = { communities: [{ name: 'Research Circle', members: [] }] }
       await route.fulfill({ json })
     })
+    // After the catch-all so it takes precedence: the app mounts only once the API reports live.
+    await page.route('**/api/health/live', route => route.fulfill({ json: { alive: true } }))
     await page.goto(`${base}/builder`, { waitUntil: 'domcontentloaded', timeout: 30000 })
     const trigger = page.getByRole('button', { name: 'Search ClawMax' })
     await trigger.waitFor()

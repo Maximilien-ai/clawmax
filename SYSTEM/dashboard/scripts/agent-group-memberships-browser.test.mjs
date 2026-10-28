@@ -60,6 +60,8 @@ await page.route('**/api/**', async route => {
   else if (p.endsWith('/status')) body = { agents: [agent] }
   await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
 })
+// After the catch-all so it takes precedence: the app mounts only once the API reports live.
+await page.route('**/api/health/live', route => route.fulfill({ json: { alive: true } }))
 try {
   for (const width of [1440, 390]) {
     agent.groups = []

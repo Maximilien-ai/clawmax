@@ -20,7 +20,7 @@ bash "$repo_root/SYSTEM/openclaw-cache-guard.test.sh"
 [ -f "$script_file" ] || fail "expected prepare-openclaw-target.sh to exist"
 
 grep -q 'openclaw-version.sh' "$script_file" || fail "expected script to source openclaw-version.sh"
-grep -Fq 'Node.js 24.16.0+ (24.x) or 26.1.0+' "$script_file" || fail "expected script to enforce the OpenClaw 2026.9 Node ranges"
+grep -Fq 'ensure_supported_source_node' "$script_file" || fail "expected the shared OpenClaw source Node prerequisite"
 grep -q 'pnpm install --frozen-lockfile --ignore-scripts' "$script_file" || fail "expected pnpm install command"
 grep -q 'npm run build:docker' "$script_file" || fail "expected docker-oriented OpenClaw build path"
 grep -q 'patch-openclaw-fs-safe.mjs' "$script_file" || fail "expected OpenClaw fs-safe compatibility patch"

@@ -1,5 +1,16 @@
 # Backlog
 
+- [ ] **Explicit model repair in Doctor** — When a runtime rejects an agent's
+  model, offer the workspace new-agent default and a manual model picker. Show
+  the proposed primary/backup changes, validate runtime support, require Apply,
+  and retain repair evidence. Never silently change existing agents. RC95 now
+  preserves the creation default and provides an unsupported-model warning/link;
+  one-click repair remains future work.
+- [ ] **RC95 preview acceptance and remaining PRs** — Dashboard: complete the
+  [twelve focused reviewer checks and engineering gates](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md),
+  resolve/disposition CodeQL alert #705 before RC95 release, and obtain lifecycle
+  evidence for Daniyar PRs #227, #228, #229 and #288 before adding them.
+
 - [ ] **RC93 residual CodeQL triage** — Dashboard: alert 579's session-key
   collision is fixed in `6faee7a7`; assess the six remaining command/path
   findings from RC92 PR #236, including CLI option parsing and local transcript

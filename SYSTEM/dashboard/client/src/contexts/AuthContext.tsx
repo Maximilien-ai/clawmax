@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { loadAuthBootstrap } from '../lib/authBootstrap'
 import { getDashboardAuthReturnTo } from '../lib/dashboardAuth'
 
 export interface AuthUser {
@@ -64,6 +65,7 @@ interface AuthContextValue {
   loading: boolean
   config: AuthConfig | null
   sessionExpired: boolean
+  bootstrapError: string | null
   login: () => void
   requestOtp: (email: string) => Promise<{ ok: boolean; error?: string; message?: string; devOtpFile?: string; retryAfterSeconds?: number; resendAvailableAt?: number }>
   verifyOtp: (email: string, code: string, rememberDevice: boolean) => Promise<{ ok: boolean; error?: string }>
@@ -102,26 +104,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [config, setConfig] = useState<AuthConfig | null>(null)
   const [sessionExpired, setSessionExpired] = useState(false)
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null)
 
   // Check auth config and current session on mount
   useEffect(() => {
     let cancelled = false
 
-    const load = async (attempt = 0) => {
+    const controller = new AbortController()
+    const load = async () => {
       try {
-        const [cfgResp, meResp] = await Promise.all([
-          fetch('/api/auth/config', { credentials: 'include', cache: 'no-store' }),
-          fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' }),
-        ])
-
-        const shouldRetry = cfgResp.status === 429 || meResp.status === 429
-        if (shouldRetry) {
-          if (cancelled) return
-          const retryDelayMs = Math.min(5000, 1000 * (attempt + 1))
-          window.setTimeout(() => { void load(attempt + 1) }, retryDelayMs)
-          return
-        }
-
+        const { config: cfgResp, me: meResp } = await loadAuthBootstrap(controller.signal)
         const cfg = cfgResp.ok ? await cfgResp.json() : null
         const me = meResp.ok ? await meResp.json() : null
         if (cancelled) return
@@ -136,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false)
       } catch {
         if (cancelled) return
-        setConfig({ githubEnabled: false, authDisabled: false })
+        setBootstrapError("Cannot reach the session service. Check that the Dashboard API is running, then retry.")
         setUser(null)
         setLoading(false)
       }
@@ -145,6 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void load()
     return () => {
       cancelled = true
+      controller.abort()
     }
   }, [])
 
@@ -237,7 +230,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, config, sessionExpired, login, requestOtp, verifyOtp, logout, handleUnauthorized }}>
+    <AuthContext.Provider value={{ user, loading, config, sessionExpired, bootstrapError, login, requestOtp, verifyOtp, logout, handleUnauthorized }}>
       {children}
     </AuthContext.Provider>
   )

@@ -395,13 +395,16 @@ export async function validateAnthropicKey(apiKey: string, fetchImpl: FetchLike 
       'x-api-key': apiKey.trim(),
       'anthropic-version': '2023-06-01',
     }
-    const modelsRes = await fetchImpl('https://api.anthropic.com/v1/models?limit=100&lifecycle=active', {
+    // No `lifecycle` filter: the API accepts it only as the array parameter `lifecycle[]`, and
+    // its default (active and deprecated, never retired) is what selection ranks by `lifecycle`.
+    const modelsRes = await fetchImpl('https://api.anthropic.com/v1/models?limit=100', {
       headers,
       signal: AbortSignal.timeout(8000),
     })
     if (!modelsRes.ok) {
       const providerMessage = await readProviderErrorMessage(modelsRes)
       if (modelsRes.status === 401 || modelsRes.status === 403) return invalid(providerMessage || 'Anthropic rejected this key')
+      if (modelsRes.status === 400) return errored(`Anthropic rejected the Dashboard's model-list request, not the key (${providerMessage || 'invalid request'}). Report this as a Dashboard bug.`)
       return errored(providerMessage || `Anthropic models check returned ${modelsRes.status}`)
     }
     const modelsBody = await modelsRes.json() as { data?: ProviderModelInfo[] }

@@ -765,6 +765,33 @@ async function run() {
     }
   })
 
+  await test('generate keeps provider-echoed key fragments out of the error it returns', async () => {
+    const aiGeneratorPath = require.resolve('../lib/ai-generator')
+    delete require.cache[aiGeneratorPath]
+    const aiGenerator = require('../lib/ai-generator')
+    const originalGenerateAgentMeta = aiGenerator.generateAgentMeta
+
+    // OpenAI's 401 echoes the first and last characters of the rejected key.
+    aiGenerator.generateAgentMeta = async () => {
+      throw new Error('401 Incorrect API key provided: sk-proj-************************wXyZ. You can find your API key at https://platform.openai.com/account/api-keys. (xai-AbCdEf123456, AIzaSyA1234567890abcdef)')
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/generate')
+      const res = makeRes()
+      await handler(makeReq({ body: { description: 'create a lead software engineer', suggestMeta: true } }), res)
+
+      const error = String(res.jsonBody?.error || '')
+      assert.strictEqual(res.statusCode, 500)
+      assert(/401 Incorrect API key provided/.test(error), `Expected the provider's reason to stay readable, got: ${error}`)
+      assert(!/sk-proj|wXyZ|xai-AbC|AIzaSy/.test(error), `Expected no key fragment in the error, got: ${error}`)
+      assert(/\[redacted key\]\. You can find/.test(error), `Expected the sentence to stay intact, got: ${error}`)
+    } finally {
+      aiGenerator.generateAgentMeta = originalGenerateAgentMeta
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('provision returns a structured tenant agent limit conflict', async () => {
     const previous = process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE
     process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE = '0'
@@ -889,7 +916,7 @@ async function run() {
     }
   })
 
-  await test('remove-state clears attestation before registration-only OpenClaw deletion', async () => {
+  await test('ordinary deletion clears attestation and permits same-name recreation', async () => {
     const agentId = 'remove-state-agent'
     const agentWorkspace = path.join(workspacePath, 'AGENTS', agentId)
     writeAgent(workspacePath, agentId, '# IDENTITY.md\n\n- **Name:** Remove State Agent\n')
@@ -925,7 +952,7 @@ async function run() {
         }, async () => {
           const handler = getRouteHandler('delete', '/:id')
           const res = makeRes()
-          await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: true } }), res)
+          await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: false } }), res)
 
           assert.strictEqual(res.statusCode, 200)
           assert.strictEqual(res.jsonBody?.ok, true)
@@ -971,7 +998,7 @@ async function run() {
     }
   })
 
-  await test('remove-state fails closed when OpenClaw attestation cleanup cannot be verified', async () => {
+  await test('ordinary deletion fails closed when attestation cleanup cannot be verified', async () => {
     const agentId = 'remove-state-failure'
     const agentWorkspace = path.join(workspacePath, 'AGENTS', agentId)
     writeAgent(workspacePath, agentId, '# IDENTITY.md\n\n- **Name:** Remove State Failure\n')
@@ -988,7 +1015,7 @@ async function run() {
       }, async () => {
         const handler = getRouteHandler('delete', '/:id')
         const res = makeRes()
-        await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: true } }), res)
+        await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: false } }), res)
 
         assert.strictEqual(res.statusCode, 503)
         assert.strictEqual(res.jsonBody?.ok, false)
@@ -1003,6 +1030,7 @@ async function run() {
     const ids = ['bulk-delete-one', 'bulk-delete-two']
     for (const id of ids) writeAgent(workspacePath, id, `# IDENTITY.md\n\n- **Name:** ${id}\n`)
     const nativeDeleteCalls: string[] = []
+    await withOpenClawWorkspaceStateStubs({ clearPinnedOpenClawWorkspaceState: async () => {} }, async () => {
     await withGatewayRpcStubs({
       isGatewayRunning: () => ({ running: true, port: 18789 }),
       getGatewayClient: () => ({ deleteAgentNative: async (id: string) => { nativeDeleteCalls.push(id) } }),
@@ -1011,6 +1039,7 @@ async function run() {
       await getRouteHandler('delete', '/bulk')(makeReq({ body: { agents: ids.map((id) => ({ id })) } }), res)
       assert.strictEqual(res.jsonBody?.summary?.success, 2, `Unexpected bulk result: ${JSON.stringify(res.jsonBody)}`)
       assert.deepStrictEqual(nativeDeleteCalls, ids, 'Each agent must also leave the running Gateway, not only the workspace')
+    })
     })
   })
 
@@ -2761,6 +2790,32 @@ async function run() {
       },
     }), res)
     assert.strictEqual(res.statusCode, 400, 'Expected archive path traversal delete to return HTTP 400')
+  })
+
+  // The history route normalizes stored replies: a JSON example or a code block the agent wrote
+  // must come back exactly as written, not with its braces or bracketed lines removed.
+  await test('chat history keeps fenced JSON and code exactly as the agent wrote them', async () => {
+    const id = 'fenced-history-agent'
+    writeAgent(workspacePath, id, '**Name:** Fenced history\n**Model:** openai/gpt-4o-mini\n')
+    const nativeDir = path.join(tmpHome, '.openclaw', 'agents', id, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(path.join(nativeDir, 'openclaw-agent.sqlite'))
+    db.exec(`
+      CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT);
+      INSERT INTO session_nodes VALUES ('agent:fenced-history-agent:dashboard-chat', 'fenced-window');
+    `)
+    const answer = 'Request:\n\n```json\n{\n  "target_url": "https://example.com/a",\n  "tags": ["a", "b"]\n}\n```\n\n```ts\nconst first = items[m]\n```'
+    const insert = db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?)')
+    insert.run('fenced-window', 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'Show the request', timestamp: 1 } }))
+    insert.run('fenced-window', 2, JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: answer }], timestamp: 2 } }))
+    db.close()
+
+    const res = makeRes()
+    await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), res)
+    assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(res.jsonBody.messages[1]?.content, answer, 'Fenced JSON and code must come back unaltered')
   })
 
   await test('models route forwards LM Studio and Ollama local model settings into discovery', async () => {

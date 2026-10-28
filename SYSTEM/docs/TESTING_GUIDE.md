@@ -293,13 +293,63 @@ This verifies the setup contract on a fresh copied repo + fresh `HOME`:
 - the canonical dashboard token is written to `SYSTEM/dashboard/.dashboard-token`
 - the legacy workspace token copy still matches for compatibility
 
-For a heavier isolation path, there is also a Podman harness:
+For a fresh GitHub-source install in its own Podman VM:
 
 ```bash
-./SYSTEM/scripts/cleanroom-podman-setup-test.sh
+./SYSTEM/test-clean-install.sh
+./SYSTEM/test-clean-install.sh status
+./SYSTEM/test-clean-install.sh logs
+./SYSTEM/test-clean-install.sh stop
+./SYSTEM/test-clean-install.sh remove
 ```
 
-That script is intended to exercise the same setup/start/test contract inside a disposable Linux container instead of the current host environment.
+The helper creates `clawmax-test`, builds a plain Node/tools environment, clones
+latest GitHub `main` inside it and runs the actual `setup.sh`. It never copies a
+host checkout, `.env`, credentials, private plugins or prepared OpenClaw cache.
+Readiness requires the Gateway, API, frontend and frontend API proxy. Open
+http://127.0.0.1:5181 after `READY`; record the printed source SHA. Add a key and
+verify a disposable agent reply, then stop/start and check persistence.
+
+`stop` shuts down the VM; `remove` deletes all test data. A resumed test keeps
+its original source; remove/start creates a fresh latest-source test. The older
+`SYSTEM/scripts/cleanroom-podman-setup-test.sh` delegates to this helper.
+
+Podman permits one active managed VM. Pause the existing VM's workloads and
+Desktop/agent auto-start before switching; the helper refuses to interrupt that
+VM or change the default connection. Restore the original VM afterward. The
+test VM reserves 2 CPUs, 24 GiB RAM and 30 GiB disk; the compiler container has a
+20 GiB limit. These resources are released from RAM on shutdown. Expected cold
+preparation: 20–30 minutes including downloads. This tests source installation,
+not a packaged ClawMax image or macOS installed-service migration.
+
+Engineering evidence, October 27, 2026: a fresh clone of GitHub `main` at
+`5873b3dd8b2238db7b23d11f5936553c1a2fbe03` completed the real installer in the
+dedicated VM using Linux arm64, Node 26.12.1 and pinned OpenClaw 2026.9.7
+(`c074824`). The external frontend returned HTTP 200; API health, authenticated
+Gateway readiness and the frontend API proxy passed. The new workspace had
+zero agents and 82 templates. No provider credentials or host checkout/cache
+were copied into the test. A real provider-backed chat remains an independent
+acceptance check after adding a key.
+
+Observed compiler peak: 16,430,350,336 bytes (15.3 GiB). The 4 GiB trial stopped
+at the upstream build budget guard; 8 GiB trials were cgroup OOM kills. The
+20 GiB container/24 GiB VM trial passed. The helper bounds supported OpenClaw
+compiler heaps and retains logs on failure. This is a tested allocation, not a
+minimum runtime-memory claim.
+
+The live preflight refused to interrupt the existing on-prem VM. Lifecycle
+regressions cover explicit VM connections (including logs/stop), owned-resource
+checks, initialization failure/retry, readiness failure and timeout, and cleanup.
+The test VM is stopped; the original on-prem VM, Desktop and host agent were
+restored and the original health/store counts verified. Full application-data
+restart persistence is still a reviewer check; do not infer it from a successful
+cold startup. Local evidence logs: `/private/tmp/clawmax-clean-install-real.log`,
+`/private/tmp/clawmax-cold-source-8g-failure.log`, and
+`/private/tmp/clawmax-cold-source-bounded-heap-failure.log`.
+
+Setup/start/runtime preparation share the source Node prerequisite check:
+24.16+ on 24.x or 26.1+ (including later supported majors). Version boundary,
+setup, pinned-preparation, alignment and local-start focused suites passed.
 
 ## Pre-flight Checks
 

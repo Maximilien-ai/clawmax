@@ -1,10 +1,20 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: October 12, 2026
+**Last Updated**: October 27, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
 ## Active Issues
+
+### RC95 source preview gates
+
+The [RC95 preview](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) is available for
+local acceptance. The candidate CodeQL aggregate gate reports existing High
+CSRF alert #705, also open on main; origin-admission tests pass, but the alert
+has not been dismissed. Dashboard owns its disposition before RC95 release.
+Client TypeScript retains 291 existing diagnostics with no new diagnostics in
+this preview. Four remaining Daniyar PRs require lifecycle evidence before
+inclusion; they are not part of the preview or reviewer queue.
 
 ### RC91 installed chat compatibility on MBP14
 

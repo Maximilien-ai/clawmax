@@ -1,3 +1,4 @@
+import { isKnownImageOnlyModel } from './text-agent-model'
 /**
  * Dynamic model discovery for configured hosted and local model providers.
  * Results are cached for 1 hour. Falls back to hardcoded lists on API failure.
@@ -6,6 +7,7 @@ import { hkdfSync, randomBytes } from 'crypto'
 import { getDashboardDeploymentKind, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
 import { cloudModelEndpointError } from './cloud-execution-policy'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
+import { filterOpenClawRunnableModels } from './openclaw-model-catalog'
 import { isRetiredOpenAIModel } from './openai-model-retirements'
 import { modelDiscoveryEndpoint } from './model-endpoint-policy'
 
@@ -116,10 +118,16 @@ export const FALLBACK_XAI = [
 
 function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[], showAll = false): string[] {
   // Retired models stay excluded even in advanced mode and with a warm catalog.
-  if (provider === 'openai') models = models.filter(model => !isRetiredOpenAIModel(model))
+  if (provider === 'openai') models = models.filter(model => !isRetiredOpenAIModel(model) && !isKnownImageOnlyModel(model))
+  if (showAll || provider === 'ollama') return models
+  // A provider listing a model does not make it runnable: the normal picker also drops ids the
+  // installed OpenClaw runtime's catalog cannot resolve, such as dated snapshots of an alias.
+  return filterOpenClawRunnableModels(filterProviderChatModels(provider, models))
+}
+
+function filterProviderChatModels(provider: ProviderId, models: string[]): string[] {
   // Provider catalogs determine availability. Never intersect them with static
   // fallback lists; retain only modality filtering for the normal chat picker.
-  if (showAll || provider === 'ollama') return models
   if (provider === 'openai') return models.filter(model => isOpenAIChatModel(model.replace(/^openai\//, '')))
   if (provider === 'anthropic') return models.filter(model => isAnthropicChatModel(model.replace(/^anthropic\//, '')))
   if (provider === 'gemini') return models.filter(model => isGeminiApiTextModel(model.replace(/^google\//, '')))
@@ -138,12 +146,13 @@ function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[]
 // ── Model name filters (skip embedding, tts, whisper, dall-e, etc.) ────────
 
 const OPENAI_CHAT_PREFIXES = ['gpt-', 'o1', 'o3', 'o4', 'chatgpt-']
-const OPENAI_EXCLUDE = ['instruct', 'realtime', 'audio', 'search']
+const OPENAI_EXCLUDE = ['instruct', 'realtime', 'audio', 'search', 'image', 'tts', 'transcribe']
 
 function isOpenAIChatModel(id: string): boolean {
   const lower = id.toLowerCase()
   if (isRetiredOpenAIModel(`openai/${lower}`)) return false
   if (!OPENAI_CHAT_PREFIXES.some(p => lower.startsWith(p))) return false
+  if (isKnownImageOnlyModel(id)) return false
   if (OPENAI_EXCLUDE.some(e => lower.includes(e))) return false
   return true
 }
@@ -557,7 +566,7 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
     localDefaults.push(`openai-compatible/${compatibleDefaultModel}`)
   }
 
-  return Array.from(new Set([...models, ...localDefaults]))
+  return Array.from(new Set([...filterOpenClawRunnableModels(models), ...localDefaults]))
 }
 
 export const __test = {

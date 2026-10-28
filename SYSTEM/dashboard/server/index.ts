@@ -1,5 +1,7 @@
+import { aiGenerationRequestContext } from './lib/ai-generation-context'
 import './lib/dashboard-env'
 import express from 'express'
+import { parseDefaultJsonBody } from './lib/chat-request-body'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import rateLimit from 'express-rate-limit'
@@ -52,7 +54,7 @@ import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, updatedBudgetConfi
 import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardDeploymentKind, getDashboardEnvRaw, getDashboardInstanceLabel, getDefaultOllamaBaseUrl, getDefaultOpenAICompatibleBaseUrl, isManagedRuntime, isOllamaUiEnabled, resolveSystemExecutionProviderKeys } from './lib/dashboard-env'
 import { getResolvedMaintenanceBanner } from './lib/cloud-maintenance-status'
 import { getHostAgentStatus } from './lib/host-agent-status'
-import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
+import { getResolvedWorkspaceIntegrationConfig } from './lib/workspace-integrations'
 import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
 import { detectRuntimeStatuses, resolveEnabledRuntimes, resolveWorkspaceRuntime } from './lib/agent-runtime'
@@ -277,9 +279,10 @@ app.use(cors({
   origin: (origin, callback) => callback(null, isCorsOriginAllowed(origin, allowedCorsOrigins)),
   credentials: true,
 }))
-app.use(express.json())
+app.use(parseDefaultJsonBody)
 app.use(cookieParser())
 app.use('/api', browserMutationGuard(allowedCorsOrigins))
+app.use('/api', aiGenerationRequestContext)
 
 // Rate limiting — global: 1000 req/min, auth: 20 req/min
 const authBypassMode = isDashboardAuthBypassAllowed(process.env)
@@ -374,7 +377,7 @@ app.get('/api/auth/config', (_req, res) => {
   const systemKeys = getSystemProviderKeys()
   const userKeys = getUserDefaultProviderKeys()
   const executionKeys = resolveSystemExecutionProviderKeys(rawEnv)
-  const integrationConfig = readWorkspaceIntegrationConfig()
+  const integrationConfig = getResolvedWorkspaceIntegrationConfig()
   const managedRuntime = isManagedRuntime(rawEnv)
   const deploymentKind = getDashboardDeploymentKind(rawEnv)
   const devHostAuthReady = process.env.CLAWMAX_DEV_MAXIMILIEN_AUTH_BRIDGE === '1'

@@ -34,6 +34,7 @@ import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { buildNamedExportFilename } from '../lib/export-filename'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
+import { isWorkflowFieldOptional, isWorkflowPlaceholderValue, readWorkflowFields, type WorkflowInputDeclaration } from '../lib/workflow-required-fields'
 
 const router = Router()
 
@@ -52,7 +53,7 @@ function resolveSessionAuthor(req: any): string | undefined {
 type CustomizationValidationInput = {
   githubRepo?: string
   useGithub?: boolean
-  workflows?: Array<{ id: string; name?: string; content?: string }>
+  workflows?: Array<{ id: string; name?: string; content?: string; inputs?: WorkflowInputDeclaration[] }>
 }
 
 function getOrganizationTemplateConflicts(template: any, options?: {
@@ -191,17 +192,6 @@ function isValidUrl(value: string): boolean {
   }
 }
 
-function isPlaceholderValue(value: string): boolean {
-  const trimmed = value.trim()
-  return (
-    !trimmed ||
-    /^\[[^\]]*\]$/.test(trimmed) ||
-    /^\{\{[^}]+\}\}$/.test(trimmed) ||
-    trimmed === '...' ||
-    trimmed === '…'
-  )
-}
-
 export function validateOrganizationCustomization(
   input: CustomizationValidationInput,
   options?: { repoExists?: (repo: string) => boolean }
@@ -233,28 +223,24 @@ export function validateOrganizationCustomization(
     }
   }
 
-  const fieldRegex = /^-\s+\*\*(.+?):\*\*\s+(.+)$/gm
   const urlishLabelRegex = /\b(url|link|site|webhook|endpoint|api|docs?)\b/i
 
   for (const workflow of input.workflows || []) {
     const content = workflow.content || ''
-    let match: RegExpExecArray | null
-    while ((match = fieldRegex.exec(content)) !== null) {
-      const label = match[1].trim()
-      const value = match[2].trim()
+    for (const { label, value } of readWorkflowFields(content)) {
       const workflowName = workflow.name || workflow.id
-      const optional = /\boptional\b/i.test(label) || /\boptional\b/i.test(value)
+      const optional = isWorkflowFieldOptional(label, value, workflow.inputs)
 
-      if (!optional && isPlaceholderValue(value)) {
+      if (!optional && isWorkflowPlaceholderValue(value)) {
         errors.push(`Workflow "${workflowName}" has an empty required field: ${label}.`)
         continue
       }
 
-      if (/github repo/i.test(label) && !isPlaceholderValue(value) && !repoPattern.test(value)) {
+      if (/github repo/i.test(label) && !isWorkflowPlaceholderValue(value) && !repoPattern.test(value)) {
         errors.push(`Workflow "${workflowName}" has an invalid GitHub repo for "${label}". Use owner/repo.`)
       }
 
-      if (urlishLabelRegex.test(label) && !isPlaceholderValue(value) && !isValidUrl(value)) {
+      if (urlishLabelRegex.test(label) && !isWorkflowPlaceholderValue(value) && !isValidUrl(value)) {
         errors.push(`Workflow "${workflowName}" has an invalid URL for "${label}".`)
       }
     }
@@ -731,6 +717,7 @@ router.post('/organizations/validate-customization', (req, res) => {
     id: workflow.id,
     name: workflow.name,
     content: typeof workflowOverrides?.[workflow.id] === 'string' ? workflowOverrides[workflow.id] : workflow.content,
+    inputs: Array.isArray(workflow.inputs) ? workflow.inputs : undefined,
   }))
 
   const result = validateOrganizationCustomization({

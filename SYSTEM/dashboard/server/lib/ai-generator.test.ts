@@ -3,7 +3,7 @@ import fs from 'fs'
 import http from 'http'
 import os from 'os'
 import path from 'path'
-import { normalizeGeneratedWorkflowDraft, normalizeWorkflowContent } from './workflow-content'
+import { completeGeneratedWorkflowExecution, normalizeGeneratedWorkflowDraft, normalizeWorkflowContent } from './workflow-content'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import {
   applyCompanyWorkflowExecutionDefaults,
@@ -24,6 +24,7 @@ import {
   generateBuilderStarterPromptsWithAI,
   generateCronFromText,
   generateWorkflowFromNL,
+  normalizeChannelDraft,
   isOneTimeScheduleRequest,
   normalizeGeneratedSkillScaffold,
   normalizeGeneratedAgentMeta,
@@ -77,6 +78,21 @@ test('generated workflow content becomes Markdown while metadata stays intact', 
   assert.deepStrictEqual(result.targeting, draft.targeting)
 })
 
+test('managed AI workflow drafts always have a real owner and complete save fields', () => {
+  const draft = { name: 'Weekly health', schedule: '0 9 * * 1', executionMode: 'managed', content: '# Check all agents', targeting: { tags: ['health'] } }
+  const options = { availableAgentIds: ['lead', 'analyst'], participantIds: ['analyst'], description: 'Check health weekly', timezone: 'America/Toronto' }
+  const ready = completeGeneratedWorkflowExecution(draft, options)
+  assert.equal(ready.owner, 'analyst')
+  assert.equal(ready.description, options.description)
+  assert.equal(ready.timezone, options.timezone)
+  assert.deepEqual(ready.targeting.agents, [], 'Preserve dynamic tag targeting')
+  assert.equal(completeGeneratedWorkflowExecution({ ...draft, owner: 'lead' }, options).owner, 'lead')
+  assert.equal(completeGeneratedWorkflowExecution({ ...draft, owner: 'invented' }, options).owner, 'analyst')
+  assert.equal(completeGeneratedWorkflowExecution({ ...draft, executionMode: 'automated' }, options).owner, undefined)
+  assert.throws(() => completeGeneratedWorkflowExecution(draft, { ...options, participantIds: [] }), /did not select any available agents/)
+  assert.throws(() => completeGeneratedWorkflowExecution({ ...draft, schedule: '' }, options), /did not return a schedule/)
+})
+
 test('workflow content preserves Markdown and unwraps structured Markdown responses', () => {
   const markdown = '# Instructions\n\n```json\n{"status":"ok"}\n```\n'
   assert.strictEqual(normalizeWorkflowContent(markdown), markdown)
@@ -123,6 +139,26 @@ test('OpenAI-compatible base URL trims trailing slashes without changing its pat
 test('extractJsonResponseText strips fenced json blocks', () => {
   const raw = '```json\n{ "name": "agent" }\n```'
   assert.strictEqual(extractJsonResponseText(raw), '{ "name": "agent" }')
+})
+
+test('workflow JSON retains nested Markdown sample input/output fences', async () => {
+  const content = '# Objective\nValidate test-agent input and output.\n\n```json\n{"input":"hello","actions_taken":["validate"],"result":"ok","errors":[]}\n```\n\n```text\nInvalid input must fail gracefully.\n```'
+  const payload = JSON.stringify({ name: 'Test Workflow', schedule: 'manual', targeting: { agents: ['test-agent'] }, content })
+  for (const raw of [payload, '```json\n' + payload + '\n```']) {
+    assert.deepStrictEqual(JSON.parse(extractJsonResponseText(raw)).content, content)
+  }
+  assert.throws(() => JSON.parse(extractJsonResponseText(payload.slice(0, -5))), 'Truncated output must not be accepted')
+  const server = http.createServer((_request, response) => {
+    response.setHeader('Content-Type', 'application/json')
+    response.end(JSON.stringify({ choices: [{ message: { content: payload } }] }))
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    setRequestByokKeys({ openaiCompatibleBaseUrl: `http://127.0.0.1:${(server.address() as any).port}/v1`, openaiCompatibleDefaultModel: 'fixture-model' })
+    const draft = await generateWorkflowFromNL('Create a simple realistic test workflow for @test-agent with 3–5 steps, sample JSON input/output, success and failure paths. No external systems.', ['test-agent'], [])
+    assert.equal(draft.content, content)
+    assert.equal(draft.schedule, 'manual')
+  } finally { setRequestByokKeys(undefined); await new Promise<void>(resolve => server.close(() => resolve())); resetWorkspaceManagerForTests() }
 })
 
 test('parseJsonResponse parses fenced json payloads', () => {
@@ -184,6 +220,10 @@ test('explainOneTimeCronLimitation returns actionable guidance', () => {
 test('normalize template and prompt expansion helpers coerce unsupported values to safe defaults', () => {
   assert.strictEqual(normalizeTemplateGenerationTarget('company'), 'company')
   assert.strictEqual(normalizeTemplateGenerationTarget('weird'), 'team')
+  assert.strictEqual(normalizePromptExpansionTarget('group'), 'group')
+  assert.strictEqual(normalizePromptExpansionTarget('community'), 'community')
+  assert(buildPromptExpansionSystemPrompt('group').includes('agent group'))
+  assert(buildPromptExpansionSystemPrompt('community').includes('agent community'))
   assert.strictEqual(normalizePromptExpansionTarget('agent'), 'agent')
   assert.strictEqual(normalizePromptExpansionTarget('nonsense'), 'template')
   assert.strictEqual(normalizePromptExpansionFormat('text'), 'text')
@@ -408,6 +448,31 @@ test('generation provider reports a clear error when no execution path is config
     }),
     /No API key configured/,
   )
+})
+
+test('an OpenAI-compatible URL without a default model does not outrank a usable provider', () => {
+  // The BYOK dialog saves its local default URL even when the compatible profile is never set up.
+  const options = { skipCliRuntime: true, systemKeys: {}, compatibleDefaults: {} }
+  const untouched = { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' }
+  assert.equal(resolveGenerationProvider({ ...untouched, openai: 'sk-test-openai-key-1234567890' }, options).provider, 'openai')
+  assert.equal(resolveGenerationProvider({ ...untouched, anthropic: 'sk-ant-test-key-1234567890' }, options).provider, 'anthropic')
+  assert.equal(resolveGenerationProvider(untouched, { ...options, systemKeys: { anthropic: 'sk-ant-system-key-1234567890' } }).provider, 'anthropic')
+  // A complete profile keeps its place ahead of Anthropic.
+  assert.equal(resolveGenerationProvider({ ...untouched, openaiCompatibleDefaultModel: 'local-model', anthropic: 'sk-ant-test-key-1234567890' }, options).provider, 'openai-compatible')
+  // The request's URL must never be completed with the server's compatible key and model: that would
+  // send the server's key to a host the caller chose. Here the server profile is skipped, so the
+  // system Anthropic key runs.
+  const serverProfile = {
+    ...options,
+    systemKeys: { openaiCompatibleApiKey: 'server-compatible-secret', anthropic: 'sk-ant-system-key-1234567890' },
+    compatibleDefaults: { baseUrl: 'https://caller-chosen.example/v1', defaultModel: 'server-model' },
+  }
+  assert.equal(resolveGenerationProvider({ openaiCompatibleBaseUrl: 'https://caller-chosen.example/v1' }, serverProfile).provider, 'anthropic')
+  // Without a request URL the server's own compatible profile still applies.
+  assert.equal(resolveGenerationProvider({}, serverProfile).provider, 'openai-compatible')
+  // With nothing else configured the incomplete profile is still chosen, so its explicit error surfaces.
+  assert.equal(resolveGenerationProvider(untouched, options).provider, 'openai-compatible')
+  assert.throws(() => buildClientForSelection({ provider: 'openai-compatible', key: 'openai-compatible', baseUrl: untouched.openaiCompatibleBaseUrl }), /requires a default model/)
 })
 
 function withFakeOpenAiCompatibleServer(content: string, fn: (baseUrl: string) => Promise<void>): Promise<void> {
@@ -1032,6 +1097,17 @@ test('buildPromptExpansionSystemPrompt reflects requested format', () => {
   assert.match(textPrompt, /AI agent generation wizard/i)
   assert.match(guidedPrompt, /Additional user direction/i)
   assert.match(guidedPrompt, /Make it shorter and emphasize testing\./i)
+})
+
+test('channel drafts preserve real members and reject invented membership before saving', () => {
+  const context = { kind: 'group' as const, agents: [{ id: 'one' }], communities: ['Engineering'] }
+  const draft = { name: ' Review ', description: ' Review changes ', members: ['one', 'one'], community: 'Engineering' }
+  assert.deepStrictEqual(normalizeChannelDraft(draft, context), { name: 'Review', description: 'Review changes', members: ['one'], community: 'Engineering' })
+  assert.throws(() => normalizeChannelDraft({ ...draft, members: ['invented'] }, context), /unavailable agents/)
+  assert.throws(() => normalizeChannelDraft({ ...draft, community: 'invented' }, context), /unavailable community/)
+  assert.throws(() => normalizeChannelDraft({ ...draft, name: '' }, context), /invalid name/)
+  assert.throws(() => normalizeChannelDraft({ ...draft, description: '' }, context), /no description/)
+  assert.deepStrictEqual(normalizeChannelDraft({ ...draft, members: [] }, { ...context, kind: 'community' }), { name: 'Review', description: 'Review changes', members: [], community: '' })
 })
 
 async function runTests() {

@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { AGENT_PANEL_KEEP_OPEN_KEY, readAgentPanelKeepOpen, useAgentPanelPersistence } from '../lib/agentPanelPersistence'
 import { KeepAgentPanelOpenButton } from './KeepAgentPanelOpenButton'
 
+const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document')
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
 const stored = new Map<string, string>()
 let writesFail = false
@@ -20,11 +21,11 @@ Object.defineProperty(globalThis, 'window', { configurable: true, value: {
 try {
   let closes = 0
   let captured: ReturnType<typeof useAgentPanelPersistence>
-  function Probe({ canDismiss = true }: { canDismiss?: boolean }) {
-    captured = useAgentPanelPersistence(() => { closes++ }, canDismiss)
+  function Probe({ canDismiss = true, containFocus = false }: { canDismiss?: boolean; containFocus?: boolean }) {
+    captured = useAgentPanelPersistence(() => { closes++ }, canDismiss, containFocus)
     return null
   }
-  const render = (canDismiss = true) => { renderToStaticMarkup(createElement(Probe, { canDismiss })); return captured }
+  const render = (canDismiss = true, containFocus = false) => { renderToStaticMarkup(createElement(Probe, { canDismiss, containFocus })); return captured }
   const backdrop = {} as HTMLElement
   const child = {} as HTMLElement
   const click = (target = backdrop) => ({ target, currentTarget: backdrop }) as unknown as Parameters<typeof captured.onBackdropClick>[0]
@@ -67,8 +68,32 @@ try {
   assert(off.includes('aria-label="Keep open"') && off.includes('aria-pressed="false"'))
   assert(on.includes('aria-pressed="true"') && on.includes('close with Escape or X'))
   assert(on.includes('h-9 w-9'), 'The control remains compact at mobile widths')
+  const doc = { activeElement: null as unknown }
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: doc })
+  const control = (visible = true) => ({ tabIndex: 0, getClientRects: () => visible ? [{}] : [], focus() { doc.activeElement = this } })
+  const first = control(), hidden = control(false), last = control()
+  const trapped = render(true, true)
+  const panel = { querySelectorAll: () => [first, hidden, last] }
+  ;(trapped.panelRef as any).current = panel
+  const tab = (shiftKey = false) => ({ ...escape(), key: 'Tab', shiftKey })
+  doc.activeElement = last
+  const forwardTab = tab()
+  trapped.onEscape(forwardTab as any)
+  assert.equal(doc.activeElement, first)
+  assert(forwardTab.defaultPrevented)
+  trapped.onEscape(tab(true) as any)
+  assert.equal(doc.activeElement, last)
+  doc.activeElement = first
+  const normalTab = tab()
+  trapped.onEscape(normalTab as any)
+  assert.equal(normalTab.defaultPrevented, false, 'Interior navigation uses native tab order')
+  doc.activeElement = panel
+  trapped.onEscape(tab() as any)
+  assert.equal(doc.activeElement, first, 'Initial panel focus enters the first control')
   console.log('AgentPanelPersistence.test.tsx: passed')
 } finally {
+  if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument)
+  else Reflect.deleteProperty(globalThis, 'document')
   if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow)
   else Reflect.deleteProperty(globalThis, 'window')
 }

@@ -295,6 +295,23 @@ import existing agents, credentials or private plugins. A reused snapshot stays
 on its recorded commit; pull the branch and launch without `--root` for a fresh
 snapshot of updated source. Temporary data may be removed by OS cleanup.
 
+Lifecycle and Review are included under **Extensions**. To attach additional
+plugins you already have locally, explicitly opt in when launching:
+
+```sh
+CLAWMAX_PLUGIN_PATHS=/absolute/path/to/plugin CLAWMAX_ENABLED_PLUGINS=plugin-id,clawmax-lifecycle,plugin-review-notes ./SYSTEM/local-dev.sh --with-plugins
+```
+
+The selected paths and instance selection persist for that dev root. Use
+Extensions to change the selection afterward; restarting with `--root` retains
+it. Add `--with-plugins` again only when deliberately replacing the configured
+paths or selection. Plugin source stays in its original directory and is not
+copied into the public checkout. No provider keys or other host settings are
+imported by this option.
+
+The RC95 source preview and its focused reviewer checks are documented in
+[RC95 preview acceptance](SYSTEM/docs/planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md).
+
 Custom model discovery endpoints require a server-trusted origin. Standard
 local Ollama (11434) and LM Studio (1234) origins are enabled for local/on-prem
 use. For another service, configure its base URL on the server or set
@@ -310,7 +327,52 @@ the server user's home. To allow another destination root, set
 the platform path delimiter (`:` on macOS/Linux). Imported/deleted paths reject
 traversal and symlinks within the selected root.
 
+### Clean source install in a dedicated Podman VM
+
+Use this to test a fresh GitHub clone and the real installer with separate HOME,
+workspace, caches and OpenClaw state:
+
+```sh
+./SYSTEM/test-clean-install.sh
+./SYSTEM/test-clean-install.sh status
+./SYSTEM/test-clean-install.sh logs
+./SYSTEM/test-clean-install.sh stop
+./SYSTEM/test-clean-install.sh remove
+```
+
+The helper creates a VM named `clawmax-test`. A plain Node/tools container inside
+that VM clones the latest GitHub `main` and runs `setup.sh --non-interactive`.
+ClawMax release images and the host checkout are not used. The source SHA is
+printed. The installer prepares the OpenClaw version declared by that checkout;
+`update.sh` advances an existing checkout along its configured upstream.
+
+Wait for `READY`, then open http://127.0.0.1:5181. The container continues running
+after the command returns. Both published ports (API 3008, UI 5181) bind to host
+loopback. Add model keys through Model Integration to test agent chat.
+
+`stop` shuts down the test VM and releases its RAM. `remove` deletes that VM and
+all test data. Starting an existing test resumes its recorded checkout/data;
+remove it and start again for another fresh clone of latest sources. To test a
+specific source branch, use `CLAWMAX_TEST_REF=branch-name ./SYSTEM/test-clean-install.sh`
+when creating the fresh test.
+
+Podman supports one active managed VM at a time. The helper refuses to stop an
+existing VM. Pause its workloads and any Desktop/host-agent auto-start management
+before switching, then restore that VM after stopping `clawmax-test`. The helper
+uses an explicit connection and preserves the host's default connection.
+
+Defaults are 2 CPUs, 24 GiB VM RAM, a 30 GiB disk and a 20 GiB container memory
+cap for the pinned OpenClaw source compiler. Use a host with spare capacity for
+that allocation. The verified Linux arm64/Node 26 cold build peaked at 15.3 GiB;
+smaller 4/8 GiB limits failed. First preparation can take 20–30 minutes, including downloads.
+The helper retains failed test state and logs for diagnosis. This exercises the
+Linux source installer with a foreground Gateway; installed macOS/Homebrew
+service migration requires separate acceptance.
+
+### Setup authentication choices
+
 For local development, `./setup.sh` now offers:
+
 - `Email OTP` dev mode, which asks what login email you want in `SYSTEM/dashboard/.env`
 - `bypass` mode, if you explicitly do not want auth
 

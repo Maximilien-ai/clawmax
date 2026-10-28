@@ -1,3 +1,4 @@
+import ReviewEmailSubmission from '../components/ReviewEmailSubmission'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import AgentLifecycleEvidence, { type AgentLifecycleEvidenceData } from '../components/AgentLifecycleEvidence'
@@ -4675,7 +4676,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                         className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
                         <ProductIconCell iconName="export" label="Export review" size="sm" className="border-transparent bg-transparent text-current" />
-                        Export release review
+                        Export / submit release review
                       </button>
                       <button
                         onClick={() => activeGroup && void setReleaseArchived(activeGroup, collectionTab !== 'archived')}
@@ -5350,7 +5351,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           <div className="flex max-h-[90dvh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
             <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700 sm:px-5 sm:py-4">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Export {activeGroup} review</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Export / submit {activeGroup} review</h2>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   Creates a shareable Markdown report with checklist results, notes, instance details, and sanitized recent runtime errors.
                 </p>
@@ -5398,6 +5399,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 <div>{reviewInstance.instanceLabel || reviewInstance.machineName || reviewInstance.hostname || 'Current instance'}</div>
                 <div className="mt-1 text-gray-500">Dashboard {reviewInstance.version || 'unknown'} · {reviewInstance.platform || 'unknown platform'}</div>
               </div>
+              <ReviewEmailSubmission release={activeGroup || ''} reviewer={reviewerName} buildReport={() => buildReleaseReviewMarkdown({
+                release: activeGroup || '', reviewer: { name: reviewerName.trim(), email: reviewerEmail.trim() },
+                instance: { ...reviewInstance, deploymentKind: reviewEnvironment }, exportedAt: new Date().toISOString(),
+                records: items.filter(isGenericPluginRecord), recentErrors: [], includeRuntimeErrors: false,
+              })} />
               {reviewExportError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">{reviewExportError}</div>}
             </div>
             <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-gray-200 px-4 py-3 [padding-bottom:max(0.75rem,env(safe-area-inset-bottom))] dark:border-gray-700 sm:px-5 sm:py-4">

@@ -1,3 +1,4 @@
+import { ScrollableMarkdownTable } from './ScrollableMarkdownTable'
 import { channelLabel } from '../lib/channelLabel'
 import { useEffect, useLayoutEffect, useState, useRef, useCallback, type ChangeEvent, type KeyboardEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -6,7 +7,9 @@ import { nextChatFollowState } from '../lib/agentChatScroll'
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import { buildPersistentDashboardChatSessionId, resolveDashboardChatSessionId } from '../lib/agentChatSession'
 import { buildAgentChatTimelineRows, shouldShowCalendarDate } from '../lib/agentChatTimeline'
-import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, getAgentChatLinkClassName, type AgentChatMarkdownRole } from '../lib/agentChatMarkdown'
+import { getAgentChatInlineCodeClassName, getAgentChatLinkClassName, isCodeBlockNode, type AgentChatMarkdownRole } from '../lib/agentChatMarkdown'
+import { copyText } from '../lib/clipboard'
+import { AssistantCodeBlock, CopyIcon, UserCodeBlock } from './ChatCodeBlock'
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
@@ -16,9 +19,10 @@ import { useAgentPanelPersistence } from '../lib/agentPanelPersistence'
 import { KeepAgentPanelOpenButton } from './KeepAgentPanelOpenButton'
 import { appendAgentInboxAttachmentContext, buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, type AgentInboxAttachmentRef } from '../lib/agentInbox'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
+import { normalizeChatMessage } from '../../../server/lib/chat-normalization'
 import { createPromptAttachment } from '../lib/promptAttachments'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
-import { formatAgentWorkStatus, summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
+import { formatAgentWorkStatus, isRuntimeDiagnosticText, summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
 import { INCOMPLETE_AGENT_CHAT_MESSAGE, markIncompleteAgentReply } from '../lib/agentChatStream'
 import { buildAgentChatMarkdown, getAgentChatDownloadState } from '../lib/agentChatExport'
 import { useToast } from './Toast'
@@ -29,6 +33,8 @@ import { readChatComposerExpanded, saveChatComposerExpanded } from '../lib/chatC
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  /** A reply bubble this tab filled with a failure summary instead of the agent's text. */
+  failed?: boolean
   timestamp: number
   id: string
 }
@@ -84,117 +90,13 @@ function stripAnsi(str: string): string {
   return str.replace(/\x1b\[[0-9;]*m/g, '').replace(/\[[\d;]*m/g, '')
 }
 
-// Detect if content is an error/diagnostic message
-function isErrorContent(content: string): boolean {
-  return /\[diagnostic\]|lane task error|session file locked|Error:|error="/i.test(content)
-}
-
-function isRuntimeStatusLine(trimmed: string): boolean {
-  return /^(🕒|🧠|🔑|🧮|📚|🧹|🧵|⚙️|🪢)\s/.test(trimmed)
-}
-
-function isToolArtifactLine(trimmed: string): boolean {
-  return (
-    trimmed === '(processing...)' ||
-    trimmed === 'Files:' ||
-    /^total\s+\d+/.test(trimmed) ||
-    /^[drwx-]{10}\s/.test(trimmed) ||
-    /^-rw[rx-]{7}\s/.test(trimmed) ||
-    /^[A-Za-z0-9_.-]+\.(md|txt|json|csv|pdf|html|yml|yaml)$/.test(trimmed) ||
-    /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ||
-    trimmed === 'No notes yet.'
-  )
-}
-
-// Strip OpenClaw internal data from message content
+// Persisted history and `complete` text are normalized by the server already; live deltas pass only
+// its line-level warning filter. Render both through the same normalizer, so a reply looks the same
+// while streaming, after it finishes, and after a reopen. (This used to be a drifted copy that also
+// deleted fenced code and JSON examples.)
 function cleanMessageContent(content: string): string {
   if (!content) return content
-
-  // Strip ANSI codes first
-  content = stripAnsi(content)
-
-  // Detect raw gateway message payloads: [ { "id": "...", "content": "..." } ]
-  // Extract just the content fields
-  try {
-    const trimmed = content.trim()
-    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
-      const parsed = JSON.parse(trimmed)
-      const items = Array.isArray(parsed) ? parsed : [parsed]
-      if (items.length > 0 && items[0].content && items[0].from) {
-        return items.map(m => m.content).filter(Boolean).join('\n\n')
-      }
-      if (items.length > 0 && items[0].payloads) {
-        return items[0].payloads.map((p: any) => p.text).filter(Boolean).join('\n\n')
-      }
-    }
-  } catch {}
-
-  // Process line by line — keep only human-readable content
-  const lines = content.split('\n')
-  const cleanedLines: string[] = []
-  let braceDepth = 0 // Track JSON nesting depth
-  let bracketDepth = 0
-  let skippingArtifactBlock = false
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    const trimmed = line.trim()
-
-    // Track JSON brace/bracket depth
-    if (braceDepth > 0 || bracketDepth > 0) {
-      for (const ch of trimmed) {
-        if (ch === '{') braceDepth++
-        else if (ch === '}') braceDepth = Math.max(0, braceDepth - 1)
-        else if (ch === '[') bracketDepth++
-        else if (ch === ']') bracketDepth = Math.max(0, bracketDepth - 1)
-      }
-      continue // Skip everything inside JSON blocks
-    }
-
-    // Detect start of JSON block
-    if (trimmed === '{' || trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      braceDepth += (trimmed.match(/\{/g) || []).length - (trimmed.match(/\}/g) || []).length
-      bracketDepth += (trimmed.match(/\[/g) || []).length - (trimmed.match(/\]/g) || []).length
-      if (braceDepth > 0 || bracketDepth > 0) continue
-      // Single-line JSON (opened and closed on same line)
-      continue
-    }
-
-    if (!trimmed) {
-      skippingArtifactBlock = false
-      cleanedLines.push(line)
-      continue
-    }
-
-    // Skip lines with ANSI escape codes
-    if (trimmed.match(/\[[\d;]*m/) || trimmed.match(/\x1b\[/)) continue
-
-    // Skip OpenClaw internal lines
-    if (isRuntimeStatusLine(trimmed) || trimmed.startsWith('🦞 OpenClaw') || trimmed.match(/^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/)) continue
-
-    // Skip inline tool calls
-    if (trimmed.match(/\{"type"\s*:\s*"/)) continue
-
-    // Skip bare timestamps
-    if (trimmed.match(/^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/)) continue
-
-    // Skip lines that are just closing braces
-    if (trimmed.match(/^[}\]],?\s*$/)) continue
-
-    if (isToolArtifactLine(trimmed)) {
-      skippingArtifactBlock = true
-      continue
-    }
-
-    if (skippingArtifactBlock) {
-      continue
-    }
-
-    cleanedLines.push(line)
-  }
-
-  const cleaned = cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
-  return cleaned || '(processing...)'
+  return normalizeChatMessage(content) || '(processing...)'
 }
 
 /**
@@ -293,6 +195,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string; active?: boolean }>>([])
   const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: any[]; active?: boolean } | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [inputHistory, setInputHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
@@ -595,6 +498,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       remarkPlugins={[remarkGfm]}
       urlTransform={transformWorkspaceMarkdownUrl}
       components={{
+        table: ScrollableMarkdownTable,
         a: ({ href, children }) => {
           if (href?.startsWith('workspace-file:') && onNavigateToDoc) {
             const file = href.replace('workspace-file:', '')
@@ -617,14 +521,13 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
           }
           return <a href={href} target="_blank" rel="noreferrer" className={getAgentChatLinkClassName(role)}>{children}</a>
         },
-        code: ({ children, className }) => (
-          <code className={className?.includes('language-') ? className : getAgentChatInlineCodeClassName(role)}>
+        // A block without a language has no class either; it is still a block, not inline code.
+        code: ({ node, children, className }) => (
+          <code className={className?.includes('language-') || isCodeBlockNode(node) ? className : getAgentChatInlineCodeClassName(role)}>
             {children}
           </code>
         ),
-        pre: ({ children }) => (
-          <pre className={getAgentChatCodeBlockClassName(role)}>{children}</pre>
-        ),
+        pre: role === 'user' ? UserCodeBlock : AssistantCodeBlock,
       }}
     >
       {linkifyWorkspaceFiles(clean ? cleanMessageContent(content) : content)}
@@ -869,7 +772,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               setError(friendly)
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
-                  ? { ...m, content: friendly }
+                  ? { ...m, content: friendly, failed: true }
                   : m
               ))
               setStreaming(false)
@@ -905,7 +808,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       if (assistantId) {
         setMessages(prev => prev.map(m =>
           m.id === assistantId
-            ? { ...m, content: friendly }
+            ? { ...m, content: friendly, failed: true }
             : m
         ))
       }
@@ -1129,6 +1032,17 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
     setTimeout(() => setCopyFeedback(false), 2000)
   }
 
+  async function copyMessage(message: Message) {
+    try {
+      // What the bubble shows: the reply as rendered from, never the raw runtime transcript.
+      await copyText(message.role === 'assistant' ? cleanMessageContent(message.content) : message.content)
+      setCopiedMessageId(message.id)
+      setTimeout(() => setCopiedMessageId(current => (current === message.id ? null : current)), 2000)
+    } catch {
+      showError('Could not copy the message. Your browser blocked clipboard access.')
+    }
+  }
+
   function downloadConversation() {
     try {
       const exported = buildAgentChatMarkdown(agentName, messages.map(message => ({
@@ -1279,7 +1193,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
             </button>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
-            <p className="min-w-0 text-xs text-gray-400">Real-time streaming from the active runtime</p>
+            <p className="min-w-0 text-xs text-gray-400">Responses from the active runtime</p>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
               <button
                 onClick={resetAgentSession}
@@ -1393,7 +1307,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
             const msg = timelineMessageMap.get(row.key)
             if (!msg) return null
-            const msgIsError = msg.role === 'assistant' && isErrorContent(msg.content)
+            const msgIsError = msg.role === 'assistant' && (msg.failed === true || isRuntimeDiagnosticText(msg.content))
             const isStreamingPlaceholder = streaming && msg.role === 'assistant' && msg.id === messages[messages.length - 1]?.id
             return (
             <div
@@ -1401,7 +1315,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-lg px-4 py-2 relative group ${
+                className={`min-w-0 max-w-[80%] rounded-lg px-4 py-2 relative group ${
                   msgIsError
                     ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
                     : msg.role === 'user'
@@ -1416,7 +1330,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                     {rawViewIds.has(msg.id) ? (
                       <pre className="text-xs whitespace-pre-wrap break-words font-mono overflow-auto max-h-60">{cleanMessageContent(msg.content)}</pre>
                     ) : (
-                      <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                      <div className="min-w-0 text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                         {renderMarkdown(bubbleText || (isStreamingPlaceholder ? '▌' : ''), true, 'assistant')}
                       </div>
                     )}
@@ -1458,7 +1372,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                   </>
                 ) : (
                   <>
-                    <div className="text-sm prose prose-sm prose-invert agent-chat-user-markdown max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                    <div className="min-w-0 text-sm prose prose-sm prose-invert agent-chat-user-markdown max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                       {renderMarkdown(msg.content || '', false, 'user')}
                     </div>
                     {onNavigateToDoc && getResolvedFileMentions(msg.content || '').length > 0 && (
@@ -1486,6 +1400,15 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
                 {/* Action buttons on hover */}
                 <div className={`absolute -bottom-2 right-0 flex items-center gap-1 ${forwardTargetMsgId === msg.id ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 focus-within:opacity-100 transition-opacity`}>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); void copyMessage(msg) }}
+                    className="bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-full p-1.5 shadow-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                    title={copiedMessageId === msg.id ? 'Copied' : 'Copy message'}
+                    aria-label={copiedMessageId === msg.id ? 'Message copied' : 'Copy message'}
+                  >
+                    <CopyIcon state={copiedMessageId === msg.id ? 'copied' : 'idle'} className="w-3 h-3" />
+                  </button>
                   {/* Forward to group */}
                   <div
                     ref={forwardTargetMsgId === msg.id ? forwardRootRef : undefined}
@@ -1587,6 +1510,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
             </div>
           )}
         </div>
+
+        <span className="sr-only" aria-live="polite">{copiedMessageId ? 'Message copied' : ''}</span>
 
         {/* Error */}
         {error && (

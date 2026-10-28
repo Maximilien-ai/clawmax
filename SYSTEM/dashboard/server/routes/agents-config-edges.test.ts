@@ -2,6 +2,10 @@ import assert from 'assert'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { setOpenClawModelCatalogForTests } from '../lib/openclaw-model-catalog'
+
+// Fixture models are arbitrary; an OpenClaw installed on the machine must not judge them.
+setOpenClawModelCatalogForTests(null)
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -202,6 +206,79 @@ async function run() {
         assert.equal(fs.readFileSync(identityPath, 'utf-8'), identity)
       }
     } finally { fs.writeFileSync(configPath, original) }
+  })
+
+  await test('OpenClaw-unrunnable models are rejected when newly chosen; an unchanged legacy model still saves', async () => {
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    const identityPath = path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md')
+    const originalConfig = fs.readFileSync(configPath, 'utf-8')
+    const originalIdentity = fs.readFileSync(identityPath, 'utf-8')
+    const soulPath = path.join(workspacePath, 'AGENTS', 'plain-agent', 'SOUL.md')
+    const toolsPath = path.join(workspacePath, 'AGENTS', 'plain-agent', 'TOOLS.md')
+    const originalSoul = fs.readFileSync(soulPath, 'utf-8')
+    const originalTools = fs.readFileSync(toolsPath, 'utf-8')
+    const savedModel = () => require('../lib/agent-model').readAgentModelFromConfigFile(configPath, 'plain-agent').model
+    // OpenClaw 2026.9.7's OpenAI catalog: it lists `gpt-5.4-mini` but not its dated snapshot.
+    setOpenClawModelCatalogForTests({ version: '2026.9.7', providers: new Map([['openai', new Set(['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'])]]) })
+    try {
+      for (const [slot, body] of [
+        ['primary model', { model: 'openai/gpt-5.4-mini-2026-03-17' }],
+        ['backup model', { model: 'openai/gpt-5.4', backupModel: 'openai/gpt-5.4-mini-2026-03-17' }],
+      ] as const) {
+        const res = makeRes()
+        await getRouteHandler('patch', '/:id/model')(makeReq({ params: { id: 'plain-agent' }, body }), res)
+        assert.equal(res.statusCode, 400, `${slot}: expected a rejection before saving`)
+        assert.equal(res.jsonBody.code, 'model_runtime_unsupported')
+        assert(res.jsonBody.error.startsWith(`The ${slot} \`openai/gpt-5.4-mini-2026-03-17\``), res.jsonBody.error)
+        assert(res.jsonBody.error.includes('Use `openai/gpt-5.4-mini`'), res.jsonBody.error)
+        assert.equal(fs.readFileSync(configPath, 'utf-8'), originalConfig, `${slot}: nothing may be saved`)
+        assert.equal(fs.readFileSync(identityPath, 'utf-8'), originalIdentity, `${slot}: nothing may be saved`)
+      }
+
+      // An existing agent already on the snapshot (created before this check) stays editable:
+      // saving other settings never forces a change to its model.
+      const legacy = 'openai/o3-2025-04-16'
+      const legacyIdentity = originalIdentity.split('openai/gpt-4o-mini').join(legacy)
+      fs.writeFileSync(configPath, originalConfig.split('openai/gpt-4o-mini').join(legacy))
+      fs.writeFileSync(identityPath, legacyIdentity)
+      const warning = makeRes()
+      await getRouteHandler('get', '/:id/identity')(makeReq({ params: { id: 'plain-agent' } }), warning)
+      assert.equal(warning.jsonBody.modelWarning.model, legacy)
+      assert.match(warning.jsonBody.modelWarning.message, /gpt-5.4-mini/)
+      const unchanged = makeRes()
+      await getRouteHandler('put', '/:id/config')(makeReq({ params: { id: 'plain-agent' }, body: { identity: legacyIdentity, soul: '# SOUL\n\nEdited soul\n', tools: originalTools } }), unchanged)
+      assert.equal(unchanged.statusCode, 200, `An unchanged legacy model must not block other edits: ${JSON.stringify(unchanged.jsonBody)}`)
+      assert.equal(savedModel(), legacy, 'The legacy model must not be silently replaced')
+
+      // Replacing it is an explicit choice, and the runtime-listed id is accepted.
+      const replaced = makeRes()
+      await getRouteHandler('patch', '/:id/model')(makeReq({ params: { id: 'plain-agent' }, body: { model: 'openai/gpt-5.4-mini' } }), replaced)
+      assert.equal(replaced.statusCode, 200, JSON.stringify(replaced.jsonBody))
+      assert.equal(savedModel(), 'openai/gpt-5.4-mini')
+      const repaired = makeRes()
+      await getRouteHandler('get', '/:id/identity')(makeReq({ params: { id: 'plain-agent' } }), repaired)
+      assert.equal(repaired.jsonBody.modelWarning, null)
+
+      // A new agent is rejected before anything is provisioned.
+      const agentsBefore = fs.readdirSync(path.join(workspacePath, 'AGENTS')).sort()
+      for (const body of [
+        { name: 'runtime-probe', model: 'openai/o3-2025-04-16' },
+        { name: 'runtime-probe', model: 'openai/gpt-5.4-mini-2026-03-17' },
+        { name: 'runtime-probe', model: 'openai/gpt-5.4-mini', backupModel: 'openai/gpt-5.4-mini-2026-03-17' },
+      ]) {
+        const provision = makeRes()
+        await getRouteHandler('post', '/provision')(makeReq({ body }), provision)
+        assert.equal(provision.statusCode, 400, JSON.stringify(provision.jsonBody))
+        assert(/not in the openai model catalog of the installed OpenClaw 2026\.9\.7 runtime/.test(provision.jsonBody.error), provision.jsonBody.error)
+        assert.deepEqual(fs.readdirSync(path.join(workspacePath, 'AGENTS')).sort(), agentsBefore, 'Nothing may be provisioned')
+      }
+    } finally {
+      setOpenClawModelCatalogForTests(null)
+      fs.writeFileSync(configPath, originalConfig)
+      fs.writeFileSync(identityPath, originalIdentity)
+      fs.writeFileSync(soulPath, originalSoul)
+      fs.writeFileSync(toolsPath, originalTools)
+    }
   })
 
   await test('explicit model save authorizes exact models in a migrated default policy', async () => {

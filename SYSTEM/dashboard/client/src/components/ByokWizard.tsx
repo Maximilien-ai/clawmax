@@ -1,3 +1,4 @@
+import { SearchableModelSelect } from './SearchableModelSelect'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { INTEGRATION_VALIDATION_UNAVAILABLE, IntegrationValidationError, readIntegrationValidationResponse } from '../lib/integrationValidationResponse'
 import { createPortal } from 'react-dom'
@@ -330,7 +331,7 @@ export function ByokWizard({
   const [mailOAuthBusy, setMailOAuthBusy] = useState<string | null>(null)
   const [mailOAuthError, setMailOAuthError] = useState<string | null>(null)
   const mailOAuthPopupRef = useRef<Window | null>(null)
-  const preferredModelRef = useRef<HTMLSelectElement | null>(null)
+  const preferredModelRef = useRef<HTMLButtonElement | null>(null)
   const searchedPartnerRef = useRef<string | null>(null)
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
@@ -771,7 +772,7 @@ export function ByokWizard({
     const resolveSource = (provider: ProviderKey | 'openaiCompatible') => {
       if (provider === 'openai') {
         if (openaiKey) return 'browser BYOK'
-        if (config?.userKeyDefaults?.openai) return 'user default'
+        if (config?.userKeyDefaults?.openai) return 'deployment default'
         if (config?.systemKeyDefaults?.openai) return 'system default'
         return 'not configured'
       }
@@ -1332,6 +1333,7 @@ export function ByokWizard({
     const providerScope = scope === 'openai' || scope === 'openaiCompatible' || scope === 'anthropic' || scope === 'gemini' || scope === 'openrouter' || scope === 'xai' || scope === 'ollama' ? scope : null
     const scopedPayload = {
       openai: scope === 'all' || providerScope === 'openai' ? openaiKey.trim() : '',
+      useConfiguredOpenaiKey: (scope === 'all' || providerScope === 'openai') && !openaiKey.trim() && !!config?.userKeyDefaults?.openai,
       openaiCompatibleApiKey: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleApiKey.trim() : '',
       openaiCompatibleBaseUrl: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleBaseUrl.trim() : '',
       openaiCompatibleDefaultModel: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleDefaultModel.trim() : '',
@@ -2325,7 +2327,7 @@ export function ByokWizard({
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {initialStep === 'partners'
                     ? 'Choose and configure independent, optional integrations for this workspace.'
-                    : 'Provider secrets stay local to this browser. Workspace defaults persist per workspace for template apply and runtime follow-through.'}
+                    : 'Keys you enter stay in this browser. Deployment-provided keys stay on the server. Model defaults apply to new agents in this workspace.'}
                 </p>
               </div>
               <button
@@ -2434,7 +2436,7 @@ export function ByokWizard({
                     <div className="min-w-0">
                       <div className="font-medium text-gray-900 dark:text-gray-100">Model providers (BYOK)</div>
                       <div className="mt-1 text-sm">
-                        System keys may be limited or unavailable. Bring Your Own Keys (BYOK) to ensure your agents can run with the models and providers you choose, billed to your own account.
+                        {hasDefaultUserKeys ? 'Your deployment provides model access. You can create agents now, or enter your own key to override the deployment default.' : 'System keys may be limited or unavailable. Bring Your Own Keys (BYOK) to ensure your agents can run with the models and providers you choose, billed to your own account.'}
                       </div>
                     </div>
                     <div className="text-xs opacity-80 max-w-xl sm:text-right">
@@ -2541,7 +2543,8 @@ export function ByokWizard({
                           </button>
                         )}
                       </div>
-                      <input id="byok-openai" type="password" value={openaiKey} onChange={(e) => { setOpenaiKey(e.target.value); setValidation((current) => ({ ...current, openai: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openai; return next }) }} placeholder="sk-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                      <input id="byok-openai" type="password" value={openaiKey} onChange={(e) => { setOpenaiKey(e.target.value); setValidation((current) => ({ ...current, openai: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openai; return next }) }} placeholder={config?.userKeyDefaults?.openai ? "Configured by deployment — enter a key to override" : "sk-..."} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                      {!openaiKey && config?.userKeyDefaults?.openai && <p className="mt-2 text-sm text-green-700 dark:text-green-300">OpenAI is configured by your deployment. No key entry is needed to create or chat with agents. The key stays on the server.</p>}
                       {renderValidation('openai')}
                     </div>
                   )}
@@ -2779,14 +2782,14 @@ export function ByokWizard({
                   {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || ollamaConfigured) && (
                     <div className={`pt-4 border-t border-gray-200 dark:border-gray-700 ${highlightPreferredModel ? 'rounded-lg border border-purple-300 bg-purple-50/70 px-3 pb-3 dark:border-purple-700 dark:bg-purple-900/20' : ''}`}>
                       <label htmlFor="new-agent-default-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model for newly created agents</label>
-                      <select id="new-agent-default-model" ref={preferredModelRef} value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
+                      <SearchableModelSelect searchLabel="Search models" id="new-agent-default-model" ref={preferredModelRef} value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (best for configured keys)</option>
                         {preferredModelGroups.map(group => (
                           <optgroup key={group.label} label={group.label}>
                             {group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                           </optgroup>
                         ))}
-                      </select>
+                      </SearchableModelSelect>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">This controls the Add Agent wizard and agent template apply flows. Discovered provider models appear here automatically when available.</p>
                       {preferredModelDeprecation && (
                         <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{preferredModelDeprecation}</p>
@@ -2801,14 +2804,14 @@ export function ByokWizard({
                   {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || ollamaConfigured) && (
                     <div className="pt-3">
                       <label htmlFor="system-agent-default-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model for built-in/system agents only</label>
-                      <select id="system-agent-default-model" value={systemPreferredModel} onChange={(e) => setSystemPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
+                      <SearchableModelSelect searchLabel="Search system agent models" id="system-agent-default-model" value={systemPreferredModel} onChange={(e) => setSystemPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (follow the best available configured model)</option>
                         {preferredModelGroups.map(group => (
                           <optgroup key={group.label} label={group.label}>
                             {group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                           </optgroup>
                         ))}
-                      </select>
+                      </SearchableModelSelect>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">This does not affect Add Agent. It is only used for built-in/system agents when they do not already have an explicit model.</p>
                       {systemPreferredModelDeprecation && (
                         <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{systemPreferredModelDeprecation}</p>

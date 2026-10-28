@@ -212,7 +212,7 @@ for (const scenario of [
   { method: 'GET', headers: { Cookie: 'session=fixture' }, allowed: true },
 ]) {
   let allowed = false, status = 0
-  browserMutationGuard(['http://localhost:5174'])({ method: scenario.method, protocol: 'https',
+  browserMutationGuard(['http://localhost:5174', 'https://dashboard.example.com'])({ method: scenario.method, protocol: 'https',
     get: (name: string) => name === 'host' ? 'dashboard.example.com' : (scenario.headers as Record<string, string | undefined>)[name],
   }, { status: (value: number) => { status = value; return { json: () => {} } } }, () => { allowed = true })
   assert(allowed === scenario.allowed, 'Browser mutation origin admission must match expected policy')

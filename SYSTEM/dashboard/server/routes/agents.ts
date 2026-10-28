@@ -17,6 +17,8 @@ import { repairAgentConfigSections } from '../lib/agent-config-repair'
 import type { AgentModelConfigUpdateResult } from '../lib/agent-model'
 import {
   normalizeAgentModelInput,
+  readAgentBackupModelFromConfigFile,
+  readAgentModelFromConfigFile,
   validateAgentModelPolicyInConfigFile,
   resetAgentSessionsForModelChange,
   updateAgentBackupModelInConfigFile,
@@ -29,7 +31,9 @@ import {
   upsertAgentRuntimeInIdentityContent,
   upsertAgentTagsInIdentityContent,
 } from '../lib/agent-model'
-import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, listRuntimeModels, normalizeAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime, runtimeAcceptsModelId, runtimeLabel } from '../lib/agent-runtime'
+import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, listRuntimeModels, normalizeAgentRuntime, resolveAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime, runtimeAcceptsModelId, runtimeLabel } from '../lib/agent-runtime'
+import { describeOpenClawModelRejection } from '../lib/openclaw-model-catalog'
+import { openClawConfigPath } from '../lib/openclaw-profile-paths'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, getLatestRuntimeTranscriptSessionId, hasRuntimeTranscripts, readRuntimeTranscript, readRuntimeTranscriptAsArchiveLines } from '../lib/runtime-transcripts'
 import { validateAgentCostLimit } from '../lib/budget'
@@ -161,6 +165,22 @@ function validateAgentModelPolicy(agentId: string, model: string, backupModel?: 
     agentId, [model, backupModel], path.join(getWorkspacePath(), 'AGENTS', agentId), true)
 }
 
+/**
+ * Rejects a model newly chosen for an agent that runs on OpenClaw when the runtime cannot run it.
+ * A model the agent already has is left alone, so saving other settings never forces a change on
+ * an existing agent; replacing an unrunnable legacy model stays an explicit choice.
+ */
+function describeNewOpenClawModelRejection(agentId: string, identityRuntime: string | undefined, model: string, backupModel?: string): string | null {
+  if (resolveAgentRuntime(agentId, identityRuntime) !== 'openclaw') return null
+  const configPath = openClawConfigPath()
+  const options = { workspacePath: path.join(getWorkspacePath(), 'AGENTS', agentId) }
+  const current = new Set([readAgentModelFromConfigFile(configPath, agentId, options).model, readAgentBackupModelFromConfigFile(configPath, agentId, options).backupModel])
+  return describeOpenClawModelRejection([
+    { model: current.has(model) ? undefined : model, label: 'primary model' },
+    { model: backupModel && !current.has(backupModel) ? backupModel : undefined, label: 'backup model' },
+  ])
+}
+
 function updateAgentBackupModelInConfig(agentId: string, backupModel: string | undefined): AgentModelConfigUpdateResult {
   const HOME = process.env.HOME || ''
   const defaultConfigPath = path.join(HOME, '.openclaw', 'openclaw.json')
@@ -248,7 +268,8 @@ function summarizeAiGenerationError(error: unknown): string {
     return 'AI generation timed out while contacting the configured provider. Try again, verify the provider key and system generation model, or choose a faster model.'
   }
 
-  return message || 'AI generation failed.'
+  // Providers echo part of a rejected key ("sk-proj-****…wXyZ"); the wizard shows this text on screen.
+  return message.replace(/\b(?:sk-|xai-|AIza)[A-Za-z0-9*_-]{4,}/g, '[redacted key]') || 'AI generation failed.'
 }
 
 /**
@@ -1030,6 +1051,17 @@ router.post('/provision', async (req, res) => {
     res.status(400).json({
       error: `The ${runtimeLabel(provisionRuntime)} runtime cannot run '${resolvedModel}'. Choose one of its own models (${provisionRuntimeModels.slice(0, 4).join(', ')}) or pick a different runtime.`,
     })
+    return
+  }
+  // The same guarantee for OpenClaw, whose catalog is what resolves provider models at chat time.
+  const openClawModelRejection = (provisionRuntime || resolveWorkspaceRuntime()) === 'openclaw'
+    ? describeOpenClawModelRejection([
+      { model: resolvedModel, label: 'primary model' },
+      { model: backupModel ? normalizeAgentModelInput(backupModel) : undefined, label: 'backup model' },
+    ])
+    : null
+  if (openClawModelRejection) {
+    res.status(400).json({ error: openClawModelRejection })
     return
   }
   const inputValidation = validateProvisionInput({ ...(req.body || {}), model: resolvedModel }, {
@@ -1941,7 +1973,9 @@ async function deleteAgentSafely(id: string, removeStateDir: boolean, archived =
     }
     const agentWorkspaceDir = path.join(getAgentsDir(), id)
     const lifecycleSteps: string[] = []
-    if (removeStateDir) {
+    {
+      // Every deletion removes the workspace, so its initialization attestation must
+      // be cleared even when optional profile-state removal was not requested.
       try {
         // OpenClaw 2026.8.2 removes the config entry before moving workspace
         // files to Trash. On persistent container volumes that move can fail,
@@ -2150,10 +2184,14 @@ router.get('/:id/identity', (req, res) => {
     // If we can't read live config, fall back to IDENTITY.md metadata
   }
 
+  const selectedModel = liveConfig?.model || metadata.model || runtimeIdentity.model
+  const modelWarning = resolveAgentRuntime(id, runtimeIdentity.runtime) === 'openclaw'
+    ? describeOpenClawModelRejection([{ model: selectedModel, label: 'current model' }]) : null
   res.json({
     content,
     metadata,
     liveConfig,
+    modelWarning: modelWarning ? { model: selectedModel, message: modelWarning } : null,
     modelFit: {
       selectionMode: runtimeIdentity.modelSelection === 'auto' ? 'auto' : 'manual',
       preference: ['quality', 'balanced', 'cost'].includes(runtimeIdentity.modelPreference)
@@ -3314,6 +3352,8 @@ router.put('/:id/config', (req, res) => {
       if (identityModel) {
         const admission = validateAgentModelPolicy(id, identityModel, identityBackupModel)
         if (!admission.ok) return res.status(409).json({ error: admission.error, code: 'model_policy_conflict' })
+        const runtimeRejection = describeNewOpenClawModelRejection(id, parsedIdentity.runtime, identityModel, identityBackupModel)
+        if (runtimeRejection) return res.status(400).json({ error: runtimeRejection, code: 'model_runtime_unsupported' })
         configUpdate = updateAgentModelInConfig(id, identityModel)
         if (!configUpdate.ok) {
           return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
@@ -3398,6 +3438,9 @@ router.patch('/:id/model', (req, res) => {
   try {
     const admission = validateAgentModelPolicy(id, normalizedModel, typeof backupModel === 'string' ? backupModel : undefined)
     if (!admission.ok) return res.status(409).json({ error: admission.error, code: 'model_policy_conflict' })
+    const identityRuntime = fs.existsSync(identityPath) ? parseIdentity(fs.readFileSync(identityPath, 'utf-8')).runtime : undefined
+    const runtimeRejection = describeNewOpenClawModelRejection(id, identityRuntime, normalizedModel, typeof backupModel === 'string' ? normalizeAgentModelInput(backupModel) : undefined)
+    if (runtimeRejection) return res.status(400).json({ error: runtimeRejection, code: 'model_runtime_unsupported' })
     const configUpdate = updateAgentModelInConfig(id, normalizedModel)
     if (!configUpdate.ok) {
       return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })

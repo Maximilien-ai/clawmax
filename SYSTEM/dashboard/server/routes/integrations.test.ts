@@ -119,6 +119,34 @@ async function run() {
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
 
+  await test('deployment OpenAI Check Key validates server-side without exposing or overriding secrets', async () => {
+    const previous = process.env.USER_OPENAI_API_KEY
+    const priorFetch = globalThis.fetch
+    const seen: string[] = []
+    try {
+      process.env.USER_OPENAI_API_KEY = 'sk-synthetic-deployment-key-123456789'
+      globalThis.fetch = (async (_url: any, init: any) => {
+        seen.push(init.headers.Authorization || init.headers.authorization)
+        return new Response(JSON.stringify(String(_url).includes('/models') ? { data: [{ id: 'gpt-5.4-mini' }] } : { choices: [{ message: { content: 'OK' } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }) as typeof fetch
+      const handler = getRouteHandler('post', '/validate')
+      const res = makeRes()
+      await handler(makeReq({ body: { useConfiguredOpenaiKey: true } }), res)
+      assert.strictEqual(res.jsonBody.openai.status, 'valid')
+      assert.strictEqual(seen.length > 0 && seen.every(value => value === 'Bearer sk-synthetic-deployment-key-123456789'), true)
+      assert(!JSON.stringify(res.jsonBody).includes('sk-synthetic'))
+      seen.length = 0
+      await handler(makeReq({ body: { openai: 'sk-synthetic-browser-key-123456789', useConfiguredOpenaiKey: true } }), makeRes())
+      assert(seen.length > 0 && seen.every(value => value === 'Bearer sk-synthetic-browser-key-123456789'))
+      seen.length = 0
+      await handler(makeReq({ body: {} }), makeRes())
+      assert.strictEqual(seen.length, 0, 'Do not probe deployment keys without explicit request')
+    } finally {
+      globalThis.fetch = priorFetch
+      if (previous === undefined) delete process.env.USER_OPENAI_API_KEY; else process.env.USER_OPENAI_API_KEY = previous
+    }
+  })
+
   await test('saving unrelated settings preserves effective runtimes without CLI discovery', async () => {
     const previousKind = process.env.DASHBOARD_DEPLOYMENT_KIND
     const previousRuntimes = process.env.WORKSPACES_INTEGRATIONS_RUNTIMES

@@ -1,6 +1,7 @@
+import { SearchableModelSelect } from './SearchableModelSelect'
 import React, { useEffect, useRef, useState } from 'react'
 import { byokForRequest, readStoredByokKeys, fetchModelsWithByok, getAiGenerationReadiness, hasAiGenerationAccess, isOllamaUiAvailable } from '../lib/byok'
-import { enabledRuntimeIds, modelAfterRuntimeChange, modelFitCandidates, parseRuntimeCatalog, runtimeAcceptsModel, runtimeLabelFor, runtimeModelsFor, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
+import { enabledRuntimeIds, isCliRuntimeSelection, modelAfterRuntimeChange, modelFitCandidates, parseRuntimeCatalog, runtimeAcceptsModel, runtimeLabelFor, runtimeModelsFor, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { normalizeAgentTemplateOption } from '../lib/agentTemplateOptions'
 import { normalizePromptInput, resolveAddAgentWizardLaunchState } from '../lib/addAgentWizardFlow'
@@ -88,9 +89,15 @@ function friendlyProvisionError(message: string): string {
 
 export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, defaultCloneFrom, startWithAI, initialAiDescription }: WizardProps) {
   const manualModelRef = useRef('')
+  // Set once the user, a clone source or a runtime switch chose the model. The saved default loads
+  // asynchronously and must never replace that choice when it arrives late.
+  const modelChosenRef = useRef(false)
+  // Provider model to restore when leaving a CLI runtime, whose own ids (e.g. "sonnet") OpenClaw cannot run.
+  const providerModelRef = useRef('')
+  const generatingRef = useRef(false)
+  const generatedResultRef = useRef<HTMLDivElement>(null)
   const { config } = useAuth()
   const aiEnabledFromKeys = hasAiGenerationAccess(config)
-  const aiReadiness = getAiGenerationReadiness(config)
   const ollamaEnabled = isOllamaUiAvailable(config)
   const launchState = resolveAddAgentWizardLaunchState({ startWithAI, initialAiDescription })
   const [step, setStep] = useState<Step>(launchState.initialStep)
@@ -138,15 +145,21 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   // would otherwise leave Generate disabled until a reload. This component already polls the
   // runtimes endpoint, so trust that too.
   const aiEnabled = aiEnabledFromKeys || enabledRuntimes.length > 0
+  const aiReadiness = getAiGenerationReadiness(enabledRuntimes.length > 0 ? { ...config, enabledRuntimes } : config)
 
   // Switching runtime must not leave a model the new runtime rejects — provider ids and CLI
   // catalogs do not overlap, so a stale selection provisions an agent that fails on its first turn.
   const selectRuntime = (next: string) => {
+    modelChosenRef.current = true
+    if (!isCliRuntimeSelection(runtime) && form.model) providerModelRef.current = form.model
+    const leavingCliModel = isCliRuntimeSelection(runtime) && !isCliRuntimeSelection(next) && runtimeModelOptions.includes(form.model)
     setRuntime(next)
-    setForm(f => ({ ...f, model: modelAfterRuntimeChange(runtimeCatalog, next, f.model) }))
+    setForm(f => ({ ...f, model: leavingCliModel ? providerModelRef.current : modelAfterRuntimeChange(runtimeCatalog, next, f.model) }))
   }
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [modelsLoaded, setModelsLoaded] = useState(false)
+  const [modelsError, setModelsError] = useState<string | null>(null)
+  const [modelsReload, setModelsReload] = useState(0)
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, { name: string; models: string[] }>>({})
   const [showAllModels, setShowAllModels] = useState(false)
   const [agentTemplates, setAgentTemplates] = useState<Array<{
@@ -202,48 +215,71 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     ))
   }, [launchState.aiPrompt, startWithAI])
 
-  // Fetch available models, suggested ID + port and existing agents list on mount
+  // Model list and saved default. Discovery used to gate the /api/auth/config request, so one failed
+  // discovery left the wizard with no model, no error and no retry until it was reopened. Both now
+  // load in parallel and either may fail alone: the saved default still applies without the list,
+  // and a superseded run or a late answer never replaces a model the user already chose.
   useEffect(() => {
-    // Fetch available models based on API keys (includes BYOK)
-    fetchModelsWithByok({ showAll: showAllModels })
-      .then(d => {
-        const models = (d.models || []).filter((model: string) => ollamaEnabled || !model.startsWith('ollama/'))
-        const filteredModelsByProvider = Object.fromEntries(
+    let cancelled = false
+    setModelsLoaded(false)
+    setModelsError(null)
+    const authConfig = fetch('/api/auth/config').then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      return r.json()
+    })
+    const visibleModels = (d: { models?: string[] } | null) => (d?.models || []).filter((model: string) => ollamaEnabled || !model.startsWith('ollama/'))
+    // The list is shown as soon as it arrives, so a slow config answer does not hide it.
+    const discovery = fetchModelsWithByok({ showAll: showAllModels }).then(d => {
+      if (!cancelled) {
+        setAvailableModels(visibleModels(d))
+        setModelsByProvider(Object.fromEntries(
           Object.entries(d.modelsByProvider || {}).filter(([providerId]) => ollamaEnabled || providerId !== 'ollama')
-        )
-        setAvailableModels(models)
-        setModelsLoaded(true)
-        setModelsByProvider(filteredModelsByProvider)
-
-        fetch('/api/auth/config').then(r => r.json()).then(cfg => {
-          const defaultModel = resolveAddAgentWizardDefaultModel({
-            models,
-            config: {
-              preferredModel: cfg.preferredModel,
-              recommendedModel: cfg.recommendedModel,
-              ollamaEnabled,
-              defaultOllamaBaseUrl: cfg.defaultOllamaBaseUrl,
-              defaultOpenAiCompatibleBaseUrl: cfg.defaultOpenAiCompatibleBaseUrl,
-            },
-            byok: readStoredByokKeys(),
-          })
-
-          if (defaultModel) {
-            manualModelRef.current = defaultModel
-            if (models.length === 0) {
-              setAvailableModels([defaultModel])
-            }
-            setForm(f => ({ ...f, model: defaultModel }))
-          }
-        }).catch(() => {
-          if (models.length > 0) {
-            manualModelRef.current = models[0]
-            setForm(f => ({ ...f, model: models[0] }))
-          }
+        ))
+      }
+      return d
+    })
+    void Promise.allSettled([discovery, authConfig]).then(([discovered, auth]) => {
+      if (cancelled) return
+      const d = discovered.status === 'fulfilled' ? discovered.value : null
+      const cfg = auth.status === 'fulfilled' ? auth.value : null
+      const models = visibleModels(d)
+      const byok = readStoredByokKeys()
+      // Without the config answer the server-saved default is unknown, and falling back to the first
+      // listed model would replace it silently; only a default saved in this browser applies then.
+      const defaultModel = cfg || byok.preferredModel?.trim()
+        ? resolveAddAgentWizardDefaultModel({
+          models,
+          config: cfg && {
+            preferredModel: cfg.preferredModel,
+            recommendedModel: cfg.recommendedModel,
+            ollamaEnabled,
+            defaultOllamaBaseUrl: cfg.defaultOllamaBaseUrl,
+            defaultOpenAiCompatibleBaseUrl: cfg.defaultOpenAiCompatibleBaseUrl,
+          },
+          byok,
         })
-      })
-      .catch(() => { setModelsLoaded(true) })
+        : ''
+      if (defaultModel && models.length === 0) setAvailableModels(current => (current.length > 0 ? current : [defaultModel]))
+      if (defaultModel) {
+        if (!providerModelRef.current) providerModelRef.current = defaultModel
+        if (!modelChosenRef.current) manualModelRef.current = defaultModel
+        setForm(f => (modelChosenRef.current && f.model ? f : { ...f, model: defaultModel }))
+      }
+      const reason = (result: PromiseSettledResult<unknown>) =>
+        result.status === 'rejected' && result.reason instanceof Error && result.reason.message ? result.reason.message : 'request failed'
+      const failures = [
+        !d && `Could not load the model list (${reason(discovered)}).`,
+        !cfg && `Could not load the saved default model (${reason(auth)}).`,
+      ].filter(Boolean)
+      setModelsError(failures.length > 0 ? failures.join(' ') : null)
+      setModelsLoaded(true)
+    })
+    return () => { cancelled = true }
+  }, [ollamaEnabled, showAllModels, modelsReload])
 
+  // Suggested ID + port, existing agents and templates, once on mount. These used to share the model
+  // effect, so toggling "Show all models" reset an agent name the user had already typed.
+  useEffect(() => {
     // If cloning, skip initial fetch - the cloneFrom effect will handle it
     if (!defaultCloneFrom) {
       fetch('/api/agents/next')
@@ -267,7 +303,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
         setAgentTemplates(templates)
       })
       .catch(() => {})
-  }, [ollamaEnabled, showAllModels])
+  }, [])
 
   // Pre-fill form when template is selected
   useEffect(() => {
@@ -333,6 +369,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
           // Pre-populate model if it exists in metadata
           if (data.metadata.model && data.metadata.model !== 'default') {
+            modelChosenRef.current = true
             manualModelRef.current = data.metadata.model
             set('model', data.metadata.model)
             hasPreFilled = true
@@ -364,11 +401,13 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     // The panel can only offer models the pinned runtime accepts, but guard the write too:
     // this is the last point before an unusable model becomes the agent's model.
     if (!isModelAllowedForRuntime(nextModel)) return
+    modelChosenRef.current = true
     manualModelRef.current = nextModel
     set('model', nextModel)
   }
 
   function setAutomaticModelSelection(enabled: boolean) {
+    modelChosenRef.current = true
     if (enabled) {
       manualModelRef.current = form.model
       const suggested = modelRecommendation?.recommendedModel
@@ -409,13 +448,39 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     }
   }, [autoModelSelection, modelRecommendation?.recommendedModel, isModelAllowedForRuntime])
 
+  useEffect(() => {
+    if (generatedFiles) generatedResultRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [generatedFiles])
+
   const nameOk = /^[a-z][a-z0-9_-]*$/.test(form.name)
+  const identityReady = nameOk && form.model.length > 0 && !templateSelectionMissing && !cloneSelectionMissing
+  // Create with AI opens on step 2, so step 1's requirements were never checked; leaving step 2
+  // without them only failed later, at review, as "Choose a model before provisioning this agent".
+  const identityIssue = !modelsLoaded && !form.model ? null
+    : !form.model ? (modelsError
+      ? `No model is selected. ${modelsError}`
+      : 'No model is selected for this agent. Choose one in Identity, or set a new-agent default model in BYOK.')
+    : !nameOk ? 'Enter a valid agent name in Identity.'
+    : templateSelectionMissing || cloneSelectionMissing ? 'The template or clone source chosen in Identity is no longer available.'
+    : null
   const canNext: Record<Step, boolean> = {
-    1: nameOk && form.model.length > 0 && !templateSelectionMissing && !cloneSelectionMissing,
-    2: true, // AI generation is optional
+    1: identityReady,
+    2: identityReady, // AI generation is optional, the model is not
     3: true, // whatsapp is optional
     4: false, // provision button handles this
   }
+  const generateBlockedReason = !aiEnabled ? 'Configure browser keys and a preferred model to enable AI generation'
+    : !modelsLoaded ? 'Loading the saved default model'
+    : !form.model ? 'Choose a model in Identity first'
+    : !form.aiDescription.trim() ? 'Describe your agent first'
+    : ''
+  const generateDisabled = !!generateBlockedReason || generating || !!generatedFiles
+  const modelsErrorNotice = modelsError && (
+    <div role="alert" className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+      {modelsError}{form.model ? ` ${form.model} is still selected.` : ''}
+      <button type="button" onClick={() => setModelsReload(n => n + 1)} className="ml-2 font-medium underline">Retry</button>
+    </div>
+  )
   const selectedModelDeprecation = formatOpenAiDeprecationNotice(form.model)
 
   function clearProvisionValidation() {
@@ -504,11 +569,17 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
   async function generateWithAI(descriptionOverride?: string) {
     const description = normalizePromptInput(descriptionOverride, form.aiDescription)
-    if (!description) return
+    // A second click before React re-renders the disabled button must not send a second request.
+    if (!description || generatingRef.current) return
     if (!aiEnabled) {
       setGenError('AI generation needs browser-local keys or a usable shared execution path first. Open Workspaces Integrations or Keys & Secrets before generating.')
       return
     }
+    if (!modelsLoaded || !form.model) {
+      setGenError(modelsLoaded ? 'Choose a model in Identity before generating.' : 'The saved default model is still loading. Try again in a moment.')
+      return
+    }
+    generatingRef.current = true
     setGenerating(true)
     setGenError(null)
     setModelRecommendation(null)
@@ -577,11 +648,11 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       if (data.suggestedTags?.length > 0) set('tags', [...new Set(data.suggestedTags)])
       if (data.suggestedModel) {
         if (!manualModelRef.current) manualModelRef.current = form.model
-        set('model', resolveAddAgentWizardSuggestedModel({
+        setForm(current => ({ ...current, model: resolveAddAgentWizardSuggestedModel({
           models: modelFitCandidates(runtimeModelOptions, availableModels),
-          currentModel: form.model,
-          suggestedModel: isModelAllowedForRuntime(data.suggestedModel) ? data.suggestedModel : form.model,
-        }))
+          currentModel: current.model,
+          suggestedModel: isModelAllowedForRuntime(data.suggestedModel) ? data.suggestedModel : current.model,
+        }) }))
       }
       if (data.suggestedSkills?.length > 0) set('skills', [...new Set(data.suggestedSkills)])
 
@@ -602,6 +673,8 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     } catch (e) {
       setGenError(String(e))
       setGenerating(false)
+    } finally {
+      generatingRef.current = false
     }
   }
 
@@ -793,14 +866,22 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                     Show all models
                   </label>
                 </div>
-                <select
+                <SearchableModelSelect searchLabel="Search models"
                   value={form.model}
                   onChange={e => useManualModel(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
                   disabled={(runtimeModelOptions.length === 0 && availableModels.length === 0) || (autoModelSelection && !!modelRecommendation?.recommendedModel)}
                 >
                   {runtimeModelOptions.length === 0 && availableModels.length === 0 && (
-                    <option value="">{modelsLoaded ? 'No models available — add API keys to .env' : 'Loading models...'}</option>
+                    <option value="">{!modelsLoaded ? 'Loading models...' : modelsError ? 'Model list unavailable — retry below' : 'No models available — add API keys to .env'}</option>
+                  )}
+                  {/* Without this a select with no matching option shows its first entry, which
+                      looked selected while the agent had no model at all. */}
+                  {!form.model && (runtimeModelOptions.length > 0 || availableModels.length > 0) && (
+                    <option value="" disabled>{modelsLoaded ? 'Choose a model…' : 'Loading models...'}</option>
+                  )}
+                  {form.model && !availableModels.includes(form.model) && !runtimeModelOptions.includes(form.model) && (
+                    <option value={form.model}>{form.model} — selected; availability unverified</option>
                   )}
                   {runtimeModelOptions.length > 0 ? (
                     <optgroup label={`${runtimeLabelFor(runtimeCatalog, runtime)} models`}>
@@ -819,8 +900,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                       .filter(m => isSelectableLifecycleModel(m, form.model))
                       .map(m => <option key={m} value={m}>{formatOpenAiModelLabel(m)}</option>)
                   )}
-                </select>
-                {modelsLoaded && availableModels.length === 0 && runtimeModelOptions.length === 0 && (
+                </SearchableModelSelect>
+                {modelsErrorNotice}
+                {modelsLoaded && !modelsError && availableModels.length === 0 && runtimeModelOptions.length === 0 && (
                   <p className="mt-1 text-xs text-amber-600">
                     {ollamaEnabled
                       ? 'No models are available yet. Configure OpenAI, Anthropic, Gemini, OpenAI-Compatible, or a local Ollama runtime in Workspaces Integrations.'
@@ -840,7 +922,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                   Backup model <span className="text-gray-400">(optional)</span>
                 </label>
-                <select
+                <SearchableModelSelect searchLabel="Search backup models"
                   value={form.backupModel}
                   onChange={e => set('backupModel', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
@@ -859,7 +941,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                       .filter(m => isSelectableLifecycleModel(m, form.backupModel || form.model))
                       .map(m => <option key={m} value={m}>{formatOpenAiModelLabel(m)}</option>)
                   )}
-                </select>
+                </SearchableModelSelect>
                 <p className="mt-1 text-xs text-gray-400">
                   Used automatically if the primary model times out, is unavailable, or its provider path fails.
                 </p>
@@ -1076,26 +1158,57 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                 disabled={generating || !!generatedFiles}
               />
 
+              {form.model && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Agent model: <span className="font-mono text-gray-700 dark:text-gray-300">{form.model}</span>
+                  {' · runs on '}{isCliRuntimeSelection(runtime) ? runtimeLabelFor(runtimeCatalog, runtime) : 'OpenClaw'}
+                </p>
+              )}
+              {identityIssue ? (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
+                  <div>{identityIssue}</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {modelsError && (
+                      <button type="button" onClick={() => setModelsReload(n => n + 1)} className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30">
+                        Retry loading models
+                      </button>
+                    )}
+                    <button type="button" onClick={() => setStep(1)} className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30">
+                      Go to Identity
+                    </button>
+                    {!form.model && (
+                      <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('open-workspaces-integrations', { detail: { step: 'models', focus: 'preferred-model' } }))} className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30">
+                        Open BYOK
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : modelsErrorNotice}
+
               <button
                 onClick={generateWithAI}
-                disabled={!form.aiDescription.trim() || generating || !!generatedFiles || !aiEnabled}
+                disabled={generateDisabled}
                 className={`w-full px-4 py-2 text-sm rounded font-medium transition-colors ${
-                  generating || !!generatedFiles
-                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
-                    : !form.aiDescription.trim() || !aiEnabled
+                  generateDisabled
                     ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
                     : 'bg-sky-600 text-white hover:bg-sky-700'
                 }`}
-                title={!aiEnabled ? 'Configure browser keys and a preferred model to enable AI generation' : ''}
+                title={generateBlockedReason}
               >
-                {generating ? 'Generating...' : generatedFiles ? '✓ Generated' : !aiEnabled ? 'Generate with AI (set up keys first)' : 'Generate with AI'}
+                {generating ? 'Generating...' : generatedFiles ? '✓ Generated' : !aiEnabled ? 'Generate with AI (set up keys first)' : !modelsLoaded ? 'Loading model defaults...' : 'Generate with AI'}
               </button>
-              <AIGenerationProgress active={generating} label="Generating agent files…" />
+              <AIGenerationProgress
+                active={generating}
+                label={`Generating agent files${pinnedGenerationRuntime ? ` with ${runtimeLabelFor(runtimeCatalog, pinnedGenerationRuntime)}` : ''}…`}
+              />
 
               {genError && (
-                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{genError}</div>
+                <div role="alert" className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{genError}</div>
               )}
 
+              {/* Scroll target: the result renders below the fold of the dialog, so a successful
+                  generation looked like nothing had happened. */}
+              {generatedFiles && <div ref={generatedResultRef} />}
               {generatedBy && (
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300">
                   Generated by <span className="font-medium">{generatedBy.label}</span>
@@ -1107,10 +1220,11 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
               {generatedFiles && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 font-medium">
+                  <div role="status" className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 font-medium">
                     <span>✓</span>
                     <span>Files generated successfully</span>
                   </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Review the IDENTITY.md, SOUL.md and TOOLS.md previews below, then continue.</p>
 
                   {modelRecommendation?.recommendedModel && (
                     <ModelFitRecommendationPanel
@@ -1168,9 +1282,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                   <div className="flex items-center gap-2 pt-2">
                     <button
                       onClick={() => setStep(3)}
-                      disabled={provisioning || validatingProvision}
+                      disabled={provisioning || validatingProvision || !identityReady}
                       className={`px-4 py-2 text-sm rounded font-medium transition-colors ${
-                        provisioning || validatingProvision
+                        provisioning || validatingProvision || !identityReady
                           ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
                           : 'bg-emerald-600 text-white hover:bg-emerald-700'
                       }`}
@@ -1472,7 +1586,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
         onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'agent', format, guidance)}
         saveAndGenerateLabel="Save & Generate"
         savingAndGenerating={generating}
-        generateDisabled={!aiEnabled}
+        generateDisabled={!aiEnabled || !modelsLoaded || !form.model}
         qualityDomain="agent"
       />
     </div>

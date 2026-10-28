@@ -29,6 +29,7 @@ interface WorkflowDAGProps {
   onSelect?: (workflowId: string) => void
   onTrigger?: (workflowId: string) => void
   onEditRun?: (workflowId: string) => void
+  onDelete?: (workflowId: string) => void
   onToggleEnabled?: (workflowId: string, enabled: boolean) => void
   selectedId?: string
   selectionMode?: boolean
@@ -235,6 +236,7 @@ export default function WorkflowDAG({
   onRemoveDependency,
   onTrigger,
   onEditRun,
+  onDelete,
   onToggleEnabled,
   onTogglePipelineSelect,
   pluginRelationships = {},
@@ -598,6 +600,9 @@ export default function WorkflowDAG({
                                   ✎
                                 </button>
                               )}
+                              {!selectionMode && onDelete && <button type="button" aria-label={`Delete workflow ${wf.name}`} title={status === 'running' ? 'Stop the workflow before deleting' : 'Delete workflow'} disabled={status === 'running' || isManualRunning} onClick={event => { event.stopPropagation(); onDelete(wf.id) }} className="inline-flex shrink-0 items-center justify-center rounded-full w-9 h-9 text-gray-500 hover:bg-red-100 hover:text-red-700 focus-visible:bg-red-100 focus-visible:text-red-700 focus-visible:outline-red-600 disabled:opacity-40 disabled:cursor-not-allowed dark:hover:bg-red-950 dark:hover:text-red-300">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" /></svg>
+                              </button>}
                               {selectionMode && isSelected && (
                                 <span className="ml-auto text-[10px] font-semibold text-purple-600 dark:text-purple-300">
                                   Selected

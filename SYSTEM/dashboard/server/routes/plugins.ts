@@ -1,3 +1,6 @@
+import { getWorkspacePath } from '../lib/workspace'
+import { getWorkspaceResendApiKey } from '../lib/resend-partner'
+import { getReviewRecipient, listReviewSubmissions, queueReviewSubmission } from '../lib/review-submissions'
 import { Router } from 'express'
 import {
   applyPluginTemplate,
@@ -59,6 +62,16 @@ router.put('/settings', (req, res) => {
 
 router.get('/relationships', (_req, res) => {
   res.json(listPluginRelationships())
+})
+
+router.get('/:pluginId/review-submissions', (req, res) => {
+  if (req.params.pluginId !== 'plugin-review-notes' || !getPluginBySlug(req.params.pluginId)) return res.status(404).json({ error: 'Review is not available' })
+  res.json({ submissions: listReviewSubmissions(getWorkspacePath()), emailConfigured: !!getWorkspaceResendApiKey(), recipient: getReviewRecipient(getWorkspacePath()) })
+})
+router.post('/:pluginId/review-submissions', (req, res) => {
+  if (req.params.pluginId !== 'plugin-review-notes' || !getPluginBySlug(req.params.pluginId)) return res.status(404).json({ error: 'Review is not available' })
+  try { res.status(202).json({ submission: queueReviewSubmission(getWorkspacePath(), req.body) }) }
+  catch (error: any) { res.status(400).json({ error: error.message || 'Could not submit review' }) }
 })
 
 router.get('/:pluginId/context', (req, res) => {
