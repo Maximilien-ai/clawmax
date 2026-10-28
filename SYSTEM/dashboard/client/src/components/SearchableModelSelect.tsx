@@ -9,14 +9,16 @@ export const SearchableModelSelect = forwardRef<HTMLButtonElement, React.SelectH
   const trigger = useRef<HTMLButtonElement | null>(null)
   const needle = query.trim().toLowerCase()
   let selectedLabel = ''
+  let selectedVisible = false
   function filter(nodes: React.ReactNode, group = ''): React.ReactNode[] {
     return React.Children.toArray(nodes).flatMap(child => {
       if (!React.isValidElement<any>(child)) return []
       if (child.type === 'option') {
         const value = String(child.props.value ?? '')
         const text = React.Children.toArray(child.props.children).join(' ')
-        if (value === String(props.value ?? '')) selectedLabel = text
-        return !needle || `${group} ${text} ${value}`.toLowerCase().includes(needle) ? [child] : []
+        const matches = !needle || `${group} ${text} ${value}`.toLowerCase().includes(needle)
+        if (value === String(props.value ?? '')) { selectedLabel = text; selectedVisible = matches }
+        return matches ? [child] : []
       }
       const nested = filter(child.props.children, child.type === 'optgroup' ? String(child.props.label) : group)
       return nested.length ? [React.cloneElement(child, {}, nested)] : []
@@ -38,7 +40,7 @@ export const SearchableModelSelect = forwardRef<HTMLButtonElement, React.SelectH
     </button>
     {open && <div className={`absolute inset-x-0 ${above ? 'bottom-full mb-1' : 'top-full mt-1'} z-50 rounded-lg border border-gray-300 bg-white p-2 shadow-xl dark:border-gray-600 dark:bg-gray-900`}>
       <input autoFocus type="search" aria-label={searchLabel} placeholder="Search models or providers…" value={query} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); root.current?.querySelector('select')?.focus() } if (event.key === 'Enter') event.preventDefault() }} onChange={event => setQuery(event.target.value)} className="mb-2 w-full rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
-      {options.length ? <select aria-label="Matching models" size={8} value={props.value} onChange={event => { props.onChange?.(event); close() }} className="w-full max-h-48 overflow-auto rounded border-0 bg-white text-sm dark:bg-gray-900 dark:text-gray-100">{options}</select> : <p role="status" className="p-2 text-sm text-gray-500">No matching models</p>}
+      {options.length ? <select aria-label="Matching models" size={8} value={props.value} onChange={event => { props.onChange?.(event); close() }} className="w-full max-h-48 overflow-auto rounded border-0 bg-white text-sm dark:bg-gray-900 dark:text-gray-100">{!selectedVisible && <option hidden disabled value={String(props.value ?? '')}>{selectedLabel || 'Choose a model'}</option>}{options}</select> : <p role="status" className="p-2 text-sm text-gray-500">No matching models</p>}
     </div>}
   </div>
 })
