@@ -1,7 +1,7 @@
 # Backlog
 
-- [ ] **RC97 candidate: provider primary/backup defaults** — If RC97 is cut
-  before the October 29 event, prioritize an OpenAI default pair:
+- [ ] **RC97: provider primary/backup defaults** — Include in RC97 regardless
+  of whether that release is used for the October 29 event. OpenAI default pair:
   primary `openai/gpt-5.4-mini`, backup `openai/gpt-5.4`. Apply the same policy
   to browser BYOK and deployment-provided OpenAI access. This is planned work,
   not part of the immutable RC96 image/tag.
@@ -23,8 +23,9 @@
     behavior (no duplicate completed response). Run the full release gate.
   - Human/external acceptance: fresh OpenAI setup shows the pair, new agents
     inherit it, edits persist, and a controlled primary failure visibly uses
-    the configured backup. Admit to RC97 only after these checks pass; otherwise
-    retain RC96 for the event and defer the pair.
+    the configured backup. These checks gate RC97 readiness. Event deployment
+    is a separate decision; using RC96 for the event does not remove this
+    requirement from RC97.
 
 - [ ] **Explicit model repair in Doctor** — When a runtime rejects an agent's
   model, offer the workspace new-agent default and a manual model picker. Show
