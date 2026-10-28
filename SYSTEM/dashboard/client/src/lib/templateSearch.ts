@@ -132,3 +132,16 @@ export function matchesOrganizationTemplateSearch(template: OrganizationTemplate
     metadata: template.metadata,
   }).includes(normalized)
 }
+
+// Several templates tag themselves with the singular "event"; it names the Events category.
+const CATEGORY_TAG_ALIASES: Record<string, string[]> = { events: ['event'] }
+
+// A template is in a category only when its declared `category` or one of its tags names it,
+// so templates without category metadata are never guessed into one.
+export function matchesTemplateCategory(template: { category?: unknown; tags?: unknown }, category: string): boolean {
+  const wanted = category.trim().toLowerCase()
+  if (!wanted || wanted === 'all') return true
+  const names = [wanted, ...(CATEGORY_TAG_ALIASES[wanted] || [])]
+  const declared = [template.category, ...(Array.isArray(template.tags) ? template.tags : [])]
+  return declared.some((value) => typeof value === 'string' && names.includes(value.trim().toLowerCase()))
+}
