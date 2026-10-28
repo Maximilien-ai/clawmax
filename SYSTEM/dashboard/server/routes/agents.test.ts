@@ -765,6 +765,32 @@ async function run() {
     }
   })
 
+  await test('generate keeps provider-echoed key fragments out of the error it returns', async () => {
+    const aiGeneratorPath = require.resolve('../lib/ai-generator')
+    delete require.cache[aiGeneratorPath]
+    const aiGenerator = require('../lib/ai-generator')
+    const originalGenerateAgentMeta = aiGenerator.generateAgentMeta
+
+    // OpenAI's 401 echoes the first and last characters of the rejected key.
+    aiGenerator.generateAgentMeta = async () => {
+      throw new Error('401 Incorrect API key provided: sk-proj-************************wXyZ. You can find your API key at https://platform.openai.com/account/api-keys.')
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/generate')
+      const res = makeRes()
+      await handler(makeReq({ body: { description: 'create a lead software engineer', suggestMeta: true } }), res)
+
+      const error = String(res.jsonBody?.error || '')
+      assert.strictEqual(res.statusCode, 500)
+      assert(/401 Incorrect API key provided/.test(error), `Expected the provider's reason to stay readable, got: ${error}`)
+      assert(!/sk-proj|wXyZ/.test(error), `Expected no key fragment in the error, got: ${error}`)
+    } finally {
+      aiGenerator.generateAgentMeta = originalGenerateAgentMeta
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('provision returns a structured tenant agent limit conflict', async () => {
     const previous = process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE
     process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE = '0'
