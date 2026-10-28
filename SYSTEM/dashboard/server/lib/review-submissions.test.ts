@@ -14,6 +14,10 @@ async function run() {
  try {
   assert.throws(() => queueReviewSubmission(workspace, { ...input, consent: false }, options), /Confirm/)
   assert.throws(() => queueReviewSubmission(workspace, { ...input, recipient: 'bad' }, options), /valid recipient/)
+  // The address pattern backtracks quadratically, so a request-sized recipient must fail on length first.
+  const started = performance.now()
+  assert.throws(() => queueReviewSubmission(workspace, { ...input, recipient: `!@!.${'!.'.repeat(49000)}@` }, options), /valid recipient/)
+  assert(performance.now() - started < 250, 'an oversized recipient must be rejected before the address pattern runs')
   assert.throws(() => queueReviewSubmission(workspace, { ...input, id: '../escape' }, options), /Invalid/)
   const queued = queueReviewSubmission(workspace, input, options)
   assert.equal(queued.status, 'queued'); assert.equal(sends, 0)

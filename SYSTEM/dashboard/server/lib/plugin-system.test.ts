@@ -1123,6 +1123,14 @@ async function run() {
     )
     assert.throws(
       () => upsertPluginRecord(plugin!, {
+        name: 'Overlong reviewer',
+        experiment: { judge: 'human', humanReviewerEmail: `${'a'.repeat(243)}@example.com` },
+      } as any),
+      (error: any) => error instanceof PluginContractError && error.statusCode === 400 && error.message.includes('email'),
+      'Expected a reviewer email over 254 characters to be rejected',
+    )
+    assert.throws(
+      () => upsertPluginRecord(plugin!, {
         name: 'Unsafe review path',
         experiment: { judge: 'human', humanReviewPath: '../../outside.md' },
       } as any),

@@ -52,7 +52,7 @@ export function queueReviewSubmission(workspace: string, input: any, options: {
   apiKey?: string; send?: typeof sendResendTestEmail; schedule?: (job: () => void) => void
 } = {}): ReviewSubmission {
   if (input?.consent !== true) throw new Error('Confirm the recipient and report before sending.')
-  if (typeof input.recipient !== 'string' || !emailPattern.test(input.recipient) || input.recipient.length > 254) throw new Error('Enter a valid recipient email.')
+  if (typeof input.recipient !== 'string' || input.recipient.length > 254 || !emailPattern.test(input.recipient)) throw new Error('Enter a valid recipient email.')
   if (typeof input.reviewer !== 'string' || !input.reviewer.trim() || input.reviewer.length > 200) throw new Error('Reviewer name is required.')
   if (typeof input.release !== 'string' || !input.release.trim() || input.release.length > 100) throw new Error('Release is required.')
   if (typeof input.report !== 'string' || !input.report.trim() || Buffer.byteLength(input.report) > 250000) throw new Error('Review report is empty or too large.')
