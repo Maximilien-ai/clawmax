@@ -3,10 +3,18 @@
 - [ ] **RC97: provider primary/backup defaults** — Include in RC97 regardless
   of whether that release is used for the October 29 event. OpenAI default pair:
   primary `openai/gpt-5.4-mini`, backup `openai/gpt-5.4`. Apply the same policy
-  to browser BYOK and deployment-provided OpenAI access. This is planned work,
+  to browser BYOK and deployment-provided provider access. This is planned work,
   not part of the immutable RC96 image/tag.
-  - Keep the pair provider-aware so other providers can gain validated pairs
-    later; their model choices are deferred, not guessed or included in RC97.
+  - Provide a tested primary/backup pair for every supported model provider,
+    not only OpenAI. OpenAI's selected pair is fixed above; select the other
+    pairs using current provider/runtime support and real execution evidence.
+    Do not label a pair tested based only on catalog discovery or mocks.
+    For local/custom endpoints, validate models actually installed and accessible
+    in that deployment instead of assuming a universal pair.
+  - Maintain a provider acceptance matrix recording the exact primary/backup
+    IDs, runtime/version, test date, primary success, controlled fallback success,
+    and persistence result. Mark unavailable credentials/models as blocked with
+    an owner; never silently omit a provider or certify an untested pair.
   - Display primary and backup together in Model Integration and inherit them
     consistently in new-agent wizard, AI creation and template application.
     Keep primary/backup distinct from new-agent versus built-in/system defaults.
@@ -21,7 +29,7 @@
     settings, AI/manual/template creation, explicit no-backup, unavailable
     models, reload/restart persistence, and the existing bounded backup retry
     behavior (no duplicate completed response). Run the full release gate.
-  - Human/external acceptance: fresh OpenAI setup shows the pair, new agents
+  - Human/external acceptance: each provider's fresh setup shows its tested pair; new agents
     inherit it, edits persist, and a controlled primary failure visibly uses
     the configured backup. These checks gate RC97 readiness. Event deployment
     is a separate decision; using RC96 for the event does not remove this
