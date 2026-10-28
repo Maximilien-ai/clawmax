@@ -20,7 +20,7 @@
     {
       "id": "rc96-r1",
       "name": "R1 \u2014 BYOK and new AI agent",
-      "description": "Set your new-agent default to a supported text model, close/reopen Add Agent, generate and save an agent, then send a real chat. The saved model must match your explicit selection; no image-only model should be offered. Try a missing/invalid key: explain the failure and preserve the draft. Open the model dropdown and search inside it; choose a result and test Escape without losing the draft.",
+      "description": "Test: Set your new-agent default to a supported text model, close/reopen Add Agent, generate and save an agent, then send a real chat. The saved model must match your explicit selection; no image-only model should be offered. Try a missing/invalid key: explain the failure and preserve the draft. Open the model dropdown and search inside it; choose a result and test Escape without losing the draft. Pass: The selected default persists and real chat works; invalid credentials show a clear error without losing the draft.",
       "tags": [
         "rc96",
         "acceptance"
@@ -34,7 +34,7 @@
     {
       "id": "rc96-r2",
       "name": "R2 \u2014 Existing agent model refresh",
-      "description": "Open agent Details, use Edit agent configuration in its header, change the model and save. Details must show the new model immediately. An unsupported existing model must show a warning and allow you to choose a replacement.",
+      "description": "Test: Open agent Details, use Edit agent configuration in its header, change the model and save. Details must show the new model immediately. An unsupported existing model must show a warning and allow you to choose a replacement. Pass: Details updates immediately and unsupported models can be replaced.",
       "tags": [
         "rc96",
         "acceptance"
@@ -48,7 +48,7 @@
     {
       "id": "rc96-r3",
       "name": "R3 \u2014 Chat readability",
-      "description": "Ask for a wide Markdown table and code block. Check horizontal table scrolling, copying, follow-up and Resend at desktop and narrow widths. The chat must remain usable without page overflow.",
+      "description": "Test: Ask for a wide Markdown table and code block. Check horizontal table scrolling, copying, follow-up and Resend at desktop and narrow widths. The chat must remain usable without page overflow. Pass: Tables scroll inside messages without overflowing the page; copy, follow-up and Resend work.",
       "tags": [
         "rc96",
         "acceptance"
@@ -62,7 +62,7 @@
     {
       "id": "rc96-r4",
       "name": "R4 \u2014 Group/community members",
-      "description": "In Communications grid, click the member count on a group and community. Confirm the displayed members, add/remove a test member, save and reopen. Check that names and purpose remain understandable. In a new group/community draft, test @agent-slug, @Agent Name and @all, plus Open AI Editor. New drafts must not retain old selections.",
+      "description": "Test: In Communications grid, click the member count on a group and community. Confirm the displayed members, add/remove a test member, save and reopen. Check that names and purpose remain understandable. In a new group/community draft, test @agent-slug, @Agent Name and @all, plus Open AI Editor. New drafts must not retain old selections. Pass: Names are readable, saved members persist, mentions select exactly those intended and new drafts start empty.",
       "tags": [
         "rc96",
         "acceptance"
@@ -76,7 +76,7 @@
     {
       "id": "rc96-r5",
       "name": "R5 \u2014 Workflow with real agents",
-      "description": "Create with AI, review owner, targets, schedule/timezone and content, save, run manually and inspect each participant result and execution logs. Real provider failures must be visible; do not accept only a green creation result. New workflow drafts start with no agents selected; exact @mentions select the intended participants, including @all.",
+      "description": "Test: Create with AI, review owner, targets, schedule/timezone and content, save, run manually and inspect each participant result and execution logs. Real provider failures must be visible; do not accept only a green creation result. New workflow drafts start with no agents selected; exact @mentions select the intended participants, including @all. Pass: Generated content saves and real participant outcomes are visible; new drafts start empty and mentions select correctly.",
       "tags": [
         "rc96",
         "acceptance"
@@ -90,7 +90,7 @@
     {
       "id": "rc96-r6",
       "name": "R6 \u2014 Runtime restart and persistence",
-      "description": "In the isolated preview, create a disposable agent/group/workflow, stop with Ctrl-C and restart the same --root. Confirm data, selected runtime, model, enabled plugins and a real chat still work. Do not stop the on-prem VM for this test.",
+      "description": "Test: In the isolated preview, create a disposable agent/group/workflow, stop with Ctrl-C and restart the same --root. Confirm data, selected runtime, model, enabled plugins and a real chat still work. Do not stop the on-prem VM for this test. Pass: Data, models, runtimes and enabled plugins survive restart, and real chat still works.",
       "tags": [
         "rc96",
         "acceptance"
@@ -101,5 +101,6 @@
         "notes": ""
       }
     }
-  ]
+  ],
+  "recommended": true
 }
