@@ -1,5 +1,5 @@
-import { getRequestByokKeys, setRequestByokKeys } from './ai-generation-context'
-export { setRequestByokKeys } from './ai-generation-context'
+import { getRequestByokKeys, setRequestByokKeys as setContextKeys } from './ai-generation-context'
+export function setRequestByokKeys(keys: ProviderKeys | undefined): void { setContextKeys(keys) }
 import OpenAI from 'openai'
 import { AsyncLocalStorage } from 'async_hooks'
 import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, ProviderKeys } from './dashboard-env'
