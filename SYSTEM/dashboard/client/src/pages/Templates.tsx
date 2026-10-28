@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { hasAiGenerationAccess } from '../lib/byok'
 import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import { ProductIconCell, resolveTemplateVisual, resolveCategoryVisual } from '../lib/productIcons'
-import { matchesAgentTemplateSearch, matchesOrganizationTemplateSearch } from '../lib/templateSearch'
+import { matchesAgentTemplateSearch, matchesOrganizationTemplateSearch, matchesTemplateCategory } from '../lib/templateSearch'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 import {
   TEMPLATE_FILTER_ROW_CLASSNAME,
@@ -830,15 +830,6 @@ export default function Templates({ searchSelection }: { searchSelection?: { key
     }
   }, [])
 
-  const matchesOrgCategory = React.useCallback((template: OrganizationTemplate, filter: string) => {
-    if (filter === 'all') return true
-    if ((template as any).category === filter) return true
-    const tags = template.tags || []
-    if (tags.includes(filter)) return true
-    if (filter === 'events' && (tags.includes('event') || tags.includes('events'))) return true
-    return false
-  }, [])
-
   const matchesOrgSearch = React.useCallback((template: OrganizationTemplate, query: string) => {
     return matchesOrganizationTemplateSearch(template, query)
   }, [])
@@ -1113,20 +1104,16 @@ export default function Templates({ searchSelection }: { searchSelection?: { key
 
   // Filter templates by search query
   const filteredAgentTemplates = React.useMemo(() => {
-    const filteredAgents = agentTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template))
+    const filteredAgents = agentTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template) && matchesTemplateCategory(template, categoryFilter))
     if (!searchQuery.trim()) return filteredAgents
     return filteredAgents.filter((template) => matchesAgentTemplateSearch(template, searchQuery))
-  }, [agentTemplates, searchQuery, matchesRatingFilter, matchesSourceFilter])
+  }, [agentTemplates, searchQuery, categoryFilter, matchesRatingFilter, matchesSourceFilter])
 
   const filteredOrgTemplates = React.useMemo(() => {
-    let filtered = orgTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template))
-    // Category filter
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(t => matchesOrgCategory(t, categoryFilter))
-    }
+    const filtered = orgTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template) && matchesTemplateCategory(template, categoryFilter))
     if (!searchQuery.trim()) return filtered
     return filtered.filter(t => matchesOrgSearch(t, searchQuery))
-  }, [orgTemplates, searchQuery, categoryFilter, matchesOrgCategory, matchesRatingFilter, matchesOrgSearch, matchesSourceFilter])
+  }, [orgTemplates, searchQuery, categoryFilter, matchesRatingFilter, matchesOrgSearch, matchesSourceFilter])
 
   const filteredTeamTemplates = React.useMemo(
     () => filteredOrgTemplates.filter((template) => getOrganizationTemplateKind(template) === 'team'),
@@ -1391,13 +1378,10 @@ export default function Templates({ searchSelection }: { searchSelection?: { key
   }, [registryRating, registryRatingSuggestions, registryRatingTarget, showError, showSuccess])
   const templateSuggestionRows = React.useMemo(() => {
     if (!searchQuery.trim()) return []
-    const visibleOrgTemplates = (categoryFilter === 'all'
-      ? orgTemplates
-      : orgTemplates.filter(t => matchesOrgCategory(t, categoryFilter)))
-      .filter(matchesSourceFilter)
+    const inCategory = (template: AgentTemplate | OrganizationTemplate) => matchesSourceFilter(template) && matchesTemplateCategory(template, categoryFilter)
     const candidateRows = [
-      ...agentTemplates.filter(matchesSourceFilter).map(getTemplateRow),
-      ...visibleOrgTemplates.map(getTemplateRow),
+      ...agentTemplates.filter(inCategory).map(getTemplateRow),
+      ...orgTemplates.filter(inCategory).map(getTemplateRow),
       ...workflowTemplates.filter(matchesSourceFilter).map(getTemplateRow),
     ]
     const suggestions = getDiscoverySuggestions(
@@ -1427,18 +1411,21 @@ export default function Templates({ searchSelection }: { searchSelection?: { key
         reasons: suggestion.reasons,
       }))
       .filter((entry): entry is { row: TemplateRow; reasons: string[] } => !!entry.row)
-  }, [agentTemplates, orgTemplates, workflowTemplates, searchQuery, categoryFilter, matchesOrgCategory, matchesSourceFilter])
+  }, [agentTemplates, orgTemplates, workflowTemplates, searchQuery, categoryFilter, matchesSourceFilter])
   const shouldShowTemplateSuggestions = !!searchQuery.trim() && templateSuggestionRows.length > 0 && totalFiltered < 4
-  const matchingOrgTemplatesIgnoringCategory = React.useMemo(() => {
+  const matchingTemplatesIgnoringCategory = React.useMemo(() => {
     if (!searchQuery.trim()) return []
-    return orgTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template) && matchesOrgSearch(template, searchQuery))
-  }, [searchQuery, orgTemplates, matchesRatingFilter, matchesOrgSearch, matchesSourceFilter])
+    return [
+      ...agentTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template) && matchesAgentTemplateSearch(template, searchQuery)),
+      ...orgTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template) && matchesOrgSearch(template, searchQuery)),
+    ]
+  }, [searchQuery, agentTemplates, orgTemplates, matchesRatingFilter, matchesOrgSearch, matchesSourceFilter])
   const suggestedCategoriesForSearch = React.useMemo(() => {
     if (!searchQuery.trim()) return []
     const matchingCategories = new Set<string>()
-    matchingOrgTemplatesIgnoringCategory
+    matchingTemplatesIgnoringCategory
       .forEach((template) => {
-        const match = TEMPLATE_CATEGORY_OPTIONS.find((option) => option.key !== 'all' && matchesOrgCategory(template, option.key))
+        const match = TEMPLATE_CATEGORY_OPTIONS.find((option) => option.key !== 'all' && matchesTemplateCategory(template, option.key))
         if (match) matchingCategories.add(match.key)
       })
     return TEMPLATE_CATEGORY_OPTIONS.filter(
@@ -1447,8 +1434,8 @@ export default function Templates({ searchSelection }: { searchSelection?: { key
         option.key !== categoryFilter &&
         matchingCategories.has(option.key)
     )
-  }, [searchQuery, matchingOrgTemplatesIgnoringCategory, matchesOrgCategory, categoryFilter])
-  const hasHiddenCategoryMatches = totalFiltered === 0 && categoryFilter !== 'all' && matchingOrgTemplatesIgnoringCategory.length > 0
+  }, [searchQuery, matchingTemplatesIgnoringCategory, categoryFilter])
+  const hasHiddenCategoryMatches = totalFiltered === 0 && categoryFilter !== 'all' && matchingTemplatesIgnoringCategory.length > 0
   const suggestedCategoryLabels = suggestedCategoriesForSearch.map((category) => category.label)
   const exportSelectedTemplate = React.useCallback(() => {
     if (!selectedTemplate || selectedTemplate.type === 'workflow' || !selectedTemplate.slug) {
@@ -1729,7 +1716,7 @@ export default function Templates({ searchSelection }: { searchSelection?: { key
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {TEMPLATE_TYPE_OPTIONS.map((option) => {
           const count = option.key === 'all'
-            ? totalTemplates
+            ? totalFiltered
             : filteredTypeCounts[option.key]
           const totalCount = option.key === 'all'
             ? totalTemplates
