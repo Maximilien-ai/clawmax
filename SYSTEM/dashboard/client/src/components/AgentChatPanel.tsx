@@ -1279,7 +1279,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
             </button>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
-            <p className="min-w-0 text-xs text-gray-400">Real-time streaming from the active runtime</p>
+            <p className="min-w-0 text-xs text-gray-400">Replies appear when complete</p>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
               <button
                 onClick={resetAgentSession}
