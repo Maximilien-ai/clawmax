@@ -1,3 +1,4 @@
+import { aiGenerationRequestContext } from './lib/ai-generation-context'
 import './lib/dashboard-env'
 import express from 'express'
 import { parseDefaultJsonBody } from './lib/chat-request-body'
@@ -281,6 +282,7 @@ app.use(cors({
 app.use(parseDefaultJsonBody)
 app.use(cookieParser())
 app.use('/api', browserMutationGuard(allowedCorsOrigins))
+app.use('/api', aiGenerationRequestContext)
 
 // Rate limiting — global: 1000 req/min, auth: 20 req/min
 const authBypassMode = isDashboardAuthBypassAllowed(process.env)

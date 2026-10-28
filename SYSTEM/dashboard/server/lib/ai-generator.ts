@@ -1,3 +1,5 @@
+import { getRequestByokKeys, setRequestByokKeys } from './ai-generation-context'
+export { setRequestByokKeys } from './ai-generation-context'
 import OpenAI from 'openai'
 import { AsyncLocalStorage } from 'async_hooks'
 import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, ProviderKeys } from './dashboard-env'
@@ -935,15 +937,8 @@ export function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: s
   return { client: wrapped as unknown as OpenAI, model: built.model }
 }
 
-// Module-level BYOK override — set per-request by routes
-let _requestByokKeys: ProviderKeys | undefined
-
-export function setRequestByokKeys(keys: ProviderKeys | undefined) {
-  _requestByokKeys = keys
-}
-
 function currentClient(): { client: OpenAI; model: string } {
-  return getAIClient(_requestByokKeys)
+  return getAIClient(getRequestByokKeys())
 }
 
 export async function answerBuilderQuestionWithAI(input: {
@@ -1020,8 +1015,8 @@ export function resolveSystemGenerationModelForProvider(
  * the model is validated); a working key fails on an unknown model.
  */
 function resolveModel(requestedModel: string, providerOverride?: AIProvider, byokKeysOverride?: ProviderKeys): string {
-  const provider = providerOverride || getAvailableProvider(_requestByokKeys).provider
-  const effectiveByokKeys = byokKeysOverride || _requestByokKeys
+  const provider = providerOverride || getAvailableProvider(getRequestByokKeys()).provider
+  const effectiveByokKeys = byokKeysOverride || getRequestByokKeys()
   const systemPreferredModel = readWorkspaceIntegrationConfig().systemPreferredModel?.trim()
   // A CLI-backed client ignores this value — it drives the runtime's own model — but every caller
   // still asks for one, so answer without reaching the provider branches below.
@@ -1054,7 +1049,7 @@ function stripProviderPrefix(model: string): string {
 
 export function shouldUseMaxCompletionTokens(model: string): boolean {
   if (model === CLI_RUNTIME_MODEL_SENTINEL) return false
-  const { provider } = getAvailableProvider(_requestByokKeys)
+  const { provider } = getAvailableProvider(getRequestByokKeys())
   return provider === 'openai' && /^gpt-[56](?:[.-]|$)/i.test(stripProviderPrefix(model))
 }
 
@@ -2146,7 +2141,7 @@ export async function generateAgentFiles(input: GenerateAgentFilesInput): Promis
 }
 
 export async function generateSkillFromNL(description: string, currentDraft?: Partial<GeneratedSkillScaffold>): Promise<GeneratedSkillScaffold> {
-  getAvailableProvider(_requestByokKeys)
+  getAvailableProvider(getRequestByokKeys())
 
   const isRefinement = !!currentDraft
   const model = resolveModel('gpt-4o-mini')
@@ -2289,7 +2284,7 @@ export function normalizeChannelDraft(draft: any, input: {
 }
 
 export async function generateWorkflowFromNL(description: string, availableAgents: string[], availableTags: string[]): Promise<any> {
-  getAvailableProvider(_requestByokKeys)
+  getAvailableProvider(getRequestByokKeys())
 
   const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model: resolveModel('gpt-4o'),
@@ -2347,7 +2342,7 @@ export async function generateTemplateFromNL(
   generationTarget: TemplateGenerationTarget = 'team',
   preferredAuthor: string = 'ClawMax AI',
 ): Promise<any> {
-  getAvailableProvider(_requestByokKeys)
+  getAvailableProvider(getRequestByokKeys())
   const promptContext = buildExampleAwarePromptContext(description)
   const shouldScaleMiddleWork = promptImpliesScaling(description)
   const normalizedTarget = normalizeTemplateGenerationTarget(generationTarget)
@@ -2915,7 +2910,7 @@ export async function generateCronFromText(text: string, timezone?: string): Pro
   // is the same check every other generator in this file relies on to decide whether *any*
   // execution path — request-scoped BYOK, workspace/system default, or CLI runtime — is usable.
   try {
-    getAvailableProvider(_requestByokKeys)
+    getAvailableProvider(getRequestByokKeys())
   } catch (err: any) {
     return { cron: '', explanation: '', error: err?.message || 'No OpenAI API key or CLI runtime configured' }
   }

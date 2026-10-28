@@ -1611,6 +1611,13 @@ else
   fail "Brokered skill command wrapper tests"
 fi
 
+if npx ts-node --transpileOnly server/lib/ai-generation-context.test.ts > /tmp/clawmax-ai-generation-context.out 2>&1; then
+  pass "AI generation request isolation tests"
+else
+  cat /tmp/clawmax-ai-generation-context.out
+  fail "AI generation request isolation tests"
+fi
+
 echo -e "${YELLOW}→ Running BYOK helper unit tests...${NC}"
 if node --test scripts/openclaw-schema-gate.test.cjs; then
   pass "Persisted agent schema startup gate"
