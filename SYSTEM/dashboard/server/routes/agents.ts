@@ -248,7 +248,8 @@ function summarizeAiGenerationError(error: unknown): string {
     return 'AI generation timed out while contacting the configured provider. Try again, verify the provider key and system generation model, or choose a faster model.'
   }
 
-  return message || 'AI generation failed.'
+  // Providers echo part of a rejected key ("sk-proj-****…wXyZ"); the wizard shows this text on screen.
+  return message.replace(/\b(?:sk-|xai-|AIza)[A-Za-z0-9*_-]{4,}/g, '[redacted key]') || 'AI generation failed.'
 }
 
 /**
