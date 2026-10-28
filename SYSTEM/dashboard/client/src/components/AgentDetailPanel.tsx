@@ -109,6 +109,7 @@ export default function AgentDetailPanel({
   onClose,
   onChat,
   onClone,
+  onEditConfig,
   onDelete,
   onNavigateToSkills,
   onNavigateToDoc,
@@ -122,6 +123,7 @@ export default function AgentDetailPanel({
   onClose: () => void
   onChat: () => void
   onClone?: () => void
+  onEditConfig?: () => void
   onDelete?: (agentId: string) => void
   onNavigateToSkills?: (agentId: string, skillName?: string) => void
   onNavigateToDoc?: (file: string) => void
@@ -382,6 +384,9 @@ export default function AgentDetailPanel({
             >
               <ProductIconCell iconName="communication" label="Chat with agent" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
+            {onEditConfig && <button onClick={onEditConfig} aria-label="Edit agent configuration" title="Edit agent configuration" className="h-9 w-9 inline-flex items-center justify-center rounded-full text-sky-600 hover:bg-sky-50">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/></svg>
+            </button>}
             {onClone && (
               <button
                 onClick={onClone}

@@ -45,7 +45,8 @@ try {
     })
     // After the catch-all so it takes precedence: the app mounts only once the API reports live.
     await page.route('**/api/health/live', route => route.fulfill({ json: { alive: true } }))
-    await page.goto(`${process.env.TEST_FRONTEND_URL || 'http://127.0.0.1:5174'}/agents?agent=atlas&action=edit`)
+    await page.goto(`${process.env.TEST_FRONTEND_URL || 'http://127.0.0.1:5174'}/agents?agent=atlas`)
+    await page.getByRole('button', { name: 'Edit agent configuration', exact: true }).click()
     const current = page.getByRole('dialog', { name: 'Edit Agent Config' }).locator('select').first()
     await current.waitFor()
     assert.equal(await current.inputValue(), 'openai/gpt-5.4-mini-2026-03-17')
