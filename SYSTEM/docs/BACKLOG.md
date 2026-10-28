@@ -1,5 +1,38 @@
 # Backlog
 
+- [ ] **RC97 and onward: recover interrupted WhatsApp pairing** — Mike's
+  RC96 attempt left credentials that WhatsApp later rejected as logged out;
+  repeating Pair reused that state instead of offering recovery. Include a
+  safe retry and explicit unpair/re-pair flow in RC97 and retain it in later
+  releases. Planned work; the RC96 tag/image remains unchanged.
+  - Allow pairing again after failure, expired code, cancellation, interrupted
+    stream, modal reopen and Dashboard restart. End every attempt visibly and
+    restore usable controls; provide cancellation while pairing is active.
+  - Offer explicit Reset pairing / Unpair and pair again. Resolve the actual
+    selected runtime/account credential path, including state-dir overrides.
+    Explain which session and agents are affected before clearing credentials.
+    Never silently delete a shared default session or another agent's account;
+    enforce workspace/account authority and serialize concurrent attempts.
+  - Distinguish incomplete, rejected, disconnected and linked states. Report
+    success only after confirmed linkage; a clean subprocess exit or stream EOF
+    without linkage is not success. Retain bounded, redacted outcome evidence
+    without storing credentials, pairing codes or raw authentication logs.
+  - Source findings: `LinkWhatsAppPanel.tsx` has no stream-finalization reset
+    when EOF lacks a terminal event; the pairing helper accepts `done=ok`
+    without a linked event; `whatsapp-pair.mjs` exits zero for unconfirmed
+    transient closes and reuses existing rejected auth state. The route chooses
+    profile/default credentials under HOME and needs runtime-state/ownership
+    review before any destructive reset is added.
+  - Engineering regressions: cancel/EOF/error restores Retry, rejected auth
+    leads to confirmed scoped reset and a fresh code, timeout and restart-required
+    reconnect remain bounded, duplicate attempts are prevented, shared/foreign
+    accounts and symlink escapes cannot be reset, and persisted outcomes survive
+    reload. Cover desktop/mobile controls and confirm/cancel paths.
+  - External acceptance: interrupt an initial pairing, retry successfully with a
+    real phone, unlink/re-pair explicitly, then restart and exchange a message.
+    Verify other accounts/agents remain connected. This check gates WhatsApp
+    recovery readiness; unit tests alone do not certify real WhatsApp pairing.
+
 - [ ] **RC97: provider primary/backup defaults** — Include in RC97 regardless
   of whether that release is used for the October 29 event. OpenAI default pair:
   primary `openai/gpt-5.4-mini`, backup `openai/gpt-5.4`. Apply the same policy
