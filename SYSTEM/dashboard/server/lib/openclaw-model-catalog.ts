@@ -1,3 +1,4 @@
+import { isKnownImageOnlyModel } from './text-agent-model'
 /**
  * Which hosted models the installed OpenClaw runtime is known not to run.
  *
@@ -120,6 +121,7 @@ const SNAPSHOT_SUFFIX = /-\d{4}-\d{2}-\d{2}$/
 
 export function checkOpenClawModelSupport(model: string | undefined, catalog = getOpenClawModelCatalog()): OpenClawModelSupport {
   const value = String(model || '').trim()
+  if (isKnownImageOnlyModel(value)) return { status: 'unsupported', replacement: 'openai/gpt-5.4-mini' }
   const slash = value.indexOf('/')
   if (!catalog || slash <= 0) return { status: 'unverified' }
   const provider = value.slice(0, slash)
@@ -166,6 +168,7 @@ export function describeOpenClawModelRejection(
   for (const { model, label } of selections) {
     const support = checkOpenClawModelSupport(model, catalog)
     if (support.status !== 'unsupported') continue
+    if (isKnownImageOnlyModel(String(model))) return `The ${label} \`${model}\` generates images and cannot serve a text agent. Choose a text model from the configured provider and save the agent.`
     const runtime = `OpenClaw${catalog?.version ? ` ${catalog.version}` : ''}`
     const provider = String(model).slice(0, String(model).indexOf('/'))
     const remedy = `Use \`${support.replacement}\`, a model listed by ${runtime}, or choose another model from the list.`

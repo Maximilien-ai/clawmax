@@ -1,3 +1,4 @@
+import { isKnownImageOnlyModel } from './text-agent-model'
 /**
  * Dynamic model discovery for configured hosted and local model providers.
  * Results are cached for 1 hour. Falls back to hardcoded lists on API failure.
@@ -117,7 +118,7 @@ export const FALLBACK_XAI = [
 
 function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[], showAll = false): string[] {
   // Retired models stay excluded even in advanced mode and with a warm catalog.
-  if (provider === 'openai') models = models.filter(model => !isRetiredOpenAIModel(model))
+  if (provider === 'openai') models = models.filter(model => !isRetiredOpenAIModel(model) && !isKnownImageOnlyModel(model))
   if (showAll || provider === 'ollama') return models
   // A provider listing a model does not make it runnable: the normal picker also drops ids the
   // installed OpenClaw runtime's catalog cannot resolve, such as dated snapshots of an alias.
@@ -151,6 +152,7 @@ function isOpenAIChatModel(id: string): boolean {
   const lower = id.toLowerCase()
   if (isRetiredOpenAIModel(`openai/${lower}`)) return false
   if (!OPENAI_CHAT_PREFIXES.some(p => lower.startsWith(p))) return false
+  if (isKnownImageOnlyModel(id)) return false
   if (OPENAI_EXCLUDE.some(e => lower.includes(e))) return false
   return true
 }

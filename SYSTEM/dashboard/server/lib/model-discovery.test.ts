@@ -417,7 +417,7 @@ test('the normal picker and default list drop dated snapshots the installed Open
   // The OpenAI ids OpenClaw 2026.9.7 ships; it resolves `gpt-5.4-mini` but not its dated snapshot.
   setOpenClawModelCatalogForTests({ version: '2026.9.7', providers: new Map([['openai', new Set(['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano'])]]) })
   global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [
-    { id: 'gpt-5.4-mini-2026-03-17' }, { id: 'gpt-5.4-mini' }, { id: 'gpt-5.5' }, { id: 'gpt-4o-mini' },
+    { id: 'chatgpt-image-latest' }, { id: 'gpt-image-1' }, { id: 'gpt-5.4-mini-2026-03-17' }, { id: 'gpt-5.4-mini' }, { id: 'gpt-5.5' }, { id: 'gpt-4o-mini' },
   ] }) })) as any
   try {
     const picker = await discoverModels({ openai: 'runtime-catalog-fixture' })
@@ -426,6 +426,7 @@ test('the normal picker and default list drop dated snapshots the installed Open
     assert(JSON.stringify(picker.models) === JSON.stringify(picker.modelsByProvider.openai.models), 'The flat list must match the grouped list')
     const advanced = await discoverModels({ openai: 'runtime-catalog-fixture' }, { showAll: true })
     assert(advanced.modelsByProvider.openai.models.includes('openai/gpt-5.4-mini-2026-03-17'), 'Show all models still lists every provider id')
+    assert(!advanced.models.some(model => /chatgpt-image|gpt-image/.test(model)), 'Advanced cached lists must also exclude image-only models')
     const defaults = getAvailableModelsCached({ SYSTEM_OPENAI_API_KEY: 'runtime-catalog-fixture' })
     assert(!defaults.includes('openai/gpt-5.4-mini-2026-03-17') && defaults.includes('openai/gpt-5.4-mini'), `Defaults must come from runnable models: ${defaults.join(', ')}`)
   } finally {

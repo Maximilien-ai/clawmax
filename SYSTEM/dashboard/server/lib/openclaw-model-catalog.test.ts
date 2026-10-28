@@ -165,6 +165,15 @@ try {
     fs.unlinkSync(configPath)
   })
 
+  test('image-only models are rejected even without a catalog; custom namespaces are preserved', () => {
+    for (const model of ['openai/chatgpt-image-latest', 'openai/gpt-image-1', 'openai/dall-e-3']) {
+      assert.equal(checkOpenClawModelSupport(model, null).status, 'unsupported')
+      assert(describeOpenClawModelRejection([{ model, label: 'model' }], null)?.includes('generates images'))
+    }
+    assert.equal(checkOpenClawModelSupport('ollama/chatgpt-image-latest', null).status, 'unverified')
+    assert.equal(checkOpenClawModelSupport('openai/gpt-5.4-mini', null).status, 'unverified')
+  })
+
   test('without a readable installation nothing is ruled out or claimed', () => {
     process.env.OPENCLAW_BIN = path.join(tmp, 'missing', 'openclaw')
     clearOpenClawModelCatalogCache()
