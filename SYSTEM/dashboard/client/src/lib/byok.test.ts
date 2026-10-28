@@ -133,6 +133,8 @@ async function main() {
       strictAssert.deepEqual(await fetchModelsWithByok({ showAll: true }), { models: ['model'], modelsByProvider: {} })
       globalThis.fetch = (async () => ({ ok: false })) as any
       await strictAssert.rejects(fetchModelsWithByok(), /Failed to load models/)
+      globalThis.fetch = (async () => ({ ok: false, json: async () => ({ error: 'This model-service origin is not enabled.' }) })) as any
+      await strictAssert.rejects(fetchModelsWithByok(), /model-service origin is not enabled/)
       await strictAssert.rejects(refreshModelsWithByok(), /Failed to refresh models/)
     } finally { globalThis.fetch = originalFetch; localStorage.clear() }
   })
