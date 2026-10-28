@@ -497,7 +497,9 @@ function getAvailableProvider(
   // Then system/user-default keys
   const keys = options.systemKeys ?? resolveSystemExecutionProviderKeys()
   if (keys.openai) return { provider: 'openai', key: keys.openai }
-  if (compatibleDefaults.baseUrl) {
+  // compatibleDefaults prefers the request's URL. Pairing that with the server's own compatible key
+  // would send the key to a host the caller chose, so the server profile only applies without one.
+  if (compatibleDefaults.baseUrl && !byokKeys?.openaiCompatibleBaseUrl) {
     const selection = {
       provider: 'openai-compatible' as const,
       key: keys.openaiCompatibleApiKey || 'openai-compatible',

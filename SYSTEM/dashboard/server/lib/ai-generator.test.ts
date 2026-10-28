@@ -435,6 +435,17 @@ test('an OpenAI-compatible URL without a default model does not outrank a usable
   assert.equal(resolveGenerationProvider(untouched, { ...options, systemKeys: { anthropic: 'sk-ant-system-key-1234567890' } }).provider, 'anthropic')
   // A complete profile keeps its place ahead of Anthropic.
   assert.equal(resolveGenerationProvider({ ...untouched, openaiCompatibleDefaultModel: 'local-model', anthropic: 'sk-ant-test-key-1234567890' }, options).provider, 'openai-compatible')
+  // The request's URL must never be completed with the server's compatible key and model: that would
+  // send the server's key to a host the caller chose. Here the server profile is skipped, so the
+  // system Anthropic key runs.
+  const serverProfile = {
+    ...options,
+    systemKeys: { openaiCompatibleApiKey: 'server-compatible-secret', anthropic: 'sk-ant-system-key-1234567890' },
+    compatibleDefaults: { baseUrl: 'https://caller-chosen.example/v1', defaultModel: 'server-model' },
+  }
+  assert.equal(resolveGenerationProvider({ openaiCompatibleBaseUrl: 'https://caller-chosen.example/v1' }, serverProfile).provider, 'anthropic')
+  // Without a request URL the server's own compatible profile still applies.
+  assert.equal(resolveGenerationProvider({}, serverProfile).provider, 'openai-compatible')
   // With nothing else configured the incomplete profile is still chosen, so its explicit error surfaces.
   assert.equal(resolveGenerationProvider(untouched, options).provider, 'openai-compatible')
   assert.throws(() => buildClientForSelection({ provider: 'openai-compatible', key: 'openai-compatible', baseUrl: untouched.openaiCompatibleBaseUrl }), /requires a default model/)
