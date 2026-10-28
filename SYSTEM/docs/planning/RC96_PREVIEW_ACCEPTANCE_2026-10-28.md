@@ -59,3 +59,7 @@ Checkpoint `fc29f422` adds searchable grouped model lists in BYOK and agent prim
 Focused evidence: workflow library 83 passed, workflow routes 24 passed, skills route edge cases 14 passed, overlapping credential isolation passed; Add Agent/BYOK search, agent-edit search and workflow browser regressions passed at desktop/mobile widths. Server TypeScript passed and client diagnostics did not increase.
 
 The prior full run reported two failed suites due to the mocked credential setter export; both now pass after the compatibility fix. A complete gate must still run again on the final image candidate. No RC96 images have been created.
+
+### Same-name agent recreation
+
+Fixed at `6620bb10`: explicit deletion clears the workspace initialization attestation even without optional profile-state removal. Failure to clear it prevents deletion rather than leaving a half-deleted agent. Agent routes: 82 passed; server TypeScript passed. Acceptance: create a disposable agent, delete it with ordinary defaults, recreate the same name, then chat. Other agents must remain intact.
