@@ -1612,6 +1612,11 @@ if npx ts-node --transpileOnly client/src/lib/integrationValidationResponse.test
 else
   fail "Integration validation unavailable-response tests"
 fi
+if npx ts-node --transpileOnly server/lib/dashboard-origin-precedence.test.ts; then
+  pass "Launcher dashboard origins drive CSRF and OAuth trust"
+else
+  fail "Launcher dashboard origins drive CSRF and OAuth trust"
+fi
 npx ts-node --transpileOnly client/src/lib/byok.test.ts > /tmp/clawmax-byok.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-byok.out; then
   byok_count=$(grep "Tests passed:" /tmp/clawmax-byok.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
