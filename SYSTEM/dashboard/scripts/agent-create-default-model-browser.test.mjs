@@ -78,7 +78,7 @@ await page.route('**/api/**', async (route) => {
   await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 })
 
-const modelSelect = () => page.locator('div:has(> div > label:has-text("Model")) > select').first()
+const modelSelect = () => wizard().getByRole('combobox', { name: 'models', exact: true })
 const generateButton = () => page.locator('button').filter({ hasText: /^(Generate with AI|Loading model defaults\.\.\.|Generating\.\.\.)$/ }).first()
 const wizard = () => page.locator('div.fixed.inset-0').filter({ has: page.getByRole('heading', { name: 'Add Agent', level: 2 }) })
 const next = () => wizard().getByRole('button', { name: 'Next', exact: true })
@@ -204,6 +204,18 @@ try {
     assert.equal(await page.getByPlaceholder('agent0').inputValue(), 'my-agent', 'Reloading the list must not reset the typed name')
   })
 
+  await check('model search filters options without changing the saved selection', async () => {
+    await reset()
+    await openWizard('wizard')
+    const search = wizard().getByRole('searchbox', { name: 'Search models', exact: true })
+    await search.fill('no-matching-model')
+    assert.equal(await modelSelect().inputValue(), SAVED)
+    assert.equal(await modelSelect().locator('option').count(), 1)
+    await search.fill('OpenAI')
+    assert(await modelSelect().locator('option').count() > 1)
+    await search.fill('')
+  })
+
   await check('Generate sends one request, shows progress, reveals the result and keeps the saved model', async () => {
     await reset()
     await openWizard('ai')
@@ -273,5 +285,24 @@ try {
     fixture.enabledRuntimes = []
   })
 
+  await check('BYOK model searches preserve defaults at desktop and mobile widths', async () => {
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 })
+      await reset()
+      await page.getByRole('button', { name: 'BYOK', exact: true }).click()
+      const select = page.locator('#new-agent-default-model')
+      await select.waitFor()
+      const before = await select.inputValue()
+      const search = page.getByRole('searchbox', { name: 'Search models', exact: true })
+      await search.fill('no-such-model')
+      assert.equal(await select.inputValue(), before)
+      await search.fill('OpenAI')
+      assert(await select.locator('optgroup').count() > 0)
+      await page.getByRole('searchbox', { name: 'Search system agent models', exact: true }).fill('mini')
+      await select.scrollIntoViewIfNeeded()
+      await page.screenshot({ path: `/private/tmp/rc96-byok-search-${width}.png` })
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    }
+  })
   assert.deepEqual(errors, [])
 } finally { await browser.close() }

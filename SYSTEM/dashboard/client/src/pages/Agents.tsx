@@ -1,3 +1,4 @@
+import { SearchableModelSelect } from '../components/SearchableModelSelect'
 import { channelLabel } from '../lib/channelLabel'
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
@@ -3229,7 +3230,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     <p className="mt-1">Choose a supported model below and Save before retrying chat. Your model will not change automatically.</p>
                   </div>
                 )}
-                <select
+                <SearchableModelSelect searchLabel="Search models"
                   value={model}
                   disabled={autoModelSelection}
                   onChange={e => useManualModel(e.target.value)}
@@ -3277,7 +3278,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                       <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                     ))
                   )}
-                </select>
+                </SearchableModelSelect>
                 {autoModelSelection && runtimeModelOptions.length > 0 && (
                   <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
                     Automatic suggestions come from the model providers, so they are only applied
@@ -3334,7 +3335,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Backup model</label>
-                <select
+                <SearchableModelSelect searchLabel="Search backup models"
                   value={backupModel}
                   onChange={e => setBackupModel(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
@@ -3356,7 +3357,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                       <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                     ))
                   )}
-                </select>
+                </SearchableModelSelect>
                 <p className="mt-1 text-xs text-gray-400">Automatically retried when the primary model fails or times out before producing a usable reply.</p>
               </div>
               <div>

@@ -1,3 +1,4 @@
+import { SearchableModelSelect } from './SearchableModelSelect'
 import React, { useEffect, useRef, useState } from 'react'
 import { byokForRequest, readStoredByokKeys, fetchModelsWithByok, getAiGenerationReadiness, hasAiGenerationAccess, isOllamaUiAvailable } from '../lib/byok'
 import { enabledRuntimeIds, isCliRuntimeSelection, modelAfterRuntimeChange, modelFitCandidates, parseRuntimeCatalog, runtimeAcceptsModel, runtimeLabelFor, runtimeModelsFor, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
@@ -865,7 +866,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                     Show all models
                   </label>
                 </div>
-                <select
+                <SearchableModelSelect searchLabel="Search models"
                   value={form.model}
                   onChange={e => useManualModel(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
@@ -899,7 +900,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                       .filter(m => isSelectableLifecycleModel(m, form.model))
                       .map(m => <option key={m} value={m}>{formatOpenAiModelLabel(m)}</option>)
                   )}
-                </select>
+                </SearchableModelSelect>
                 {modelsErrorNotice}
                 {modelsLoaded && !modelsError && availableModels.length === 0 && runtimeModelOptions.length === 0 && (
                   <p className="mt-1 text-xs text-amber-600">
@@ -921,7 +922,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                   Backup model <span className="text-gray-400">(optional)</span>
                 </label>
-                <select
+                <SearchableModelSelect searchLabel="Search backup models"
                   value={form.backupModel}
                   onChange={e => set('backupModel', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
@@ -940,7 +941,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                       .filter(m => isSelectableLifecycleModel(m, form.backupModel || form.model))
                       .map(m => <option key={m} value={m}>{formatOpenAiModelLabel(m)}</option>)
                   )}
-                </select>
+                </SearchableModelSelect>
                 <p className="mt-1 text-xs text-gray-400">
                   Used automatically if the primary model times out, is unavailable, or its provider path fails.
                 </p>

@@ -1,3 +1,4 @@
+import { SearchableModelSelect } from './SearchableModelSelect'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { INTEGRATION_VALIDATION_UNAVAILABLE, IntegrationValidationError, readIntegrationValidationResponse } from '../lib/integrationValidationResponse'
 import { createPortal } from 'react-dom'
@@ -2779,14 +2780,14 @@ export function ByokWizard({
                   {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || ollamaConfigured) && (
                     <div className={`pt-4 border-t border-gray-200 dark:border-gray-700 ${highlightPreferredModel ? 'rounded-lg border border-purple-300 bg-purple-50/70 px-3 pb-3 dark:border-purple-700 dark:bg-purple-900/20' : ''}`}>
                       <label htmlFor="new-agent-default-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model for newly created agents</label>
-                      <select id="new-agent-default-model" ref={preferredModelRef} value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
+                      <SearchableModelSelect searchLabel="Search models" id="new-agent-default-model" ref={preferredModelRef} value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (best for configured keys)</option>
                         {preferredModelGroups.map(group => (
                           <optgroup key={group.label} label={group.label}>
                             {group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                           </optgroup>
                         ))}
-                      </select>
+                      </SearchableModelSelect>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">This controls the Add Agent wizard and agent template apply flows. Discovered provider models appear here automatically when available.</p>
                       {preferredModelDeprecation && (
                         <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{preferredModelDeprecation}</p>
@@ -2801,14 +2802,14 @@ export function ByokWizard({
                   {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || ollamaConfigured) && (
                     <div className="pt-3">
                       <label htmlFor="system-agent-default-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model for built-in/system agents only</label>
-                      <select id="system-agent-default-model" value={systemPreferredModel} onChange={(e) => setSystemPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
+                      <SearchableModelSelect searchLabel="Search system agent models" id="system-agent-default-model" value={systemPreferredModel} onChange={(e) => setSystemPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (follow the best available configured model)</option>
                         {preferredModelGroups.map(group => (
                           <optgroup key={group.label} label={group.label}>
                             {group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                           </optgroup>
                         ))}
-                      </select>
+                      </SearchableModelSelect>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">This does not affect Add Agent. It is only used for built-in/system agents when they do not already have an explicit model.</p>
                       {systemPreferredModelDeprecation && (
                         <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{systemPreferredModelDeprecation}</p>
