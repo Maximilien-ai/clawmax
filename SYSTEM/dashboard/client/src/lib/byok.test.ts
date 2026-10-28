@@ -265,6 +265,17 @@ async function main() {
     localStorage.clear()
   })
 
+  await test('an untouched OpenAI-compatible URL does not warn when Gemini or a server key will run generation', () => {
+    localStorage.clear()
+    writeStoredByokKeys({ geminiApiKey: 'AIza-verified', verifiedProviders: { gemini: 'AIza-verified' }, openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' })
+    strictAssert.deepEqual(getAiGenerationReadiness({ deploymentKind: 'local' }), { enabled: true })
+    localStorage.clear()
+    // Generation runs on server keys even when agent turns may not use them.
+    writeStoredByokKeys({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' })
+    strictAssert.doesNotMatch(getAiGenerationReadiness({ deploymentKind: 'local', systemKeyDefaults: { anthropic: true }, allowSystemKeysForUserExecution: false }).warning || '', /needs a default model/)
+    localStorage.clear()
+  })
+
   await test('an incomplete OpenAI-compatible profile still warns when it is the only execution path', () => {
     localStorage.clear()
     writeStoredByokKeys({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openai: '', anthropic: '' })
