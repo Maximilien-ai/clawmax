@@ -1245,11 +1245,12 @@ export function invalidWorkflowTimezoneError(timezone: unknown): string | null {
 
 // Helper: Validate cron expression
 export function validateCron(cronExpression: string): { valid: boolean; error?: string; humanReadable?: string } {
+  if (cronExpression?.trim() === 'manual') return { valid: true, humanReadable: 'Manual only' }
   try {
     const humanReadable = cronstrue.toString(cronExpression)
     return { valid: true, humanReadable }
   } catch (error: any) {
-    return { valid: false, error: error.message }
+    return { valid: false, error: error instanceof Error ? error.message : String(error) }
   }
 }
 

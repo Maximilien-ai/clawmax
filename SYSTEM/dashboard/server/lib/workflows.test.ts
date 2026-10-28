@@ -94,6 +94,11 @@ test('validateCron accepts valid cron expressions', () => {
   assert(validateCron('30 9 * * 1-5').valid, 'weekdays should be valid')
 })
 
+test('validateCron accepts manual and provides useful invalid errors', () => {
+  assert(validateCron('manual').valid, 'manual should be valid')
+  assert(!!validateCron('nonsense').error, 'Invalid schedules must explain the failure')
+})
+
 test('validateCron rejects invalid expressions', () => {
   assert(!validateCron('invalid').valid, 'invalid should fail')
   assert(!validateCron('60 * * * *').valid, '60 minutes should fail')

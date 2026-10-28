@@ -732,6 +732,20 @@ async function run() {
     }
   })
 
+  await test('manual AI drafts retain explicit selected participants and reject unknown IDs', async () => {
+    const handler = getRouteHandler('post', '/generate', {
+      workspace: { listAgents: () => ['one', 'two'].map(id => ({ id, tags: [], groups: [], communities: [] })) as any },
+      aiGenerator: { setRequestByokKeys: () => {}, generateWorkflowFromNL: async () => ({ name: 'Manual test', schedule: 'manual', targeting: { agents: ['one'] }, content: 'Report status' }) },
+    })
+    const res = makeRes()
+    await handler(makeReq({}, { body: { description: 'Manual test', agentIds: ['one', 'two'] } }), res)
+    assert(res.statusCode === 200, JSON.stringify(res.jsonBody))
+    assert(res.jsonBody.workflow.targeting.agents.join(',') === 'one,two', 'Explicit targets must survive AI suggestions')
+    const invalid = makeRes()
+    await handler(makeReq({}, { body: { description: 'Manual test', agentIds: ['unknown'] } }), invalid)
+    assert(invalid.statusCode === 400, 'Unknown workspace agents must be rejected')
+  })
+
   await test('workflow generation classifies missing credentials and always clears request keys', async () => {
     for (const [message, status] of [['No API key configured for provider', 400], ['Generation failed', 500]] as Array<[string, number]>) {
       const calls: any[] = []

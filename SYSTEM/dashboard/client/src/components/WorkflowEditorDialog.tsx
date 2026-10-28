@@ -1,3 +1,4 @@
+import { loadWorkflowAgents } from '../lib/workflowAgents'
 import { channelLabel } from '../lib/channelLabel'
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import AIPromptEditorModal from './AIPromptEditorModal'
@@ -179,7 +180,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   useEffect(() => {
     if (isOpen) {
       Promise.all([
-        fetch('/api/agents').then(r => r.json()),
+        loadWorkflowAgents().then(agents => ({ agents })),
         fetch('/api/communities').then(r => r.json()),
         fetch('/api/groups').then(r => r.json()),
         fetch('/api/teams').then(r => r.json()),
@@ -197,7 +198,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
           ;(agent.tags || []).forEach((tag: string) => tagSet.add(tag))
         })
         setAllTags(Array.from(tagSet).sort())
-      })
+      }).catch(error => setDetailsError(error.message || 'Unable to load workspace participants. Close and reopen to retry.'))
     }
   }, [isOpen])
 
@@ -807,6 +808,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 {/* Specific Agents */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Specific Agents</label>
+                  <div className="flex gap-3 mb-2 text-xs"><button type="button" onClick={() => setFormData({ ...formData, targeting: { ...formData.targeting, agents: agents.map(a => a.id) } })}>Select all agents ({agents.length})</button><button type="button" onClick={() => setFormData({ ...formData, targeting: { ...formData.targeting, agents: [] } })}>Clear agents</button></div>
                   {/* Search */}
                   <div className="relative mb-2">
                     <input

@@ -1,3 +1,4 @@
+import { loadWorkflowAgents } from '../lib/workflowAgents'
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
@@ -429,6 +430,16 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const workflowCreateMenuButtonRef = useRef<HTMLButtonElement>(null)
   const workflowActionsMenuButtonRef = useRef<HTMLButtonElement>(null)
   const [aiPromptText, setAiPromptText] = useState('')
+  const [aiAgents, setAiAgents] = useState<any[]>([])
+  const [aiAgentIds, setAiAgentIds] = useState<string[]>([])
+  const [aiAgentSearch, setAiAgentSearch] = useState('')
+  const [aiAgentError, setAiAgentError] = useState('')
+  useEffect(() => {
+    if (!showAiPrompt) return
+    let cancelled = false
+    loadWorkflowAgents().then(items => { if (!cancelled) { setAiAgents(items); setAiAgentError('') } }).catch(error => { if (!cancelled) setAiAgentError(error.message) })
+    return () => { cancelled = true }
+  }, [showAiPrompt])
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiInitialData, setAiInitialData] = useState<any>(null)
   const [selectionMode, setSelectionMode] = useState(false)
@@ -1282,6 +1293,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: promptText,
+          agentIds: aiAgentIds.length ? aiAgentIds : undefined,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           byokKeys: (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl)
             ? {
@@ -3273,6 +3285,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) handleAiGenerate() }}
           />
           <div className="mt-2">
+            <fieldset className="my-3 rounded border border-gray-200 p-3 dark:border-gray-700">
+              <legend className="text-sm font-medium">Include agents</legend>
+              <p className="text-xs text-gray-500 mb-2">Choose participants, or leave empty for AI to suggest them. Select all includes the current workspace agents.</p>
+              {aiAgentError && <p role="alert">{aiAgentError}</p>}
+              <input aria-label="Search workflow agents" placeholder="Search agents" value={aiAgentSearch} onChange={e => setAiAgentSearch(e.target.value)} className="w-full rounded border p-2 dark:bg-gray-800" />
+              <div className="flex gap-3 py-2 text-xs"><button type="button" onClick={() => setAiAgentIds(aiAgents.map(a => a.id))}>Select all ({aiAgents.length})</button><button type="button" onClick={() => setAiAgentIds([])}>Clear selection</button><span>{aiAgentIds.length} selected</span></div>
+              <div className="max-h-32 overflow-auto">{aiAgents.filter(a => `${a.name} ${a.id}`.toLowerCase().includes(aiAgentSearch.toLowerCase())).map(a => <label key={a.id} className="flex items-center gap-2 py-1 text-sm"><input type="checkbox" checked={aiAgentIds.includes(a.id)} onChange={e => setAiAgentIds(ids => e.target.checked ? [...ids, a.id] : ids.filter(id => id !== a.id))} />{a.name || a.id}</label>)}</div>
+            </fieldset>
             <PromptQualityPanel prompt={aiPromptText} domain="workflow" compact />
           </div>
           <div className="mt-2 flex justify-end">

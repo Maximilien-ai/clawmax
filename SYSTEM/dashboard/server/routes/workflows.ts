@@ -170,8 +170,9 @@ router.post('/generate-cron', async (req, res) => {
  * Generate a complete workflow definition from natural language using AI
  */
 router.post('/generate', async (req, res) => {
-  const { description, byokKeys, timezone } = req.body as {
+  const { description, byokKeys, timezone, agentIds: selectedAgentIds } = req.body as {
     description?: string
+    agentIds?: string[]
     timezone?: string
     byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
@@ -183,8 +184,12 @@ router.post('/generate', async (req, res) => {
     setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     const agents = listAgents()
     const agentIds = agents.filter(a => !a.archived).map(a => a.id)
+    if (selectedAgentIds !== undefined && (!Array.isArray(selectedAgentIds) || selectedAgentIds.some(id => typeof id !== 'string' || !agentIds.includes(id)))) {
+      return res.status(400).json({ error: 'Selected agents are no longer available in this workspace. Refresh the agent list and try again.' })
+    }
     const allTags = [...new Set(agents.flatMap(a => a.tags))]
-    const generated = await generateWorkflowFromNL(description, agentIds, allTags)
+    const generated = await generateWorkflowFromNL(description, selectedAgentIds?.length ? selectedAgentIds : agentIds, allTags)
+    if (selectedAgentIds?.length) generated.targeting = { agents: [...new Set(selectedAgentIds)], tags: [], groups: [], communities: [], teamIds: [] }
     const activeAgents = agents.filter(agent => !agent.archived)
     const workflow = completeGeneratedWorkflowExecution(generated, {
       availableAgentIds: agentIds,

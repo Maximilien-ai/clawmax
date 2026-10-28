@@ -25,6 +25,7 @@ try {
       else if (path === '/api/plugins') json = { plugins: [] }
       else if (path === '/api/metering') json = { byAgent: [] }
       else if (path === '/api/workflows/generate') {
+        assert.deepEqual(route.request().postDataJSON().agentIds, ['collector', 'analyst'])
         json = { workflow: { ...workflow, id: undefined, name: 'Generated Example', executionMode: 'managed', owner: 'collector', content: emptyGeneration ? {} : { Objective: 'Check daily status', Steps: ['Read the report', 'Publish findings'] } } }
       }
       else if (path === '/api/workflows' && route.request().method() === 'POST') {
@@ -54,6 +55,7 @@ try {
     const beginGeneration = async () => {
       await page.getByTitle('Create workflow', { exact: true }).click()
       await page.getByRole('button', { name: /Create with AI/ }).click()
+      await page.getByRole('button', { name: 'Select all (2)', exact: true }).click()
       await page.getByRole('button', { name: 'Open AI Editor', exact: true }).click()
       const aiEditor = page.getByRole('dialog', { name: 'Workflow AI Editor', exact: true })
       await aiEditor.getByRole('textbox', { name: 'Prompt', exact: true }).fill('Have the analyst check daily status every day at 9am and publish findings.')
