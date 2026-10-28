@@ -1,3 +1,4 @@
+import { ScrollableMarkdownTable } from './ScrollableMarkdownTable'
 import React, { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -778,6 +779,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       remarkPlugins={[remarkGfm]}
       urlTransform={transformWorkspaceMarkdownUrl}
       components={{
+        table: ScrollableMarkdownTable,
         a: ({ href, children }) => {
           if (href?.startsWith('workspace-file:') && onNavigateToDoc) {
             const file = href.replace('workspace-file:', '')
@@ -945,11 +947,11 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                   </span>
                 </div>
                 {msg.from !== 'User' ? (
-                  <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                  <div className="min-w-0 text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                     {renderMarkdown(msg.content, true)}
                   </div>
                 ) : (
-                  <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                  <div className="min-w-0 text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                     {renderMarkdown(msg.content)}
                   </div>
                 )}
