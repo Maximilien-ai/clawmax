@@ -916,7 +916,7 @@ async function run() {
     }
   })
 
-  await test('remove-state clears attestation before registration-only OpenClaw deletion', async () => {
+  await test('ordinary deletion clears attestation and permits same-name recreation', async () => {
     const agentId = 'remove-state-agent'
     const agentWorkspace = path.join(workspacePath, 'AGENTS', agentId)
     writeAgent(workspacePath, agentId, '# IDENTITY.md\n\n- **Name:** Remove State Agent\n')
@@ -952,7 +952,7 @@ async function run() {
         }, async () => {
           const handler = getRouteHandler('delete', '/:id')
           const res = makeRes()
-          await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: true } }), res)
+          await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: false } }), res)
 
           assert.strictEqual(res.statusCode, 200)
           assert.strictEqual(res.jsonBody?.ok, true)
@@ -998,7 +998,7 @@ async function run() {
     }
   })
 
-  await test('remove-state fails closed when OpenClaw attestation cleanup cannot be verified', async () => {
+  await test('ordinary deletion fails closed when attestation cleanup cannot be verified', async () => {
     const agentId = 'remove-state-failure'
     const agentWorkspace = path.join(workspacePath, 'AGENTS', agentId)
     writeAgent(workspacePath, agentId, '# IDENTITY.md\n\n- **Name:** Remove State Failure\n')
@@ -1015,7 +1015,7 @@ async function run() {
       }, async () => {
         const handler = getRouteHandler('delete', '/:id')
         const res = makeRes()
-        await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: true } }), res)
+        await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: false } }), res)
 
         assert.strictEqual(res.statusCode, 503)
         assert.strictEqual(res.jsonBody?.ok, false)
@@ -1030,6 +1030,7 @@ async function run() {
     const ids = ['bulk-delete-one', 'bulk-delete-two']
     for (const id of ids) writeAgent(workspacePath, id, `# IDENTITY.md\n\n- **Name:** ${id}\n`)
     const nativeDeleteCalls: string[] = []
+    await withOpenClawWorkspaceStateStubs({ clearPinnedOpenClawWorkspaceState: async () => {} }, async () => {
     await withGatewayRpcStubs({
       isGatewayRunning: () => ({ running: true, port: 18789 }),
       getGatewayClient: () => ({ deleteAgentNative: async (id: string) => { nativeDeleteCalls.push(id) } }),
@@ -1038,6 +1039,7 @@ async function run() {
       await getRouteHandler('delete', '/bulk')(makeReq({ body: { agents: ids.map((id) => ({ id })) } }), res)
       assert.strictEqual(res.jsonBody?.summary?.success, 2, `Unexpected bulk result: ${JSON.stringify(res.jsonBody)}`)
       assert.deepStrictEqual(nativeDeleteCalls, ids, 'Each agent must also leave the running Gateway, not only the workspace')
+    })
     })
   })
 

@@ -1973,7 +1973,9 @@ async function deleteAgentSafely(id: string, removeStateDir: boolean, archived =
     }
     const agentWorkspaceDir = path.join(getAgentsDir(), id)
     const lifecycleSteps: string[] = []
-    if (removeStateDir) {
+    {
+      // Every deletion removes the workspace, so its initialization attestation must
+      // be cleared even when optional profile-state removal was not requested.
       try {
         // OpenClaw 2026.8.2 removes the config entry before moving workspace
         // files to Trash. On persistent container volumes that move can fail,
