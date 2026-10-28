@@ -51,3 +51,11 @@ Record Pass / Fail / Blocked, visible version, provider/runtime and a short note
 ## Engineering evidence
 
 Focused server tests, request-isolation tests, model discovery/catalog tests and desktop/mobile browser regressions passed. Server TypeScript passed; client diagnostics did not increase over the existing baseline. Full integration/validation/coverage is in progress; this document does not claim a finished release gate. Images stay deferred until that gate and user acceptance pass.
+
+## October 28 acceptance feedback update
+
+Checkpoint `fc29f422` adds searchable grouped model lists in BYOK and agent primary/backup selectors. Filtering retains the current selection. AI workflow generation accepts manual schedules and explicit participant selection (including Select all); the review editor also offers Select all agents. Re-test the reported manual workflow and save/run it with your provider.
+
+Focused evidence: workflow library 83 passed, workflow routes 24 passed, skills route edge cases 14 passed, overlapping credential isolation passed; Add Agent/BYOK search, agent-edit search and workflow browser regressions passed at desktop/mobile widths. Server TypeScript passed and client diagnostics did not increase.
+
+The prior full run reported two failed suites due to the mocked credential setter export; both now pass after the compatibility fix. A complete gate must still run again on the final image candidate. No RC96 images have been created.
