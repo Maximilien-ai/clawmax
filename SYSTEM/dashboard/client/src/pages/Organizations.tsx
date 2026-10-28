@@ -1159,7 +1159,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     setExpandedGroups(new Set())
   }
 
-  const channelAiControls = <ChannelAiDraftEditor kind={showCreateGroup ? 'group' : 'community'} disabled={channelSaving} onBusyChange={setChannelGenerating} onDraft={draft => {
+  const channelAiControls = <ChannelAiDraftEditor agents={agents} members={channelMembers} onMembersChange={setChannelMembers} kind={showCreateGroup ? 'group' : 'community'} disabled={channelSaving} onBusyChange={setChannelGenerating} onDraft={draft => {
     if (showCreateGroup) { setNewGroupName(draft.name); setNewGroupDesc(draft.description); setNewGroupCommunity(draft.community || '') }
     else { setNewCommunityName(draft.name); setNewCommunityDesc(draft.description) }
     setChannelMembers(draft.members)

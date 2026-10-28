@@ -16,7 +16,7 @@ import { getWorkspacePath } from './workspace'
 
 type AIProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'cli-runtime'
 export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
-export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
+export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template' | 'group' | 'community'
 export type PromptExpansionFormat = 'markdown' | 'text'
 export type PromptExpansionGuidance = string
 export const TEMPLATE_GENERATION_TIMEOUT_MS = 180000
@@ -111,7 +111,7 @@ export function normalizeTemplateGenerationTarget(value: unknown): TemplateGener
 }
 
 export function normalizePromptExpansionTarget(value: unknown): PromptExpansionTarget {
-  return value === 'agent' || value === 'workflow' || value === 'skill' ? value : 'template'
+  return value === 'agent' || value === 'workflow' || value === 'skill' || value === 'group' || value === 'community' ? value : 'template'
 }
 
 export function normalizePromptExpansionFormat(value: unknown): PromptExpansionFormat {
@@ -126,6 +126,8 @@ export function buildPromptExpansionSystemPrompt(
   const targetLabel = {
     agent: 'AI agent',
     workflow: 'workflow',
+    group: 'agent group',
+    community: 'agent community',
     skill: 'skill',
     template: 'template',
   }[target]

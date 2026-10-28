@@ -1314,7 +1314,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             <button disabled={channelGenerating || channelSaving} onClick={() => setShowCreateCommunity(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
           </div>
           <div className="space-y-4 overflow-y-auto">
-            <ChannelAiDraftEditor kind={showCreateGroup ? 'group' : 'community'} disabled={channelSaving} onBusyChange={setChannelGenerating} onDraft={draft => {
+            <ChannelAiDraftEditor agents={agents} members={channelMembers} onMembersChange={setChannelMembers} kind={showCreateGroup ? 'group' : 'community'} disabled={channelSaving} onBusyChange={setChannelGenerating} onDraft={draft => {
               if (showCreateGroup) { setNewGroupName(draft.name); setNewGroupDesc(draft.description); setNewGroupCommunity(draft.community || '') }
               else { setNewCommunityName(draft.name); setNewCommunityDesc(draft.description) }
               setChannelMembers(draft.members)
@@ -1358,7 +1358,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             <button disabled={channelGenerating || channelSaving} onClick={() => setShowCreateGroup(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
           </div>
           <div className="space-y-4 overflow-y-auto">
-            <ChannelAiDraftEditor kind={showCreateGroup ? 'group' : 'community'} disabled={channelSaving} onBusyChange={setChannelGenerating} onDraft={draft => {
+            <ChannelAiDraftEditor agents={agents} members={channelMembers} onMembersChange={setChannelMembers} kind={showCreateGroup ? 'group' : 'community'} disabled={channelSaving} onBusyChange={setChannelGenerating} onDraft={draft => {
               if (showCreateGroup) { setNewGroupName(draft.name); setNewGroupDesc(draft.description); setNewGroupCommunity(draft.community || '') }
               else { setNewCommunityName(draft.name); setNewCommunityDesc(draft.description) }
               setChannelMembers(draft.members)

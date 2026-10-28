@@ -200,6 +200,10 @@ test('explainOneTimeCronLimitation returns actionable guidance', () => {
 test('normalize template and prompt expansion helpers coerce unsupported values to safe defaults', () => {
   assert.strictEqual(normalizeTemplateGenerationTarget('company'), 'company')
   assert.strictEqual(normalizeTemplateGenerationTarget('weird'), 'team')
+  assert.strictEqual(normalizePromptExpansionTarget('group'), 'group')
+  assert.strictEqual(normalizePromptExpansionTarget('community'), 'community')
+  assert(buildPromptExpansionSystemPrompt('group').includes('agent group'))
+  assert(buildPromptExpansionSystemPrompt('community').includes('agent community'))
   assert.strictEqual(normalizePromptExpansionTarget('agent'), 'agent')
   assert.strictEqual(normalizePromptExpansionTarget('nonsense'), 'template')
   assert.strictEqual(normalizePromptExpansionFormat('text'), 'text')
