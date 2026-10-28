@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { readIntegrationValidationResponse } from '../lib/integrationValidationResponse'
+import { INTEGRATION_VALIDATION_UNAVAILABLE, IntegrationValidationError, readIntegrationValidationResponse } from '../lib/integrationValidationResponse'
 import { createPortal } from 'react-dom'
 import { MobileSafeDialog } from './MobileSafeDialog'
 import { CLOUD_LOCAL_EXECUTION_NOTICE, cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
@@ -1491,7 +1491,8 @@ export function ByokWizard({
       )
       return true
     } catch (err: any) {
-      const message = 'Integration validation unavailable. Settings may be saved, but are not verified. Retry validation when the service is ready.'
+      // Network and timeout errors keep the generic text; only curated response errors are shown.
+      const message = err instanceof IntegrationValidationError ? err.message : INTEGRATION_VALIDATION_UNAVAILABLE
       const affected = (key: string) => providerScope ? key === providerScope : scope === 'current-partner' ? key === currentPartnerSlug : true
       setValidation(current => Object.fromEntries(Object.entries(current).map(([key, entry]) =>
         [key, affected(key) ? { status: 'error', message } : entry])) as ValidationState)
