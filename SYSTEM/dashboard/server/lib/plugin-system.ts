@@ -1679,7 +1679,7 @@ function normalizeHumanReviewPath(rawPath: string, recordName: string, recordId:
 
 function normalizeReviewerEmail(value: string): string {
   const email = value.trim().toLowerCase()
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
     throw new PluginContractError('Reviewer email must be valid.', 400)
   }
   return email
