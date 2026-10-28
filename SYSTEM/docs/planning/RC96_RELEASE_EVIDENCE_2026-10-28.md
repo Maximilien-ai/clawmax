@@ -1,6 +1,6 @@
 # RC96 release evidence — October 28, 2026
 
-Dashboard team. Version: `2.0.0-test-rc96`. Tester candidate; image validation is pending.
+Dashboard team. Version: `2.0.0-test-rc96`. Tester candidate; public and combined image validation and both GCP mirrors passed. Security and live deployment acceptance remain separate.
 
 ## Source and acceptance
 
@@ -40,3 +40,34 @@ Private source: `eb9af8eb05988a7c5ed307e7aff3788a81107fab`, the same private sou
 ## Short tester handoff
 
 RC96 includes all accepted RC95/RC96 fixes and the deployment OpenAI-key setup. Please wait for both image pipelines to pass before pulling the combined plugin image. Focus on fresh deployment without browser BYOK: configured OpenAI, selected model defaults, AI-create agent and first chat; then model/backup selection, AI workflows with mentions and examples, groups/communities, DAG deletion and restart persistence. Record version, Pass/Fail/Blocked and a brief note in Review. Secrets stay server-side. Open CodeQL findings and external worker delivery remain explicit limitations.
+
+## Final image identity — verified October 28
+
+Version field: `2.0.0-test-rc96` (keep this separate from the registry reference).
+
+Combined Dashboard + plugins (use for plugin-enabled deployments):
+
+```text
+ghcr.io/maximilien-ai/clawmax-plugins:2.0.0-test-rc96
+ghcr.io/maximilien-ai/clawmax-plugins@sha256:54f1801ad730aeef27a7b872334cf92c5a34e26f8d13f28ece2c4618851ad210
+us-east1-docker.pkg.dev/clawmax-ai/clawmax-private/clawmax-plugins@sha256:54f1801ad730aeef27a7b872334cf92c5a34e26f8d13f28ece2c4618851ad210
+us-west1-docker.pkg.dev/clawmax-ai/clawmax-private/clawmax-plugins@sha256:54f1801ad730aeef27a7b872334cf92c5a34e26f8d13f28ece2c4618851ad210
+```
+
+Public Dashboard image (public plugins only):
+
+```text
+ghcr.io/maximilien-ai/clawmax-dashboard:2.0.0-test-rc96
+ghcr.io/maximilien-ai/clawmax-dashboard@sha256:b75a62eeabacf81ce225b57dc0e7e3a8626dc143998bed115b1d2f7b1c5339dd
+us-east1-docker.pkg.dev/clawmax-ai/clawmax-public/clawmax-dashboard@sha256:b75a62eeabacf81ce225b57dc0e7e3a8626dc143998bed115b1d2f7b1c5339dd
+us-west1-docker.pkg.dev/clawmax-ai/clawmax-public/clawmax-dashboard@sha256:b75a62eeabacf81ce225b57dc0e7e3a8626dc143998bed115b1d2f7b1c5339dd
+```
+
+These are multi-architecture index digests for amd64 and arm64. GHCR identities come from the successful workflows' `gcp-mirror-target` artifacts; both regional mirror jobs reported the same digest, both architectures, and `pullVerified: true`.
+
+- [Public build, registry smoke and lifecycle acceptance: passed](https://github.com/Maximilien-ai/clawmax/actions/runs/40743991708).
+- [Combined build, plugin/runtime validation and both architecture smoke jobs: passed](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/40755182053).
+- [Public mirrors: passed](https://github.com/Maximilien-ai/clawmax/actions/runs/40754554073).
+- [Combined mirrors: passed](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/40757443189).
+
+Web/CLI own catalog pinning and rollout. Dashboard has not changed a fleet deployment. After delivery, verify installed version, digest, plugin discovery, and the fresh-instance deployed-key create/chat canary. RC97 default/backup pairs and WhatsApp pairing recovery are planned follow-ups, not RC96 image features.
