@@ -426,7 +426,13 @@ export async function fetchModelsWithByok(options?: { showAll?: boolean }): Prom
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...byokForRequest(), showAll: options?.showAll === true }),
   })
-  if (!res.ok) throw new Error('Failed to load models')
+  if (!res.ok) {
+    // Keep the route's reason (e.g. an endpoint origin the server does not allow) so the wizard can
+    // say what to fix instead of a bare failure.
+    let reason = ''
+    try { reason = String((await res.json())?.error || '').trim() } catch { /* not JSON */ }
+    throw new Error(reason || 'Failed to load models')
+  }
   return res.json()
 }
 
