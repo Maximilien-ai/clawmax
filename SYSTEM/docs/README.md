@@ -90,3 +90,8 @@ Older release evidence and installed-instance gates remain linked below.
 | `videos/archive/` | Historical workflow and add-agent recordings; current 2.0 replacement videos are still planned |
 | `archive/` | Historical docs no longer actively maintained |
 | `planning/archive/` | Completed and superseded execution plans |
+
+## Development notes
+
+- [Agent runtimes](planning/AGENT_RUNTIMES.md) — in-progress implementation notes; not a supported-feature guarantee.
+- [RC96 local acceptance](planning/RC96_PREVIEW_ACCEPTANCE_2026-10-28.md) — candidate scope, exclusions and six independent acceptance checks.
