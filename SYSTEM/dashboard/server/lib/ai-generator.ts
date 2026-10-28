@@ -475,20 +475,22 @@ function getAvailableProvider(
   // whole request over a stale browser-stored key the run was never going to use — the opposite
   // of "a CLI runtime needs no provider key".
   validateAiGenerationProviderKeys(byokKeys)
+  // A base URL without a default model cannot generate, and the BYOK dialog saves its local default
+  // URL even when the compatible profile is never set up. Such a profile must not outrank a provider
+  // that can run, so it is chosen only when nothing else is usable; it then fails with its own
+  // "requires a default model" error instead of a generic one.
+  let incompleteCompatible: { provider: AIProvider; key: string; baseUrl?: string; defaultModel?: string } | undefined
   // Try BYOK keys first (passed from client request)
   if (byokKeys?.openai) return { provider: 'openai', key: byokKeys.openai }
   if (byokKeys?.openaiCompatibleBaseUrl) {
-    // A base URL without a default model cannot generate. Prefer an enabled CLI runtime over
-    // dead-ending, rather than letting the unusable endpoint win just because it is configured.
-    const compatibleModel = String(byokKeys.openaiCompatibleDefaultModel || '').trim()
-    const cliInstead = compatibleModel ? undefined : cliCandidate()
-    if (cliInstead) return { provider: 'cli-runtime', key: cliInstead }
-    return {
-      provider: 'openai-compatible',
+    const selection = {
+      provider: 'openai-compatible' as const,
       key: byokKeys.openaiCompatibleApiKey || 'openai-compatible',
       baseUrl: byokKeys.openaiCompatibleBaseUrl,
       defaultModel: byokKeys.openaiCompatibleDefaultModel,
     }
+    if (String(byokKeys.openaiCompatibleDefaultModel || '').trim()) return selection
+    incompleteCompatible = selection
   }
   if (byokKeys?.anthropic) return { provider: 'anthropic', key: byokKeys.anthropic }
   if (byokKeys?.gemini) return { provider: 'gemini', key: byokKeys.gemini }
@@ -496,14 +498,14 @@ function getAvailableProvider(
   const keys = options.systemKeys ?? resolveSystemExecutionProviderKeys()
   if (keys.openai) return { provider: 'openai', key: keys.openai }
   if (compatibleDefaults.baseUrl) {
-    const cliInstead = String(compatibleDefaults.defaultModel || '').trim() ? undefined : cliCandidate()
-    if (cliInstead) return { provider: 'cli-runtime', key: cliInstead }
-    return {
-      provider: 'openai-compatible',
+    const selection = {
+      provider: 'openai-compatible' as const,
       key: keys.openaiCompatibleApiKey || 'openai-compatible',
       baseUrl: compatibleDefaults.baseUrl,
       defaultModel: compatibleDefaults.defaultModel,
     }
+    if (String(compatibleDefaults.defaultModel || '').trim()) return selection
+    incompleteCompatible ??= selection
   }
   if (keys.anthropic) return { provider: 'anthropic', key: keys.anthropic }
   if (keys.gemini) return { provider: 'gemini', key: keys.gemini }
@@ -512,6 +514,7 @@ function getAvailableProvider(
   // it is what the operator explicitly turned on.
   const enabledRuntime = cliCandidate()
   if (enabledRuntime) return { provider: 'cli-runtime', key: enabledRuntime }
+  if (incompleteCompatible) return incompleteCompatible
   throw new Error('No API key configured. Set SYSTEM_OPENAI_API_KEY, SYSTEM_ANTHROPIC_API_KEY, or SYSTEM_GEMINI_API_KEY in .env, enable a CLI runtime in BYOK, or provide a BYOK key.')
 }
 

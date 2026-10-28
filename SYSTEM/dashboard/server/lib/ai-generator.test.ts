@@ -410,6 +410,20 @@ test('generation provider reports a clear error when no execution path is config
   )
 })
 
+test('an OpenAI-compatible URL without a default model does not outrank a usable provider', () => {
+  // The BYOK dialog saves its local default URL even when the compatible profile is never set up.
+  const options = { skipCliRuntime: true, systemKeys: {}, compatibleDefaults: {} }
+  const untouched = { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' }
+  assert.equal(resolveGenerationProvider({ ...untouched, openai: 'sk-test-openai-key-1234567890' }, options).provider, 'openai')
+  assert.equal(resolveGenerationProvider({ ...untouched, anthropic: 'sk-ant-test-key-1234567890' }, options).provider, 'anthropic')
+  assert.equal(resolveGenerationProvider(untouched, { ...options, systemKeys: { anthropic: 'sk-ant-system-key-1234567890' } }).provider, 'anthropic')
+  // A complete profile keeps its place ahead of Anthropic.
+  assert.equal(resolveGenerationProvider({ ...untouched, openaiCompatibleDefaultModel: 'local-model', anthropic: 'sk-ant-test-key-1234567890' }, options).provider, 'openai-compatible')
+  // With nothing else configured the incomplete profile is still chosen, so its explicit error surfaces.
+  assert.equal(resolveGenerationProvider(untouched, options).provider, 'openai-compatible')
+  assert.throws(() => buildClientForSelection({ provider: 'openai-compatible', key: 'openai-compatible', baseUrl: untouched.openaiCompatibleBaseUrl }), /requires a default model/)
+})
+
 function withFakeOpenAiCompatibleServer(content: string, fn: (baseUrl: string) => Promise<void>): Promise<void> {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {

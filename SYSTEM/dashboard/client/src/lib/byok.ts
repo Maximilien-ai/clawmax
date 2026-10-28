@@ -354,34 +354,42 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
     || (config?.allowSystemKeysForUserExecution && (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || (config as any)?.systemKeyDefaults?.openaiCompatible))
   )
 
-  const openaiFingerprint = buildByokVerificationFingerprint('openai', { openai: byok.openai })
-  const anthropicFingerprint = buildByokVerificationFingerprint('anthropic', { anthropic: byok.anthropic })
-  const openaiCompatibleFingerprint = buildByokVerificationFingerprint('openaiCompatible', {
-    openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
-    openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
-    openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
-  })
-  const openaiVerified = !!openaiFingerprint && verifiedProviders.openai === openaiFingerprint
-  const anthropicVerified = !!anthropicFingerprint && verifiedProviders.anthropic === anthropicFingerprint
-  const openaiCompatibleVerified = !!openaiCompatibleFingerprint && verifiedProviders.openaiCompatible === openaiCompatibleFingerprint
-  const hasHostedBrowserKey = !!(byok.openai?.trim() || byok.anthropic?.trim() || (byok.openaiCompatibleBaseUrl?.trim() && byok.openaiCompatibleDefaultModel?.trim()))
-  const hasVerifiedHostedBrowserKey = openaiVerified || anthropicVerified || openaiCompatibleVerified
+  // Judge the provider the server will actually run, in its order (getAvailableProvider): OpenAI, a
+  // complete OpenAI-compatible profile, then Anthropic. The BYOK dialog saves its local default URL
+  // even when the compatible profile is never set up, and the server skips a profile without a
+  // default model, so such a profile only matters when nothing else can run.
+  const compatibleIncomplete = !!byok.openaiCompatibleBaseUrl?.trim() && !byok.openaiCompatibleDefaultModel?.trim()
+  const selectedProvider = byok.openai?.trim()
+    ? 'openai'
+    : byok.openaiCompatibleBaseUrl?.trim() && !compatibleIncomplete
+      ? 'openaiCompatible'
+      : byok.anthropic?.trim() ? 'anthropic' : null
 
-  if (byok.openaiCompatibleBaseUrl?.trim() && !byok.openaiCompatibleDefaultModel?.trim()) {
+  if (!selectedProvider && compatibleIncomplete && !hasSharedHostedExecution) {
     return {
       enabled: true,
       warning: 'OpenAI-compatible AI generation needs a default model in BYOK. Add one before using templates, agents, workflows, or skills generation.',
     }
   }
 
-  if (hasHostedBrowserKey && !hasVerifiedHostedBrowserKey && !hasSharedHostedExecution) {
-    return {
-      enabled: true,
-      warning: 'Your browser-local OpenAI, Anthropic, or OpenAI-compatible setup has not been verified yet. AI generation may fail until you run Check Key in BYOK.',
+  if (selectedProvider && !hasSharedHostedExecution) {
+    const fingerprint = buildByokVerificationFingerprint(selectedProvider, {
+      openai: byok.openai,
+      anthropic: byok.anthropic,
+      openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
+      openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
+      openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
+    })
+    if (verifiedProviders[selectedProvider] !== fingerprint) {
+      const label = { openai: 'OpenAI key', anthropic: 'Anthropic key', openaiCompatible: 'OpenAI-compatible setup' }[selectedProvider]
+      return {
+        enabled: true,
+        warning: `Your browser-local ${label} has not been verified yet. AI generation may fail until you run Check Key in BYOK.`,
+      }
     }
   }
 
-  if (!hasHostedBrowserKey && !hasSharedHostedExecution) {
+  if (!selectedProvider && !hasSharedHostedExecution) {
     return {
       enabled: true,
       warning: 'No verified hosted execution path is available for AI generation yet. Add and check an OpenAI, Anthropic, or OpenAI-compatible setup in BYOK if generation fails.',
