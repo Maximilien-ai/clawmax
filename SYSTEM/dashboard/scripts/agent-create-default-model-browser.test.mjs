@@ -14,8 +14,9 @@ page.setDefaultTimeout(10000)
 
 const SAVED = 'openai/gpt-5.4-mini'
 const OTHER = 'openai/gpt-5.5'
+const LISTED_WITH_SHOW_ALL = 'openai/gpt-5.5-pro'
 const deferred = () => { let release; const promise = new Promise((resolve) => { release = resolve }); return { promise, release } }
-const fixture = { preferred: SAVED, discoverFails: false, discoverHold: null, configHold: null, generateHold: null, generateFails: false, generateCalls: 0, enabledRuntimes: [] }
+const fixture = { preferred: SAVED, discoverFails: false, discoverHold: null, conservativeListHold: null, configHold: null, configFails: false, generateHold: null, generateFails: false, generateCalls: 0, validatedModel: null, enabledRuntimes: [] }
 // One existing agent keeps the first-run onboarding dialog closed.
 const agent = { id: 'existing-agent', name: 'Existing Agent', status: 'offline', workspacePath: '/tmp/default-model/AGENTS/existing-agent', tags: [], communities: [], groups: [], skills: [], model: SAVED, runtime: 'openclaw' }
 const workspace = { id: 'default-model', name: 'Default model fixture', path: '/tmp/default-model', agentCount: 1, isActive: true, tags: [] }
@@ -28,20 +29,29 @@ await page.route('**/api/**', async (route) => {
   let body = {}
   if (p === '/api/auth/config') {
     if (fixture.configHold) await fixture.configHold.promise
+    if (fixture.configFails) status = 503
     body = { authDisabled: true, githubEnabled: false, deploymentKind: 'local', preferredModel: fixture.preferred, enabledRuntimes: fixture.enabledRuntimes, userKeyDefaults: { openai: true, anthropic: false } }
   } else if (p === '/api/agents/models/discover') {
+    const showAll = route.request().postDataJSON()?.showAll === true
     if (fixture.discoverHold) await fixture.discoverHold.promise
+    if (!showAll && fixture.conservativeListHold) await fixture.conservativeListHold.promise
     if (fixture.discoverFails) {
       status = 500
       body = { error: 'Failed to discover models' }
     // The saved default is not listed first: a <select> whose value matches no option shows its first
     // entry, which would mask an agent whose real model is something else.
-    } else body = { models: [OTHER, SAVED], modelsByProvider: { openai: { name: 'OpenAI', models: [OTHER, SAVED] } } }
+    } else {
+      const models = showAll ? [OTHER, SAVED, LISTED_WITH_SHOW_ALL] : [OTHER, SAVED]
+      body = { models, modelsByProvider: { openai: { name: 'OpenAI', models } } }
+    }
   } else if (p === '/api/agents/generate') {
     fixture.generateCalls++
     if (fixture.generateHold) await fixture.generateHold.promise
     if (fixture.generateFails) { status = 502; body = { error: 'OpenAI rejected the generation request (401). Run Check Key in BYOK.' } }
     else body = { identity: '# Lead Software Engineer\n\n**Name:** agent0', soul: 'Plan, review and ship.', tools: 'Repository and tests.', generatedBy: { label: 'OpenAI (BYOK)' }, suggestedName: 'lead-software-engineer', suggestedModel: OTHER, modelRecommendation: recommendation }
+  } else if (p === '/api/agents/validate-provision') {
+    fixture.validatedModel = route.request().postDataJSON()?.model ?? null
+    body = { valid: true, errors: [], warnings: [] }
   } else if (p === '/api/agents/model-fit') body = recommendation
   else if (p === '/api/integrations/runtimes') body = { runtimes: [{ id: 'openclaw', label: 'OpenClaw', models: [] }, { id: 'claude', label: 'Claude Code', models: ['sonnet', 'opus'] }], enabledRuntimes: fixture.enabledRuntimes }
   else if (p === '/api/health/live') body = { alive: true }
@@ -90,6 +100,12 @@ async function openWizard(mode) {
 async function looksDisabled(locator) {
   return locator.evaluate((el) => { const s = getComputedStyle(el); return el.disabled && s.cursor === 'not-allowed' && s.backgroundColor !== 'rgb(2, 132, 199)' })
 }
+// Polls because the button animates its colours (transition-colors) after it becomes enabled.
+async function looksEnabled(locator) {
+  const handle = await locator.elementHandle()
+  return page.waitForFunction((el) => { const s = getComputedStyle(el); return !el.disabled && s.cursor === 'pointer' && s.backgroundColor === 'rgb(2, 132, 199)' }, handle, { timeout: 3000 })
+    .then(() => true, () => false)
+}
 async function check(name, fn) {
   try { await fn(); console.log(`PASS ${name}`) } catch (error) {
     await page.screenshot({ path: path.join(artifactDir, `${name.replace(/\W+/g, '-')}.png`) })
@@ -110,6 +126,13 @@ try {
     fixture.discoverFails = false
     await wizard().getByRole('button', { name: 'Retry', exact: true }).click()
     await page.getByText('Could not load the model list', { exact: false }).waitFor({ state: 'detached' })
+    await page.getByText(`Agent model: ${SAVED}`, { exact: false }).waitFor()
+    // Direct AI creation reaches review with the saved default, without visiting Identity.
+    await next().click()
+    await next().click()
+    await wizard().getByRole('button', { name: 'Provision', exact: true }).waitFor()
+    assert.equal(fixture.validatedModel, SAVED, 'Validation must receive the saved default')
+    assert.equal(await wizard().getByText('Choose a model before provisioning', { exact: false }).count(), 0)
   })
 
   await check('while defaults load, Generate looks and is disabled and Next waits', async () => {
@@ -124,8 +147,44 @@ try {
     fixture.discoverHold.release()
     fixture.discoverHold = null
     await page.getByRole('button', { name: 'Generate with AI', exact: true }).waitFor()
-    assert.equal(await generateButton().isEnabled(), true, 'Generate must enable itself once the default arrives')
+    assert.equal(await looksEnabled(generateButton()), true, 'Generate must enable itself, and look enabled, once the default arrives')
     assert.equal(await next().isEnabled(), true)
+  })
+
+  await check('a default saved only on the server applies on first open even when its config answer is late', async () => {
+    await reset(null)
+    fixture.configHold = deferred()
+    await openWizard('ai')
+    await describe().fill('Lead Software Engineer')
+    assert.equal((await generateButton().innerText()).trim(), 'Loading model defaults...')
+    fixture.configHold.release()
+    fixture.configHold = null
+    await page.getByText(`Agent model: ${SAVED}`, { exact: false }).waitFor()
+    assert.equal(await looksEnabled(generateButton()), true)
+  })
+
+  await check('when the saved default cannot load, no other model is picked silently and Retry recovers', async () => {
+    await reset(null)
+    fixture.configFails = true
+    await openWizard('wizard')
+    await wizard().getByText('Could not load the saved default model', { exact: false }).waitFor()
+    assert.equal(await modelSelect().inputValue(), '', 'The first listed model must not stand in for an unknown saved default')
+    assert.equal(await next().isDisabled(), true)
+    fixture.configFails = false
+    await wizard().getByRole('button', { name: 'Retry', exact: true }).click()
+    await page.waitForFunction((saved) => [...document.querySelectorAll('select')].some((s) => s.value === saved), SAVED)
+  })
+
+  await check('an answer from a superseded model-list request does not replace the newer list', async () => {
+    await reset()
+    fixture.conservativeListHold = deferred()
+    await openWizard('wizard')
+    await page.getByLabel('Show all models').check()
+    await modelSelect().locator(`option[value="${LISTED_WITH_SHOW_ALL}"]`).waitFor({ state: 'attached' })
+    fixture.conservativeListHold.release()
+    fixture.conservativeListHold = null
+    await page.waitForTimeout(500)
+    assert.equal(await modelSelect().locator(`option[value="${LISTED_WITH_SHOW_ALL}"]`).count(), 1, 'The stale conservative list must not replace the Show all list')
   })
 
   await check('a manual model choice survives a late config answer and the Show all models reload', async () => {
