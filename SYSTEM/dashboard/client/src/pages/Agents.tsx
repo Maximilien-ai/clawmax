@@ -2102,6 +2102,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           costTrackingEnabled={costTrackingEnabled}
           onClose={() => { setSelectedAgent(null); setBudgetEditorAgentId(null) }}
           onChat={() => setChatTarget(selectedAgent)}
+          onEditConfig={() => setEditTarget(selectedAgent)}
           onClone={() => {
             setCloneFromAgent(selectedAgent.id)
             setShowAddWizard(true)

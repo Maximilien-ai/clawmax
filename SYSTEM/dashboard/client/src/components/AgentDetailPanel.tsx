@@ -109,6 +109,7 @@ export default function AgentDetailPanel({
   onClose,
   onChat,
   onClone,
+  onEditConfig,
   onDelete,
   onNavigateToSkills,
   onNavigateToDoc,
@@ -122,6 +123,7 @@ export default function AgentDetailPanel({
   onClose: () => void
   onChat: () => void
   onClone?: () => void
+  onEditConfig?: () => void
   onDelete?: (agentId: string) => void
   onNavigateToSkills?: (agentId: string, skillName?: string) => void
   onNavigateToDoc?: (file: string) => void
@@ -191,7 +193,16 @@ export default function AgentDetailPanel({
       .then(async r => r.ok ? normalizeAgentActivityPayload(await r.json().catch(() => null)) : null)
       .then(d => { if (request !== activityRequest.current) return; setActivity(d); setLoading(false); setLastRefreshed(Date.now()) })
       .catch(() => { if (request !== activityRequest.current) return; setActivity(null); setLoading(false) })
-  }, [agent.id, configRevision])
+  }, [agent.id])
+
+  // A saved config change refreshes the open panel in place. Keeping the current details on screen
+  // until the new ones arrive keeps the panel's scroll position and section state.
+  const shownConfigRevision = React.useRef(configRevision)
+  useEffect(() => {
+    if (shownConfigRevision.current === configRevision) return
+    shownConfigRevision.current = configRevision
+    fetchActivity()
+  }, [configRevision, fetchActivity])
 
   useEffect(() => {
     setLoading(true)
@@ -390,6 +401,16 @@ export default function AgentDetailPanel({
                 title="Clone agent"
               >
                 <ProductIconCell iconName="clone" label="Clone agent" size="sm" className="border-transparent bg-transparent text-current" />
+              </button>
+            )}
+            {onEditConfig && (
+              <button
+                onClick={onEditConfig}
+                className="h-9 w-9 inline-flex items-center justify-center rounded-full text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/30 transition-colors"
+                aria-label="Edit agent config"
+                title="Edit agent config"
+              >
+                <ProductIconCell iconName="edit" label="Edit agent config" size="sm" className="border-transparent bg-transparent text-current" />
               </button>
             )}
             <button
