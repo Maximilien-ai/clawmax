@@ -20,7 +20,7 @@
     {
       "id": "rc96-r1",
       "name": "R1 \u2014 BYOK and new AI agent",
-      "description": "Test: Set your new-agent default to a supported text model, close/reopen Add Agent, generate and save an agent, then send a real chat. The saved model must match your explicit selection; no image-only model should be offered. Try a missing/invalid key: explain the failure and preserve the draft. Open the model dropdown and search inside it; choose a result and test Escape without losing the draft. Pass: The selected default persists and real chat works; invalid credentials show a clear error without losing the draft.",
+      "description": "Test: On a fresh deployed instance with OpenAI keys supplied by Web, confirm Model Integration shows deployment access and selected defaults. Create an AI agent without entering BYOK and send its first chat. Change the default, create another agent, and reload. Also try an invalid browser override. Pass: Deployed access works without key entry, explicit model choices persist, and invalid overrides show an error without losing the draft. No deployment key appears in browser storage.",
       "tags": [
         "rc96",
         "acceptance"
