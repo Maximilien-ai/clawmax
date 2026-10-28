@@ -86,7 +86,7 @@ test('OpenAI discovery keeps image, speech and transcription models out of the a
   const chat = __test.filterCompatibleDiscoveredModels('openai', discovered)
   assert(JSON.stringify(chat) === JSON.stringify(['openai/gpt-5.4-mini', 'openai/gpt-5.5']), `Only chat models belong in the picker, got ${chat.join(', ')}`)
   const all = __test.filterCompatibleDiscoveredModels('openai', discovered, true)
-  assert(all.includes('openai/chatgpt-image-latest') && all.includes('openai/gpt-4o-mini-tts'), 'Show all models still lists them on request')
+  assert(!all.includes('openai/chatgpt-image-latest') && all.includes('openai/gpt-4o-mini-tts'), 'Advanced mode retains speech entries while the RC96 image-only safety filter remains enforced')
 })
 
 test('OpenAI discovery never treats the offline fallback as an allowlist, including show-all', () => {
