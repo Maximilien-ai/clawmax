@@ -1,5 +1,31 @@
 # Backlog
 
+- [ ] **RC97 candidate: provider primary/backup defaults** — If RC97 is cut
+  before the October 29 event, prioritize an OpenAI default pair:
+  primary `openai/gpt-5.4-mini`, backup `openai/gpt-5.4`. Apply the same policy
+  to browser BYOK and deployment-provided OpenAI access. This is planned work,
+  not part of the immutable RC96 image/tag.
+  - Keep the pair provider-aware so other providers can gain validated pairs
+    later; their model choices are deferred, not guessed or included in RC97.
+  - Display primary and backup together in Model Integration and inherit them
+    consistently in new-agent wizard, AI creation and template application.
+    Keep primary/backup distinct from new-agent versus built-in/system defaults.
+  - Preserve explicit workspace/agent choices, including an intentional
+    "No backup model". Do not silently rewrite existing agents; applying the
+    pair to an existing agent must be an explicit user action. Built-in agents
+    with explicit models retain them.
+  - Validate both models against configured provider/runtime support. If a
+    candidate is unavailable or retired, show a clear state and allow selection;
+    never silently substitute an unsupported model or another provider.
+  - Engineering: add regressions for both key sources, fresh and existing
+    settings, AI/manual/template creation, explicit no-backup, unavailable
+    models, reload/restart persistence, and the existing bounded backup retry
+    behavior (no duplicate completed response). Run the full release gate.
+  - Human/external acceptance: fresh OpenAI setup shows the pair, new agents
+    inherit it, edits persist, and a controlled primary failure visibly uses
+    the configured backup. Admit to RC97 only after these checks pass; otherwise
+    retain RC96 for the event and defer the pair.
+
 - [ ] **Explicit model repair in Doctor** — When a runtime rejects an agent's
   model, offer the workspace new-agent default and a manual model picker. Show
   the proposed primary/backup changes, validate runtime support, require Apply,
@@ -23,7 +49,7 @@
   remove the exact internal-RC audit exception, and verify full and production
   audits by October 17, 2026 UTC. Keep customer distribution gated on review.
 
-> Last updated: October 21, 2026
+> Last updated: October 28, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Current Priority: Dashboard 2.0 on MBP14 and test10
