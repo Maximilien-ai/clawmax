@@ -20,7 +20,7 @@
     {
       "id": "rc96-r1",
       "name": "R1 \u2014 BYOK and new AI agent",
-      "description": "Set your new-agent default to a supported text model, close/reopen Add Agent, generate and save an agent, then send a real chat. The saved model must match your explicit selection; no image-only model should be offered. Try a missing/invalid key: explain the failure and preserve the draft.",
+      "description": "Set your new-agent default to a supported text model, close/reopen Add Agent, generate and save an agent, then send a real chat. The saved model must match your explicit selection; no image-only model should be offered. Try a missing/invalid key: explain the failure and preserve the draft. Open the model dropdown and search inside it; choose a result and test Escape without losing the draft.",
       "tags": [
         "rc96",
         "acceptance"
@@ -62,7 +62,7 @@
     {
       "id": "rc96-r4",
       "name": "R4 \u2014 Group/community members",
-      "description": "In Communications grid, click the member count on a group and community. Confirm the displayed members, add/remove a test member, save and reopen. Check that names and purpose remain understandable.",
+      "description": "In Communications grid, click the member count on a group and community. Confirm the displayed members, add/remove a test member, save and reopen. Check that names and purpose remain understandable. In a new group/community draft, test @agent-slug, @Agent Name and @all, plus Open AI Editor. New drafts must not retain old selections.",
       "tags": [
         "rc96",
         "acceptance"
@@ -76,7 +76,7 @@
     {
       "id": "rc96-r5",
       "name": "R5 \u2014 Workflow with real agents",
-      "description": "Create with AI, review owner, targets, schedule/timezone and content, save, run manually and inspect each participant result and execution logs. Real provider failures must be visible; do not accept only a green creation result.",
+      "description": "Create with AI, review owner, targets, schedule/timezone and content, save, run manually and inspect each participant result and execution logs. Real provider failures must be visible; do not accept only a green creation result. New workflow drafts start with no agents selected; exact @mentions select the intended participants, including @all.",
       "tags": [
         "rc96",
         "acceptance"

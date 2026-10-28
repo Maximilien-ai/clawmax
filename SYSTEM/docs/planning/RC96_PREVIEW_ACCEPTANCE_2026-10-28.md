@@ -63,3 +63,12 @@ The prior full run reported two failed suites due to the mocked credential sette
 ### Same-name agent recreation
 
 Fixed at `6620bb10`: explicit deletion clears the workspace initialization attestation even without optional profile-state removal. Failure to clear it prevents deletion rather than leaving a half-deleted agent. Agent routes: 82 passed; server TypeScript passed. Acceptance: create a disposable agent, delete it with ordinary defaults, recreate the same name, then chat. Other agents must remain intact.
+
+### Consistency regressions — dropdowns, mentions and AI editors
+
+- Open a model dropdown in BYOK/Add Agent/Edit Agent; search inside it, choose a result, and verify the dropdown closes. Escape closes only the dropdown, preserving the draft. Check near the bottom of a mobile dialog.
+- Start another workflow after selecting all in the previous draft: selection starts empty. Type `@agent-slug`, `@Agent Name`, or `@all` and verify selected members. Removing a mention removes its selection; partial/unknown mentions never select a different agent.
+- Repeat mentions and Open AI Editor → Save/Generate for groups and communities in Communications and Organization. A new form starts without members from the prior form.
+- Verify readable group/community names on cards and member dialogs; agent and workflow names stay readable too. Internal routing IDs are retained and are not guessed from shared prefixes.
+
+Regression evidence: desktop/mobile workflow, agent-edit, Add Agent/BYOK and group/community browser suites passed; AI generation 60 tests and communication-title 21 tests passed. Shared mention matching and participant pagination/error tests are in the standard test runner. Server TypeScript passes; no new client diagnostics over baseline. Full release gate remains required before image creation.
