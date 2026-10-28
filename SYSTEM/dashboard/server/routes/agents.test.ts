@@ -773,7 +773,7 @@ async function run() {
 
     // OpenAI's 401 echoes the first and last characters of the rejected key.
     aiGenerator.generateAgentMeta = async () => {
-      throw new Error('401 Incorrect API key provided: sk-proj-************************wXyZ. You can find your API key at https://platform.openai.com/account/api-keys.')
+      throw new Error('401 Incorrect API key provided: sk-proj-************************wXyZ. You can find your API key at https://platform.openai.com/account/api-keys. (xai-AbCdEf123456, AIzaSyA1234567890abcdef)')
     }
 
     try {
@@ -784,7 +784,8 @@ async function run() {
       const error = String(res.jsonBody?.error || '')
       assert.strictEqual(res.statusCode, 500)
       assert(/401 Incorrect API key provided/.test(error), `Expected the provider's reason to stay readable, got: ${error}`)
-      assert(!/sk-proj|wXyZ/.test(error), `Expected no key fragment in the error, got: ${error}`)
+      assert(!/sk-proj|wXyZ|xai-AbC|AIzaSy/.test(error), `Expected no key fragment in the error, got: ${error}`)
+      assert(/\[redacted key\]\. You can find/.test(error), `Expected the sentence to stay intact, got: ${error}`)
     } finally {
       aiGenerator.generateAgentMeta = originalGenerateAgentMeta
       delete require.cache[require.resolve('./agents')]
