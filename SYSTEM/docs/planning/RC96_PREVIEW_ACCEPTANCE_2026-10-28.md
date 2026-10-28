@@ -50,7 +50,7 @@ Record Pass / Fail / Blocked, visible version, provider/runtime and a short note
 
 ## Engineering evidence
 
-Focused server tests, request-isolation tests, model discovery/catalog tests and desktop/mobile browser regressions passed. Server TypeScript passed; client diagnostics did not increase over the existing baseline. Full integration/validation/coverage is in progress; this document does not claim a finished release gate. Images stay deferred until that gate and user acceptance pass.
+Focused server tests, request-isolation tests, model discovery/catalog tests and desktop/mobile browser regressions passed. Server TypeScript passed; client diagnostics did not increase over the existing baseline. Full integration/validation/coverage must be rerun on the final candidate; this document does not claim a finished release gate. Images stay deferred until that gate and user acceptance pass.
 
 ## October 28 acceptance feedback update
 
@@ -72,3 +72,11 @@ Fixed at `6620bb10`: explicit deletion clears the workspace initialization attes
 - Verify readable group/community names on cards and member dialogs; agent and workflow names stay readable too. Internal routing IDs are retained and are not guessed from shared prefixes.
 
 Regression evidence: desktop/mobile workflow, agent-edit, Add Agent/BYOK and group/community browser suites passed; AI generation 60 tests and communication-title 21 tests passed. Shared mention matching and participant pagination/error tests are in the standard test runner. Server TypeScript passes; no new client diagnostics over baseline. Full release gate remains required before image creation.
+
+### Latest reported regressions
+
+- Backup model: search, click the first filtered result, verify its label updates, save and reopen. Also try No backup model.
+- AI workflow: start with a simple test workflow prompt for `@test-agent`, expand in Open AI Editor, then generate. Review the generated steps and any fenced sample inputs/outputs, save and run. Prompt quality is advisory, not proof of generated correctness.
+- DAG deletion: use a disposable workflow's trash icon. Check the agent count, current run count, history and dependency consequences; cancel first, then confirm with its name. Targeted agents must remain.
+
+Engineering evidence: reproduced first-filtered backup selection failure before fixing it; desktop/mobile selection tests pass. AI generation suite passes 61 tests, including raw and outer-fenced JSON with nested Markdown examples and rejected truncated JSON. Formatted agent mentions pass. Workflow browser regressions (including DAG delete cancellation and confirmation) pass at desktop/mobile widths. Server TypeScript passes. These checks do not replace real-provider acceptance or the final full release gate.
