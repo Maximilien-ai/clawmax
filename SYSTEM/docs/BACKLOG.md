@@ -5,6 +5,15 @@
   repeating Pair reused that state instead of offering recovery. Include a
   safe retry and explicit unpair/re-pair flow in RC97 and retain it in later
   releases. Planned work; the RC96 tag/image remains unchanged.
+  - Reported workaround (October 28): Mike appears to have recovered by moving
+    the default WhatsApp credentials directory to a timestamped `.failed-*`
+    sibling backup and restarting his user-managed OpenClaw Gateway. This is
+    reported evidence, not an independently verified successful message exchange.
+    Prefer a protected, recoverable backup over permanent deletion during an
+    explicit reset. Backups remain sensitive credentials and must not be logged
+    or exported. Recover only the selected owned Gateway using its supported
+    lifecycle; do not assume every deployment uses `systemctl --user`, or stop
+    unrelated/shared services. Confirm real re-pair and messaging in acceptance.
   - Allow pairing again after failure, expired code, cancellation, interrupted
     stream, modal reopen and Dashboard restart. End every attempt visibly and
     restore usable controls; provide cancellation while pairing is active.
