@@ -1257,7 +1257,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
     setDeleteDialog({
       itemName: workflow.name,
-      consequences: getWorkflowDeleteConsequences([workflow]),
+      consequences: getWorkflowDeleteConsequences([workflow], workflows),
       onConfirm: async () => {
         try {
           const resp = await fetch(`/api/workflows/${workflow.id}`, {
@@ -1491,7 +1491,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
     setDeleteDialog({
       itemName: `${selectedWorkflowsList.length} workflow${selectedWorkflowsList.length !== 1 ? 's' : ''}`,
-      consequences: getWorkflowDeleteConsequences(selectedWorkflowsList),
+      consequences: getWorkflowDeleteConsequences(selectedWorkflowsList, workflows),
       onConfirm: async () => {
         try {
           await Promise.all(
@@ -2018,6 +2018,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               onToggleSelect={toggleWorkflowSelection}
               onSelect={(id) => fetchWorkflowDetails(id)}
               onToggleEnabled={handleToggleEnabled}
+              onDelete={handleDelete}
               editable={dagEditing}
               onAddDependency={async (fromId, toId) => {
                 const wf = sortedWorkflows.find(w => w.id === toId)
@@ -3473,12 +3474,13 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   )
 }
 
-function getWorkflowDeleteConsequences(workflows: Workflow[]): string[] {
+function getWorkflowDeleteConsequences(workflows: Workflow[], allWorkflows: Workflow[] = []): string[] {
   const consequences: string[] = []
 
   workflows.forEach(workflow => {
     consequences.push(`${workflow.name} — ${workflow.scheduleHuman || workflow.schedule || 'Manual'}`)
     consequences.push(`  • ${workflow.participantCount} targeted agent${workflow.participantCount !== 1 ? 's' : ''}`)
+    consequences.push(`  • Current run count: ${workflow.runCount || 0}`)
     consequences.push(`  • WORKFLOWS/${workflow.id}.md will be removed`)
     if (workflow.targeting?.groups?.length > 0) {
       consequences.push(`  • targets ${workflow.targeting.groups.length} group${workflow.targeting.groups.length !== 1 ? 's' : ''}`)
@@ -3488,6 +3490,10 @@ function getWorkflowDeleteConsequences(workflows: Workflow[]): string[] {
     }
   })
 
+  const ids = new Set(workflows.map(w => w.id))
+  const dependents = allWorkflows.filter(w => !ids.has(w.id) && (w.dependsOn || []).some(id => ids.has(id)))
+  if (dependents.length) consequences.push(`Dependent workflows need updating: ${dependents.map(w => w.name).join(', ')}`)
+  consequences.push('Targeted agents are not deleted')
   consequences.push('All execution history for deleted workflows will be lost')
   return consequences
 }

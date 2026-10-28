@@ -8,12 +8,13 @@ try {
   for (const width of [1440, 390]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } })
     page.setDefaultTimeout(15000)
+    let deleteCalls = 0
     let saved
     let created
     let failCreate = true
     let emptyGeneration = false
     let failDetail = false
-    const workflow = { id, name: 'Daily Example', description: 'Scheduled brief', status: 'completed', enabled: true, schedule: '0 9 * * *', timezone: 'America/Los_Angeles', executionMode: 'automated', content: 'Write a concise brief', targeting: { agents: ['collector', 'analyst'], groups: ['opaque-group-id'], communities: [], tags: [], teamIds: [] }, participantCount: 2 }
+    const workflow = { id, name: 'Daily Example', description: 'Scheduled brief', status: 'completed', enabled: true, schedule: '0 9 * * *', timezone: 'America/Los_Angeles', executionMode: 'automated', content: 'Write a concise brief', targeting: { agents: ['collector', 'analyst'], groups: ['opaque-group-id'], communities: [], tags: [], teamIds: [] }, participantCount: 2, runCount: 7 }
     await page.addInitScript(() => { window.EventSource = class { close() {} }; for (let v=1;v<=10;v++) localStorage.setItem(`clawmax-workspace-tour:disable:v${v}`, 'dismissed') })
     await page.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname
@@ -37,6 +38,7 @@ try {
       else if (path === '/api/workflows/created-ai-fixture') json = created
       else if (path === '/api/workflows') json = { workflows: [{ ...workflow, content: undefined, targeting: undefined }, ...(created ? [created] : [])] }
       else if (path === `/api/workflows/${id}`) {
+        if (route.request().method() === 'DELETE') { deleteCalls++; await route.fulfill({ json: { success: true } }); return }
         if (route.request().method() === 'PUT') { saved = route.request().postDataJSON(); Object.assign(workflow, saved); json = { success: true } }
         else if (failDetail) { await route.fulfill({ status: 503, json: { error: 'unavailable' } }); return }
         else json = workflow
@@ -52,6 +54,22 @@ try {
     await page.route('**/api/health/live', route => route.fulfill({ json: { alive: true } }))
     await page.goto(`${base}/workflows`)
     console.log(`${width}px: opened fixture`)
+    const trash = page.getByRole('button', { name: 'Delete workflow Daily Example', exact: true })
+    await trash.click()
+    const confirmDelete = page.getByRole('dialog', { name: 'Delete workflows', exact: true })
+    await confirmDelete.getByText('2 targeted agents', { exact: false }).waitFor()
+    await confirmDelete.getByText('Current run count: 7', { exact: false }).waitFor()
+    await confirmDelete.getByText('Targeted agents are not deleted', { exact: true }).waitFor()
+    const deleteButton = confirmDelete.getByRole('button', { name: 'Delete workflows', exact: true })
+    assert(await deleteButton.isDisabled())
+    await confirmDelete.getByRole('button', { name: 'Cancel', exact: true }).click()
+    assert.equal(deleteCalls, 0)
+    await trash.click()
+    await confirmDelete.getByRole('textbox').fill('Daily Example')
+    await confirmDelete.screenshot({ path: `/private/tmp/rc96-dag-delete-${width}.png` })
+    await deleteButton.click()
+    await confirmDelete.waitFor({ state: 'hidden' })
+    assert.equal(deleteCalls, 1)
     const beginGeneration = async () => {
       await page.getByTitle('Create workflow', { exact: true }).click()
       await page.getByRole('button', { name: /Create with AI/ }).click()
