@@ -17,7 +17,7 @@ try {
    else if (path === '/api/plugins') json = { plugins: [] }
    else if (path === '/api/teams') json = { teams: [] }
    else if (path === '/api/workflows') json = { workflows: [] }
-   else if (path === '/api/agents') json = { agents: [{ id: 'reviewer', name: 'Reviewer', status: 'online', communities: [], groups: [] }] }
+   else if (path === '/api/agents') json = { agents: [{ id: 'reviewer', name: 'Reviewer', status: 'online', communities: stored.communities.map(c => ({ name: c.name })), groups: stored.groups.map(g => ({ name: g.name })) }] }
    else if (path === '/api/channel-draft') {
     if (failGenerate) { failGenerate = false; await route.fulfill({ status: 400, json: { error: 'Synthetic generation unavailable' } }); return }
     const { kind } = route.request().postDataJSON(); json = { draft: { name: `AI ${kind}`, description: 'Review releases together', members: ['reviewer'], community: '' } }
@@ -61,6 +61,13 @@ try {
    await page.reload()
    const title = page.locator('[title="dev-team-Engineering"]')
    await title.waitFor()
+   await page.getByRole('button', { name: 'View members of Engineering', exact: true }).click()
+   const members = page.getByRole('dialog', { name: 'Manage Members', exact: true })
+   await members.waitFor()
+   assert.equal(await members.getByRole('checkbox').first().isChecked(), true)
+   assert.equal(await members.evaluate(el => el.scrollWidth <= el.clientWidth + 1), true)
+   await members.screenshot({ path: `/private/tmp/rc96-members-${width}.png` })
+   await members.getByRole('button', { name: 'Cancel', exact: true }).click()
    assert.equal(await title.textContent(), 'Engineering')
    await page.screenshot({ path: `/private/tmp/rc95-channel-names-${width}.png`, fullPage: true })
   }
