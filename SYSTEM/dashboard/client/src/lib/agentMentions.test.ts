@@ -8,3 +8,5 @@ for (const prompt of ['@starter-tem', '@starter-template-other', '@all-other', '
 assert.deepEqual(updateMentionSelection('@all', '@qa', ['starter-template', 'qa'], agents), ['qa'])
 assert.deepEqual(updateMentionSelection('', '@qa', ['starter-template'], agents), ['starter-template', 'qa'])
 console.log('Agent mentions: slugs, names, all, escaping, boundaries, archived exclusion and selection reconciliation passed')
+
+assert.deepEqual(mentionedAgentIds('Use `@starter-template` for the task', agents), ['starter-template'])

@@ -141,6 +141,26 @@ test('extractJsonResponseText strips fenced json blocks', () => {
   assert.strictEqual(extractJsonResponseText(raw), '{ "name": "agent" }')
 })
 
+test('workflow JSON retains nested Markdown sample input/output fences', async () => {
+  const content = '# Objective\nValidate test-agent input and output.\n\n```json\n{"input":"hello","actions_taken":["validate"],"result":"ok","errors":[]}\n```\n\n```text\nInvalid input must fail gracefully.\n```'
+  const payload = JSON.stringify({ name: 'Test Workflow', schedule: 'manual', targeting: { agents: ['test-agent'] }, content })
+  for (const raw of [payload, '```json\n' + payload + '\n```']) {
+    assert.deepStrictEqual(JSON.parse(extractJsonResponseText(raw)).content, content)
+  }
+  assert.throws(() => JSON.parse(extractJsonResponseText(payload.slice(0, -5))), 'Truncated output must not be accepted')
+  const server = http.createServer((_request, response) => {
+    response.setHeader('Content-Type', 'application/json')
+    response.end(JSON.stringify({ choices: [{ message: { content: payload } }] }))
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    setRequestByokKeys({ openaiCompatibleBaseUrl: `http://127.0.0.1:${(server.address() as any).port}/v1`, openaiCompatibleDefaultModel: 'fixture-model' })
+    const draft = await generateWorkflowFromNL('Create a simple realistic test workflow for @test-agent with 3–5 steps, sample JSON input/output, success and failure paths. No external systems.', ['test-agent'], [])
+    assert.equal(draft.content, content)
+    assert.equal(draft.schedule, 'manual')
+  } finally { setRequestByokKeys(undefined); await new Promise<void>(resolve => server.close(() => resolve())); resetWorkspaceManagerForTests() }
+})
+
 test('parseJsonResponse parses fenced json payloads', () => {
   const raw = '```json\n{ "role": "assistant", "emoji": "🤖" }\n```'
   const parsed = parseJsonResponse(raw, {} as { role?: string; emoji?: string })

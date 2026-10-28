@@ -1195,8 +1195,11 @@ interface GeneratedFiles {
 export function extractJsonResponseText(raw: string): string {
   const trimmed = raw.trim()
   if (!trimmed) return '{}'
-  const jsonMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, trimmed]
-  return (jsonMatch[1] || trimmed).trim()
+  // A valid JSON string may itself contain Markdown fences. Never extract those
+  // as if they wrapped the provider response (workflow sample inputs commonly do).
+  try { JSON.parse(trimmed); return trimmed } catch { /* Try an outer fence only. */ }
+  const outer = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*)\n?```\s*$/i)
+  return outer ? outer[1].trim() : trimmed
 }
 
 export function parseJsonResponse<T>(raw: string, fallback: T): T {
