@@ -27,3 +27,16 @@ Private source: `eb9af8eb05988a7c5ed307e7aff3788a81107fab`, the same private sou
 - OpenAI-compatible alias consistency and Web/CLI worker key injection remain external validation boundaries.
 
 [Tester checklist and deployment contract](RC96_PREVIEW_ACCEPTANCE_2026-10-28.md).
+
+## Published source and build dispatch
+
+- Immutable public tag: `v2.0.0-test-rc96`, source `e548c64da18f7eca27108dd8f7adc0bf5c4f2cd6`.
+- [Public image workflow](https://github.com/Maximilien-ai/clawmax/actions/runs/40743991708), dispatched October 28 at 18:19 UTC. Expected tag: `ghcr.io/maximilien-ai/clawmax-dashboard:2.0.0-test-rc96`.
+- Private source tag `v2.0.0-test-rc96` pins `eb9af8eb05988a7c5ed307e7aff3788a81107fab`. Matching combined image is queued to dispatch only after public workflow success, with both inputs `2.0.0-test-rc96`; expected tag: `ghcr.io/maximilien-ai/clawmax-plugins:2.0.0-test-rc96`.
+- Local preview visible version and `/api/system` both verified `2.0.0-test-rc96`; all five configured plugin pages loaded and reloaded without page errors. Existing workspace data was preserved.
+- Source integration #344 is merged. #320 was merged independently. Seven redundant originals (#324, #326, #328, #329, #330, #332, #342) were closed after proving their changes already incorporated; do not count these as seven new independent merges. Earlier originals were automatically incorporated/closed by the integration.
+- Eight Daniyar PRs remain open: four held reliability changes (#227/#228/#229/#288), and four overlapping alternatives or follow-ups (#339/#340/#341/#343). RC96 already provides table containment, member inspection, Details editing and honest non-streaming wording; these four PRs are not four missing RC96 features. Any further differences need reconciliation separately.
+
+## Short tester handoff
+
+RC96 includes all accepted RC95/RC96 fixes and the deployment OpenAI-key setup. Please wait for both image pipelines to pass before pulling the combined plugin image. Focus on fresh deployment without browser BYOK: configured OpenAI, selected model defaults, AI-create agent and first chat; then model/backup selection, AI workflows with mentions and examples, groups/communities, DAG deletion and restart persistence. Record version, Pass/Fail/Blocked and a brief note in Review. Secrets stay server-side. Open CodeQL findings and external worker delivery remain explicit limitations.
