@@ -1628,9 +1628,30 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
     onSave(Array.from(selectedMembers))
   }
 
+  // Focus starts in the search box and Tab stays in the dialog. Escape closes it like Cancel, without
+  // saving and without reaching the page's own Escape handlers. Closing returns focus to the control
+  // that opened the dialog; only a real close does, as StrictMode's rehearsal unmount leaves it attached.
+  const dialogRef = React.useRef<HTMLDivElement>(null)
+  const [returnFocus] = React.useState(() => document.activeElement as HTMLElement | null)
+  React.useEffect(() => {
+    const dialog = dialogRef.current
+    return () => { if (!dialog?.isConnected) returnFocus?.focus() }
+  }, [returnFocus])
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.stopPropagation()
+      onClose()
+    } else if (event.key === 'Tab') {
+      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled)') || [])
+      const first = controls[0], last = controls[controls.length - 1]
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { event.preventDefault(); last?.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-      <div role="dialog" aria-modal="true" aria-labelledby="manage-members-title" className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="manage-members-title" tabIndex={-1} onKeyDown={handleKeyDown} className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col outline-none" onClick={e => e.stopPropagation()}>
         <h3 id="manage-members-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Members</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 inline-flex items-center gap-2">
           <ProductIconCell iconName={channel.type === 'community' ? 'community' : 'group'} label={channel.type === 'community' ? 'Community' : 'Group'} size="sm" className="border-transparent bg-transparent text-current" />
@@ -1646,6 +1667,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            autoFocus
             placeholder="Search agents by name or ID..."
             className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-sky-400 text-sm"
           />
