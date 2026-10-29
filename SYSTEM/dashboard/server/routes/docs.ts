@@ -2,6 +2,7 @@ import express, { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
 import { decodeUploadFilename } from '../lib/upload-filename'
+import { isWorkflowExecutionPath } from '../lib/workflows'
 import { deleteDocHubUploads, deleteWorkspaceAsset, extractZipBufferToWorkspace, listDocEntries, listMarkdownFiles, moveDocHubUploads, readWorkspaceBinaryFile, readWorkspaceFile, recordDocHubUploads, resolveWorkspacePath, writeWorkspaceFile, writeWorkspaceBinaryFile } from '../lib/workspace'
 
 const router = Router()
@@ -25,6 +26,8 @@ router.get('/', (_req, res) => {
 router.get('/content', (req, res) => {
   const relPath = req.query.path as string
   if (!relPath) return res.status(400).json({ error: 'path query param required' })
+  // Run records can hold credentials written by older versions; the workflow history API serves them.
+  if (isWorkflowExecutionPath(relPath)) return res.status(404).json({ error: 'Not found or outside workspace' })
 
   const normalized = relPath.trim().toLowerCase()
   const codeExtensions = new Map<string, string>([

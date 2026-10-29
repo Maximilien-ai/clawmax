@@ -10,7 +10,7 @@ import { execFile, execFileSync, spawn } from 'child_process'
 import { promisify } from 'util'
 import { safeEnv, workflowExecutionEnv } from './safe-env'
 import { createHash, randomUUID } from 'crypto'
-import { getWorkspacePath, listAgents, parseGroups } from './workspace'
+import { getWorkspacePath, listAgents, parseGroups, resolveWorkspacePath } from './workspace'
 import { listTeams, type Team } from './teams'
 import { addMessage } from './messages'
 import { getConfiguredDashboardInstanceId, traceAgentChat, traceWorkflowExecution } from './opik'
@@ -411,6 +411,8 @@ export interface WorkflowExecution {
   heartbeatAt?: string
   error?: string
   inputs?: Record<string, string>  // Structured inputs parsed from workflow content
+  /** Set on records whose `inputs` never held run secrets; inputs of older records are never returned (publicExecution). */
+  inputsExcludeSecrets?: true
   outputs?: Record<string, {
     type: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
     summary?: string
@@ -622,6 +624,110 @@ function hydrateExecutionArtifacts(
     }
   }
   return execution
+}
+
+/** The `- **Label:** value` lines of a workflow: its structured run inputs and their defaults. */
+function workflowContentFields(content: string): Array<[label: string, value: string]> {
+  return [...content.matchAll(/^-\s+\*\*(.+?):\*\*\s+(.+)$/gm)].map((match) => [match[1].trim(), match[2].trim()])
+}
+
+/**
+ * Records written before run secrets were kept out of `inputs` (no inputsExcludeSecrets marker) may
+ * hold browser vault and BYOK values there under any key (a vault key named like a workflow field
+ * replaced that field's value), so their inputs are never returned or exported, even after
+ * redactStoredExecutionSecrets has removed what it can recognize from the file.
+ */
+export function publicExecution<T extends Pick<WorkflowExecution, 'inputs' | 'inputsExcludeSecrets'>>(execution: T): T {
+  return execution.inputsExcludeSecrets || !execution.inputs ? execution : { ...execution, inputs: undefined }
+}
+
+/**
+ * Whether a workspace-relative path reaches WORKFLOWS/executions, through any letter case or symlink.
+ * Resolved exactly as the workspace file readers resolve it (resolveWorkspacePath), so both check one file.
+ */
+export function isWorkflowExecutionPath(relativePath: string, workspacePath: string = getWorkspacePath()): boolean {
+  const target = resolveWorkspacePath(relativePath, workspacePath)
+  if (!target) return false
+  try {
+    const executionsDir = fs.realpathSync.native(path.join(workspacePath, 'WORKFLOWS', 'executions'))
+    const relative = path.relative(executionsDir, fs.realpathSync.native(target))
+    return !relative.startsWith('..') && !path.isAbsolute(relative)
+  } catch {
+    return false
+  }
+}
+
+/** The run record files exported and cleaned below; symlinks are skipped, and `execution` is null for invalid JSON. */
+export const WORKFLOW_EXECUTION_RECORD_GLOBS = ['WORKFLOWS/executions/*/*.json', 'WORKFLOWS/executions/*/archived/*.json'] as const
+export function readStoredExecutions(workspacePath: string): Array<{ workflowId: string; filePath: string; relative: string; execution: WorkflowExecution | null }> {
+  const isDirectory = (target: string) => fs.existsSync(target) && fs.lstatSync(target).isDirectory()
+  const executionsDir = path.join(workspacePath, 'WORKFLOWS', 'executions')
+  const records: ReturnType<typeof readStoredExecutions> = []
+  if (!isDirectory(executionsDir)) return records
+  for (const workflowId of fs.readdirSync(executionsDir).filter((entry) => WORKFLOW_ID_PATTERN.test(entry))) {
+    for (const dir of [path.join(executionsDir, workflowId), path.join(executionsDir, workflowId, 'archived')]) {
+      if (!isDirectory(dir)) continue
+      for (const file of fs.readdirSync(dir).filter((entry) => entry.endsWith('.json'))) {
+        const filePath = path.join(dir, file)
+        if (!fs.lstatSync(filePath).isFile()) continue
+        let execution: WorkflowExecution | null = null
+        try {
+          execution = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+        } catch {}
+        records.push({ workflowId, filePath, relative: path.relative(workspacePath, filePath), execution })
+      }
+    }
+  }
+  return records
+}
+
+// Provider and service credential formats (OpenAI/Anthropic/xAI, Stripe, Notion, GitHub, GitLab, Slack, Google, AWS, Hugging Face, PEM, bearer).
+const CREDENTIAL_VALUE_PATTERN = /\b(?:sk|xai|glpat)-[A-Za-z0-9_-]{16,}|\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}|\bsecret_[A-Za-z0-9]{20,}|\b(?:gh[pousr]|github_pat|hf)_[A-Za-z0-9_]{16,}|\bxox[abprs]-[A-Za-z0-9-]{10,}|\bAIza[0-9A-Za-z_-]{35}|\b(?:AKIA|ASIA)[0-9A-Z]{16}\b|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bbearer\s+[A-Za-z0-9._~+/-]{16,}/i
+
+/** An unmarked record's inputs worth keeping: the workflow's own fields, Run Instructions and prompt, minus declared secret keys and credential-shaped values. */
+function legacyInputsToKeep(inputs: Record<string, string>, workflow: Workflow | null): Record<string, string> {
+  const fieldLabels = new Set([...workflowContentFields(workflow?.content || '').map(([label]) => label), 'Run Instructions', 'prompt'])
+  const secretKeys = new Set((workflow?.secretRequirements || []).map((requirement) => requirement.key))
+  return Object.fromEntries(Object.entries(inputs).filter(([key, value]) => (
+    fieldLabels.has(key) && !secretKeys.has(key) && !CREDENTIAL_VALUE_PATTERN.test(String(value))
+  )))
+}
+
+/**
+ * Explicit cleanup of stored records (scripts/redact-workflow-execution-secrets.ts): unmarked
+ * records, archived and running ones included, keep only legacyInputsToKeep. Reports files with
+ * removed and kept input names, never values; writes only with `apply`, changing nothing but
+ * `inputs`, through an exclusive temporary file renamed over the record.
+ */
+export function redactStoredExecutionSecrets(workspacePath: string, options: { apply: boolean }): {
+  redacted: Array<{ file: string; removedInputs: string[]; keptInputs: string[] }>
+  unreadable: string[]
+} {
+  const result: ReturnType<typeof redactStoredExecutionSecrets> = { redacted: [], unreadable: [] }
+  const definitions = new Map<string, Workflow | null>()
+  for (const { workflowId, filePath, relative, execution } of readStoredExecutions(workspacePath)) {
+    if (!execution) {
+      result.unreadable.push(relative)
+      continue
+    }
+    if (execution.inputsExcludeSecrets || !execution.inputs) continue
+    if (!definitions.has(workflowId)) {
+      const definitionPath = path.join(workspacePath, 'WORKFLOWS', `${workflowId}.md`)
+      definitions.set(workflowId, fs.existsSync(definitionPath) ? parseWorkflowMd(fs.readFileSync(definitionPath, 'utf-8'), workflowId) : null)
+    }
+    const kept = legacyInputsToKeep(execution.inputs, definitions.get(workflowId) || null)
+    const removedInputs = Object.keys(execution.inputs).filter((key) => !(key in kept))
+    if (removedInputs.length === 0) continue
+    result.redacted.push({ file: relative, removedInputs, keptInputs: Object.keys(kept) })
+    if (!options.apply) continue
+    const temporaryPath = `${filePath}.redact-${process.pid}.tmp`
+    fs.writeFileSync(temporaryPath, JSON.stringify({
+      ...execution,
+      inputs: Object.keys(kept).length > 0 ? kept : undefined,
+    }, null, 2), { encoding: 'utf-8', mode: fs.statSync(filePath).mode, flag: 'wx' })
+    fs.renameSync(temporaryPath, filePath)
+  }
+  return result
 }
 
 interface WorkflowRuntimeOverrides {
@@ -1905,7 +2011,7 @@ export function listExecutions(workflowId: string, limit: number = 10): Workflow
       const execution = hydrateExecutionArtifacts(workflowId, JSON.parse(content), filePath)
       executions.push(execution)
     } catch (error) {
-      console.error(`Error reading execution ${file}:`, error)
+      console.error(`Error reading execution ${file}:`, error instanceof SyntaxError ? 'invalid JSON' : error)
     }
   }
 
@@ -1938,7 +2044,7 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
     const content = fs.readFileSync(filePath, 'utf-8')
     return hydrateExecutionArtifacts(workflowId, JSON.parse(content), filePath)
   } catch (error) {
-    console.error(`Error reading execution ${executionId}:`, error)
+    console.error(`Error reading execution ${executionId}:`, error instanceof SyntaxError ? 'invalid JSON' : error)
     return null
   }
 }
@@ -2121,14 +2227,11 @@ export function triggerWorkflow(workflowId: string, options?: {
 
     // Persist only explicit workflow/user-provided run inputs.
     // Workspace integration defaults still flow into runtime context, but should not
-    // appear as editable run inputs on unrelated workflows.
+    // appear as editable run inputs on unrelated workflows. Run secrets (options.secrets)
+    // stay in memory for this run and are never copied into the persisted inputs.
     const executionInputs: Record<string, string> = {}
     const content = workflow.content || ''
-    const fieldRegex = /^-\s+\*\*(.+?):\*\*\s+(.+)$/gm
-    let fieldMatch
-    while ((fieldMatch = fieldRegex.exec(content)) !== null) {
-      const label = fieldMatch[1].trim()
-      const value = fieldMatch[2].trim()
+    for (const [label, value] of workflowContentFields(content)) {
       if (value && !value.startsWith('[')) {
         executionInputs[label] = value
       }
@@ -2138,13 +2241,6 @@ export function triggerWorkflow(workflowId: string, options?: {
       : ''
     if (options?.inputs) {
       for (const [key, value] of Object.entries(options.inputs)) {
-        if (typeof value === 'string' && value.trim()) {
-          executionInputs[key] = value.trim()
-        }
-      }
-    }
-    if (options?.secrets) {
-      for (const [key, value] of Object.entries(options.secrets)) {
         if (typeof value === 'string' && value.trim()) {
           executionInputs[key] = value.trim()
         }
@@ -2223,7 +2319,11 @@ export function triggerWorkflow(workflowId: string, options?: {
       }
       runtimeContextLines.push('- Use the upstream artifact path or summary as the source of truth; do not restate the full upstream document unless necessary.')
     }
-    const resolvedPathInputs = Object.entries(executionInputs)
+    // Declared non-sensitive run values reach the prompt (above), so path-like ones are resolved like inputs.
+    const declaredRunValues = (workflow.secretRequirements || [])
+      .filter((requirement) => !requirement.sensitive && options?.secrets?.[requirement.key]?.trim())
+      .map((requirement) => [requirement.key, options!.secrets![requirement.key]] as [string, string])
+    const resolvedPathInputs = [...Object.entries(executionInputs), ...declaredRunValues]
       .filter(([label, value]) => typeof value === 'string' && isPathLikeRunInput(label, value))
       .map(([label, value]) => ({
         label,
@@ -2255,6 +2355,7 @@ export function triggerWorkflow(workflowId: string, options?: {
       ownerBootId: WORKFLOW_RUNNER_BOOT_ID,
       heartbeatAt: new Date().toISOString(),
       inputs: Object.keys(executionInputs).length > 0 ? executionInputs : undefined,
+      inputsExcludeSecrets: true,
       outputs: normalizeWorkflowExecutionOutputs(options?.outputs),
     }
 
