@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Download successful image workflow evidence
         if: github.event_name == 'workflow_run'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: gcp-mirror-target
           path: ${{ runner.temp }}/gcp-mirror-target
