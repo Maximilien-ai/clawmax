@@ -132,6 +132,40 @@ async function main() {
       })
       assert.equal(resolved, 'openai/gpt-5')
     })
+
+    // Discovery lists OpenAI models sorted by id, so deprecated gpt-4.1 comes first.
+    const openAiSorted = ['openai/gpt-4.1', 'openai/gpt-4.1-mini', 'openai/gpt-4o', 'openai/gpt-5', 'openai/gpt-5.4-mini', 'openai/gpt-5.5']
+    const withoutMini = openAiSorted.filter(model => model !== 'openai/gpt-5.4-mini')
+    const useIntegrations = (config: Record<string, string>) => {
+      const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
+      fs.mkdirSync(systemDir, { recursive: true })
+      fs.writeFileSync(path.join(systemDir, 'integrations.json'), JSON.stringify(config, null, 2))
+    }
+
+    await test('Auto never falls back to a deprecated model when the recommended one is not listed', () => {
+      useIntegrations({})
+      const rawEnv = { SYSTEM_OPENAI_API_KEY: 'key' }
+      assert.equal(resolveDefaultAgentModel({ availableModels: openAiSorted, rawEnv }), 'openai/gpt-5.4-mini')
+      assert.equal(resolveDefaultAgentModel({ availableModels: withoutMini, rawEnv }), 'openai/gpt-5')
+      assert.equal(resolveDefaultAgentModel({ availableModels: ['openai/gpt-4.1', 'openai/gpt-4o'], rawEnv }), undefined)
+    })
+
+    await test('Auto across providers skips deprecated models from every provider', () => {
+      useIntegrations({})
+      const rawEnv = { SYSTEM_ANTHROPIC_API_KEY: 'key', SYSTEM_GEMINI_API_KEY: 'key' }
+      // Neither provider's recommended model is listed, so the first current model is used.
+      assert.equal(resolveDefaultAgentModel({ availableModels: ['anthropic/claude-sonnet-4-20250514', 'google/gemini-2.5-pro', 'anthropic/claude-sonnet-4-6'], rawEnv }), 'anthropic/claude-sonnet-4-6')
+    })
+
+    await test('saved deprecated defaults stay explicit, and new-agent and system defaults stay separate', () => {
+      useIntegrations({ preferredModel: 'openai/gpt-4.1', systemPreferredModel: 'openai/gpt-4.1-mini' })
+      const rawEnv = { SYSTEM_OPENAI_API_KEY: 'key' }
+      assert.equal(resolveDefaultAgentModel({ availableModels: openAiSorted, rawEnv }), 'openai/gpt-4.1')
+      assert.equal(resolveDefaultAgentModel({ builtIn: true, availableModels: openAiSorted, rawEnv }), 'openai/gpt-4.1-mini')
+      useIntegrations({ systemPreferredModel: 'openai/gpt-4.1-mini' })
+      assert.equal(resolveDefaultAgentModel({ availableModels: openAiSorted, rawEnv }), 'openai/gpt-5.4-mini', 'A system default must not become the new-agent default')
+      assert.equal(resolveDefaultAgentModel({ explicitModel: 'openai/gpt-4.1', availableModels: openAiSorted, rawEnv }), 'openai/gpt-4.1')
+    })
   } finally {
     if (originalHome === undefined) delete process.env.HOME
     else process.env.HOME = originalHome

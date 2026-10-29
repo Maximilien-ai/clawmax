@@ -454,11 +454,16 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
   const nameOk = /^[a-z][a-z0-9_-]*$/.test(form.name)
   const identityReady = nameOk && form.model.length > 0 && !templateSelectionMissing && !cloneSelectionMissing
+  // Auto never picks a deprecated model and the picker hides them, so an empty picker needs its reason.
+  const noCurrentModelOffered = modelsLoaded && !modelsError && !form.model && runtimeModelOptions.length === 0
+    && availableModels.length > 0 && !availableModels.some(model => isSelectableLifecycleModel(model))
+  const noCurrentModelMessage = 'No model is selected for this agent: every model offered for your keys is deprecated or retired. Add a key with access to a current model in BYOK, or turn on Show all models.'
   // Create with AI opens on step 2, so step 1's requirements were never checked; leaving step 2
   // without them only failed later, at review, as "Choose a model before provisioning this agent".
   const identityIssue = !modelsLoaded && !form.model ? null
     : !form.model ? (modelsError
       ? `No model is selected. ${modelsError}`
+      : noCurrentModelOffered ? noCurrentModelMessage
       : 'No model is selected for this agent. Choose one in Identity, or set a new-agent default model in BYOK.')
     : !nameOk ? 'Enter a valid agent name in Identity.'
     : templateSelectionMissing || cloneSelectionMissing ? 'The template or clone source chosen in Identity is no longer available.'
@@ -902,6 +907,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                   )}
                 </SearchableModelSelect>
                 {modelsErrorNotice}
+                {noCurrentModelOffered && <p role="alert" className="mt-1 text-xs text-amber-600">{noCurrentModelMessage}</p>}
                 {modelsLoaded && !modelsError && availableModels.length === 0 && runtimeModelOptions.length === 0 && (
                   <p className="mt-1 text-xs text-amber-600">
                     {ollamaEnabled

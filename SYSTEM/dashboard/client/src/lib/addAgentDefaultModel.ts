@@ -1,5 +1,5 @@
 import type { StoredByokKeys } from './byok'
-import { resolveNonDeprecatedOpenAiModel } from './openAiModelLifecycle'
+import { resolveAutoDefaultModel, resolveNonDeprecatedOpenAiModel } from './openAiModelLifecycle'
 
 type WizardAuthConfig = {
   preferredModel?: string
@@ -67,7 +67,9 @@ export function resolveAddAgentWizardDefaultModel(args: {
   const recommendedMatch = matches(models, configRecommended)
   if (recommendedMatch) return resolveNonDeprecatedOpenAiModel(models, recommendedMatch)
 
-  return resolveNonDeprecatedOpenAiModel(models, models[0] || configRecommended)
+  // Auto with no usable recommendation, e.g. a key kept only in this browser, which the server
+  // cannot recommend for. The first listed model used to win, and for OpenAI that is gpt-4.1.
+  return resolveAutoDefaultModel(models)
 }
 
 export function resolveAddAgentWizardSuggestedModel(args: {
