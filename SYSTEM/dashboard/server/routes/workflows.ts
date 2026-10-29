@@ -9,6 +9,7 @@ import {
   resolveParticipants,
   listExecutions,
   getExecution,
+  publicExecution,
   validateCron,
   invalidWorkflowTimezoneError,
   triggerWorkflow,
@@ -633,7 +634,7 @@ router.get('/:id/executions', (req, res) => {
       participantCount: exec.participants.length,
       successCount: exec.participants.filter(p => p.status === 'completed').length,
       failureCount: exec.participants.filter(p => p.status === 'failed').length,
-      inputs: exec.inputs,
+      inputs: publicExecution(exec).inputs,
     }))
 
     res.json({
@@ -694,10 +695,10 @@ router.get('/:id/executions/archived', (req, res) => {
           participantCount: execution.participants.length,
           successCount: execution.participants.filter((p: any) => p.status === 'completed').length,
           failureCount: execution.participants.filter((p: any) => p.status === 'failed').length,
-          inputs: execution.inputs,
+          inputs: publicExecution(execution).inputs,
         })
       } catch (error) {
-        console.error(`Error reading archived execution ${file}:`, error)
+        console.error(`Error reading archived execution ${file}:`, error instanceof SyntaxError ? 'invalid JSON' : error)
       }
     }
 
@@ -815,7 +816,7 @@ router.get('/:id/executions/:executionId', (req, res) => {
       return res.status(404).json({ error: 'Execution not found', executionId })
     }
 
-    res.json(execution)
+    res.json(publicExecution(execution))
   } catch (error: any) {
     console.error('Error getting execution:', error)
     res.status(500).json({ error: 'Failed to get execution', message: error.message })
