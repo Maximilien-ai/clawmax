@@ -68,6 +68,9 @@ fs.mkdirSync(workspaceAgentDir, { recursive: true })
 fs.writeFileSync(path.join(workspaceAgentDir, 'IDENTITY.md'), '# Test Agent\n', 'utf-8')
 fs.mkdirSync(sharedAgentDir, { recursive: true })
 fs.writeFileSync(path.join(sharedAgentDir, 'session.json'), '{}', 'utf-8')
+const dashboardChatRecord = path.join(workspacePath, 'SYSTEM', 'dashboard-chat', `${agentId}.json`)
+fs.mkdirSync(path.dirname(dashboardChatRecord), { recursive: true })
+fs.writeFileSync(dashboardChatRecord, JSON.stringify({ activeSeed: `agent:${agentId}:dashboard-chat:x`, activeSessionId: 'old-session', ended: [] }), 'utf-8')
 fs.mkdirSync(path.dirname(openclawConfigPath), { recursive: true })
 fs.writeFileSync(openclawConfigPath, JSON.stringify({
   gateway: { port: 18889, auth: { token: 'test-token' } },
@@ -103,6 +106,7 @@ async function run() {
     assert(result.errors.length === 0, `Expected no errors, got: ${result.errors.join('; ')}`)
     assert(!fs.existsSync(workspaceAgentDir), 'Expected workspace agent dir to be removed')
     assert(!fs.existsSync(path.join(tmpHome, '.openclaw', 'agents', agentId)), 'Expected shared ~/.openclaw agent dir to be removed')
+    assert(!fs.existsSync(dashboardChatRecord), 'A recreated agent with the same id must not inherit the deleted one\'s chats')
 
     const config = JSON.parse(fs.readFileSync(openclawConfigPath, 'utf-8'))
     const stillPresent = Boolean(config.agents?.entries?.[agentId])
