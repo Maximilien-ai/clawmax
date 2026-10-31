@@ -33,23 +33,48 @@ export function WorkspaceEditDialog({
   const [budgetLevel, setBudgetLevel] = useState<'ok' | 'warning' | 'exceeded'>('ok')
   const [budgetEnabled, setBudgetEnabled] = useState(true)
   const [saveError, setSaveError] = useState('')
+  const [budgetState, setBudgetState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [budgetDirty, setBudgetDirty] = useState(false)
+  const [budgetRetry, setBudgetRetry] = useState(0)
 
   useEffect(() => {
-    if (isOpen) {
-      fetch(buildWorkspaceScopedPath('/api/budget', workspace.id)).then(r => r.json()).then(d => {
-        if (d && d.enabled === false) {
+    if (!isOpen) return
+    setName(workspace.name)
+    setSelectedColor(workspace.color || PRESET_COLORS[0].value)
+    setTags(workspace.tags?.join(', ') || '')
+    setSaveError('')
+  }, [isOpen, workspace.id])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const controller = new AbortController()
+    setBudgetState('loading')
+    setBudgetDirty(false)
+    fetch(buildWorkspaceScopedPath('/api/budget', workspace.id), { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error('Budget unavailable')
+        return response.json()
+      }).then(d => {
+        if (controller.signal.aborted) return
+        if (d?.enabled === false) {
           setBudgetEnabled(false)
+          setBudgetState('ready')
           return
         }
+        if (!d?.config || typeof d.config.limitUsd !== 'number' || !Number.isFinite(d.config.limitUsd)
+          || d.config.limitUsd < 0 || typeof d.config.enforced !== 'boolean') throw new Error('Invalid budget')
         setBudgetEnabled(true)
         setBudgetLimit(String(d.config.limitUsd))
         setBudgetEnforced(d.config.enforced)
-        setBudgetSpend(d.currentSpendUsd)
-        setBudgetPct(d.usedPct)
-        setBudgetLevel(d.level)
-      }).catch(() => {})
-    }
-  }, [isOpen, workspace.id])
+        setBudgetSpend(d.currentSpendUsd ?? 0)
+        setBudgetPct(d.usedPct ?? 0)
+        setBudgetLevel(d.level ?? 'ok')
+        setBudgetState('ready')
+      }).catch(() => {
+        if (!controller.signal.aborted) setBudgetState('error')
+      })
+    return () => controller.abort()
+  }, [isOpen, workspace.id, budgetRetry])
 
   if (!isOpen) return null
 
@@ -69,8 +94,9 @@ export function WorkspaceEditDialog({
         .map(t => t.trim())
         .filter(t => t.length > 0)
 
-      if (budgetEnabled) {
+      if (budgetEnabled && budgetState === 'ready' && budgetDirty) {
         await saveWorkspaceBudget(workspace.id, budgetLimit, budgetEnforced)
+        setBudgetDirty(false)
       }
 
       await updateWorkspace(workspace.id, {
@@ -89,7 +115,7 @@ export function WorkspaceEditDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90dvh] overflow-y-auto">
         <h2 className="text-xl font-bold text-gray-900 mb-4 dark:text-gray-100">Edit Workspace</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -151,7 +177,12 @@ export function WorkspaceEditDialog({
             </div>
           </div>
 
-          {budgetEnabled && (
+          {budgetState === 'loading' && <p role="status" className="text-sm text-gray-500">Loading budget settings…</p>}
+          {budgetState === 'error' && <div role="alert" className="text-sm text-red-700 dark:text-red-300">
+            <p>Budget settings could not be loaded. Other workspace changes will preserve the existing budget.</p>
+            <button type="button" className="mt-2 underline" disabled={updating} onClick={() => setBudgetRetry(value => value + 1)}>Retry budget settings</button>
+          </div>}
+          {budgetEnabled && budgetState === 'ready' && (
           <div>
             <label htmlFor="workspace-budget" className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Cost Budget (USD)
@@ -163,7 +194,8 @@ export function WorkspaceEditDialog({
                   id="workspace-budget"
                   type="number"
                   value={budgetLimit}
-                  onChange={(e) => setBudgetLimit(e.target.value)}
+                  onChange={(e) => { setBudgetLimit(e.target.value); setBudgetDirty(true) }}
+                  disabled={updating}
                   placeholder="10.00"
                   min="0"
                   step="1"
@@ -174,7 +206,8 @@ export function WorkspaceEditDialog({
                 <input
                   type="checkbox"
                   checked={budgetEnforced}
-                  onChange={(e) => setBudgetEnforced(e.target.checked)}
+                  onChange={(e) => { setBudgetEnforced(e.target.checked); setBudgetDirty(true) }}
+                  disabled={updating}
                   className="rounded"
                 />
                 Enforce limit
