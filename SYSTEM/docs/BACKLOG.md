@@ -1,5 +1,14 @@
 # Backlog
 
+- [ ] **RC97 event-feedback stability intake** — prioritize workflow secret
+  persistence, accurate workspace agent counts, respected workspace budgets and
+  recoverable template application. Review Daniyar's 11 pending PRs; reconcile
+  RC96 overlaps before merging. Collect and sanitize ClawMax.ai feedback before
+  claiming complete intake. See the [RC97 intake and admission plan](planning/RC97_STABILITY_INTAKE_2026-10-31.md)
+  for current gates, ownership and acceptance requirements. Provider defaults
+  and WhatsApp recovery below remain in scope. This entry records planned work,
+  not completed fixes or a release-ready candidate.
+
 - [ ] **RC97 and onward: recover interrupted WhatsApp pairing** — Mike's
   RC96 attempt left credentials that WhatsApp later rejected as logged out;
   repeating Pair reused that state instead of offering recovery. Include a
