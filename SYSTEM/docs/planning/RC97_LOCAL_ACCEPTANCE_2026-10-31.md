@@ -89,3 +89,9 @@ DASHBOARD_PORT=3018 DASHBOARD_CLIENT_PORT=5199 DASHBOARD_APP_URL=http://localhos
 ```
 
 The wrapper prepares its pinned OpenClaw runtime and isolates test data. A paid-provider skip is not a live-provider pass. Images remain gated on this final result; no RC97 or RC98 image was dispatched.
+
+### RC97 image admission
+
+User ran the final integration, validation and coverage suite on the frozen candidate and supplied the complete passing output: 561 passed, 0 failed. Coverage: statements/lines 83.78%, branches 81.49%, functions 92.09%. Isolated artifacts: `clawmax-test-runtime-4ojAVj`. Paid-provider agent chat and live AI generation were skipped (no key); prior manual live acceptance remains separate evidence. Workflow kickoff completed and DAG progression passed. User authorized RC97 images after this result.
+
+Recent public builds took 62–69 minutes; matching combined builds took 14–15 minutes. Release images require both architectures and registry/lifecycle/plugin smoke validation before readiness is claimed. Public and combined image tag: `2.0.0-test-rc97`.
