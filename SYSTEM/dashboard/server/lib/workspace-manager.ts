@@ -1,3 +1,4 @@
+import { isManagedAgentWorkspaceDir } from './agent-workspace-identity'
 import fs from 'fs'
 import path from 'path'
 import { AsyncLocalStorage } from 'async_hooks'
@@ -30,29 +31,6 @@ export interface WorkspacePathConflict {
 }
 
 const workspaceContext = new AsyncLocalStorage<{ workspaceId: string }>()
-
-function extractIdentityField(content: string, field: string): string {
-  const match = content.match(new RegExp(`\\*\\*${field}:\\*\\*[ \\t]*([^\\n]*)`, 'i'))
-  return match?.[1]?.trim() || ''
-}
-
-function isManagedAgentWorkspaceDir(agentDir: string): boolean {
-  try {
-    const stats = fs.statSync(agentDir)
-    if (!stats.isDirectory()) return false
-  } catch {
-    return false
-  }
-
-  try {
-    const identityPath = path.join(agentDir, 'IDENTITY.md')
-    const identity = fs.readFileSync(identityPath, 'utf-8')
-    const name = extractIdentityField(identity, 'Name')
-    return !!name
-  } catch {
-    return false
-  }
-}
 
 export class WorkspaceManager {
   private registryPath: string

@@ -173,6 +173,34 @@ test('registry identity remains readable for authorization while resources are q
   assert(manager.getWorkspace(workspace.id)?.path === workspace.path, 'Resources must be available after recovery')
 })
 
+test('workspace counts recognize canonical identities and update after create/archive/delete', () => {
+  const manager = createManager()
+  const workspace = manager.createWorkspace('Count regression', path.join(tmpRoot, 'counts'))
+  const agentRoot = path.join(workspace.path, 'AGENTS')
+  const add = (id: string, identity: string) => {
+    const dir = path.join(agentRoot, id)
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'IDENTITY.md'), identity)
+  }
+  const count = () => manager.listWorkspaces().find(w => w.id === workspace.id)?.agentCount
+  add('first', '- **Name:** First Agent\n- **Model:** openai/gpt-5.4-mini')
+  add('second', '- Name: Second Agent\n')
+  add('third', 'Name: Third Agent\r\n')
+  add('empty', '- **Name:**   \n- **Model:** model')
+  add('_internal', '- **Name:** Internal')
+  add('.hidden', '- **Name:** Hidden')
+  add('archive', '- **Name:** Archive')
+  assert(count() === 3, 'Three canonical agent identities must count; scaffolds and excluded dirs must not')
+  fs.renameSync(path.join(agentRoot, 'third'), path.join(agentRoot, 'archive', 'third'))
+  assert(count() === 2, 'Archived agent no longer counts')
+  fs.rmSync(path.join(agentRoot, 'second'), { recursive: true })
+  assert(count() === 1, 'Deleted agent no longer counts')
+  add('fourth', '- **Name:** Fourth')
+  assert(count() === 2, 'New agent counts without resetting the registry')
+  const reloaded = new WorkspaceManager(registryPath)
+  assert(reloaded.listWorkspaces().find(w => w.id === workspace.id)?.agentCount === 2, 'Count persists by discovery after reload')
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
