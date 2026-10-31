@@ -122,6 +122,7 @@ try {
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 })
       workspace.agentCount = 0
+      workspace.id = 'default'
       await reset()
       workspace.agentCount = 2
       await page.evaluate(() => window.dispatchEvent(new Event('agents-updated')))
@@ -130,6 +131,7 @@ try {
       workspace.agentCount = 1
       const picker = page.getByRole('button', { name: /Default model fixture/ }).first()
       await picker.click()
+      assert(await page.getByTitle('Personal workspace cannot be deleted', { exact: true }).isDisabled())
       const menu = page.getByRole('searchbox', { name: 'Search workspaces' }).locator('..').locator('..')
       await menu.getByText('1 agent', { exact: true }).waitFor()
       await picker.click()
@@ -139,6 +141,7 @@ try {
       await picker.click()
     }
     workspace.agentCount = 1
+    workspace.id = 'default-model'
   })
   await check('BYOK changes refresh an open AI wizard and enable editor generation', async () => {
     for (const width of [1440, 390]) {
