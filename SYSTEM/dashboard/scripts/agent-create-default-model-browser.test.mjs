@@ -118,6 +118,24 @@ async function check(name, fn) {
 }
 
 try {
+  await check('workspace picker refreshes counts after inventory changes without reload', async () => {
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1000 })
+      workspace.agentCount = 0
+      await reset()
+      workspace.agentCount = 1
+      const picker = page.getByRole('button', { name: /Default model fixture/ }).first()
+      await picker.click()
+      const menu = page.getByRole('searchbox', { name: 'Search workspaces' }).locator('..').locator('..')
+      await menu.getByText('1 agent', { exact: true }).waitFor()
+      await picker.click()
+      workspace.agentCount = 0
+      await picker.click()
+      await menu.getByText('0 agents', { exact: true }).waitFor()
+      await picker.click()
+    }
+    workspace.agentCount = 1
+  })
   await check('BYOK changes refresh an open AI wizard and enable editor generation', async () => {
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 })

@@ -448,6 +448,12 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     setDeleteDialog({ id: workspace.id, name: workspace.name, consequences })
   }
 
+  // Agent creation, archive and template apply can change counts while the
+  // provider remains mounted. Read the current inventory whenever it is opened.
+  useEffect(() => {
+    if (isOpen) void refreshWorkspaces()
+  }, [isOpen, refreshWorkspaces])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
