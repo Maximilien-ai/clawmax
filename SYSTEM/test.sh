@@ -2074,6 +2074,14 @@ else
   fail "Optimize AI assistant unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Kickoff display ordering regression...${NC}"
+if npx ts-node --transpileOnly client/src/lib/workflowKickoffOrder.test.ts > /tmp/clawmax-kickoff-order.out 2>&1; then
+  pass "Kickoff display ordering regression"
+else
+  cat /tmp/clawmax-kickoff-order.out
+  fail "Kickoff display ordering regression"
+fi
+
 echo -e "${YELLOW}→ Running System refresh helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/systemRefresh.test.ts > /tmp/clawmax-system-refresh.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-system-refresh.out; then
