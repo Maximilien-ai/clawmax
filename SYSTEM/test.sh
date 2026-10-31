@@ -1077,6 +1077,14 @@ else
   fail "Workspace scope helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workflow secret persistence regressions...${NC}"
+if npx ts-node --transpileOnly server/lib/workflow-execution-secrets.test.ts > /tmp/clawmax-workflow-execution-secrets.out 2>&1 && grep -q "Workflow run secret tests passed: 8" /tmp/clawmax-workflow-execution-secrets.out; then
+  pass "Workflow secret persistence regressions (8 scenarios)"
+else
+  cat /tmp/clawmax-workflow-execution-secrets.out
+  fail "Workflow secret persistence regressions"
+fi
+
 echo -e "${YELLOW}→ Running Workspace budget client tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceBudget.test.ts > /tmp/clawmax-workspace-budget-client.out 2>&1 || true
 if grep -q "Workspace budget client tests passed" /tmp/clawmax-workspace-budget-client.out; then
