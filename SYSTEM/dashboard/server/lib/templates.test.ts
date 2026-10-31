@@ -832,7 +832,7 @@ test('templateToMarkdown round-trips multiple workflows with internal markdown h
     workflows: [
       {
         id: 'kickoff',
-        name: 'Kickoff',
+        name: 'Kickoff Personal Operations',
         description: 'Initial kickoff workflow',
         schedule: 'manual',
         enabled: true,
@@ -846,7 +846,7 @@ test('templateToMarkdown round-trips multiple workflows with internal markdown h
       },
       {
         id: 'analysis',
-        name: 'Analysis',
+        name: 'Build Domain Playbooks',
         description: 'Analysis workflow',
         schedule: 'manual',
         enabled: true,
@@ -881,6 +881,7 @@ test('templateToMarkdown round-trips multiple workflows with internal markdown h
   const parsed = parseTemplateMd(md)
   assert(parsed !== null, 'Expected round-trip parse to succeed')
   assert((parsed.workflows || []).length === 3, `Expected 3 workflows after round-trip, got ${(parsed.workflows || []).length}`)
+  assert(JSON.stringify(parsed.workflows.map((w: any) => w.id)) === JSON.stringify(template.workflows.map((w: any) => w.id)), 'Workflow IDs must survive titles that differ from IDs')
   assert(parsed.workflows[0].description === 'Initial kickoff workflow', 'Expected kickoff workflow description to round-trip')
   assert(parsed.workflows[1].description === 'Analysis workflow', 'Expected middle workflow description to round-trip')
   assert(parsed.workflows[2].description === 'Finalization workflow', 'Expected final workflow description to round-trip')

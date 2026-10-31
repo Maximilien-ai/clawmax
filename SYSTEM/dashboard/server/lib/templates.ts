@@ -1382,6 +1382,12 @@ function parseTemplateMdBody(body: string): {
           break
         }
 
+        const workflowId = trimmed.match(/^- \*\*ID:\*\*\s*(.+)$/)
+        if (workflowId) {
+          workflow.id = workflowId[1].trim()
+          continue
+        }
+
         const desc = trimmed.match(/^- \*\*Description:\*\*\s*(.+)$/)
         if (desc) {
           workflow.description = desc[1].trim()
@@ -1550,6 +1556,7 @@ export function templateToMarkdown(template: Template, options?: { agentFiles?: 
     lines.push('')
     for (const w of t.workflows) {
       lines.push(`### ${w.name || w.id}`)
+      if (w.id) lines.push(`- **ID:** ${w.id}`)
       if (w.description) {
         lines.push(`- **Description:** ${String(w.description).trim()}`)
       }
