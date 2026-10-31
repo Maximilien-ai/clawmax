@@ -61,4 +61,10 @@ Template focus, generated Apply Now completion, failed apply draft preservation,
 
 User accepted the normal template/Wispr/Apply Now/Customize flows. Live failed-apply recovery has not been independently exercised; synthetic failure/retry checks passed, and transactional undo remains outside this candidate.
 
-Kickoff display ordering is now stable and first among disconnected workflows, without altering dependency edges. Desktop/mobile graph checks passed. Workspace dialogs now use fixed titles/actions with a scrolling field region; the previously failing layout audit and short-screen budget checks pass. Full integration/validation/coverage rerun started on `2c5dfe84`; result pending. No images dispatched.
+Kickoff display ordering is now stable and first among disconnected workflows, without altering dependency edges. Desktop/mobile graph checks passed. Workspace dialogs now use fixed titles/actions with a scrolling field region; the previously failing layout audit and short-screen budget checks pass. Full integration/validation/coverage rerun started on `2c5dfe84`; result recorded below. No images dispatched.
+
+## Final local validation result
+
+The full `integration --with-validation --coverage` run on product/test source `2c5dfe84` passed: **561 passed, 0 failed**. Statement/line coverage 83.78%, branches 81.48%, functions 92.09%. Log: `/private/tmp/rc97-final-validation.log`. Live paid agent chat was skipped because the isolated runner had no provider key; user live acceptance is separate evidence. Server TypeScript and focused browser checks passed; client diagnostics have no additions versus the existing baseline.
+
+Local preview: `http://localhost:5198`, version `2.0.0-test-rc97-review1.1557b6c5` (documentation-only commit after the tested product changes). Data and Opik configuration retained. Workspace mobile-layout blocker is resolved. No RC97 images have been dispatched and no main merge is claimed by this result.
