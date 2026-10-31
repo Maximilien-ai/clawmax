@@ -8,6 +8,15 @@ import { fileURLToPath } from 'node:url'
 
 const system = path.dirname(fileURLToPath(import.meta.url))
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+export async function preserveDevEnv(file, reuse, setup) {
+  const saved = reuse && fs.existsSync(file) ? fs.readFileSync(file) : null
+  try { await setup() } finally {
+    if (saved !== null) {
+      fs.writeFileSync(file, saved, { mode: 0o600 })
+      fs.chmodSync(file, 0o600)
+    }
+  }
+}
 export function sourcePreviewVersion(sha, branch = '') {
   const candidate = /^integration\/rc(\d+)(?:-|$)/.exec(branch)
   const identity = sha?.slice(0, 8) || 'local'
@@ -173,7 +182,8 @@ async function main() {
   const log = fs.openSync(path.join(root, 'gateway-process.log'), 'a', 0o600)
   try {
     console.log('Preparing isolated checkout (first run can take several minutes).')
-    await run('bash', [path.join(source, 'setup.sh'), '--non-interactive'])
+    const dashboardEnvPath = path.join(source, 'SYSTEM', 'dashboard', '.env')
+    await preserveDevEnv(dashboardEnvPath, reuse, () => run('bash', [path.join(source, 'setup.sh'), '--non-interactive']))
     gateway = spawn(binary, ['gateway', 'run', '--port', String(settings.gatewayPort), '--bind', 'loopback'], { env, cwd: root, detached: true, stdio: ['ignore', log, log] })
     let spawnError
     gateway.once('error', error => { spawnError = error })

@@ -97,3 +97,23 @@ test('stop terminates only its detached process group', async () => {
     assert.equal(unrelated.signalCode, null)
   } finally { await stop(own); await stop(unrelated) }
 })
+
+
+test('restart preserves local settings even when setup fails', async () => {
+  const { preserveDevEnv } = await import('./local-dev.mjs')
+  const fs = await import('node:fs')
+  const os = await import('node:os')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-env-test-'))
+  const file = path.join(root, '.env')
+  try {
+    fs.writeFileSync(file, 'OPIK_API_KEY=synthetic-test-key\n')
+    await assert.rejects(preserveDevEnv(file, true, async () => {
+      fs.writeFileSync(file, 'replacement')
+      throw new Error('setup failed')
+    }), /setup failed/)
+    assert.equal(fs.readFileSync(file, 'utf8'), 'OPIK_API_KEY=synthetic-test-key\n')
+    assert.equal(fs.statSync(file).mode & 0o777, 0o600)
+    await preserveDevEnv(file, false, async () => fs.writeFileSync(file, 'new install'))
+    assert.equal(fs.readFileSync(file, 'utf8'), 'new install')
+  } finally { fs.rmSync(root, { recursive: true, force: true }) }
+})
