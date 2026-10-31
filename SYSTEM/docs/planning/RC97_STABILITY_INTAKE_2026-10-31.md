@@ -3,8 +3,8 @@
 Status: investigation and admission plan, not release readiness or completed fixes.
 Branch: `integration/rc97-stability`, starting at `b2259a39` on the full RC96
 integration line. RC96 remains immutable at `e548c64d`. Main contains RC96
-product integration through PR #344 (`61a7d851`). No new PR was merged during
-this intake. User reports event, customer and personal RC96 testing; this is
+product integration through PR #344 (`61a7d851`). At initial intake no new PR was merged; subsequent RC97 branch integration
+is recorded below. Main and the immutable RC96 tag remain unchanged. User reports event, customer and personal RC96 testing; this is
 valuable acceptance evidence, not a blanket pass for every feature.
 
 ## Priority and acceptance
@@ -93,3 +93,39 @@ The active human Review queue should include only checks requiring judgment or
 an external environment, with the required reviewReason. Preserve RC96 results
 in their own release history; do not copy old unfinished engineering checks into
 the RC97 tester queue.
+
+## RC97 implementation checkpoint — October 31
+
+Branch integrations (not main merges or release readiness):
+
+- `0b243b12`: #377, failed budget loads cannot overwrite budget during metadata edits.
+- `38ed9075`: #376/#378, zero preserved and failed creation-budget writes visibly
+  retry against the already-created workspace. Adoption preserves existing budgets.
+- `4f329f48`: #350 discovery parity: shared identity parsing accepts the same
+  canonical and plain Name fields as Agents. New mixed-format count regression
+  failed before and passed after. Confirm the affected cloud instance separately.
+- `e6bbfec0`: Daniyar #349, workflow-secret persistence and response/export protections.
+- `097ad505`: the eight secret-isolation scenarios are now part of SYSTEM/test.sh.
+- `654ed41f`: Daniyar #346, automatic model selection avoids deprecated fallbacks.
+- `ede1459b`: Daniyar #347, Manage Members focus, Escape and keyboard navigation.
+
+Verified locally: desktop/mobile budget creation/edit/error/retry, overwrite and
+adoption; workspace manager 10 tests plus registration and doc-entry suites;
+secret canaries 8 scenarios, workflow routes 24 tests and export tests; model
+selection 21 client + 11 server + 10 lifecycle tests and five browser scenarios;
+member dialogs four browser scenarios covering group/community and desktop/mobile.
+Server TypeScript passes. Client remains at the same 291 pre-existing diagnostics
+(after normalizing line numbers), with none added. Full release tests, installed
+runtime acceptance and image validation have NOT run for this checkpoint.
+
+#349/#346/#347 remain open on GitHub with required review; their ancestry is
+integrated only on this candidate branch. Eight other Daniyar PRs remain to reconcile
+or validate: #227/#228/#229/#288 and overlapping #339/#340/#341/#343. Do not assume
+those eight contain eight missing features. Existing-data secret cleanup remains
+an explicit offline operator action; it has not been run against real workspaces,
+and does not establish that old exports/backups are free of sensitive values.
+
+Next priorities: #351/#352/#355 document preservation, #367/#375 workflow
+configuration preservation, budget/metering coverage, template apply recovery,
+and the previously planned provider-pair and WhatsApp work. Keep release admission
+bounded by evidence; these integrations alone do not make RC97 ready to cut.
