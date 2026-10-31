@@ -1168,7 +1168,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
       } else {
         setApplyProgress(null)
         showToastError(data.error || 'Failed to apply template')
-        setError(data.error || 'Failed to apply template')
+        setError([data.error || 'Failed to apply template', ...(Array.isArray(data.failedWorkflows) ? data.failedWorkflows.map((name: string) => `Workflow not saved: ${name}.`) : [])].join(' '))
       }
     } catch (err) {
       setApplyProgress(null)

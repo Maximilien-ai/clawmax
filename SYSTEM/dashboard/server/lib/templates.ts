@@ -2580,7 +2580,7 @@ export async function importOrganizationTemplate(
     communityRenames?: Record<string, string>
     workflowRenames?: Record<string, string>
   }
-): Promise<{ ok: boolean; agentIds?: string[]; error?: string }> {
+): Promise<{ ok: boolean; agentIds?: string[]; error?: string; partial?: boolean; failedWorkflows?: string[] }> {
   if (!isPlainPathSegment(templateSlug)) return { ok: false, error: 'Template not found' }
   try {
     // Check workspace templates first (user templates)
@@ -2752,6 +2752,7 @@ export async function importOrganizationTemplate(
 
     const createdAgents: string[] = []
     const newlyCreatedAgents: string[] = []
+    const failedWorkflows: string[] = []
     const appliedModelsByAgentId: Record<string, string | undefined> = {}
     const teamNameById = new Map((adjustedTemplate.teams || []).map((team) => [team.id, team.name]))
 
@@ -3479,6 +3480,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
                 if (enabledChanged) changes.push('enabled state')
                 console.log(`Updated workflow "${wf.name}" with ${changes.join(', ')}`)
               } else {
+                failedWorkflows.push(wf.name)
                 console.warn(`Failed to update workflow ${wf.name}: ${result.error}`)
               }
             } else {
@@ -3507,7 +3509,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
 
             if (!result.success) {
               console.error(`[Template Import] Failed to create workflow "${wf.name}": ${result.error}${result.errors ? ' | ' + result.errors.join(', ') : ''}`)
-              // Don't fail the whole import for workflow creation failures
+              failedWorkflows.push(wf.name)
             }
           }
         }
@@ -3524,6 +3526,16 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
         agentsDir: getAgentsDir(),
         workflowOverrides: options?.workflowOverrides,
       })
+
+      if (failedWorkflows.length > 0) {
+        return {
+          ok: false,
+          partial: true,
+          agentIds: createdAgents,
+          failedWorkflows,
+          error: 'Template apply is incomplete. Some workflows could not be saved. Applied agents and other resources have been kept. Inspect the workspace before applying again; closing this dialog does not undo changes.',
+        }
+      }
 
       recordTemplateApply(buildTemplateFeedbackMetadata(feedbackTemplate))
 

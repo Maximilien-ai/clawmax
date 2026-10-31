@@ -2203,6 +2203,22 @@ test('importOrganizationTemplate maps parameterized agent references for teams a
       ],
     }, null, 2), 'utf-8')
 
+    const workflowsModule = require('./workflows')
+    const originalCreateWorkflow = workflowsModule.createWorkflow
+    try {
+      workflowsModule.createWorkflow = () => ({ success: false, error: 'Injected workflow save failure' })
+      const partial = await importOrganizationTemplate('parameterized-team', {
+        agentCounts: { researcher: 2 },
+      })
+      assert(partial.ok === false && partial.partial === true, 'A failed workflow must not report template success')
+      assertEqual(partial.failedWorkflows?.[0], 'Research Kickoff', 'Partial result identifies the failed workflow')
+      assertEqual(partial.agentIds?.length, 3, 'Partial result identifies retained agents')
+      assert(fs.existsSync(path.join(tempWorkspace, 'AGENTS', 'researcher1', 'IDENTITY.md')), 'Partial failure preserves provisioned agents')
+      assert(getWorkflow('research-kickoff') === null, 'Failed workflow was not saved')
+    } finally {
+      workflowsModule.createWorkflow = originalCreateWorkflow
+    }
+
     const imported = await importOrganizationTemplate('parameterized-team', {
       agentCounts: { researcher: 2 },
     })

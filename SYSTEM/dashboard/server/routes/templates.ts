@@ -798,7 +798,7 @@ router.post('/organizations/import', async (req, res) => {
   })
 
   if (!result.ok) {
-    return res.status(400).json({ error: result.error })
+    return res.status(result.partial ? 409 : 400).json({ error: result.error, partial: result.partial, agentIds: result.agentIds, failedWorkflows: result.failedWorkflows })
   }
 
   res.json({
