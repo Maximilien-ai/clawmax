@@ -76,11 +76,11 @@ the full RC97 integration/validation/coverage gate. No images requested in intak
 
 ## Feedback intake
 
-Located the Web-owned customer feedback UI at `/admin/customer-feedback` and its
-authenticated `/api/admin/customer-feedback` endpoint in the Web source. Actual
-submitted feedback has **not been accessed or triaged** in this intake. Await an
-authenticated session or a redacted export; do not read deployment secrets to
-bypass access. User intends to collect event feedback as well.
+Authenticated CLI intake is now complete: 41 records were read through ClawMax.ai
+CLI 1.6.8. See the [per-item triage](RC97_FEEDBACK_TRIAGE_2026-10-31.md) for decisions,
+existing/new issue links and priorities. Replies are prepared, not posted: Web is
+adding an audited Management response command. No raw participant content is
+included in this public plan.
 
 For each report record a safe reference, affected version/environment, sanitized
 reproduction, expected/actual behavior, severity, owner, duplicate links, proposed
