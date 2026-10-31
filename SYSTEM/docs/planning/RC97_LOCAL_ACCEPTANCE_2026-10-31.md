@@ -76,3 +76,16 @@ The kickoff-only ordering was insufficient. Saved organization-template Markdown
 Validated at product SHA `f80eed82`: server TypeScript, all 83 template tests, and desktop/mobile browser regression for Kickoff → Build → Assemble → Finalize. Three existing local Personal Operations workflow files were backed up and their exact broken references repaired; no agents or workflow history were deleted. Preview: `http://localhost:5198`, version `2.0.0-test-rc97-review1.f80eed82`.
 
 Please visually confirm the full sequence in the existing team. The earlier 561/0 full suite predates this correction; rerun the release suite before image dispatch. No RC97 images have been dispatched.
+
+### Final scope review and user test handoff
+
+User accepted the restored compact horizontal sequences. Latest admitted fix: #375 preserves secondary output definitions during unrelated workflow edits (`726707ca`); server TypeScript and desktop/mobile workflow editor browser tests pass. The three integrated Daniyar PRs #346/#347/#349 remain open/review-required on GitHub, with green PR CI. No additional PR was merged in this review. Overlapping #339/#340/#341/#343 need reconciliation, not blind merging. Hold larger runtime/chat/scheduler and dependency upgrades for separate validation. Document safety (#351/#352/#355), workflow export (#367), metering (#354/#361/#362), and remaining UI feedback are unresolved scope, not claimed fixed.
+
+The previous full 561/0 result predates the latest workflow changes. Run from the owning RC97 checkout, not the old main checkout:
+
+```sh
+cd /private/tmp/clawmax-rc97-worktree
+DASHBOARD_PORT=3018 DASHBOARD_CLIENT_PORT=5199 DASHBOARD_APP_URL=http://localhost:5199 ./SYSTEM/test-with-server.sh integration --with-validation --coverage
+```
+
+The wrapper prepares its pinned OpenClaw runtime and isolates test data. A paid-provider skip is not a live-provider pass. Images remain gated on this final result; no RC97 or RC98 image was dispatched.
