@@ -59,7 +59,7 @@ await page.route('**/api/**', async (route) => {
   else if (p === '/api/integrations/runtimes') body = { runtimes: [{ id: 'openclaw', label: 'OpenClaw', models: [] }, { id: 'claude', label: 'Claude Code', models: ['sonnet', 'opus'] }], enabledRuntimes: fixture.enabledRuntimes }
   else if (p === '/api/health/live') body = { alive: true }
   else if (p === '/api/auth/me') body = { authenticated: true, user: { id: 'fixture', login: 'fixture', name: 'Fixture', role: 'admin' } }
-  else if (p === '/api/system') body = { version: '2.0.0-test-fixture', hostname: 'browser-fixture', machineName: 'Fixture', agentCount: 1, onlineCount: 0, workspacePath: workspace.path }
+  else if (p === '/api/system') body = { version: '2.0.0-test-fixture', hostname: 'browser-fixture', machineName: 'Fixture', agentCount: workspace.agentCount, onlineCount: workspace.agentCount, workspacePath: workspace.path }
   else if (p === '/api/workspaces') body = { workspaces: [workspace] }
   else if (p === '/api/workspaces/active') body = { workspace }
   else if (p === '/api/agents/next') body = { id: 'agent0', port: 18800 }
@@ -123,6 +123,10 @@ try {
       await page.setViewportSize({ width, height: 1000 })
       workspace.agentCount = 0
       await reset()
+      workspace.agentCount = 2
+      await page.evaluate(() => window.dispatchEvent(new Event('agents-updated')))
+      await page.getByText('2 agents', { exact: true }).waitFor({ state: width < 640 ? 'attached' : 'visible' })
+      await page.getByText('2 online', { exact: true }).waitFor({ state: width < 640 ? 'attached' : 'visible' })
       workspace.agentCount = 1
       const picker = page.getByRole('button', { name: /Default model fixture/ }).first()
       await picker.click()

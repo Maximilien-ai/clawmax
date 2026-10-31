@@ -44,6 +44,17 @@ test('unsubscribe stops future workspace refresh callbacks', () => {
   assert(calls === 0, `Expected callback to stop after unsubscribe, got ${calls}`)
 })
 
+test('agent changes refresh counts immediately and cleanup removes the listener', () => {
+  const target = new EventTarget()
+  let calls = 0
+  const off = subscribeSystemRefresh(() => { calls++ }, target)
+  target.dispatchEvent(new Event('agents-updated'))
+  assert(calls === 1, 'Agent changes must refresh system counts')
+  off()
+  target.dispatchEvent(new Event('agents-updated'))
+  assert(calls === 1, 'Agent listener must be removed on cleanup')
+})
+
 if (!process.exitCode) {
   console.log('All tests passed')
   console.log(`Passed: ${passed}`)
