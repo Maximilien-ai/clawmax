@@ -13,9 +13,10 @@ Reports are submitted evidence, not independently verified fixes.
   for historical Client console search; Web #30 tracks audited CLI responses.
 - 33 accepted investigations, two deferred Web/training improvements, three
   clarification replies approved by the user, and three positive acknowledgments.
-- Prepared one response per feedback ID with a decision, existing-feature hints
-  where useful, and issue links. Posting is pending the Web team's response CLI;
-  no customer response or email has been sent. Do not infer delivery from drafts.
+- Posted and independently read back all 41 replies through CLI 1.6.9, each
+  with its decision, feature guidance where useful, and applicable issue links.
+  All 41 notification requests returned pending; this is not sent/inbox evidence.
+  Web owns grouping, cooldown and delivery. Threads remain open.
 
 Accepted means investigate and validate, not guarantee every item ships in RC97.
 For finding files, recommend existing Cmd+K / Ctrl+K or the top Search control in
@@ -99,3 +100,26 @@ notification is a separate explicit operation. Reconcile newly posted team repli
 before writing so stale drafts do not overwrite another response. Preserve original
 feedback and all response history. Ambiguous cases ask for the failing step/error,
 mobile screen/device, or whether the historical deployment problem persists.
+
+## Posting evidence — October 31, 2026
+
+Web repaired the initial production 503. The preserved first request key was
+reused, producing response `f4bdc945-ad9c-4686-8214-6c6b56c62267` for feedback
+`b43e5f84-e15c-4a23-b6d2-19e2357ad86a`. Exact reply text, decision and #378 link
+matched conversation readback. The separate notification was pending.
+[Web received the canary identifiers before the batch continued](https://github.com/Maximilien-ai/clawmax-ai/issues/30#issuecomment-6542080622).
+
+All 41 original feedback texts were unchanged at preflight; every conversation
+was open with zero responses. Web's captured version was RC96 for 37 records;
+four historical records had no verified version, which was left unchanged.
+
+Final result: 41 distinct saved response IDs and 41 exact conversation readbacks;
+33 accepted, two planned Web/training improvements, three needs_info, and three
+acknowledged. All applicable issue URLs matched. Notification receipts were
+pending at verification, with no claim of sent mail or inbox delivery. No thread
+was closed, archived, deleted or published.
+
+One OAuth 429 interrupted readback after the tenth save. Durable receipts allowed
+verification to resume without reposting; subsequent calls were throttled. Drafts
+and protected receipts remain outside the repository. No credentials, raw customer
+prompts or private participant identities are included here.

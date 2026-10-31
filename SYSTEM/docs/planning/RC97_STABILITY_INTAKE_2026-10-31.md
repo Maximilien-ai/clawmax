@@ -78,9 +78,9 @@ the full RC97 integration/validation/coverage gate. No images requested in intak
 
 Authenticated CLI intake is now complete: 41 records were read through ClawMax.ai
 CLI 1.6.8. See the [per-item triage](RC97_FEEDBACK_TRIAGE_2026-10-31.md) for decisions,
-existing/new issue links and priorities. Replies are prepared, not posted: Web is
-adding an audited Management response command. No raw participant content is
-included in this public plan.
+existing/new issue links and priorities. All 41 replies are now saved and verified
+through CLI 1.6.9; notification requests are pending Web delivery. No raw participant
+content is included in this public plan.
 
 For each report record a safe reference, affected version/environment, sanitized
 reproduction, expected/actual behavior, severity, owner, duplicate links, proposed
