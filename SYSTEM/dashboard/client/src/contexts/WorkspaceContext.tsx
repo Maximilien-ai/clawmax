@@ -149,7 +149,6 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
       const data = await res.json()
       await refreshWorkspaces()
-      showSuccess(`Workspace "${name}" created successfully`)
       return data.workspace
     } catch (err: any) {
       console.error('Failed to create workspace:', err)
