@@ -182,6 +182,12 @@ export function WorkspaceEditDialog({
             <p>Budget settings could not be loaded. Other workspace changes will preserve the existing budget.</p>
             <button type="button" className="mt-2 underline" disabled={updating} onClick={() => setBudgetRetry(value => value + 1)}>Retry budget settings</button>
           </div>}
+          {!budgetEnabled && budgetState === 'ready' && (
+            <div role="status" className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+              <p className="font-medium">Workspace budget unavailable</p>
+              <p>Cost tracking is not configured for this instance. An administrator must configure Opik before you can set and enforce a workspace budget. This applies to Personal and other workspaces.</p>
+            </div>
+          )}
           {budgetEnabled && budgetState === 'ready' && (
           <div>
             <label htmlFor="workspace-budget" className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">

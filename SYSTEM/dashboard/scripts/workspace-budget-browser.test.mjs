@@ -28,6 +28,7 @@ try {
      return route.fulfill({ json: { config } })
     }
     if (mode === 'load-error') return route.fulfill({ status: 503, body: '<html>Unavailable</html>' })
+    if (mode === 'disabled') return route.fulfill({ json: { enabled: false } })
     if (mode === 'malformed') return route.fulfill({ json: { config: { limitUsd: 'oops' } } })
     return route.fulfill({ json: { config, currentSpendUsd: 1, usedPct: 2, level: 'ok' } })
    }
@@ -59,6 +60,11 @@ try {
   await page.getByRole('button', { name: 'Update Workspace' }).scrollIntoViewIfNeeded()
   const box = await page.getByRole('button', { name: 'Update Workspace' }).boundingBox()
   assert(box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= 844)
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  mode = 'disabled'; await open()
+  await page.getByText('Workspace budget unavailable', { exact: true }).waitFor()
+  assert.equal(await page.getByLabel('Cost Budget (USD)').count(), 0)
+  await page.screenshot({ path: path.join(artifacts, `${width}-disabled.png`) })
   await page.close()
   const creation = await browser.newPage({ viewport: { width, height: 844 } })
   creation.setDefaultTimeout(5000)
