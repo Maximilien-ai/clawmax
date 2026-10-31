@@ -1,13 +1,15 @@
 # RC97 local acceptance — 2026-10-31
 
-Candidate source: `336b0144`, branch `integration/rc97-stability`.
-Local preview: http://localhost:5198 (`2.0.0-test-rc97-review1.336b0144`).
+Candidate source: `e8dfe99c`, branch `integration/rc97-stability`.
+Local preview: http://localhost:5198 (`2.0.0-test-rc97-review1.e8dfe99c`).
 This is an isolated, initially empty workspace. Add your provider key in Model Integration. Existing RC96 and on-prem environments are unchanged. Images have not been built.
 
 ## Latest regression retest
 
-- [ ] **R1 — BYOK while creating an agent** (`reviewReason: external-environment`): Refresh the browser, open Create with AI, save your new-agent default in BYOK, and return to the wizard. The default should appear without reopening the wizard and the missing-model warning should clear.
-- [ ] **R2 — AI Editor generation** (`reviewReason: external-environment`): Enter a description, open AI Editor, expand it, then Save & Generate. Confirm files are generated and provisioning uses your selected model. Existing draft/key/workspace data was retained during the preview refresh.
+- [x] **R1 — BYOK while creating an agent** (`reviewReason: external-environment`): Refresh the browser, open Create with AI, save your new-agent default in BYOK, and return to the wizard. The default should appear without reopening the wizard and the missing-model warning should clear.
+- [x] **R2 — AI Editor generation** (`reviewReason: external-environment`): Enter a description, open AI Editor, expand it, then Save & Generate. Confirm files are generated and provisioning uses your selected model. Existing draft/key/workspace data was retained during the preview refresh.
+
+User confirmed R1 and R2 passed. Workspace count failed acceptance: API returned 1 but the picker retained its initial 0. The follow-up fix refreshes workspace inventory each time the picker opens; A2 needs retesting after the preview refresh. Budget acceptance remains separate and unconfirmed.
 
 ## Human acceptance
 
