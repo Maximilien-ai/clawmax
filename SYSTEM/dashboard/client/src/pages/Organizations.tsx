@@ -1167,7 +1167,11 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const channelMemberControls = <ChannelMemberPicker agents={agents} members={channelMembers} onChange={setChannelMembers} />
 
   const handleCreateCommunity = async () => {
-    if (!newCommunityName.trim()) return
+    if (!newCommunityName.trim()) {
+      setChannelError('Community name is required. Enter a name or generate a draft with AI.')
+      document.getElementById('create-community-name')?.focus()
+      return
+    }
 
     setChannelError('')
     if (channelSaving || channelGenerating) return
@@ -1207,7 +1211,11 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   }
 
   const handleCreateGroup = async () => {
-    if (!newGroupName.trim()) return
+    if (!newGroupName.trim()) {
+      setChannelError('Group name is required. Enter a name or generate a draft with AI.')
+      document.getElementById('create-group-name')?.focus()
+      return
+    }
 
     setChannelError('')
     if (channelSaving || channelGenerating) return
@@ -2438,7 +2446,11 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                 </label>
                 <input
                   type="text"
-                  value={newCommunityName}
+                  id="create-community-name"
+                aria-label="Community name (required)"
+                aria-required="true"
+                aria-invalid={!!channelError && !newCommunityName.trim()}
+                value={newCommunityName}
                   onChange={(e) => setNewCommunityName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600"
                   placeholder="Engineering Team"
@@ -2474,7 +2486,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
               </button>
               <button
                 onClick={handleCreateCommunity}
-                disabled={!newCommunityName.trim() || channelGenerating || channelSaving}
+                disabled={channelGenerating || channelSaving}
                 className={`px-4 py-2 text-sm rounded transition-colors ${
                   newCommunityName.trim()
                     ? 'bg-purple-600 text-white hover:bg-purple-700'
@@ -2503,7 +2515,11 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                 </label>
                 <input
                   type="text"
-                  value={newGroupName}
+                  id="create-group-name"
+                aria-label="Group name (required)"
+                aria-required="true"
+                aria-invalid={!!channelError && !newGroupName.trim()}
+                value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600"
                   placeholder="Backend Team"
@@ -2570,7 +2586,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
               </button>
               <button
                 onClick={handleCreateGroup}
-                disabled={!newGroupName.trim() || channelGenerating || channelSaving}
+                disabled={channelGenerating || channelSaving}
                 className={`px-4 py-2 text-sm rounded transition-colors ${
                   newGroupName.trim()
                     ? 'bg-indigo-600 text-white hover:bg-indigo-700'

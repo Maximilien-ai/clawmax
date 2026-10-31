@@ -312,7 +312,11 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const handleCreateCommunity = async () => {
     if (channelGenerating || channelSaving) return
     setChannelError('')
-    if (!newCommunityName.trim()) return
+    if (!newCommunityName.trim()) {
+      setChannelError('Community name is required. Enter a name or generate a draft with AI.')
+      document.getElementById('create-community-name')?.focus()
+      return
+    }
     if (workspaceCommunities.some((community) => community.name.toLowerCase() === newCommunityName.trim().toLowerCase())) {
       setChannelError(`Community "${newCommunityName}" already exists`)
       return
@@ -347,7 +351,11 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const handleCreateGroup = async () => {
     if (channelGenerating || channelSaving) return
     setChannelError('')
-    if (!newGroupName.trim()) return
+    if (!newGroupName.trim()) {
+      setChannelError('Group name is required. Enter a name or generate a draft with AI.')
+      document.getElementById('create-group-name')?.focus()
+      return
+    }
     if (workspaceGroups.some((group) => group.name.toLowerCase() === newGroupName.trim().toLowerCase())) {
       setChannelError(`Group "${newGroupName}" already exists`)
       return
@@ -1323,6 +1331,10 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
               <input
                 type="text"
+                id="create-community-name"
+                aria-label="Community name (required)"
+                aria-required="true"
+                aria-invalid={!!channelError && !newCommunityName.trim()}
                 value={newCommunityName}
                 onChange={(e) => setNewCommunityName(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
@@ -1344,7 +1356,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           <div className="mt-6 flex flex-wrap justify-end gap-3 shrink-0">
             {channelError && <p role="alert" className="w-full text-sm text-red-600">{channelError}</p>}
             <button disabled={channelGenerating || channelSaving} onClick={() => setShowCreateCommunity(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
-            <button disabled={channelGenerating || channelSaving || !newCommunityName.trim()} onClick={handleCreateCommunity} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Community</button>
+            <button disabled={channelGenerating || channelSaving} onClick={handleCreateCommunity} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Community</button>
           </div>
         </div>
       </div>
@@ -1367,6 +1379,10 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
               <input
                 type="text"
+                id="create-group-name"
+                aria-label="Group name (required)"
+                aria-required="true"
+                aria-invalid={!!channelError && !newGroupName.trim()}
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
@@ -1398,7 +1414,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           <div className="mt-6 flex flex-wrap justify-end gap-3 shrink-0">
             {channelError && <p role="alert" className="w-full text-sm text-red-600">{channelError}</p>}
             <button disabled={channelGenerating || channelSaving} onClick={() => setShowCreateGroup(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
-            <button disabled={channelGenerating || channelSaving || !newGroupName.trim()} onClick={handleCreateGroup} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Group</button>
+            <button disabled={channelGenerating || channelSaving} onClick={handleCreateGroup} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Group</button>
           </div>
         </div>
       </div>
