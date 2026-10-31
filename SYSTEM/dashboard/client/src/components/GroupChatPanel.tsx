@@ -771,6 +771,21 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
     }
   }
 
+  useEffect(() => {
+    if (mode !== 'overlay') return
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return
+      event.preventDefault()
+      if (deleteConfirm) setDeleteConfirm(null)
+      else if (showClearConfirm) setShowClearConfirm(false)
+      else if (showArchives) setShowArchives(false)
+      else if (showMentions) setShowMentions(false)
+      else onClose()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [mode, onClose, deleteConfirm, showClearConfirm, showArchives, showMentions])
+
   const isOverlay = mode === 'overlay'
   const isBulkChat = channel.tags?.includes('bulk-chat')
   const timelineRows = buildAgentChatTimelineRows(messages)
@@ -811,7 +826,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       className={isOverlay ? "fixed inset-0 z-50 flex items-end justify-end bg-black/20" : "h-full flex flex-col"}
       onClick={isOverlay && !isBulkChat ? onClose : undefined}
     >
-      <div className={`bg-white dark:bg-gray-800 h-full ${isOverlay ? 'w-full sm:w-[480px] shadow-2xl' : 'w-full'} flex flex-col`} onClick={(e) => isOverlay && e.stopPropagation()}>
+      <div className={`bg-white dark:bg-gray-800 h-full ${isOverlay ? 'w-full sm:w-[528px] max-w-full shadow-2xl' : 'w-full'} flex flex-col`} onClick={(e) => isOverlay && e.stopPropagation()}>
         {/* Header */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 shrink-0">
           <div className="flex items-start gap-3">

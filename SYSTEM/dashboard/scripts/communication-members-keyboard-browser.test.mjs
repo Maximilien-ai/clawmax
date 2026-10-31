@@ -148,6 +148,16 @@ try {
       assert.deepEqual(state.errors, [])
       console.log(`PASS ${label}: Escape/Cancel discard without saving or reaching the page, Tab wraps, focus returns, Save persists`)
     }
+    await page.getByTitle('Open chat', { exact: true }).first().click()
+    const closeChat = page.getByTitle('Close chat', { exact: true })
+    await closeChat.waitFor()
+    const panel = closeChat.locator('xpath=../../..')
+    const box = await panel.boundingBox()
+    assert(Math.abs(box.width - (width >= 640 ? 528 : width)) < 2, `Chat width ${box.width} fits ${width}`)
+    await page.screenshot({ path: path.join(artifactDir, `group-chat-${width}.png`) })
+    await page.keyboard.press('Escape')
+    await closeChat.waitFor({ state: 'hidden' })
+    console.log(`PASS ${width}px chat: expanded width and Escape dismissal`)
     await page.screenshot({ path: path.join(artifactDir, `members-keyboard-${width}.png`) })
     await context.close()
   }
