@@ -2203,6 +2203,17 @@ test('importOrganizationTemplate maps parameterized agent references for teams a
       ],
     }, null, 2), 'utf-8')
 
+    const fixturePath = path.join(templateDir, 'template.json')
+    const originalFixture = fs.readFileSync(fixturePath, 'utf-8')
+    const missingOwnerFixture = JSON.parse(originalFixture)
+    missingOwnerFixture.workflows[0].owner = 'missing-owner'
+    fs.writeFileSync(fixturePath, JSON.stringify(missingOwnerFixture))
+    const rejected = await importOrganizationTemplate('parameterized-team', { agentCounts: { researcher: 2 } })
+    assert(rejected.ok === false && rejected.error?.includes('missing-owner') === true, 'Missing owner is identified before apply')
+    assert(!fs.existsSync(path.join(tempWorkspace, 'AGENTS', 'researcher1')), 'Preflight failure creates no agents')
+    assert(getTeam('research-team') === null, 'Preflight failure creates no team')
+    fs.writeFileSync(fixturePath, originalFixture)
+
     const workflowsModule = require('./workflows')
     const originalCreateWorkflow = workflowsModule.createWorkflow
     try {

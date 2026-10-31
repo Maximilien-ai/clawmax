@@ -2826,6 +2826,35 @@ export async function importOrganizationTemplate(
       )
     }
 
+    // Reject missing references before writing any resources. In particular,
+    // excluding a built-in agent must not leave an imported workflow ownerless.
+    const availableAgentIds = new Set([
+      ...listAgents().map(agent => agent.id),
+      ...agentsToCreate.map(agent => `${prefix}${agent.id}${suffix}`),
+    ])
+    const missingReferences: string[] = []
+    const checkAgentReference = (agentId: string | undefined, label: string) => {
+      if (agentId && !availableAgentIds.has(agentId)) missingReferences.push(`${label}: ${agentId}`)
+    }
+    for (const workflow of adjustedTemplate.workflows || []) {
+      checkAgentReference(mapImportedAgentId((workflow as Workflow & { owner?: string }).owner), `Workflow "${workflow.name}" owner`)
+      for (const agentId of mapImportedAgentIds(workflow.targeting?.agents)) {
+        checkAgentReference(agentId, `Workflow "${workflow.name}" target`)
+      }
+    }
+    for (const team of adjustedTemplate.teams || []) {
+      checkAgentReference(mapImportedAgentId(team.leaderAgentId), `Team "${team.name}" leader`)
+      for (const agentId of mapImportedAgentIds(team.memberAgentIds)) {
+        checkAgentReference(agentId, `Team "${team.name}" member`)
+      }
+    }
+    if (missingReferences.length > 0) {
+      return {
+        ok: false,
+        error: `No changes applied. Missing agents: ${[...new Set(missingReferences)].join('; ')}. Include the required template agents, create the missing agents in this workspace, or correct the template references before applying again.`,
+      }
+    }
+
     try {
       // Step 1: Create all agents with their files
       for (const templateAgent of agentsToCreate) {
