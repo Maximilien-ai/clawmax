@@ -22,7 +22,7 @@ User reports all existing checks except template apply passed, including live bu
 - [x] **A1 — Basic agent flow** (`reviewReason: external-environment`): Configure your provider and default model, create an agent, chat, follow up, and reload. Confirm the selected model and conversation remain correct.
 - [x] **A2 — Workspace counts** (`reviewReason: external-environment`): Create a second workspace and agents; switch workspaces, archive/delete an agent, and reload. Confirm each workspace's dropdown count matches its active roster. Especially repeat on the environment that previously showed zero.
 - [x] **A3 — Budgets** (`reviewReason: external-environment`): Create a workspace with a budget; reopen settings and reload. Change only its name and confirm the budget remains unchanged. Check actual spending behavior with your provider; metering and enforcement are not claimed fixed by the settings changes.
-- [ ] **A4 — Organization template** (`reviewReason: external-environment`): Apply a small team template, inspect its agents/groups/workflows, and run a workflow. If apply fails, confirm it identifies the problem rather than claiming success. Report the template and exact error.
+- [x] **A4 — Organization template** (`reviewReason: external-environment`): Apply a small team template, inspect its agents/groups/workflows, and run a workflow. If apply fails, confirm it identifies the problem rather than claiming success. Report the template and exact error.
 - [x] **A5 — Groups and communities** (`reviewReason: human-judgment`): Create with AI, inspect members, search/add/remove members, cancel without saving, then save and reload. Check readable names and keyboard/mobile usability.
 - [x] **A6 — Workflows** (`reviewReason: external-environment`): Generate with AI using an explicit agent mention, review its owner/targets/content, save, run, and inspect the outcome. Verify your basic workflow and team creation flows carried forward from RC96.
 - [x] **A7 — Plugins** (`reviewReason: human-judgment`): Open the enabled plugin pages and confirm the intended selection and familiar actions are available. User confirmed the plugin page opens; deeper plugin actions remain optional exploratory testing.
@@ -51,8 +51,14 @@ Release order: finish engineering checks → local human acceptance → exact RC
 
 User confirmed group/community required-name validation passed. Remaining external checks:
 
-- [ ] **T1 — Wispr Flow** (`reviewReason: external-environment`): Open Create template with AI and dictate immediately. Confirm the focused team prompt receives the words and AI Editor/generation retains them. Browser insertion is tested; native Wispr integration needs this check.
-- [ ] **T2 — Generated template Apply Now** (`reviewReason: external-environment`): Generate a team, select Apply Now, and confirm it opens Deploy using defaults without the customization sequence. Apply it and verify agents/workflows. Separately confirm Customize opens customization.
+- [x] **T1 — Wispr Flow** (`reviewReason: external-environment`): Open Create template with AI and dictate immediately. Confirm the focused team prompt receives the words and AI Editor/generation retains them. Browser insertion is tested; native Wispr integration needs this check.
+- [x] **T2 — Generated template Apply Now** (`reviewReason: external-environment`): Generate a team, select Apply Now, and confirm it opens Deploy using defaults without the customization sequence. Apply it and verify agents/workflows. Separately confirm Customize opens customization.
 - [ ] **T3 — Catalog and failure handling** (`reviewReason: external-environment`): Inspect a catalog team, compare Apply Now and Apply with Customization. Required setup/conflicts must stay visible and prevent incomplete deployment. When a real apply fails, record the exact template/error and confirm it does not claim success. Full rollback is still unsupported.
 
 Template focus, generated Apply Now completion, failed apply draft preservation, and retry navigation passed desktop/mobile synthetic browser checks. Server TypeScript passed. Images remain gated on the separate workspace mobile-layout failure and complete candidate validation.
+
+## Final engineering checkpoint
+
+User accepted the normal template/Wispr/Apply Now/Customize flows. Live failed-apply recovery has not been independently exercised; synthetic failure/retry checks passed, and transactional undo remains outside this candidate.
+
+Kickoff display ordering is now stable and first among disconnected workflows, without altering dependency edges. Desktop/mobile graph checks passed. Workspace dialogs now use fixed titles/actions with a scrolling field region; the previously failing layout audit and short-screen budget checks pass. Full integration/validation/coverage rerun started on `2c5dfe84`; result pending. No images dispatched.
