@@ -1,7 +1,7 @@
 # RC97 local acceptance — 2026-10-31
 
-Candidate source: `1a1055e8`, branch `integration/rc97-stability`.
-Local preview: http://localhost:5198 (`2.0.0-test-rc97-review1.1a1055e8`).
+Candidate source: `5a7f1df1`, branch `integration/rc97-stability`.
+Local preview: http://localhost:5198 (`2.0.0-test-rc97-review1.5a7f1df1`).
 This is an isolated, initially empty workspace. Add your provider key in Model Integration. Existing RC96 and on-prem environments are unchanged. Images have not been built.
 
 ## Latest regression retest
@@ -13,7 +13,7 @@ User confirmed R1 and R2 passed. Workspace count failed acceptance: API returned
 
 - [x] **R3 — Chat usability** (`reviewReason: human-judgment`): Open group/community chat, confirm the wider desktop panel feels comfortable, then press Escape to close. Phone layout must still fit the screen.
 
-- [ ] **R4 — Required channel name** (`reviewReason: human-judgment`): For both group and community, click Create without generating a draft or entering a name. Expect a clear required-name message and focus on Name. Enter a name manually and create successfully; Generate Draft must remain optional.
+- [x] **R4 — Required channel name** (`reviewReason: human-judgment`): For both group and community, click Create without generating a draft or entering a name. Expect a clear required-name message and focus on Name. Enter a name manually and create successfully; Generate Draft must remain optional.
 
 User reports all existing checks except template apply passed, including live budget testing after Opik configuration. R4 is the only new regression retest.
 
@@ -46,3 +46,13 @@ Keep the preview process running while testing. Restart the same isolated data w
 Run from this branch checkout. Ctrl-C in its launcher stops only this preview's Dashboard and Gateway. Do not use on-prem stop commands.
 
 Release order: finish engineering checks → local human acceptance → exact RC97 source/tag → matching public and combined images → image smoke tests and handoff to Daniyar.
+
+## Template follow-up acceptance
+
+User confirmed group/community required-name validation passed. Remaining external checks:
+
+- [ ] **T1 — Wispr Flow** (`reviewReason: external-environment`): Open Create template with AI and dictate immediately. Confirm the focused team prompt receives the words and AI Editor/generation retains them. Browser insertion is tested; native Wispr integration needs this check.
+- [ ] **T2 — Generated template Apply Now** (`reviewReason: external-environment`): Generate a team, select Apply Now, and confirm it opens Deploy using defaults without the customization sequence. Apply it and verify agents/workflows. Separately confirm Customize opens customization.
+- [ ] **T3 — Catalog and failure handling** (`reviewReason: external-environment`): Inspect a catalog team, compare Apply Now and Apply with Customization. Required setup/conflicts must stay visible and prevent incomplete deployment. When a real apply fails, record the exact template/error and confirm it does not claim success. Full rollback is still unsupported.
+
+Template focus, generated Apply Now completion, failed apply draft preservation, and retry navigation passed desktop/mobile synthetic browser checks. Server TypeScript passed. Images remain gated on the separate workspace mobile-layout failure and complete candidate validation.
