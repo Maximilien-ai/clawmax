@@ -2467,7 +2467,8 @@ export default function Templates({ searchSelection }: { searchSelection?: { key
               showError('Failed to save template')
             }
           }}
-          onApply={(template) => {
+          onApply={(template, mode = 'apply-now') => {
+            setApplyTemplateMode(mode)
             setApplyingTemplate(template as OrganizationTemplate)
             setShowWizard(false)
             setEditingTemplate(null)
@@ -3402,13 +3403,16 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onApplyNow,
                 ⚡ Apply with Customization
               </button>
             )}
-            {!isWorkflow && onApplyNow && canApplyNow && (
+            {!isWorkflow && onApplyNow && (
               <button
                 onClick={onApplyNow}
                 className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors text-sm font-medium"
               >
                 Apply Now
               </button>
+            )}
+            {!isWorkflow && onApplyNow && !canApplyNow && (
+              <p className="w-full text-sm text-amber-700 dark:text-amber-300">Apply Now uses template defaults. This template has required setup; any missing values must be resolved before deployment.</p>
             )}
             {!isWorkflow && onRefine && (
               <button

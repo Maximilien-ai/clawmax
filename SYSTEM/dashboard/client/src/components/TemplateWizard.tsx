@@ -173,7 +173,7 @@ const INITIAL_STATE: WizardState = {
 interface TemplateWizardProps {
   onClose: () => void
   onSave: (template: any) => Promise<void>
-  onApply: (template: any) => void
+  onApply: (template: any, mode?: 'customize' | 'apply-now') => void
   showSuccess: (msg: string) => void
   showError: (msg: string) => void
   initialTemplate?: any | null
@@ -1145,8 +1145,10 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       </div>
 
       <div className="mb-4">
-        <label className={labelCls}>Describe your team</label>
+        <label htmlFor="template-team-prompt" className={labelCls}>Describe your team</label>
         <textarea
+          id="template-team-prompt"
+          autoFocus
           value={state.teamDescription}
           onChange={e => update({ teamDescription: e.target.value })}
           placeholder="e.g., A customer support team with 3 support agents, an escalation engineer, and a knowledge base manager..."
@@ -2005,13 +2007,14 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             <button
               onClick={() => {
                 const t = buildTemplate()
-                onApply(t)
+                onApply(t, 'apply-now')
               }}
               disabled={!state.teamName.trim() || state.agents.length === 0}
               className="px-4 py-2 text-sm bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
             >
               Apply Now
             </button>
+            <button onClick={() => onApply(buildTemplate(), 'customize')} disabled={!state.teamName.trim() || state.agents.length === 0} className={btnSecondary}>Customize</button>
           </div>
         </div>
       </div>

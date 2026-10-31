@@ -21,6 +21,7 @@ try {
       else if (path === '/api/system') json = { version: 'fixture', agentCount: 0, onlineCount: 0 }
       else if (path === '/api/workspaces') json = { workspaces: [] }
       else if (path === '/api/plugins') json = { plugins: [] }
+      else if (path === '/api/templates/generate') json = { template: { ...template('organization'), workflows: [{ id: 'fixture-workflow', name: 'Fixture Workflow', schedule: 'manual', targeting: { agents: ['fixture-agent'] }, content: 'Summarize your status.' }] } }
       else if (path === '/api/templates') json = { agents: [template('agent')], organizations: [template('organization')], workflows: [] }
       else if (path === '/api/templates/organizations/prereqs') json = { ready: true, checks: [], summary: { pass: 1, warn: 0, fail: 0 } }
       else if (path === '/api/templates/organizations/conflicts') json = { agentConflicts: [], groupConflicts: [], communityConflicts: [], workflowConflicts: [] }
@@ -57,6 +58,20 @@ try {
       assert.equal(await input.count(), 0)
       console.log(`PASS ${width}px ${name}: failure preserves input; retry navigates to Agents`)
     }
+    await page.goto(`${base}/templates`)
+    await page.getByTitle('Create template with AI', { exact: true }).click()
+    const prompt = page.getByRole('textbox', { name: 'Describe your team', exact: true })
+    await prompt.waitFor()
+    assert.equal(await prompt.evaluate(el => el === document.activeElement), true)
+    await page.keyboard.insertText('A small team that summarizes status')
+    assert.equal(await prompt.inputValue(), 'A small team that summarizes status')
+    await page.getByRole('button', { name: /AI Generate All/ }).click()
+    await page.getByRole('button', { name: 'Apply Now', exact: true }).click()
+    await page.getByText('Apply now uses the template defaults unless you go back and customize them.', { exact: true }).waitFor()
+    await page.screenshot({ path: `/private/tmp/rc97-generated-apply-${width}.png` })
+    await page.getByRole('button', { name: '⚡ Apply Template', exact: true }).click()
+    await page.waitForURL('**/agents')
+    console.log(`PASS ${width}px generated template: prompt receives text and Apply Now opens deployment`)
     await page.close()
   }
 } finally { await browser.close() }
