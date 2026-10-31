@@ -9,7 +9,8 @@ try {
   await kickoff.waitFor()
   const names = ['Kickoff Personal Operations','Build Playbooks','Assemble Cadence','Finalize Personal Operations']
   const boxes = await Promise.all(names.map(name => page.getByText(name,{exact:true}).last().boundingBox()))
-  for(let i=1;i<boxes.length;i++) assert(boxes[i].y > boxes[i-1].y + boxes[i-1].height, `${names[i]} follows ${names[i-1]} top to bottom`)
+  for(let i=1;i<boxes.length;i++) assert(boxes[i].x > boxes[i-1].x + boxes[i-1].width, `${names[i]} follows ${names[i-1]} left to right`)
+  for (const box of boxes) assert(box.width < 500, 'Workflow cards retain compact widths')
   await page.screenshot({path:`/private/tmp/rc97-kickoff-${width}.png`,fullPage:true})
   await page.close()
   console.log(`PASS ${width}px kickoff-first graph`)

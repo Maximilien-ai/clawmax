@@ -306,10 +306,10 @@ export default function WorkflowDAG({
           const gap = 8
           const toWf = workflows.find(w => w.id === edge.to)
           forestLines.push({
-            x1: (fromRect.left + fromRect.width / 2 - rect.left) / zoom,
-            y1: (fromRect.bottom - rect.top + gap) / zoom,
-            x2: (toRect.left + toRect.width / 2 - rect.left) / zoom,
-            y2: (toRect.top - rect.top - gap) / zoom,
+            x1: (fromRect.right - rect.left + gap) / zoom,
+            y1: (fromRect.top + fromRect.height / 2 - rect.top) / zoom,
+            x2: (toRect.left - rect.left - gap) / zoom,
+            y2: (toRect.top + toRect.height / 2 - rect.top) / zoom,
             status: toWf?.status || 'idle',
             fromId: edge.from,
             toId: edge.to,
@@ -482,14 +482,13 @@ export default function WorkflowDAG({
                 <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: editable ? 'auto' : 'none', zIndex: editable ? 20 : 5 }}>
                   {(linesByForest.get(forest.forestIdx) || []).map((line, idx) => {
                     const midX = (line.x1 + line.x2) / 2
-                    const midY = (line.y1 + line.y2) / 2
                     const color = line.status === 'completed' ? '#10b981' : line.status === 'running' ? '#0ea5e9' : line.status === 'blocked' ? '#f59e0b' : '#d1d5db'
                     return (
                       <g key={idx}>
-                        <path d={`M ${line.x1} ${line.y1} C ${line.x1} ${midY}, ${line.x2} ${midY}, ${line.x2} ${line.y2}`} fill="none" stroke={color} strokeWidth={2} strokeDasharray={line.kind === 'handoff' ? '6 4' : line.status === 'idle' ? '4 4' : undefined} />
+                        <path d={`M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`} fill="none" stroke={color} strokeWidth={2} strokeDasharray={line.kind === 'handoff' ? '6 4' : line.status === 'idle' ? '4 4' : undefined} />
                         {editable && onRemoveDependency && (
                           <>
-                            <path d={`M ${line.x1} ${line.y1} C ${line.x1} ${midY}, ${line.x2} ${midY}, ${line.x2} ${line.y2}`} fill="none" stroke="transparent" strokeWidth={12} style={{ cursor: 'pointer', pointerEvents: 'all' }} onClick={(e) => { e.stopPropagation(); onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }} />
+                            <path d={`M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`} fill="none" stroke="transparent" strokeWidth={12} style={{ cursor: 'pointer', pointerEvents: 'all' }} onClick={(e) => { e.stopPropagation(); onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }} />
                             <g style={{ cursor: 'pointer', pointerEvents: 'all' }} onClick={(e) => { e.stopPropagation(); onRemoveDependency(line.fromId, line.toId); setLastAction({ type: 'remove', fromId: line.fromId, toId: line.toId }) }}>
                               <circle cx={midX} cy={(line.y1 + line.y2) / 2} r={10} fill="white" stroke="#ef4444" strokeWidth={1.5} className="dark:fill-gray-800" />
                               <text x={midX} y={(line.y1 + line.y2) / 2 + 1} textAnchor="middle" dominantBaseline="middle" fontSize={12} fill="#ef4444" fontWeight="bold">×</text>
@@ -500,7 +499,7 @@ export default function WorkflowDAG({
                     )
                   })}
                 </svg>
-                <div className="flex flex-col gap-6 p-4 relative z-10" style={{ minHeight: 100 }}>
+                <div className="flex gap-6 p-4 relative z-10" style={{ minHeight: 100 }}>
                   {group.forests.length > 1 && (
                     <div className="absolute left-4 top-1 text-[10px] font-medium text-gray-400 dark:text-gray-500">
                       Pipeline {groupForestIdx + 1}
