@@ -350,7 +350,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
             label: primaryOutput.label?.trim() || primaryOutput.key.trim(),
             type: 'markdown' as const,
             help: primaryOutput.help?.trim() || undefined,
-          }]
+          }, ...(formData.outputDefinitions || []).slice(1)]
         : []
       const normalizedInputRefs = (formData.inputRefs || [])
         .map((inputRef) => ({

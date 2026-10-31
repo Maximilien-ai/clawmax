@@ -14,7 +14,8 @@ try {
     let failCreate = true
     let emptyGeneration = false
     let failDetail = false
-    const workflow = { id, name: 'Daily Example', description: 'Scheduled brief', status: 'completed', enabled: true, schedule: '0 9 * * *', timezone: 'America/Los_Angeles', executionMode: 'automated', content: 'Write a concise brief', targeting: { agents: ['collector', 'analyst'], groups: ['opaque-group-id'], communities: [], tags: [], teamIds: [] }, participantCount: 2, runCount: 7 }
+    const outputs = [{key:'summary',label:'Summary',type:'markdown'},{key:'details',label:'Details',type:'markdown',help:'Preserve this output'}]
+    const workflow = { outputDefinitions: outputs, id, name: 'Daily Example', description: 'Scheduled brief', status: 'completed', enabled: true, schedule: '0 9 * * *', timezone: 'America/Los_Angeles', executionMode: 'automated', content: 'Write a concise brief', targeting: { agents: ['collector', 'analyst'], groups: ['opaque-group-id'], communities: [], tags: [], teamIds: [] }, participantCount: 2, runCount: 7 }
     await page.addInitScript(() => { window.EventSource = class { close() {} }; for (let v=1;v<=10;v++) localStorage.setItem(`clawmax-workspace-tour:disable:v${v}`, 'dismissed') })
     await page.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname
@@ -146,6 +147,7 @@ try {
     await dialog.waitFor({ state: 'hidden' })
     assert.equal(saved.schedule, '0 9 * * 1')
     assert.equal(saved.timezone, 'America/Los_Angeles')
+    assert.deepEqual(saved.outputDefinitions, outputs, 'Unrelated edit preserves every output definition')
     assert.deepEqual(saved.targeting.groups, ['opaque-group-id'])
     await page.getByRole('button', { name: 'Edit', exact: true }).click()
     await save.waitFor()
