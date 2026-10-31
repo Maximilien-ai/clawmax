@@ -1,7 +1,7 @@
 # RC97 local acceptance — 2026-10-31
 
-Candidate source: `682c92f6`, branch `integration/rc97-stability`.
-Local preview: http://localhost:5198 (`2.0.0-test-rc97-review1.682c92f6`).
+Candidate source: `1a1055e8`, branch `integration/rc97-stability`.
+Local preview: http://localhost:5198 (`2.0.0-test-rc97-review1.1a1055e8`).
 This is an isolated, initially empty workspace. Add your provider key in Model Integration. Existing RC96 and on-prem environments are unchanged. Images have not been built.
 
 ## Latest regression retest
@@ -11,16 +11,20 @@ This is an isolated, initially empty workspace. Add your provider key in Model I
 
 User confirmed R1 and R2 passed. Workspace count failed acceptance: API returned 1 but the picker retained its initial 0. The picker and top-bar follow-up fixes passed user acceptance. Budget acceptance remains separate and unconfirmed.
 
-- [ ] **R3 — Chat usability** (`reviewReason: human-judgment`): Open group/community chat, confirm the wider desktop panel feels comfortable, then press Escape to close. Phone layout must still fit the screen.
+- [x] **R3 — Chat usability** (`reviewReason: human-judgment`): Open group/community chat, confirm the wider desktop panel feels comfortable, then press Escape to close. Phone layout must still fit the screen.
+
+- [ ] **R4 — Required channel name** (`reviewReason: human-judgment`): For both group and community, click Create without generating a draft or entering a name. Expect a clear required-name message and focus on Name. Enter a name manually and create successfully; Generate Draft must remain optional.
+
+User reports all existing checks except template apply passed, including live budget testing after Opik configuration. R4 is the only new regression retest.
 
 ## Human acceptance
 
-- [ ] **A1 — Basic agent flow** (`reviewReason: external-environment`): Configure your provider and default model, create an agent, chat, follow up, and reload. Confirm the selected model and conversation remain correct.
+- [x] **A1 — Basic agent flow** (`reviewReason: external-environment`): Configure your provider and default model, create an agent, chat, follow up, and reload. Confirm the selected model and conversation remain correct.
 - [x] **A2 — Workspace counts** (`reviewReason: external-environment`): Create a second workspace and agents; switch workspaces, archive/delete an agent, and reload. Confirm each workspace's dropdown count matches its active roster. Especially repeat on the environment that previously showed zero.
-- [ ] **A3 — Budgets** (`reviewReason: external-environment`): Create a workspace with a budget; reopen settings and reload. Change only its name and confirm the budget remains unchanged. Check actual spending behavior with your provider; metering and enforcement are not claimed fixed by the settings changes.
+- [x] **A3 — Budgets** (`reviewReason: external-environment`): Create a workspace with a budget; reopen settings and reload. Change only its name and confirm the budget remains unchanged. Check actual spending behavior with your provider; metering and enforcement are not claimed fixed by the settings changes.
 - [ ] **A4 — Organization template** (`reviewReason: external-environment`): Apply a small team template, inspect its agents/groups/workflows, and run a workflow. If apply fails, confirm it identifies the problem rather than claiming success. Report the template and exact error.
-- [ ] **A5 — Groups and communities** (`reviewReason: human-judgment`): Create with AI, inspect members, search/add/remove members, cancel without saving, then save and reload. Check readable names and keyboard/mobile usability.
-- [ ] **A6 — Workflows** (`reviewReason: external-environment`): Generate with AI using an explicit agent mention, review its owner/targets/content, save, run, and inspect the outcome. Verify your basic workflow and team creation flows carried forward from RC96.
+- [x] **A5 — Groups and communities** (`reviewReason: human-judgment`): Create with AI, inspect members, search/add/remove members, cancel without saving, then save and reload. Check readable names and keyboard/mobile usability.
+- [x] **A6 — Workflows** (`reviewReason: external-environment`): Generate with AI using an explicit agent mention, review its owner/targets/content, save, run, and inspect the outcome. Verify your basic workflow and team creation flows carried forward from RC96.
 - [x] **A7 — Plugins** (`reviewReason: human-judgment`): Open the enabled plugin pages and confirm the intended selection and familiar actions are available. User confirmed the plugin page opens; deeper plugin actions remain optional exploratory testing.
 
 ## Engineering evidence and boundaries
