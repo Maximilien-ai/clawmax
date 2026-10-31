@@ -215,6 +215,14 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     ))
   }, [launchState.aiPrompt, startWithAI])
 
+  // BYOK can be saved while this wizard remains open, or restored asynchronously
+  // from the browser vault. Refresh discovery/defaults without losing the draft.
+  useEffect(() => {
+    const refresh = () => setModelsReload(value => value + 1)
+    window.addEventListener('clawmax-browser-vault-updated', refresh)
+    return () => window.removeEventListener('clawmax-browser-vault-updated', refresh)
+  }, [])
+
   // Model list and saved default. Discovery used to gate the /api/auth/config request, so one failed
   // discovery left the wizard with no model, no error and no retry until it was reopened. Both now
   // load in parallel and either may fail alone: the saved default still applies without the list,

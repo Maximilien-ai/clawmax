@@ -118,6 +118,30 @@ async function check(name, fn) {
 }
 
 try {
+  await check('BYOK changes refresh an open AI wizard and enable editor generation', async () => {
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1000 })
+      fixture.preferred = ''
+      fixture.discoverFails = true
+      await reset('')
+      await openWizard('ai')
+      await page.getByText('No model is selected.', { exact: false }).waitFor()
+      fixture.preferred = SAVED
+      fixture.discoverFails = false
+      await page.evaluate((preferredModel) => {
+        localStorage.setItem('clawmax-byok-preview', JSON.stringify({ preferredModel }))
+        window.dispatchEvent(new Event('clawmax-browser-vault-updated'))
+      }, SAVED)
+      await page.waitForFunction(() => !document.body.innerText.includes('No model is selected'))
+      await describe().fill('Create a helpful testing assistant')
+      await page.getByRole('button', { name: 'Open AI Editor', exact: true }).click()
+      const generate = page.getByRole('button', { name: 'Save & Generate', exact: true })
+      await page.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent.trim() === 'Save & Generate' && !button.disabled))
+      await generate.click()
+      await page.getByText('Files generated successfully', { exact: false }).waitFor()
+    }
+    fixture.preferred = SAVED
+  })
   await check('deployment OpenAI works with empty browser keys and visible defaults', async () => {
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 900 })
