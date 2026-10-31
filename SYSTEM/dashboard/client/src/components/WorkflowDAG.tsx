@@ -1,3 +1,4 @@
+import { kickoffFirst } from '../lib/workflowKickoffOrder'
 import React, { useMemo, useRef, useEffect, useState } from 'react'
 import TruncatedText from './TruncatedText'
 import { getWorkflowDisplayName } from '../lib/workflowDisplay'
@@ -244,7 +245,7 @@ export default function WorkflowDAG({
   manualRunEnabled = false,
   runningWorkflowIds,
 }: WorkflowDAGProps) {
-  const forests = useMemo(() => findForests(workflows), [workflows])
+  const forests = useMemo(() => findForests(kickoffFirst(workflows)), [workflows])
   const forestLayouts = useMemo(() => forests.map(f => ({ workflows: f, ...layoutDAG(f) })), [forests])
   const groupedForestLayouts = useMemo(() => groupForestLayouts(forestLayouts), [forestLayouts])
   const containerRef = useRef<HTMLDivElement>(null)
