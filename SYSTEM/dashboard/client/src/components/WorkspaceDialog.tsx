@@ -106,10 +106,11 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90dvh] overflow-y-auto">
-        <h2 className="text-xl font-bold text-gray-900 mb-4 dark:text-gray-100">Create New Workspace</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90dvh] flex flex-col overflow-hidden">
+        <h2 className="shrink-0 text-xl font-bold text-gray-900 mb-4 dark:text-gray-100">Create New Workspace</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="min-h-0 flex flex-col">
+          <div className="min-h-0 overflow-y-auto overscroll-contain space-y-4">
           <fieldset disabled={creating || !!pendingWorkspace} className="space-y-4">
           {/* Name input */}
           <div>
@@ -231,30 +232,6 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
           </div>
           )}
 
-          {saveError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{saveError}</p>}
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={() => {
-                resetForm()
-                onClose()
-              }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors dark:text-gray-100 dark:text-gray-300"
-              disabled={creating}
-            >
-              {pendingWorkspace ? 'Close — keep workspace' : 'Cancel'}
-            </button>
-            <button
-              type="submit"
-              disabled={!name.trim() || creating}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {creating ? 'Saving...' : pendingWorkspace ? 'Retry budget save' : 'Create Workspace'}
-            </button>
-          </div>
-        </form>
-
         {conflict && (
           <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
             <div className="font-semibold">Workspace path conflict</div>
@@ -302,6 +279,32 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
             </div>
           </div>
         )}
+          {saveError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{saveError}</p>}
+          </div>
+          {/* Actions */}
+          <div className="shrink-0 flex flex-wrap items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <button
+              type="button"
+              onClick={() => {
+                resetForm()
+                onClose()
+              }}
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors dark:text-gray-100 dark:text-gray-300"
+              disabled={creating}
+            >
+              {pendingWorkspace ? 'Close — keep workspace' : 'Cancel'}
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim() || creating}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {creating ? 'Saving...' : pendingWorkspace ? 'Retry budget save' : 'Create Workspace'}
+            </button>
+          </div>
+        </form>
+
+
       </div>
     </div>
   )

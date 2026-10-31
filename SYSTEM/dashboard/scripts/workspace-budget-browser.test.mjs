@@ -56,6 +56,17 @@ try {
   const oldWrites = writes; await page.getByLabel('Workspace Name *').fill('Metadata only'); await save(); await closed(); assert.equal(writes, oldWrites)
   mode = 'malformed'; await open(); await page.getByRole('button', { name: 'Retry budget settings' }).waitFor()
   mode = 'ready'; await page.getByRole('button', { name: 'Retry budget settings' }).click(); await page.getByLabel('Cost Budget (USD)').waitFor()
+  if (width === 390) {
+    await page.setViewportSize({ width, height: 500 })
+    const actions = page.getByRole('button', { name: 'Update Workspace' })
+    const actionBox = await actions.boundingBox()
+    assert(actionBox.y >= 0 && actionBox.y + actionBox.height <= 500, 'Save stays visible on a short screen')
+    await page.locator('form > div.overflow-y-auto').evaluate(el => { el.scrollTop = el.scrollHeight })
+    const header = await page.getByRole('heading', { name: 'Edit Workspace' }).boundingBox()
+    assert(header.y >= 0, 'Header remains fixed when fields scroll')
+    await page.screenshot({ path: path.join(artifacts, '390-short-screen.png') })
+    await page.setViewportSize({ width, height: 844 })
+  }
   await page.screenshot({ path: path.join(artifacts, `${width}-ready.png`) })
   await page.getByRole('button', { name: 'Update Workspace' }).scrollIntoViewIfNeeded()
   const box = await page.getByRole('button', { name: 'Update Workspace' }).boundingBox()

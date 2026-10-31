@@ -115,10 +115,11 @@ export function WorkspaceEditDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90dvh] overflow-y-auto">
-        <h2 className="text-xl font-bold text-gray-900 mb-4 dark:text-gray-100">Edit Workspace</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90dvh] flex flex-col overflow-hidden">
+        <h2 className="shrink-0 text-xl font-bold text-gray-900 mb-4 dark:text-gray-100">Edit Workspace</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="min-h-0 flex flex-col">
+          <div className="min-h-0 overflow-y-auto overscroll-contain space-y-4">
           {/* Name input */}
           <div>
             <label htmlFor="workspace-name" className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
@@ -260,8 +261,9 @@ export function WorkspaceEditDialog({
 
           {saveError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{saveError}</p>}
 
+          </div>
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="shrink-0 flex flex-wrap items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               type="button"
               onClick={onClose}
