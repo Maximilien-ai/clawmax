@@ -95,3 +95,8 @@ The wrapper prepares its pinned OpenClaw runtime and isolates test data. A paid-
 User ran the final integration, validation and coverage suite on the frozen candidate and supplied the complete passing output: 561 passed, 0 failed. Coverage: statements/lines 83.78%, branches 81.49%, functions 92.09%. Isolated artifacts: `clawmax-test-runtime-4ojAVj`. Paid-provider agent chat and live AI generation were skipped (no key); prior manual live acceptance remains separate evidence. Workflow kickoff completed and DAG progression passed. User authorized RC97 images after this result.
 
 Recent public builds took 62–69 minutes; matching combined builds took 14–15 minutes. Release images require both architectures and registry/lifecycle/plugin smoke validation before readiness is claimed. Public and combined image tag: `2.0.0-test-rc97`.
+
+RC97 public source pin: `v2.0.0-test-rc97` at `442afc2da52434a62f9872ebd825efb282ec9518`.
+Public image CI: https://github.com/Maximilien-ai/clawmax/actions/runs/41252733312
+Combined source pin: private `v2.0.0-test-rc97` at `eb9af8eb05988a7c5ed307e7aff3788a81107fab`.
+Combined dispatch is queued behind successful public CI with identical `base_tag`/`image_tag` (`2.0.0-test-rc97`). Coordinator log: `/private/tmp/rc97-image-queue.log`. It stops without dispatch on public failure or a two-hour timeout. Images are not yet declared ready. Local `/api/system` reports exact `2.0.0-test-rc97`.
