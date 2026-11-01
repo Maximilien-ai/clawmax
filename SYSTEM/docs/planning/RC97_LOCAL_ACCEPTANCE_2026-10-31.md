@@ -100,3 +100,11 @@ RC97 public source pin: `v2.0.0-test-rc97` at `442afc2da52434a62f9872ebd825efb28
 Public image CI: https://github.com/Maximilien-ai/clawmax/actions/runs/41252733312
 Combined source pin: private `v2.0.0-test-rc97` at `eb9af8eb05988a7c5ed307e7aff3788a81107fab`.
 Combined dispatch is queued behind successful public CI with identical `base_tag`/`image_tag` (`2.0.0-test-rc97`). Coordinator log: `/private/tmp/rc97-image-queue.log`. It stops without dispatch on public failure or a two-hour timeout. Images are not yet declared ready. Local `/api/system` reports exact `2.0.0-test-rc97`.
+
+### RC97 images verified — 2026-11-01
+
+Both image workflows completed successfully. Public run `41252733312` passed both architecture builds, registry smoke and lifecycle acceptance. Combined run https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/41270217012 passed validate, runtime-acceptance, build, native arm64/amd64 registry-smoke, and record-mirror-target. The local queue had not dispatched the combined build; it was stopped and the pinned combined workflow explicitly dispatched after confirming public success.
+
+Tester deployment image: `ghcr.io/maximilien-ai/clawmax-plugins:2.0.0-test-rc97`.
+Public-only image: `ghcr.io/maximilien-ai/clawmax-dashboard:2.0.0-test-rc97`.
+This establishes image validation, not a deployed-fleet update or closure of deferred issues.
