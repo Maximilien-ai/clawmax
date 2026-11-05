@@ -694,6 +694,24 @@ export function readWorkspaceBinaryFile(relPath: string, workspacePath = getWork
   }
 }
 
+/** Create without replacing existing bytes, even when another creator wins a race. */
+export function createWorkspaceFile(relPath: string, content: string): 'created' | 'exists' | 'invalid' | 'failed' {
+  const workspacePath = getWorkspacePath()
+  const full = path.resolve(workspacePath, relPath)
+  if (!isMarkdownPathSafe(full, workspacePath)) return 'invalid'
+  try {
+    fs.mkdirSync(path.dirname(full), { recursive: true })
+  } catch {
+    return 'failed'
+  }
+  try {
+    fs.writeFileSync(full, content, { encoding: 'utf-8', flag: 'wx' })
+    return 'created'
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EEXIST' ? 'exists' : 'failed'
+  }
+}
+
 /** Write a workspace .md file. Returns false if path is unsafe */
 export function writeWorkspaceFile(relPath: string, content: string): boolean {
   const workspacePath = getWorkspacePath()

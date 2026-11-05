@@ -2,7 +2,7 @@ import express, { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
 import { decodeUploadFilename } from '../lib/upload-filename'
-import { deleteDocHubUploads, deleteWorkspaceAsset, extractZipBufferToWorkspace, listDocEntries, listMarkdownFiles, moveDocHubUploads, readWorkspaceBinaryFile, readWorkspaceFile, recordDocHubUploads, resolveWorkspacePath, writeWorkspaceFile, writeWorkspaceBinaryFile } from '../lib/workspace'
+import { createWorkspaceFile, deleteDocHubUploads, deleteWorkspaceAsset, extractZipBufferToWorkspace, listDocEntries, listMarkdownFiles, moveDocHubUploads, readWorkspaceBinaryFile, readWorkspaceFile, recordDocHubUploads, resolveWorkspacePath, writeWorkspaceFile, writeWorkspaceBinaryFile } from '../lib/workspace'
 
 const router = Router()
 
@@ -108,6 +108,19 @@ router.get('/content', (req, res) => {
   }
 
   return res.status(415).json({ error: 'Preview not available for this file type' })
+})
+
+// POST /api/docs/create — create only; Save remains a separate operation.
+router.post('/create', (req, res) => {
+  const { path: relPath, content } = req.body
+  if (typeof relPath !== 'string' || !relPath.trim() || typeof content !== 'string') {
+    return res.status(400).json({ error: 'path and content must be strings' })
+  }
+  const result = createWorkspaceFile(relPath, content)
+  if (result === 'exists') return res.status(409).json({ error: 'A document already exists at this path. Choose another name.' })
+  if (result === 'invalid') return res.status(400).json({ error: 'Cannot create a document at that path' })
+  if (result === 'failed') return res.status(500).json({ error: 'Failed to create document. Please try again.' })
+  return res.status(201).json({ ok: true })
 })
 
 // POST /api/docs/content — create OR update a file

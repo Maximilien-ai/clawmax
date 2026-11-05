@@ -145,6 +145,63 @@ async function run() {
     assert(/^data:application\/pdf;base64,/.test(pdfRes.jsonBody?.dataUrl || ''), 'Expected PDF data URL payload')
   })
 
+  await test('create preserves existing bytes and Save still edits deliberately', async () => {
+    const handler = getRouteHandler('post', '/create')
+    const relPath = 'ORG/repro/existing.md'
+    const original = '# Original\n\nORIGINAL_CREATE_SENTINEL\n'
+    const created = makeRes()
+    await handler(makeReq({ body: { path: relPath, content: original } }), created)
+    assert.strictEqual(created.statusCode, 201)
+    const conflict = makeRes()
+    await handler(makeReq({ body: { path: relPath, content: 'replacement' } }), conflict)
+    assert.strictEqual(conflict.statusCode, 409)
+    assert.match(conflict.jsonBody.error, /already exists.*another name/i)
+    assert.strictEqual(fs.readFileSync(path.join(workspacePath, relPath), 'utf8'), original)
+    const saved = makeRes()
+    await getRouteHandler('post', '/content')(makeReq({ body: { path: relPath, content: 'deliberate edit' } }), saved)
+    assert.strictEqual(saved.statusCode, 200)
+    assert.strictEqual(fs.readFileSync(path.join(workspacePath, relPath), 'utf8'), 'deliberate edit')
+  })
+
+  await test('create refuses a path occupied immediately before its atomic write', async () => {
+    const handler = getRouteHandler('post', '/create')
+    const relPath = 'ORG/repro/racing.md'
+    const full = path.join(workspacePath, relPath)
+    const write = fs.writeFileSync
+    let raced = false
+    fs.writeFileSync = ((file: any, content: any, options: any) => {
+      if (file === full && !raced) {
+        raced = true
+        write(full, 'WINNING_CREATOR')
+      }
+      return write(file, content, options)
+    }) as typeof fs.writeFileSync
+    try {
+      const res = makeRes()
+      await handler(makeReq({ body: { path: relPath, content: 'LOSING_CREATOR' } }), res)
+      assert.strictEqual(raced, true)
+      assert.strictEqual(res.statusCode, 409)
+      assert.strictEqual(fs.readFileSync(full, 'utf8'), 'WINNING_CREATOR')
+    } finally {
+      fs.writeFileSync = write
+    }
+  })
+
+  await test('create rejects invalid input and reports storage failures without success', async () => {
+    const handler = getRouteHandler('post', '/create')
+    for (const body of [{}, { path: 42, content: '' }, { path: 'ORG/a.md', content: {} },
+      { path: '../outside.md', content: '' }, { path: 'ORG/a.txt', content: '' }]) {
+      const res = makeRes()
+      await handler(makeReq({ body }), res)
+      assert.strictEqual(res.statusCode, 400)
+    }
+    fs.writeFileSync(path.join(workspacePath, 'ORG', 'blocked'), 'existing parent file')
+    const failed = makeRes()
+    await handler(makeReq({ body: { path: 'ORG/blocked/new.md', content: '' } }), failed)
+    assert.strictEqual(failed.statusCode, 500)
+    assert.strictEqual(fs.readFileSync(path.join(workspacePath, 'ORG', 'blocked'), 'utf8'), 'existing parent file')
+  })
+
   await test('post content writes files inside the workspace and search finds them', async () => {
     const postHandler = getRouteHandler('post', '/content')
     const postRes = makeRes()
