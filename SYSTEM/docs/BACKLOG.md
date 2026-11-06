@@ -1,13 +1,13 @@
 # Backlog
 
-## November 5 feedback: one fix, one acceptance
+## November 5 feedback: first acceptance batch
 
 Inventory: [Web's reviewed 58-report backlog](https://github.com/Maximilien-ai/clawmax-ai/blob/a21b1eb86accba99a7757ee4aafbbe9dd546ca94/docs/operations/DASHBOARD_FEEDBACK_BACKLOG_2026-11-05.md).
 These are reports, including two positive experiences, rather than 58 verified
 current defects. Reproduce against identified current source/runtime, reuse
 existing issues, and keep ownership/links in central Management Feedback.
 
-- [ ] **#351 — Create Document preserves existing content.** Feedback-ID:
+- [x] **Engineering verified: #351 — Create Document preserves existing content.** Feedback-ID:
   `07250751-0985-4571-bd29-157a1f0f7b29`. Source fix `9c7a16db` on
   `fix/feedback-351-document-create`: atomic create-only write, HTTP 409 on
   conflict, retained path/content, ordinary Save preserved. Local docs routes
@@ -16,19 +16,39 @@ existing issues, and keep ownership/links in central Management Feedback.
   browser checks at 1440/390px passed for conflicts, retained drafts, failed
   storage and renamed retries; screenshots visually reviewed. Regression
   follow-up `01f7dbd2`; [draft PR #385](https://github.com/Maximilien-ai/clawmax/pull/385).
-  Local dev: `http://localhost:5178`, version `2.0.0-dev.9c7a16db`.
-  Owner acceptance remains pending. No deployment or submitter notification claimed.
-  Acceptance: Documents → + New; create `acceptance/owner-check.md` with
-  `ORIGINAL`; try the same path with `REPLACEMENT`. Expect an existing-path
-  error, retained draft, and original bytes after reload. Change the new path
-  to `acceptance/owner-check-new.md` and retry; expect successful creation.
-  Open the original, deliberately edit and Save; expect the edit after reload.
-  Reply `accept #351` or report the failing step.
-- [ ] **Next: #355 — unsaved document edits.** Read private source context and
-  issue history, reproduce current behavior, then define the focused fix and
-  acceptance check before proceeding. Continue through data-preservation
-  issues #367, #375 and #376–378; investigate reported group-message isolation
-  early without assuming a confirmed privacy defect.
+  Follow-up `0731c507` uses the shared mobile dialog and symlink-refusing path
+  resolver; two worker threads verify a real concurrent create. Its test and
+  CodeQL gates passed; the combined source below also passed both gates.
+- [x] **Engineering verified: #355 — unsaved edits survive navigation.** Feedback-ID:
+  `4f713580-97b7-406c-8acc-60d6594df325`. Source `77102031` retains independent
+  in-memory document drafts, restores them on return, and warns before closing
+  or reloading a tab with unsaved work. Desktop/mobile checks at 1440/390px
+  prove file/page navigation, failed Save retention, persisted successful Save,
+  Cancel isolation, and a late Save preserving newer edits and another file.
+  Screenshots visually reviewed. These drafts are not durable after closing
+  the tab; Save persists them to the workspace.
+- [ ] **Owner: quick combined acceptance.** Open [local Documents](http://localhost:5179/docs),
+  version `2.0.0-dev.77102031` (close onboarding if shown). The disposable
+  workspace contains `ORG/acceptance/A.md` and `B.md`.
+  1. Use + New with path `acceptance/A.md` and different content. Expect a
+     conflict and retained draft; cancel and verify A still contains `ORIGINAL_A`.
+  2. Edit A without saving, switch to B and back. Expect the draft restored.
+  3. Save A and reload. Expect the saved edit. Reply `accept #351 and #355`,
+     or name the issue and failing step; either issue can be accepted separately.
+- [ ] **Next: #367 — workflow export/import loses dependencies.** Reproduce
+  against current source and reuse its existing issue. Then address #375 and
+  #376–378; investigate reported group-message isolation early without assuming
+  a confirmed privacy defect. Private report context still needs authenticated review.
+
+Combined source `77102031369c5dd40ba38ae8f8dc23e13507bfb2` passed
+[remote tests](https://github.com/Maximilien-ai/clawmax/actions/runs/42224908973)
+and [CodeQL](https://github.com/Maximilien-ai/clawmax/actions/runs/42224901278).
+The exact committed local snapshot passed both browser scripts with normal
+browser origins, root lint, frontend/server TypeScript and the affected suites.
+API and UI version/workspace identity match. Local dev root:
+`/private/var/folders/nv/8pltgq7960988zh0m43w7vf80000gn/T/clawmax-local-dev-ahxGf6`.
+Restart with `./SYSTEM/local-dev.sh --root` followed by that path to retain data.
+Owner acceptance, merge/release inclusion and submitter notifications remain pending.
 
 For every item, record source/CI, local verification, deployment and owner
 acceptance separately. After verification and owner acceptance, email the
@@ -40,6 +60,15 @@ out of public issues. Customer communication and report closure are separate
 operations. After this feedback pass, review remaining open PRs and issues.
 The local Management CLI currently requires `clawmax-ai auth login`; replies,
 email delivery and central link updates remain pending authenticated access.
+
+Prepared email wording after acceptance (not sent):
+
+- #351: Thank you for reporting the document creation issue. We have fixed the
+  overwrite behavior so an existing document is preserved when its name is
+  reused. This fix will be included in a future version of ClawMax.
+- #355: Thank you for reporting the unsaved document edits issue. We have fixed
+  document switching so your unsaved edits are restored when you return. This
+  fix will be included in a future version of ClawMax.
 
 ## Earlier active backlog
 
