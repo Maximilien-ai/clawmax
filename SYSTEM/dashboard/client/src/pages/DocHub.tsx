@@ -8,6 +8,7 @@ import { getDocHubAssetLabel } from '../lib/docHubAssetPresentation'
 import { DocHubSelectionActionBar } from '../components/DocHubSelectionActionBar'
 import { DocHubTreePaneLayout } from '../components/DocHubTreePaneLayout'
 import { MarkdownDocumentViewer } from '../components/MarkdownDocumentViewer'
+import { MobileSafeDialog } from '../components/MobileSafeDialog'
 
 type DocSection = 'ORG' | 'AGENTS' | 'WORKFLOWS' | 'SYSTEM'
 
@@ -1528,9 +1529,19 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       )}
 
       {showCreateDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div role="dialog" aria-modal="true" aria-labelledby="create-document-title" className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 id="create-document-title" className="text-lg font-semibold text-gray-900 mb-4 dark:text-gray-100">Create New Document</h3>
+        <MobileSafeDialog
+          ariaLabelledBy="create-document-title"
+          panelClassName="max-w-2xl"
+          header={<h3 id="create-document-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create New Document</h3>}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <button onClick={closeCreateDialog} className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700">Cancel</button>
+              <button onClick={createDocument} disabled={creating} className={`px-4 py-2 text-sm rounded font-medium ${creating ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-sky-600 text-white hover:bg-sky-700'}`}>
+                {creating ? 'Creating...' : 'Create Document'}
+              </button>
+            </div>
+          }
+        >
 
             {createError && (
               <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
@@ -1582,25 +1593,7 @@ Start writing..."
               </div>
             </div>
 
-            <div className="flex gap-2 justify-end mt-6">
-              <button
-                onClick={closeCreateDialog}
-                className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={createDocument}
-                disabled={creating}
-                className={`px-4 py-2 text-sm rounded font-medium transition-colors ${
-                  creating ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-sky-600 text-white hover:bg-sky-700'
-                }`}
-              >
-                {creating ? 'Creating...' : 'Create Document'}
-              </button>
-            </div>
-          </div>
-        </div>
+        </MobileSafeDialog>
       )}
 
       {showUploadDialog && (

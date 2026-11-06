@@ -9,6 +9,7 @@ import os from 'os'
 import path from 'path'
 import assert from 'assert'
 import { execFileSync } from 'child_process'
+import { Worker } from 'worker_threads'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -163,27 +164,31 @@ async function run() {
     assert.strictEqual(fs.readFileSync(path.join(workspacePath, relPath), 'utf8'), 'deliberate edit')
   })
 
-  await test('create refuses a path occupied immediately before its atomic write', async () => {
-    const handler = getRouteHandler('post', '/create')
+  await test('concurrent creators preserve exactly one winner', async () => {
     const relPath = 'ORG/repro/racing.md'
     const full = path.join(workspacePath, relPath)
-    const write = fs.writeFileSync
-    let raced = false
-    fs.writeFileSync = ((file: any, content: any, options: any) => {
-      if (file === full && !raced) {
-        raced = true
-        write(full, 'WINNING_CREATOR')
-      }
-      return write(file, content, options)
-    }) as typeof fs.writeFileSync
+    const workers = ['CREATOR_A', 'CREATOR_B'].map(content => new Worker(`
+      require('ts-node/register/transpile-only')
+      const { parentPort, workerData } = require('worker_threads')
+      const { createWorkspaceFile } = require(workerData.modulePath)
+      parentPort.once('message', () => parentPort.postMessage({ result: createWorkspaceFile(workerData.path, workerData.content), content: workerData.content }))
+      parentPort.postMessage('ready')
+    `, { eval: true, workerData: { modulePath: require.resolve('../lib/workspace'), path: relPath, content } }))
     try {
-      const res = makeRes()
-      await handler(makeReq({ body: { path: relPath, content: 'LOSING_CREATOR' } }), res)
-      assert.strictEqual(raced, true)
-      assert.strictEqual(res.statusCode, 409)
-      assert.strictEqual(fs.readFileSync(full, 'utf8'), 'WINNING_CREATOR')
+      await Promise.all(workers.map(worker => new Promise<void>((resolve, reject) => {
+        worker.once('message', () => resolve())
+        worker.once('error', reject)
+      })))
+      const results = workers.map(worker => new Promise<{ result: string; content: string }>((resolve, reject) => {
+        worker.once('message', resolve)
+        worker.once('error', reject)
+      }))
+      workers.forEach(worker => worker.postMessage('create'))
+      const outcomes = await Promise.all(results)
+      assert.deepStrictEqual(outcomes.map(outcome => outcome.result).sort(), ['created', 'exists'])
+      assert.strictEqual(fs.readFileSync(full, 'utf8'), outcomes.find(outcome => outcome.result === 'created')?.content)
     } finally {
-      fs.writeFileSync = write
+      await Promise.all(workers.map(worker => worker.terminate()))
     }
   })
 

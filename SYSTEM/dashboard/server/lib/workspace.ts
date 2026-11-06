@@ -697,8 +697,14 @@ export function readWorkspaceBinaryFile(relPath: string, workspacePath = getWork
 /** Create without replacing existing bytes, even when another creator wins a race. */
 export function createWorkspaceFile(relPath: string, content: string): 'created' | 'exists' | 'invalid' | 'failed' {
   const workspacePath = getWorkspacePath()
-  const full = path.resolve(workspacePath, relPath)
-  if (!isMarkdownPathSafe(full, workspacePath)) return 'invalid'
+  if (!relPath.endsWith('.md') || hasGitDirSegment(relPath)) return 'invalid'
+  let full: string
+  try {
+    full = resolvePathWithin(workspacePath, relPath)
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code ? 'failed' : 'invalid'
+  }
+  if (!full.startsWith(`${path.resolve(workspacePath)}${path.sep}`)) return 'invalid'
   try {
     fs.mkdirSync(path.dirname(full), { recursive: true })
   } catch {
