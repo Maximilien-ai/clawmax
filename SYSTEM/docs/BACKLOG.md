@@ -1,5 +1,48 @@
 # Backlog
 
+## November 5 feedback: one fix, one acceptance
+
+Inventory: [Web's reviewed 58-report backlog](https://github.com/Maximilien-ai/clawmax-ai/blob/a21b1eb86accba99a7757ee4aafbbe9dd546ca94/docs/operations/DASHBOARD_FEEDBACK_BACKLOG_2026-11-05.md).
+These are reports, including two positive experiences, rather than 58 verified
+current defects. Reproduce against identified current source/runtime, reuse
+existing issues, and keep ownership/links in central Management Feedback.
+
+- [ ] **#351 — Create Document preserves existing content.** Feedback-ID:
+  `07250751-0985-4571-bd29-157a1f0f7b29`. Source fix `9c7a16db` on
+  `fix/feedback-351-document-create`: atomic create-only write, HTTP 409 on
+  conflict, retained path/content, ordinary Save preserved. Local docs routes
+  (10 checks), workspace document entries (3), frontend/server TypeScript and
+  root lint passed, along with HTTP path-boundary checks (7). Desktop/mobile
+  browser checks at 1440/390px passed for conflicts, retained drafts, failed
+  storage and renamed retries; screenshots visually reviewed. Regression
+  follow-up `01f7dbd2`; [draft PR #385](https://github.com/Maximilien-ai/clawmax/pull/385).
+  Local dev: `http://localhost:5178`, version `2.0.0-dev.9c7a16db`.
+  Owner acceptance remains pending. No deployment or submitter notification claimed.
+  Acceptance: Documents → + New; create `acceptance/owner-check.md` with
+  `ORIGINAL`; try the same path with `REPLACEMENT`. Expect an existing-path
+  error, retained draft, and original bytes after reload. Change the new path
+  to `acceptance/owner-check-new.md` and retry; expect successful creation.
+  Open the original, deliberately edit and Save; expect the edit after reload.
+  Reply `accept #351` or report the failing step.
+- [ ] **Next: #355 — unsaved document edits.** Read private source context and
+  issue history, reproduce current behavior, then define the focused fix and
+  acceptance check before proceeding. Continue through data-preservation
+  issues #367, #375 and #376–378; investigate reported group-message isolation
+  early without assuming a confirmed privacy defect.
+
+For every item, record source/CI, local verification, deployment and owner
+acceptance separately. After verification and owner acceptance, email the
+submitter (who may not be a customer): thank them, describe the resolved behavior,
+and say it is addressed in a future version of ClawMax. Record delivery separately;
+do not claim a release is live. Preserve all existing issue links, include full
+Feedback-IDs in GitHub traceability, and keep private descriptions/screenshots
+out of public issues. Customer communication and report closure are separate
+operations. After this feedback pass, review remaining open PRs and issues.
+The local Management CLI currently requires `clawmax-ai auth login`; replies,
+email delivery and central link updates remain pending authenticated access.
+
+## Earlier active backlog
+
 - [ ] **Explicit model repair in Doctor** — When a runtime rejects an agent's
   model, offer the workspace new-agent default and a manual model picker. Show
   the proposed primary/backup changes, validate runtime support, require Apply,
