@@ -207,6 +207,49 @@ async function run() {
     assert.strictEqual(fs.readFileSync(path.join(workspacePath, 'ORG', 'blocked'), 'utf8'), 'existing parent file')
   })
 
+  await test('Create and Save preserve schema validation before writing', async () => {
+    const relPath = 'ORG/schema-check/IDENTITY.md'
+    const full = path.join(workspacePath, relPath)
+    const create = getRouteHandler('post', '/create')
+    const invalidCreate = makeRes()
+    await create(makeReq({ body: { path: relPath, content: '# Missing required name' } }), invalidCreate)
+    assert.strictEqual(invalidCreate.statusCode, 400)
+    assert(invalidCreate.jsonBody.validationErrors.length > 0)
+    assert.strictEqual(fs.existsSync(full), false)
+    const original = '**Name:** schema-check\n'
+    const validCreate = makeRes()
+    await create(makeReq({ body: { path: relPath, content: original } }), validCreate)
+    assert.strictEqual(validCreate.statusCode, 201)
+    const invalidSave = makeRes()
+    await getRouteHandler('post', '/content')(makeReq({ body: { path: relPath, content: '# Still missing name' } }), invalidSave)
+    assert.strictEqual(invalidSave.statusCode, 400)
+    assert.strictEqual(fs.readFileSync(full, 'utf8'), original)
+  })
+
+  await test('Create and Save retain per-document Git history without staging unrelated files', async () => {
+    const git = (...args: string[]) => execFileSync('git', ['-C', workspacePath, ...args], { encoding: 'utf8', stdio: 'pipe' }).trim()
+    git('init', '--initial-branch=main')
+    git('config', 'user.name', 'Document Test')
+    git('config', 'user.email', 'document-test@example.invalid')
+    const relPath = 'ORG/history.md'
+    const created = makeRes()
+    await getRouteHandler('post', '/create')(makeReq({ body: { path: relPath, content: 'FIRST_BYTES' } }), created)
+    assert.strictEqual(created.statusCode, 201)
+    assert.strictEqual(git('show', `HEAD:${relPath}`), 'FIRST_BYTES')
+    assert.strictEqual(git('ls-tree', '--name-only', '-r', 'HEAD'), relPath)
+    const firstCommit = git('rev-parse', 'HEAD')
+    const conflict = makeRes()
+    await getRouteHandler('post', '/create')(makeReq({ body: { path: relPath, content: 'REPLACEMENT' } }), conflict)
+    assert.strictEqual(conflict.statusCode, 409)
+    assert.strictEqual(git('rev-parse', 'HEAD'), firstCommit)
+    const saved = makeRes()
+    await getRouteHandler('post', '/content')(makeReq({ body: { path: relPath, content: 'SAVED_BYTES' } }), saved)
+    assert.strictEqual(saved.statusCode, 200)
+    assert.strictEqual(git('show', `HEAD:${relPath}`), 'SAVED_BYTES')
+    assert.notStrictEqual(git('rev-parse', 'HEAD'), firstCommit)
+    assert.strictEqual(git('ls-tree', '--name-only', '-r', 'HEAD'), relPath)
+  })
+
   await test('post content writes files inside the workspace and search finds them', async () => {
     const postHandler = getRouteHandler('post', '/content')
     const postRes = makeRes()
