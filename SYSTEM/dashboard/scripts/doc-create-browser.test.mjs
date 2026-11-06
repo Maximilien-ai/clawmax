@@ -7,13 +7,19 @@ const stamp = Date.now()
 try {
   for (const width of [1440, 390]) {
     const page = await browser.newPage({ viewport: { width, height: 844 } })
-    await page.addInitScript(() => {
+    const workspaceData = await (await page.request.get(`${base}/api/workspaces`)).json()
+    await page.addInitScript(ids => {
       for (let version = 1; version <= 10; version++) localStorage.setItem(`clawmax-workspace-tour:disable:v${version}`, 'dismissed')
-    })
+      for (const id of ids) localStorage.setItem(`clawmax-onboarding-auto-opened:${id}`, 'true')
+    }, ['default', ...(workspaceData.workspaces || []).map(workspace => workspace.id)])
     const name = `acceptance/create-${stamp}-${width}.md`
     const created = await page.request.post(`${base}/api/docs/create`, { data: { path: `ORG/${name}`, content: 'ORIGINAL_CREATE_SENTINEL' } })
     assert.equal(created.status(), 201)
     await page.goto(`${base}/docs`)
+    const welcome = page.getByRole('heading', { name: 'Get this workspace running', exact: true })
+    await welcome.waitFor({ timeout: 3000 }).catch(error => { if (error.name !== 'TimeoutError') throw error })
+    if (await welcome.isVisible()) await welcome.locator('..').locator('..').getByRole('button', { name: '✕', exact: true }).click()
+    if (width < 640) await page.getByRole('main').getByRole('button', { name: 'Documents', exact: true }).click()
     await page.getByRole('button', { name: '+ New', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Create New Document' })
     const nameInput = dialog.getByPlaceholder('example.md or subdirectory/example.md')
