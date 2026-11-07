@@ -72,6 +72,18 @@ existing issues, and keep ownership/links in central Management Feedback.
   is still running. Merge/release, report closure and emails remain separate.
 - [ ] **Next: #376–378 — workspace budget persistence.** Private report context
   still needs authenticated review; investigate reported group-message isolation early.
+  Draft checkpoint on `fix/workspace-budget-persistence`: Create/Overwrite now
+  reuse the zero-preserving budget helper, check budget-write failures, retain
+  the created workspace ID for budget-only retries, and defer success notification
+  until configuration is saved. The form uses the shared mobile dialog. The
+  accepted dev snapshot is unchanged. This is not owner-ready: run creation,
+  overwrite, transport/HTTP failure, retry-without-duplicate and desktop/mobile
+  browser checks; implement #377's failed-read/metadata-only-save protection.
+  TypeScript, lint, budget helper tests (8 assertions) and mobile dialog audit
+  (8 assertions) passed before push. CI is expected to take about 40 minutes.
+  This branch builds on #385; do not merge the budget draft before that base.
+  CI currently runs only for PRs targeting main, so the draft temporarily targets
+  main and includes its base commits; rebase it after #385 merges.
 
 Current product source: `226a33d931118ca592f45a2f29b842867c0b1633`.
 The original document checkpoint `fa70ac39` passed full CI and CodeQL. The
