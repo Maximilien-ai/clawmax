@@ -2,6 +2,7 @@ import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, get
 import { getAvailableModelsCached } from './model-discovery'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { isRetiredOpenAIModel, resolveActiveOpenAIModel } from './openai-model-retirements'
+import { getModelLifecycleEntry } from './openAiModelLifecycle'
 
 type ResolveDefaultAgentModelOptions = {
   explicitModel?: string
@@ -77,8 +78,10 @@ export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOption
   const hasHostedProviderPath = !!(systemKeys.openai || systemKeys.anthropic || systemKeys.gemini || userKeys.openai || userKeys.anthropic || userKeys.gemini)
   if (hasHostedProviderPath) {
     if (matchesAvailable(recommendedHostedModel, availableModels)) return recommendedHostedModel
-    const firstHosted = availableModels.find((model) => !model.startsWith('ollama/'))
-    if (firstHosted) return firstHosted
+    // Never fall back to a deprecated model: discovery sorts gpt-4.1 ahead of current OpenAI models.
+    // When every listed hosted model is deprecated, callers report that no default could be resolved.
+    const hostedModels = availableModels.filter((model) => !model.startsWith('ollama/'))
+    if (hostedModels.length > 0) return hostedModels.find((model) => !getModelLifecycleEntry(model))
     return recommendedHostedModel
   }
 

@@ -118,6 +118,21 @@ export function resolveOfferedDefaultModel(models: string[], candidates: Array<s
   return resolved.find((candidate) => candidate && models.includes(candidate)) || resolved[0] || ''
 }
 
+// The model the server recommends for an OpenAI key (getBestAvailableModel), used by Auto when offered.
+const AUTO_DEFAULT_MODEL = 'openai/gpt-5.4-mini'
+
+/**
+ * What a default of Auto resolves to when nothing was chosen, saved or recommended among the offered
+ * models: the recommended current model when offered, else the first offered model with no published
+ * deprecation or retirement. Discovery lists sort deprecated gpt-4.1 ahead of current OpenAI models,
+ * so the first listed model is not a safe default. Empty when every offered model is deprecated: the
+ * caller then asks for a choice instead of pinning a model that is about to shut down.
+ */
+export function resolveAutoDefaultModel(models: string[]): string {
+  if (models.includes(AUTO_DEFAULT_MODEL)) return AUTO_DEFAULT_MODEL
+  return models.find((model) => !getModelLifecycleEntry(model)) || ''
+}
+
 export function isSelectableLifecycleModel(model: string, currentValue?: string | null): boolean {
   if (normalize(model) === normalize(currentValue)) return true
   const entry = getModelLifecycleEntry(model)
