@@ -1,5 +1,35 @@
 # Backlog
 
+## November 7 PR rebase checkpoint and merge order
+
+Rebased against merged main `ed02d56b816aa502d21691e1d35cb8aaf0e5b48a`
+(#346 and #385 included). Fifteen existing PR heads were pushed with explicit
+force-with-lease protection: #347, #349, #341, #242, #294, #297, #295, #384,
+#296, #300, #301, #299, #303, #302, #298. #341 was retargeted from the old RC95
+integration branch to main so normal CI runs. No PRs were created or merged.
+
+Review/merge only after fresh CI and required review, in this order:
+
+1. #349 — workflow secret redaction (rebased focused regression: 8 cases passed).
+2. #242 — readiness score cap (rebased focused regression: 13 tests passed).
+3. #347 — membership dialog keyboard behavior.
+4. #341 — edit agent configuration from Details.
+5. Separate tooling/dependency review: #384, #294, #297, #295, #296, then #298,
+   #300, #301, #299, #303, #302. These are not automatically RC98 scope.
+
+The first four touch independent production files. The package-update PRs
+share package.json/package-lock.json; merge those serially and refresh/rebase
+the next one after each merge. Apply the same pause/rebase/CI rule whenever a
+previous merge changes the next PR's files. Old green checks are superseded.
+Fresh CI typically takes ~40 minutes and may queue during this batch.
+
+Unchanged pending conflict resolution: #340, #339, #343, #288, #191, #194,
+#227, #228, #229, #292, #192. Do not merge these yet. Resolve/review focused
+stability work before the larger runtime/streaming/export proposals; #192 also
+needs the explicit consent/privacy boundary review. No conflict was resolved
+by dropping either side. Detailed old/new SHAs, conflict paths and logs are in
+`/private/tmp/clawmax-pr-rebase-20261107/report.json`.
+
 ## November 5 feedback: first acceptance batch
 
 Inventory: [Web's reviewed 58-report backlog](https://github.com/Maximilien-ai/clawmax-ai/blob/a21b1eb86accba99a7757ee4aafbbe9dd546ca94/docs/operations/DASHBOARD_FEEDBACK_BACKLOG_2026-11-05.md).
