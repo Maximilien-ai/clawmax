@@ -29,7 +29,11 @@ existing issues, and keep ownership/links in central Management Feedback.
   Cancel isolation, and a late Save preserving newer edits and another file.
   Screenshots visually reviewed. These drafts are not durable after closing
   the tab; Save persists them to the workspace.
-- [ ] **Owner: quick combined acceptance.** Open [local Documents](http://localhost:5180/docs),
+- [x] **Owner accepted #351/#355** with the explicit reply `accept #351/#355`.
+  Together with the earlier #367/#375 acceptance, all four fixes in this batch
+  now have owner sign-off. Remaining CI/mobile, merge/release and notification
+  work is engineering-owned; there are no pending owner checks for this batch.
+  Original acceptance flow: open [local Documents](http://localhost:5180/docs),
   version `2.0.0-dev.226a33d9` (close onboarding if shown). The disposable
   workspace contains `ORG/acceptance/A.md` and `B.md`.
   1. Use + New with path `acceptance/A.md` and different content. Expect a
