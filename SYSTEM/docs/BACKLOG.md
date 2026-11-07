@@ -30,17 +30,33 @@ existing issues, and keep ownership/links in central Management Feedback.
   Screenshots visually reviewed. These drafts are not durable after closing
   the tab; Save persists them to the workspace.
 - [ ] **Owner: quick combined acceptance.** Open [local Documents](http://localhost:5180/docs),
-  version `2.0.0-dev.a210742a` (close onboarding if shown). The disposable
+  version `2.0.0-dev.226a33d9` (close onboarding if shown). The disposable
   workspace contains `ORG/acceptance/A.md` and `B.md`.
   1. Use + New with path `acceptance/A.md` and different content. Expect a
      conflict and retained draft; cancel and verify A still contains `ORIGINAL_A`.
   2. Edit A without saving, switch to B and back. Expect the draft restored.
   3. Save A and reload. Expect the saved edit. Reply `accept #351 and #355`,
      or name the issue and failing step; either issue can be accepted separately.
-- [ ] **Next: #367 — workflow export/import loses dependencies.** Reproduce
-  against current source and reuse its existing issue. Then address #375 and
-  #376–378; investigate reported group-message isolation early without assuming
-  a confirmed privacy defect. Private report context still needs authenticated review.
+- [x] **Engineering verified: #367 — workflow export/import preserves dependencies and type.**
+  Feedback-ID `a06abc9f-a665-4d03-aff3-75db96869892`; commit `0af7b992`.
+  Explicit empty dependencies round-trip. Import rejects unresolved upstream IDs
+  before creating a workflow and explains how to resolve them; it never silently
+  converts a dependent workflow into an independent one. 83 library and 25 route
+  checks passed, plus frontend/server TypeScript.
+- [x] **Engineering verified in preview: #375 — editor preserves every output.**
+  Feedback-ID `a9649a5a-66ef-47ba-a6e5-f67d6e09ac3d`; commit `226a33d9`.
+  Zero/one/multiple outputs survive unchanged saves; editing the primary retains
+  additional types and metadata. Extra outputs are visible, and disabling the
+  setting explicitly warns that all outputs are removed. Desktop/mobile browser
+  checks passed, including failed-save retention/retry. Lint/typecheck passed.
+- [ ] **Owner: pre-flight workflow check.** At local Workflows, open
+  `Flight acceptance child`, Edit and change the primary output label. Save and
+  reopen: Details/Data must remain. Export and import its WORKFLOW.md in this
+  workspace: the imported copy must keep its parent dependency and conditional
+  type. Fixtures are disabled/manual; do not run them. Reply `accept #367/#375`
+  or the failing step. Final snapshot is `2.0.0-dev.226a33d9`; latest CI is pending.
+- [ ] **Next: #376–378 — workspace budget persistence.** Private report context
+  still needs authenticated review; investigate reported group-message isolation early.
 
 Current product source: `a210742ae5ff63ed73a9ec1ecc78ab98e5442cbc`.
 Its [remote tests](https://github.com/Maximilien-ai/clawmax/actions/runs/42319390653)
