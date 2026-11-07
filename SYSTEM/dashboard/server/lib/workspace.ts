@@ -721,8 +721,14 @@ export function createWorkspaceFile(relPath: string, content: string): 'created'
 /** Write a workspace .md file. Returns false if path is unsafe */
 export function writeWorkspaceFile(relPath: string, content: string): boolean {
   const workspacePath = getWorkspacePath()
-  const full = path.resolve(workspacePath, relPath)
-  if (!isMarkdownPathSafe(full, workspacePath)) return false
+  if (!relPath.endsWith('.md') || hasGitDirSegment(relPath)) return false
+  let full: string
+  try {
+    full = resolvePathWithin(workspacePath, relPath)
+  } catch {
+    return false
+  }
+  if (!full.startsWith(`${path.resolve(workspacePath)}${path.sep}`)) return false
   try {
     fs.mkdirSync(path.dirname(full), { recursive: true })
     fs.writeFileSync(full, content, 'utf-8')
@@ -1498,9 +1504,10 @@ export function parseGroups(content: string): { communities: GroupEntry[]; group
       continue
     }
     // Verbose format: ##/### Name
-    const entryHeaderMatch = trimmed.match(/^###\s+(.+)$/) || trimmed.match(/^##\s+(.+)$/)
-    if (entryHeaderMatch) {
-      const entryName = entryHeaderMatch[1].trim()
+    const headingLength = trimmed.startsWith('###') ? 3 : trimmed.startsWith('##') ? 2 : 0
+    const headingSuffix = headingLength ? trimmed.slice(headingLength) : ''
+    const entryName = /^\s/.test(headingSuffix) ? headingSuffix.trim() : ''
+    if (entryName && !/[\r\u2028\u2029]/.test(entryName)) {
       if (/^(groups|communities)$/i.test(entryName)) {
         flushEntry()
         section = /^groups$/i.test(entryName) ? 'groups' : 'communities'
@@ -1555,18 +1562,21 @@ export function parseGroups(content: string): { communities: GroupEntry[]; group
 
       // Extract community link (@CommunityName)
       let community: string | null = null
-      const communityMatch = raw.match(/@([^\[\]]+)$/)
-      if (communityMatch) {
-        community = communityMatch[1].trim()
-        raw = raw.slice(0, communityMatch.index).trim()
+      const lastBracket = Math.max(raw.lastIndexOf('['), raw.lastIndexOf(']'))
+      const communityStart = raw.indexOf('@', lastBracket + 1)
+      if (communityStart >= 0 && communityStart < raw.length - 1) {
+        community = raw.slice(communityStart + 1).trim()
+        raw = raw.slice(0, communityStart).trim()
       }
 
       // Extract tags [tag1, tag2]
       let tags: string[] = []
-      const tagsMatch = raw.match(/\[([^\]]+)\]\s*$/)
-      if (tagsMatch) {
-        tags = tagsMatch[1].split(',').map(t => t.trim()).filter(t => t.length > 0)
-        raw = raw.slice(0, tagsMatch.index).trim()
+      const tagEnd = raw.endsWith(']') ? raw.length - 1 : -1
+      const previousTagEnd = tagEnd >= 0 ? raw.lastIndexOf(']', tagEnd - 1) : -1
+      const tagStart = tagEnd >= 0 ? raw.indexOf('[', previousTagEnd + 1) : -1
+      if (tagStart >= 0 && tagStart < tagEnd - 1) {
+        tags = raw.slice(tagStart + 1, tagEnd).split(',').map(t => t.trim()).filter(t => t.length > 0)
+        raw = raw.slice(0, tagStart).trim()
       }
 
       // Extract name and description
