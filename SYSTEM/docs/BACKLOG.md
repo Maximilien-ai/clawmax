@@ -53,12 +53,19 @@ existing issues, and keep ownership/links in central Management Feedback.
   The final packaged-URL rerun passed desktop but timed out locating mobile search;
   repeat that final mobile navigation check after the pre-flight timebox. Do not
   treat the final snapshot's mobile rerun as green. Live export/import passed.
-- [ ] **Owner: pre-flight workflow check.** At local Workflows, open
+- [x] **Owner accepted #367/#375** on `2.0.0-dev.226a33d9` with the explicit
+  reply `accept #367/#375`. Scope: workflow dependency/type round-trip and
+  preservation of additional output definitions. The outstanding final mobile
+  rerun remains engineering-owned; this acceptance does not waive it.
+  Original acceptance flow: at local Workflows, open
   `Flight acceptance child`, Edit and change the primary output label. Save and
   reopen: Details/Data must remain. Export and import its WORKFLOW.md in this
   workspace: the imported copy must keep its parent dependency and conditional
   type. Fixtures are disabled/manual; do not run them. Reply `accept #367/#375`
   or the failing step. Final snapshot is `2.0.0-dev.226a33d9`; latest CI is pending.
+  Latest observed head `82189f44`: CodeQL passed; full test run
+  [42371527591](https://github.com/Maximilien-ai/clawmax/actions/runs/42371527591)
+  is still running. Merge/release, report closure and emails remain separate.
 - [ ] **Next: #376–378 — workspace budget persistence.** Private report context
   still needs authenticated review; investigate reported group-message isolation early.
 
@@ -100,6 +107,12 @@ Prepared email wording after acceptance (not sent):
 - #355: Thank you for reporting the unsaved document edits issue. We have fixed
   document switching so your unsaved edits are restored when you return. This
   fix will be included in a future version of ClawMax.
+- #367: Thank you for reporting the workflow export issue. We have fixed the
+  export/import flow to preserve dependencies and workflow type. This fix will
+  be included in a future version of ClawMax.
+- #375: Thank you for reporting the workflow output issue. We have fixed editor
+  saves to preserve additional output definitions. This fix will be included
+  in a future version of ClawMax.
 
 ## RC98 readiness and pending PR inventory
 
