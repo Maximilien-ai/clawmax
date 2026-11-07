@@ -252,6 +252,57 @@ async function run() {
     })
   })
 
+  // The browser names "the dashboard chat", not a session. After Clear (or Continue), the server's
+  // record decides which session a turn runs, so the agent never gets the cleared conversation back.
+  await test('a dashboard chat turn runs the current conversation after Clear and Continue, never the ended one', async () => {
+    await withScratchHome(async (home) => {
+      const workspace = path.join(home, 'workspace')
+      fs.mkdirSync(workspace, { recursive: true })
+      const previousWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+      process.env.CLAWMAX_TEST_WORKSPACE = workspace
+      const agentId = 'conversation-agent'
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-fake-openclaw-'))
+      // Replies with the session it was asked to run.
+      const cli = writeFakeCli(dir, 'openclaw', `
+        process.stdout.write('session=' + process.argv[process.argv.indexOf('--session-id') + 1] + '\\n')
+        process.exit(0)
+      `)
+      try {
+        const conversations = require('../lib/dashboard-chat-conversations')
+        const { scopeSessionIdToModel } = require('../lib/agent-execution')
+        const turn = async () => {
+          const res = makeSseRes()
+          const req = makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: `agent:${agentId}:dashboard-chat` }, on() {} })
+          await Promise.all([getRouteHandler('post', '/:id/chat')(req, res), res.done])
+          const start = res.events.find((e) => e.type === 'start')
+          return { session: String(res.events.find((e) => e.type === 'complete')?.data?.text || '').replace('session=', '').trim(), resume: start?.data?.resumeSessionId }
+        }
+        await withOpenclawReadiness(agentId, {}, () =>
+          withModuleOverrides(openclawCliModulePath, { resolveOpenClawCliPath: () => cli }, async () => {
+            const first = await turn()
+            assert.strictEqual(first.session, scopeSessionIdToModel(`agent:${agentId}:dashboard-chat`, 'ollama/llama3'), 'Before any Clear, the original conversation')
+
+            const cleared = conversations.startNewDashboardConversation(agentId, { sessionId: first.session, seed: `agent:${agentId}:dashboard-chat` })
+            const second = await turn()
+            assert.strictEqual(second.session, scopeSessionIdToModel(cleared.activeSeed, 'ollama/llama3'), 'After Clear, a new session')
+            assert.notStrictEqual(second.session, first.session)
+            assert.strictEqual(second.resume, `agent:${agentId}:dashboard-chat`, 'The panel keeps asking for the dashboard chat, never pinning a conversation')
+
+            conversations.resumeDashboardConversation(agentId, first.session, { sessionId: second.session, seed: cleared.activeSeed })
+            assert.strictEqual((await turn()).session, first.session, 'Continue runs the exact ended session again')
+
+            const other = makeSseRes()
+            await Promise.all([getRouteHandler('post', '/:id/chat')(makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: 'some-other-session' }, on() {} }), other), other.done])
+            assert.match(String(other.events.find((e) => e.type === 'complete')?.data?.text), /session=some-other-session/, 'Other callers keep their own sessions')
+          }))
+      } finally {
+        if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+        else process.env.CLAWMAX_TEST_WORKSPACE = previousWorkspace
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
   await test('resend-dispatch chat registers and releases a turn -- it used to never register at all', async () => {
     await withScratchHome(async () => {
       await withOpenclawReadiness('resend-agent', { skillIds: ['clawmax-resend'] }, () =>
