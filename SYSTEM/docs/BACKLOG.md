@@ -49,6 +49,10 @@ existing issues, and keep ownership/links in central Management Feedback.
   additional types and metadata. Extra outputs are visible, and disabling the
   setting explicitly warns that all outputs are removed. Desktop/mobile browser
   checks passed, including failed-save retention/retry. Lint/typecheck passed.
+  These browser passes were on the source preview against the real isolated API.
+  The final packaged-URL rerun passed desktop but timed out locating mobile search;
+  repeat that final mobile navigation check after the pre-flight timebox. Do not
+  treat the final snapshot's mobile rerun as green. Live export/import passed.
 - [ ] **Owner: pre-flight workflow check.** At local Workflows, open
   `Flight acceptance child`, Edit and change the primary output label. Save and
   reopen: Details/Data must remain. Export and import its WORKFLOW.md in this
