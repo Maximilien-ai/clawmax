@@ -58,19 +58,17 @@ existing issues, and keep ownership/links in central Management Feedback.
 - [ ] **Next: #376–378 — workspace budget persistence.** Private report context
   still needs authenticated review; investigate reported group-message isolation early.
 
-Current product source: `a210742ae5ff63ed73a9ec1ecc78ab98e5442cbc`.
-Its [remote tests](https://github.com/Maximilien-ai/clawmax/actions/runs/42319390653)
-and [CodeQL](https://github.com/Maximilien-ai/clawmax/actions/runs/42319385529)
-were running at the inventory checkpoint. The preceding `74d57202` passed tests
-but had seven high CodeQL findings; the path/parser hardening is committed and
-locally tested, and needs its new scan result. This is a bounded CodeQL gate,
-not a complete security audit. Owner: Dashboard; disposition deadline: before
-PR #385 merge or RC98 cut. Residual severity is unverified pending the rescan.
-Use the [latest PR head checks](https://github.com/Maximilien-ai/clawmax/pull/385/checks)
-if subsequent documentation commits supersede those runs.
+Current product source: `226a33d931118ca592f45a2f29b842867c0b1633`.
+The original document checkpoint `fa70ac39` passed full CI and CodeQL. The
+workflow additions passed 83 library checks, 25 route checks, lint/typechecks
+and desktop/mobile preview browser checks. Live export/import on this exact
+snapshot preserved dependencies, type and all outputs; unresolved imports were
+rejected without creating a workflow. Its latest full CI remains pending at
+[PR head checks](https://github.com/Maximilien-ai/clawmax/pull/385/checks).
+Owner: Dashboard; remaining gate deadline: before PR #385 merge or RC98 cut.
 The prior full test run took about 40 minutes;
 check near halfway and expected completion plus one minute.
-The current source passed 24 focused cases (12 docs, 9 parser/agent, 3 Git/path),
+The document source passed 24 focused cases (12 docs, 9 parser/agent, 3 Git/path),
 root lint and frontend/server TypeScript. The refreshed exact committed snapshot
 also passed both browser scripts at 1440/390px with normal browser origins.
 API/UI version and workspace identity match.
@@ -103,7 +101,8 @@ Prepared email wording after acceptance (not sent):
 
 Latest published test tag: `v2.0.0-test-rc97`. RC98 has not been cut in this pass.
 The reviewed November 5 inventory has 58 Dashboard reports: two source fixes in
-the current batch and 56 awaiting review/disposition, including two positive
+  the original document batch; the pre-flight workflow batch adds two more,
+  leaving 54 awaiting review/disposition, including two positive
 reports. Of the original inventory, 32 reports already had issue links and 26
 needed triage, including those positives. These counts describe that handoff;
 current private feedback state still requires authenticated Management access.
