@@ -1224,6 +1224,8 @@ export function workflowToMarkdown(workflow: Workflow): string {
   if (workflow.secretRequirements?.length) fm.secretRequirements = workflow.secretRequirements
   if (workflow.outputDefinitions?.length) fm.outputDefinitions = workflow.outputDefinitions
   if (workflow.inputRefs?.length) fm.inputRefs = workflow.inputRefs
+  if (workflow.dependsOn !== undefined) fm.dependsOn = workflow.dependsOn
+  if (workflow.type !== undefined) fm.type = workflow.type
 
   return matter.stringify(workflow.content || '', fm)
 }

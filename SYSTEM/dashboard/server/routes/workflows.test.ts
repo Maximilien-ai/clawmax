@@ -350,6 +350,27 @@ async function run() {
     assert(deleteRes.statusCode === 404, `Expected missing workflow delete to return 404, got ${deleteRes.statusCode}`)
   })
 
+  await test('workflow import preserves known dependencies and rejects unresolved references before creating', async () => {
+    let saved: any = null
+    const handler = getRouteHandler('post', '/import-md', { workflows: {
+      getWorkflow: (id: string) => id === 'known-parent' ? { id } as any : null,
+      createWorkflow: (workflow: any) => { saved = workflow; return { success: true, id: 'imported-copy' } },
+    } })
+    for (const dependsOn of ['[known-parent]', '[]']) {
+      const res = makeRes()
+      await handler(makeReq({}, { body: { content: `---\nname: Portable\nschedule: manual\nenabled: false\ntype: conditional\ndependsOn: ${dependsOn}\n---\nInstructions` } }), res)
+      assert(res.statusCode === 200, 'Expected portable workflow import')
+      assert(saved.type === 'conditional' && saved.enabled === false, 'Expected type and disabled state preserved')
+      assert(JSON.stringify(saved.dependsOn) === JSON.stringify(dependsOn === '[]' ? [] : ['known-parent']), 'Expected complete dependency list')
+    }
+    saved = null
+    const missing = makeRes()
+    await handler(makeReq({}, { body: { content: '---\nname: Missing parent\ndependsOn: [unknown-parent]\n---\nInstructions' } }), missing)
+    assert(missing.statusCode === 400 && saved === null, 'Unresolved imports must not create a workflow')
+    assert(missing.jsonBody.missingDependencies[0] === 'unknown-parent', 'Expected explicit unresolved ID')
+    assert(/Import them first/.test(missing.jsonBody.error), 'Expected actionable resolution guidance')
+  })
+
   await test('workflow import and generation routes validate required input', async () => {
     let res = makeRes()
     const importHandler = getRouteHandler('post', '/import-md')
