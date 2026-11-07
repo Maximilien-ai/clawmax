@@ -9,7 +9,6 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import { execFile } from 'child_process'
-import { simpleGit } from 'simple-git'
 import { materializeDashboardAgentList } from './lib/openclaw-config'
 import docsRouter from './routes/docs'
 import agentsRouter from './routes/agents'
@@ -38,14 +37,13 @@ import { configuredTemplateResolverFromEnv } from './lib/template-service'
 import { inspectTemplateHostSkill } from './lib/template-host-skill-inspection'
 import { startActivityExportWorker, stopActivityExportWorker } from './lib/activity-export-worker'
 import { isTemplateRegistryWriteEnabled } from './lib/template-registry'
-import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity, isManagedAgentWorkspaceDir } from './lib/workspace'
+import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, getOrgName, parseGroups, isManagedAgentWorkspaceDir } from './lib/workspace'
 import { getSchedulerDiagnostics, startScheduler, stopScheduler } from './lib/scheduler'
 import { startDevBriefDeliveryWorker } from './lib/dev-brief-delivery-worker'
 import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
 import notificationsRouter from './routes/notifications'
 import { initOpikTracing, shutdownOpik, isOpikEnabled, getRequestDashboardInstanceId, getRuntimeInstanceIdentity } from './lib/opik'
 import { getWorkspaceMetering } from './lib/metering'
-import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
 import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthConfigured, getAuthenticatedSession, shouldUseSecureAuthCookies } from './lib/github-auth'
 import { safeEnv } from './lib/safe-env'
@@ -676,133 +674,6 @@ app.get('/api/system/logs', protect, (_req, res) => {
     tail.on('close', () => { try { res.end() } catch {} })
     _req.on('close', () => { try { tail.kill() } catch {} })
   }
-})
-
-// Save a workspace doc file
-app.post('/api/docs/content', protect, async (req, res) => {
-  const { path: relPath, content } = req.body as { path?: string; content?: string }
-  if (!relPath || typeof content !== 'string') {
-    res.status(400).json({ ok: false, error: 'Missing path or content' })
-    return
-  }
-
-  // Validate content before saving if it's a schema-backed file
-  const fileName = relPath.split('/').pop()
-
-  if (fileName === 'COMMUNITIES.md') {
-    const { communities } = parseGroups(content)
-    const validation = validateCommunities(communities)
-    if (!validation.valid) {
-      // Enhance error messages with actual names
-      const enhancedErrors = validation.errors.map(err => {
-        const match = err.field.match(/^communities\.(\d+)\.?(.*)/)
-        if (match) {
-          const idx = parseInt(match[1])
-          let subfield = match[2]
-          const community = communities[idx]
-          const name = community?.name || `#${idx}`
-
-          // Further enhance array field errors (e.g., tags.0 -> tag "value")
-          const arrayMatch = subfield?.match(/^(tags|channels)\.(\d+)$/)
-          if (arrayMatch && community) {
-            const arrayField = arrayMatch[1] as 'tags' | 'channels'
-            const arrayIdx = parseInt(arrayMatch[2])
-            const value = community[arrayField]?.[arrayIdx]
-            if (value) {
-              subfield = `${arrayField.slice(0, -1)} "${value}"`
-            }
-          }
-
-          return {
-            ...err,
-            field: subfield ? `Community "${name}" → ${subfield}` : `Community "${name}"`
-          }
-        }
-        return err
-      })
-      res.status(400).json({
-        ok: false,
-        error: 'Validation failed',
-        validationErrors: enhancedErrors
-      })
-      return
-    }
-  } else if (fileName === 'GROUPS.md') {
-    const { groups } = parseGroups(content)
-    const validation = validateGroups(groups)
-    if (!validation.valid) {
-      // Enhance error messages with actual names
-      const enhancedErrors = validation.errors.map(err => {
-        const match = err.field.match(/^groups\.(\d+)\.?(.*)/)
-        if (match) {
-          const idx = parseInt(match[1])
-          let subfield = match[2]
-          const group = groups[idx]
-          const name = group?.name || `#${idx}`
-
-          // Further enhance array field errors (e.g., tags.0 -> tag "value")
-          const arrayMatch = subfield?.match(/^(tags|channels)\.(\d+)$/)
-          if (arrayMatch && group) {
-            const arrayField = arrayMatch[1] as 'tags' | 'channels'
-            const arrayIdx = parseInt(arrayMatch[2])
-            const value = group[arrayField]?.[arrayIdx]
-            if (value) {
-              subfield = `${arrayField.slice(0, -1)} "${value}"`
-            }
-          }
-
-          return {
-            ...err,
-            field: subfield ? `Group "${name}" → ${subfield}` : `Group "${name}"`
-          }
-        }
-        return err
-      })
-      res.status(400).json({
-        ok: false,
-        error: 'Validation failed',
-        validationErrors: enhancedErrors
-      })
-      return
-    }
-  } else if (fileName === 'IDENTITY.md') {
-    const identity = parseIdentity(content)
-    const validation = validateIdentity(identity)
-    if (!validation.valid) {
-      res.status(400).json({
-        ok: false,
-        error: 'Validation failed',
-        validationErrors: validation.errors
-      })
-      return
-    }
-  }
-
-  const ok = writeWorkspaceFile(relPath, content)
-  if (!ok) {
-    res.status(403).json({ ok: false, error: 'Path not allowed or not a markdown file' })
-    return
-  }
-
-  // Auto-commit the change to git
-  try {
-    const git = simpleGit(getWorkspacePath())
-    const isRepo = await git.checkIsRepo()
-
-    if (isRepo) {
-      // `--`: a document named `--pathspec-from-file=x.md` is a path, not an option.
-      await git.add(['--', relPath])
-      const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0]
-      const commitMessage = `docs: Update ${relPath}\n\nEdited via ClawMax Dashboard at ${timestamp}`
-      await git.commit(commitMessage)
-      console.log(`[Git] Auto-committed: ${relPath}`)
-    }
-  } catch (err) {
-    // Log but don't fail the save operation
-    console.error('[Git] Failed to auto-commit:', err)
-  }
-
-  res.json({ ok: true })
 })
 
 // API routes (all protected with auth)

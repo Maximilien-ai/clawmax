@@ -19,7 +19,7 @@ interface AgentTargeting {
 interface WorkflowOutputDefinition {
   key: string
   label?: string
-  type?: 'markdown'
+  type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
   help?: string
 }
 
@@ -344,13 +344,14 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     setSaving(true)
     try {
       const primaryOutput = formData.outputDefinitions?.[0]
-      const normalizedOutputDefinitions = producesMarkdownOutput && primaryOutput?.key?.trim()
+      const normalizedOutputDefinitions = producesMarkdownOutput && primaryOutput
         ? [{
+            ...primaryOutput,
             key: primaryOutput.key.trim(),
             label: primaryOutput.label?.trim() || primaryOutput.key.trim(),
-            type: 'markdown' as const,
+            type: primaryOutput.type || 'markdown' as const,
             help: primaryOutput.help?.trim() || undefined,
-          }]
+          }, ...(formData.outputDefinitions || []).slice(1)]
         : []
       const normalizedInputRefs = (formData.inputRefs || [])
         .map((inputRef) => ({
@@ -1068,6 +1069,17 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 <span className="text-sm text-gray-700 dark:text-gray-300">This workflow publishes a reusable markdown handoff</span>
               </label>
 
+              {(formData.outputDefinitions?.length || 0) > 1 && (
+                <div className="text-sm text-gray-600 dark:text-gray-300">
+                  <p>Additional outputs are preserved when you save. Turning off this setting removes all {formData.outputDefinitions!.length} outputs.</p>
+                  <ul className="mt-1 list-disc pl-5">
+                    {formData.outputDefinitions!.slice(1).map((output, index) => (
+                      <li key={`${output.key}-${index}`} className="break-words">{output.label || output.key} ({output.key}, {output.type || 'markdown'})</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {producesMarkdownOutput && (
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
@@ -1077,7 +1089,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       value={formData.outputDefinitions?.[0]?.key || ''}
                       onChange={(e) => {
                         const next = [...(formData.outputDefinitions || [{ key: '', label: '', type: 'markdown' }])]
-                        next[0] = { ...next[0], key: e.target.value, type: 'markdown' }
+                        next[0] = { ...next[0], key: e.target.value }
                         setFormData({ ...formData, outputDefinitions: next })
                       }}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -1091,7 +1103,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       value={formData.outputDefinitions?.[0]?.label || ''}
                       onChange={(e) => {
                         const next = [...(formData.outputDefinitions || [{ key: '', label: '', type: 'markdown' }])]
-                        next[0] = { ...next[0], label: e.target.value, type: 'markdown' }
+                        next[0] = { ...next[0], label: e.target.value }
                         setFormData({ ...formData, outputDefinitions: next })
                       }}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"

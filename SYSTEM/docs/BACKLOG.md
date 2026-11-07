@@ -1,5 +1,184 @@
 # Backlog
 
+## November 5 feedback: first acceptance batch
+
+Inventory: [Web's reviewed 58-report backlog](https://github.com/Maximilien-ai/clawmax-ai/blob/a21b1eb86accba99a7757ee4aafbbe9dd546ca94/docs/operations/DASHBOARD_FEEDBACK_BACKLOG_2026-11-05.md).
+These are reports, including two positive experiences, rather than 58 verified
+current defects. Reproduce against identified current source/runtime, reuse
+existing issues, and keep ownership/links in central Management Feedback.
+
+- [x] **Engineering verified: #351 — Create Document preserves existing content.** Feedback-ID:
+  `07250751-0985-4571-bd29-157a1f0f7b29`. Source fix `9c7a16db` on
+  `fix/feedback-351-document-create`: atomic create-only write, HTTP 409 on
+  conflict, retained path/content, ordinary Save preserved. Local docs routes
+  (12 checks after validation/history follow-up), workspace document entries (3), frontend/server TypeScript and
+  root lint passed, along with HTTP path-boundary checks (7). Desktop/mobile
+  browser checks at 1440/390px passed for conflicts, retained drafts, failed
+  storage and renamed retries; screenshots visually reviewed. Regression
+  follow-up `01f7dbd2`; [draft PR #385](https://github.com/Maximilien-ai/clawmax/pull/385).
+  Follow-up `0731c507` uses the shared mobile dialog and symlink-refusing path
+  resolver; two worker threads verify a real concurrent create. Follow-up
+  `74d57202` shares Create/Save validation and Git history; `a210742a` hardens
+  write paths and replaces backtracking group-parser scans. Latest remote
+  gates are recorded below; do not infer readiness from an older green run.
+- [x] **Engineering verified: #355 — unsaved edits survive navigation.** Feedback-ID:
+  `4f713580-97b7-406c-8acc-60d6594df325`. Source `77102031` retains independent
+  in-memory document drafts, restores them on return, and warns before closing
+  or reloading a tab with unsaved work. Desktop/mobile checks at 1440/390px
+  prove file/page navigation, failed Save retention, persisted successful Save,
+  Cancel isolation, and a late Save preserving newer edits and another file.
+  Screenshots visually reviewed. These drafts are not durable after closing
+  the tab; Save persists them to the workspace.
+- [x] **Owner accepted #351/#355** with the explicit reply `accept #351/#355`.
+  Together with the earlier #367/#375 acceptance, all four fixes in this batch
+  now have owner sign-off. Remaining CI/mobile, merge/release and notification
+  work is engineering-owned; there are no pending owner checks for this batch.
+  Original acceptance flow: open [local Documents](http://localhost:5180/docs),
+  version `2.0.0-dev.226a33d9` (close onboarding if shown). The disposable
+  workspace contains `ORG/acceptance/A.md` and `B.md`.
+  1. Use + New with path `acceptance/A.md` and different content. Expect a
+     conflict and retained draft; cancel and verify A still contains `ORIGINAL_A`.
+  2. Edit A without saving, switch to B and back. Expect the draft restored.
+  3. Save A and reload. Expect the saved edit. Reply `accept #351 and #355`,
+     or name the issue and failing step; either issue can be accepted separately.
+- [x] **Engineering verified: #367 — workflow export/import preserves dependencies and type.**
+  Feedback-ID `a06abc9f-a665-4d03-aff3-75db96869892`; commit `0af7b992`.
+  Explicit empty dependencies round-trip. Import rejects unresolved upstream IDs
+  before creating a workflow and explains how to resolve them; it never silently
+  converts a dependent workflow into an independent one. 83 library and 25 route
+  checks passed, plus frontend/server TypeScript.
+- [x] **Engineering verified in preview: #375 — editor preserves every output.**
+  Feedback-ID `a9649a5a-66ef-47ba-a6e5-f67d6e09ac3d`; commit `226a33d9`.
+  Zero/one/multiple outputs survive unchanged saves; editing the primary retains
+  additional types and metadata. Extra outputs are visible, and disabling the
+  setting explicitly warns that all outputs are removed. Desktop/mobile browser
+  checks passed, including failed-save retention/retry. Lint/typecheck passed.
+  These browser passes were on the source preview against the real isolated API.
+  The final packaged-URL rerun passed desktop but timed out locating mobile search;
+  repeat that final mobile navigation check after the pre-flight timebox. Do not
+  treat the final snapshot's mobile rerun as green. Live export/import passed.
+- [x] **Owner accepted #367/#375** on `2.0.0-dev.226a33d9` with the explicit
+  reply `accept #367/#375`. Scope: workflow dependency/type round-trip and
+  preservation of additional output definitions. The outstanding final mobile
+  rerun remains engineering-owned; this acceptance does not waive it.
+  Original acceptance flow: at local Workflows, open
+  `Flight acceptance child`, Edit and change the primary output label. Save and
+  reopen: Details/Data must remain. Export and import its WORKFLOW.md in this
+  workspace: the imported copy must keep its parent dependency and conditional
+  type. Fixtures are disabled/manual; do not run them. Reply `accept #367/#375`
+  or the failing step. Final snapshot is `2.0.0-dev.226a33d9`; latest CI is pending.
+  Latest observed head `82189f44`: CodeQL passed; full test run
+  [42371527591](https://github.com/Maximilien-ai/clawmax/actions/runs/42371527591)
+  is still running. Merge/release, report closure and emails remain separate.
+- [ ] **Next: #376–378 — workspace budget persistence.** Private report context
+  still needs authenticated review; investigate reported group-message isolation early.
+
+Current product source: `226a33d931118ca592f45a2f29b842867c0b1633`.
+The original document checkpoint `fa70ac39` passed full CI and CodeQL. The
+workflow additions passed 83 library checks, 25 route checks, lint/typechecks
+and desktop/mobile preview browser checks. Live export/import on this exact
+snapshot preserved dependencies, type and all outputs; unresolved imports were
+rejected without creating a workflow. Its latest full CI remains pending at
+[PR head checks](https://github.com/Maximilien-ai/clawmax/pull/385/checks).
+Owner: Dashboard; remaining gate deadline: before PR #385 merge or RC98 cut.
+The prior full test run took about 40 minutes;
+check near halfway and expected completion plus one minute.
+The document source passed 24 focused cases (12 docs, 9 parser/agent, 3 Git/path),
+root lint and frontend/server TypeScript. The refreshed exact committed snapshot
+also passed both browser scripts at 1440/390px with normal browser origins.
+API/UI version and workspace identity match.
+Local dev root:
+`/private/var/folders/nv/8pltgq7960988zh0m43w7vf80000gn/T/clawmax-local-dev-bq7ZPP`.
+Restart with `./SYSTEM/local-dev.sh --root` followed by that path to retain data.
+Owner acceptance, merge/release inclusion and submitter notifications remain pending.
+
+For every item, record source/CI, local verification, deployment and owner
+acceptance separately. After verification and owner acceptance, email the
+submitter (who may not be a customer): thank them, describe the resolved behavior,
+and say it is addressed in a future version of ClawMax. Record delivery separately;
+do not claim a release is live. Preserve all existing issue links, include full
+Feedback-IDs in GitHub traceability, and keep private descriptions/screenshots
+out of public issues. Customer communication and report closure are separate
+operations. After this feedback pass, review remaining open PRs and issues.
+The local Management CLI currently requires `clawmax-ai auth login`; replies,
+email delivery and central link updates remain pending authenticated access.
+
+Prepared email wording after acceptance (not sent):
+
+- #351: Thank you for reporting the document creation issue. We have fixed the
+  overwrite behavior so an existing document is preserved when its name is
+  reused. This fix will be included in a future version of ClawMax.
+- #355: Thank you for reporting the unsaved document edits issue. We have fixed
+  document switching so your unsaved edits are restored when you return. This
+  fix will be included in a future version of ClawMax.
+- #367: Thank you for reporting the workflow export issue. We have fixed the
+  export/import flow to preserve dependencies and workflow type. This fix will
+  be included in a future version of ClawMax.
+- #375: Thank you for reporting the workflow output issue. We have fixed editor
+  saves to preserve additional output definitions. This fix will be included
+  in a future version of ClawMax.
+
+## RC98 readiness and pending PR inventory
+
+Latest published test tag: `v2.0.0-test-rc97`. RC98 has not been cut in this pass.
+The reviewed November 5 inventory has 58 Dashboard reports: two source fixes in
+  the original document batch; the pre-flight workflow batch adds two more,
+  leaving 54 awaiting review/disposition, including two positive
+reports. Of the original inventory, 32 reports already had issue links and 26
+needed triage, including those positives. These counts describe that handoff;
+current private feedback state still requires authenticated Management access.
+No source feedback was closed or emailed in this pass.
+
+GitHub currently reports **28 open PRs and 92 open issues**. Open issues include
+older implementation/reconciliation work and are not 92 verified current bugs.
+The PR snapshot breaks down as follows; checks on older branches need fresh
+review against current main.
+
+| Last recorded test status | Count | PRs |
+|---|---:|---|
+| Running | 1 | #385 (this document batch) |
+| Failing | 5 | #191, #242, #292, #298, #384 |
+| No checks reported | 3 | #192, #228, #341 |
+| Passing test check | 19 | #194, #227, #229, #288, #294, #295, #296, #297, #299, #300, #301, #302, #303, #339, #340, #343, #346, #347, #349 |
+
+Separate merge-state counts (overlapping test statuses): six conflicts
+(#228, #229, #288, #339, #340, #343); ten behind main (#227, #294–297,
+#299–303). Eleven PRs are dependency/tooling updates (#294–303,
+plus #384); the other 17 include product fixes, older runtime changes and #385.
+The failing PRs concern OpenAI-compatible defaults (#191), readiness scores
+(#242), OpenCode runtime support (#292), grouped packages (#298), and Node (#384).
+
+Suggested next 48-hour sequence; scope remains subject to new evidence:
+
+1. Finish #385's exact-source remote gates and owner check; merge only after
+   acceptance, then authenticate Management and send each prepared reply.
+2. Batch workflow preservation (#367/#375), then workspace budget persistence
+   (#376–378). Reproduce each before fixing; combine only the owner's short
+   acceptance flow. Score-over-100 reports have existing #243/#242 to reuse
+   after private context/reproduction review. Investigate group-message isolation early.
+3. Audit pending PRs for overlap/shipped work and fresh CI. Prioritize secret
+   redaction #349 and focused stability fixes #346/#347/#341; resolve conflicts
+   and failures separately. Review broader runtime/streaming/export features
+   for explicit deferral rather than assuming all 28 belong in RC98. Keep
+   source-dev restart/config preservation #317 in the active risk review.
+4. Before choosing RC98: full integration, validation and coverage; identified
+   current-source chat/group/workflow/restart/persistence evidence; explicit
+   disposition of remaining material failures. Engineering owns these checks.
+5. Cut the bounded candidate with exact `CLAWMAX_VERSION` in the local source
+   `.env`, restart and verify visible/API identity. Build matching public then
+   combined images from the same candidate/tag; verify amd64/arm64, registry
+   smoke, version, discovery, source boundary and restart persistence.
+6. Owner tests only remaining human/external acceptance: a short installed
+   chat → group → workflow → restart flow on identified local/cloud targets.
+   CLI/Web retain deployment authority for their environments. Record source,
+   image, deployment and owner acceptance separately.
+
+The owner queue currently contains only the three-step document check above.
+Workflow/budget and RC98 runtime checks are planned, not ready-for-acceptance
+claims. Engineering should finish and record their automated checks first.
+
+## Earlier active backlog
+
 - [ ] **Explicit model repair in Doctor** — When a runtime rejects an agent's
   model, offer the workspace new-agent default and a manual model picker. Show
   the proposed primary/backup changes, validate runtime support, require Apply,

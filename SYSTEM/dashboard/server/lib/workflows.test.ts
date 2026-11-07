@@ -352,6 +352,12 @@ test('workflowToMarkdown round-trips', () => {
   const parsed = parseWorkflowMd(md)
   assert(parsed?.name === wf.name, 'Round-trip name should match')
   assert(parsed?.timezone === (wf.timezone || 'UTC'), 'Round-trip timezone should match')
+  const conditional = { ...wf, dependsOn: ['upstream-a', 'unresolved-upstream'], type: 'conditional' as const }
+  const restored = parseWorkflowMd(workflowToMarkdown(conditional))
+  assert(JSON.stringify(restored?.dependsOn) === JSON.stringify(conditional.dependsOn), 'Export must retain every dependency ID, including unresolved references')
+  assert(restored?.type === 'conditional', 'Export must retain workflow classification')
+  const empty = parseWorkflowMd(workflowToMarkdown({ ...wf, dependsOn: [] }))
+  assert(Array.isArray(empty?.dependsOn) && empty.dependsOn.length === 0, 'Explicit empty dependencies must round-trip')
 })
 
 // ============================================================================

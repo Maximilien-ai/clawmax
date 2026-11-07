@@ -55,6 +55,23 @@ async function run() {
     fs.rmSync(path.join(workspace, '.git'), { recursive: true })
   })
 
+  await test('markdown writes refuse traversal, Git metadata and symlinks without changing targets', () => {
+    const { writeWorkspaceFile } = require('./workspace')
+    assert.strictEqual(writeWorkspaceFile('ORG/safe.md', 'ORIGINAL'), true)
+    for (const target of ['../outside.md', '../workspace-shadow/file.md', '.git/config.md', 'ORG/.GIT/file.md']) {
+      assert.strictEqual(writeWorkspaceFile(target, 'BAD'), false, target)
+    }
+    const outside = path.join(root, 'outside')
+    fs.mkdirSync(outside)
+    fs.writeFileSync(path.join(outside, 'target.md'), 'OUTSIDE_ORIGINAL')
+    fs.symlinkSync(outside, path.join(workspace, 'ORG', 'outside-link'))
+    assert.strictEqual(writeWorkspaceFile('ORG/outside-link/target.md', 'BAD'), false)
+    assert.strictEqual(fs.readFileSync(path.join(outside, 'target.md'), 'utf8'), 'OUTSIDE_ORIGINAL')
+    fs.symlinkSync(path.join(workspace, 'ORG', 'safe.md'), path.join(workspace, 'ORG', 'alias.md'))
+    assert.strictEqual(writeWorkspaceFile('ORG/alias.md', 'BAD'), false)
+    assert.strictEqual(fs.readFileSync(path.join(workspace, 'ORG', 'safe.md'), 'utf8'), 'ORIGINAL')
+  })
+
   await test('a document ZIP that carries a .git folder is refused before anything is extracted', () => {
     const { extractZipBufferToWorkspace } = require('./workspace')
     const zipPath = path.join(root, 'with-git.zip')

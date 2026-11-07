@@ -105,6 +105,16 @@ router.post('/import-md', (req, res) => {
 
     if (!parsed.author) parsed.author = 'imported'
 
+    const missingDependencies = Array.isArray(parsed.dependsOn)
+      ? parsed.dependsOn.filter(id => typeof id === 'string' && !getWorkflow(id))
+      : []
+    if (missingDependencies.length) {
+      return res.status(400).json({
+        error: `Upstream workflows not found: ${missingDependencies.join(', ')}. Import them first or update dependsOn before importing this workflow.`,
+        missingDependencies,
+      })
+    }
+
     const result = createWorkflow(parsed)
     if (!result.success) {
       return res.status(400).json({ error: result.error, errors: result.errors })

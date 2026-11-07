@@ -9,6 +9,7 @@ import os from 'os'
 import path from 'path'
 import assert from 'assert'
 import { execFileSync } from 'child_process'
+import { Worker } from 'worker_threads'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -143,6 +144,110 @@ async function run() {
     assert.strictEqual(pdfRes.statusCode, 200, 'Expected PDF fetch success')
     assert.strictEqual(pdfRes.jsonBody?.kind, 'pdf', 'Expected PDF kind')
     assert(/^data:application\/pdf;base64,/.test(pdfRes.jsonBody?.dataUrl || ''), 'Expected PDF data URL payload')
+  })
+
+  await test('create preserves existing bytes and Save still edits deliberately', async () => {
+    const handler = getRouteHandler('post', '/create')
+    const relPath = 'ORG/repro/existing.md'
+    const original = '# Original\n\nORIGINAL_CREATE_SENTINEL\n'
+    const created = makeRes()
+    await handler(makeReq({ body: { path: relPath, content: original } }), created)
+    assert.strictEqual(created.statusCode, 201)
+    const conflict = makeRes()
+    await handler(makeReq({ body: { path: relPath, content: 'replacement' } }), conflict)
+    assert.strictEqual(conflict.statusCode, 409)
+    assert.match(conflict.jsonBody.error, /already exists.*another name/i)
+    assert.strictEqual(fs.readFileSync(path.join(workspacePath, relPath), 'utf8'), original)
+    const saved = makeRes()
+    await getRouteHandler('post', '/content')(makeReq({ body: { path: relPath, content: 'deliberate edit' } }), saved)
+    assert.strictEqual(saved.statusCode, 200)
+    assert.strictEqual(fs.readFileSync(path.join(workspacePath, relPath), 'utf8'), 'deliberate edit')
+  })
+
+  await test('concurrent creators preserve exactly one winner', async () => {
+    const relPath = 'ORG/repro/racing.md'
+    const full = path.join(workspacePath, relPath)
+    const workers = ['CREATOR_A', 'CREATOR_B'].map(content => new Worker(`
+      require('ts-node/register/transpile-only')
+      const { parentPort, workerData } = require('worker_threads')
+      const { createWorkspaceFile } = require(workerData.modulePath)
+      parentPort.once('message', () => parentPort.postMessage({ result: createWorkspaceFile(workerData.path, workerData.content), content: workerData.content }))
+      parentPort.postMessage('ready')
+    `, { eval: true, workerData: { modulePath: require.resolve('../lib/workspace'), path: relPath, content } }))
+    try {
+      await Promise.all(workers.map(worker => new Promise<void>((resolve, reject) => {
+        worker.once('message', () => resolve())
+        worker.once('error', reject)
+      })))
+      const results = workers.map(worker => new Promise<{ result: string; content: string }>((resolve, reject) => {
+        worker.once('message', resolve)
+        worker.once('error', reject)
+      }))
+      workers.forEach(worker => worker.postMessage('create'))
+      const outcomes = await Promise.all(results)
+      assert.deepStrictEqual(outcomes.map(outcome => outcome.result).sort(), ['created', 'exists'])
+      assert.strictEqual(fs.readFileSync(full, 'utf8'), outcomes.find(outcome => outcome.result === 'created')?.content)
+    } finally {
+      await Promise.all(workers.map(worker => worker.terminate()))
+    }
+  })
+
+  await test('create rejects invalid input and reports storage failures without success', async () => {
+    const handler = getRouteHandler('post', '/create')
+    for (const body of [{}, { path: 42, content: '' }, { path: 'ORG/a.md', content: {} },
+      { path: '../outside.md', content: '' }, { path: 'ORG/a.txt', content: '' }]) {
+      const res = makeRes()
+      await handler(makeReq({ body }), res)
+      assert.strictEqual(res.statusCode, 400)
+    }
+    fs.writeFileSync(path.join(workspacePath, 'ORG', 'blocked'), 'existing parent file')
+    const failed = makeRes()
+    await handler(makeReq({ body: { path: 'ORG/blocked/new.md', content: '' } }), failed)
+    assert.strictEqual(failed.statusCode, 500)
+    assert.strictEqual(fs.readFileSync(path.join(workspacePath, 'ORG', 'blocked'), 'utf8'), 'existing parent file')
+  })
+
+  await test('Create and Save preserve schema validation before writing', async () => {
+    const relPath = 'ORG/schema-check/IDENTITY.md'
+    const full = path.join(workspacePath, relPath)
+    const create = getRouteHandler('post', '/create')
+    const invalidCreate = makeRes()
+    await create(makeReq({ body: { path: relPath, content: '# Missing required name' } }), invalidCreate)
+    assert.strictEqual(invalidCreate.statusCode, 400)
+    assert(invalidCreate.jsonBody.validationErrors.length > 0)
+    assert.strictEqual(fs.existsSync(full), false)
+    const original = '**Name:** schema-check\n'
+    const validCreate = makeRes()
+    await create(makeReq({ body: { path: relPath, content: original } }), validCreate)
+    assert.strictEqual(validCreate.statusCode, 201)
+    const invalidSave = makeRes()
+    await getRouteHandler('post', '/content')(makeReq({ body: { path: relPath, content: '# Still missing name' } }), invalidSave)
+    assert.strictEqual(invalidSave.statusCode, 400)
+    assert.strictEqual(fs.readFileSync(full, 'utf8'), original)
+  })
+
+  await test('Create and Save retain per-document Git history without staging unrelated files', async () => {
+    const git = (...args: string[]) => execFileSync('git', ['-C', workspacePath, ...args], { encoding: 'utf8', stdio: 'pipe' }).trim()
+    git('init', '--initial-branch=main')
+    git('config', 'user.name', 'Document Test')
+    git('config', 'user.email', 'document-test@example.invalid')
+    const relPath = 'ORG/history.md'
+    const created = makeRes()
+    await getRouteHandler('post', '/create')(makeReq({ body: { path: relPath, content: 'FIRST_BYTES' } }), created)
+    assert.strictEqual(created.statusCode, 201)
+    assert.strictEqual(git('show', `HEAD:${relPath}`), 'FIRST_BYTES')
+    assert.strictEqual(git('ls-tree', '--name-only', '-r', 'HEAD'), relPath)
+    const firstCommit = git('rev-parse', 'HEAD')
+    const conflict = makeRes()
+    await getRouteHandler('post', '/create')(makeReq({ body: { path: relPath, content: 'REPLACEMENT' } }), conflict)
+    assert.strictEqual(conflict.statusCode, 409)
+    assert.strictEqual(git('rev-parse', 'HEAD'), firstCommit)
+    const saved = makeRes()
+    await getRouteHandler('post', '/content')(makeReq({ body: { path: relPath, content: 'SAVED_BYTES' } }), saved)
+    assert.strictEqual(saved.statusCode, 200)
+    assert.strictEqual(git('show', `HEAD:${relPath}`), 'SAVED_BYTES')
+    assert.notStrictEqual(git('rev-parse', 'HEAD'), firstCommit)
+    assert.strictEqual(git('ls-tree', '--name-only', '-r', 'HEAD'), relPath)
   })
 
   await test('post content writes files inside the workspace and search finds them', async () => {
