@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { parseWorkspaceBudgetLimit, saveWorkspaceBudget } from './workspaceBudget'
+import { loadWorkspaceBudget, parseWorkspaceBudgetLimit, saveWorkspaceBudget } from './workspaceBudget'
 
 async function run() {
   assert.equal(parseWorkspaceBudgetLimit('0'), 0)
@@ -21,7 +21,21 @@ async function run() {
     ok: false, json: async () => ({ error: 'Budget write failed' }),
   } as Response)) as typeof fetch), /Budget write failed/)
 
-  console.log('Workspace budget client tests passed (8 assertions)')
+  const snapshot = { enabled: true, config: { limitUsd: 42, enforced: false }, currentSpendUsd: 2, usedPct: 4.76, level: 'ok' }
+  const controller = new AbortController()
+  const loaded = await loadWorkspaceBudget('workspace-b', controller.signal, (async (path, options) => {
+    assert.match(String(path), /workspaceId=workspace-b/)
+    assert.equal(options?.signal, controller.signal)
+    return { ok: true, json: async () => snapshot } as Response
+  }) as typeof fetch)
+  assert.deepEqual(loaded, snapshot)
+  for (const data of [{}, { config: { limitUsd: '42', enforced: false } }, { ...snapshot, config: { limitUsd: -1, enforced: true } }, { ...snapshot, currentSpendUsd: null }]) {
+    await assert.rejects(loadWorkspaceBudget('a', undefined, (async () => ({ ok: true, json: async () => data } as Response)) as typeof fetch), /incomplete/)
+  }
+  assert.deepEqual(await loadWorkspaceBudget('a', undefined, (async () => ({ ok: true, json: async () => ({ enabled: false }) } as Response)) as typeof fetch), { enabled: false })
+  await assert.rejects(loadWorkspaceBudget('a', undefined, (async () => ({ ok: false } as Response)) as typeof fetch), /could not be loaded/)
+  await assert.rejects(loadWorkspaceBudget('a', undefined, (async () => { throw new Error('Network unavailable') }) as typeof fetch), /Network unavailable/)
+  console.log('Workspace budget client tests passed: parsing, scoped writes, validated reads, disabled feature and failures')
 }
 
 run().catch(error => { console.error(error); process.exitCode = 1 })
