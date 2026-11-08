@@ -10,7 +10,7 @@ not a deployment or an email delivery.
 - [x] Owner accepted #351/#355: safe document creation and retained edit drafts.
 - [x] Owner accepted #367/#375: workflow dependency/type and output preservation.
 - [x] User merged their source in [PR #385](https://github.com/Maximilien-ai/clawmax/pull/385), main `ed02d56b`.
-- [x] Morning budget batch #376/#377/#378: implementation, desktop/mobile browser checks, and real isolated-API persistence verified. **Ready for owner acceptance.**
+- [x] Morning budget batch #376/#377/#378: verified and **owner accepted** with `accept #376/#377/#378 merge and give me next batch` on November 8. Merge/notification receipts are recorded separately.
 - [ ] Evening batch: proposed #349, #347, #341; include only after engineering checks and required review.
 - [ ] RC98: conditional on the engineering gates below; no commitment to cut tonight if they fail.
 
@@ -97,17 +97,17 @@ Use a disposable workspace. Zero means **no positive spending cap**, not a
 zero-dollar allowance. Failure injection and duplicate-creation detection are
 engineering checks; you do not need to cause server failures manually.
 
-- [ ] **#376 — zero survives creation:** workspace menu → Create New Workspace;
+- [x] **#376 — zero survives creation:** workspace menu → Create New Workspace;
   use a unique name, budget `0`, and choose enforcement. Create, then reopen its
   Edit Workspace dialog. Budget is still `0`; the no-cap wording is clear.
-- [ ] **#377 — editing metadata preserves budget:** in that workspace set budget
+- [x] **#377 — editing metadata preserves budget:** in that workspace set budget
   `42`, turn enforcement off, save and reopen. Rename it and change its color
   without editing the budget. Save, reload, reopen: `42` and enforcement off
   are retained along with the new name/color.
-- [ ] **#378 — creation feels complete:** create a second disposable workspace
+- [x] **#378 — creation feels complete:** create a second disposable workspace
   with budget `123`. Open Edit Workspace: it shows `123`. There is one workspace
   entry with that name and no misleading success or missing configuration.
-- [ ] **Dialog usability:** at a narrow window or on a phone, inspect Create
+- [x] **Dialog usability:** at a narrow window or on a phone, inspect Create
   and Edit Workspace. Inputs can be reached by scrolling and the footer actions
   stay reachable. Wording/errors make the next action clear.
 

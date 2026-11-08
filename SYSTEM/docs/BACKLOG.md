@@ -6,6 +6,9 @@ Use the [current owner checklist and RC98 gates](planning/RC98_ACCEPTANCE_2026-1
 Budget #376/#377/#378 is ready at http://localhost:5180/templates,
 `2.0.0-dev.5e273269`. Source is committed/pushed on
 `fix/workspace-budget-persistence`; no new PR was created or merged.
+Owner accepted all three on November 8 with `accept #376/#377/#378 merge and
+give me next batch`. The existing #386 will be used for the authorized merge;
+no new PR is needed. Merge and submitter-notification receipts remain separate.
 Both desktop/mobile budget browser checks passed on this exact dev snapshot.
 Real mobile creation/retry persisted zero without duplicate creation; a failed
 budget read followed by rename preserved 42/enforcement off. Server types,
