@@ -14,7 +14,51 @@ not a deployment or an email delivery.
 - [ ] Evening batch: proposed #349, #347, #341; include only after engineering checks and required review.
 - [ ] RC98: conditional on the engineering gates below; no commitment to cut tonight if they fail.
 
-## Morning: owner checklist (about 5–10 minutes once marked ready)
+## Run the full local suite before owner acceptance
+
+The requested checkout is `/Users/maximilien/github/Maximilien-ai/clawmax-codex`,
+branch **`fix/workspace-budget-persistence`**. It includes merged main `ed02d56b`
+(#385 and #346), both budget implementation commits and this checklist. The
+evening PRs #349/#347/#341 are not included. No branch named
+`/work/budget/assistance` is checked out in this repository.
+
+From Terminal:
+
+```sh
+cd /Users/maximilien/github/Maximilien-ai/clawmax-codex
+git switch fix/workspace-budget-persistence
+git status --short --branch
+git rev-parse HEAD
+
+env -u OPENCLAW_BIN \
+  DASHBOARD_PORT=3002 \
+  DASHBOARD_CLIENT_PORT=5176 \
+  DASHBOARD_APP_URL=http://localhost:5176 \
+  ./SYSTEM/test-with-server.sh integration --with-validation --coverage
+```
+
+That test command is correct. Ports 3002 and 5176 were free during preparation.
+`env -u OPENCLAW_BIN` lets the wrapper select pinned OpenClaw 2026.9.7; integration
+mode creates a dedicated Gateway, workspace and registry. It tests the current
+checkout and stops its own processes afterward. The isolated acceptance dev on
+5180/3007 is separate. Live integration cases use the configured provider keys;
+the synthetic budget key belongs only to the 5180 acceptance environment.
+
+Allow about **40 minutes** based on prior full CI runs; local duration varies.
+Leave the source checkout unchanged during the run and do not launch a second
+full suite on these ports. Record the starting SHA, final Passed/Failed summary,
+exit status, coverage summary and any failure log paths. Coverage artifacts are
+in `SYSTEM/dashboard/coverage/`. Fix any failed gates before owner acceptance.
+
+This wrapper's TypeScript stage is the **server** check. Opt-in browser scripts
+and strict frontend TypeScript are separate: budget browser checks have passed,
+but the strict frontend baseline of 291 errors below remains unresolved. A green
+wrapper run must not be described as every possible check passing.
+
+- [ ] Owner runs the command above against the recorded committed SHA.
+- [ ] Dashboard reviews the full result/coverage and fixes failures before acceptance.
+
+## Morning: owner checklist (about 5–10 minutes after the full suite passes)
 
 Dev: **http://localhost:5180/templates**, version **`2.0.0-dev.c2b60a13`**
 (source `c2b60a13f54c43d9147cb74cf8f3d618ee1464bd`). Reload the page before
