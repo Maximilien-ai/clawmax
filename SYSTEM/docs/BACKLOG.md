@@ -4,20 +4,33 @@
 
 Use the [current owner checklist and RC98 gates](planning/RC98_ACCEPTANCE_2026-11-08.md).
 Budget #376/#377/#378 is ready at http://localhost:5180/templates,
-`2.0.0-dev.c2b60a13`. Source is committed/pushed on
+`2.0.0-dev.5e273269`. Source is committed/pushed on
 `fix/workspace-budget-persistence`; no new PR was created or merged.
 Both desktop/mobile budget browser checks passed on this exact dev snapshot.
 Real mobile creation/retry persisted zero without duplicate creation; a failed
 budget read followed by rename preserved 42/enforcement off. Server types,
 lint, build, client helper tests, 8 server budget cases and 8 dialog audit
-assertions pass. Strict frontend types remain a baseline gate: 291 diagnostics
-on both main and this branch, with identical lines. No full new-candidate CI
+assertions pass. The owner's first full run on `50ca52b7` passed 560/561 checks;
+the sole Dashboard env failure read a local system key in a non-hermetic test.
+`96292200` replaces that setup with isolated cold-start fixtures (35 cases),
+restores required-CI coverage and reports failure diagnostics. `1f1f46a7` adds
+a distinct budget-loading check: 12 parse/save cases and 19 load cases, with
+corrected case-count labels. **The exact owner command rerun on `5e273269`
+passed 562/562, zero failures**, including live agent/workflow integration.
+Coverage: statements/lines 83.54%, branches 81.31%, functions 91.93%; observed
+duration ~10.2 minutes. Log: `/private/tmp/clawmax-rc98-full-rerun-5e273269.log`.
+The headline total counts suite/API checks, not each nested case/assertion.
+Desktop/mobile UI and API identities were verified after restarting the dev.
+Strict frontend types remain a baseline gate: 291 diagnostics
+on both main and this branch, with identical lines. No new remote candidate CI
 has run: the existing CI workflow does not run on this saved non-PR branch.
 
 All four prior owner-accepted fixes (#351/#355/#367/#375) are merged in #385.
 Their central feedback reports were read, answered and closed as addressed on
 November 8 after Management login was repaired. Four email notifications are
-queued/pending in the service digest; do not report delivery yet. Replies thank
+queued/pending in the service digest when requested; a fresh #351 receipt
+confirms its resolution email was sent at 14:05:17Z. Verify other deliveries
+separately. Replies thank
 submitters and state inclusion in a future ClawMax version, not a live upgrade.
 
 Owner clarified feedback scope: **all feedback, regardless of event/date**.
@@ -27,6 +40,15 @@ scope; reuse existing issues and create missing issues. Close supported fixes,
 duplicates with canonical links, and acknowledged positives; retain concrete
 unresolved work. Central Management remains the ownership/link source of truth.
 Web/CLI-owned implementation requires its owning team's evidence/coordination.
+Final authenticated all-page audit: **16 closed, 57 open**; 15 closures this pass
+(4 accepted Dashboard fixes, 5 positives, 1 verified supported request, 3
+duplicates and 2 Web-owned verified fixes). Created 35 scoped issues for 26
+unlinked reports (Dashboard #387–416, Web/intake #37–41); existing #243 reused.
+**Zero open reports lack issue links or replies; all expected multi-topic links
+are present.** These issues track future work, not implemented RC98 scope.
+Web/CLI #42 records keychain refresh/OAuth throttling seen during bulk updates;
+controlled sequential retries completed the reconciliation and the one failed
+notification request was retried. Recent email receipts remain asynchronous.
 
 Evening soft scope: #349 → #347 → #341, after required review and current checks.
 Their rebased test checks passed; #242, #298 and #384 failed full CI and remain

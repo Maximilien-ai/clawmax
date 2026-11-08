@@ -14,14 +14,22 @@ not a deployment or an email delivery.
 - [ ] Evening batch: proposed #349, #347, #341; include only after engineering checks and required review.
 - [ ] RC98: conditional on the engineering gates below; no commitment to cut tonight if they fail.
 
-Latest local result: owner ran source `50ca52b7`: **560/561 checks passed**;
+Latest local result: Dashboard reran the owner's exact integration/validation/
+coverage command on **`5e27326932cb34bef5976b7a2a9320b3a9f45d33`**:
+**562/562 checks passed, zero failures**, including live agent/workflow execution.
+Coverage: statements/lines **83.54%**, branches **81.31%**, functions **91.93%**.
+Observed duration: about **10.2 minutes**. Log:
+`/private/tmp/clawmax-rc98-full-rerun-5e273269.log`.
+
+Prior result retained: owner ran source `50ca52b7`: **560/561 checks passed**;
 live agent/workflow integration passed. Coverage: statements/lines 83.52%,
 branches 81.30%, functions 91.93%. The one failure was a Dashboard env test
 reading the operator's local system key. `96292200` isolates cold-start
 configuration in synthetic fixtures (35/35 cases pass), restores that suite to
 required CI, and prints failure diagnostics. `1f1f46a7` adds a distinct budget
-loading check: 12 parse/save cases plus 19 load cases pass. A full rerun is
-pending before owner acceptance; no full green result is asserted yet.
+loading check: 12 parse/save cases plus 19 load cases pass. Both changes were
+included in the successful full rerun above. Later documentation commits do not
+change the tested product or tests.
 
 ## Run the full local suite before owner acceptance
 
@@ -72,13 +80,15 @@ conditions as the owner's 561-check run. Suite logs now show actual budget case
 counts instead of the stale “8 assertions” label. Browser regressions remain
 separate from this shell-suite total.
 
-- [ ] Owner runs the command above against the recorded committed SHA.
-- [ ] Dashboard reviews the full result/coverage and fixes failures before acceptance.
+- [x] Owner ran the command on `50ca52b7`; sole env-test failure fixed.
+- [x] Dashboard reran the same full command on `5e273269`: 562/562 passed;
+  reviewed coverage and live integration. No repeat full run is needed solely
+  for this test-fixture fix before the short owner checks below.
 
 ## Morning: owner checklist (about 5–10 minutes after the full suite passes)
 
-Dev: **http://localhost:5180/templates**, version **`2.0.0-dev.c2b60a13`**
-(source `c2b60a13f54c43d9147cb74cf8f3d618ee1464bd`). Reload the page before
+Dev: **http://localhost:5180/templates**, version **`2.0.0-dev.5e273269`**
+(source `5e27326932cb34bef5976b7a2a9320b3a9f45d33`). Reload the page before
 testing. On mobile, open the menu to inspect the version/its title. The previous
 `226a33d9` build is superseded for this batch. Budget controls use a synthetic
 key and intercepted Opik trace transport in this isolated acceptance environment;
@@ -158,9 +168,13 @@ before adding it to tonight's acceptance.
 - [ ] Investigate #242's CI failure. Keep #298/#384 (also failing CI), unresolved
   chat/runtime/export changes and broad dependency upgrades outside RC98 unless
   a focused stability need justifies inclusion and all gates pass.
-- [ ] Commit/push all candidate changes; record exact candidate SHA and CI links.
-  Run full integration, validation and coverage (~40 minutes historically),
-  followed by restart persistence and real workflow verification.
+- [x] Commit/push the morning batch and test fixes. Full local integration,
+  validation and coverage pass on `5e273269` (562/562, log above); the user's
+  exact command was used. No new PRs created or merged.
+- [ ] After any additional evening product changes, rerun required gates on the
+  final RC98 candidate, including restart persistence and real workflow evidence;
+  record exact source and remote CI links. This morning's pass does not validate
+  changes added later.
 - [ ] Audit active release docs/version identities; set local ignored
   `CLAWMAX_VERSION=2.0.0-test-rc98`, restart and verify UI plus API.
 - [ ] Dispatch public Test Container Image from the approved candidate; then the
@@ -237,7 +251,7 @@ ClawMax. [Status/next step for each additional issue in your report.]”
 | Round | Exact dev version / source | Owner results | Engineering evidence | Remaining items |
 |---|---|---|---|---|
 | Prior batch | `2.0.0-dev.226a33d9`; merged #385 | #351/#355/#367/#375 accepted | [Backlog](../BACKLOG.md) | final mobile rerun, central replies |
-| November 8 AM | `2.0.0-dev.c2b60a13` | Pending | Desktop/mobile synthetic browser pass on exact build; real mobile API persistence/rename pass; build/lint/server types pass | owner #376/#377/#378, strict frontend baseline, remaining release gates |
+| November 8 AM | `2.0.0-dev.5e273269` | Pending | Same budget product code as verified browser/persistence build; full local command 562/562 passed; env 35 cases, budget 12 parse/save + 19 load cases | owner #376/#377/#378, strict frontend baseline, remaining release gates |
 | November 8 PM | Pending; proposed scope above | Pending | Existing PR CI checked; review still required | finalize scope before session |
 
 Update this file as gates pass. A checked box may be accompanied by date, verifier,
