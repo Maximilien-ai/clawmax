@@ -1078,12 +1078,21 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Workspace budget client tests...${NC}"
-npx ts-node --transpileOnly client/src/lib/workspaceBudget.test.ts > /tmp/clawmax-workspace-budget-client.out 2>&1 || true
-if grep -q "Workspace budget client tests passed" /tmp/clawmax-workspace-budget-client.out; then
-  pass "Workspace budget client tests (8 assertions)"
+if npx ts-node --transpileOnly client/src/lib/workspaceBudget.test.ts > /tmp/clawmax-workspace-budget-client.out 2>&1 && grep -q "Workspace budget client tests passed" /tmp/clawmax-workspace-budget-client.out; then
+  workspace_budget_cases=$(grep -o '[0-9]\+ cases' /tmp/clawmax-workspace-budget-client.out | tail -1)
+  pass "Workspace budget client tests (${workspace_budget_cases:-count unavailable})"
 else
   cat /tmp/clawmax-workspace-budget-client.out
   fail "Workspace budget client tests"
+fi
+
+echo -e "${YELLOW}→ Running Workspace budget loading tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/workspaceBudgetLoad.test.ts > /tmp/clawmax-workspace-budget-load.out 2>&1 && grep -q "Workspace budget loading tests passed" /tmp/clawmax-workspace-budget-load.out; then
+  workspace_budget_load_cases=$(grep -o '[0-9]\+ cases' /tmp/clawmax-workspace-budget-load.out | tail -1)
+  pass "Workspace budget loading tests (${workspace_budget_load_cases:-count unavailable})"
+else
+  cat /tmp/clawmax-workspace-budget-load.out
+  fail "Workspace budget loading tests"
 fi
 
 echo -e "${YELLOW}→ Running Workspace scope edge-case unit tests...${NC}"
@@ -3021,17 +3030,14 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Dashboard env unit tests...${NC}"
-if [ "$SKIP_CI_QUARANTINED_TESTS" = "true" ]; then
-  warn "Skipping Dashboard env unit tests in required CI lane (still covered locally and in quarantined CI)"
+dashboard_env_status=0
+npx ts-node --transpileOnly server/lib/dashboard-env.test.ts > /tmp/clawmax-dashboard-env.out 2>&1 || dashboard_env_status=$?
+if [ "$dashboard_env_status" -eq 0 ] && grep -q "TEST_RESULT: PASS" /tmp/clawmax-dashboard-env.out; then
+  dashboard_env_count=$(grep "Tests passed:" /tmp/clawmax-dashboard-env.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Dashboard env unit tests (${dashboard_env_count:-?} tests)"
 else
-  dashboard_env_output="$(npx ts-node --transpileOnly server/lib/dashboard-env.test.ts 2>&1 || true)"
-  printf '%s\n' "$dashboard_env_output" > /tmp/clawmax-dashboard-env.out
-  if printf '%s\n' "$dashboard_env_output" | grep -q "TEST_RESULT: PASS"; then
-    dashboard_env_count=$(grep "Tests passed:" /tmp/clawmax-dashboard-env.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
-    pass "Dashboard env unit tests (${dashboard_env_count:-?} tests)"
-  else
-    fail "Dashboard env unit tests"
-  fi
+  cat /tmp/clawmax-dashboard-env.out
+  fail "Dashboard env unit tests"
 fi
 
 echo -e "${YELLOW}→ Running offline on-prem backup contract tests...${NC}"
@@ -6157,6 +6163,7 @@ echo "Test Summary"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 total=$((passed + failed))
+echo "Counts below are top-level suite/API checks; individual suite case counts are shown above."
 echo "Total:  $total"
 echo -e "${GREEN}Passed: $passed${NC}"
 echo -e "${RED}Failed: $failed${NC}"

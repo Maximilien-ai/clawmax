@@ -1,16 +1,17 @@
 # ClawMax Documentation
 
-> Last updated: October 27, 2026
+> Last updated: November 8, 2026
 
 Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
-`v1.9.9`. Start with the [RC95 source preview and acceptance](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md).
-Existing RC94 images retain their original source; RC95 images have not been built.
-Older release evidence and installed-instance gates remain linked below.
+`v1.9.9`. Start with the [November 8 acceptance and RC98 plan](planning/RC98_ACCEPTANCE_2026-11-08.md).
+RC98 has not been cut. Earlier RC preview/evidence files below describe their
+original source snapshots, not the current candidate or runtime state.
 
 ## Active Documents
 
 | Document | Description |
 |----------|-------------|
+| [planning/RC98_ACCEPTANCE_2026-11-08.md](planning/RC98_ACCEPTANCE_2026-11-08.md) | Current morning/evening acceptance checklist, RC98 gates, and complete event-feedback/reply reconciliation |
 | [planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) | RC95 source preview: five included PRs, four holds, four human/provider acceptance checks and engineering evidence |
 | [FIRST_AGENT_TUTORIAL.md](FIRST_AGENT_TUTORIAL.md) | Low-code guide to define, create, test, and improve a first ClawMax agent |
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |

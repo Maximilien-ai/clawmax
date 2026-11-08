@@ -23,6 +23,7 @@ import {
   resolveRuntimeBaseUrl,
   usableProviderKeys,
 } from './dashboard-env'
+import { checkDashboardEnvStartup } from './dashboard-env-fixture'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -51,22 +52,34 @@ function test(name: string, fn: () => void) {
 console.log(`\n${YELLOW}=== Dashboard Env Test Suite ===${RESET}\n`)
 
 test('Web-injected OpenAI keys reach generation and user execution without browser BYOK', () => {
-  const names = ['OPENAI_API_KEY', 'USER_OPENAI_API_KEY', 'SYSTEM_OPENAI_API_KEY', 'ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION']
-  const before = Object.fromEntries(names.map(name => [name, process.env[name]]))
-  try {
-    process.env.OPENAI_API_KEY = 'synthetic-web-deployment-key'
-    process.env.USER_OPENAI_API_KEY = 'synthetic-web-deployment-key'
-    delete process.env.SYSTEM_OPENAI_API_KEY
-    process.env.ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION = 'false'
-    assert(getUserDefaultProviderKeys().openai === 'synthetic-web-deployment-key', 'Injected user key must be visible without passing raw env explicitly')
-    assert(getSystemProviderKeys().openai === 'synthetic-web-deployment-key', 'Injected standard key must reach generation')
-    assert(resolveSystemExecutionProviderKeys().openai === 'synthetic-web-deployment-key', 'Generation must resolve deployment key')
-    assert(resolveUserExecutionProviderKeys().openai === 'synthetic-web-deployment-key', 'User agent chat must use deployed user default without system fallback permission')
-    assert(resolveUserExecutionProviderKeys(undefined, {openai: 'synthetic-browser-override'}).openai === 'synthetic-browser-override', 'Explicit BYOK must still win')
-    assert(getBestAvailableModel() === 'openai/gpt-5.4-mini', 'Fresh OpenAI deployment must select a text model')
-  } finally {
-    for (const name of names) { if (before[name] === undefined) delete process.env[name]; else process.env[name] = before[name] }
-  }
+  checkDashboardEnvStartup({
+    runtime: { OPENAI_API_KEY: 'synthetic-web-key', USER_OPENAI_API_KEY: 'synthetic-user-key' },
+    systemKey: 'synthetic-web-key', userKey: 'synthetic-user-key',
+  })
+})
+
+test('injected deployment keys override stale standard/user keys in an env file', () => {
+  checkDashboardEnvStartup({
+    file: 'OPENAI_API_KEY=synthetic-file-key\nUSER_OPENAI_API_KEY=synthetic-file-user\n',
+    runtime: { OPENAI_API_KEY: 'synthetic-web-key', USER_OPENAI_API_KEY: 'synthetic-user-key' },
+    systemKey: 'synthetic-web-key', userKey: 'synthetic-user-key',
+  })
+})
+
+test('explicit file system key retains precedence over a standard runtime key', () => {
+  checkDashboardEnvStartup({
+    file: 'SYSTEM_OPENAI_API_KEY=synthetic-system-key\n',
+    runtime: { OPENAI_API_KEY: 'synthetic-standard-key', USER_OPENAI_API_KEY: 'synthetic-user-key' },
+    systemKey: 'synthetic-system-key', userKey: 'synthetic-user-key',
+  })
+})
+
+test('runtime system key overrides its file value without authorizing user fallback', () => {
+  checkDashboardEnvStartup({
+    file: 'SYSTEM_OPENAI_API_KEY=synthetic-file-system\n',
+    runtime: { SYSTEM_OPENAI_API_KEY: 'synthetic-runtime-system' },
+    systemKey: 'synthetic-runtime-system',
+  })
 })
 
 test('managed runtime is detected when dashboard env is empty', () => {
