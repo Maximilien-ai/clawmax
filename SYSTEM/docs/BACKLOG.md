@@ -1,5 +1,40 @@
 # Backlog
 
+## November 8 current acceptance and feedback checkpoint
+
+Use the [current owner checklist and RC98 gates](planning/RC98_ACCEPTANCE_2026-11-08.md).
+Budget #376/#377/#378 is ready at http://localhost:5180/templates,
+`2.0.0-dev.c2b60a13`. Source is committed/pushed on
+`fix/workspace-budget-persistence`; no new PR was created or merged.
+Both desktop/mobile budget browser checks passed on this exact dev snapshot.
+Real mobile creation/retry persisted zero without duplicate creation; a failed
+budget read followed by rename preserved 42/enforcement off. Server types,
+lint, build, client helper tests, 8 server budget cases and 8 dialog audit
+assertions pass. Strict frontend types remain a baseline gate: 291 diagnostics
+on both main and this branch, with identical lines. No full new-candidate CI
+has run: the existing CI workflow does not run on this saved non-PR branch.
+
+All four prior owner-accepted fixes (#351/#355/#367/#375) are merged in #385.
+Their central feedback reports were read, answered and closed as addressed on
+November 8 after Management login was repaired. Four email notifications are
+queued/pending in the service digest; do not report delivery yet. Replies thank
+submitters and state inclusion in a future ClawMax version, not a live upgrade.
+
+Owner clarified feedback scope: **all feedback, regardless of event/date**.
+Authenticated full-page/all-archive baseline is 73 reports (72 open/1 closed),
+including 58 Dashboard, 8 Web and 7 Unassigned. Reconcile each report's complete
+scope; reuse existing issues and create missing issues. Close supported fixes,
+duplicates with canonical links, and acknowledged positives; retain concrete
+unresolved work. Central Management remains the ownership/link source of truth.
+Web/CLI-owned implementation requires its owning team's evidence/coordination.
+
+Evening soft scope: #349 → #347 → #341, after required review and current checks.
+Their rebased test checks passed; #242, #298 and #384 failed full CI and remain
+on hold. Twenty-six PRs remain open in the November 8 snapshot. RC98 is not cut;
+acceptance, exact-source full gates, runtime/persistence and matching public/private
+image validation remain separate requirements. Older counts/statuses below are
+historical checkpoints, superseded by this section and the current checklist.
+
 ## November 7 PR rebase checkpoint and merge order
 
 Rebased against merged main `ed02d56b816aa502d21691e1d35cb8aaf0e5b48a`
