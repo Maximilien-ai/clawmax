@@ -3771,6 +3771,15 @@ else
   fail "Workflow routes unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workflow run secret persistence tests...${NC}"
+if npx ts-node --transpileOnly server/lib/workflow-execution-secrets.test.ts > /tmp/clawmax-workflow-execution-secrets.out 2>&1 && grep -q "Workflow run secret tests passed:" /tmp/clawmax-workflow-execution-secrets.out; then
+  workflow_secret_count=$(sed -n 's/^Workflow run secret tests passed: //p' /tmp/clawmax-workflow-execution-secrets.out | tail -1)
+  pass "Workflow run secret persistence tests (${workflow_secret_count:-?} cases)"
+else
+  cat /tmp/clawmax-workflow-execution-secrets.out
+  fail "Workflow run secret persistence tests"
+fi
+
 echo -e "${YELLOW}→ Running Workflow lifecycle safety tests...${NC}"
 npx ts-node --transpileOnly client/src/WorkflowLifecycleSafety.test.ts > /tmp/clawmax-workflow-lifecycle-safety.out 2>&1 || true
 if grep -q "WorkflowLifecycleSafety.test.ts: 16 assertions passed" /tmp/clawmax-workflow-lifecycle-safety.out; then
