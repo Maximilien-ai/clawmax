@@ -14,6 +14,15 @@ not a deployment or an email delivery.
 - [ ] Evening batch: proposed #349, #347, #341; include only after engineering checks and required review.
 - [ ] RC98: conditional on the engineering gates below; no commitment to cut tonight if they fail.
 
+Latest local result: owner ran source `50ca52b7`: **560/561 checks passed**;
+live agent/workflow integration passed. Coverage: statements/lines 83.52%,
+branches 81.30%, functions 91.93%. The one failure was a Dashboard env test
+reading the operator's local system key. `96292200` isolates cold-start
+configuration in synthetic fixtures (35/35 cases pass), restores that suite to
+required CI, and prints failure diagnostics. `1f1f46a7` adds a distinct budget
+loading check: 12 parse/save cases plus 19 load cases pass. A full rerun is
+pending before owner acceptance; no full green result is asserted yet.
+
 ## Run the full local suite before owner acceptance
 
 The requested checkout is `/Users/maximilien/github/Maximilien-ai/clawmax-codex`,
@@ -54,6 +63,14 @@ This wrapper's TypeScript stage is the **server** check. Opt-in browser scripts
 and strict frontend TypeScript are separate: budget browser checks have passed,
 but the strict frontend baseline of 291 errors below remains unresolved. A green
 wrapper run must not be described as every possible check passing.
+
+The final total counts top-level suite/API checks, not every case/assertion.
+For example, the 83-case workflow library suite contributes one check. Expanded
+tests within an existing suite do not increase that total. The new standalone
+budget-loading suite adds one: expect **562 checks** under the same runtime
+conditions as the owner's 561-check run. Suite logs now show actual budget case
+counts instead of the stale “8 assertions” label. Browser regressions remain
+separate from this shell-suite total.
 
 - [ ] Owner runs the command above against the recorded committed SHA.
 - [ ] Dashboard reviews the full result/coverage and fixes failures before acceptance.
@@ -191,6 +208,22 @@ issues and require complete issue-link sets.
   thanks and future-version wording; email notification receipts are **pending**
   in the service's digest queue. This is not proof of email delivery.
 - [ ] Verify delivery receipts for those four queued notifications.
+- [x] Final all-feedback reconciliation: **73 total, 16 closed, 57 open**;
+  15 closures in this pass (four accepted Dashboard fixes, five positives,
+  one already-supported input-resize request, three duplicates, two verified
+  Web-owned fixes). The four corresponding Dashboard GitHub issues are closed.
+- [x] Created 35 scoped issues for 26 previously unlinked reports: Dashboard
+  #387–416 and Web/intake #37–41. Reused #243 for duplicate score reports.
+  Authenticated final audit: **zero open reports without issue links, zero
+  without replies, zero missing expected multi-topic links**, and no further pages.
+  These are tracked future fixes/enhancements, not implementations added to RC98.
+- [x] Retried the one notification request interrupted by throttling; it is
+  queued. Fresh #351 receipt confirms its resolution email was sent at
+  2026-11-08T14:05:17Z. Recent notifications remain asynchronous/pending.
+- [ ] Web/CLI follow-up: [#42](https://github.com/Maximilien-ai/clawmax-ai/issues/42)
+  tracks concurrent keychain refresh failures and OAuth throttling during bulk
+  feedback work. Complete remaining delivery verification; do not resend saved
+  replies blindly or confuse queued notifications with delivered emails.
 - [ ] After each batch, update report/issue links, acceptance, release status and
   reply-delivery evidence. Close only the resolved scope and retain remaining
   issues in the backlog. Recheck for late arrivals before final wrap-up.
