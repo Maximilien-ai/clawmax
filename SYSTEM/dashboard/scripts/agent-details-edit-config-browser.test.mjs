@@ -49,6 +49,12 @@ const detailsClose = page => page.getByRole('button', { name: 'Close details (Es
 const detailsPanel = page => page.locator('aside').filter({ has: detailsClose(page) })
 const editFromDetails = page => page.getByRole('button', { name: 'Edit agent config', exact: true })
 const editor = page => page.getByRole('dialog', { name: 'Edit Agent Config' })
+const modelPicker = page => editor(page).locator('button[data-model-value]').first()
+async function selectModel(page, model) {
+  await modelPicker(page).click()
+  await editor(page).getByRole('listbox', { name: 'Matching models', exact: true }).selectOption(model)
+  assert.equal(await modelPicker(page).getAttribute('data-model-value'), model)
+}
 const headerModel = page => detailsPanel(page).locator('span.font-mono').filter({ hasText: /^openai\// }).first()
 const bodyScroll = page => detailsPanel(page).evaluate(aside => [...aside.querySelectorAll('div')].find(div => getComputedStyle(div).overflowY === 'auto').scrollTop)
 
@@ -72,9 +78,10 @@ async function scrollDetails(page, top) {
 
 async function openEditor(page) {
   await editFromDetails(page).click()
-  await editor(page).locator('select').first().waitFor()
+  await modelPicker(page).waitFor()
   assert(await detailsClose(page).isVisible(), 'Details stays open under the editor')
   assert(await editor(page).evaluate(dialog => dialog.contains(document.activeElement)), 'Focus moves into the editor')
+  await page.screenshot({ path: path.join(artifactDir, `details-editor-open-${page.viewportSize().width}.png`) })
 }
 
 try {
@@ -101,7 +108,7 @@ try {
     console.log('PASS 1440px: editor opens from Details above the pinned panel; focus contained; Escape closes only the editor')
 
     await openEditor(page)
-    await editor(page).locator('select').first().selectOption('openai/gpt-5.5')
+    await selectModel(page, 'openai/gpt-5.5')
     await editor(page).getByRole('button', { name: 'Cancel', exact: true }).click()
     await editor(page).waitFor({ state: 'hidden' })
     assert.deepEqual(state.modelWrites, [], 'Cancel saves nothing')
@@ -110,7 +117,7 @@ try {
     console.log('PASS 1440px: Cancel keeps the previous model and scroll position')
 
     await openEditor(page)
-    await editor(page).locator('select').first().selectOption('openai/gpt-5.5')
+    await selectModel(page, 'openai/gpt-5.5')
     await editor(page).getByRole('button', { name: 'Save', exact: true }).click()
     await editor(page).waitFor({ state: 'hidden' })
     await detailsPanel(page).locator('span.font-mono').filter({ hasText: /^openai\/gpt-5\.5$/ }).first().waitFor()
@@ -126,8 +133,8 @@ try {
     await detailsClose(page).waitFor({ state: 'hidden' })
     await page.getByRole('button', { name: 'More actions', exact: true }).first().click()
     await page.getByRole('button').filter({ hasText: /^\s*Edit\s*$/ }).click()
-    await editor(page).locator('select').first().waitFor()
-    assert.equal(await editor(page).locator('select').first().inputValue(), 'openai/gpt-5.5')
+    await modelPicker(page).waitFor()
+    assert.equal(await modelPicker(page).getAttribute('data-model-value'), 'openai/gpt-5.5')
     await editor(page).getByRole('button', { name: 'Cancel', exact: true }).click()
     assert.deepEqual(state.errors, [])
     console.log('PASS 1440px: the card Actions menu still opens Edit Agent Config')
@@ -145,9 +152,9 @@ try {
     await editor(page).waitFor({ state: 'hidden' })
     assert(await detailsClose(page).isVisible(), 'An outside click on the editor closes only the editor')
     await openEditor(page)
-    const box = await editor(page).locator('select').first().boundingBox()
-    assert(box.x >= 0 && box.x + box.width <= 390, 'The model select fits the phone screen')
-    await editor(page).locator('select').first().selectOption('openai/gpt-5.5')
+    const box = await modelPicker(page).boundingBox()
+    assert(box.x >= 0 && box.x + box.width <= 390, 'The model picker fits the phone screen')
+    await selectModel(page, 'openai/gpt-5.5')
     await editor(page).getByRole('button', { name: 'Save', exact: true }).click()
     await editor(page).waitFor({ state: 'hidden' })
     await detailsPanel(page).locator('span.font-mono').filter({ hasText: /^openai\/gpt-5\.5$/ }).first().waitFor()
