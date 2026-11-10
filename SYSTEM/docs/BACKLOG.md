@@ -20,8 +20,9 @@ The pending chat audit found #339 and #343 already implemented on main in
 `116db34b`; both PRs were closed as superseded after four passing desktop/phone
 browser scenarios. Table overflow issue #333 is closed as completed with evidence
 and a feedback reply. Actual incremental streaming (#225/#229) remains separate.
-Next stability priority: #404 group/community message isolation, then the #288
-scheduler queue. No further owner chat acceptance is required for these already
+Next stability priority: #404 has a confirmed channel-name history-file
+collision on merged main `da30720f`. See [investigation and fix criteria](planning/MESSAGE_ISOLATION_404_2026-11-10.md).
+Fix it with safe legacy-history handling, then continue the #288 scheduler queue. No further owner chat acceptance is required for these already
 implemented fixes. See the current checklist for exact evidence and limitations.
 
 ## November 8 current acceptance and feedback checkpoint

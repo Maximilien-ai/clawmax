@@ -50,9 +50,11 @@ this does not establish RC98 image or fleet deployment readiness.
   `/private/tmp/clawmax-chat-table-current/`. Evidence/replies attached to both
   PRs and #333; these comments do not establish participant email delivery.
 
-**Next engineering priority:** reproduce and verify #404, message isolation
-between workspace groups and communities. Establish actual behavior and fix any
-confirmed boundary failure before RC98. Follow with the scheduler reliability
+**Next engineering priority:** fix #404, message isolation between workspace
+groups and communities. A synthetic route-handler reproduction confirmed that
+`Sales Team` and `Sales_Team` load the same legacy history file on merged main
+`da30720f`. No agent or provider was invoked. The issue remains open; existing
+history must be preserved during the fix. See [investigation evidence](MESSAGE_ISOLATION_404_2026-11-10.md). Follow with the scheduler reliability
 queue (#288), assessing what is already covered before changing source.
 
 ## Engineering evidence — completed
@@ -120,9 +122,10 @@ be read independently on GitHub.
   engineering follow-up, not a repeat owner acceptance item for #375.
 - [ ] Add the explicit late budget-read cancellation/stale-response regression
   carried from the previous engineering queue.
-- [ ] Reproduce the group-message isolation report (#404), prioritize any
-  confirmed boundary failure, and assess remaining stability/security findings
-  against current source. An issue link alone does not establish a fix.
+- [ ] Fix the confirmed #404 channel-name storage collision with regression
+  coverage and safe handling of existing histories. Complete recipient/community
+  routing and browser switching checks before closing the whole issue. Assess
+  the other stability/security findings against the current candidate.
 - [ ] Confirm current candidate remote CI/security evidence; refresh active
   release docs and archive superseded plans before promotion. Keep unresolved
   installed-instance/provider checks with their owning teams.
