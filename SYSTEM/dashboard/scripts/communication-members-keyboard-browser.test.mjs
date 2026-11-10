@@ -6,6 +6,7 @@ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
 import fs from 'node:fs'
 import path from 'node:path'
 import assert from 'node:assert/strict'
+import { textContrast } from './lib/browser-contrast.mjs'
 const base = process.env.TEST_FRONTEND_URL || 'http://localhost:5174'
 const artifactDir = process.env.CLAWMAX_BROWSER_ARTIFACT_DIR || '/tmp/clawmax-communication-members-keyboard-browser'
 fs.mkdirSync(artifactDir, { recursive: true })
@@ -79,14 +80,27 @@ async function openByKeyboard(page, trigger) {
 }
 
 try {
+  for (const theme of ['light', 'dark']) {
   for (const [width, height] of [[1440, 1000], [390, 844]]) {
-    const { page, context, state } = await newPage({ width, height }, width < 500 ? { hasTouch: true, isMobile: true } : {})
+    const { page, context, state } = await newPage({ width, height }, { colorScheme: theme, ...(width < 500 ? { hasTouch: true, isMobile: true } : {}) })
     await page.goto(`${base}/communication`)
     for (const [kind, channel, add] of [['community', community, 'Tax Specialist'], ['group', group, 'Mortgage Advisor']]) {
-      const label = `${width}px ${kind}`
+      const label = `${theme} ${width}px ${kind}`
       const trigger = page.getByRole('button', { name: `View members of ${channel.displayName}`, exact: true })
       await trigger.waitFor()
       await openByKeyboard(page, trigger)
+      await page.addStyleTag({ content: '* { transition: none !important; }' })
+      assert.equal(await page.locator('html').evaluate(el => el.classList.contains('dark')), theme === 'dark')
+      const selectedName = dialog(page).getByText('Listing Analyst', { exact: true })
+      const selectedId = dialog(page).getByText('(listing-analyst)', { exact: true })
+      for (const state of ['rest', 'hover']) {
+        if (state === 'hover') await selectedName.hover()
+        for (const text of [selectedName, selectedId]) {
+          const contrast = await textContrast(text)
+          assert(contrast.ratio >= 4.5, `${label} selected ${state}: text contrast ${JSON.stringify(contrast)}`)
+        }
+      }
+      await page.screenshot({ path: path.join(artifactDir, `members-open-${theme}-${width}-${kind}.png`) })
       const before = await checkedMembers(page)
       // Recorded before any save, so the Save check below does not compare the PATCH with itself.
       const addId = Object.keys(agentNames).find(id => agentNames[id] === add)
@@ -148,8 +162,9 @@ try {
       assert.deepEqual(state.errors, [])
       console.log(`PASS ${label}: Escape/Cancel discard without saving or reaching the page, Tab wraps, focus returns, Save persists`)
     }
-    await page.screenshot({ path: path.join(artifactDir, `members-keyboard-${width}.png`) })
+    await page.screenshot({ path: path.join(artifactDir, `members-keyboard-${theme}-${width}.png`) })
     await context.close()
+  }
   }
 } finally {
   await browser.close()

@@ -1723,8 +1723,8 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
                   onClick={() => toggleMember(agent.id)}
                   className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${
                     isSelected
-                      ? 'bg-sky-50 border border-sky-200 hover:bg-sky-100'
-                      : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:bg-gray-900'
+                      ? 'bg-sky-50 border border-sky-200 hover:bg-sky-100 dark:bg-sky-900/40 dark:border-sky-700 dark:hover:bg-sky-900/60'
+                      : 'bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
                   <input
@@ -1736,7 +1736,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{agent.name}</span>
-                      <span className="text-xs text-gray-400">({agent.id})</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-300">({agent.id})</span>
                     </div>
                   </div>
                   <span className={`w-2 h-2 rounded-full ${STATUS_DOT[agent.status]}`} />
