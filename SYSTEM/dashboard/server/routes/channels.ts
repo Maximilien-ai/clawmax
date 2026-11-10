@@ -661,13 +661,6 @@ export async function callAgent(
               dashboardInstanceId: getConfiguredDashboardInstanceId(),
             })
           }
-          const actualSessionId = result?.meta?.agentMeta?.sessionId || result?.result?.meta?.agentMeta?.sessionId
-          if (actualSessionId) {
-            try {
-              const sessPath = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'sessions')
-              fs.mkdirSync(sessPath, { recursive: true })
-            } catch {}
-          }
         } else if (stdout.trim()) {
           // Gateway mode may return plain text without --json wrapper
           responseText = stdout.trim()
