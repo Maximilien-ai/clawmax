@@ -1,7 +1,7 @@
 # RC98 acceptance — November 10
 
 Dashboard owner checklist. RC98 has not been cut. This source includes merged
-PRs #385, #386, #349, #347 and #341. The seven document/workflow/budget feedback
+PRs #385, #386, #349, #347, #341 and #340. The seven document/workflow/budget feedback
 fixes already accepted by the owner do not need another manual check.
 
 ## Owner acceptance — complete
@@ -26,8 +26,11 @@ owner notes are retained.
 Owner replied **“accept dark mode.”** No current manual acceptance checks remain
 for #347, #341 or this appearance follow-up. The same defect was corrected in
 WhatsApp group/community sync rows, document validation messages and matching
-popup hover controls; those checks are engineering-owned. PR #340 is awaiting
-its current CI and the owner's merge, separately from acceptance.
+popup hover controls; those checks are engineering-owned. The owner merged
+PR #340 on November 10 as `da30720f8b1673092bfcd9b6137b23e335b4151a`.
+Its [CI passed](https://github.com/Maximilien-ai/clawmax/actions/runs/42852650501)
+in about 23 minutes. Source completion, CI and owner acceptance are recorded;
+this does not establish RC98 image or fleet deployment readiness.
 
 ## Pending chat PR audit — completed
 

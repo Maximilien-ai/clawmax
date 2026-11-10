@@ -10,7 +10,7 @@ branches and 92.02% functions. Dev is http://localhost:5180,
 The owner accepted membership keyboard usability (#347) and editing from Details
 (#341) on November 10. The [current owner queue](planning/RC98_ACCEPTANCE_2026-11-10.md)
 records dark-mode appearance accepted on November 10; no repeat owner checks remain
-for #347/#341/#340. Existing PR #340 awaits CI and the owner’s merge. Desktop/mobile synthetic checks and real membership/edit-save-reload
+for #347/#341/#340. PR #340 merged as `da30720f` after passing CI; local main was synchronized. Desktop/mobile synthetic checks and real membership/edit-save-reload
 verification passed; demo agents were not run. Previous seven feedback fixes
 are accepted and merged. Remaining engineering/release gates are preserved in
 the current checklist. RC98 has not been cut; new backlog issues are future
