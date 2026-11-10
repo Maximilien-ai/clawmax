@@ -2,7 +2,7 @@ import { generateChannelDraft } from '../lib/ai-generator'
 import { Router, type RequestHandler } from 'express'
 import { MessageHistoryRecoveryError } from '../lib/message-storage-identity'
 import { ChannelRecipientError, channelRecipients, channelSessionId } from '../lib/channel-recipients'
-import { getWorkspaceManager } from '../lib/workspace-manager'
+import { getWorkspaceManager, WorkspaceContextUnavailableError } from '../lib/workspace-manager'
 import { spawn } from 'child_process'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import fs from 'fs'
@@ -49,6 +49,8 @@ function messageHistoryRoute(handler: RequestHandler): RequestHandler {
     const handleError = (error: unknown) => {
       if (error instanceof MessageHistoryRecoveryError) {
         if (!res.headersSent) res.status(409).json({ ok: false, code: error.code, error: error.message })
+      } else if (error instanceof WorkspaceContextUnavailableError) {
+        if (!res.headersSent) res.status(409).json({ ok: false, code: 'workspace_changed', error: 'This chat’s workspace is no longer available. Reopen a chat in an existing workspace.' })
       } else if (error instanceof ChannelRecipientError) {
         if (!res.headersSent) res.status(error.status).json({ ok: false, code: error.code, error: error.message })
       } else next(error)

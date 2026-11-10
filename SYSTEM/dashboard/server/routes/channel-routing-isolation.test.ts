@@ -137,6 +137,16 @@ async function main() {
     await until(async () => (await history(a, 'group', temporary)).length === 2)
     assert.deepEqual(await history(a, 'group', 'beta'), ['BETA_GROUP', 'REPLY:reviewer:BETA_GROUP'])
     scenarios++
+    manager.setActiveWorkspace(b.id)
+    const beforeBeta = await history(b, 'group', 'alpha')
+    await manager.withWorkspace(a.id, async () => {
+      manager.deleteWorkspace(a.id)
+      assert.throws(() => workspace.getWorkspacePath(), /Workspace not found/, 'a removed pinned workspace must never become the active/default workspace')
+      assert.throws(() => storage.addMessage('group', 'alpha', { from: 'analyst', content: 'MUST_NOT_REHOME', mentions: [] }), /Workspace not found/)
+    })
+    assert.deepEqual(await history(b, 'group', 'alpha'), beforeBeta, 'removal cannot redirect a pending reply to another workspace')
+    scenarios++
+
     console.log(`Channel routing isolation: ${scenarios} scenarios passed (recipient admission, deduplication, scoped sessions/replies, community dispatch, revocation, temporary chat)`)
   } finally {
     release?.(); releaseRevoked?.(); releaseLock?.()

@@ -8,7 +8,7 @@ import os from 'os'
 import { createHash, randomUUID } from 'crypto'
 import { execFileSync } from 'child_process'
 import { extractZipSecurely } from './archive-security'
-import { getWorkspaceManager } from './workspace-manager'
+import { getWorkspaceManager, hasScopedWorkspace } from './workspace-manager'
 import { assertWorkspaceRecovered } from './workspace-recovery-admission'
 import { getPausedAgents } from './agent-state'
 import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
@@ -35,7 +35,8 @@ export function getWorkspacePath(): string {
     const manager = getWorkspaceManager()
     const activeWorkspace = manager.getActiveWorkspace()
     workspacePath = activeWorkspace.path
-  } catch {
+  } catch (error) {
+    if (hasScopedWorkspace()) throw error
     // Fallback to env var or default
     workspacePath = process.env.OPENCLAW_WORKSPACE || WORKSPACE
   }
