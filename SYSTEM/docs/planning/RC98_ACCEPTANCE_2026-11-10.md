@@ -4,7 +4,7 @@ Dashboard owner checklist. RC98 has not been cut. This source includes merged
 PRs #385, #386, #349, #347 and #341. The seven document/workflow/budget feedback
 fixes already accepted by the owner do not need another manual check.
 
-## Owner acceptance and remaining visual check
+## Owner acceptance — complete
 
 - [x] **#347 — Manage Members keyboard behavior accepted November 10.**
   Owner accepted Tab/Shift+Tab containment, Escape and focus return, with the
@@ -16,17 +16,18 @@ Open **http://localhost:5180**, refresh and select **RC98 Acceptance**.
 Expected version: **`2.0.0-dev.81fa8579`**. The isolated workspace and any
 owner notes are retained.
 
-- [ ] **Dark-mode appearance follow-up in PR #340.** In Communications →
+- [x] **Dark-mode appearance follow-up in PR #340 — accepted November 10.** In Communications →
   `acceptance-desk`, open the member count. Confirm the selected agent name
   and ID are readable, including while hovering. Switch to light mode once
   and confirm the selection still looks clear. No need to repeat Save or the
   previously accepted keyboard/config checks.
   `reviewReason: human-judgment`
 
-Reply **`accept dark mode`**, or name the unreadable control. The same defect
-was corrected in WhatsApp group/community sync rows, document validation
-messages, and matching popup hover controls. Those checks are engineering-owned;
-no WhatsApp account or real credentials are needed for acceptance.
+Owner replied **“accept dark mode.”** No current manual acceptance checks remain
+for #347, #341 or this appearance follow-up. The same defect was corrected in
+WhatsApp group/community sync rows, document validation messages and matching
+popup hover controls; those checks are engineering-owned. PR #340 is awaiting
+its current CI and the owner's merge, separately from acceptance.
 
 ## Engineering evidence — completed
 

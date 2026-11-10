@@ -6,10 +6,11 @@ User merged #386/#349/#347/#341; main is `ffa172c0`. The exact combined local
 integration/validation/coverage run passed **563/563**, zero failures, including
 live agent/workflow execution. Coverage is 83.70% statements/lines, 81.41%
 branches and 92.02% functions. Dev is http://localhost:5180,
-`2.0.0-dev.ffa172c0`, with a separate **RC98 Acceptance** fixture workspace.
+`2.0.0-dev.81fa8579`, with a separate **RC98 Acceptance** fixture workspace.
 The owner accepted membership keyboard usability (#347) and editing from Details
 (#341) on November 10. The [current owner queue](planning/RC98_ACCEPTANCE_2026-11-10.md)
-now contains only the dark-mode appearance follow-up in existing PR #340. Desktop/mobile synthetic checks and real membership/edit-save-reload
+records dark-mode appearance accepted on November 10; no repeat owner checks remain
+for #347/#341/#340. Existing PR #340 awaits CI and the owner’s merge. Desktop/mobile synthetic checks and real membership/edit-save-reload
 verification passed; demo agents were not run. Previous seven feedback fixes
 are accepted and merged. Remaining engineering/release gates are preserved in
 the current checklist. RC98 has not been cut; new backlog issues are future
