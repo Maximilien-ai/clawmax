@@ -165,6 +165,17 @@ async function run() {
     }
   })
 
+  await test('stale workspace history headers cannot read, write or clear the newly active workspace', async () => {
+    for (const [method, suffix] of [['get', 'messages'], ['post', 'messages'], ['delete', 'messages'], ['get', 'archives']] as const) {
+      const handler = getRouteHandler(method, `/groups/:name/${suffix}`)
+      const response = makeRes()
+      await handler(makeReq({ headers: { 'x-clawmax-workspace': 'not-the-active-workspace' }, params: { name: 'scope-check' }, body: { content: 'must-not-write', mentions: [] } }), response, (error: Error) => { throw error })
+      assert.equal(response.statusCode, 409)
+      assert.equal(response.jsonBody.code, 'workspace_changed')
+    }
+    assert.deepEqual(require('../lib/messages').getMessages('group', 'scope-check'), [])
+  })
+
   await test('AI channel generation validates requests, returns drafts without persistence, and reports failure', async () => {
     const ai = require('../lib/ai-generator')
     const original = ai.generateChannelDraft

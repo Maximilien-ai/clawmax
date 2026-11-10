@@ -52,7 +52,13 @@ function messageHistoryRoute(handler: RequestHandler): RequestHandler {
     }
     try {
       const manager = getWorkspaceManager()
-      return manager.withWorkspace(manager.getActiveWorkspace().id, () => handler(req, res, next)).catch(handleError)
+      const workspaceId = manager.getActiveWorkspace().id
+      const expectedWorkspace = req.headers?.['x-clawmax-workspace']
+      if (expectedWorkspace !== undefined && expectedWorkspace !== workspaceId) {
+        res.status(409).json({ ok: false, code: 'workspace_changed', error: 'Workspace changed. Reopen this chat in the active workspace.' })
+        return
+      }
+      return manager.withWorkspace(workspaceId, () => handler(req, res, next)).catch(handleError)
     } catch (error) { handleError(error) }
   }
 }
