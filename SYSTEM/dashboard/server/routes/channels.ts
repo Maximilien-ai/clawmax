@@ -1,5 +1,7 @@
 import { generateChannelDraft } from '../lib/ai-generator'
-import { Router } from 'express'
+import { Router, type RequestHandler } from 'express'
+import { MessageHistoryRecoveryError } from '../lib/message-storage-identity'
+import { getWorkspaceManager } from '../lib/workspace-manager'
 import { spawn } from 'child_process'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import fs from 'fs'
@@ -38,6 +40,22 @@ const router = Router()
 const NON_OPENCLAW_CALL_AGENT_TIMEOUT_MS = 120000
 
 const CHANNEL_RUNTIME_ERROR_PATTERN = /FsSafeError: directory changed during operation|(?:Unknown|Unsupported) model:|No API key found for provider|Incorrect API key provided|has auth issue \(skipping all models\)|insufficient_quota|quota exceeded|rate limit|too many requests|429\b|is in cooldown \(suspending lanes\)|EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released|All models failed|No API keys available|No execution path configured|gateway|timeout|n_keep:\s*\d+\s*>=\s*n_ctx:\s*\d+/i
+
+// Pin the active workspace through delayed replies and turn queues. Translate
+// ambiguous legacy history into a visible recovery response before any dispatch.
+function messageHistoryRoute(handler: RequestHandler): RequestHandler {
+  return (req, res, next) => {
+    const handleError = (error: unknown) => {
+      if (error instanceof MessageHistoryRecoveryError) {
+        if (!res.headersSent) res.status(409).json({ ok: false, code: error.code, error: error.message })
+      } else next(error)
+    }
+    try {
+      const manager = getWorkspaceManager()
+      return manager.withWorkspace(manager.getActiveWorkspace().id, () => handler(req, res, next)).catch(handleError)
+    } catch (error) { handleError(error) }
+  }
+}
 
 // List all communities
 router.get('/communities', (req, res) => {
@@ -887,14 +905,14 @@ router.patch('/groups/:name/members', (req, res) => {
 })
 
 // Get messages for a community
-router.get('/communities/:name/messages', (req, res) => {
+router.get('/communities/:name/messages', messageHistoryRoute((req, res) => {
   const { name } = req.params
   const messages = getMessages('community', decodeURIComponent(name))
   res.json({ messages })
-})
+}))
 
 // Send message to a community
-router.post('/communities/:name/messages', async (req, res) => {
+router.post('/communities/:name/messages', messageHistoryRoute(async (req, res) => {
   const { name } = req.params
   const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
 
@@ -968,17 +986,17 @@ router.post('/communities/:name/messages', async (req, res) => {
       }
     })().catch(err => console.error('[Group Chat] Error calling agents:', err))
   }
-})
+}))
 
 // Get messages for a group
-router.get('/groups/:name/messages', (req, res) => {
+router.get('/groups/:name/messages', messageHistoryRoute((req, res) => {
   const { name } = req.params
   const messages = getMessages('group', decodeURIComponent(name))
   res.json({ messages })
-})
+}))
 
 // Send message to a group
-router.post('/groups/:name/messages', async (req, res) => {
+router.post('/groups/:name/messages', messageHistoryRoute(async (req, res) => {
   const { name } = req.params
   const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
 
@@ -1077,61 +1095,61 @@ router.post('/groups/:name/messages', async (req, res) => {
       }
     })().catch(err => console.error('[Group Chat] Error calling agents:', err))
   }
-})
+}))
 
 // Clear messages (archives them first)
-router.delete('/communities/:name/messages', (req, res) => {
+router.delete('/communities/:name/messages', messageHistoryRoute((req, res) => {
   const { name } = req.params
   const result = clearMessages('community', decodeURIComponent(name))
   res.json({ ok: true, ...result })
-})
+}))
 
-router.delete('/groups/:name/messages', (req, res) => {
+router.delete('/groups/:name/messages', messageHistoryRoute((req, res) => {
   const { name } = req.params
   const result = clearMessages('group', decodeURIComponent(name))
   res.json({ ok: true, ...result })
-})
+}))
 
 // Get archives list
-router.get('/communities/:name/archives', async (req, res) => {
+router.get('/communities/:name/archives', messageHistoryRoute(async (req, res) => {
   const { name } = req.params
   const archives = await getArchives('community', decodeURIComponent(name))
   res.json({ archives })
-})
+}))
 
-router.get('/groups/:name/archives', async (req, res) => {
+router.get('/groups/:name/archives', messageHistoryRoute(async (req, res) => {
   const { name } = req.params
   const archives = await getArchives('group', decodeURIComponent(name))
   res.json({ archives })
-})
+}))
 
 // Get archived messages
-router.get('/communities/:name/archives/:filename', (req, res) => {
+router.get('/communities/:name/archives/:filename', messageHistoryRoute((req, res) => {
   const { name, filename } = req.params
   const messages = getArchivedMessages('community', decodeURIComponent(name), filename)
   res.json({ messages })
-})
+}))
 
-router.get('/groups/:name/archives/:filename', (req, res) => {
+router.get('/groups/:name/archives/:filename', messageHistoryRoute((req, res) => {
   const { name, filename } = req.params
   const messages = getArchivedMessages('group', decodeURIComponent(name), filename)
   res.json({ messages })
-})
+}))
 
 // Delete archive
-router.delete('/communities/:name/archives/:filename', (req, res) => {
+router.delete('/communities/:name/archives/:filename', messageHistoryRoute((req, res) => {
   const { name, filename } = req.params
   const { deleteArchivedMessages } = require('../lib/messages')
   const success = deleteArchivedMessages('community', decodeURIComponent(name), filename)
   res.json({ ok: success })
-})
+}))
 
-router.delete('/groups/:name/archives/:filename', (req, res) => {
+router.delete('/groups/:name/archives/:filename', messageHistoryRoute((req, res) => {
   const { name, filename } = req.params
   const { deleteArchivedMessages } = require('../lib/messages')
   const success = deleteArchivedMessages('group', decodeURIComponent(name), filename)
   res.json({ ok: success })
-})
+}))
 
 // GET /api/communities/:name/workflows — get workflows targeting this community
 router.get('/communities/:name/workflows', (req, res) => {

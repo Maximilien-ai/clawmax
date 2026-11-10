@@ -134,6 +134,37 @@ async function run() {
   process.env.CLAWMAX_TEST_WORKSPACE = workspacePath
   resetWorkspaceManagerForTests()
 
+  await test('ambiguous legacy history returns recovery responses without changing messages or archives', async () => {
+    for (const [kind, plural, file] of [['group', 'groups', 'GROUPS.md'], ['community', 'communities', 'COMMUNITIES.md']] as const) {
+      const catalog = path.join(workspacePath, 'ORG', file)
+      const before = fs.readFileSync(catalog, 'utf8')
+      const parent = path.join(workspacePath, 'SYSTEM', 'messages', plural)
+      const legacy = path.join(parent, 'recovery_team.json')
+      const archive = path.join(parent, 'archive', 'recovery_team_2026-11-10_1.json')
+      const bytes = JSON.stringify([{ id: 'old', from: 'User', content: 'Synthetic retained history', timestamp: 1, mentions: [] }])
+      fs.mkdirSync(path.dirname(archive), { recursive: true })
+      fs.writeFileSync(catalog, before + '\n### Recovery Team\n\n### Recovery_Team\n')
+      fs.writeFileSync(legacy, bytes)
+      fs.writeFileSync(archive, bytes)
+      try {
+        for (const [method, suffix] of [['get', 'messages'], ['post', 'messages'], ['delete', 'messages'], ['get', 'archives'], ['get', 'archives/:filename'], ['delete', 'archives/:filename']] as const) {
+          const handler = getRouteHandler(method, `/${plural}/:name/${suffix}`)
+          const response = makeRes()
+          await handler(makeReq({ params: { name: 'Recovery Team', filename: path.basename(archive) }, body: { content: 'must-not-write', mentions: [] } }), response, (error: Error) => { throw error })
+          assert.equal(response.statusCode, 409, `${kind} ${method} ${suffix}`)
+          assert.equal(response.jsonBody.code, 'message_history_recovery_required')
+          assert.match(response.jsonBody.error, /Existing messages are unchanged/)
+        }
+        assert.equal(fs.readFileSync(legacy, 'utf8'), bytes)
+        assert.equal(fs.readFileSync(archive, 'utf8'), bytes)
+      } finally {
+        fs.writeFileSync(catalog, before)
+        fs.unlinkSync(legacy)
+        fs.unlinkSync(archive)
+      }
+    }
+  })
+
   await test('AI channel generation validates requests, returns drafts without persistence, and reports failure', async () => {
     const ai = require('../lib/ai-generator')
     const original = ai.generateChannelDraft
