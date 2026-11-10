@@ -2553,7 +2553,16 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode,
           </div>
         )}
       </div>
-      <button type="button" aria-label={`View members of ${channel.displayName || channel.name}`} onClick={e => { e.stopPropagation(); onManageMembers() }} className="text-xs text-gray-500 mb-2 underline decoration-dotted underline-offset-4 hover:text-sky-600">
+      <button
+        type="button"
+        aria-label={`View members of ${channel.displayName || channel.name}`}
+        onClick={e => {
+          e.stopPropagation()
+          if (selectionMode) { onToggleSelect(); return }
+          onManageMembers()
+        }}
+        className="text-xs text-gray-500 mb-2 underline decoration-dotted underline-offset-4 hover:text-sky-600"
+      >
         {channel.members.length} member{channel.members.length !== 1 ? 's' : ''}
         {onlineCount > 0 && (
           <span className="ml-1 text-green-600 dark:text-green-400">· {onlineCount} online</span>
