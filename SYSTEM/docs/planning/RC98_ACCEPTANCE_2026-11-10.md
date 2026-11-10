@@ -4,29 +4,52 @@ Dashboard owner checklist. RC98 has not been cut. This source includes merged
 PRs #385, #386, #349, #347 and #341. The seven document/workflow/budget feedback
 fixes already accepted by the owner do not need another manual check.
 
-## Your two checks
+## Owner acceptance and remaining visual check
 
-Open **http://localhost:5180** and refresh. Expected version:
-**`2.0.0-dev.ffa172c0`**. Select workspace **RC98 Acceptance** if needed.
-The disposable fixtures contain two agents and the `acceptance-desk` group.
+- [x] **#347 — Manage Members keyboard behavior accepted November 10.**
+  Owner accepted Tab/Shift+Tab containment, Escape and focus return, with the
+  dark selected-row contrast reported as a follow-up.
+- [x] **#341 — Details → Edit agent config accepted November 10.**
+  Owner accepted the editing flow and preservation of Details context.
 
-- [ ] **#347 — Manage Members feels usable with the keyboard.** Open
-  Communications, choose Grid view if needed, then click the member count on
-  `acceptance-desk`. Tab/Shift+Tab should stay inside Manage Members. Escape
-  should close it and return focus to the member-count button.
+Open **http://localhost:5180**, refresh and select **RC98 Acceptance**.
+Expected version: **`2.0.0-dev.81fa8579`**. The isolated workspace and any
+owner notes are retained.
+
+- [ ] **Dark-mode appearance follow-up in PR #340.** In Communications →
+  `acceptance-desk`, open the member count. Confirm the selected agent name
+  and ID are readable, including while hovering. Switch to light mode once
+  and confirm the selection still looks clear. No need to repeat Save or the
+  previously accepted keyboard/config checks.
   `reviewReason: human-judgment`
-- [ ] **#341 — editing from Details feels clear and preserves context.** In
-  Agents, open **Acceptance Inspector** → Details → **Edit agent config** (the
-  pencil in the Details header). Add a harmless note to **SOUL.md**, Save and
-  reopen Edit. Confirm the note remains and Details stayed open after saving.
-  `reviewReason: human-judgment`
 
-Reply **`accept #347/#341`**, or name the failing step. No provider keys,
-agent execution, workflow runs, repeated budget checks or manual failure
-injection are needed. #349 secret protection is engineering-verified with
-synthetic credentials; do not enter real credentials to demonstrate it.
+Reply **`accept dark mode`**, or name the unreadable control. The same defect
+was corrected in WhatsApp group/community sync rows, document validation
+messages, and matching popup hover controls. Those checks are engineering-owned;
+no WhatsApp account or real credentials are needed for acceptance.
 
 ## Engineering evidence — completed
+
+- [x] PR #340 refreshed from merged main, with the contrast fix
+  `c7ae85a8` and grid selection/persistence regression `81fa8579`.
+  The full **563/563** result below is for `ffa172c0`; these follow-ups have
+  focused validation and must not be described as a new full-suite run.
+- [x] Source audit covered **44 dialog/pop-up files**. Runtime appearance audit
+  passed **32 theme/viewport scenarios** using production dialog components,
+  document-validation errors and production popup hover styles. It covers
+  light/dark at 1440px and 390px; this does not claim every dialog state was
+  exercised at runtime.
+- [x] Membership regression passed **8 theme/viewport/channel scenarios**:
+  selected name/ID contrast at least 4.5:1 at rest and on hover, keyboard
+  containment, Cancel/Escape, focus return and Save/reload persistence.
+- [x] PR #340 grid regression passed mouse, keyboard, touch, saved membership,
+  separation from chat, and Select-mode select/deselect behavior.
+- [x] Production build passed on `81fa8579`; log:
+  `/private/tmp/clawmax-dialog-build-81fa8579.log`.
+- [x] Server TypeScript, focused ESLint, disabled-button theme audit and mobile
+  dialog source audit passed. Screenshots were reviewed at desktop/phone widths.
+  Artifacts: `/private/tmp/clawmax-dark-dialog-audit/`,
+  `/private/tmp/clawmax-dark-members/`, `/private/tmp/clawmax-dark-grid-members/`.
 
 - [x] User merged #386 (`b3802461`), #349 (`a99c063e`), #347 (`3b41e708`) and
   #341 (`ffa172c0`). Local main is at the complete merged source.
@@ -46,7 +69,7 @@ synthetic credentials; do not enter real credentials to demonstrate it.
 - [x] Real disposable workspace: membership keyboard check passed; editing
   Acceptance Inspector's SOUL saved to the server and survived reload/reopen.
   The test edit was restored afterward. No agent turn was executed in this dev.
-- [x] Dev uses the exact tested source, with retained isolated data. Budgeting
+- [x] Acceptance dev preserves isolated data. Budgeting
   uses a synthetic key and intercepted Opik trace transport. Real operator
   provider keys were not copied into this acceptance dev.
 - [x] Combined `npm run build` passed on `ffa172c0`; log:
