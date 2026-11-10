@@ -5930,6 +5930,9 @@ fi
 # Exercise the real runtime: distinct near-colliding group names and a same-named
 # community must keep replies scoped after native CLI execution completes.
 echo -e "${YELLOW}→ Testing live channel reply isolation...${NC}"
+if [ "$BYOK_JSON" = "{}" ]; then
+  warn "Live channel reply isolation skipped (no explicit integration provider credentials)"
+else
 isolation_community=$(apicurl -X POST "$API_BASE/api/communities" -H 'Content-Type: application/json' \
   -d '{"name":"Isolation Live","description":"Synthetic channel-isolation check","members":["test-agent1"],"tags":["system-test"]}' 2>/dev/null)
 isolation_group_a=$(apicurl -X POST "$API_BASE/api/groups" -H 'Content-Type: application/json' \
@@ -5958,7 +5961,7 @@ if echo "$isolation_community" | jq -e '.ok == true' >/dev/null 2>&1 \
   && echo "$isolation_group_b" | jq -e '.ok == true' >/dev/null 2>&1; then
   pass "Disjoint channel-isolation fixtures created"
   isolation_alpha_marker="CHANNEL_ALPHA_$$"
-  isolation_alpha_payload=$(jq -nc --arg content "Reply with exactly $isolation_alpha_marker" '{content:$content,mentions:["test-agent1"]}')
+  isolation_alpha_payload=$(jq -nc --arg content "Reply with exactly $isolation_alpha_marker" --slurpfile byok <(printf '%s' "$BYOK_JSON") '{content:$content,mentions:["test-agent1"],byok:$byok[0]}')
   isolation_alpha_send=$(apicurl -X POST "$API_BASE/api/groups/Isolation%20Live/messages" -H 'Content-Type: application/json' -d "$isolation_alpha_payload" 2>/dev/null)
   if echo "$isolation_alpha_send" | jq -e '.ok == true' >/dev/null 2>&1 && wait_for_isolated_channel_reply groups "$isolation_alpha_marker"; then
     pass "Live group reply reaches only its addressed channel"
@@ -5974,7 +5977,7 @@ if echo "$isolation_community" | jq -e '.ok == true' >/dev/null 2>&1 \
     fail "Group reply crossed a channel boundary"
   fi
   isolation_council_marker="CHANNEL_COUNCIL_$$"
-  isolation_council_payload=$(jq -nc --arg content "Reply with exactly $isolation_council_marker" '{content:$content,mentions:["test-agent1"]}')
+  isolation_council_payload=$(jq -nc --arg content "Reply with exactly $isolation_council_marker" --slurpfile byok <(printf '%s' "$BYOK_JSON") '{content:$content,mentions:["test-agent1"],byok:$byok[0]}')
   isolation_council_send=$(apicurl -X POST "$API_BASE/api/communities/Isolation%20Live/messages" -H 'Content-Type: application/json' -d "$isolation_council_payload" 2>/dev/null)
   if echo "$isolation_council_send" | jq -e '.ok == true' >/dev/null 2>&1 && wait_for_isolated_channel_reply communities "$isolation_council_marker"; then
     pass "Live community reply stays in its own history and runtime session"
@@ -5991,6 +5994,8 @@ if echo "$isolation_community" | jq -e '.ok == true' >/dev/null 2>&1 \
   fi
 else
   fail "Channel-isolation fixtures could not be created"
+fi
+
 fi
 
 # Step 8: Test workflow trigger + DAG progression
