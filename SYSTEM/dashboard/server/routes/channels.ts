@@ -1,6 +1,7 @@
 import { generateChannelDraft } from '../lib/ai-generator'
 import { Router, type RequestHandler } from 'express'
 import { MessageHistoryRecoveryError } from '../lib/message-storage-identity'
+import { ChannelRecipientError, channelRecipients, channelSessionId } from '../lib/channel-recipients'
 import { getWorkspaceManager } from '../lib/workspace-manager'
 import { spawn } from 'child_process'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
@@ -48,6 +49,8 @@ function messageHistoryRoute(handler: RequestHandler): RequestHandler {
     const handleError = (error: unknown) => {
       if (error instanceof MessageHistoryRecoveryError) {
         if (!res.headersSent) res.status(409).json({ ok: false, code: error.code, error: error.message })
+      } else if (error instanceof ChannelRecipientError) {
+        if (!res.headersSent) res.status(error.status).json({ ok: false, code: error.code, error: error.message })
       } else next(error)
     }
     try {
@@ -84,14 +87,21 @@ router.get('/communities', (req, res) => {
 router.get('/message-counts', (req, res) => {
   try {
     const counts: Record<string, number> = {}
+    const recoveryRequired: string[] = []
+    const countChannel = (type: 'group' | 'community', name: string) => {
+      try { counts[`${type}:${name}`] = getMessages(type, name).length }
+      catch (error) {
+        if (error instanceof MessageHistoryRecoveryError) recoveryRequired.push(`${type}:${name}`)
+        else throw error
+      }
+    }
 
     // Count group messages
     const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
     if (fs.existsSync(groupsPath)) {
       const { groups } = parseGroupsWithMembers(fs.readFileSync(groupsPath, 'utf-8'))
       for (const group of groups) {
-        const messages = getMessages('group', group.name)
-        counts[`group:${group.name}`] = messages.length
+        countChannel('group', group.name)
       }
     }
 
@@ -101,12 +111,11 @@ router.get('/message-counts', (req, res) => {
       const content = fs.readFileSync(commPath, 'utf-8')
       const communityNames = Array.from(content.matchAll(/^###\s+(.+)$/gm)).map(m => m[1].trim())
       for (const name of communityNames) {
-        const messages = getMessages('community', name)
-        counts[`community:${name}`] = messages.length
+        countChannel('community', name)
       }
     }
 
-    res.json({ counts })
+    res.json({ counts, ...(recoveryRequired.length ? { recoveryRequired } : {}) })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
@@ -406,11 +415,13 @@ export async function callAgent(
   message: string,
   sessionId: string,
   byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
-  actor?: { userId?: string; login?: string; email?: string | null }
+  actor?: { userId?: string; login?: string; email?: string | null },
+  assertChannelAccess?: () => void
 ): Promise<string> {
   // Ids arrive from a URL (`/direct-messages/:from/:to`) and from `mentions` in a body, and become paths:
   // `AGENTS/<id>/IDENTITY.md`, the runtime's state and auth folders under `~/.openclaw/agents/<id>`.
   if (!/^[a-z][a-z0-9_-]*$/.test(agentId)) throw new Error(`Invalid agent id: ${JSON.stringify(agentId).slice(0, 80)}`)
+  assertChannelAccess?.()
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const integrationConfig = readWorkspaceIntegrationConfig()
   const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
@@ -475,7 +486,7 @@ export async function callAgent(
           })
         }
         return responseText
-      })
+      }, { assertAuthorized: assertChannelAccess })
     }
 
     const gatewayRunning = shouldTreatGatewayAsRunning(
@@ -684,7 +695,7 @@ export async function callAgent(
       settle(() => reject(err))
     })
     })
-    }, { persistAuthProfiles: true, skipModelConfigMutation: true }))
+    }, { persistAuthProfiles: true, skipModelConfigMutation: true }), { assertAuthorized: assertChannelAccess })
   })
 }
 
@@ -920,7 +931,8 @@ router.get('/communities/:name/messages', messageHistoryRoute((req, res) => {
 // Send message to a community
 router.post('/communities/:name/messages', messageHistoryRoute(async (req, res) => {
   const { name } = req.params
-  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
+  const { content, mentions: requestedMentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
+  let mentions = requestedMentions
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })
@@ -928,6 +940,7 @@ router.post('/communities/:name/messages', messageHistoryRoute(async (req, res) 
   }
 
   const decodedName = decodeURIComponent(name)
+  mentions = channelRecipients('community', decodedName, mentions)
   const session = getAuthenticatedSession(req)
 
   // Save message (use provided 'from' or default to 'User')
@@ -954,15 +967,15 @@ router.post('/communities/:name/messages', messageHistoryRoute(async (req, res) 
         const agentId = mentions[i]
         if (i > 0) await new Promise(r => setTimeout(r, 3000))
         try {
-          const agentSessionId = `community:${decodedName}:${agentId}`
+          const agentSessionId = channelSessionId('community', decodedName, agentId)
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
-          let response = await callAgent(agentId, communityContext, agentSessionId, byok, session || undefined)
+          let response = await callAgent(agentId, communityContext, agentSessionId, byok, session || undefined, () => { channelRecipients('community', decodedName, [agentId]) })
 
           // Retry once if empty response
           if (!response || !response.trim()) {
             console.log(`[Group Chat] Agent ${agentId} returned empty — retrying after 2s`)
             await new Promise(r => setTimeout(r, 2000))
-            response = await callAgent(agentId, communityContext, agentSessionId, byok, session || undefined)
+            response = await callAgent(agentId, communityContext, agentSessionId, byok, session || undefined, () => { channelRecipients('community', decodedName, [agentId]) })
           }
 
           console.log(`[Group Chat] Agent ${agentId} responded:`, response)
@@ -1004,7 +1017,8 @@ router.get('/groups/:name/messages', messageHistoryRoute((req, res) => {
 // Send message to a group
 router.post('/groups/:name/messages', messageHistoryRoute(async (req, res) => {
   const { name } = req.params
-  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
+  const { content, mentions: requestedMentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
+  let mentions = requestedMentions
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })
@@ -1014,7 +1028,7 @@ router.post('/groups/:name/messages', messageHistoryRoute(async (req, res) => {
   const decodedName = decodeURIComponent(name)
   const session = getAuthenticatedSession(req)
   const templateMentions = Array.isArray(mentions) && mentions.some(id => typeof id === 'string' && /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(id))
-  const devTemporaryChat = templateMentions && /^bulk-chat-\d{13}$/.test(decodedName)
+  const devTemporaryChat = Array.isArray(mentions) && templateMentions && /^bulk-chat-\d{13}$/.test(decodedName)
     && mentions.length >= 1 && mentions.length <= 8
     && new Set(mentions).size === mentions.length
     && mentions.every(id => typeof id === 'string' && isDevHostSkillChatReady(req, id))
@@ -1022,6 +1036,8 @@ router.post('/groups/:name/messages', messageHistoryRoute(async (req, res) => {
     res.status(409).json({ ok: false, error: 'Template Agents require the admitted local dev chat path' })
     return
   }
+
+  if (!devTemporaryChat) mentions = channelRecipients('group', decodedName, mentions)
 
   // Save message (use provided 'from' or default to 'User')
   const message = addMessage('group', decodedName, {
@@ -1063,15 +1079,15 @@ router.post('/groups/:name/messages', messageHistoryRoute(async (req, res) => {
         // Small delay between agents to avoid gateway race
         if (i > 0) await new Promise(r => setTimeout(r, 3000))
         try {
-          const agentSessionId = `group:${decodedName}:${agentId}`
+          const agentSessionId = channelSessionId('group', decodedName, agentId)
           console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
-          let response = await callAgent(agentId, groupContext, agentSessionId, byok, session || undefined)
+          let response = await callAgent(agentId, groupContext, agentSessionId, byok, session || undefined, () => { channelRecipients('group', decodedName, [agentId]) })
 
           // Retry once if empty response (common with 2nd+ agent due to gateway timing)
           if (!response || !response.trim()) {
             console.log(`[Group Chat] Agent ${agentId} returned empty — retrying after 2s`)
             await new Promise(r => setTimeout(r, 2000))
-            response = await callAgent(agentId, groupContext, agentSessionId, byok, session || undefined)
+            response = await callAgent(agentId, groupContext, agentSessionId, byok, session || undefined, () => { channelRecipients('group', decodedName, [agentId]) })
           }
 
           console.log(`[Group Chat] Agent ${agentId} responded:`, response)

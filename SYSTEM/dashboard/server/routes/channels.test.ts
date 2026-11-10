@@ -124,6 +124,12 @@ function getRouteHandlerFromRouter(router: any, method: 'get' | 'post' | 'delete
 }
 
 async function run() {
+  const ai = require('../lib/ai-generator')
+  const originalTitle = ai.generateArchiveTitle
+  ai.generateArchiveTitle = async () => 'Synthetic archived chat'
+  const opik = require('../lib/opik')
+  const originalTrace = opik.traceAgentChat
+  opik.traceAgentChat = () => undefined
   console.log(`\n${YELLOW}=== Channels Routes Test Suite ===${RESET}\n`)
 
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-channels-routes-home-'))
@@ -155,6 +161,11 @@ async function run() {
           assert.equal(response.jsonBody.code, 'message_history_recovery_required')
           assert.match(response.jsonBody.error, /Existing messages are unchanged/)
         }
+        const counts = makeRes()
+        await getRouteHandler('get', '/message-counts')(makeReq(), counts)
+        assert.equal(counts.statusCode, 200, 'one recovery channel must not disable all message counts')
+        assert(counts.jsonBody.recoveryRequired.includes(`${kind}:Recovery Team`))
+        assert.equal(counts.jsonBody.counts[`${kind}:Recovery Team`], undefined, 'blocked history has no false zero count')
         assert.equal(fs.readFileSync(legacy, 'utf8'), bytes)
         assert.equal(fs.readFileSync(archive, 'utf8'), bytes)
       } finally {
@@ -781,7 +792,7 @@ async function run() {
     const agentDir = path.join(openclawDir, 'agents', 'double-agent', 'agent')
     fs.mkdirSync(agentWorkspace, { recursive: true })
     fs.mkdirSync(path.dirname(agentDir), { recursive: true })
-    fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/qwen/qwen3.6-27b\n', 'utf-8')
+    fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Name:** Double Agent\n- **Model:** openai-compatible/qwen/qwen3.6-27b\n', 'utf-8')
     fs.writeFileSync(path.join(openclawDir, 'openclaw.json'), JSON.stringify({
       agents: {
         list: [
@@ -790,6 +801,9 @@ async function run() {
       },
     }, null, 2))
 
+    const membershipFile = path.join(workspacePath, 'ORG', 'GROUPS.md')
+    const membershipBefore = fs.readFileSync(membershipFile, 'utf8')
+    fs.appendFileSync(membershipFile, '\n### Temp Group\n\n- **Members:** double-agent\n')
     const spawnCalls: string[][] = []
     global.fetch = (async (input: any, init?: any) => {
       const url = String(input)
@@ -884,6 +898,7 @@ async function run() {
       if (originalPackageRoot === undefined) delete process.env.OPENCLAW_PACKAGE_ROOT
       else process.env.OPENCLAW_PACKAGE_ROOT = originalPackageRoot
       cliResolver.resolveOpenClawCliPath = originalResolveCli
+      fs.writeFileSync(membershipFile, membershipBefore)
       childProcess.spawn = originalSpawn
       global.fetch = originalFetch
     }
@@ -981,6 +996,8 @@ async function run() {
     })
   })
 
+  ai.generateArchiveTitle = originalTitle
+  opik.traceAgentChat = originalTrace
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
