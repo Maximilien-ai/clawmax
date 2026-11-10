@@ -7,7 +7,7 @@ export type MessageKind = 'group' | 'community' | 'direct'
 export class MessageHistoryRecoveryError extends Error {
   readonly code = 'message_history_recovery_required'
   constructor() {
-    super('This channel’s older history needs recovery because its storage identity is ambiguous. Existing messages are unchanged. Contact the workspace owner before sending or clearing messages.')
+    super('This channel’s older history needs recovery because it may contain messages from more than one channel. Existing messages are unchanged. Contact the workspace owner before sending or clearing messages.')
   }
 }
 export function archiveMatches(prefix: string, filename: string): boolean {
@@ -30,10 +30,15 @@ export function messageStorageIdentity(type: MessageKind, name: string) {
   if (hasLegacy) {
     const owners = path.join(currentDirectory, 'legacy-owners')
     const receipt = path.join(owners, crypto.createHash('sha256').update(legacyPrefix).digest('hex') + '.json')
+    const writeReceipt = (record: object) => {
+      fs.mkdirSync(owners, { recursive: true })
+      try { fs.writeFileSync(receipt, JSON.stringify(record), { flag: 'wx', mode: 0o600 }) }
+      catch (error: any) { if (error.code !== 'EEXIST') throw error }
+    }
     const readOwner = () => {
       try {
         const owner = JSON.parse(fs.readFileSync(receipt, 'utf8'))
-        if (owner.version !== 1 || owner.type !== type || typeof owner.name !== 'string'
+        if (owner.version !== 1 || owner.type !== type || owner.blocked === true || typeof owner.name !== 'string'
           || owner.name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase() !== legacyPrefix) throw new Error('invalid owner')
         return owner.name === name
       } catch { throw new MessageHistoryRecoveryError() }
@@ -49,13 +54,13 @@ export function messageStorageIdentity(type: MessageKind, name: string) {
         names = [...(type === 'group' ? parsed.groups : parsed.communities), ...(type === 'group' ? legacy.groups : legacy.communities)].map(entry => entry.name)
       } catch { throw new MessageHistoryRecoveryError() }
       const candidates = new Set(names.filter(candidate => candidate.replace(/[^a-z0-9_-]/gi, '_').toLowerCase() === legacyPrefix))
-      if (candidates.size !== 1 || !candidates.has(name)) throw new MessageHistoryRecoveryError()
-      fs.mkdirSync(owners, { recursive: true })
-      try {
-        fs.writeFileSync(receipt, JSON.stringify({ version: 1, type, name }), { flag: 'wx', mode: 0o600 })
-      } catch (error: any) {
-        if (error.code !== 'EEXIST') throw error
+      if (candidates.size > 1) {
+        // Keep recovery durable if a conflicting channel is later removed or renamed.
+        writeReceipt({ version: 1, type, blocked: true, legacyPrefix })
+        throw new MessageHistoryRecoveryError()
       }
+      if (candidates.size !== 1 || !candidates.has(name)) throw new MessageHistoryRecoveryError()
+      writeReceipt({ version: 1, type, name })
       ownsLegacy = readOwner()
     }
   }

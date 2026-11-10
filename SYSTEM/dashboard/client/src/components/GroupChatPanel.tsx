@@ -376,7 +376,7 @@ function GroupChatConversation({ channel, onClose, mode = 'overlay', onExpand, o
 
   async function fetchMessages() {
     // Only show loading on initial fetch, not on polling
-    if (messages.length === 0) {
+    if (messages.length === 0 && !blockedHistory.current) {
       setLoading(true)
       setError(null)
     }

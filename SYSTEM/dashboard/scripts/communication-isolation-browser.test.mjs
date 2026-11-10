@@ -52,6 +52,8 @@ try {
   let active = 'workspace-a', delayAlpha = false, releaseAlpha, alphaStarted
   let delayBeta = true, releaseBeta, betaStarted
   let delayWorkspace = true, releaseWorkspace, workspaceStarted
+  let holdRecovery = false, releaseRecovery, recoveryStarted
+  const recoveryGate = new Promise(resolve => { recoveryStarted = resolve })
   const alphaGate = new Promise(resolve => { alphaStarted = resolve })
   const betaGate = new Promise(resolve => { betaStarted = resolve })
   const workspaceGate = new Promise(resolve => { workspaceStarted = resolve })
@@ -68,7 +70,13 @@ try {
     assert.equal(req.method(), 'GET', 'isolation audit must not send messages or alter archives')
     const requestWorkspace = req.headers()['x-clawmax-workspace']
     if (requestWorkspace !== active) return route.fulfill({ status: 409, json: { code: 'workspace_changed', error: 'Workspace changed. Reopen this chat in the active workspace.' } })
-    if (p.includes('/recovery/')) return route.fulfill({ status: 409, json: { code: 'message_history_recovery_required', error: 'This channel’s older history needs recovery because its storage identity is ambiguous. Existing messages are unchanged. Contact the workspace owner before sending or clearing messages.' } })
+    if (p.includes('/recovery/')) {
+     if (holdRecovery && p.endsWith('/messages')) {
+      holdRecovery = false
+      await new Promise(resolve => { releaseRecovery = resolve; recoveryStarted() })
+     }
+     return route.fulfill({ status: 409, json: { code: 'message_history_recovery_required', error: 'This channel’s older history needs recovery because it may contain messages from more than one channel. Existing messages are unchanged. Contact the workspace owner before sending or clearing messages.' } })
+    }
     if (p.endsWith('/archives')) body = { archives: [] }
     else {
      let content = p.includes('/communities/') ? 'COMMUNITY_ONLY' : p.includes('/beta/') ? 'BETA_ONLY' : active === 'workspace-b' ? 'WORKSPACE_B_ONLY' : 'ALPHA_ONLY'
@@ -124,9 +132,15 @@ try {
    releaseWorkspace()
    await page.getByText('WORKSPACE_B_ONLY', { exact: true }).waitFor()
    await page.screenshot({ path: path.join(artifacts, `isolated-${theme}-${width}.png`) })
+   const recoveryResponse = page.waitForResponse(response => response.url().includes('/recovery/messages'))
    await page.getByRole('button', { name: 'Recovery', exact: true }).click()
+   await recoveryResponse
    const recovery = page.getByRole('alert').filter({ hasText: 'older history needs recovery' })
    await recovery.waitFor()
+   holdRecovery = true
+   await bounded(recoveryGate)
+   assert(await recovery.isVisible(), 'recovery notice stays visible while a retry is pending')
+   releaseRecovery()
    assert.equal(await page.getByText('No messages yet. Start a conversation below.', { exact: true }).count(), 0, 'recovery is not presented as empty history')
    assert.equal(await page.locator('textarea').first().isDisabled(), true, 'recovery blocks sending into ambiguous history')
    assert.equal(await page.getByText('WORKSPACE_B_ONLY', { exact: true }).count(), 0)
@@ -151,7 +165,7 @@ try {
    console.log((await page.locator('body').ariaSnapshot()).slice(-4500))
    throw error
   } finally {
-   releaseAlpha?.(); releaseBeta?.(); releaseWorkspace?.()
+   releaseAlpha?.(); releaseBeta?.(); releaseWorkspace?.(); releaseRecovery?.()
    await context.close()
   }
  }

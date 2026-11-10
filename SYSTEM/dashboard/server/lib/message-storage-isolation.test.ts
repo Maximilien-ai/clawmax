@@ -5,6 +5,7 @@ import path from 'path'
 import { execFileSync } from 'child_process'
 import * as messages from './messages'
 import { MessageHistoryRecoveryError } from './message-storage-identity'
+import { createGroup, deleteGroup } from './workspace'
 
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-message-identity-'))
@@ -92,7 +93,35 @@ async function main() {
       }
       assert.equal(fs.readFileSync(path.join(ambiguousParent, 'sales_team.json'), 'utf8'), old)
       assert.equal(fs.readFileSync(path.join(ambiguousParent, 'archive', archivedName), 'utf8'), old)
-      assert(!fs.existsSync(path.join(ambiguousParent, '.v2')), 'ambiguous reads never claim ownership or replace history')
+      const journalDirectory = path.join(ambiguousParent, '.v2')
+      assert.equal(fs.readdirSync(journalDirectory).filter(name => name.endsWith('.json')).length, 0, 'no replacement history is created')
+      const journalFiles = fs.readdirSync(path.join(journalDirectory, 'legacy-owners'))
+      const journalFile = path.join(journalDirectory, 'legacy-owners', journalFiles[0])
+      const journal = JSON.parse(fs.readFileSync(journalFile, 'utf8'))
+      assert.equal(journal.blocked, true, 'ambiguity has a durable recovery record')
+      fs.writeFileSync(journalFile, JSON.stringify({ ...journal, name: owner }))
+      catalog(ambiguous, type, [owner])
+      assert.throws(() => messages.getMessages(type, owner), MessageHistoryRecoveryError, 'removing a conflicting catalog entry must not assign mixed legacy history automatically')
+      checks++
+
+      const creating = workspace(`create-preserve-${type}`)
+      catalog(creating, type, [owner])
+      const creatingParent = path.join(creating, 'SYSTEM', 'messages', type === 'group' ? 'groups' : 'communities')
+      fs.mkdirSync(creatingParent, { recursive: true })
+      fs.writeFileSync(path.join(creatingParent, 'sales_team.json'), old)
+      assert(createGroup(type, newcomer, { description: 'New isolated channel', members: [] }))
+      assert.deepEqual(messages.getMessages(type, newcomer), [])
+      assert.equal(messages.getMessages(type, owner)[0].content, 'legacy-only', 'creation preserves a proven previous owner')
+      checks++
+
+      const deleting = workspace(`delete-preserve-${type}`)
+      catalog(deleting, type, [owner, newcomer])
+      const deletingParent = path.join(deleting, 'SYSTEM', 'messages', type === 'group' ? 'groups' : 'communities')
+      fs.mkdirSync(deletingParent, { recursive: true })
+      fs.writeFileSync(path.join(deletingParent, 'sales_team.json'), old)
+      assert(deleteGroup(type, newcomer))
+      assert.throws(() => messages.getMessages(type, owner), MessageHistoryRecoveryError, 'deletion records ambiguity before changing the catalog')
+      assert.equal(fs.readFileSync(path.join(deletingParent, 'sales_team.json'), 'utf8'), old)
       checks++
 
       process.env.CLAWMAX_TEST_WORKSPACE = legacyRoot

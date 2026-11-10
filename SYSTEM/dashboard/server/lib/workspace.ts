@@ -1084,6 +1084,16 @@ export function updateGroupMembers(type: 'community' | 'group', name: string, ne
 }
 
 /** Create a new community or group */
+function preserveChannelHistoryIdentity(type: 'group' | 'community', name: string): void {
+  // Lazy import: message storage itself resolves the current workspace here.
+  const { messageStorageIdentity, MessageHistoryRecoveryError } = require('./message-storage-identity')
+  try { messageStorageIdentity(type, name) }
+  catch (error) {
+    // A durable recovery record protects old bytes while catalog edits proceed.
+    if (!(error instanceof MessageHistoryRecoveryError)) throw error
+  }
+}
+
 export function createGroup(
   type: 'community' | 'group',
   name: string,
@@ -1117,6 +1127,16 @@ export function createGroup(
     if (existingEntries.some(e => e.name === name)) {
       console.error(`${type} "${name}" already exists`)
       return false
+    }
+
+    const legacyEntries = parseGroups(content)
+    const previousNames = new Set([
+      ...existingEntries.map(entry => entry.name),
+      ...(type === 'group' ? legacyEntries.groups : legacyEntries.communities).map(entry => entry.name),
+    ])
+    const legacyKey = (value: string) => value.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()
+    for (const previousName of previousNames) {
+      if (legacyKey(previousName) === legacyKey(name)) preserveChannelHistoryIdentity(type, previousName)
     }
 
     // Find insertion point (after the ## Communities or ## Groups header)
@@ -1178,6 +1198,7 @@ export function createGroup(
 /** Delete a community or group */
 export function deleteGroup(type: 'community' | 'group', name: string): boolean {
   try {
+    preserveChannelHistoryIdentity(type, name)
     const workspacePath = getWorkspacePath()
     const filePath = type === 'community'
       ? path.join(workspacePath, 'ORG', 'COMMUNITIES.md')
