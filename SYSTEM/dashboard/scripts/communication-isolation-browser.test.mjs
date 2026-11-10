@@ -16,9 +16,12 @@ import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../src/index.css'
 import GroupChatPanel from '../src/components/GroupChatPanel'
+import Communication from '../src/pages/Communication'
 import { AuthProvider } from '../src/contexts/AuthContext'
 import { ToastProvider } from '../src/components/Toast'
 import { WorkspaceProvider, useWorkspace } from '../src/contexts/WorkspaceContext'
+const surface = new URLSearchParams(location.search).get('surface')
+localStorage.setItem('communication-view-mode', 'list')
 const channel = (type, name) => ({ type, name, description: 'Synthetic isolation probe', tags: [], channels: [], community: null, members: [{id:'analyst',name:'Analyst',status:'online'}] })
 const channels = { Alpha: channel('group', 'alpha'), Beta: channel('group', 'beta'), Community: channel('community', 'alpha'), Recovery: channel('group', 'recovery') }
 function Harness() {
@@ -26,7 +29,7 @@ function Harness() {
  const { activeWorkspace, switchWorkspace } = useWorkspace()
  return <div style={{height: '100vh'}} className="h-screen flex flex-col bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100">
   <nav className="flex flex-wrap gap-2 p-2">{Object.keys(channels).map(name => <button key={name} onClick={()=>setCurrent(name)}>{name}</button>)}<button onClick={()=>void switchWorkspace('workspace-b')}>Workspace B</button><span data-workspace>{activeWorkspace?.id}</span></nav>
-  <div className="flex-1 min-h-0"><GroupChatPanel channel={channels[current]} onClose={()=>{}} mode="pane" /></div>
+  <div className="flex-1 min-h-0">{surface === 'page' ? <Communication isActive /> : <GroupChatPanel channel={channels[current]} onClose={()=>{}} mode="pane" />}</div>
  </div>
 }
 document.documentElement.classList.toggle('dark', new URLSearchParams(location.search).get('theme') === 'dark')
@@ -81,7 +84,10 @@ try {
       await new Promise(resolve => { releaseWorkspace = resolve; workspaceStarted() })
      }
     }
-   } else if (p === '/api/docs') body = { entries: [] }
+   } else if (p === '/api/groups') body = { groups: [{ name: 'alpha', displayName: 'Alpha channel', description: 'Synthetic alpha', tags: [], channels: [] }, { name: 'beta', displayName: 'Beta channel', description: 'Synthetic beta', tags: [], channels: [] }] }
+   else if (p === '/api/communities') body = { communities: [{ name: 'alpha', displayName: 'Alpha council', description: 'Synthetic council', tags: [], channels: [] }] }
+   else if (p === '/api/agents') body = { agents: [{ id: 'analyst', name: 'Analyst', status: 'online', tags: [], skills: [], groups: [{ name: 'alpha' }, { name: 'beta' }], communities: [{ name: 'alpha' }] }], total: 1, hasMore: false }
+   else if (p === '/api/docs') body = { entries: [] }
    else if (p === '/api/workflows') body = { workflows: [] }
    else if (p === '/api/agents/turns/active') body = { turns: [] }
    else if (p === '/api/activity-export/status') body = { agentforge: { configured: false }, destinations: [] }
@@ -127,6 +133,16 @@ try {
    assert((await textContrast(recovery)).ratio >= 4.5, 'recovery text stays readable in both themes')
    assert(await recovery.evaluate(el => el.getBoundingClientRect().right <= innerWidth), 'recovery message fits phone width')
    await page.screenshot({ path: path.join(artifacts, `recovery-${theme}-${width}.png`) })
+   if (width > 500) {
+    await page.goto(`${base}/${path.basename(fixture)}/index.html?surface=page&theme=${theme}`)
+    await page.getByText('Alpha channel', { exact: true }).click()
+    await page.getByText('WORKSPACE_B_ONLY', { exact: true }).waitFor()
+    await page.getByRole('row').filter({ hasText: 'Beta channel' }).getByRole('button', { name: 'Open', exact: true }).click()
+    await page.getByText('BETA_ONLY', { exact: true }).waitFor()
+    assert.equal(await page.getByText('WORKSPACE_B_ONLY', { exact: true }).count(), 0, 'real page Open switches chats without closing the pane or retaining old history')
+    await page.getByText('Alpha channel', { exact: true }).click()
+    await page.getByText('WORKSPACE_B_ONLY', { exact: true }).waitFor()
+   }
    assert.deepEqual(errors, [])
    console.log(`PASS ${theme} ${width}px: delayed response, channel/type/workspace caches, drafts and visible legacy recovery`)
   } catch (error) {

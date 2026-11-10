@@ -1524,7 +1524,7 @@ function CommunicationTable({
                     </td>
                   )}
                   <td className="px-4 py-3">
-                    <button onClick={() => onOpenChat(channel)} className="text-left">
+                    <button onClick={event => { event.stopPropagation(); onOpenChat(channel) }} className="text-left">
                       <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
                         <span>{channel.displayName || channel.name}</span>
                         {unreadCount > 0 && (
@@ -1555,7 +1555,7 @@ function CommunicationTable({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => onOpenChat(channel)} className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600">Open</button>
+                      <button onClick={event => { event.stopPropagation(); onOpenChat(channel) }} className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600">Open</button>
                       <button onClick={() => onManageMembers(channel)} className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600">Members</button>
                       <button onClick={() => onManageTags(channel)} className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600">Tags</button>
                       <button onClick={() => onDelete(channel)} className="px-2 py-1 text-xs rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40">Delete</button>
