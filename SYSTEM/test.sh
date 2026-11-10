@@ -5927,6 +5927,72 @@ else
   warn "Group message may not be supported via this endpoint"
 fi
 
+# Exercise the real runtime: distinct near-colliding group names and a same-named
+# community must keep replies scoped after native CLI execution completes.
+echo -e "${YELLOW}→ Testing live channel reply isolation...${NC}"
+isolation_community=$(apicurl -X POST "$API_BASE/api/communities" -H 'Content-Type: application/json' \
+  -d '{"name":"Isolation Live","description":"Synthetic channel-isolation check","members":["test-agent1"],"tags":["system-test"]}' 2>/dev/null)
+isolation_group_a=$(apicurl -X POST "$API_BASE/api/groups" -H 'Content-Type: application/json' \
+  -d '{"name":"Isolation Live","description":"Synthetic alpha history","members":["test-agent1"],"community":"Isolation Live","tags":["system-test"]}' 2>/dev/null)
+isolation_group_b=$(apicurl -X POST "$API_BASE/api/groups" -H 'Content-Type: application/json' \
+  -d '{"name":"Isolation_Live","description":"Synthetic beta history","members":["test-agent2"],"community":"Isolation Live","tags":["system-test"]}' 2>/dev/null)
+
+wait_for_isolated_channel_reply() {
+  local isolation_kind="$1" isolation_marker="$2" isolation_waited=0 isolation_history
+  while [ "$isolation_waited" -lt 120 ]; do
+    isolation_history=$(apicurl "$API_BASE/api/$isolation_kind/Isolation%20Live/messages" 2>/dev/null)
+    if echo "$isolation_history" | jq -e --arg marker "$isolation_marker" 'any(.messages[]?; .from == "test-agent1" and (.content | contains($marker)))' >/dev/null 2>&1; then
+      return 0
+    fi
+    if echo "$isolation_history" | jq -e 'any(.messages[]?; .from == "test-agent1" and (.content | startswith("**Error:**")))' >/dev/null 2>&1; then
+      return 1
+    fi
+    sleep 1
+    isolation_waited=$((isolation_waited + 1))
+  done
+  return 1
+}
+
+if echo "$isolation_community" | jq -e '.ok == true' >/dev/null 2>&1 \
+  && echo "$isolation_group_a" | jq -e '.ok == true' >/dev/null 2>&1 \
+  && echo "$isolation_group_b" | jq -e '.ok == true' >/dev/null 2>&1; then
+  pass "Disjoint channel-isolation fixtures created"
+  isolation_alpha_marker="CHANNEL_ALPHA_$$"
+  isolation_alpha_payload=$(jq -nc --arg content "Reply with exactly $isolation_alpha_marker" '{content:$content,mentions:["test-agent1"]}')
+  isolation_alpha_send=$(apicurl -X POST "$API_BASE/api/groups/Isolation%20Live/messages" -H 'Content-Type: application/json' -d "$isolation_alpha_payload" 2>/dev/null)
+  if echo "$isolation_alpha_send" | jq -e '.ok == true' >/dev/null 2>&1 && wait_for_isolated_channel_reply groups "$isolation_alpha_marker"; then
+    pass "Live group reply reaches only its addressed channel"
+  else
+    fail "Live group reply did not settle in its addressed channel"
+  fi
+  isolation_beta_history=$(apicurl "$API_BASE/api/groups/Isolation_Live/messages" 2>/dev/null)
+  isolation_council_history=$(apicurl "$API_BASE/api/communities/Isolation%20Live/messages" 2>/dev/null)
+  if echo "$isolation_beta_history" | jq -e '.messages == []' >/dev/null 2>&1 \
+    && echo "$isolation_council_history" | jq -e '.messages == []' >/dev/null 2>&1; then
+    pass "Group reply cannot enter another group or same-named community"
+  else
+    fail "Group reply crossed a channel boundary"
+  fi
+  isolation_council_marker="CHANNEL_COUNCIL_$$"
+  isolation_council_payload=$(jq -nc --arg content "Reply with exactly $isolation_council_marker" '{content:$content,mentions:["test-agent1"]}')
+  isolation_council_send=$(apicurl -X POST "$API_BASE/api/communities/Isolation%20Live/messages" -H 'Content-Type: application/json' -d "$isolation_council_payload" 2>/dev/null)
+  if echo "$isolation_council_send" | jq -e '.ok == true' >/dev/null 2>&1 && wait_for_isolated_channel_reply communities "$isolation_council_marker"; then
+    pass "Live community reply stays in its own history and runtime session"
+  else
+    fail "Live community reply did not settle in its addressed channel"
+  fi
+  isolation_alpha_history=$(apicurl "$API_BASE/api/groups/Isolation%20Live/messages" 2>/dev/null)
+  isolation_beta_history=$(apicurl "$API_BASE/api/groups/Isolation_Live/messages" 2>/dev/null)
+  if echo "$isolation_alpha_history" | jq -e --arg marker "$isolation_council_marker" '.messages | length == 2 and all(.[]; (.content | contains($marker) | not))' >/dev/null 2>&1 \
+    && echo "$isolation_beta_history" | jq -e '.messages == []' >/dev/null 2>&1; then
+    pass "Community execution leaves both group histories unchanged"
+  else
+    fail "Community reply crossed a group-history boundary"
+  fi
+else
+  fail "Channel-isolation fixtures could not be created"
+fi
+
 # Step 8: Test workflow trigger + DAG progression
 echo ""
 echo -e "${YELLOW}→ Testing workflow DAG execution...${NC}"
@@ -6141,7 +6207,7 @@ format_perf_metric() {
 
 echo "Duration: ${INTEGRATION_DURATION}s"
 echo "Model: ${SYSTEM_TEST_MODEL:-openai/gpt-4o-mini}"
-echo "Est. cost: ~$0.01-0.05 (based on ~3 agent calls)"
+echo "Agent calls: approximately 5, including live channel-isolation checks"
 echo "Perf:"
 echo "  Workflow list: $(format_perf_metric "$PERF_WORKFLOW_LIST_MS")"
 echo "  Agent chat round-trip: $(format_perf_metric "$PERF_CHAT_ROUNDTRIP_MS")"
