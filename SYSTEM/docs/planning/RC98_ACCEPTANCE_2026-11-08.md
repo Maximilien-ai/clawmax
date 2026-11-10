@@ -1,5 +1,9 @@
 # November 8 acceptance and RC98 plan
 
+Historical checkpoint: the [November 10 checklist](RC98_ACCEPTANCE_2026-11-10.md)
+is the current owner queue and combined-build evidence. Criteria, results and
+notes below are retained as history.
+
 Owner: Dashboard. Times are America/New_York. RC98 has **not** been cut.
 This is the current checklist; check items independently and add a short failure
 note beside any unchecked item. A checked acceptance box records owner judgment,
