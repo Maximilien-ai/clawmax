@@ -16,6 +16,14 @@ are accepted and merged. Remaining engineering/release gates are preserved in
 the current checklist. RC98 has not been cut; new backlog issues are future
 work, and the older feedback snapshot is not a fresh inventory of later arrivals.
 
+The pending chat audit found #339 and #343 already implemented on main in
+`116db34b`; both PRs were closed as superseded after four passing desktop/phone
+browser scenarios. Table overflow issue #333 is closed as completed with evidence
+and a feedback reply. Actual incremental streaming (#225/#229) remains separate.
+Next stability priority: #404 group/community message isolation, then the #288
+scheduler queue. No further owner chat acceptance is required for these already
+implemented fixes. See the current checklist for exact evidence and limitations.
+
 ## November 8 current acceptance and feedback checkpoint
 
 Use the [current owner checklist and RC98 gates](planning/RC98_ACCEPTANCE_2026-11-08.md).

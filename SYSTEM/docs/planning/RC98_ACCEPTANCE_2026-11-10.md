@@ -29,6 +29,29 @@ WhatsApp group/community sync rows, document validation messages and matching
 popup hover controls; those checks are engineering-owned. PR #340 is awaiting
 its current CI and the owner's merge, separately from acceptance.
 
+## Pending chat PR audit — completed
+
+- [x] **#339 closed as superseded; #333 closed as completed.** Main already
+  contains `116db34b5ab1884cf57d6d1dacd875b6893149bf`, which uses the shared
+  `ScrollableMarkdownTable` in Agent Chat and Group Chat. The original PR's
+  synthetic regression passed all four desktop/phone × modal/slide scenarios
+  on dev `81fa8579`: independent table scrolling, no page/conversation overflow,
+  visible Close/composer, compact short tables and preserved code scrolling.
+- [x] **#343 closed as superseded.** Main already uses **Responses from the
+  active runtime**, without promising live token delivery. Confirmed in all
+  four browser scenarios above. This resolves wording only; **#225 and #229
+  remain separate work for actual incremental streaming**.
+- [x] Tested `AgentChatPanel.tsx` and `ScrollableMarkdownTable.tsx` were compared
+  by Git blob hash with `origin/main` and matched exactly. No new chat product
+  code or merge was necessary. Screenshots reviewed; artifacts:
+  `/private/tmp/clawmax-chat-table-current/`. Evidence/replies attached to both
+  PRs and #333; these comments do not establish participant email delivery.
+
+**Next engineering priority:** reproduce and verify #404, message isolation
+between workspace groups and communities. Establish actual behavior and fix any
+confirmed boundary failure before RC98. Follow with the scheduler reliability
+queue (#288), assessing what is already covered before changing source.
+
 ## Engineering evidence — completed
 
 - [x] PR #340 refreshed from merged main, with the contrast fix
