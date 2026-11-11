@@ -578,7 +578,7 @@ export async function callAgent(
     proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); turn.touch() })
 
     proc.on('close', (code: number) => {
-      console.log(`[callAgent] ${agentId}: exit code=${code}, stdout len=${stdout.length}, stderr len=${stderr.length}`)
+      console.log("[callAgent] %s: exit code=%s, stdout len=%s, stderr len=%s", agentId, code, stdout.length, stderr.length)
       const rawDiagnostic = `${stdout}\n${stderr}`.trim()
       const runtimeError = CHANNEL_RUNTIME_ERROR_PATTERN.test(rawDiagnostic)
         ? deriveChatError(rawDiagnostic, resolvedAgent.provider as any, { agentId, model: resolvedAgent.model })
@@ -590,8 +590,8 @@ export async function callAgent(
       }
 
       try {
-        console.log(`[callAgent] ${agentId}: stdout=${stdout.slice(0, 500)}`)
-        console.log(`[callAgent] ${agentId}: stderr=${stderr.slice(0, 500)}`)
+        console.log("[callAgent] %s: stdout=%s", agentId, stdout.slice(0, 500))
+        console.log("[callAgent] %s: stderr=%s", agentId, stderr.slice(0, 500))
 
         // Extract JSON from stdout or stderr — the CLI may mix warning lines with JSON in stderr
         // Strategy: try each line starting with '{' as a JSON candidate, longest first
@@ -671,12 +671,12 @@ export async function callAgent(
           return
         }
         if (!responseText) {
-          console.log(`[callAgent] ${agentId}: empty response, stdout=${stdout.slice(0, 200)}, stderr=${stderr.slice(0, 200)}`)
+          console.log("[callAgent] %s: empty response, stdout=%s, stderr=%s", agentId, stdout.slice(0, 200), stderr.slice(0, 200))
         }
 
         settle(() => resolve(responseText))
       } catch (parseErr) {
-        console.error(`[callAgent] ${agentId}: parse error:`, parseErr, `stdout=${stdout.slice(0, 300)}, stderr=${stderr.slice(0, 300)}`)
+        console.error("[callAgent] %s: parse error:", agentId, parseErr, `stdout=${stdout.slice(0, 300)}, stderr=${stderr.slice(0, 300)}`)
         // If we have any stdout text at all, return it as-is rather than failing
         if (stdout.trim()) {
           settle(() => resolve(stdout.trim()))
@@ -952,37 +952,36 @@ router.post('/communities/:name/messages', messageHistoryRoute(async (req, res) 
 
   // Call mentioned agents asynchronously (don't block response)
   if (mentions && mentions.length > 0) {
-    console.log(`[Group Chat] Calling ${mentions.length} agents for community "${decodedName}":`, mentions)
+    console.log("[Group Chat] Calling %s agents for community \"%s\":", mentions.length, decodedName, mentions)
 
     // Call agents sequentially with delay to avoid gateway contention
     ;(async () => {
       const communityContext = `[You are participating in a ClawMax community named "${decodedName}". Respond normally in this shared chat when addressed. Do not look for or mention a separate session label. Message from ${from || 'User'}:]\n\n${content}`
 
-      for (let i = 0; i < mentions.length; i++) {
-        const agentId = mentions[i]
+      for (const [i, agentId] of mentions.entries()) {
         if (i > 0) await new Promise(r => setTimeout(r, 3000))
         try {
           const agentSessionId = channelSessionId('community', decodedName, agentId)
-          console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
+          console.log("[Group Chat] Calling agent %s", agentId)
           let response = await callAgent(agentId, communityContext, agentSessionId, byok, session || undefined, () => { channelRecipients('community', decodedName, [agentId]) })
 
           // Retry once if empty response
           if (!response || !response.trim()) {
-            console.log(`[Group Chat] Agent ${agentId} returned empty — retrying after 2s`)
+            console.log("[Group Chat] Agent %s returned empty \u2014 retrying after 2s", agentId)
             await new Promise(r => setTimeout(r, 2000))
             response = await callAgent(agentId, communityContext, agentSessionId, byok, session || undefined, () => { channelRecipients('community', decodedName, [agentId]) })
           }
 
-          console.log(`[Group Chat] Agent ${agentId} responded:`, response)
+          console.log("[Group Chat] Agent %s responded", agentId)
           if (response && response.trim()) {
             addMessage('community', decodedName, {
               from: agentId,
               content: response,
               mentions: []
             })
-            console.log(`[Group Chat] Added ${agentId} response to history`)
+            console.log("[Group Chat] Added %s response to history", agentId)
           } else {
-            console.log(`[Group Chat] Agent ${agentId} returned empty response after retry`)
+            console.log("[Group Chat] Agent %s returned empty response after retry", agentId)
             addMessage('community', decodedName, {
               from: agentId,
               content: '*(Agent did not return a response. Try mentioning them directly with @)*',
@@ -990,7 +989,7 @@ router.post('/communities/:name/messages', messageHistoryRoute(async (req, res) 
             })
           }
         } catch (err) {
-          console.error(`[Group Chat] Failed to get response from agent ${agentId}:`, err)
+          console.error("[Group Chat] Failed to get response from agent %s:", agentId, err)
           addMessage('community', decodedName, {
             from: agentId,
             content: `**Error:** ${err instanceof Error ? err.message : 'Agent failed to respond.'}`,
@@ -1062,39 +1061,38 @@ router.post('/groups/:name/messages', messageHistoryRoute(async (req, res) => {
 
   // Call mentioned agents asynchronously (don't block response)
   if (mentions && mentions.length > 0) {
-    console.log(`[Group Chat] Calling ${mentions.length} agents for group "${decodedName}":`, mentions)
+    console.log("[Group Chat] Calling %s agents for group \"%s\":", mentions.length, decodedName, mentions)
 
     // Call agents sequentially with delay to avoid gateway contention
     ;(async () => {
       // Build context-aware message so agents know they're in a group
       const groupContext = `[You are participating in a ClawMax group named "${decodedName}". Respond normally in this shared chat when addressed. Do not look for or mention a separate session label. Message from ${from || 'User'}:]\n\n${content}`
 
-      for (let i = 0; i < mentions.length; i++) {
-        const agentId = mentions[i]
+      for (const [i, agentId] of mentions.entries()) {
         // Small delay between agents to avoid gateway race
         if (i > 0) await new Promise(r => setTimeout(r, 3000))
         try {
           const agentSessionId = channelSessionId('group', decodedName, agentId)
-          console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
+          console.log("[Group Chat] Calling agent %s", agentId)
           let response = await callAgent(agentId, groupContext, agentSessionId, byok, session || undefined, () => { channelRecipients('group', decodedName, [agentId]) })
 
           // Retry once if empty response (common with 2nd+ agent due to gateway timing)
           if (!response || !response.trim()) {
-            console.log(`[Group Chat] Agent ${agentId} returned empty — retrying after 2s`)
+            console.log("[Group Chat] Agent %s returned empty \u2014 retrying after 2s", agentId)
             await new Promise(r => setTimeout(r, 2000))
             response = await callAgent(agentId, groupContext, agentSessionId, byok, session || undefined, () => { channelRecipients('group', decodedName, [agentId]) })
           }
 
-          console.log(`[Group Chat] Agent ${agentId} responded:`, response)
+          console.log("[Group Chat] Agent %s responded", agentId)
           if (response && response.trim()) {
             addMessage('group', decodedName, {
               from: agentId,
               content: response,
               mentions: []
             })
-            console.log(`[Group Chat] Added ${agentId} response to history`)
+            console.log("[Group Chat] Added %s response to history", agentId)
           } else {
-            console.log(`[Group Chat] Agent ${agentId} returned empty response after retry`)
+            console.log("[Group Chat] Agent %s returned empty response after retry", agentId)
             addMessage('group', decodedName, {
               from: agentId,
               content: '*(Agent did not return a response. Try mentioning them directly with @)*',
@@ -1102,7 +1100,7 @@ router.post('/groups/:name/messages', messageHistoryRoute(async (req, res) => {
             })
           }
         } catch (err) {
-          console.error(`[Group Chat] Failed to get response from agent ${agentId}:`, err)
+          console.error("[Group Chat] Failed to get response from agent %s:", agentId, err)
           addMessage('group', decodedName, {
             from: agentId,
             content: `**Error:** ${err instanceof Error ? err.message : 'Agent failed to respond.'}`,
@@ -1254,7 +1252,7 @@ router.post('/direct-messages/:from/:to', async (req, res) => {
         addMessage('direct', key, { from: to, content: response, mentions: [from] })
       }
     } catch (err) {
-      console.error(`[DM] Failed to get response from ${to}:`, err)
+      console.error("[DM] Failed to get response from %s:", to, err)
     }
   }
 

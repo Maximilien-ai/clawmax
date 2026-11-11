@@ -3,8 +3,9 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { execFileSync } from 'child_process'
+import { format } from 'util'
 import * as messages from './messages'
-import { MessageHistoryRecoveryError } from './message-storage-identity'
+import { messageStoragePath, MessageHistoryRecoveryError } from './message-storage-identity'
 import { createGroup, deleteGroup } from './workspace'
 
 async function main() {
@@ -32,6 +33,14 @@ async function main() {
   }
   const payload = (content: string) => ({ from: 'User', content, mentions: [] as string[] })
   try {
+    const store = path.join(root, 'contained')
+    assert.equal(messageStoragePath(store, 'sales_team.json'), path.join(store, 'sales_team.json'))
+    for (const filename of ['../outside.json', '../../outside.json', path.join(store, 'absolute.json'),
+      'nested/file.json', '..\\outside.json', 'C:\\outside.json', 'bad\0.json', '.', '..', '']) {
+      assert.throws(() => messageStoragePath(store, filename), /Invalid message storage filename|escapes its directory/)
+    }
+    assert(!fs.existsSync(store), 'path validation must not write anything')
+    checks++
     for (const type of ['group', 'community'] as const) {
       const target = workspace(`fresh-${type}`)
       const names = ['Sales Team', 'Sales_Team', 'sales_team', 'Sales/Team', 'sales team', '研究']
@@ -141,6 +150,29 @@ async function main() {
       assert.throws(() => messages.addMessage('group', 'safe', payload('not-persisted')), /Synthetic write failure/)
     } finally { fs.renameSync = rename }
     assert.deepEqual(messages.getMessages('group', 'safe').map(message => message.content), ['persisted'], 'failed persistence does not update cache')
+    checks++
+
+    const formatRoot = workspace('log-format')
+    const formatName = 'percent %s%d%j'
+    messages.addMessage('group', formatName, payload('Synthetic'))
+    const archive = path.join(formatRoot, 'SYSTEM', 'messages', 'groups', '.v2', 'archive')
+    fs.mkdirSync(archive, { recursive: true })
+    const readDirectory = fs.readdirSync
+    const logError = console.error
+    const logged: unknown[][] = []
+    try {
+      fs.readdirSync = ((directory: fs.PathLike, ...args: any[]) => {
+        if (directory === archive) throw new Error('Synthetic archive failure')
+        return (readDirectory as any)(directory, ...args)
+      }) as typeof fs.readdirSync
+      console.error = (...args: unknown[]) => { logged.push(args) }
+      await assert.rejects(() => messages.getArchives('group', formatName), /Synthetic archive failure/)
+      assert.equal(logged[0][0], 'Failed to read archives for %s:%s:')
+      assert(format(...logged[0]).includes(`group:${formatName}:`), 'format tokens in a channel name remain literal data')
+    } finally {
+      fs.readdirSync = readDirectory
+      console.error = logError
+    }
     checks++
     console.log(`Message storage isolation: ${checks} scenarios passed (fresh processes, legacy ownership/recovery, archives, failed persistence)`)
   } finally {

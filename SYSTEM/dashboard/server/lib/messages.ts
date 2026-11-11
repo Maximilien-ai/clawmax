@@ -3,7 +3,7 @@ import path from 'path'
 import { getWorkspacePath } from './workspace'
 import { generateArchiveTitle } from './ai-generator'
 import { normalizeChatMessage } from './chat-normalization'
-import { archiveMatches, messageStorageIdentity, MessageHistoryRecoveryError } from './message-storage-identity'
+import { archiveMatches, messageStorageIdentity, messageStoragePath, MessageHistoryRecoveryError } from './message-storage-identity'
 
 export interface Message {
   id: string
@@ -33,14 +33,14 @@ export function directMessageKey(agent1: string, agent2: string): string {
 function getMessageFile(type: 'community' | 'group' | 'direct', name: string): string {
   const identity = messageStorageIdentity(type, name)
   fs.mkdirSync(identity.directory, { recursive: true })
-  return path.join(identity.directory, `${identity.prefix}.json`)
+  return messageStoragePath(identity.directory, `${identity.prefix}.json`)
 }
 
 function loadMessagesFromFile(type: 'community' | 'group' | 'direct', name: string): Message[] {
   try {
     const identity = messageStorageIdentity(type, name)
-    const current = path.join(identity.directory, `${identity.prefix}.json`)
-    const legacy = path.join(identity.legacyDirectory, `${identity.legacyPrefix}.json`)
+    const current = messageStoragePath(identity.directory, `${identity.prefix}.json`)
+    const legacy = messageStoragePath(identity.legacyDirectory, `${identity.legacyPrefix}.json`)
     const file = fs.existsSync(current) ? current : identity.ownsLegacy ? legacy : current
     if (fs.existsSync(file)) {
       const data = fs.readFileSync(file, 'utf-8')
@@ -55,7 +55,7 @@ function loadMessagesFromFile(type: 'community' | 'group' | 'direct', name: stri
     }
   } catch (err) {
     if (err instanceof MessageHistoryRecoveryError) throw err
-    console.error(`Failed to load messages for ${type}:${name}:`, err)
+    console.error("Failed to load messages for %s:%s:", type, name, err)
   }
   return []
 }
@@ -71,7 +71,7 @@ function saveMessagesToFile(type: 'community' | 'group' | 'direct', name: string
       if (fs.existsSync(temporary)) fs.unlinkSync(temporary)
     }
   } catch (err) {
-    console.error(`Failed to save messages for ${type}:${name}:`, err)
+    console.error("Failed to save messages for %s:%s:", type, name, err)
     throw err
   }
 }
@@ -121,7 +121,7 @@ function getArchiveFile(type: 'community' | 'group' | 'direct', name: string, ti
   const archiveDir = path.join(identity.directory, 'archive')
   fs.mkdirSync(archiveDir, { recursive: true })
   const date = new Date(timestamp).toISOString().split('T')[0]
-  return path.join(archiveDir, `${identity.prefix}_${date}_${timestamp}.json`)
+  return messageStoragePath(archiveDir, `${identity.prefix}_${date}_${timestamp}.json`)
 }
 
 export function archiveSources(type: 'community' | 'group' | 'direct', name: string) {
@@ -135,7 +135,7 @@ export function archiveSources(type: 'community' | 'group' | 'direct', name: str
 
 function findArchive(type: 'community' | 'group' | 'direct', name: string, filename: string): string | undefined {
   const source = archiveSources(type, name).find(entry => archiveMatches(entry.prefix, filename))
-  return source && path.join(source.directory, filename)
+  return source && messageStoragePath(source.directory, filename)
 }
 
 export function clearMessages(type: 'community' | 'group' | 'direct', name: string): { archived: boolean; archiveFile?: string } {
@@ -151,9 +151,9 @@ export function clearMessages(type: 'community' | 'group' | 'direct', name: stri
     try {
       fs.writeFileSync(archiveFile, JSON.stringify(currentMessages, null, 2), { flag: 'wx', mode: 0o600 })
       savedArchive = path.basename(archiveFile)
-      console.log(`[Messages] Archived ${currentMessages.length} messages to ${archiveFile}`)
+      console.log("[Messages] Archived %s messages to %s", currentMessages.length, archiveFile)
     } catch (err) {
-      console.error(`Failed to archive messages for ${type}:${name}:`, err)
+      console.error("Failed to archive messages for %s:%s:", type, name, err)
       throw err
     }
   }
@@ -174,7 +174,7 @@ export async function getArchives(type: 'community' | 'group' | 'direct', name: 
       const fileInfos = fs.readdirSync(archiveDir)
         .filter(f => archiveMatches(prefix, f))
         .map(filename => {
-          const fullPath = path.join(archiveDir, filename)
+          const fullPath = messageStoragePath(archiveDir, filename)
           const timestampMatch = filename.match(/_(\d+)\.json$/)
           const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0
 
@@ -242,7 +242,7 @@ export async function getArchives(type: 'community' | 'group' | 'direct', name: 
 
       allArchives.push(...archives)
     } catch (err) {
-      console.error(`Failed to read archives for ${type}:${name}:`, err)
+      console.error("Failed to read archives for %s:%s:", type, name, err)
       throw err
     }
   }
@@ -266,7 +266,7 @@ export function getArchivedMessages(type: 'community' | 'group' | 'direct', name
       return []
     }
   } catch (err) {
-    console.error(`Failed to load archived messages from ${filename}:`, err)
+    console.error("Failed to load archived messages from %s:", filename, err)
   }
   return []
 }
@@ -279,7 +279,7 @@ export function deleteArchivedMessages(type: 'community' | 'group' | 'direct', n
   try {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath)
-      console.log(`[Messages] Deleted archive ${filePath}`)
+      console.log("[Messages] Deleted archive %s", filePath)
 
       // Also remove from title cache
       const titlesPath = path.join(archiveDir, '.titles.json')
@@ -296,7 +296,7 @@ export function deleteArchivedMessages(type: 'community' | 'group' | 'direct', n
       return true
     }
   } catch (err) {
-    console.error(`Failed to delete archived messages ${filename}:`, err)
+    console.error("Failed to delete archived messages %s:", filename, err)
   }
   return false
 }

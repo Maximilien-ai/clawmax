@@ -14,6 +14,17 @@ export function archiveMatches(prefix: string, filename: string): boolean {
   return filename.startsWith(`${prefix}_`) && /^(?:\d{4}-\d{2}-\d{2}_)?\d+\.json$/.test(filename.slice(prefix.length + 1))
 }
 
+/** Storage filenames are single components and must remain inside their store. */
+export function messageStoragePath(directory: string, filename: string): string {
+  if (filename.includes('\0') || filename.includes('\\') || path.basename(filename) !== filename) {
+    throw new Error('Invalid message storage filename')
+  }
+  const root = path.resolve(directory) + path.sep
+  const target = path.resolve(directory, filename)
+  if (!target.startsWith(root)) throw new Error('Message storage path escapes its directory')
+  return target
+}
+
 /** Exact identities for new channel data; legacy bytes are retained. */
 export function messageStorageIdentity(type: MessageKind, name: string) {
   const root = getWorkspacePath()
@@ -24,7 +35,7 @@ export function messageStorageIdentity(type: MessageKind, name: string) {
   const prefix = crypto.createHash('sha256').update(JSON.stringify([type, name])).digest('hex')
   const currentDirectory = path.join(directory, '.v2')
   const legacyArchive = path.join(directory, 'archive')
-  const hasLegacy = fs.existsSync(path.join(directory, `${legacyPrefix}.json`))
+  const hasLegacy = fs.existsSync(messageStoragePath(directory, `${legacyPrefix}.json`))
     || (fs.existsSync(legacyArchive) && fs.readdirSync(legacyArchive).some(file => archiveMatches(legacyPrefix, file)))
   let ownsLegacy = false
   if (hasLegacy) {

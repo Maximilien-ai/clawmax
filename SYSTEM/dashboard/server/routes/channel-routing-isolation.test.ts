@@ -77,6 +77,8 @@ async function main() {
       ['groups', 'missing', ['analyst'], 404],
       ['groups', 'alpha', 'analyst', 400],
       ['groups', 'alpha', ['../analyst'], 400],
+      ['groups', 'alpha', { 0: 'analyst', length: 1000000000000 }, 400],
+      ['communities', 'alpha', { 0: 'analyst', length: 1000000000000 }, 400],
     ] as const) {
       const result = await send(type, name, 'DENIED_ONLY', mentions)
       assert.equal(result.statusCode, status)
