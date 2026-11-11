@@ -18,10 +18,13 @@ Dev: **http://localhost:5180**, **`2.0.0-dev.c938a49f`**, workspace **RC98 Isola
 Acceptance**. The [current owner checklist](planning/RC98_ACCEPTANCE_2026-11-10.md)
 records both human judgments accepted November 11: navigation clarity between
 seeded chats and clarity of the legacy recovery notice. No owner checks remain.
-[PR #417](https://github.com/Maximilien-ai/clawmax/pull/417) tests passed on
-`6bc69e79` in about 43 minutes, but its CodeQL aggregate gate reports 14 high
-annotations requiring Dashboard triage before merge. #404 and its feedback stay
-open pending the engineering gates and reviewed merge.
+[PR #417](https://github.com/Maximilien-ai/clawmax/pull/417) has security follow-ups
+`50d180bb`/`602347c5`: paths, log formats, recipient iteration and stronger tests.
+CodeQL analysis and aggregate gates passed on `602347c5`, zero open PR-ref alerts;
+the production/test CSRF false positives have explicit HTTP/contract evidence.
+Storage has 15 scenarios; security tests pass 133 HTTP and 103 contract assertions.
+Current-head CI and the final full local rerun remain to verify. #404 and its
+feedback stay open until the reviewed merge. No repeat owner acceptance is needed.
 [Implementation evidence](planning/MESSAGE_ISOLATION_404_2026-11-10.md) and
 [recovery/rollback guidance](guides/RECOVER_CHANNEL_HISTORY.md) preserve the boundary.
 

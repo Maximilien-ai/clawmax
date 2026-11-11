@@ -1,9 +1,14 @@
 # Message isolation #404 — November 10
 
-Source candidate: `c938a49fda2b3e7e4567f6e76a3397223f5f5941`.
-Status: local validation complete and owner accepted November 11. Remote CI
-tests passed on `6bc69e79`; merge is held for 14 CodeQL high-severity annotations.
-Release/deployment remain separate gates. RC98 has not been cut.
+Owner-accepted product source: `c938a49fda2b3e7e4567f6e76a3397223f5f5941`.
+Latest security product source: `602347c5c4e3a58957aee4b0d2e1ab7c521a529e`.
+Status: owner accepted November 11. CodeQL analysis and aggregate gates pass on
+`602347c5`, with zero open PR-ref alerts after remediation and documented CSRF
+false-positive dispositions. Current-head full CI and the final local full rerun
+remain separate verification gates. RC98 has not been cut or deployed.
+See the [security checkpoint](RC98_ACCEPTANCE_2026-11-10.md#pr-417-remote-evidence--november-11)
+for exact results, links and disposition evidence. Earlier verification below
+identifies its original source rather than silently applying to later changes.
 
 ## Reproduced failure
 
@@ -87,10 +92,10 @@ not relaxed.
 The [owner checklist](RC98_ACCEPTANCE_2026-11-10.md) records both short human
 judgments accepted November 11: clarity when switching seeded chats and clarity
 of the recovery notice. Owner reply: “LGTM accept 404.” No repeat check is needed.
-[PR #417](https://github.com/Maximilien-ai/clawmax/pull/417) awaits engineering
-security triage before merge. [CI tests passed](https://github.com/Maximilien-ai/clawmax/actions/runs/42938739082)
-on `6bc69e79`; the [CodeQL aggregate check](https://github.com/Maximilien-ai/clawmax/runs/130255444348)
-reports 14 high annotations. Dashboard owns disposition before recommending merge.
+[PR #417](https://github.com/Maximilien-ai/clawmax/pull/417) awaits current-head
+CI before merge. Its original 14-alert CodeQL hold is superseded by the verified
+security checkpoint above: analysis and aggregate gates pass on `602347c5`, with
+zero open PR-ref alerts. Owner acceptance remains complete.
 
 [Recovery guidance](../guides/RECOVER_CHANNEL_HISTORY.md) explains retained bytes,
 manual review, backup/export and the rollback limitation. Older builds do not

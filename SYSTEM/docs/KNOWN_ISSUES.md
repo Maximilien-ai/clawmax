@@ -9,8 +9,10 @@
 ### #404 candidate: legacy recovery and rollback compatibility
 
 The source fix `c938a49f` passed 570/570 local checks; the owner accepted on
-November 11. PR #417 awaits CodeQL triage (14 high annotations) before reviewed
-merge; no deployed-instance change is implied. New named-channel
+November 11. Security follow-up `602347c5` passes CodeQL analysis and aggregate
+gates with zero open PR-ref alerts; verified CSRF false positives have explicit
+HTTP/contract evidence in the current checklist. Current-head CI remains a merge
+gate; no deployed-instance change is implied. New named-channel
 histories use `.v2` identities. Ambiguous legacy streams remain preserved and
 blocked for owner recovery, even after conflicting names are removed. Older
 builds do not read new writes and may show stale legacy history after rollback.

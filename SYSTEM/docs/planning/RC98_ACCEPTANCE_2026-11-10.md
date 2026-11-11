@@ -72,26 +72,53 @@ this does not establish RC98 image or fleet deployment readiness.
   `/private/tmp/clawmax-chat-table-current/`. Evidence/replies attached to both
   PRs and #333; these comments do not establish participant email delivery.
 
-**#404 owner acceptance is complete; merge is held for security triage.** The confirmed
+**#404 owner acceptance is complete; CodeQL is clear and final CI is pending.** The confirmed
 channel-name collision is fixed with durable legacy recovery, recipient/session
 isolation and browser state separation. See [exact-source evidence](MESSAGE_ISOLATION_404_2026-11-10.md).
 After this reviewed fix, assess scheduler reliability #288 against current
 source before implementing further changes.
 
-## PR #417 remote evidence and merge hold — November 11
+## PR #417 remote evidence — November 11
 
-[PR #417](https://github.com/Maximilien-ai/clawmax/pull/417) is open and mergeable;
-the owner merges after the engineering gates pass. On review head
-`6bc69e79774389461a38697ac4911b6848afb351`, [CI tests passed](https://github.com/Maximilien-ai/clawmax/actions/runs/42938739082)
-in about **43 minutes**. CodeQL analysis jobs completed successfully, but the
-[aggregate security check failed](https://github.com/Maximilien-ai/clawmax/runs/130255444348):
-**14 high-severity alerts in changed code**. They comprise eight path-expression
-annotations, four format-string annotations, one loop-bound annotation and one
-CSRF annotation. These require investigation; no dismissal or baseline exemption
-is inferred. Dashboard owns triage/remediation **before recommending merge**.
-This is an engineering gate, not another owner acceptance task. Documentation-only
-acceptance commits can trigger fresh checks; old green tests identify the head
-above and do not establish a later head's CI result.
+[PR #417](https://github.com/Maximilien-ai/clawmax/pull/417) remains open for the
+owner to merge after current-head checks pass. The original review head `6bc69e79`
+[passed CI tests](https://github.com/Maximilien-ai/clawmax/actions/runs/42938739082)
+in about **43 minutes**, but its aggregate security gate reported 14 high alerts.
+That original result is historical, not the status of the updated head.
+
+Security changes `50d180bb` and `602347c5` now constrain message paths to one
+filename inside the selected store, use constant logging formats, avoid logging
+channel prompt/reply text, and iterate validated recipient arrays. The storage
+mock was also narrowed to its exact synthetic directory. Storage isolation now
+passes **15 scenarios**; routing isolation passes **7 scenarios**, including
+array-like malicious recipient payloads. The other directly affected message,
+archive, channel and public plugin suites passed. Server TypeScript, focused lint
+and production build passed.
+
+On exact product source **`602347c5c4e3a58957aee4b0d2e1ab7c521a529e`**,
+[all CodeQL analysis jobs passed](https://github.com/Maximilien-ai/clawmax/actions/runs/43030142713)
+and [the aggregate gate passed](https://github.com/Maximilien-ai/clawmax/runs/130555049710).
+The authenticated PR-ref alert inventory returned **zero open alerts**.
+
+CSRF alerts [#728](https://github.com/Maximilien-ai/clawmax/security/code-scanning/728)
+(production) and [#746](https://github.com/Maximilien-ai/clawmax/security/code-scanning/746)
+(the new isolated HTTP fixture) were dismissed as verified false positives, not
+silently excluded. The existing origin guard covers `/api` before cookie-auth
+routes; real HTTP tests reject forged/null origins, cookie requests without
+provenance and spoofed Host/forwarded headers for POST/PUT/PATCH/DELETE, while
+trusted Origin/Referer requests remain usable. **133 HTTP assertions** and
+**103 security-contract assertions** passed. The [official query](https://github.com/github/codeql/blob/main/javascript/ql/src/Security/CWE-352/MissingCsrfMiddleware.ql)
+recognizes token/library patterns rather than this origin guard. Dashboard owns
+these regressions; no query was disabled and no broad security-audit claim is made.
+
+The [CI run on product source `602347c5`](https://github.com/Maximilien-ai/clawmax/actions/runs/43030150496)
+was in progress when this checkpoint was written. Later documentation-only heads
+can trigger fresh checks: wait for the actual PR head, not an older green run.
+The final complete local integration/validation/coverage rerun is pending at this
+checkpoint; its result will be attached to PR #417 with the exact tested SHA.
+No repeat owner acceptance is required for this engineering hardening. The
+retained acceptance dev remains on the owner-tested `c938a49f` UI; it is not the
+new security-source verification runtime.
 
 ## Current #404 engineering evidence — complete
 
@@ -181,7 +208,9 @@ be read independently on GitHub.
 - [ ] Add the explicit late budget-read cancellation/stale-response regression
   carried from the previous engineering queue.
 - [x] Complete the two #404 human judgments (owner accepted November 11).
-- [ ] Triage/remediate the 14 CodeQL alerts, pass current-head remote gates and merge
+- [x] Remediate the CodeQL findings and record the verified CSRF false positives;
+  analysis and aggregate gates passed on `602347c5`, zero open PR-ref alerts.
+- [ ] Pass current-head remote gates and merge
   the isolated fix. Then resolve its linked feedback and record the notification
   receipt. Assess other stability/security findings against the current candidate.
 - [ ] Confirm current candidate remote CI/security evidence; refresh active
