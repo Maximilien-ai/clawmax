@@ -4,6 +4,28 @@ Dashboard owner checklist. RC98 has not been cut. This source includes merged
 PRs #385, #386, #349, #347, #341 and #340. The seven document/workflow/budget feedback
 fixes already accepted by the owner do not need another manual check.
 
+## Your two checks — #404
+
+Open **http://localhost:5180**, refresh and select **RC98 Isolation Acceptance**.
+Expected version: **`2.0.0-dev.c938a49f`**. All messages below are seeded synthetic
+fixtures. Your earlier acceptance workspace and notes remain available.
+
+- [ ] **Chat navigation feels clear.** In Communications → List view, open
+  **Isolation A**, then **Isolation_A**, then go back. The first has **ALPHA ONLY**,
+  the second **BETA ONLY**. Judge whether the selected channel and its history
+  remain clear while switching. No typing or agent execution is needed.
+  `reviewReason: human-judgment`
+- [ ] **The recovery notice is understandable.** Open **Legacy Review**. Judge
+  whether the notice clearly explains that older messages are preserved and
+  require owner review before the chat can continue. This is a disposable
+  synthetic recovery example; do not try to repair real histories for acceptance.
+  `reviewReason: human-judgment`
+
+Reply **`accept #404`**, or name the confusing behavior. Automated isolation,
+reload, delayed-response, recipient and recovery-state checks are engineering
+verification, not additional owner tasks. [Recovery guidance](../guides/RECOVER_CHANNEL_HISTORY.md)
+explains the operator procedure and rollback limitation.
+
 ## Owner acceptance — complete
 
 - [x] **#347 — Manage Members keyboard behavior accepted November 10.**
@@ -12,9 +34,8 @@ fixes already accepted by the owner do not need another manual check.
 - [x] **#341 — Details → Edit agent config accepted November 10.**
   Owner accepted the editing flow and preservation of Details context.
 
-Open **http://localhost:5180**, refresh and select **RC98 Acceptance**.
-Expected version: **`2.0.0-dev.81fa8579`**. The isolated workspace and any
-owner notes are retained.
+Historical dark-mode acceptance used the retained **RC98 Acceptance** workspace
+on `2.0.0-dev.81fa8579`; the current dev identity and owner queue are above.
 
 - [x] **Dark-mode appearance follow-up in PR #340 — accepted November 10.** In Communications →
   `acceptance-desk`, open the member count. Confirm the selected agent name
@@ -50,14 +71,35 @@ this does not establish RC98 image or fleet deployment readiness.
   `/private/tmp/clawmax-chat-table-current/`. Evidence/replies attached to both
   PRs and #333; these comments do not establish participant email delivery.
 
-**Next engineering priority:** fix #404, message isolation between workspace
-groups and communities. A synthetic route-handler reproduction confirmed that
-`Sales Team` and `Sales_Team` load the same legacy history file on merged main
-`da30720f`. No agent or provider was invoked. The issue remains open; existing
-history must be preserved during the fix. See [investigation evidence](MESSAGE_ISOLATION_404_2026-11-10.md). Follow with the scheduler reliability
-queue (#288), assessing what is already covered before changing source.
+**#404 implementation is ready for owner acceptance and merge.** The confirmed
+channel-name collision is fixed with durable legacy recovery, recipient/session
+isolation and browser state separation. See [exact-source evidence](MESSAGE_ISOLATION_404_2026-11-10.md).
+After this reviewed fix, assess scheduler reliability #288 against current
+source before implementing further changes.
 
-## Engineering evidence — completed
+## Current #404 engineering evidence — complete
+
+- [x] Exact product source **`c938a49fda2b3e7e4567f6e76a3397223f5f5941`** passed
+  **570/570** full integration/validation/coverage checks, zero failures, in
+  **11.7 minutes**. Real group/community replies remained isolated.
+  Statements/lines **83.83%**, branches **81.48%**, functions **92.11%**.
+  Log: `/private/tmp/clawmax-404-full-c938a49f.log`.
+- [x] Required regressions include **13 storage** and **7 routing scenarios**;
+  five added native integration checks explain the increase from 565 to 570.
+  Headline totals count suite/API checks, not each nested assertion.
+- [x] Four light/dark × desktop/phone browser runs passed for delayed responses,
+  channel/workspace state, draft separation and persistent recovery errors.
+  Production List navigation and real isolated-dev history switching passed.
+- [x] Production build, server TypeScript and focused lint passed. Strict client
+  comparison remains **291 baseline diagnostics**, with no new patterns.
+- [x] Dev UI/API identify `2.0.0-dev.c938a49f`; synthetic acceptance data is ready.
+  Later documentation-only commits do not change this tested product source.
+
+A future-version status reply was saved for the feedback author; its email is
+queued, with delivery unconfirmed. The [receipt](MESSAGE_ISOLATION_404_2026-11-10.md#acceptance-rollout-and-feedback)
+keeps the report in progress until the reviewed fix is merged.
+
+## Earlier engineering evidence — completed
 
 - [x] PR #340 refreshed from merged main, with the contrast fix
   `c7ae85a8` and grid selection/persistence regression `81fa8579`.
@@ -122,10 +164,9 @@ be read independently on GitHub.
   engineering follow-up, not a repeat owner acceptance item for #375.
 - [ ] Add the explicit late budget-read cancellation/stale-response regression
   carried from the previous engineering queue.
-- [ ] Fix the confirmed #404 channel-name storage collision with regression
-  coverage and safe handling of existing histories. Complete recipient/community
-  routing and browser switching checks before closing the whole issue. Assess
-  the other stability/security findings against the current candidate.
+- [ ] Complete the two #404 human judgments, pass remote CI/review and merge
+  the isolated fix. Then resolve its linked feedback and record the notification
+  receipt. Assess other stability/security findings against the current candidate.
 - [ ] Confirm current candidate remote CI/security evidence; refresh active
   release docs and archive superseded plans before promotion. Keep unresolved
   installed-instance/provider checks with their owning teams.
@@ -141,8 +182,8 @@ be read independently on GitHub.
   boundary. Diagnose and rerun failed smoke checks rather than marking them green.
 
 These engineering items remain separate from the two human usability checks.
-The acceptance-documentation branch adds only evidence/checklists to tested
-main; it does not publish a release image or change the running fleet.
+The current branch contains the tested #404 implementation plus documentation.
+It does not publish a release image or change the running fleet.
 
 ## History
 

@@ -1,10 +1,20 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: October 27, 2026
+**Last Updated**: November 10, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
 ## Active Issues
+
+### #404 candidate: legacy recovery and rollback compatibility
+
+The source fix `c938a49f` passed 570/570 local checks and awaits owner acceptance
+and reviewed merge; no deployed-instance change is implied. New named-channel
+histories use `.v2` identities. Ambiguous legacy streams remain preserved and
+blocked for owner recovery, even after conflicting names are removed. Older
+builds do not read new writes and may show stale legacy history after rollback.
+Use full backups and the [owner recovery guide](guides/RECOVER_CHANNEL_HISTORY.md).
+See [current RC98 gates](planning/RC98_ACCEPTANCE_2026-11-10.md); RC98 is not cut.
 
 ### RC95 source preview gates
 

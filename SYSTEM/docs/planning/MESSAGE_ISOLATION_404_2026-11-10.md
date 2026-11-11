@@ -1,58 +1,104 @@
-# Message isolation #404 — November 10 investigation
+# Message isolation #404 — November 10
 
-Status: confirmed defect; not fixed, not accepted, not closed.
-Source: merged main `da30720f8b1673092bfcd9b6137b23e335b4151a`.
-The investigation branch currently adds documentation only to that product source.
+Source candidate: `c938a49fda2b3e7e4567f6e76a3397223f5f5941`.
+Status: implementation and engineering validation complete; owner acceptance,
+merge and release/deployment are separate gates. RC98 has not been cut.
 
-## Confirmed storage collision
+## Reproduced failure
 
-In a disposable workspace, the production `createGroup` function accepts both
-`Sales Team` and `Sales_Team` as distinct groups. The production group-message
-POST handler saves `SYNTHETIC_ALPHA_ONLY` to `Sales Team`, without mentions.
-A GET of `Sales_Team` then returns that message despite no message being sent to
-that group. The second group's in-memory key was initially cold.
+On merged main `da30720f`, two separately created groups, `Sales Team` and
+`Sales_Team`, shared `sales_team.json`. Posting a synthetic marker only to the
+first group caused a cold read of the second to return it. Exact-name memory
+keys masked the normalized filename collision until a cold load. The archive
+code used the same normalization. The reproduction used disposable data and
+production creation/message handlers; no participant data was copied.
 
-`server/lib/messages.ts` keeps separate in-memory keys using the exact channel
-name, but `getMessageFile` replaces punctuation/whitespace with underscores and
-lowercases the name. Both names therefore use `SYSTEM/messages/groups/sales_team.json`.
-The archive naming code uses the same normalization and needs coverage too.
-This establishes a disk identity defect; it does not establish that every
-reported cross-group message had this cause.
+## Resulting behavior
 
-Evidence: `/private/tmp/clawmax-404-collision-repro.cjs`, executed with Node and
-`ts-node/register/transpile-only`. It creates/removes a temporary workspace and
-calls production creation/message handlers directly. The control demonstrated
-that creation succeeds and the unrelated group's GET returns the synthetic
-marker. No agent, model, gateway turn, participant data or real workspace was used.
-This is a handler-level reproduction, not a completed live gateway or HTTP audit.
+- New named-channel histories and archives use exact identities, scoped by
+  workspace and channel type. Spaces, underscores, case and other supported
+  characters cannot collapse into the same history filename.
+- Unambiguous legacy history retains its original bytes and receives a durable
+  ownership record. Creating a similar new name preserves an already provable
+  old owner before catalog mutation.
+- Ambiguous legacy history returns HTTP 409 with a recovery code. Its bytes are
+  preserved, and its blocked state survives subsequent catalog changes or
+  deletion of a conflicting channel. Warm caches cannot bypass that state.
+- Chat state, drafts and caches cannot move into another channel, same-named
+  community or workspace. Delayed responses are ignored after leaving a chat.
+  List-view row/name clicks switch the pane without an outside-click closing it.
+- A stale workspace header rejects a request rather than choosing another
+  workspace. Delayed work retains its original workspace context; a removed
+  context cannot fall back to the active/default workspace.
+- Recipient admission happens before saving or dispatching. Only current active
+  members are eligible; duplicate mentions dispatch once. Admission is checked
+  again at the head of the per-agent execution queue. Temporary selected-agent
+  conversations retain their explicit workspace-local behavior.
+- Native runtime sessions distinguish workspace, channel kind/name and agent.
+  Successful CLI execution no longer creates a redundant default-state session
+  directory outside the selected runtime state.
+- Recovery is a persistent, readable failure state. It blocks sending/clearing,
+  has no false empty-history message, and does not suppress healthy channels'
+  message counts. Public Lifecycle evidence follows the same archive ownership.
 
-## Additional source findings awaiting reproduction
+The storage-format change concerns named groups/communities. The direct-message
+filename format is unchanged; this record does not claim a complete messaging
+security audit.
 
-- GroupChatPanel initializes message/archive state from a channel cache only on
-  mount. Communication reuses that component when switching channels, without a
-  React identity key. Its polling effect depends on the name rather than the
-  complete channel identity. Check stale state and delayed responses when
-  switching between groups and same-named groups/communities.
-- The browser cache key contains type/name, without the workspace identity.
-  Verify cache behavior across workspace switches rather than assuming server
-  workspace isolation also covers the browser cache.
-- Verify that dispatch recipients are limited to the intended membership,
-  including community messages and explicit mentions. The storage reproduction
-  did not invoke recipients and makes no routing claim.
+## Verification
 
-## Required fix and closure evidence
+- **570/570 full local integration/validation/coverage passed**, zero
+  failures, on exact source `c938a49f`. Observed duration: 11.7 minutes.
+  Statements/lines **83.83%**, branches **81.48%**, functions
+  **92.11%**. Log: `/private/tmp/clawmax-404-full-c938a49f.log`.
+- Real targeted **OpenClaw 2026.9.7 (c074824)** group and same-named community
+  turns completed. Their replies stayed in the intended history; a disjoint
+  near-colliding group remained empty. Checks use explicit integration BYOK
+  credentials, exactly as the existing single-agent test does; ambient host
+  credentials are not admitted to make a test pass.
+- Required storage suite: **13 scenarios**, including fresh child processes,
+  legacy ownership, durable recovery after catalog changes/deletion, archives,
+  failed persistence and corrupt ownership records.
+- Required routing suite: **7 scenarios**, including disjoint memberships,
+  community dispatch, deduplication, scoped sessions/replies, workspace switches,
+  membership revocation during queueing and removal of a pinned workspace.
+- Four browser theme/viewport runs passed at 1440px/390px in light/dark mode.
+  Each desktop run also exercises the production Communications List page.
+  Checks cover delayed responses, cache and draft separation, workspace guards,
+  persistent recovery during retries and readable errors. Screenshots reviewed.
+- The real isolated dev also passed distinct-history List navigation and visible
+  recovery using seeded data, without agent execution during that UI check.
+- Production build, server TypeScript and focused ESLint passed. Strict frontend
+  TypeScript remains at **291 baseline diagnostics**, with no new diagnostic
+  patterns. That baseline is still an engineering release gate.
 
-- [ ] Give distinct supported channel identities distinct persisted histories,
-  including names differing by case, spaces, underscores or punctuation.
-- [ ] Preserve existing histories. Ambiguous legacy ownership must not be silently
-  assigned to the first reader, overwritten, deleted, or presented as empty.
-  Provide a clear recovery state if the existing bytes cannot be safely assigned.
-- [ ] Cover persistence across a fresh module/process, clear/archive/read/delete
-  boundaries, ordinary noncolliding names, and workspace/type separation.
-- [ ] Verify disjoint group memberships, community dispatch, and delayed UI
-  responses/cache scope. Fix every confirmed path covered by #404 before closure.
-- [ ] Run focused regression suites and TypeScript during implementation; retain
-  the complete integration/validation/coverage result for the next RC candidate.
-- [ ] Record source/runtime and the linked Management feedback disposition before
-  closing #404. The report remains unresolved; no participant email was sent by
-  this investigation.
+Browser artifacts: `/private/tmp/clawmax-404-browser-final/` and
+`/private/tmp/clawmax-404-live-list.png`, `/private/tmp/clawmax-404-live-recovery.png`.
+Build log: `/private/tmp/clawmax-404-build-c938a49f.log`.
+
+An earlier `f09c45d6` run passed 565/565 before five live channel checks were
+added. Intermediate runs exposed missing explicit credentials in those new
+fixtures; the final run above supersedes them. Product credential admission was
+not relaxed.
+
+## Acceptance, rollout and feedback
+
+The [owner checklist](RC98_ACCEPTANCE_2026-11-10.md) contains only two short
+human judgments: clarity when switching seeded chats and clarity of the recovery
+notice. They require no provider keys or agent turns.
+
+[Recovery guidance](../guides/RECOVER_CHANNEL_HISTORY.md) explains retained bytes,
+manual review, backup/export and the rollback limitation. Older builds do not
+read `.v2` histories; a rollback must account for the new data rather than reuse
+stale legacy files. No fleet deployment or release image was changed here.
+
+Management feedback `8b793b8a-bc32-4df0-8600-1ccfbe7e0591` links only #404. It stays
+open until the GitHub issue is addressed through the reviewed merge. The saved
+reply/notification receipt is recorded separately below; queued email is not
+reported as delivered.
+
+Management reply saved as `23d82d43-559c-4c80-af51-b9066d3e0a53` with decision `in_progress`.
+The authorized thank-you/future-version email was requested; service status is
+`pending` (due `2026-11-11T01:37:17.456615+00:00`), with no delivery
+timestamp. This is a queued notification, not evidence of delivery. The report
+retains its sole #404 issue link and is not resolved before acceptance/merge.
