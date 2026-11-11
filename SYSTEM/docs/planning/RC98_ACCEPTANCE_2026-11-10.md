@@ -1,10 +1,33 @@
 # RC98 acceptance — November 10
 
 Dashboard owner checklist. RC98 has not been cut. This source includes merged
-PRs #385, #386, #349, #347 and #341. The seven document/workflow/budget feedback
+PRs #385, #386, #349, #347, #341 and #340. The seven document/workflow/budget feedback
 fixes already accepted by the owner do not need another manual check.
 
-## Owner acceptance and remaining visual check
+## Owner acceptance — #404 complete (November 11)
+
+Open **http://localhost:5180**, refresh and select **RC98 Isolation Acceptance**.
+Expected version: **`2.0.0-dev.c938a49f`**. All messages below are seeded synthetic
+fixtures. Your earlier acceptance workspace and notes remain available.
+
+- [x] **Chat navigation feels clear.** In Communications → List view, open
+  **Isolation A**, then **Isolation_A**, then go back. The first has **ALPHA ONLY**,
+  the second **BETA ONLY**. Judge whether the selected channel and its history
+  remain clear while switching. No typing or agent execution is needed.
+  `reviewReason: human-judgment`
+- [x] **The recovery notice is understandable.** Open **Legacy Review**. Judge
+  whether the notice clearly explains that older messages are preserved and
+  require owner review before the chat can continue. This is a disposable
+  synthetic recovery example; do not try to repair real histories for acceptance.
+  `reviewReason: human-judgment`
+
+Owner replied **“LGTM accept 404”** on November 11 after reviewing the expected
+synthetic recovery notice. No further owner checks remain for #404. Automated isolation,
+reload, delayed-response, recipient and recovery-state checks are engineering
+verification, not additional owner tasks. [Recovery guidance](../guides/RECOVER_CHANNEL_HISTORY.md)
+explains the operator procedure and rollback limitation.
+
+## Owner acceptance — complete
 
 - [x] **#347 — Manage Members keyboard behavior accepted November 10.**
   Owner accepted Tab/Shift+Tab containment, Escape and focus return, with the
@@ -12,23 +35,114 @@ fixes already accepted by the owner do not need another manual check.
 - [x] **#341 — Details → Edit agent config accepted November 10.**
   Owner accepted the editing flow and preservation of Details context.
 
-Open **http://localhost:5180**, refresh and select **RC98 Acceptance**.
-Expected version: **`2.0.0-dev.81fa8579`**. The isolated workspace and any
-owner notes are retained.
+Historical dark-mode acceptance used the retained **RC98 Acceptance** workspace
+on `2.0.0-dev.81fa8579`; the current dev identity and owner queue are above.
 
-- [ ] **Dark-mode appearance follow-up in PR #340.** In Communications →
+- [x] **Dark-mode appearance follow-up in PR #340 — accepted November 10.** In Communications →
   `acceptance-desk`, open the member count. Confirm the selected agent name
   and ID are readable, including while hovering. Switch to light mode once
   and confirm the selection still looks clear. No need to repeat Save or the
   previously accepted keyboard/config checks.
   `reviewReason: human-judgment`
 
-Reply **`accept dark mode`**, or name the unreadable control. The same defect
-was corrected in WhatsApp group/community sync rows, document validation
-messages, and matching popup hover controls. Those checks are engineering-owned;
-no WhatsApp account or real credentials are needed for acceptance.
+Owner replied **“accept dark mode.”** No current manual acceptance checks remain
+for #347, #341 or this appearance follow-up. The same defect was corrected in
+WhatsApp group/community sync rows, document validation messages and matching
+popup hover controls; those checks are engineering-owned. The owner merged
+PR #340 on November 10 as `da30720f8b1673092bfcd9b6137b23e335b4151a`.
+Its [CI passed](https://github.com/Maximilien-ai/clawmax/actions/runs/42852650501)
+in about 23 minutes. Source completion, CI and owner acceptance are recorded;
+this does not establish RC98 image or fleet deployment readiness.
 
-## Engineering evidence — completed
+## Pending chat PR audit — completed
+
+- [x] **#339 closed as superseded; #333 closed as completed.** Main already
+  contains `116db34b5ab1884cf57d6d1dacd875b6893149bf`, which uses the shared
+  `ScrollableMarkdownTable` in Agent Chat and Group Chat. The original PR's
+  synthetic regression passed all four desktop/phone × modal/slide scenarios
+  on dev `81fa8579`: independent table scrolling, no page/conversation overflow,
+  visible Close/composer, compact short tables and preserved code scrolling.
+- [x] **#343 closed as superseded.** Main already uses **Responses from the
+  active runtime**, without promising live token delivery. Confirmed in all
+  four browser scenarios above. This resolves wording only; **#225 and #229
+  remain separate work for actual incremental streaming**.
+- [x] Tested `AgentChatPanel.tsx` and `ScrollableMarkdownTable.tsx` were compared
+  by Git blob hash with `origin/main` and matched exactly. No new chat product
+  code or merge was necessary. Screenshots reviewed; artifacts:
+  `/private/tmp/clawmax-chat-table-current/`. Evidence/replies attached to both
+  PRs and #333; these comments do not establish participant email delivery.
+
+**#404 owner acceptance is complete; CodeQL is clear and final CI is pending.** The confirmed
+channel-name collision is fixed with durable legacy recovery, recipient/session
+isolation and browser state separation. See [exact-source evidence](MESSAGE_ISOLATION_404_2026-11-10.md).
+After this reviewed fix, assess scheduler reliability #288 against current
+source before implementing further changes.
+
+## PR #417 remote evidence — November 11
+
+[PR #417](https://github.com/Maximilien-ai/clawmax/pull/417) remains open for the
+owner to merge after current-head checks pass. The original review head `6bc69e79`
+[passed CI tests](https://github.com/Maximilien-ai/clawmax/actions/runs/42938739082)
+in about **43 minutes**, but its aggregate security gate reported 14 high alerts.
+That original result is historical, not the status of the updated head.
+
+Security changes `50d180bb` and `602347c5` now constrain message paths to one
+filename inside the selected store, use constant logging formats, avoid logging
+channel prompt/reply text, and iterate validated recipient arrays. The storage
+mock was also narrowed to its exact synthetic directory. Storage isolation now
+passes **15 scenarios**; routing isolation passes **7 scenarios**, including
+array-like malicious recipient payloads. The other directly affected message,
+archive, channel and public plugin suites passed. Server TypeScript, focused lint
+and production build passed.
+
+On exact product source **`602347c5c4e3a58957aee4b0d2e1ab7c521a529e`**,
+[all CodeQL analysis jobs passed](https://github.com/Maximilien-ai/clawmax/actions/runs/43030142713)
+and [the aggregate gate passed](https://github.com/Maximilien-ai/clawmax/runs/130555049710).
+The authenticated PR-ref alert inventory returned **zero open alerts**.
+
+CSRF alerts [#728](https://github.com/Maximilien-ai/clawmax/security/code-scanning/728)
+(production) and [#746](https://github.com/Maximilien-ai/clawmax/security/code-scanning/746)
+(the new isolated HTTP fixture) were dismissed as verified false positives, not
+silently excluded. The existing origin guard covers `/api` before cookie-auth
+routes; real HTTP tests reject forged/null origins, cookie requests without
+provenance and spoofed Host/forwarded headers for POST/PUT/PATCH/DELETE, while
+trusted Origin/Referer requests remain usable. **133 HTTP assertions** and
+**103 security-contract assertions** passed. The [official query](https://github.com/github/codeql/blob/main/javascript/ql/src/Security/CWE-352/MissingCsrfMiddleware.ql)
+recognizes token/library patterns rather than this origin guard. Dashboard owns
+these regressions; no query was disabled and no broad security-audit claim is made.
+
+The [CI run on product source `602347c5`](https://github.com/Maximilien-ai/clawmax/actions/runs/43030150496)
+was in progress when this checkpoint was written. Later documentation-only heads
+can trigger fresh checks: wait for the actual PR head, not an older green run.
+The final complete local integration/validation/coverage rerun is pending at this
+checkpoint; its result will be attached to PR #417 with the exact tested SHA.
+No repeat owner acceptance is required for this engineering hardening. The
+retained acceptance dev remains on the owner-tested `c938a49f` UI; it is not the
+new security-source verification runtime.
+
+## Current #404 engineering evidence — complete
+
+- [x] Exact product source **`c938a49fda2b3e7e4567f6e76a3397223f5f5941`** passed
+  **570/570** full integration/validation/coverage checks, zero failures, in
+  **11.7 minutes**. Real group/community replies remained isolated.
+  Statements/lines **83.83%**, branches **81.48%**, functions **92.11%**.
+  Log: `/private/tmp/clawmax-404-full-c938a49f.log`.
+- [x] Required regressions include **13 storage** and **7 routing scenarios**;
+  five added native integration checks explain the increase from 565 to 570.
+  Headline totals count suite/API checks, not each nested assertion.
+- [x] Four light/dark × desktop/phone browser runs passed for delayed responses,
+  channel/workspace state, draft separation and persistent recovery errors.
+  Production List navigation and real isolated-dev history switching passed.
+- [x] Production build, server TypeScript and focused lint passed. Strict client
+  comparison remains **291 baseline diagnostics**, with no new patterns.
+- [x] Dev UI/API identify `2.0.0-dev.c938a49f`; synthetic acceptance data is ready.
+  Later documentation-only commits do not change this tested product source.
+
+A future-version status reply was saved for the feedback author; its email is
+queued, with delivery unconfirmed. The [receipt](MESSAGE_ISOLATION_404_2026-11-10.md#acceptance-rollout-and-feedback)
+keeps the report in progress until the reviewed fix is merged.
+
+## Earlier engineering evidence — completed
 
 - [x] PR #340 refreshed from merged main, with the contrast fix
   `c7ae85a8` and grid selection/persistence regression `81fa8579`.
@@ -93,9 +207,12 @@ be read independently on GitHub.
   engineering follow-up, not a repeat owner acceptance item for #375.
 - [ ] Add the explicit late budget-read cancellation/stale-response regression
   carried from the previous engineering queue.
-- [ ] Reproduce the group-message isolation report (#404), prioritize any
-  confirmed boundary failure, and assess remaining stability/security findings
-  against current source. An issue link alone does not establish a fix.
+- [x] Complete the two #404 human judgments (owner accepted November 11).
+- [x] Remediate the CodeQL findings and record the verified CSRF false positives;
+  analysis and aggregate gates passed on `602347c5`, zero open PR-ref alerts.
+- [ ] Pass current-head remote gates and merge
+  the isolated fix. Then resolve its linked feedback and record the notification
+  receipt. Assess other stability/security findings against the current candidate.
 - [ ] Confirm current candidate remote CI/security evidence; refresh active
   release docs and archive superseded plans before promotion. Keep unresolved
   installed-instance/provider checks with their owning teams.
@@ -111,8 +228,8 @@ be read independently on GitHub.
   boundary. Diagnose and rerun failed smoke checks rather than marking them green.
 
 These engineering items remain separate from the two human usability checks.
-The acceptance-documentation branch adds only evidence/checklists to tested
-main; it does not publish a release image or change the running fleet.
+The current branch contains the tested #404 implementation plus documentation.
+It does not publish a release image or change the running fleet.
 
 ## History
 

@@ -1,21 +1,42 @@
 # Backlog
 
-## November 10 combined acceptance checkpoint
+## November 10 current acceptance checkpoint
 
-User merged #386/#349/#347/#341; main is `ffa172c0`. The exact combined local
-integration/validation/coverage run passed **563/563**, zero failures, including
-live agent/workflow execution. Coverage is 83.70% statements/lines, 81.41%
-branches and 92.02% functions. Dev is http://localhost:5180,
-`2.0.0-dev.ffa172c0`, with a separate **RC98 Acceptance** fixture workspace.
-The owner accepted membership keyboard usability (#347) and editing from Details
-(#341) on November 10. The [current owner queue](planning/RC98_ACCEPTANCE_2026-11-10.md)
-now contains only the dark-mode appearance follow-up in existing PR #340. Desktop/mobile synthetic checks and real membership/edit-save-reload
-verification passed; demo agents were not run. Previous seven feedback fixes
-are accepted and merged. Remaining engineering/release gates are preserved in
-the current checklist. RC98 has not been cut; new backlog issues are future
-work, and the older feedback snapshot is not a fresh inventory of later arrivals.
+Merged main is `da30720f`, including #385/#386/#349/#347/#341/#340. The earlier
+seven feedback fixes, membership keyboard behavior, editing from Details and
+dark-mode follow-up are owner-accepted; no repeat manual checks are needed.
+PR #340 CI passed in about 23 minutes.
 
-## November 8 current acceptance and feedback checkpoint
+Candidate **`c938a49f`** fixes #404 channel history/recipient/session/browser
+isolation and preserves ambiguous older histories for owner recovery. Exact-source
+full integration/validation/coverage passed **570/570**, zero failures, in 11.7
+minutes: 83.83% statements/lines, 81.48% branches, 92.11% functions. Required
+storage/routing tests and four theme/viewport browser runs passed. Strict frontend
+TypeScript retains its 291-diagnostic baseline with no new patterns.
+
+Dev: **http://localhost:5180**, **`2.0.0-dev.c938a49f`**, workspace **RC98 Isolation
+Acceptance**. The [current owner checklist](planning/RC98_ACCEPTANCE_2026-11-10.md)
+records both human judgments accepted November 11: navigation clarity between
+seeded chats and clarity of the legacy recovery notice. No owner checks remain.
+[PR #417](https://github.com/Maximilien-ai/clawmax/pull/417) has security follow-ups
+`50d180bb`/`602347c5`: paths, log formats, recipient iteration and stronger tests.
+CodeQL analysis and aggregate gates passed on `602347c5`, zero open PR-ref alerts;
+the production/test CSRF false positives have explicit HTTP/contract evidence.
+Storage has 15 scenarios; security tests pass 133 HTTP and 103 contract assertions.
+Current-head CI and the final full local rerun remain to verify. #404 and its
+feedback stay open until the reviewed merge. No repeat owner acceptance is needed.
+[Implementation evidence](planning/MESSAGE_ISOLATION_404_2026-11-10.md) and
+[recovery/rollback guidance](guides/RECOVER_CHANNEL_HISTORY.md) preserve the boundary.
+
+The pending chat audit found #339/#343 already implemented in `116db34b`; both
+PRs were closed as superseded after four browser scenarios. #333 was closed with
+evidence and a feedback reply. Actual incremental streaming (#225/#229) remains
+separate. After #404, assess scheduler reliability #288 against current source
+before implementing. RC98 has not been cut. CI/security, other concrete engineering
+follow-ups, later feedback arrivals/delivery and matching public/private images
+remain separate gates in the current checklist.
+
+## November 8 historical acceptance and feedback checkpoint
 
 Use the [current owner checklist and RC98 gates](planning/RC98_ACCEPTANCE_2026-11-08.md).
 Budget #376/#377/#378 is ready at http://localhost:5180/templates,

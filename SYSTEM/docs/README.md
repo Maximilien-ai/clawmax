@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: November 10, 2026
+> Last updated: November 11, 2026
 
 Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
 `v1.9.9`. Start with the [November 10 acceptance and RC98 gates](planning/RC98_ACCEPTANCE_2026-11-10.md).
@@ -11,7 +11,9 @@ original source snapshots, not the current candidate or runtime state.
 
 | Document | Description |
 |----------|-------------|
-| [planning/RC98_ACCEPTANCE_2026-11-10.md](planning/RC98_ACCEPTANCE_2026-11-10.md) | Current two-check acceptance queue, combined 563-check evidence, exact dev identity and remaining RC98 gates |
+| [planning/RC98_ACCEPTANCE_2026-11-10.md](planning/RC98_ACCEPTANCE_2026-11-10.md) | Accepted #404 checks, full 570-check evidence, remediated CodeQL and current CI gate, exact dev identity and remaining RC98 gates |
+| [planning/MESSAGE_ISOLATION_404_2026-11-10.md](planning/MESSAGE_ISOLATION_404_2026-11-10.md) | #404 exact-source validation, legacy ownership and feedback status |
+| [guides/RECOVER_CHANNEL_HISTORY.md](guides/RECOVER_CHANNEL_HISTORY.md) | Owner recovery, backups and rollback for older channel histories |
 | [planning/RC98_ACCEPTANCE_2026-11-08.md](planning/RC98_ACCEPTANCE_2026-11-08.md) | Historical first-batch acceptance, prior test evidence and all-feedback/reply reconciliation |
 | [planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) | RC95 source preview: five included PRs, four holds, four human/provider acceptance checks and engineering evidence |
 | [FIRST_AGENT_TUTORIAL.md](FIRST_AGENT_TUTORIAL.md) | Low-code guide to define, create, test, and improve a first ClawMax agent |
