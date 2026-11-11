@@ -161,9 +161,9 @@ async function main() {
     const logError = console.error
     const logged: unknown[][] = []
     try {
-      fs.readdirSync = ((directory: fs.PathLike, ...args: any[]) => {
-        if (directory === archive) throw new Error('Synthetic archive failure')
-        return (readDirectory as any)(directory, ...args)
+      fs.readdirSync = ((directory: fs.PathLike) => {
+        assert.equal(directory, archive, 'only the synthetic archive store is read')
+        throw new Error('Synthetic archive failure')
       }) as typeof fs.readdirSync
       console.error = (...args: unknown[]) => { logged.push(args) }
       await assert.rejects(() => messages.getArchives('group', formatName), /Synthetic archive failure/)
