@@ -6,18 +6,26 @@
 
 ## Active Issues
 
-### #404 candidate: legacy recovery and rollback compatibility
+### Scheduler #287/#288 candidate and retained release boundaries
 
-The source fix `c938a49f` passed 570/570 local checks; the owner accepted on
-November 11. Security follow-up `602347c5` passes CodeQL analysis and aggregate
-gates with zero open PR-ref alerts; verified CSRF false positives have explicit
-HTTP/contract evidence in the current checklist. Current-head CI remains a merge
-gate; no deployed-instance change is implied. New named-channel
-histories use `.v2` identities. Ambiguous legacy streams remain preserved and
-blocked for owner recovery, even after conflicting names are removed. Older
-builds do not read new writes and may show stale legacy history after rollback.
-Use full backups and the [owner recovery guide](guides/RECOVER_CHANNEL_HISTORY.md).
-See [current RC98 gates](planning/RC98_ACCEPTANCE_2026-11-10.md); RC98 is not cut.
+The [November 11 scheduler checkpoint](planning/RC98_ACCEPTANCE_2026-11-11.md)
+records a 571/571 full local pass, exact-source CI, native cleanup and UI evidence.
+The existing PR awaits wording acceptance and current-head CI/review before merge.
+Two Dashboard writers sharing one workspace remain outside its single-process
+claim; manually renamed legacy jobs require owner review. Degraded legacy cleanup
+is an unresolved operational condition, not proof duplicates stopped. Same-query
+local CodeQL adds no findings, while the raw baseline still needs reconciliation
+with existing dispositions before RC98. Strict frontend typing retains 291 baseline
+diagnostics; no complete security audit or RC readiness is claimed.
+
+### #404 addressed; legacy recovery and rollback limitations retained
+
+The owner accepted #404, PR #417 merged as `0de68dae`, and its linked feedback is
+closed as addressed. Existing ambiguous history remains preserved and blocked for
+owner recovery, including after conflicting names are removed. New named-channel
+writes use `.v2`; older builds cannot read those writes and may show stale legacy
+history after rollback. Use full backups and the [recovery guide](guides/RECOVER_CHANNEL_HISTORY.md).
+Source completion does not establish an installed-instance upgrade.
 
 ### RC95 source preview gates
 

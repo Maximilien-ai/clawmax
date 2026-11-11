@@ -1,5 +1,10 @@
 # Message isolation #404 — November 10
 
+**Closed November 11:** PR #417 merged as `0de68dae`; #404 and its linked
+feedback are addressed. The [November 11 receipt](RC98_ACCEPTANCE_2026-11-11.md#completed-prior-batch)
+records the resolution reply and requested email. Pending statements below are
+historical source checkpoints, not the current issue disposition.
+
 Owner-accepted product source: `c938a49fda2b3e7e4567f6e76a3397223f5f5941`.
 Latest security product source: `602347c5c4e3a58957aee4b0d2e1ab7c521a529e`.
 Status: owner accepted November 11. CodeQL analysis and aggregate gates pass on
