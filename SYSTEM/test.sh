@@ -884,6 +884,14 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Workflow deletion recovery tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/workflowDeletion.test.ts; then
+  pass "Workflow deletion recovery tests"
+else
+  fail "Workflow deletion recovery tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent loading helper unit tests...${NC}"
 if npx ts-node --transpileOnly client/src/lib/agentReadiness.test.ts; then
   pass "Agent readiness warning tests"

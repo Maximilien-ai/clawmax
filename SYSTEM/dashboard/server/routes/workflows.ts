@@ -557,6 +557,15 @@ router.delete('/:id', (req, res) => {
     }
 
     const existing = getWorkflow(id)
+    if (existing?.cronJobId) {
+      const cleanup = syncWorkflowToCron(existing)
+      if (!cleanup.ok) {
+        return res.status(503).json({
+          code: 'workflow_legacy_cleanup_failed',
+          error: 'The workflow was kept because its older scheduled jobs could not be stopped. Check Runtime status before trying again.',
+        })
+      }
+    }
     const result = deleteWorkflow(id)
 
     if (!result.success) {
@@ -566,8 +575,6 @@ router.delete('/:id', (req, res) => {
       return res.status(500).json({ error: 'Failed to delete workflow', details: result.error })
     }
 
-    // Removes the deleted workflow's legacy Gateway jobs (only jobs the Gateway lists under the legacy name).
-    if (existing?.cronJobId) syncWorkflowToCron(existing)
     syncAllWorkflows({ syncCronRegistrations: false })
     res.json({ message: 'Workflow deleted successfully' })
   } catch (error: any) {
