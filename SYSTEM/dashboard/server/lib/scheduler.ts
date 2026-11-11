@@ -1,5 +1,6 @@
 import * as cron from 'node-cron'
 import { getWorkflow, listWorkflows, triggerWorkflow, updateWorkflow, syncWorkflowToCron, removeLegacyWorkflowCronJobsAsync } from './workflows'
+import { getWorkspacePath } from './workspace'
 import { waitForGatewayResponsive } from './gateway-rpc'
 
 interface ScheduledJob {
@@ -82,6 +83,7 @@ export function startScheduler(options: { syncGatewayCron?: boolean } = {}) {
 }
 
 export async function syncGatewayCronRegistrations(): Promise<SchedulerDiagnostics> {
+  const cleanupWorkspace = getWorkspacePath()
   schedulerDiagnostics = {
     status: 'running',
     startedAt: new Date().toISOString(),
@@ -107,6 +109,14 @@ export async function syncGatewayCronRegistrations(): Promise<SchedulerDiagnosti
     return getSchedulerDiagnostics()
   }
 
+  if (getWorkspacePath() !== cleanupWorkspace) {
+    schedulerDiagnostics = {
+      ...schedulerDiagnostics, status: 'degraded', completedAt: new Date().toISOString(),
+      failures: [{ workflowId: '*', error: 'Workspace changed during scheduler cleanup. Retry in the original workspace.' }],
+    }
+    return getSchedulerDiagnostics()
+  }
+
   const workflows = listWorkflows()
   const failures: Array<{ workflowId: string; error: string }> = []
 
@@ -121,6 +131,7 @@ export async function syncGatewayCronRegistrations(): Promise<SchedulerDiagnosti
   // workflows deleted since; after it, no stored job id refers to anything this dashboard owns.
   try {
     const cleanup = await removeLegacyWorkflowCronJobsAsync()
+    if (getWorkspacePath() !== cleanupWorkspace) throw new Error('Workspace changed during scheduler cleanup. Retry in the original workspace.')
     if (!cleanup.ok) {
       failures.push({ workflowId: '*', error: cleanup.error || 'OpenClaw cron synchronization failed' })
     } else {

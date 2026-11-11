@@ -238,6 +238,30 @@ async function run() {
     assert(diagnostics.completedAt, 'Expected synchronization completion time')
   })
 
+  for (const changeAt of ['readiness', 'cleanup']) {
+    await test(`startup cannot clear another workspace's metadata after a switch during ${changeAt}`, async () => {
+      let current = '/synthetic/workspace-a', cleanupCalls = 0, writes = 0
+      const scheduler = loadScheduler({
+        cron: { validate: () => true } as any,
+        workspace: { getWorkspacePath: () => current } as any,
+        gateway: { waitForGatewayResponsive: async () => {
+          if (changeAt === 'readiness') current = '/synthetic/workspace-b'
+          return { running: true }
+        } } as any,
+        workflows: {
+          listWorkflows: () => [{ id: 'same-id', enabled: true, schedule: '0 9 * * *', cronJobId: 'legacy-a' }],
+          removeLegacyWorkflowCronJobsAsync: async () => { cleanupCalls++; current = '/synthetic/workspace-b'; return { ok: true } },
+          updateWorkflow: () => { writes++; return { success: true } },
+        } as any,
+      })
+      const result = await scheduler.syncGatewayCronRegistrations()
+      assert.equal(writes, 0, 'Never clear the same workflow id in a different workspace')
+      assert.equal(cleanupCalls, changeAt === 'readiness' ? 0 : 1)
+      assert.equal(result.status, 'degraded')
+      assert(result.failures.some(failure => failure.error.includes('Workspace changed')))
+    })
+  }
+
   await test('scheduled workflow trigger unschedules max-run failures', async () => {
     let scheduledFn: Function | null = null
     let stopCalled = false
