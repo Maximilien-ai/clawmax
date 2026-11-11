@@ -1,5 +1,13 @@
-import assert from 'assert'
+import nodeAssert from 'assert'
 import childProcess from 'child_process'
+let assertionsRun = 0
+const assert = Object.assign(
+  (value: unknown, message?: string) => { assertionsRun++; nodeAssert(value, message) },
+  {
+    strictEqual: (a: unknown, b: unknown, message?: string) => { assertionsRun++; nodeAssert.strictEqual(a, b, message) },
+    deepStrictEqual: (a: unknown, b: unknown, message?: string) => { assertionsRun++; nodeAssert.deepStrictEqual(a, b, message) },
+  },
+)
 
 const cli = require('./openclaw-cli')
 const originalResolve = cli.resolveOpenClawCliPath
@@ -43,6 +51,7 @@ try {
   gatewayJobs = { jobs: [
     { id: `job-1; ${marker}`, name: 'clawmax-security-test-security-agent' },
     { id: '--force', name: 'nightly-backup' },
+    { id: 'other-workflow', name: 'clawmax-other-flow-security-agent' },
   ] }
   const result = syncWorkflowToCron({
     id: 'security-test',
@@ -52,7 +61,7 @@ try {
     schedule: '0 8 * * *',
     timezone: 'UTC; touch /tmp/clawmax-timezone-injection',
     content: `Treat this as literal content: ${marker}`,
-    cronJobId: `job-1; ${marker},--force`,
+    cronJobId: `job-1; ${marker},--force,other-workflow`,
     targeting: { agents: [], groups: [], communities: [], tags: [] },
   })
   assert.deepStrictEqual(result, { ok: true }, 'Expected the stored legacy job to be removed')
@@ -82,6 +91,30 @@ try {
   assert.strictEqual(partial.ok, false, 'Expected an incomplete list to be reported')
   assert.deepStrictEqual(asyncInvocations.map((call) => call.args[1]), ['list'], 'Expected no removal from a partial list')
 
+  const owned = { id: 'owned-job', name: 'clawmax-security-test-writer' }
+  for (const inventory of [
+    { jobs: [owned], total: 2 }, { jobs: [owned], total: 0 },
+    { jobs: [owned], total: '1' }, { jobs: [owned], total: 1.5 },
+    { jobs: [owned], hasMore: 'false' }, { jobs: [owned], nextOffset: 1 },
+    { jobs: [owned], offset: 1 }, { jobs: [owned, owned] },
+    { jobs: [owned, null] }, { jobs: [owned, { id: {}, name: 'bad' }] },
+    { jobs: [{ id: '--force', name: owned.name }] }, { jobs: [{ ...owned, id: 'bad\njob' }] },
+  ]) {
+    gatewayJobs = inventory
+    invocations.length = 0; asyncInvocations.length = 0
+    const sync = syncWorkflowToCron({ id: 'security-test', cronJobId: 'owned-job' } as any)
+    assert.strictEqual(sync.ok, false, 'Malformed or partial inventories must fail closed')
+    assert.strictEqual(sync.cronJobId, 'owned-job', 'Keep the retry evidence when ownership cannot be established')
+    assert.deepStrictEqual(invocations.map(call => call.args[1]), ['list'], 'No sync deletion from an invalid inventory')
+    const async = await removeLegacyWorkflowCronJobsAsync()
+    assert.strictEqual(async.ok, false)
+    assert.deepStrictEqual(asyncInvocations.map(call => call.args[1]), ['list'], 'No async deletion from an invalid inventory')
+  }
+  gatewayJobs = { jobs: [owned, { id: 'unnamed-user-job' }], total: 2, offset: 0, hasMore: false, nextOffset: null }
+  invocations.length = 0
+  assert.deepStrictEqual(syncWorkflowToCron({ id: 'security-test', cronJobId: 'owned-job' } as any), { ok: true })
+  assert.deepStrictEqual(invocations.map(call => call.args[1]), ['list', 'rm'], 'A complete pinned-CLI inventory still permits owned cleanup')
+
   cli.resolveOpenClawCliPath = () => null
   const before = invocations.length + asyncInvocations.length
   const missing = syncWorkflowToCron({ id: 'missing-pin', cronJobId: 'job-current' } as any)
@@ -89,7 +122,7 @@ try {
   const missingAsync = await removeLegacyWorkflowCronJobsAsync()
   assert.strictEqual(missingAsync.ok, false)
   assert.strictEqual(invocations.length + asyncInvocations.length, before, 'An unavailable pin must not invoke global OpenClaw')
-  console.log('workflow-cron-security.test.ts: 14 tests passed')
+  console.log(`workflow-cron-security.test.ts: ${assertionsRun} tests passed`)
 } finally {
   ;(childProcess as any).execFileSync = originalExecFileSync
   ;(childProcess as any).execFile = originalExecFile

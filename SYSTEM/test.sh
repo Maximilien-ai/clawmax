@@ -3617,9 +3617,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Workflow cron command security tests...${NC}"
-npx ts-node --transpileOnly server/lib/workflow-cron-security.test.ts > /tmp/clawmax-workflow-cron-security.out 2>&1 || true
-if grep -q "workflow-cron-security.test.ts: 14 tests passed" /tmp/clawmax-workflow-cron-security.out; then
-  pass "Workflow cron command security tests (14 tests)"
+npx ts-node --transpileOnly server/lib/workflow-cron-security.test.ts > /tmp/clawmax-workflow-cron-security.out 2>&1
+workflow_cron_security_status=$?
+if [ "$workflow_cron_security_status" -eq 0 ] && grep -Eq "workflow-cron-security.test.ts: [1-9][0-9]* tests passed" /tmp/clawmax-workflow-cron-security.out; then
+  workflow_cron_security_count=$(sed -n 's/.*workflow-cron-security.test.ts: \([0-9][0-9]*\) tests passed.*/\1/p' /tmp/clawmax-workflow-cron-security.out | tail -n 1)
+  pass "Workflow cron command security tests (${workflow_cron_security_count} tests)"
 else
   cat /tmp/clawmax-workflow-cron-security.out
   fail "Workflow cron command security tests"

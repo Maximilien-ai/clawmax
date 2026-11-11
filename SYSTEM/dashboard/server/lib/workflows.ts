@@ -1437,10 +1437,20 @@ function parseLegacyWorkflowCronJobs(output: string): Array<{ id: string; name: 
     if (!Array.isArray(data?.jobs)) return null
     // The CLI reads every page itself; a reply that still says more exist is not the whole list, and an id
     // missing from a partial list is not proof the job is gone.
-    if (data.hasMore === true || (typeof data.total === 'number' && data.total > data.jobs.length)) return null
-    return data.jobs
-      .map((job: any) => ({ id: String(job?.id || ''), name: String(job?.name || '') }))
-      .filter((job: { id: string; name: string }) => job.id && LEGACY_WORKFLOW_CRON_JOB_NAME.test(job.name))
+    if (data.hasMore !== undefined && data.hasMore !== false) return null
+    if (data.total !== undefined && (!Number.isSafeInteger(data.total) || data.total !== data.jobs.length)) return null
+    if (data.offset !== undefined && data.offset !== 0) return null
+    if (data.nextOffset !== undefined && data.nextOffset !== null) return null
+    const ids = new Set<string>()
+    for (const job of data.jobs) {
+      if (!job || typeof job.id !== 'string' || !job.id.trim() || /[\0\r\n]/.test(job.id)
+        || (job.name !== undefined && typeof job.name !== 'string') || ids.has(job.id)) return null
+      ids.add(job.id)
+    }
+    const legacy = data.jobs.filter((job: { id: string; name?: string }) => typeof job.name === 'string' && LEGACY_WORKFLOW_CRON_JOB_NAME.test(job.name))
+    // A Gateway-supplied id must never be interpreted as a CLI option.
+    if (legacy.some((job: { id: string }) => job.id.startsWith('-'))) return null
+    return legacy
   } catch {
     return null
   }
@@ -1457,7 +1467,10 @@ export function syncWorkflowToCron(workflow: Workflow): WorkflowCronSyncResult {
   if (!legacy) {
     return { ok: false, cronJobId: workflow.cronJobId, error: `${LEGACY_REMOVAL_FAILED} (the Gateway's job list could not be read: ${listed.error || 'incomplete or unreadable'})` }
   }
-  const legacyIds = new Set(legacy.map((job) => job.id))
+  // A crafted workflow must not target even another workflow's legacy jobs.
+  const prefix = `clawmax-${workflow.id}-`
+  const legacyIds = new Set(legacy.filter(job => job.name.startsWith(prefix)
+    && /^[a-z][a-z0-9_-]*$/.test(job.name.slice(prefix.length))).map(job => job.id))
   const remaining: string[] = []
   const errors: string[] = []
   // A stored id the Gateway does not list as a legacy job is gone already, or is not this dashboard's to remove.
