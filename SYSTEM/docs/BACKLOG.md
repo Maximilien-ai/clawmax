@@ -16,9 +16,12 @@ TypeScript retains its 291-diagnostic baseline with no new patterns.
 
 Dev: **http://localhost:5180**, **`2.0.0-dev.c938a49f`**, workspace **RC98 Isolation
 Acceptance**. The [current owner checklist](planning/RC98_ACCEPTANCE_2026-11-10.md)
-has only two human judgments: navigation clarity between seeded chats and clarity
-of the legacy recovery notice. Engineering isolation checks are already complete.
-#404 and its feedback stay open pending owner acceptance and reviewed merge.
+records both human judgments accepted November 11: navigation clarity between
+seeded chats and clarity of the legacy recovery notice. No owner checks remain.
+[PR #417](https://github.com/Maximilien-ai/clawmax/pull/417) tests passed on
+`6bc69e79` in about 43 minutes, but its CodeQL aggregate gate reports 14 high
+annotations requiring Dashboard triage before merge. #404 and its feedback stay
+open pending the engineering gates and reviewed merge.
 [Implementation evidence](planning/MESSAGE_ISOLATION_404_2026-11-10.md) and
 [recovery/rollback guidance](guides/RECOVER_CHANNEL_HISTORY.md) preserve the boundary.
 

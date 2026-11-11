@@ -1,8 +1,9 @@
 # Message isolation #404 — November 10
 
 Source candidate: `c938a49fda2b3e7e4567f6e76a3397223f5f5941`.
-Status: implementation and engineering validation complete; owner acceptance,
-merge and release/deployment are separate gates. RC98 has not been cut.
+Status: local validation complete and owner accepted November 11. Remote CI
+tests passed on `6bc69e79`; merge is held for 14 CodeQL high-severity annotations.
+Release/deployment remain separate gates. RC98 has not been cut.
 
 ## Reproduced failure
 
@@ -83,9 +84,13 @@ not relaxed.
 
 ## Acceptance, rollout and feedback
 
-The [owner checklist](RC98_ACCEPTANCE_2026-11-10.md) contains only two short
-human judgments: clarity when switching seeded chats and clarity of the recovery
-notice. They require no provider keys or agent turns.
+The [owner checklist](RC98_ACCEPTANCE_2026-11-10.md) records both short human
+judgments accepted November 11: clarity when switching seeded chats and clarity
+of the recovery notice. Owner reply: “LGTM accept 404.” No repeat check is needed.
+[PR #417](https://github.com/Maximilien-ai/clawmax/pull/417) awaits engineering
+security triage before merge. [CI tests passed](https://github.com/Maximilien-ai/clawmax/actions/runs/42938739082)
+on `6bc69e79`; the [CodeQL aggregate check](https://github.com/Maximilien-ai/clawmax/runs/130255444348)
+reports 14 high annotations. Dashboard owns disposition before recommending merge.
 
 [Recovery guidance](../guides/RECOVER_CHANNEL_HISTORY.md) explains retained bytes,
 manual review, backup/export and the rollback limitation. Older builds do not

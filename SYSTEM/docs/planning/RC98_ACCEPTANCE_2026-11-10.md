@@ -4,24 +4,25 @@ Dashboard owner checklist. RC98 has not been cut. This source includes merged
 PRs #385, #386, #349, #347, #341 and #340. The seven document/workflow/budget feedback
 fixes already accepted by the owner do not need another manual check.
 
-## Your two checks — #404
+## Owner acceptance — #404 complete (November 11)
 
 Open **http://localhost:5180**, refresh and select **RC98 Isolation Acceptance**.
 Expected version: **`2.0.0-dev.c938a49f`**. All messages below are seeded synthetic
 fixtures. Your earlier acceptance workspace and notes remain available.
 
-- [ ] **Chat navigation feels clear.** In Communications → List view, open
+- [x] **Chat navigation feels clear.** In Communications → List view, open
   **Isolation A**, then **Isolation_A**, then go back. The first has **ALPHA ONLY**,
   the second **BETA ONLY**. Judge whether the selected channel and its history
   remain clear while switching. No typing or agent execution is needed.
   `reviewReason: human-judgment`
-- [ ] **The recovery notice is understandable.** Open **Legacy Review**. Judge
+- [x] **The recovery notice is understandable.** Open **Legacy Review**. Judge
   whether the notice clearly explains that older messages are preserved and
   require owner review before the chat can continue. This is a disposable
   synthetic recovery example; do not try to repair real histories for acceptance.
   `reviewReason: human-judgment`
 
-Reply **`accept #404`**, or name the confusing behavior. Automated isolation,
+Owner replied **“LGTM accept 404”** on November 11 after reviewing the expected
+synthetic recovery notice. No further owner checks remain for #404. Automated isolation,
 reload, delayed-response, recipient and recovery-state checks are engineering
 verification, not additional owner tasks. [Recovery guidance](../guides/RECOVER_CHANNEL_HISTORY.md)
 explains the operator procedure and rollback limitation.
@@ -71,11 +72,26 @@ this does not establish RC98 image or fleet deployment readiness.
   `/private/tmp/clawmax-chat-table-current/`. Evidence/replies attached to both
   PRs and #333; these comments do not establish participant email delivery.
 
-**#404 implementation is ready for owner acceptance and merge.** The confirmed
+**#404 owner acceptance is complete; merge is held for security triage.** The confirmed
 channel-name collision is fixed with durable legacy recovery, recipient/session
 isolation and browser state separation. See [exact-source evidence](MESSAGE_ISOLATION_404_2026-11-10.md).
 After this reviewed fix, assess scheduler reliability #288 against current
 source before implementing further changes.
+
+## PR #417 remote evidence and merge hold — November 11
+
+[PR #417](https://github.com/Maximilien-ai/clawmax/pull/417) is open and mergeable;
+the owner merges after the engineering gates pass. On review head
+`6bc69e79774389461a38697ac4911b6848afb351`, [CI tests passed](https://github.com/Maximilien-ai/clawmax/actions/runs/42938739082)
+in about **43 minutes**. CodeQL analysis jobs completed successfully, but the
+[aggregate security check failed](https://github.com/Maximilien-ai/clawmax/runs/130255444348):
+**14 high-severity alerts in changed code**. They comprise eight path-expression
+annotations, four format-string annotations, one loop-bound annotation and one
+CSRF annotation. These require investigation; no dismissal or baseline exemption
+is inferred. Dashboard owns triage/remediation **before recommending merge**.
+This is an engineering gate, not another owner acceptance task. Documentation-only
+acceptance commits can trigger fresh checks; old green tests identify the head
+above and do not establish a later head's CI result.
 
 ## Current #404 engineering evidence — complete
 
@@ -164,7 +180,8 @@ be read independently on GitHub.
   engineering follow-up, not a repeat owner acceptance item for #375.
 - [ ] Add the explicit late budget-read cancellation/stale-response regression
   carried from the previous engineering queue.
-- [ ] Complete the two #404 human judgments, pass remote CI/review and merge
+- [x] Complete the two #404 human judgments (owner accepted November 11).
+- [ ] Triage/remediate the 14 CodeQL alerts, pass current-head remote gates and merge
   the isolated fix. Then resolve its linked feedback and record the notification
   receipt. Assess other stability/security findings against the current candidate.
 - [ ] Confirm current candidate remote CI/security evidence; refresh active

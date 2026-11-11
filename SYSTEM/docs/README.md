@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: November 10, 2026
+> Last updated: November 11, 2026
 
 Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
 `v1.9.9`. Start with the [November 10 acceptance and RC98 gates](planning/RC98_ACCEPTANCE_2026-11-10.md).
@@ -11,7 +11,7 @@ original source snapshots, not the current candidate or runtime state.
 
 | Document | Description |
 |----------|-------------|
-| [planning/RC98_ACCEPTANCE_2026-11-10.md](planning/RC98_ACCEPTANCE_2026-11-10.md) | Current two-check #404 acceptance queue, full 570-check evidence, exact dev identity and remaining RC98 gates |
+| [planning/RC98_ACCEPTANCE_2026-11-10.md](planning/RC98_ACCEPTANCE_2026-11-10.md) | Accepted #404 owner checks, full 570-check evidence, CodeQL merge hold, exact dev identity and remaining RC98 gates |
 | [planning/MESSAGE_ISOLATION_404_2026-11-10.md](planning/MESSAGE_ISOLATION_404_2026-11-10.md) | #404 exact-source validation, legacy ownership and feedback status |
 | [guides/RECOVER_CHANNEL_HISTORY.md](guides/RECOVER_CHANNEL_HISTORY.md) | Owner recovery, backups and rollback for older channel histories |
 | [planning/RC98_ACCEPTANCE_2026-11-08.md](planning/RC98_ACCEPTANCE_2026-11-08.md) | Historical first-batch acceptance, prior test evidence and all-feedback/reply reconciliation |
