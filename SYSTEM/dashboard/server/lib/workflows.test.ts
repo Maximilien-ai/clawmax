@@ -805,9 +805,9 @@ test('syncWorkflowToCron leaves scheduling to the in-process scheduler and only 
   fs.writeFileSync(fakeCli, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${calls}'\ncase "$*" in *unreachable*) exit 1;; "cron list"*) cat '${jobs}';; esac\n`, 'utf-8')
   fs.chmodSync(fakeCli, 0o755)
   fs.writeFileSync(jobs, JSON.stringify({ jobs: [
-    { id: 'job-a', name: 'clawmax-wf-scheduled-agent-a' },
-    { id: 'job-b', name: 'clawmax-wf-scheduled-agent-b' },
-    { id: 'job-unreachable', name: 'clawmax-wf-scheduled-agent-c' },
+    { id: 'job-a', name: 'clawmax-wf-scheduled-agent-a', agentId: 'agent-a' },
+    { id: 'job-b', name: 'clawmax-wf-scheduled-agent-b', agentId: 'agent-b' },
+    { id: 'job-unreachable', name: 'clawmax-wf-scheduled-agent-c', agentId: 'agent-c' },
     { id: 'user-job', name: 'nightly-backup' },
   ] }))
   const readCalls = () => fs.existsSync(calls) ? fs.readFileSync(calls, 'utf-8').split('\n').filter(Boolean) : []

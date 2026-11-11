@@ -1431,7 +1431,7 @@ function storedCronJobIds(workflow: Workflow): string[] {
 }
 
 /** The Gateway's legacy workflow jobs, or null when the list is unreadable or not the whole inventory. */
-function parseLegacyWorkflowCronJobs(output: string): Array<{ id: string; name: string }> | null {
+function parseLegacyWorkflowCronJobs(output: string): Array<{ id: string; name: string; agentId?: string }> | null {
   try {
     const data = JSON.parse(output)
     if (!Array.isArray(data?.jobs)) return null
@@ -1450,7 +1450,11 @@ function parseLegacyWorkflowCronJobs(output: string): Array<{ id: string; name: 
     const legacy = data.jobs.filter((job: { id: string; name?: string }) => typeof job.name === 'string' && LEGACY_WORKFLOW_CRON_JOB_NAME.test(job.name))
     // A Gateway-supplied id must never be interpreted as a CLI option.
     if (legacy.some((job: { id: string }) => job.id.startsWith('-'))) return null
-    return legacy
+    return legacy.map((job: { id: string; name: string; agentId?: unknown; effectiveAgentId?: unknown }) => ({
+      id: job.id, name: job.name,
+      agentId: typeof job.agentId === 'string' ? job.agentId
+        : job.agentId === undefined && typeof job.effectiveAgentId === 'string' ? job.effectiveAgentId : undefined,
+    }))
   } catch {
     return null
   }
@@ -1469,8 +1473,12 @@ export function syncWorkflowToCron(workflow: Workflow): WorkflowCronSyncResult {
   }
   // A crafted workflow must not target even another workflow's legacy jobs.
   const prefix = `clawmax-${workflow.id}-`
-  const legacyIds = new Set(legacy.filter(job => job.name.startsWith(prefix)
-    && /^[a-z][a-z0-9_-]*$/.test(job.name.slice(prefix.length))).map(job => job.id))
+  const referenced = legacy.filter(job => stored.includes(job.id) && job.name.startsWith(prefix))
+  if (referenced.some(job => !job.agentId || !/^[a-z][a-z0-9_-]*$/.test(job.agentId))) {
+    return { ok: false, cronJobId: workflow.cronJobId, error: 'Legacy scheduled-job ownership is ambiguous. Review Runtime before retrying cleanup.' }
+  }
+  // Hyphens in both ids make prefix/suffix guessing ambiguous; use Gateway agent metadata.
+  const legacyIds = new Set(referenced.filter(job => job.name === `${prefix}${job.agentId}`).map(job => job.id))
   const remaining: string[] = []
   const errors: string[] = []
   // A stored id the Gateway does not list as a legacy job is gone already, or is not this dashboard's to remove.

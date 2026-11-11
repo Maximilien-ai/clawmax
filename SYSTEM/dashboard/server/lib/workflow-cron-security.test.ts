@@ -49,9 +49,9 @@ try {
   // An id read from a workflow file is passed as one argv value, and only for a job the Gateway lists under
   // the legacy name; the user's own job named in the same file is not touched.
   gatewayJobs = { jobs: [
-    { id: `job-1; ${marker}`, name: 'clawmax-security-test-security-agent' },
+    { id: `job-1; ${marker}`, name: 'clawmax-security-test-security-agent', agentId: 'security-agent' },
     { id: '--force', name: 'nightly-backup' },
-    { id: 'other-workflow', name: 'clawmax-other-flow-security-agent' },
+    { id: 'other-workflow', name: 'clawmax-security-test-nested-security-agent', agentId: 'security-agent' },
   ] }
   const result = syncWorkflowToCron({
     id: 'security-test',
@@ -91,7 +91,7 @@ try {
   assert.strictEqual(partial.ok, false, 'Expected an incomplete list to be reported')
   assert.deepStrictEqual(asyncInvocations.map((call) => call.args[1]), ['list'], 'Expected no removal from a partial list')
 
-  const owned = { id: 'owned-job', name: 'clawmax-security-test-writer' }
+  const owned = { id: 'owned-job', name: 'clawmax-security-test-writer', agentId: 'writer' }
   for (const inventory of [
     { jobs: [owned], total: 2 }, { jobs: [owned], total: 0 },
     { jobs: [owned], total: '1' }, { jobs: [owned], total: 1.5 },
@@ -114,6 +114,14 @@ try {
   invocations.length = 0
   assert.deepStrictEqual(syncWorkflowToCron({ id: 'security-test', cronJobId: 'owned-job' } as any), { ok: true })
   assert.deepStrictEqual(invocations.map(call => call.args[1]), ['list', 'rm'], 'A complete pinned-CLI inventory still permits owned cleanup')
+  gatewayJobs = { jobs: [{ id: 'ambiguous-job', name: owned.name }] }
+  invocations.length = 0
+  const ambiguous = syncWorkflowToCron({ id: 'security-test', cronJobId: 'ambiguous-job' } as any)
+  assert.strictEqual(ambiguous.ok, false, 'Missing Gateway agent metadata cannot establish ownership')
+  assert.strictEqual(ambiguous.cronJobId, 'ambiguous-job')
+  assert.deepStrictEqual(invocations.map(call => call.args[1]), ['list'], 'Do not mutate ambiguously named jobs')
+  gatewayJobs = { jobs: [{ ...owned, agentId: undefined, effectiveAgentId: 'writer' }] }
+  assert.deepStrictEqual(syncWorkflowToCron({ id: 'security-test', cronJobId: 'owned-job' } as any), { ok: true }, 'The pinned CLI effective-agent field is authoritative when the raw field is absent')
 
   cli.resolveOpenClawCliPath = () => null
   const before = invocations.length + asyncInvocations.length

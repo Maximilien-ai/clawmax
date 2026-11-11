@@ -32,7 +32,7 @@ async function main() {
   const created: string[] = []
   try {
     const owned = add(`clawmax-${workflowId}-main`); created.push(owned)
-    const other = add(`clawmax-other-${process.pid}-main`); created.push(other)
+    const other = add(`clawmax-${workflowId}-nested-main`); created.push(other)
     const foreign = add(`external-scheduler-${process.pid}`); created.push(foreign)
     assert.deepEqual(syncWorkflowToCron({ id: workflowId, cronJobId: [owned, other, foreign].join(',') } as any), { ok: true })
     assert.deepEqual(new Set(list().map(job => job.id)), new Set([...baselineIds, other, foreign]), 'Per-workflow cleanup must preserve foreign jobs')
