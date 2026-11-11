@@ -467,12 +467,12 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Current workspace button */}
+    <div className="relative min-w-0 max-w-[18rem]" ref={dropdownRef}>
+      {/* Current workspace button; min-w-0 above lets a long name truncate in a crowded header. */}
       <button
         ref={workspaceButtonRef}
         onClick={() => { if (isOpen) setWorkspaceQuery(''); setIsOpen(!isOpen) }}
-        className="flex min-w-0 max-w-[18rem] items-center gap-2 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-gray-200 dark:bg-gray-800"
+        className="flex min-w-0 max-w-full items-center gap-2 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-gray-200 dark:bg-gray-800"
         title={activeWorkspace.name || 'Switch workspace'}
       >
         <div
@@ -598,7 +598,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                           moveWorkspaceToTop(index)
                         }}
                         disabled={index === 0}
-                        className="inline-flex items-center justify-center rounded-md p-1 text-amber-700 transition-all hover:bg-amber-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent dark:text-amber-300"
+                        className="inline-flex items-center justify-center rounded-md p-1 text-amber-700 transition-all hover:bg-amber-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent dark:text-amber-300 dark:hover:bg-amber-900/30 dark:disabled:hover:bg-transparent"
                         title={index === 0 ? 'Already at top' : 'Move workspace to top'}
                         aria-label={index === 0 ? 'Already at top' : 'Move workspace to top'}
                       >
@@ -758,9 +758,9 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                     <div className="rounded-md bg-sky-50 p-3 text-sm dark:bg-sky-950/30">
                       <div className="mb-2 font-medium text-sky-900 dark:text-sky-200">Suggested dashboards</div>
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => applyDashboardPreset('operations')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200">Operations Pulse</button>
-                        <button type="button" onClick={() => applyDashboardPreset('costs')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200">Cost & Reliability</button>
-                        <button type="button" onClick={() => applyDashboardPreset('communications')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200">Communication Desk</button>
+                        <button type="button" onClick={() => applyDashboardPreset('operations')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-900/40">Operations Pulse</button>
+                        <button type="button" onClick={() => applyDashboardPreset('costs')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-900/40">Cost & Reliability</button>
+                        <button type="button" onClick={() => applyDashboardPreset('communications')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-900/40">Communication Desk</button>
                       </div>
                     </div>
                   )}

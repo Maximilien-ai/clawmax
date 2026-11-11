@@ -41,7 +41,9 @@ async function main() {
     fs.writeFileSync(path.join(root, 'SYSTEM/brief-deliveries/dispatch.lock'), '')
     await assert.rejects(deliverAvailableBriefs(root, { ...deps, isWorkflowActive: () => false }), /lock needs review/)
     assert(!fs.readFileSync(path.join(root, 'SYSTEM/brief-deliveries', `${uncertain!.id}.json`), 'utf8').includes('private provider error'))
-    console.log('Brief delivery: combined batches, quiet window, failed runs, persistence, opt-out, revocation, uncertain sends, active-workflow wait and crash lock passed')
+    config.recipient = `${'a'.repeat(242)}@example.test`; saveConfig()
+    await assert.rejects(deliverAvailableBriefs(root, deps), /Invalid brief delivery configuration/)
+    console.log('Brief delivery: combined batches, quiet window, failed runs, persistence, opt-out, revocation, uncertain sends, active-workflow wait, crash lock and recipient length passed')
   } finally { fs.rmSync(root, { recursive: true, force: true }) }
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

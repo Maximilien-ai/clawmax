@@ -1,5 +1,5 @@
 import type { StoredByokKeys } from './byok'
-import { resolveNonDeprecatedOpenAiModel } from './openAiModelLifecycle'
+import { resolveAutoDefaultModel, resolveNonDeprecatedOpenAiModel } from './openAiModelLifecycle'
 
 type WizardAuthConfig = {
   preferredModel?: string
@@ -35,11 +35,11 @@ export function resolveAddAgentWizardDefaultModel(args: {
   const config = args.config || {}
   const byok = args.byok || {}
 
-  const browserPreferred = normalize(byok.preferredModel || byok.systemPreferredModel)
-  const configPreferred = normalize(config.preferredModel)
-  const configRecommended = normalize(config.recommendedModel)
+  const browserPreferred = resolveNonDeprecatedOpenAiModel(models, normalize(byok.preferredModel))
+  const configPreferred = resolveNonDeprecatedOpenAiModel(models, normalize(config.preferredModel))
+  const configRecommended = resolveNonDeprecatedOpenAiModel(models, normalize(config.recommendedModel))
 
-  const explicitPreferred = matches(models, browserPreferred) || matches(models, configPreferred)
+  const explicitPreferred = browserPreferred || configPreferred
   if (explicitPreferred) return resolveNonDeprecatedOpenAiModel(models, explicitPreferred)
   if (models.length === 0) return browserPreferred || configPreferred || configRecommended
 
@@ -67,7 +67,9 @@ export function resolveAddAgentWizardDefaultModel(args: {
   const recommendedMatch = matches(models, configRecommended)
   if (recommendedMatch) return resolveNonDeprecatedOpenAiModel(models, recommendedMatch)
 
-  return resolveNonDeprecatedOpenAiModel(models, models[0] || configRecommended)
+  // Auto with no usable recommendation, e.g. a key kept only in this browser, which the server
+  // cannot recommend for. The first listed model used to win, and for OpenAI that is gpt-4.1.
+  return resolveAutoDefaultModel(models)
 }
 
 export function resolveAddAgentWizardSuggestedModel(args: {
@@ -76,13 +78,13 @@ export function resolveAddAgentWizardSuggestedModel(args: {
   suggestedModel?: string | null
 }): string {
   const models = args.models || []
-  const currentModel = normalize(args.currentModel)
-  const suggestedModel = normalize(args.suggestedModel)
+  const currentModel = resolveNonDeprecatedOpenAiModel(models, normalize(args.currentModel))
+  const suggestedModel = resolveNonDeprecatedOpenAiModel(models, normalize(args.suggestedModel))
 
   if (currentModel) {
     if (models.length === 0) return currentModel
-    const currentMatch = matches(models, currentModel)
-    if (currentMatch) return currentMatch
+    // Catalog discovery is advisory; never replace an explicit selection with AI's choice.
+    return currentModel
   }
 
   if (!suggestedModel) return currentModel

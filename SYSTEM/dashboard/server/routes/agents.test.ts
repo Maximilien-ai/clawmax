@@ -252,6 +252,57 @@ async function run() {
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
 
+  await test('group membership add/remove persists across route reloads and preserves other members and communities', () => {
+    writeAgent(workspacePath, 'membership-agent', '# IDENTITY.md\n\n- **Name:** Membership Agent\n')
+    const groupsFile = path.join(workspacePath, 'ORG', 'GROUPS.md')
+    const communitiesFile = path.join(workspacePath, 'ORG', 'COMMUNITIES.md')
+    const originalGroups = fs.readFileSync(groupsFile, 'utf8')
+    const originalCommunities = fs.readFileSync(communitiesFile, 'utf8')
+    const communities = '# Communities\n\n## Communities\n\n### all-hands\n- **Members:** membership-agent, other-agent\n'
+    fs.writeFileSync(communitiesFile, communities)
+    fs.writeFileSync(groupsFile, '# Groups\n\n## Groups\n\n### alpha\n- **Description:** Keep this description\n- **Members:** other-agent\n\n### beta\n- **Description:** Starts without a Members line\n')
+    try {
+      const update = getRouteHandler('post', '/:id/communities')
+      const added = makeRes()
+      update(makeReq({ params: { id: 'membership-agent' }, body: { groups: ['alpha', 'beta'] } }), added)
+      assert.strictEqual(added.statusCode, 200)
+      const read = makeRes()
+      getRouteHandler('get', '/:id')(makeReq({ params: { id: 'membership-agent' } }), read)
+      assert.deepStrictEqual(read.jsonBody.groups.map((group: any) => group.name).sort(), ['alpha', 'beta'])
+      assert(fs.readFileSync(groupsFile, 'utf8').includes('other-agent, membership-agent'))
+      assert(fs.readFileSync(groupsFile, 'utf8').includes('Keep this description'))
+      assert.strictEqual(fs.readFileSync(communitiesFile, 'utf8'), communities)
+      const beforeInvalid = fs.readFileSync(groupsFile, 'utf8')
+      const invalid = makeRes()
+      update(makeReq({ params: { id: 'membership-agent' }, body: { groups: ['missing-group'], communities: [] } }), invalid)
+      assert.strictEqual(invalid.statusCode, 400)
+      assert.strictEqual(fs.readFileSync(groupsFile, 'utf8'), beforeInvalid)
+      assert.strictEqual(fs.readFileSync(communitiesFile, 'utf8'), communities, 'Invalid groups cannot partially change communities')
+      const malformed = makeRes()
+      update(makeReq({ params: { id: 'membership-agent' }, body: { groups: [{}] } }), malformed)
+      assert.strictEqual(malformed.statusCode, 400)
+      const originalWrite = fs.writeFileSync
+      try {
+        fs.writeFileSync = (() => { throw new Error('Read-only membership store') }) as typeof fs.writeFileSync
+        const failed = makeRes()
+        update(makeReq({ params: { id: 'membership-agent' }, body: { groups: [] } }), failed)
+        assert.strictEqual(failed.statusCode, 500)
+      } finally { fs.writeFileSync = originalWrite }
+      assert.strictEqual(fs.readFileSync(groupsFile, 'utf8'), beforeInvalid, 'Failed writes retain the persisted memberships')
+      const removed = makeRes()
+      getRouteHandler('post', '/:id/communities')(makeReq({ params: { id: 'membership-agent' }, body: { groups: ['beta'] } }), removed)
+      assert.strictEqual(removed.statusCode, 200)
+      const reread = makeRes()
+      getRouteHandler('get', '/:id')(makeReq({ params: { id: 'membership-agent' } }), reread)
+      assert.deepStrictEqual(reread.jsonBody.groups.map((group: any) => group.name), ['beta'])
+      assert(fs.readFileSync(groupsFile, 'utf8').includes('- **Members:** other-agent\n'))
+      assert.strictEqual(fs.readFileSync(communitiesFile, 'utf8'), communities)
+    } finally {
+      fs.writeFileSync(groupsFile, originalGroups)
+      fs.writeFileSync(communitiesFile, originalCommunities)
+    }
+  })
+
   await test('doctor treats missing skills as neutral guidance instead of warning', async () => {
     writeAgent(workspacePath, 'plain-agent', [
       '# IDENTITY.md',
@@ -485,23 +536,23 @@ async function run() {
 
   await test('model fit ranks only runtime-visible models and explains uncertainty', async () => {
     await withModelDiscoveryStubs({
-      getAvailableModelsCached: () => ['openai/gpt-5.3-codex'],
+      getAvailableModelsCached: () => ['openai/gpt-5.5'],
     }, async () => {
       const handler = getRouteHandler('post', '/model-fit')
       const res = makeRes()
       await handler(makeReq({
         body: {
           description: 'Review a TypeScript repository and write code changes.',
-          availableModels: ['openai/gpt-5.3-codex', 'not-configured/imaginary-model'],
+          availableModels: ['openai/gpt-5.5', 'not-configured/imaginary-model'],
           preference: 'balanced',
         },
       }), res)
 
       assert.strictEqual(res.statusCode, 200, 'Expected model fit success')
-      assert.strictEqual(res.jsonBody?.recommendedModel, 'openai/gpt-5.3-codex')
+      assert.strictEqual(res.jsonBody?.recommendedModel, 'openai/gpt-5.5')
       assert.deepStrictEqual(
         res.jsonBody?.candidates.map((candidate: any) => candidate.model),
-        ['openai/gpt-5.3-codex'],
+        ['openai/gpt-5.5'],
         'Expected unavailable request models to be excluded',
       )
       assert(/not a quality or cost measurement/i.test(res.jsonBody?.disclaimer || ''), 'Expected advisory limitation')
@@ -714,6 +765,33 @@ async function run() {
     }
   })
 
+  await test('generate keeps provider-echoed key fragments out of the error it returns', async () => {
+    const aiGeneratorPath = require.resolve('../lib/ai-generator')
+    delete require.cache[aiGeneratorPath]
+    const aiGenerator = require('../lib/ai-generator')
+    const originalGenerateAgentMeta = aiGenerator.generateAgentMeta
+
+    // OpenAI's 401 echoes the first and last characters of the rejected key.
+    aiGenerator.generateAgentMeta = async () => {
+      throw new Error('401 Incorrect API key provided: sk-proj-************************wXyZ. You can find your API key at https://platform.openai.com/account/api-keys. (xai-AbCdEf123456, AIzaSyA1234567890abcdef)')
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/generate')
+      const res = makeRes()
+      await handler(makeReq({ body: { description: 'create a lead software engineer', suggestMeta: true } }), res)
+
+      const error = String(res.jsonBody?.error || '')
+      assert.strictEqual(res.statusCode, 500)
+      assert(/401 Incorrect API key provided/.test(error), `Expected the provider's reason to stay readable, got: ${error}`)
+      assert(!/sk-proj|wXyZ|xai-AbC|AIzaSy/.test(error), `Expected no key fragment in the error, got: ${error}`)
+      assert(/\[redacted key\]\. You can find/.test(error), `Expected the sentence to stay intact, got: ${error}`)
+    } finally {
+      aiGenerator.generateAgentMeta = originalGenerateAgentMeta
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('provision returns a structured tenant agent limit conflict', async () => {
     const previous = process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE
     process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE = '0'
@@ -838,7 +916,7 @@ async function run() {
     }
   })
 
-  await test('remove-state clears attestation before registration-only OpenClaw deletion', async () => {
+  await test('ordinary deletion clears attestation and permits same-name recreation', async () => {
     const agentId = 'remove-state-agent'
     const agentWorkspace = path.join(workspacePath, 'AGENTS', agentId)
     writeAgent(workspacePath, agentId, '# IDENTITY.md\n\n- **Name:** Remove State Agent\n')
@@ -874,7 +952,7 @@ async function run() {
         }, async () => {
           const handler = getRouteHandler('delete', '/:id')
           const res = makeRes()
-          await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: true } }), res)
+          await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: false } }), res)
 
           assert.strictEqual(res.statusCode, 200)
           assert.strictEqual(res.jsonBody?.ok, true)
@@ -920,7 +998,7 @@ async function run() {
     }
   })
 
-  await test('remove-state fails closed when OpenClaw attestation cleanup cannot be verified', async () => {
+  await test('ordinary deletion fails closed when attestation cleanup cannot be verified', async () => {
     const agentId = 'remove-state-failure'
     const agentWorkspace = path.join(workspacePath, 'AGENTS', agentId)
     writeAgent(workspacePath, agentId, '# IDENTITY.md\n\n- **Name:** Remove State Failure\n')
@@ -937,7 +1015,7 @@ async function run() {
       }, async () => {
         const handler = getRouteHandler('delete', '/:id')
         const res = makeRes()
-        await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: true } }), res)
+        await handler(makeReq({ params: { id: agentId }, body: { removeStateDir: false } }), res)
 
         assert.strictEqual(res.statusCode, 503)
         assert.strictEqual(res.jsonBody?.ok, false)
@@ -945,6 +1023,23 @@ async function run() {
         assert(fs.existsSync(agentWorkspace), 'Expected visible agent workspace to remain unchanged')
         assert.deepStrictEqual(nativeDeleteCalls, [], 'Expected native registration to remain unchanged')
       })
+    })
+  })
+
+  await test('bulk delete removes each agent from the running Gateway, like single delete', async () => {
+    const ids = ['bulk-delete-one', 'bulk-delete-two']
+    for (const id of ids) writeAgent(workspacePath, id, `# IDENTITY.md\n\n- **Name:** ${id}\n`)
+    const nativeDeleteCalls: string[] = []
+    await withOpenClawWorkspaceStateStubs({ clearPinnedOpenClawWorkspaceState: async () => {} }, async () => {
+    await withGatewayRpcStubs({
+      isGatewayRunning: () => ({ running: true, port: 18789 }),
+      getGatewayClient: () => ({ deleteAgentNative: async (id: string) => { nativeDeleteCalls.push(id) } }),
+    }, async () => {
+      const res = makeRes()
+      await getRouteHandler('delete', '/bulk')(makeReq({ body: { agents: ids.map((id) => ({ id })) } }), res)
+      assert.strictEqual(res.jsonBody?.summary?.success, 2, `Unexpected bulk result: ${JSON.stringify(res.jsonBody)}`)
+      assert.deepStrictEqual(nativeDeleteCalls, ids, 'Each agent must also leave the running Gateway, not only the workspace')
+    })
     })
   })
 
@@ -2289,6 +2384,28 @@ async function run() {
     assert.strictEqual(detailRes.jsonBody?.messages?.[0]?.content, 'Need help with the current thread')
   })
 
+  await test('chat archive detail rejects names that climb out of the agent archive', async () => {
+    writeAgent(workspacePath, 'archive-path-agent', ['# IDENTITY.md', '- **Name:** Archive Path Agent', '- **Model:** openai/gpt-5.5'].join('\n'))
+    // Another agent's transcript, which neither route form may return for this agent.
+    const otherSessions = path.join(tmpHome, '.openclaw', 'agents', 'other-path-agent', 'sessions')
+    fs.mkdirSync(otherSessions, { recursive: true })
+    fs.writeFileSync(path.join(otherSessions, 'private.jsonl'), JSON.stringify({
+      type: 'message',
+      timestamp: 1,
+      message: { role: 'user', content: [{ type: 'text', text: 'another agent transcript' }], timestamp: 1 },
+    }) + '\n', 'utf-8')
+
+    const detailHandler = getRouteHandler('get', '/:id/chat/archives/:filename')
+    // The values Express hands the route after decoding `%2F`: one relative to `sessions/archive`,
+    // one to `sessions` (the `current:` form).
+    for (const filename of ['../../../other-path-agent/sessions/private.jsonl', 'current:../../other-path-agent/sessions/private']) {
+      const res = makeRes()
+      await detailHandler(makeReq({ params: { id: 'archive-path-agent', filename } }), res)
+      assert.strictEqual(res.statusCode, 400, `Expected 400 for ${filename}, got ${res.statusCode}`)
+      assert.ok(!JSON.stringify(res.jsonBody || {}).includes('another agent transcript'), `${filename} must not return another transcript`)
+    }
+  })
+
   await test('clearing a mixed openclaw+runtime chat archives both stores in timestamp order (droid P1 regression)', async () => {
     const { scopeSessionIdToModel } = require('../lib/agent-execution')
     writeAgent(workspacePath, 'mixed-agent', [
@@ -2675,6 +2792,32 @@ async function run() {
     assert.strictEqual(res.statusCode, 400, 'Expected archive path traversal delete to return HTTP 400')
   })
 
+  // The history route normalizes stored replies: a JSON example or a code block the agent wrote
+  // must come back exactly as written, not with its braces or bracketed lines removed.
+  await test('chat history keeps fenced JSON and code exactly as the agent wrote them', async () => {
+    const id = 'fenced-history-agent'
+    writeAgent(workspacePath, id, '**Name:** Fenced history\n**Model:** openai/gpt-4o-mini\n')
+    const nativeDir = path.join(tmpHome, '.openclaw', 'agents', id, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(path.join(nativeDir, 'openclaw-agent.sqlite'))
+    db.exec(`
+      CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT);
+      INSERT INTO session_nodes VALUES ('agent:fenced-history-agent:dashboard-chat', 'fenced-window');
+    `)
+    const answer = 'Request:\n\n```json\n{\n  "target_url": "https://example.com/a",\n  "tags": ["a", "b"]\n}\n```\n\n```ts\nconst first = items[m]\n```'
+    const insert = db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?)')
+    insert.run('fenced-window', 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'Show the request', timestamp: 1 } }))
+    insert.run('fenced-window', 2, JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: answer }], timestamp: 2 } }))
+    db.close()
+
+    const res = makeRes()
+    await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), res)
+    assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(res.jsonBody.messages[1]?.content, answer, 'Fenced JSON and code must come back unaltered')
+  })
+
   await test('models route forwards LM Studio and Ollama local model settings into discovery', async () => {
     const discoveryModule = require('../lib/model-discovery')
     const originalDiscoverModels = discoveryModule.discoverModels
@@ -2712,6 +2855,22 @@ async function run() {
     }
   })
 
+  await test('GET /models refuses provider keys in the URL instead of using them', async () => {
+    let discovered = 0
+    await withModelDiscoveryStubs({
+      discoverModels: async () => { discovered++; return { models: [], modelsByProvider: {} } },
+    }, async () => {
+      for (const param of ['openaiKey', 'anthropicKey', 'geminiKey', 'openrouterKey', 'xaiKey', 'openaiCompatibleApiKey']) {
+        const res = makeRes()
+        await getRouteHandler('get', '/models')(makeReq({ query: { [param]: 'fixture-secret-value' } }), res)
+        assert.strictEqual(res.statusCode, 400, `Expected ${param} in the URL to be refused`)
+        assert(res.jsonBody?.error?.includes('POST /api/agents/models/discover'), 'Expected the refusal to name the body-based route')
+        assert(!JSON.stringify(res.jsonBody).includes('fixture-secret-value'), 'The refusal must not echo the key')
+      }
+      assert.strictEqual(discovered, 0, 'A refused request must not reach a provider')
+    })
+  })
+
   await test('model search discovers configured BYOK models without clearing cache', async () => {
     const discoveryModule = require('../lib/model-discovery')
     const originalDiscoverModels = discoveryModule.discoverModels
@@ -2734,6 +2893,18 @@ async function run() {
       discoveryModule.clearModelCache = originalClearModelCache
       delete require.cache[require.resolve('./agents')]
     }
+  })
+
+  await test('model endpoint policy failures return actionable 400 errors on discovery and refresh', async () => {
+    const { ModelEndpointPolicyError } = require('../lib/model-endpoint-policy')
+    await withModelDiscoveryStubs({ discoverModels: async () => { throw new ModelEndpointPolicyError('Configure CLAWMAX_MODEL_ENDPOINT_ORIGINS') } }, async () => {
+      for (const [method, route] of [['get', '/models'], ['post', '/models/discover'], ['post', '/models/refresh']]) {
+        const res = makeRes()
+        await getRouteHandler(method as any, route)(makeReq({ body: {} }), res)
+        assert.strictEqual(res.statusCode, 400)
+        assert(res.jsonBody.error.includes('CLAWMAX_MODEL_ENDPOINT_ORIGINS'))
+      }
+    })
   })
 
   await test('models refresh clears cache and forwards local model endpoints', async () => {
@@ -2897,6 +3068,25 @@ async function run() {
     res = makeRes()
     await patchModelHandler(makeReq({ params: { id: 'plain-agent' }, body: {} }), res)
     assert.strictEqual(res.statusCode, 400, 'Expected missing model to return HTTP 400')
+  })
+
+  await test('bulk model change skips ids that are malformed or name no agent, without writing for them', async () => {
+    // An IDENTITY.md outside the workspace AGENTS directory, where `../` in an id would lead.
+    const escapedDir = path.join(workspacePath, 'escaped-agent')
+    fs.mkdirSync(escapedDir, { recursive: true })
+    const escapedIdentity = path.join(escapedDir, 'IDENTITY.md')
+    const escapedBefore = '# IDENTITY.md\n- **Model:** openai/gpt-5.5\n'
+    fs.writeFileSync(escapedIdentity, escapedBefore, 'utf-8')
+
+    const res = makeRes()
+    await getRouteHandler('post', '/bulk-model')(makeReq({ body: { agentIds: ['../escaped-agent', 'no-such-agent'], model: 'openai/gpt-5.4-nano' } }), res)
+
+    assert.strictEqual(res.jsonBody?.updated, 0, `Expected no agent updated, got ${JSON.stringify(res.jsonBody)}`)
+    assert.deepStrictEqual(res.jsonBody?.results?.map((entry: any) => entry.error), ['Invalid agent id', 'Agent not found'])
+    assert.strictEqual(fs.readFileSync(escapedIdentity, 'utf-8'), escapedBefore, 'A file outside AGENTS must not be rewritten')
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    const configText = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf-8') : ''
+    assert.ok(!configText.includes('escaped-agent') && !configText.includes('no-such-agent'), 'No runtime config entry may be created for a rejected id')
   })
 
   await test('agent model route persists automatic selection mode and priority per agent', async () => {

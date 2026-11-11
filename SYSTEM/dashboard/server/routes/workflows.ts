@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { completeGeneratedWorkflowExecution } from '../lib/workflow-content'
 import {
   listWorkflows,
   getWorkflow,
@@ -8,7 +9,9 @@ import {
   resolveParticipants,
   listExecutions,
   getExecution,
+  publicExecution,
   validateCron,
+  invalidWorkflowTimezoneError,
   triggerWorkflow,
   cancelExecution,
   completeWorkflow,
@@ -31,6 +34,11 @@ import { getDevWorkflowConfiguration, updateDevWorkflowConfiguration } from './d
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 
 const router = Router()
+
+// Both ids end up in file paths (`<id>.md`, `executions/<id>/<executionId>.json`) and Express decodes
+// `%2F` inside a parameter, so every route checks them before any lookup, read, write or delete.
+router.param('id', (_req, res, next, id) => (/^[a-z0-9-]+$/.test(id) ? next() : res.status(400).json({ error: 'Invalid workflow ID' })))
+router.param('executionId', (_req, res, next, executionId) => (/^[a-zA-Z0-9_-]+$/.test(executionId) ? next() : res.status(400).json({ error: 'Invalid execution ID' })))
 
 function devManualWorkflowRequest(req: any, id: string): boolean {
   if (!isDevTemplateWorkflowId(id)) return false
@@ -94,6 +102,16 @@ router.post('/import-md', (req, res) => {
     }
 
     if (!parsed.author) parsed.author = 'imported'
+
+    const missingDependencies = Array.isArray(parsed.dependsOn)
+      ? parsed.dependsOn.filter(id => typeof id === 'string' && !getWorkflow(id))
+      : []
+    if (missingDependencies.length) {
+      return res.status(400).json({
+        error: `Upstream workflows not found: ${missingDependencies.join(', ')}. Import them first or update dependsOn before importing this workflow.`,
+        missingDependencies,
+      })
+    }
 
     const result = createWorkflow(parsed)
     if (!result.success) {
@@ -160,8 +178,10 @@ router.post('/generate-cron', async (req, res) => {
  * Generate a complete workflow definition from natural language using AI
  */
 router.post('/generate', async (req, res) => {
-  const { description, byokKeys } = req.body as {
+  const { description, byokKeys, timezone, agentIds: selectedAgentIds } = req.body as {
     description?: string
+    agentIds?: string[]
+    timezone?: string
     byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
   if (!description || typeof description !== 'string') {
@@ -172,8 +192,23 @@ router.post('/generate', async (req, res) => {
     setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     const agents = listAgents()
     const agentIds = agents.filter(a => !a.archived).map(a => a.id)
+    if (selectedAgentIds !== undefined && (!Array.isArray(selectedAgentIds) || selectedAgentIds.some(id => typeof id !== 'string' || !agentIds.includes(id)))) {
+      return res.status(400).json({ error: 'Selected agents are no longer available in this workspace. Refresh the agent list and try again.' })
+    }
     const allTags = [...new Set(agents.flatMap(a => a.tags))]
-    const workflow = await generateWorkflowFromNL(description, agentIds, allTags)
+    const generated = await generateWorkflowFromNL(description, selectedAgentIds?.length ? selectedAgentIds : agentIds, allTags)
+    if (selectedAgentIds?.length) generated.targeting = { agents: [...new Set(selectedAgentIds)], tags: [], groups: [], communities: [], teamIds: [] }
+    const activeAgents = agents.filter(agent => !agent.archived)
+    const workflow = completeGeneratedWorkflowExecution(generated, {
+      availableAgentIds: agentIds,
+      participantIds: resolveParticipants({ ...generated, targeting: { agents: [], tags: [], groups: [], communities: [], teamIds: [], ...(generated.targeting || {}) } }, activeAgents).map(participant => participant.agentId),
+      description,
+      timezone: timezone || 'UTC',
+    })
+    const scheduleCheck = validateCron(workflow.schedule)
+    if (!scheduleCheck.valid) throw new Error(`AI returned an invalid schedule: ${scheduleCheck.error}. Your prompt is preserved; generate again.`)
+    const timezoneError = invalidWorkflowTimezoneError(workflow.timezone)
+    if (timezoneError) throw new Error(timezoneError)
     const session = getAuthenticatedSession(req)
     const author = resolveSessionAuthor(req)
     if (author && (!workflow.author || workflow.author === 'dashboard' || workflow.author === 'ClawMax AI')) {
@@ -605,7 +640,7 @@ router.get('/:id/executions', (req, res) => {
       participantCount: exec.participants.length,
       successCount: exec.participants.filter(p => p.status === 'completed').length,
       failureCount: exec.participants.filter(p => p.status === 'failed').length,
-      inputs: exec.inputs,
+      inputs: publicExecution(exec).inputs,
     }))
 
     res.json({
@@ -666,10 +701,10 @@ router.get('/:id/executions/archived', (req, res) => {
           participantCount: execution.participants.length,
           successCount: execution.participants.filter((p: any) => p.status === 'completed').length,
           failureCount: execution.participants.filter((p: any) => p.status === 'failed').length,
-          inputs: execution.inputs,
+          inputs: publicExecution(execution).inputs,
         })
       } catch (error) {
-        console.error(`Error reading archived execution ${file}:`, error)
+        console.error(`Error reading archived execution ${file}:`, error instanceof SyntaxError ? 'invalid JSON' : error)
       }
     }
 
@@ -787,7 +822,7 @@ router.get('/:id/executions/:executionId', (req, res) => {
       return res.status(404).json({ error: 'Execution not found', executionId })
     }
 
-    res.json(execution)
+    res.json(publicExecution(execution))
   } catch (error: any) {
     console.error('Error getting execution:', error)
     res.status(500).json({ error: 'Failed to get execution', message: error.message })

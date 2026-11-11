@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useToast } from './Toast'
 import { fetchModelsWithByok, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
-import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel, resolveNonDeprecatedOpenAiModel } from '../lib/openAiModelLifecycle'
+import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel, resolveOfferedDefaultModel } from '../lib/openAiModelLifecycle'
 import TemplateApplyProgress from './TemplateApplyProgress'
 
 interface AgentTemplate {
@@ -70,10 +70,9 @@ export default function ApplyAgentTemplateModal({
 
   const templateDefaultModel = template.agents[0]?.model?.trim() || ''
   const browserPreferredModel = readStoredByokKeys().preferredModel?.trim() || ''
-  const resolvedDefaultModel = resolveNonDeprecatedOpenAiModel(
-    availableModels,
-    model || templateDefaultModel || executionConfig?.preferredModel || browserPreferredModel || executionConfig?.recommendedModel || ''
-  )
+  const resolvedDefaultModel = resolveOfferedDefaultModel(availableModels, [
+    model, templateDefaultModel, executionConfig?.preferredModel, browserPreferredModel, executionConfig?.recommendedModel,
+  ])
   const hasExecutionPath = hasChatExecutionAccess(executionConfig)
   const hasResolvedDefaultModel = !!resolvedDefaultModel
   const selectedModelDeprecation = formatOpenAiDeprecationNotice(model || resolvedDefaultModel)

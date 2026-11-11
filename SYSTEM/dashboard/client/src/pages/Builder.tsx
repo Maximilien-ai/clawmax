@@ -2309,18 +2309,41 @@ export default function Builder({
     }
   }
 
+  // On large screens the page is locked to the viewport only while a transcript needs its own
+  // scroller; without one (first use) the page scroller in App must reach the suggestions below.
   return (
-    <div className="min-h-full overflow-y-auto bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_32%),linear-gradient(180deg,_rgba(15,23,42,0.04),_rgba(15,23,42,0))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_28%),linear-gradient(180deg,_rgba(15,23,42,0.25),_rgba(15,23,42,0))] lg:h-full lg:overflow-hidden">
-      <div className={`relative grid min-h-full w-full max-w-[calc(100vw-1.5rem)] grid-cols-1 gap-4 px-3 py-4 lg:h-full lg:max-w-none lg:overflow-hidden lg:px-5 ${
+    <div className={`min-h-full overflow-y-auto bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_32%),linear-gradient(180deg,_rgba(15,23,42,0.04),_rgba(15,23,42,0))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_28%),linear-gradient(180deg,_rgba(15,23,42,0.25),_rgba(15,23,42,0))] ${
+      reserveTranscriptSpace ? 'lg:h-full lg:overflow-hidden' : ''
+    }`}>
+      <div className={`relative grid min-h-full w-full max-w-[calc(100vw-1.5rem)] grid-cols-1 gap-4 px-3 py-4 lg:max-w-none lg:px-5 ${
+        reserveTranscriptSpace ? 'lg:h-full lg:overflow-hidden' : ''
+      } ${
         showRightPane ? 'lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]' : ''
       }`}>
         <section className={`flex min-h-0 min-w-0 w-full max-w-full flex-col rounded-3xl border border-gray-200 bg-white/90 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 ${
           hasConversation ? 'p-3' : 'p-4'
-        } ${reserveTranscriptSpace ? 'overflow-hidden' : 'overflow-visible lg:overflow-hidden'}`}>
+        } ${reserveTranscriptSpace ? 'overflow-x-hidden overflow-y-auto' : 'overflow-visible'}`}>
           <div className="shrink-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-600 dark:text-sky-300">Builder</div>
+              {/* The minimum width makes the badges wrap below instead of covering the panel toggle. */}
+              <div className="min-w-[min(100%,16rem)] flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-600 dark:text-sky-300">Builder</div>
+                  {/* One toggle in the page flow for both states: it never overlaps the pane or the prompt,
+                      and keeps keyboard focus when pressed because it is not swapped for another button. */}
+                  {(showRightPane || recommendation) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowRightPane((shown) => !shown)}
+                    aria-expanded={showRightPane}
+                    aria-controls="builder-side-panel"
+                    className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                  >
+                    {showRightPane ? 'Hide panel' : 'Show panel'}
+                    {showRightPane ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+                  </button>
+                  )}
+                </div>
                 <h1 className={`mt-1 font-semibold tracking-tight text-gray-950 dark:text-white ${
                   hasConversation ? 'text-xl xl:text-[1.75rem]' : 'text-2xl xl:text-[2rem]'
                 }`}>AI Builder</h1>
@@ -2335,15 +2358,6 @@ export default function Builder({
               </div>
               {recommendation && (
                 <div className="flex flex-wrap items-center gap-2">
-                  {!showRightPane && (
-                    <button
-                      type="button"
-                      onClick={() => setShowRightPane(true)}
-                      className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-200 lg:hidden"
-                    >
-                      Show recommendation
-                    </button>
-                  )}
                   <div className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-200">
                     {intentBadge(recommendation.intent)}
                   </div>
@@ -2370,10 +2384,13 @@ export default function Builder({
 
           </div>
 
-          <div className={`flex min-h-0 min-w-0 flex-col rounded-3xl border border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-950/50 ${
+          {/* While the page is locked (lg), this box may not shrink below the composer plus the transcript's
+              8rem minimum (a 0px basis makes that minimum the transcript's whole contribution; 0% would fall
+              back to its content); the section scrolls instead of clipping. */}
+          <div className={`flex min-w-0 flex-col rounded-3xl border border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-950/50 ${
             hasConversation ? 'mt-3 p-2.5' : 'mt-4 p-3'
-          } ${reserveTranscriptSpace ? 'flex-1 overflow-hidden' : 'flex-none overflow-visible lg:flex-1 lg:overflow-hidden'}`}>
-            <div ref={transcriptViewportRef} className={`${reserveTranscriptSpace ? 'min-h-0 flex-1 space-y-3 overflow-y-auto pr-1' : 'hidden'}`}>
+          } ${reserveTranscriptSpace ? 'flex-1' : 'flex-none'}`}>
+            <div ref={transcriptViewportRef} className={`${reserveTranscriptSpace ? 'min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 lg:basis-0 lg:min-h-[8rem]' : 'hidden'}`}>
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className="max-w-[88%]">
@@ -2822,27 +2839,8 @@ export default function Builder({
           qualityDomain="builder"
         />
 
-        {!showRightPane && recommendation && (
-          <button
-            onClick={() => setShowRightPane(true)}
-            className="absolute right-5 top-1/2 z-10 hidden -translate-y-1/2 items-center gap-2 rounded-l-2xl rounded-r-xl border border-gray-200 bg-white/95 px-2 py-3 text-xs text-gray-600 shadow-sm transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200 lg:inline-flex"
-            title="Show right pane"
-            aria-label="Show right pane"
-          >
-            <ChevronLeftIcon />
-          </button>
-        )}
-
         {showRightPane && (
-        <aside className="relative min-h-0 min-w-0 w-full max-w-full overflow-hidden rounded-3xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80">
-          <button
-            onClick={() => setShowRightPane(false)}
-            className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200 lg:-left-3 lg:right-auto lg:top-6"
-            title="Hide right pane"
-            aria-label="Hide right pane"
-          >
-            <ChevronRightIcon />
-          </button>
+        <aside id="builder-side-panel" aria-label="Builder side panel" className="relative min-h-0 min-w-0 w-full max-w-full overflow-hidden rounded-3xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80">
           <div ref={rightPaneRef} className="h-full space-y-3 overflow-y-auto pr-1">
             <div ref={currentRecommendationRef} className="rounded-3xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">

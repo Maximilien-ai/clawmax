@@ -95,6 +95,11 @@ test('validateCron accepts valid cron expressions', () => {
   assert(validateCron('30 9 * * 1-5').valid, 'weekdays should be valid')
 })
 
+test('validateCron accepts manual and provides useful invalid errors', () => {
+  assert(validateCron('manual').valid, 'manual should be valid')
+  assert(!!validateCron('nonsense').error, 'Invalid schedules must explain the failure')
+})
+
 test('validateCron rejects invalid expressions', () => {
   assert(!validateCron('invalid').valid, 'invalid should fail')
   assert(!validateCron('60 * * * *').valid, '60 minutes should fail')
@@ -348,6 +353,12 @@ test('workflowToMarkdown round-trips', () => {
   const parsed = parseWorkflowMd(md)
   assert(parsed?.name === wf.name, 'Round-trip name should match')
   assert(parsed?.timezone === (wf.timezone || 'UTC'), 'Round-trip timezone should match')
+  const conditional = { ...wf, dependsOn: ['upstream-a', 'unresolved-upstream'], type: 'conditional' as const }
+  const restored = parseWorkflowMd(workflowToMarkdown(conditional))
+  assert(JSON.stringify(restored?.dependsOn) === JSON.stringify(conditional.dependsOn), 'Export must retain every dependency ID, including unresolved references')
+  assert(restored?.type === 'conditional', 'Export must retain workflow classification')
+  const empty = parseWorkflowMd(workflowToMarkdown({ ...wf, dependsOn: [] }))
+  assert(Array.isArray(empty?.dependsOn) && empty.dependsOn.length === 0, 'Explicit empty dependencies must round-trip')
 })
 
 // ============================================================================
@@ -510,6 +521,13 @@ test('resolveParticipants includes team-targeted agents as direct execution targ
   assert(participants.some((p) => p.agentId === 'ceo' && p.reason.includes('team:leadership')), 'Expected leadership team lead to execute')
   assert(!participants.some((p) => p.agentId === 'eng-lead'), 'Expected non-leader team member to be excluded by default')
   assert(!participants.some((p) => p.agentId === 'analyst'), 'Expected unrelated group agent to be excluded when teamIds create direct targets')
+})
+
+test('workflow report headings do not turn successful responses into failures', () => {
+  assert(detectParticipantReportedFailure('Executive Summary\nAll agents healthy.\nFailed or Missing Responses\nNone.') === null, 'A requested report section is not a runtime failure')
+  assert(detectParticipantReportedFailure('Failed checks\n0 failures') === null, 'Descriptive headings are not failure markers')
+  assert(detectParticipantReportedFailure('FAILED: gateway unavailable') === 'FAILED: gateway unavailable', 'Explicit failed status must remain visible')
+  assert(detectParticipantReportedFailure('Failed to connect to gateway') !== null, 'Action failure must remain visible')
 })
 
 test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
@@ -1232,6 +1250,28 @@ test('triggerWorkflow mock mode completes immediately and persists output artifa
   const artifactContent = fs.readFileSync(artifactPath, 'utf-8')
   assert(artifactContent.includes('Mock execution completed by'), `Expected mock artifact content, got ${artifactContent}`)
   assert(artifactContent.includes('Audience: Hack judges'), `Expected run inputs to appear in mock artifact, got ${artifactContent}`)
+})
+
+test('create and update refuse a time zone node-cron cannot schedule, before anything is saved', () => {
+  const base = {
+    name: 'Zone Check',
+    description: 'Testing time zones',
+    schedule: '0 9 * * *',
+    content: '# Test\nMorning.',
+    executionMode: 'automated' as const,
+    targeting: { agents: [], groups: [], tags: [], communities: [] },
+  }
+  const before = listWorkflows().length
+  const refused = createWorkflow({ ...base, timezone: 'America/New_Yrok' })
+  assert(!refused.success && /Invalid timezone "America\/New_Yrok"/.test(String(refused.error)), `Unexpected result: ${JSON.stringify(refused)}`)
+  assert(listWorkflows().length === before, 'A refused workflow must not be written')
+
+  const created = createWorkflow({ ...base, timezone: 'America/New_York' })
+  assert(created.success, `A valid zone must be accepted: ${created.error}`)
+  createdIds.push(created.id!)
+  const updated = updateWorkflow(created.id!, { timezone: 'Mars/Olympus' })
+  assert(!updated.success, 'An update to an unknown zone must be refused')
+  assert(getWorkflow(created.id!)?.timezone === 'America/New_York', 'The saved zone must stay unchanged')
 })
 
 // ============================================================================

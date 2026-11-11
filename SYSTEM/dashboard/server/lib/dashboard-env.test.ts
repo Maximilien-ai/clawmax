@@ -6,6 +6,10 @@
 
 import {
   allowSystemKeysForUserExecution,
+  getSystemProviderKeys,
+  getUserDefaultProviderKeys,
+  resolveUserExecutionProviderKeys,
+  resolveSystemExecutionProviderKeys,
   getDashboardDeploymentKind,
   getDashboardInstanceLabel,
   getBestAvailableModel,
@@ -19,6 +23,7 @@ import {
   resolveRuntimeBaseUrl,
   usableProviderKeys,
 } from './dashboard-env'
+import { checkDashboardEnvStartup } from './dashboard-env-fixture'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -45,6 +50,37 @@ function test(name: string, fn: () => void) {
 }
 
 console.log(`\n${YELLOW}=== Dashboard Env Test Suite ===${RESET}\n`)
+
+test('Web-injected OpenAI keys reach generation and user execution without browser BYOK', () => {
+  checkDashboardEnvStartup({
+    runtime: { OPENAI_API_KEY: 'synthetic-web-key', USER_OPENAI_API_KEY: 'synthetic-user-key' },
+    systemKey: 'synthetic-web-key', userKey: 'synthetic-user-key',
+  })
+})
+
+test('injected deployment keys override stale standard/user keys in an env file', () => {
+  checkDashboardEnvStartup({
+    file: 'OPENAI_API_KEY=synthetic-file-key\nUSER_OPENAI_API_KEY=synthetic-file-user\n',
+    runtime: { OPENAI_API_KEY: 'synthetic-web-key', USER_OPENAI_API_KEY: 'synthetic-user-key' },
+    systemKey: 'synthetic-web-key', userKey: 'synthetic-user-key',
+  })
+})
+
+test('explicit file system key retains precedence over a standard runtime key', () => {
+  checkDashboardEnvStartup({
+    file: 'SYSTEM_OPENAI_API_KEY=synthetic-system-key\n',
+    runtime: { OPENAI_API_KEY: 'synthetic-standard-key', USER_OPENAI_API_KEY: 'synthetic-user-key' },
+    systemKey: 'synthetic-system-key', userKey: 'synthetic-user-key',
+  })
+})
+
+test('runtime system key overrides its file value without authorizing user fallback', () => {
+  checkDashboardEnvStartup({
+    file: 'SYSTEM_OPENAI_API_KEY=synthetic-file-system\n',
+    runtime: { SYSTEM_OPENAI_API_KEY: 'synthetic-runtime-system' },
+    systemKey: 'synthetic-runtime-system',
+  })
+})
 
 test('managed runtime is detected when dashboard env is empty', () => {
   assert(isManagedRuntime({}) === true, 'Expected empty env to be treated as managed runtime')

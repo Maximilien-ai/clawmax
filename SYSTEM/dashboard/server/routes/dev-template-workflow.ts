@@ -39,8 +39,9 @@ export function settleInterruptedDevRun(run: DevTemplateWorkflowRun, isActive: b
 export function formatDevWorkflowHandoff(text: string): string {
   const trimmed = text.trim()
   if (!trimmed || Buffer.byteLength(trimmed) > 64 * 1024) throw new Error('Collector report unavailable')
-  // Shared chat strips bare JSON runtime artifacts. A blockquote preserves
-  // bounded business JSON as an intentional Agent-to-Group handoff.
+  // Shared chat strips bare JSON shaped like runtime output (tool calls,
+  // search metadata). A blockquote keeps bounded business JSON an intentional
+  // Agent-to-Group handoff whatever its shape.
   const visible = /^(?:\{|\[)/.test(trimmed) ? `Collector structured report:\n> ${trimmed.replace(/\n/g, '\n> ')}` : trimmed
   if (!normalizeChatMessage(visible).trim()) throw new Error('Collector Group handoff unavailable')
   return visible

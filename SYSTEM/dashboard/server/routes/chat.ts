@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from 'express'
 import WebSocket from 'ws'
+import { parseChatJsonBody } from '../lib/chat-request-body'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
@@ -42,6 +43,7 @@ import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '.
 import { isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
 import { assertTemplateRuntimeAdmitted } from '../lib/template-runtime-admission'
 import { executeDevHostSkillChat, isDevHostSkillChatReady } from './dev-host-skill-chat'
+import { checkOpenClawModelSupport } from '../lib/openclaw-model-catalog'
 
 const router = Router()
 const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
@@ -439,7 +441,11 @@ function formatUnsupportedModelError(raw: string, context?: ChatErrorContext): s
   const modelDetail = model ? `: \`${model}\`` : '.'
   const runtimeName = context?.runtimeLabel ? `${context.runtimeLabel} CLI` : 'installed OpenClaw runtime'
   const cause = `The model identifier is not recognized by the ${runtimeName}. It may have been removed or renamed, or it may belong to a provider that is not available in this deployment.`
-  const action = 'Choose a model listed by a configured provider, save the agent, and retry.'
+  // Dated snapshots of an aliased model are the common case: offer the id the runtime does list.
+  const support = context?.runtimeLabel ? undefined : checkOpenClawModelSupport(model)
+  const action = support?.status === 'unsupported' && support.replacement
+    ? `Change the agent's model to \`${support.replacement}\`, a model listed by the installed OpenClaw runtime, save the agent, and retry.`
+    : 'Choose a model listed by a configured provider, save the agent, and retry.'
   const editLink = context?.agentId
     ? ` [Edit agent model](/agents?agent=${encodeURIComponent(context.agentId)}&action=edit)`
     : ''
@@ -457,6 +463,32 @@ const RUNTIME_CHAT_LABELS: Record<'claude' | 'droid', string> = {
 // resolveAgentRuntime()'s own default — never treat "unset" as "non-openclaw".
 function isNonOpenclawChatRuntime(runtime: unknown): runtime is 'claude' | 'droid' {
   return runtime === 'claude' || runtime === 'droid'
+}
+
+/** Distinct messages for the Gateway failures OpenClaw reports. Only the Gateway host, a close
+ * code or an auth code is taken from the raw text; nothing else is echoed. Mirrored in
+ * client/src/lib/chatRuntimeErrors.ts. */
+export function describeGatewayFailure(text: string): string | null {
+  const unreachable = text.match(/Gateway not reachable at (wss?:\/\/[^\s()]+?)\.?(?:\s|\(|$)/i)
+  if (unreachable) {
+    let host = ''
+    try { host = new URL(unreachable[1]).host } catch { /* keep the message generic */ }
+    return `OpenClaw Gateway is not running${host ? ` at ${host}` : ''}, so agent chat cannot start. Restart the Dashboard with SYSTEM/start.sh (it installs and starts a missing Gateway), or run \`openclaw gateway status\`, then retry.`
+  }
+  if (/gateway/i.test(text)) {
+    const authCode = text.match(/\b(?:DEVICE_)?AUTH_[A-Z_]{3,}\b/)?.[0]
+    if (authCode || /gateway token (?:mismatch|missing)|pairing required/i.test(text)) {
+      return `OpenClaw Gateway rejected the Dashboard's connection${authCode ? ` (${authCode})` : ''}. Check that the Dashboard and the Gateway use the same ~/.openclaw/openclaw.json (gateway.auth.token); restart the Gateway if its token changed, then retry.`
+    }
+  }
+  if (/gateway remote mode misconfigured/i.test(text)) {
+    return 'OpenClaw Gateway is set to remote mode without gateway.remote.url. Set gateway.remote.url, or set gateway.mode to local, then retry.'
+  }
+  const closeCode = text.match(/gateway closed \((\d{3,4})\)/i)?.[1]
+  if (closeCode) {
+    return `OpenClaw Gateway closed the connection (code ${closeCode}). It may be restarting; retry in a moment, and run \`openclaw gateway status\` if it continues.`
+  }
+  return null
 }
 
 export function deriveChatError(raw: string, provider?: ChatProvider, context?: ChatErrorContext): string {
@@ -540,6 +572,8 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
   if (/modelPolicy\.allow/i.test(text) && /not allowed|blocked/i.test(text)) {
     return 'The selected model is blocked by this instance or agent model policy. Ask the instance owner to review the allowed models, or choose an allowed model. This is not a gateway connectivity failure.'
   }
+  const gatewayFailure = describeGatewayFailure(text)
+  if (gatewayFailure) return gatewayFailure
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
   if (/timeout/i.test(text)) {
     const modelDetail = context?.model ? ` \`${context.model}\`` : 'The selected model'
@@ -1511,7 +1545,9 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   })
 }
 
-router.post('/:id/chat', (req, res, next) => {
+// A send carries the last few messages as context and one reply may be up to 2 MB, far over the app's 100 KB
+// default (which skips this path, see server/index.ts). Parsed here, behind the router's authentication.
+router.post('/:id/chat', parseChatJsonBody, (req, res, next) => {
   if (isDevHostSkillChatReady(req, req.params.id)) return executeDevHostSkillChat(req, res).catch(next)
   return executeAgentChat(req, res).catch(next)
 })

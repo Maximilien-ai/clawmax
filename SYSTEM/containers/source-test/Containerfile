@@ -1,0 +1,9 @@
+FROM docker.io/library/node:26.12.1-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl git python3 make g++ procps lsof openssl util-linux \
+    && rm -rf /var/lib/apt/lists/*
+COPY entrypoint.sh /usr/local/bin/clawmax-source-test
+RUN chmod +x /usr/local/bin/clawmax-source-test
+USER node
+WORKDIR /home/node
+ENTRYPOINT ["/usr/local/bin/clawmax-source-test"]

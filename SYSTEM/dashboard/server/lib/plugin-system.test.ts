@@ -611,6 +611,40 @@ async function run() {
     }
   })
 
+  await test('plugin record ids and document paths from a request never move or delete files outside the plugin folder', () => {
+    const plugin = getPluginBySlug('plugin-guardrails')
+    assert(plugin, 'Expected guardrails test plugin manifest to load')
+    const victim = path.join(tempWorkspace, 'ORG', 'plugin-path-probe.md')
+    fs.mkdirSync(path.dirname(victim), { recursive: true })
+    fs.writeFileSync(victim, 'keep me', 'utf-8')
+    // `document.path` pointing at another workspace file, and an id whose legacy `items/<id>.md` is that file.
+    const byDocument = upsertPluginRecord(plugin!, { name: 'Path probe', enabled: false, document: { path: 'ORG/plugin-path-probe.md' } } as any)
+    const byId = upsertPluginRecord(plugin!, { id: '../../../../ORG/plugin-path-probe', name: 'Id probe', enabled: false } as any)
+    listPluginRecords(plugin!)
+    assert.strictEqual(fs.readFileSync(victim, 'utf-8'), 'keep me', 'Listing records must not move or remove a file outside the plugin folder')
+    deletePluginRecord(plugin!, byDocument.id)
+    deletePluginRecord(plugin!, byId.id)
+    assert.strictEqual(fs.readFileSync(victim, 'utf-8'), 'keep me', 'Deleting records must not delete a file outside the plugin folder')
+    fs.rmSync(victim, { force: true })
+
+    // Inside the plugin folder only its record files count: a document path naming items.json must not take
+    // every record with it, while a legacy items/<id>.md of the plugin's own is still cleaned up.
+    const pluginRoot = path.join(tempWorkspace, 'SYSTEM', 'plugins', plugin!.slug)
+    const kept = upsertPluginRecord(plugin!, { name: 'Kept record', enabled: false } as any)
+    const byStore = upsertPluginRecord(plugin!, { name: 'Store probe', enabled: false, document: { path: `SYSTEM/plugins/${plugin!.slug}/items.json` } } as any)
+    listPluginRecords(plugin!)
+    const docsDir = path.join(pluginRoot, 'docs')
+    const storeMovedToDocs = fs.existsSync(docsDir) && fs.readdirSync(docsDir).some((file) => fs.readFileSync(path.join(docsDir, file), 'utf-8').trimStart().startsWith('['))
+    assert(!storeMovedToDocs, 'The records file must not be moved into docs/ as a record document')
+    deletePluginRecord(plugin!, byStore.id)
+    assert(listPluginRecords(plugin!).some((record) => record.id === kept.id), 'Deleting one record must not delete the records file')
+    const legacyItem = path.join(pluginRoot, 'items', `${kept.id}.md`)
+    fs.writeFileSync(legacyItem, '# legacy', 'utf-8')
+    listPluginRecords(plugin!)
+    assert(!fs.existsSync(legacyItem), 'A legacy item file of the plugin itself is still removed')
+    deletePluginRecord(plugin!, kept.id)
+  })
+
   await test('guardrail plugin records persist, enforce outbound email, generate docs, and emit notifications', () => {
     const plugin = getPluginBySlug('plugin-guardrails')
     assert(plugin, 'Expected guardrails test plugin manifest to load')
@@ -754,6 +788,9 @@ async function run() {
     assert(documentContent.includes('**Release:** 2.0.0-test-rc4'), 'Expected release boundary in generated document')
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
+    const rc95 = listPluginTemplates(plugin!).filter(template => 'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc95')
+    assert.strictEqual(rc95.length, 12, 'Fresh installations need all RC95 acceptance checks')
+    assert(rc95.every(template => 'fields' in template.payload && template.payload.fields?.outcome === 'pending' && ['human-judgment', 'external-environment'].includes(String(template.payload.fields?.reviewReason))), 'RC95 must not copy another reviewer outcomes')
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
       'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc46'
     ))
@@ -1083,6 +1120,14 @@ async function run() {
       } as any),
       (error: any) => error instanceof PluginContractError && error.statusCode === 400 && error.message.includes('email'),
       'Expected invalid reviewer email to be rejected',
+    )
+    assert.throws(
+      () => upsertPluginRecord(plugin!, {
+        name: 'Overlong reviewer',
+        experiment: { judge: 'human', humanReviewerEmail: `${'a'.repeat(243)}@example.com` },
+      } as any),
+      (error: any) => error instanceof PluginContractError && error.statusCode === 400 && error.message.includes('email'),
+      'Expected a reviewer email over 254 characters to be rejected',
     )
     assert.throws(
       () => upsertPluginRecord(plugin!, {

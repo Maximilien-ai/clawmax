@@ -93,6 +93,14 @@ async function main() {
   )
   await rejects(
     () => invokeMailCapability(grant, provider, request('mail.draft.create', {
+      to: [`${'a'.repeat(243)}@example.com`],
+      subject: 'Review',
+      body: 'Body',
+    })),
+    /valid email addresses/,
+  )
+  await rejects(
+    () => invokeMailCapability(grant, provider, request('mail.draft.create', {
       to: ['reviewer@example.com'],
       subject: 'Review\r\nBcc: attacker@example.com',
       body: 'Body',

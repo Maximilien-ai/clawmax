@@ -1,6 +1,9 @@
+import { saveChannelDisplayName } from './channel-display-name'
 import fs from 'fs'
+import { isPlainPathSegment } from './path-segment'
 import path from 'path'
 import matter from 'gray-matter'
+import { parseFrontMatter } from './front-matter'
 import { getSystemProviderKeys } from './dashboard-env'
 import Ajv from 'ajv'
 import { execSync } from 'child_process'
@@ -13,6 +16,7 @@ import { validateAgentConfigSections } from './agent-config-validation'
 import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile } from './agent-model'
 import { recordTemplateApply, type CanonicalTemplateFeedbackSource, type CanonicalTemplateFeedbackType } from './template-feedback'
 import { resolveDefaultAgentModel } from './agent-default-model'
+import { describeOpenClawModelRejection } from './openclaw-model-catalog'
 import { applyGeneratedWorkflowHandoffs, normalizeGeneratedWorkflowReferences } from './ai-generator'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
@@ -1124,7 +1128,7 @@ export function slugify(name: string): string {
  */
 export function parseTemplateMd(content: string): Template | null {
   try {
-    const { data, content: body } = matter(content)
+    const { data, content: body } = parseFrontMatter(content)
     if (!data.name || !data.type) return null
 
     const template: any = {
@@ -1722,6 +1726,7 @@ export function saveTemplate(
     // Check reserved names
     const slug = slugify(template.name)
     const existingSlug = options?.existingSlug?.trim()
+    if (existingSlug && !isPlainPathSegment(existingSlug)) return { ok: false, error: 'Invalid template slug' }
     const RESERVED_SLUGS = ['clawmax-system-test', 'system-test']
     if (RESERVED_SLUGS.includes(slug)) {
       return { ok: false, error: `Template name "${template.name}" is reserved for system use` }
@@ -1781,7 +1786,7 @@ export function saveTemplate(
     const templateMdPath = path.join(templateDir, 'TEMPLATE.md')
     fs.writeFileSync(templateMdPath, templateToMarkdown(normalizedTemplate), 'utf-8')
 
-    if (normalizedTemplate.type === 'agent' && normalizedTemplate.metadata?.basedOnSlug) {
+    if (normalizedTemplate.type === 'agent' && isPlainPathSegment(normalizedTemplate.metadata?.basedOnSlug)) {
       const sourceSlug = normalizedTemplate.metadata.basedOnSlug
       const sourceType = normalizedTemplate.metadata.basedOnSource || 'system'
       const sourceDir = sourceType === 'workspace'
@@ -1914,6 +1919,7 @@ export function resolveAgentTemplateSlug(templateSlug: string): string | null {
  * Checks workspace first (user templates), then global (system templates)
  */
 export function getTemplate(type: 'agent' | 'organization', slug: string): Template | null {
+  if (!isPlainPathSegment(slug)) return null
   ensureTemplateDirs()
 
   // Check workspace templates first (user-created, higher priority)
@@ -1951,6 +1957,7 @@ export function getTemplate(type: 'agent' | 'organization', slug: string): Templ
  * Delete a template
  */
 export function deleteTemplate(type: 'agent' | 'organization', slug: string): { ok: boolean; error?: string } {
+  if (!isPlainPathSegment(slug)) return { ok: false, error: 'Template not found' }
   try {
     const templateDir = type === 'agent'
       ? path.join(getAgentTemplatesDir(), slug)
@@ -2163,6 +2170,8 @@ export async function importAgentFromTemplate(
     if (!effectiveModel) {
       return { ok: false, error: 'No default model could be resolved for this agent template. Configure a provider key/runtime or choose a model explicitly.' }
     }
+    const modelRejection = describeOpenClawModelRejection([{ model: effectiveModel, label: 'model' }])
+    if (modelRejection) return { ok: false, error: modelRejection }
 
     const fileValidation = validateAgentTemplateFiles(templateDir, sourceAgent.id)
     if (!fileValidation.valid) {
@@ -2572,6 +2581,7 @@ export async function importOrganizationTemplate(
     workflowRenames?: Record<string, string>
   }
 ): Promise<{ ok: boolean; agentIds?: string[]; error?: string }> {
+  if (!isPlainPathSegment(templateSlug)) return { ok: false, error: 'Template not found' }
   try {
     // Check workspace templates first (user templates)
     let templateDir = path.join(getOrgTemplatesDir(), templateSlug)
@@ -2830,6 +2840,8 @@ export async function importOrganizationTemplate(
         if (!appliedModel) {
           throw new Error(`No default model could be resolved for agent ${targetAgentId}. Configure a provider key/runtime or choose a model override first.`)
         }
+        const modelRejection = describeOpenClawModelRejection([{ model: appliedModel, label: `model for agent ${targetAgentId}` }])
+        if (modelRejection) throw new Error(modelRejection)
         appliedModelsByAgentId[targetAgentId] = appliedModel
 
         // Validate target agent ID
@@ -3079,6 +3091,18 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
               console.warn(`Failed to create GROUPS.md for ${targetAgentId}:`, err)
             }
           }
+        }
+      }
+
+      // Keep human names separate from namespaced routing/membership IDs.
+      for (const kind of ['group', 'community'] as const) {
+        const originals = kind === 'group' ? template.groups : template.communities
+        const renames = kind === 'group' ? groupRenames : communityRenames
+        const explicitRenames = kind === 'group' ? options?.groupRenames : options?.communityRenames
+        for (const channel of originals || []) {
+          const id = renames[channel.name] || channel.name
+          const label = explicitRenames?.[channel.name]?.trim() || channel.name
+          saveChannelDisplayName(getWorkspacePath(), kind, id, label)
         }
       }
 

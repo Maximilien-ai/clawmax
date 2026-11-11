@@ -8,6 +8,7 @@ dockerfile="$repo_root/Dockerfile"
 ci_workflow="$repo_root/.github/workflows/ci.yml"
 test_wrapper="$repo_root/SYSTEM/test-with-server.sh"
 start_script="$repo_root/SYSTEM/start.sh"
+runtime_helper="$repo_root/SYSTEM/openclaw-dev-runtime.sh"
 test_suite="$repo_root/SYSTEM/test.sh"
 
 fail() {
@@ -55,9 +56,11 @@ if grep -q 'gateway restart' "$test_wrapper"; then
 fi
 grep -Fq '. "$SCRIPT_DIR/openclaw-version.sh"' "$start_script" \
   || fail "expected local development to source the branch OpenClaw target"
-grep -Fq 'prepare-openclaw-target.sh" --print-bin' "$start_script" \
+grep -Fq 'openclaw-dev-runtime.sh' "$start_script" \
+  || fail "expected startup to share pinned runtime preparation with setup"
+grep -Fq 'prepare-openclaw-target.sh" --print-bin' "$runtime_helper" \
   || fail "expected local development to prepare a mismatched OpenClaw target"
-grep -Fq 'Local development requires OpenClaw' "$start_script" \
+grep -Fq 'Local development requires OpenClaw' "$runtime_helper" \
   || fail "expected local development to reject an unresolved OpenClaw mismatch"
 grep -Fq 'fail "Agent chat failed:' "$test_suite" \
   || fail "expected live agent chat failures to fail the gate"

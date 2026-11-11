@@ -39,6 +39,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
+import { resolvePathWithin } from '../lib/path-segment'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { randomUUID } from 'crypto'
@@ -1071,7 +1072,7 @@ router.post('/import-github', async (req, res) => {
 
     const os = require('os')
 
-    const tempDir = path.join(os.tmpdir(), `openclaw-skill-${Date.now()}`)
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-skill-'))
 
     try {
       // Clone the repository
@@ -1081,18 +1082,16 @@ router.post('/import-github', async (req, res) => {
       // Determine import root: subdir override, or auto-detect
       let importRoot = tempDir
       if (subdir) {
-        importRoot = path.resolve(tempDir, subdir)
-        if (importRoot !== tempDir && !importRoot.startsWith(`${tempDir}${path.sep}`)) {
-          throw new Error('Subdirectory must stay inside the cloned repository')
-        }
+        importRoot = resolvePathWithin(tempDir, subdir)
         if (!fs.existsSync(importRoot)) {
           throw new Error(`Subdirectory "${subdir}" not found in repository`)
         }
+        // The check above is by name; a symlinked subdirectory still points outside the clone.
       }
 
       // Check if this is a multi-skill repo (has skills/ directory with subdirs containing SKILL.md)
-      const skillsDir = path.join(importRoot, 'skills')
-      const hasSkillsDir = fs.existsSync(skillsDir) && fs.statSync(skillsDir).isDirectory()
+      const skillsDir = resolvePathWithin(importRoot, 'skills')
+      const hasSkillsDir = fs.existsSync(skillsDir) && fs.lstatSync(skillsDir).isDirectory()
 
       // Also check if importRoot itself is a single skill (has SKILL.md or skill.md)
       const isSingleSkill = fs.existsSync(path.join(importRoot, 'SKILL.md')) ||
@@ -1103,7 +1102,8 @@ router.post('/import-github', async (req, res) => {
         // Multi-skill repo: import each subdirectory under skills/
         const skillDirs = fs.readdirSync(skillsDir).filter((d: string) => {
           const skillPath = path.join(skillsDir, d)
-          if (!fs.statSync(skillPath).isDirectory()) return false
+          // lstat: a symlinked skill folder would import a directory from outside the clone.
+          if (!fs.lstatSync(skillPath).isDirectory()) return false
           // Must have SKILL.md or skill.md
           return fs.existsSync(path.join(skillPath, 'SKILL.md')) ||
                  fs.existsSync(path.join(skillPath, 'skill.md'))
@@ -1420,8 +1420,9 @@ router.post('/registry/install', async (req, res) => {
             }
           }
 
-          // Copy entire directory recursively
-          fs.cpSync(skillDir, targetDir, { recursive: true })
+          // Copy entire directory recursively, without symlinks: one in a downloaded package can point at any
+          // file of this machine, and cpSync would recreate it inside the workspace.
+          fs.cpSync(skillDir, targetDir, { recursive: true, filter: (source) => !fs.lstatSync(source).isSymbolicLink() })
 
           // Ensure SKILL.md exists (rename skill.md if needed)
           if (!fs.existsSync(path.join(targetDir, 'SKILL.md')) && fs.existsSync(path.join(targetDir, 'skill.md'))) {

@@ -116,7 +116,7 @@ expanding scope.
 
 ## Tests And Release Validation
 
-- Treat 2,000 tokens per local calendar day as the user-notification threshold
+- Treat 5,000 tokens per local calendar day as the user-notification threshold
   for repository work. When session-visible usage reaches that threshold, tell
   the user once and continue only as directed. This cannot include usage from
   unrelated threads or tools that do not expose token accounting.

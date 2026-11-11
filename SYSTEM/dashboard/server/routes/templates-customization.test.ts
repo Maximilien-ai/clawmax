@@ -4,7 +4,10 @@
  * Run with: npx ts-node --transpileOnly server/routes/templates-customization.test.ts
  */
 
+import fs from 'fs'
+import path from 'path'
 import { validateOrganizationCustomization } from './templates'
+import { findMissingRequiredWorkflowFields } from '../lib/workflow-required-fields'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -220,6 +223,66 @@ test('accepts recurring desk optional apply fields for personal ops templates', 
 
   assert(result.valid === true, 'Expected recurring-desk optional placeholders to pass')
   assert(result.errors.length === 0, 'Expected no validation errors for recurring-desk optional placeholders')
+})
+
+function serverMissingFields(result: { errors: string[] }): string[] {
+  return result.errors.map((error) => error.match(/empty required field: (.+)\.$/)?.[1] || '').filter(Boolean)
+}
+
+test('the apply form and the server agree on required workflow fields, including declared optional inputs', () => {
+  const content = `## Run Inputs
+- **Event type:** [birthday, dinner, meetup]
+- **Food and drink plan:** [food and drink plan]
+- **Budget or purchase constraints:** [budget or purchase constraints]
+- **Dietary notes (optional):** [e.g., vegan guests]
+- **Output artifact:** run-of-show
+`
+  const inputs = [
+    { name: 'eventType', label: 'Event type', required: true },
+    { name: 'foodAndDrinkPlan', label: 'Food and drink plan', required: false },
+    // Declared under a different label; matched by name.
+    { name: 'outputArtifact', label: 'Final output artifact', required: true },
+  ]
+  const formMissing = findMissingRequiredWorkflowFields(content, inputs)
+  assert(
+    JSON.stringify(formMissing) === JSON.stringify(['Event type', 'Budget or purchase constraints']),
+    `Unexpected required fields: ${JSON.stringify(formMissing)}`,
+  )
+  const result = validateOrganizationCustomization({ workflows: [{ id: 'kickoff', name: 'Kickoff', content, inputs }] })
+  assert(JSON.stringify(serverMissingFields(result)) === JSON.stringify(formMissing), `Server disagrees: ${JSON.stringify(result.errors)}`)
+})
+
+test('Small Event Planning Desk deploys once its required kickoff inputs are filled, and not before', () => {
+  const templatePath = path.resolve(__dirname, '../../../../TEMPLATES/organizations/small-event-planning-desk/template.json')
+  const template = JSON.parse(fs.readFileSync(templatePath, 'utf-8'))
+  const workflows = template.workflows.map((workflow: any) => ({ id: workflow.id, name: workflow.name, content: workflow.content, inputs: workflow.inputs }))
+  const kickoff = workflows.find((workflow: any) => workflow.id === 'small-event-kickoff')
+
+  const before = validateOrganizationCustomization({ workflows })
+  const missing = findMissingRequiredWorkflowFields(kickoff.content, kickoff.inputs)
+  assert(before.valid === false, 'Expected the unfilled template to be rejected')
+  assert(JSON.stringify(serverMissingFields(before)) === JSON.stringify(missing), `Server and form disagree: ${JSON.stringify(before.errors)}`)
+  assert(missing.includes('Event type') && missing.includes('Venue or format'), 'Expected the declared required inputs to be required')
+  assert(!missing.includes('Food and drink plan'), 'Expected the input the template declares optional not to block deployment')
+
+  const filled = missing.reduce((content: string, label: string) => content.replace(
+    new RegExp(`^(-\\s+\\*\\*${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\*\\*)\\s+.*$`, 'm'),
+    `$1 value for ${label}`,
+  ), kickoff.content)
+  const after = validateOrganizationCustomization({
+    workflows: workflows.map((workflow: any) => workflow.id === kickoff.id ? { ...workflow, content: filled } : workflow),
+  })
+  assert(after.valid === true, `Expected the filled template to pass: ${JSON.stringify(after.errors)}`)
+})
+
+test('blank and whitespace-only required fields do not consume the following line', () => {
+  for (const padding of ['', ' ', '\t  ']) {
+    const content = `## Run Inputs\n- **Event name:**${padding}\n- **Venue:** supplied\n- **Notes (optional):**\n`
+    assert(JSON.stringify(findMissingRequiredWorkflowFields(content)) === JSON.stringify(['Event name']), 'Blank required field must be reported on its own line')
+    const result = validateOrganizationCustomization({ workflows: [{ id: 'blank-check', name: 'Blank check', content }] })
+    assert(!result.valid && serverMissingFields(result).includes('Event name'), 'Server must reject an empty required value')
+  }
+  assert(findMissingRequiredWorkflowFields('- **Event name:** [optional title]', [{ name: 'eventName', required: true }]).includes('Event name'), 'An explicit required declaration must take precedence over placeholder wording')
 })
 
 console.log('\n========================================')

@@ -5,8 +5,10 @@
  */
 
 import fs from 'fs'
+import http from 'http'
 import os from 'os'
 import path from 'path'
+import express from 'express'
 import { createWorkflow } from '../lib/workflows'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 
@@ -65,6 +67,7 @@ function ensureWorkspaceScaffold(workspacePath: string) {
 }
 
 function getRouter(overrides: {
+  workspace?: Partial<typeof import('../lib/workspace')>
   aiGenerator?: Partial<typeof import('../lib/ai-generator')>
   workflows?: Partial<typeof import('../lib/workflows')>
   notifications?: Partial<typeof import('../lib/notifications')>
@@ -72,6 +75,7 @@ function getRouter(overrides: {
 } = {}) {
   const moduleOverrides: Array<[string, Record<string, any> | undefined]> = [
     ['../lib/ai-generator', overrides.aiGenerator as any],
+    ['../lib/workspace', overrides.workspace as any],
     ['../lib/workflows', overrides.workflows as any],
     ['../lib/notifications', overrides.notifications as any],
     ['../lib/scheduler', overrides.scheduler as any],
@@ -91,6 +95,7 @@ function getRouteHandler(
   method: 'get' | 'post' | 'delete' | 'put',
   routePath: string,
   overrides: {
+    workspace?: Partial<typeof import('../lib/workspace')>
     aiGenerator?: Partial<typeof import('../lib/ai-generator')>
     workflows?: Partial<typeof import('../lib/workflows')>
     notifications?: Partial<typeof import('../lib/notifications')>
@@ -342,6 +347,27 @@ async function run() {
     deleteRes = makeRes()
     await deleteHandler(makeReq({ id: 'missing-workflow' }), deleteRes)
     assert(deleteRes.statusCode === 404, `Expected missing workflow delete to return 404, got ${deleteRes.statusCode}`)
+  })
+
+  await test('workflow import preserves known dependencies and rejects unresolved references before creating', async () => {
+    let saved: any = null
+    const handler = getRouteHandler('post', '/import-md', { workflows: {
+      getWorkflow: (id: string) => id === 'known-parent' ? { id } as any : null,
+      createWorkflow: (workflow: any) => { saved = workflow; return { success: true, id: 'imported-copy' } },
+    } })
+    for (const dependsOn of ['[known-parent]', '[]']) {
+      const res = makeRes()
+      await handler(makeReq({}, { body: { content: `---\nname: Portable\nschedule: manual\nenabled: false\ntype: conditional\ndependsOn: ${dependsOn}\n---\nInstructions` } }), res)
+      assert(res.statusCode === 200, 'Expected portable workflow import')
+      assert(saved.type === 'conditional' && saved.enabled === false, 'Expected type and disabled state preserved')
+      assert(JSON.stringify(saved.dependsOn) === JSON.stringify(dependsOn === '[]' ? [] : ['known-parent']), 'Expected complete dependency list')
+    }
+    saved = null
+    const missing = makeRes()
+    await handler(makeReq({}, { body: { content: '---\nname: Missing parent\ndependsOn: [unknown-parent]\n---\nInstructions' } }), missing)
+    assert(missing.statusCode === 400 && saved === null, 'Unresolved imports must not create a workflow')
+    assert(missing.jsonBody.missingDependencies[0] === 'unknown-parent', 'Expected explicit unresolved ID')
+    assert(/Import them first/.test(missing.jsonBody.error), 'Expected actionable resolution guidance')
   })
 
   await test('workflow import and generation routes validate required input', async () => {
@@ -710,6 +736,36 @@ async function run() {
     }
   })
 
+  await test('AI managed workflow generation returns a real owner and complete saveable draft', async () => {
+    for (const targeting of [{ agents: ['reviewer'] }, { groups: ['Review'] }]) {
+      const handler = getRouteHandler('post', '/generate', {
+        workspace: { listAgents: () => [{ id: 'reviewer', name: 'Reviewer', tags: [], groups: [{ name: 'Review' }], communities: [] }] as any },
+        aiGenerator: { setRequestByokKeys: () => {}, generateWorkflowFromNL: async () => ({ name: 'Weekly review', schedule: '0 9 * * 1', executionMode: 'managed', targeting, content: '# Review\nReview weekly progress.' }) },
+      })
+      const res = makeRes()
+      await handler(makeReq({}, { body: { description: 'Review progress weekly', timezone: 'America/Toronto' } }), res)
+      assert(res.statusCode === 200, JSON.stringify(res.jsonBody))
+      const draft = res.jsonBody.workflow
+      assert(draft.owner === 'reviewer', 'A managed draft needs a real owner before the editor opens')
+      assert(draft.description === 'Review progress weekly' && draft.timezone === 'America/Toronto', 'Required settings must be complete')
+      assert(Array.isArray(draft.targeting.communities), 'Missing optional target arrays must normalize safely')
+    }
+  })
+
+  await test('manual AI drafts retain explicit selected participants and reject unknown IDs', async () => {
+    const handler = getRouteHandler('post', '/generate', {
+      workspace: { listAgents: () => ['one', 'two'].map(id => ({ id, tags: [], groups: [], communities: [] })) as any },
+      aiGenerator: { setRequestByokKeys: () => {}, generateWorkflowFromNL: async () => ({ name: 'Manual test', schedule: 'manual', targeting: { agents: ['one'] }, content: 'Report status' }) },
+    })
+    const res = makeRes()
+    await handler(makeReq({}, { body: { description: 'Manual test', agentIds: ['one', 'two'] } }), res)
+    assert(res.statusCode === 200, JSON.stringify(res.jsonBody))
+    assert(res.jsonBody.workflow.targeting.agents.join(',') === 'one,two', 'Explicit targets must survive AI suggestions')
+    const invalid = makeRes()
+    await handler(makeReq({}, { body: { description: 'Manual test', agentIds: ['unknown'] } }), invalid)
+    assert(invalid.statusCode === 400, 'Unknown workspace agents must be rejected')
+  })
+
   await test('workflow generation classifies missing credentials and always clears request keys', async () => {
     for (const [message, status] of [['No API key configured for provider', 400], ['Generation failed', 500]] as Array<[string, number]>) {
       const calls: any[] = []
@@ -734,6 +790,48 @@ async function run() {
     const res = makeRes()
     await handler(makeReq({}, { body: { paused: true } }), res)
     assert(res.statusCode === 500 && res.jsonBody?.error === 'Failed to update workflow pipeline state', 'Internal state paths must not be disclosed')
+  })
+
+  await test('workflow and execution ids that escape their directories are rejected before any file is touched', async () => {
+    const created = createWorkflow({
+      name: 'Path Id Test',
+      description: 'Ids must not leave the workflows directory',
+      schedule: 'manual',
+      content: '# Test\nStay inside.',
+      executionMode: 'managed',
+      owner: 'test-owner',
+      targeting: { agents: [], groups: [], tags: [], communities: [] },
+    } as any)
+    assert(!!(created.success && created.id), `Workflow should be created: ${created.error}`)
+    // executions/<workflow>/../../../outside.json is the workspace root's outside.json.
+    const outside = path.join(workspacePath, 'outside.json')
+    fs.writeFileSync(outside, JSON.stringify({ id: 'outside', workflowId: created.id, status: 'completed' }))
+
+    // A real app, so Express decodes `%2F` inside the parameter exactly as it does in production.
+    const app = express()
+    app.use(express.json())
+    app.use('/api/workflows', getRouter())
+    const server = http.createServer(app)
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const base = `http://127.0.0.1:${(server.address() as import('net').AddressInfo).port}/api/workflows`
+    try {
+      const escapingExecution = `${base}/${created.id}/executions/${encodeURIComponent('../../../outside')}`
+      const read = await fetch(escapingExecution)
+      assert(read.status === 400, `Reading an execution id with ../ must be rejected, got ${read.status}`)
+      const removed = await fetch(escapingExecution, { method: 'DELETE' })
+      assert(removed.status === 400, `Deleting an execution id with ../ must be rejected, got ${removed.status}`)
+      const archived = await fetch(`${escapingExecution}/archive`, { method: 'POST' })
+      assert(archived.status === 400, `Archiving an execution id with ../ must be rejected, got ${archived.status}`)
+      assert(fs.existsSync(outside), 'A file outside the executions directory must not be deleted or moved')
+
+      const completed = await fetch(`${base}/${encodeURIComponent('../outside')}/complete`, { method: 'POST' })
+      assert(completed.status === 400, `A workflow id with ../ must be rejected, got ${completed.status}`)
+
+      const missing = await fetch(`${base}/${created.id}/executions/exec-missing`)
+      assert(missing.status === 404, `A well-formed execution id must still reach the route, got ${missing.status}`)
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

@@ -16,7 +16,7 @@ import {
   traceMatchesViewer,
   traceMatchesWorkspace,
 } from './metering'
-import { estimateModelCostUsd } from './model-pricing'
+import { estimateModelCostUsd, getModelPricing } from './model-pricing'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -332,6 +332,12 @@ async function run() {
     assert(metering.byWorkflow[0].workflowId === 'test-github', 'Expected workflow id to match')
     assert(Math.abs(metering.byWorkflow[0].estimatedCostUsd - 0.2) < 0.0001, 'Expected workflow cost from agent traces')
     assert(metering.byWorkflow[0].totalRuns === 1, 'Expected workflow runs from workflow traces')
+  })
+
+  await test('a model is priced by its most specific table entry', () => {
+    // gpt-4o is a substring of gpt-4o-mini; the first match used to price the mini model 33x too high.
+    assert(JSON.stringify(getModelPricing('openai/gpt-4o-mini')) === JSON.stringify({ inputPer1kUsd: 0.00015, outputPer1kUsd: 0.0006 }), 'Expected gpt-4o-mini rates')
+    assert(JSON.stringify(getModelPricing('openai/gpt-4o')) === JSON.stringify({ inputPer1kUsd: 0.005, outputPer1kUsd: 0.015 }), 'Expected gpt-4o rates')
   })
 
   await test('aggregateWorkspaceMeteringFromTraces derives cost from tokens when traces lack explicit cost', () => {

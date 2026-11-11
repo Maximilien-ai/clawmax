@@ -1,16 +1,10 @@
 import assert from 'assert'
 import childProcess from 'child_process'
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
 
-// The pinned CLI is never run: child_process is stubbed below, so no `openclaw` and no Gateway is reached.
-const pinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-cron-security-'))
-const pinnedCli = path.join(pinDir, 'openclaw')
-fs.writeFileSync(pinnedCli, '#!/bin/sh\nexit 1\n', 'utf-8')
-fs.chmodSync(pinnedCli, 0o755)
-const originalBin = process.env.OPENCLAW_BIN
-process.env.OPENCLAW_BIN = pinnedCli
+const cli = require('./openclaw-cli')
+const originalResolve = cli.resolveOpenClawCliPath
+const pinnedCli = '/synthetic/pinned/openclaw'
+cli.resolveOpenClawCliPath = () => pinnedCli
 
 const marker = '$(touch /tmp/clawmax-cron-injection)'
 let gatewayJobs: unknown = { jobs: [] }
@@ -88,13 +82,18 @@ try {
   assert.strictEqual(partial.ok, false, 'Expected an incomplete list to be reported')
   assert.deepStrictEqual(asyncInvocations.map((call) => call.args[1]), ['list'], 'Expected no removal from a partial list')
 
-  console.log('workflow-cron-security.test.ts: 11 tests passed')
+  cli.resolveOpenClawCliPath = () => null
+  const before = invocations.length + asyncInvocations.length
+  const missing = syncWorkflowToCron({ id: 'missing-pin', cronJobId: 'job-current' } as any)
+  assert.strictEqual(missing.ok, false)
+  const missingAsync = await removeLegacyWorkflowCronJobsAsync()
+  assert.strictEqual(missingAsync.ok, false)
+  assert.strictEqual(invocations.length + asyncInvocations.length, before, 'An unavailable pin must not invoke global OpenClaw')
+  console.log('workflow-cron-security.test.ts: 14 tests passed')
 } finally {
   ;(childProcess as any).execFileSync = originalExecFileSync
   ;(childProcess as any).execFile = originalExecFile
-  if (typeof originalBin === 'undefined') delete process.env.OPENCLAW_BIN
-  else process.env.OPENCLAW_BIN = originalBin
-  fs.rmSync(pinDir, { recursive: true, force: true })
+  cli.resolveOpenClawCliPath = originalResolve
 }
 }
 

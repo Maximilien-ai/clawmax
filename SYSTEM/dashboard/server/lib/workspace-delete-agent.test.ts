@@ -7,6 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { execFileSync } from 'child_process'
 import { deleteAgent, parseGroups, parseGroupsWithMembers, parseIdentity, parseTags } from './workspace'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
@@ -87,6 +88,17 @@ process.env.OPENCLAW_WORKSPACE = workspacePath
 resetWorkspaceManagerForTests()
 
 async function run() {
+  await test('deleteAgent rejects a symlinked agent directory before changing config or external data', () => {
+    const outside = path.join(tmpHome, 'outside-agent')
+    fs.mkdirSync(outside)
+    fs.writeFileSync(path.join(outside, 'keep.txt'), 'keep')
+    fs.symlinkSync(outside, path.join(workspacePath, 'AGENTS', 'linked-agent'), 'dir')
+    const before = fs.readFileSync(openclawConfigPath, 'utf8')
+    const result = deleteAgent('linked-agent', true)
+    assert(result.errors.some(error => error.includes('Unsafe agent path')), 'Expected actionable unsafe-path error')
+    assert(fs.readFileSync(openclawConfigPath, 'utf8') === before, 'Config must remain unchanged')
+    assert(fs.readFileSync(path.join(outside, 'keep.txt'), 'utf8') === 'keep', 'External content must remain intact')
+  })
   await test('deleteAgent removes workspace dir, shared home dir, and config entry', () => {
     const result = deleteAgent(agentId, false)
     assert(result.errors.length === 0, `Expected no errors, got: ${result.errors.join('; ')}`)
@@ -253,6 +265,30 @@ Group focused on writing and editing posts.
     const invalid = parseIdentity('**Model Selection:** unknown\n**Model Priority:** fast\n**WhatsApp:**\n')
     assert(invalid.modelSelection === undefined && invalid.modelPreference === undefined, 'Unknown model preferences must be ignored')
     assert(invalid.whatsapp === null, 'Empty WhatsApp value must stay null')
+  })
+
+  await test('group markdown keeps nested tags, repeated mentions and heading formats', () => {
+    const compact = parseGroups('# Groups\n- Team: Work [one,[two] @Community@Other\n').groups[0]
+    assert(compact.name === 'Team' && compact.description === 'Work', 'Expected compact entry')
+    assert(compact.tags.join(',') === 'one,[two', 'Expected existing nested-bracket semantics')
+    assert(compact.community === 'Community@Other', 'Expected first valid community marker')
+    const verbose = parseGroups('# Groups\n###   Team\n**Description:** Work\n').groups[0]
+    assert(verbose.name === 'Team' && verbose.description === 'Work', 'Expected verbose heading compatibility')
+  })
+
+  await test('adversarial group headings and metadata complete within a bounded subprocess', () => {
+    execFileSync(process.execPath, ['-r', 'ts-node/register/transpile-only', '-e', `
+      const { parseGroups } = require('./server/lib/workspace')
+      const cases = [
+        '# Groups\\n### ' + ' '.repeat(60000) + '\\u2028x',
+        '# Groups\\n- Team: ' + '@Z'.repeat(60000) + '[',
+        '# Groups\\n- Team: ' + '[\\\\'.repeat(60000),
+      ]
+      for (const content of cases) {
+        const result = parseGroups(content)
+        if (!Array.isArray(result.groups)) throw new Error('Expected parsed groups')
+      }
+    `], { timeout: 5000, stdio: 'pipe' })
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME
