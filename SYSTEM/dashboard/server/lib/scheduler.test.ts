@@ -262,6 +262,37 @@ async function run() {
     })
   }
 
+  await test('one tracked tick survives repeated sync and stale callbacks cannot run after rescheduling', async () => {
+    const callbacks: Array<() => void> = []
+    let schedule = '* * * * *', enabled = true, turns = 0
+    const scheduler = loadScheduler({
+      cron: { validate: () => true, schedule: (_value: string, callback: () => void) => { callbacks.push(callback); return { stop() {} } } } as any,
+      workflows: {
+        listWorkflows: () => [{ id: 'single-owner', schedule, enabled }],
+        getWorkflow: () => ({ enabled }),
+        triggerWorkflow: (_id: string, options: any) => { assert.equal(options.manual, false); turns++; return { success: true } },
+        syncWorkflowToCron: () => { throw new Error('A tick must not register a Gateway job') },
+      } as any,
+    })
+    scheduler.syncAllWorkflows(); scheduler.syncAllWorkflows()
+    assert.equal(callbacks.length, 1, 'Repeated sync keeps a single schedule')
+    callbacks[0]()
+    assert.equal(turns, 1, 'One tick creates one tracked dispatch')
+    schedule = '*/2 * * * *'
+    scheduler.syncAllWorkflows()
+    callbacks[0]()
+    assert.equal(turns, 1, 'A callback queued by the replaced schedule cannot dispatch')
+    callbacks[1]()
+    assert.equal(turns, 2)
+    enabled = false
+    callbacks[1]()
+    assert.equal(turns, 2, 'A disabled workflow cannot be run by a pending tick')
+    scheduler.stopScheduler()
+    enabled = true
+    callbacks[1]()
+    assert.equal(turns, 2, 'Stopping the scheduler invalidates pending ticks')
+  })
+
   await test('scheduled workflow trigger unschedules max-run failures', async () => {
     let scheduledFn: Function | null = null
     let stopCalled = false

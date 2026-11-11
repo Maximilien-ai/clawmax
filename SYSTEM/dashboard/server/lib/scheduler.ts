@@ -5,6 +5,7 @@ import { waitForGatewayResponsive } from './gateway-rpc'
 
 interface ScheduledJob {
   task: any
+  generation: symbol
   workflowId: string
   schedule: string
   timezone: string
@@ -227,7 +228,9 @@ function scheduleWorkflow(workflowId: string, schedule: string, timezone?: strin
     return
   }
 
+  const generation = Symbol(workflowId)
   const task = cron.schedule(schedule, () => {
+    if (activeJobs.get(workflowId)?.generation !== generation) return
     console.log(`[Scheduler] Triggering workflow: ${workflowId}`)
     // Note: cron triggers don't have BYOK keys — they use system/user-default keys from .env
     const result = triggerScheduledWorkflow(workflowId)
@@ -242,7 +245,7 @@ function scheduleWorkflow(workflowId: string, schedule: string, timezone?: strin
     }
   }, getWorkflowScheduleOptions(normalizedTimezone))
 
-  activeJobs.set(workflowId, { task, workflowId, schedule, timezone: normalizedTimezone })
+  activeJobs.set(workflowId, { task, generation, workflowId, schedule, timezone: normalizedTimezone })
   console.log(`[Scheduler] Scheduled ${workflowId}: ${schedule} (${normalizedTimezone})`)
 }
 
