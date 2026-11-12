@@ -4,9 +4,9 @@ Existing [PR #242](https://github.com/Maximilien-ai/clawmax/pull/242) fixes [#24
 
 ## Your one check
 
-- [ ] **Resize feels useful:** refresh http://localhost:5180/builder and drag the visible **Resize ↕** bar below the prompt up and down. The default height is unchanged; the existing expand/shrink button restores the presets. No generation is needed. Reply **accept resize**. `reviewReason: human-judgment`
+- [ ] **Resize feels useful:** refresh http://localhost:5180/builder and drag the **thin divider below the Builder answer** and the **thin divider below the prompt** up and down. Each resizes its own area. The default height is unchanged; the existing expand/shrink button restores the presets. No generation is needed. Reply **accept resize**. `reviewReason: human-judgment`
 
-Preview: **`2.0.0-dev.3cb9f071`**, same **RC98 Prompt Readiness Acceptance** workspace; earlier data is retained.
+Preview: **`2.0.0-dev.8e22489d`**, same **RC98 Prompt Readiness Acceptance** workspace; earlier data is retained.
 
 ## Archived scoring acceptance
 
@@ -17,9 +17,15 @@ Owner accepted the weighting November 12 with “It's good.” [Receipt](https:/
 
 The arithmetic, score ceiling, live updates and advisory behavior have already been verified; no need to repeat those engineering checks.
 
-Optional visual reference: **http://localhost:5180/builder**, workspace **RC98 Prompt Readiness Acceptance**, version **`2.0.0-dev.3cb9f071`**. Click **Open Editor** and enter a prompt to inspect its category breakdown. Generation is not required. The isolated preview has no copied provider keys and retains earlier acceptance workspaces. Its synthetic agent only avoids first-run onboarding.
+Optional visual reference: **http://localhost:5180/builder**, workspace **RC98 Prompt Readiness Acceptance**, version **`2.0.0-dev.8e22489d`**. Click **Open Editor** and enter a prompt to inspect its category breakdown. Generation is not required. The isolated preview has no copied provider keys and retains earlier acceptance workspaces. Its synthetic agent only avoids first-run onboarding.
 
 ## Resize follow-up evidence
+
+Current follow-up source: `8e22489d`. Both handles are now thin dividers: a 1px line with a 4px center grip in 12px of layout height, with an expanded invisible hit area. The labeled bar and visible instruction paragraph have been removed to save space. One divider below the conversation resizes the answer area; one below the textarea resizes the prompt independently. Default sizing is preserved. Both use the shared `VerticalResizeHandle` component with captured mouse/touch dragging, keyboard arrows, Home reset, cancellation cleanup, minimum height and viewport-relative maximum. Answer minimum is 128px; prompt minimum is 88px. Size remains local to the mounted view.
+
+Four light/dark × desktop/phone browser runs pass independent answer growth/shrink, long-answer scrolling, prompt draft retention, thin layout height, keyboard reset, actual touch and cancellation, preset controls and reachable actions. API writes are intercepted. Focused layout suites, server types, lint and build pass; strict frontend diagnostic patterns retain the existing baseline. Artifacts/log: `/private/tmp/clawmax-builder-thin-browser/`, `/private/tmp/clawmax-builder-thin-browser.log`. Full 571-check/CodeQL evidence remains on the earlier identified scoring source; no full-suite/security rerun is claimed for these UI follow-ups.
+
+### Archived handle iterations
 
 Visible-handle follow-up source: `3cb9f0710c1e2dfd690faba50ab36687146adffa`. The owner could not discover the native corner grip, so a blue Resize bar with up/down chevrons now sits directly below the input. It supports captured mouse/touch dragging, Arrow Up/Down adjustments and Home to restore the current preset. Pointer release/cancellation ends dragging; bounds retain the input minimum and viewport maximum. Four theme/viewport browser runs passed actual handle dragging and keyboard controls, with real touch gestures at phone width. Build, lint, server types and focused layout suites pass; strict frontend diagnostic patterns are unchanged. Artifacts: `/private/tmp/clawmax-builder-handle-browser/`. This supersedes the corner-only interaction below; the earlier criteria/results remain historical evidence. The isolated launcher now aligns its readiness workspace with its .env selection to prevent the earlier timeout shutdown.
 
