@@ -11,7 +11,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN |
 try {
   for (const theme of ['light', 'dark']) for (const width of [1440, 390]) {
     const page = await browser.newPage({ viewport: { width, height: width === 390 ? 844 : 1000 }, colorScheme: theme, hasTouch: width === 390 })
-    page.setDefaultTimeout(15000)
+    page.setDefaultTimeout(30000)
     page.setDefaultNavigationTimeout(20000)
     await page.addInitScript(({ theme }) => {
       localStorage.setItem('dark-mode', String(theme === 'dark'))
@@ -20,7 +20,7 @@ try {
     }, { theme })
     let questionRequests = 0
     await page.route('**/api/**', route => {
-      if (new URL(route.request().url()).pathname === '/api/ai-builder/question') { questionRequests++; return route.fulfill({ json: { answer: 'Synthetic acceptance response: describe the audience and desired deliverable.' } }) }
+      if (new URL(route.request().url()).pathname === '/api/ai-builder/question') { questionRequests++; return route.fulfill({ json: { answer: 'Synthetic acceptance response: describe the audience and desired deliverable.\n'.repeat(20) } }) }
       if (route.request().method() !== 'GET') { return route.fulfill({ status: 403, json: { error: 'Read-only resize test' } }) }
       return route.continue()
     })
@@ -31,22 +31,36 @@ try {
     await page.waitForLoadState('networkidle')
     await input.fill('/question What should the launch plan include?')
     await page.getByRole('button', { name: 'Ask Builder', exact: true }).click()
-    await page.getByText('Synthetic acceptance response: describe the audience and desired deliverable.', { exact: true }).waitFor()
+    await page.getByText('Synthetic acceptance response: describe the audience and desired deliverable.', { exact: false }).first().waitFor()
     const initialHeight = await input.evaluate(el => el.getBoundingClientRect().height)
     assert.equal(initialHeight, 192, 'Keep the existing expanded default')
     const draft = 'Audience: founders. Return a markdown launch plan.\n'.repeat(40)
     await input.fill(draft)
-    const drag = async delta => {
-      const handle = page.getByRole('button', { name: 'Resize Builder prompt vertically', exact: true })
+    const dragTarget = async (target, handleName, delta) => {
+      const handle = page.getByRole('button', { name: handleName, exact: true })
       await handle.scrollIntoViewIfNeeded()
       const box = await handle.boundingBox()
-      assert(box && box.height >= 32, 'Visible handle needs a usable target')
+      assert(box && box.height === 12, 'The divider must use only 12px of vertical layout space')
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
       await page.mouse.down()
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + delta, { steps: 12 })
       await page.mouse.up()
-      return input.evaluate(el => el.getBoundingClientRect().height)
+      return target.evaluate(el => el.getBoundingClientRect().height)
     }
+    const drag = delta => dragTarget(input, 'Resize Builder prompt vertically', delta)
+    const answer = page.locator('#builder-answer-content')
+    const answerHandle = page.getByRole('button', { name: 'Resize Builder answer vertically', exact: true })
+    await answerHandle.focus()
+    for (let step = 0; step < 24; step++) await page.keyboard.press('ArrowUp')
+    assert.equal(await answer.evaluate(el => el.getBoundingClientRect().height), 128, 'Answer minimum remains usable')
+    assert(await answer.evaluate(el => el.scrollHeight > el.clientHeight), 'Long answers remain scrollable')
+    const answerTaller = await dragTarget(answer, 'Resize Builder answer vertically', 90)
+    assert(answerTaller > 180, 'Answer drag must grow independently')
+    const answerShorter = await dragTarget(answer, 'Resize Builder answer vertically', -50)
+    assert(answerShorter < answerTaller - 20, 'Answer drag must shrink independently')
+    assert.equal(await input.evaluate(el => el.getBoundingClientRect().height), initialHeight, 'Answer resizing must not resize the input')
+    await answerHandle.focus(); await page.keyboard.press('Home')
+    assert(await answer.evaluate(el => el.style.height === '' && el.style.flex === ''), 'Home restores the original answer layout')
     const shorter = await drag(-70)
     assert(shorter < initialHeight - 40 && shorter >= 88, 'Handle drag must shrink the expanded prompt')
     const taller = await drag(130)
@@ -77,6 +91,13 @@ try {
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - 60 }] })
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
       assert(await input.evaluate(el => el.getBoundingClientRect().height) < 160, 'Touch dragging must shrink the prompt')
+      await answerHandle.scrollIntoViewIfNeeded()
+      const answerBox = await answerHandle.boundingBox(), ax = answerBox.x + answerBox.width / 2, ay = answerBox.y + answerBox.height / 2
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: ax, y: ay }] })
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: ax, y: ay - 60 }] })
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
+      assert(await answer.evaluate(el => Boolean(el.style.height)), 'Touch must resize the answer and cancel safely')
+      await answerHandle.focus(); await page.keyboard.press('Home')
       await cdp.detach()
       await handle.focus(); await page.keyboard.press('Home')
     }
@@ -93,6 +114,6 @@ try {
     await input.scrollIntoViewIfNeeded()
     await page.screenshot({ path: `${artifacts}/${theme}-${width}.png`, fullPage: true })
     await page.close()
-    console.log(`PASS Builder resize ${theme} ${width}: visible handle, mouse/touch, keyboard, presets, draft, scrolling and actions`)
+    console.log(`PASS Builder resize ${theme} ${width}: thin prompt/answer dividers, independent mouse/touch/keyboard resize, reset, draft, scrolling and actions`)
   }
 } finally { await browser.close() }

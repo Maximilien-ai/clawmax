@@ -19,6 +19,7 @@ import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import { comparePromptQuality } from '../lib/promptQuality'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import PromptQualityPanel from '../components/PromptQualityPanel'
+import VerticalResizeHandle from '../components/VerticalResizeHandle'
 
 type BuilderAction = {
   id: string
@@ -1421,7 +1422,6 @@ export default function Builder({
   const [promptBeforeAiImprovement, setPromptBeforeAiImprovement] = useState<string | null>(null)
   const recognitionRef = useRef<any>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const promptResizeRef = useRef<{ pointerId: number; startY: number; height: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const listeningBasePromptRef = useRef('')
   const transcriptViewportRef = useRef<HTMLDivElement | null>(null)
@@ -2391,7 +2391,7 @@ export default function Builder({
           <div className={`flex min-w-0 flex-col rounded-3xl border border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-950/50 ${
             hasConversation ? 'mt-3 p-2.5' : 'mt-4 p-3'
           } ${reserveTranscriptSpace ? 'flex-1' : 'flex-none'}`}>
-            <div ref={transcriptViewportRef} className={`${reserveTranscriptSpace ? 'min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 lg:basis-0 lg:min-h-[8rem]' : 'hidden'}`}>
+            <div id="builder-answer-content" ref={transcriptViewportRef} className={`${reserveTranscriptSpace ? 'min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 lg:basis-0 lg:min-h-[8rem]' : 'hidden'}`}>
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className="max-w-[88%]">
@@ -2583,6 +2583,9 @@ export default function Builder({
               )}
               <div ref={transcriptEndRef} />
             </div>
+            {reserveTranscriptSpace && (
+              <VerticalResizeHandle targetRef={transcriptViewportRef} controls="builder-answer-content" label="Resize Builder answer vertically" minHeight={128} />
+            )}
 
             <div className="mt-2.5 shrink-0 rounded-2xl border border-sky-200/80 bg-sky-50/70 p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-sky-900/60 dark:bg-sky-950/20">
               <div className="mb-2 flex items-center justify-between gap-3">
@@ -2653,7 +2656,7 @@ export default function Builder({
                   id="builder-prompt-input"
                   ref={textareaRef}
                   rows={promptExpanded ? 7 : 3}
-                  aria-describedby="builder-prompt-resize-hint"
+                  aria-describedby="builder-prompt-input-resize-hint"
                   value={prompt}
                   onChange={(event) => {
                     const nextValue = event.target.value
@@ -2669,42 +2672,7 @@ export default function Builder({
                   placeholder="Describe what to build, use @ to mention an agent, or enter /question followed by a question."
                   className={`w-full min-h-[5.5rem] max-h-[max(5.5rem,60vh)] resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-base text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700 sm:text-sm ${promptExpanded ? 'h-[12rem]' : 'h-[5.5rem]'}`}
                 />
-                <button
-                  type="button"
-                  aria-label="Resize Builder prompt vertically"
-                  aria-controls="builder-prompt-input"
-                  aria-describedby="builder-prompt-resize-hint"
-                  title="Drag up or down. Arrow keys resize; Home restores the preset."
-                  onPointerDown={(event) => {
-                    if (event.button !== 0 || !textareaRef.current) return
-                    event.preventDefault()
-                    promptResizeRef.current = { pointerId: event.pointerId, startY: event.clientY, height: textareaRef.current.getBoundingClientRect().height }
-                    event.currentTarget.setPointerCapture(event.pointerId)
-                  }}
-                  onPointerMove={(event) => {
-                    const drag = promptResizeRef.current
-                    if (!drag || drag.pointerId !== event.pointerId || !textareaRef.current) return
-                    textareaRef.current.style.height = `${Math.max(88, Math.min(Math.max(88, window.innerHeight * 0.6), drag.height + event.clientY - drag.startY))}px`
-                  }}
-                  onPointerUp={() => { promptResizeRef.current = null }}
-                  onPointerCancel={() => { promptResizeRef.current = null }}
-                  onLostPointerCapture={() => { promptResizeRef.current = null }}
-                  onKeyDown={(event) => {
-                    const input = textareaRef.current
-                    if (!input) return
-                    if (event.key === 'Home') { event.preventDefault(); input.style.height = ''; return }
-                    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
-                    event.preventDefault()
-                    input.style.height = `${Math.max(88, Math.min(Math.max(88, window.innerHeight * 0.6), input.getBoundingClientRect().height + (event.key === 'ArrowDown' ? 24 : -24)))}px`
-                  }}
-                  className="mt-1 flex h-8 w-full touch-none select-none cursor-ns-resize items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white text-xs font-medium text-sky-700 hover:bg-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300 dark:hover:bg-sky-900/50"
-                >
-                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 7 4-4 4 4M6 13l4 4 4-4" /></svg>
-                  Resize
-                </button>
-                <p id="builder-prompt-resize-hint" className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-                  Drag the handle up or down. Arrow keys resize; Home resets.
-                </p>
+                <VerticalResizeHandle targetRef={textareaRef} controls="builder-prompt-input" label="Resize Builder prompt vertically" />
               </div>
               <div className="mt-2">
                 <PromptQualityPanel prompt={prompt} domain="builder" compact collapsible />
