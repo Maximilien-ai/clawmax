@@ -8,15 +8,15 @@ requested email; delivery is not inferred from the queued receipt.
 
 Existing [PR #288](https://github.com/Maximilien-ai/clawmax/pull/288) is refreshed
 from merged main without rewriting its fork history. It addresses #287's duplicate
-scheduled turns and unsafe Gateway-job cleanup. Product source `0bb4540c` passed
-**571/571** full local checks, zero failures, with **83.89%** statements/lines,
-**81.60%** branches and **92.21%** functions. Focused tests, real isolated Gateway
+scheduled turns and unsafe Gateway-job cleanup. Product source `21e5bda1` passed
+**571/571** full local checks, zero failures, with **83.90%** statements/lines,
+**81.61%** branches and **92.21%** functions. Focused tests, real isolated Gateway
 cleanup and four theme/viewport deletion-flow browser runs passed. CI passed on
 that product head; any later documentation head still needs current-head CI.
 
 [Current owner checklist](planning/RC98_ACCEPTANCE_2026-11-11.md): one human judgment
 on recovery-message clarity; no repeat engineering checks. Preview is
-http://localhost:5180, `2.0.0-dev.0bb4540c`, **RC98 Scheduler Acceptance**, with one
+http://localhost:5180, `2.0.0-dev.21e5bda1`, **RC98 Scheduler Acceptance**, with one
 paused fixture. Earlier acceptance data is retained.
 
 Because default CodeQL excludes fork PRs, official local CLI 2.27.4 / JS queries
