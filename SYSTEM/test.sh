@@ -5944,6 +5944,16 @@ else
 fi
 
 # Step 7: Test group message
+if [ "$BYOK_JSON" != "{}" ]; then
+  echo -e "${YELLOW}→ Testing real agent conversation lifecycle...${NC}"
+  if CLAWMAX_LIFECYCLE_TEST_WORKSPACE="$SYSTEM_TEST_WS" CLAWMAX_LIFECYCLE_TEST_BYOK="$BYOK_JSON" CLAWMAX_LIFECYCLE_TEST_AUTH="$DASHBOARD_AUTH" node "$SYSTEM_DIR/test-chat-lifecycle.cjs" "$API_BASE" > /tmp/clawmax-live-chat-lifecycle.out 2>&1; then
+    pass "Live chat Clear/History/Continue context"
+  else
+    cat /tmp/clawmax-live-chat-lifecycle.out
+    fail "Live chat Clear/History/Continue context"
+  fi
+fi
+
 echo -e "${YELLOW}→ Testing group messaging...${NC}"
 group_msg=$(apicurl -X POST "$API_BASE/api/groups/Test%20Chat/messages" \
   -H 'Content-Type: application/json' \
