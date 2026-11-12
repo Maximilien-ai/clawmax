@@ -492,6 +492,12 @@ function getAgentDashboardSessionKey(agentId: string): string {
   return `agent:${agentId}:dashboard-chat`
 }
 
+function rejectBusyConversationChange(id: string, res: express.Response): boolean {
+  if (!listActiveTurns().some(turn => turn.agentId === id)) return false
+  res.status(409).json({ code: 'chat_turn_active', error: 'A reply is still running or queued. Stop it or wait before changing conversations.' })
+  return true
+}
+
 function resolveAgentChatSessionId(agentId: string, homeDir: string = process.env.HOME || ''): string | null {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   // Once a conversation was cleared or resumed, the record names the current one. Its session is
@@ -3146,6 +3152,7 @@ router.post('/:id/reset-session', (req, res) => {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
   if (rejectStaleAgentRoute(req, res, id)) return
+  if (rejectBusyConversationChange(id, res)) return
 
   try {
     // Same new conversation as Clear (the old one stays in History), and, as before, every session
@@ -3705,7 +3712,9 @@ function archiveLegacyChatSession(id: string, actualSessionId: string, HOME: str
     if (sessionsIndex[sessionKey]?.sessionId === actualSessionId) {
       delete sessionsIndex[sessionKey]
     }
-    fs.writeFileSync(sessionsIndexPath, JSON.stringify(sessionsIndex, null, 2))
+    if (fs.existsSync(sessionsIndexPath) || !hasNativeChatStore(id, HOME)) {
+      fs.writeFileSync(sessionsIndexPath, JSON.stringify(sessionsIndex, null, 2))
+    }
 
     return true
   }
@@ -3732,7 +3741,7 @@ function isEndedDashboardConversation(agentId: string, sessionId: string): boole
 function endDashboardChatConversation(id: string, HOME: string, options: { archiveLegacyFiles: boolean }): { archived: boolean; ended?: { sessionId: string; seed: string } } {
   const actualSessionId = resolveAgentChatSessionId(id, HOME)
   if (!actualSessionId) return { archived: false }
-  if (readNativeChatTranscript(id, actualSessionId, HOME) !== undefined) {
+  if (readNativeChatTranscript(id, actualSessionId, HOME) !== undefined || (hasNativeChatStore(id, HOME) && readRuntimeTranscript(id, actualSessionId).length > 0)) {
     if (readMergedChatSessionMessages(id, actualSessionId, HOME).length === 0) return { archived: false }
     return { archived: true, ended: { sessionId: actualSessionId, seed: readDashboardChatConversations(id).activeSeed } }
   }
@@ -3746,6 +3755,7 @@ router.delete('/:id/chat/messages', async (req, res) => {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
   if (rejectStaleAgentRoute(req, res, id)) return
+  if (rejectBusyConversationChange(id, res)) return
 
   try {
     const { archived, ended } = endDashboardChatConversation(id, process.env.HOME || '', { archiveLegacyFiles: true })
@@ -3980,6 +3990,7 @@ router.post('/:id/chat/archives/:filename/restore', async (req, res) => {
   if (filename.includes('..') || filename.includes('/')) {
     return res.status(400).json({ error: 'Invalid filename' })
   }
+  if (rejectBusyConversationChange(id, res)) return
 
   try {
     const HOME = process.env.HOME || ''

@@ -9,7 +9,7 @@ import os from 'os'
 import path from 'path'
 import assert from 'assert'
 import { EventEmitter } from 'events'
-import { listActiveTurns, cancelTurn } from '../lib/agent-turns'
+import { listActiveTurns, cancelTurn, registerTurn, releaseTurn } from '../lib/agent-turns'
 import { getAgentLifecycleGeneration } from '../lib/workspace'
 
 const GREEN = '\x1b[32m'
@@ -2881,6 +2881,73 @@ async function run() {
     assert.strictEqual(brokenRes.statusCode, 500)
     assert.match(String(brokenRes.jsonBody.error), /could not be read/)
     fs.rmSync(recordPath)
+  })
+
+  await test('Clear, Reset and Continue reject running, queued and cancelling turns without changing the conversation', async () => {
+    const id = 'conversation-busy-agent'
+    writeAgent(workspacePath, id, '**Name:** Busy chat\n**Model:** openai/gpt-4o-mini\n')
+    const conversations = require('../lib/dashboard-chat-conversations')
+    conversations.startNewDashboardConversation(id, { sessionId: 'old-busy-session', seed: 'previous' })
+    const record = path.join(workspacePath, 'SYSTEM', 'dashboard-chat', `${id}.json`)
+    const before = fs.readFileSync(record)
+    const running = registerTurn(id), queued = registerTurn(id)
+    const requests = [
+      ['delete', '/:id/chat/messages'], ['post', '/:id/reset-session'], ['post', '/:id/chat/archives/:filename/restore'],
+    ] as const
+    try {
+      for (const [method, route] of requests) {
+        const res = makeRes()
+        await getRouteHandler(method, route)(makeReq({ params: { id, filename: 'session:old-busy-session' } }), res)
+        assert.strictEqual(res.statusCode, 409)
+        assert.strictEqual(res.jsonBody.code, 'chat_turn_active')
+        assert.deepStrictEqual(fs.readFileSync(record), before)
+      }
+      cancelTurn(running.turnId)
+      releaseTurn(queued.turnId)
+      const cancelling = makeRes()
+      await getRouteHandler('delete', '/:id/chat/messages')(makeReq({ params: { id } }), cancelling)
+      assert.strictEqual(cancelling.statusCode, 409, 'Cancellation must settle before switching context')
+      assert.deepStrictEqual(fs.readFileSync(record), before)
+    } finally {
+      releaseTurn(running.turnId)
+      releaseTurn(queued.turnId)
+    }
+    const settled = makeRes()
+    await getRouteHandler('delete', '/:id/chat/messages')(makeReq({ params: { id } }), settled)
+    assert.strictEqual(settled.statusCode, 200)
+    assert.notDeepStrictEqual(fs.readFileSync(record), before)
+  })
+
+  await test('Clear and Continue retain runtime transcripts and never create a legacy index beside a native store', async () => {
+    const id = 'mixed-runtime-clear-agent'
+    writeAgent(workspacePath, id, '**Name:** Mixed runtime\n**Model:** anthropic/claude-sonnet-4-20250514\n**Runtime:** claude\n')
+    const { scopeSessionIdToModel } = require('../lib/agent-execution')
+    const sid = scopeSessionIdToModel(`agent:${id}:dashboard-chat`, 'anthropic/claude-sonnet-4-20250514')
+    const nativeDir = path.join(tmpHome, '.openclaw', 'agents', id, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const nativePath = path.join(nativeDir, 'openclaw-agent.sqlite')
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(nativePath)
+    db.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT)')
+    db.close()
+    const nativeBefore = fs.readFileSync(nativePath)
+    const transcriptDir = path.join(workspacePath, 'SYSTEM', 'runtime-transcripts', id)
+    fs.mkdirSync(transcriptDir, { recursive: true })
+    const transcript = path.join(transcriptDir, `${sid}.jsonl`)
+    fs.writeFileSync(transcript, JSON.stringify({ role: 'user', content: 'Keep this runtime context', ts: 1 }) + '\n')
+    const before = fs.readFileSync(transcript)
+    const clear = makeRes()
+    await getRouteHandler('delete', '/:id/chat/messages')(makeReq({ params: { id } }), clear)
+    assert.strictEqual(clear.statusCode, 200)
+    assert.deepStrictEqual(fs.readFileSync(transcript), before)
+    assert.deepStrictEqual(fs.readFileSync(nativePath), nativeBefore)
+    assert(!fs.existsSync(path.join(tmpHome, '.openclaw', 'agents', id, 'sessions', 'sessions.json')))
+    const restore = makeRes()
+    await getRouteHandler('post', '/:id/chat/archives/:filename/restore')(makeReq({ params: { id, filename: `session:${sid}` } }), restore)
+    assert.strictEqual(restore.statusCode, 200)
+    const history = makeRes()
+    await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), history)
+    assert.deepStrictEqual(history.jsonBody.messages.map((message: any) => message.content), ['Keep this runtime context'])
   })
 
   await test('Reset Session starts a new conversation like Clear and keeps the old one in History, for SQLite and claude/droid agents', async () => {

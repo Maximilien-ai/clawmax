@@ -852,6 +852,8 @@ export interface AgentChatTransport {
   assertAuthorized(): void
 }
 
+class DashboardConversationChangedError extends Error {}
+
 export async function executeAgentChat(req: Request, res: Response, transport?: AgentChatTransport) {
   const { id } = req.params
   const { message, sessionId, byok } = req.body as {
@@ -900,6 +902,13 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     dashboardConversation = sessionId === defaultDashboardChatSeed(id) ? readDashboardChatConversations(id) : undefined
   } catch (err) {
     return reject(500, err instanceof Error ? err.message : String(err))
+  }
+  const assertCurrentDashboardConversation = () => {
+    if (!dashboardConversation) return
+    const current = readDashboardChatConversations(id)
+    if (current.activeSeed !== dashboardConversation.activeSeed || current.activeSessionId !== dashboardConversation.activeSessionId) {
+      throw new DashboardConversationChangedError('The conversation changed while this request was preparing. Send your message again in the current chat.')
+    }
   }
   const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
   const integrationConfig = readWorkspaceIntegrationConfig()
@@ -1033,6 +1042,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     // this branch used to, made it invisible to both.
     await withRegisteredTurn(id, async () => {
       try {
+        assertCurrentDashboardConversation()
         transport?.assertAuthorized()
         const result = await executeClawmaxResendSend({
           to: dispatch.to,
@@ -1073,6 +1083,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   // the chance to forget it on whatever exit path gets added next.
   withRegisteredTurn(id, async (turn) => {
     turnId = turn.turnId
+    assertCurrentDashboardConversation()
 
     // No route-level deadline. Every previous bound measured silence, and silence is what a working
     // agent produces while it thinks and runs tools -- a measured research turn went quiet for 316s
@@ -1544,7 +1555,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     // withRegisteredTurn's `finally`, and this route would be back to leaking on an exit path.
     console.error(`[Chat Route] Unexpected error running chat turn for ${id}:`, err)
     clearInterval(keepalive)
-    send('error', 'Agent execution failed')
+    send('error', err instanceof DashboardConversationChangedError ? err.message : 'Agent execution failed')
     if (!res.writableEnded) res.end()
   })
 

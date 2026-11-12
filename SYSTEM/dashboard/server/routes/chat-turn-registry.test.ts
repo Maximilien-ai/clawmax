@@ -294,6 +294,21 @@ async function run() {
             const other = makeSseRes()
             await Promise.all([getRouteHandler('post', '/:id/chat')(makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: 'some-other-session' }, on() {} }), other), other.done])
             assert.match(String(other.events.find((e) => e.type === 'complete')?.data?.text), /session=some-other-session/, 'Other callers keep their own sessions')
+            await waitForActiveTurnCount(0)
+
+            // A Clear can complete during the gateway-readiness await, before the turn is registered.
+            // Revalidate the captured conversation before any CLI can be spawned.
+            let reads = 0
+            await withModuleOverrides(require.resolve('../lib/dashboard-chat-conversations'), {
+              readDashboardChatConversations: () => ({ activeSeed: ++reads === 1 ? 'captured-conversation' : 'replacement-conversation', ended: [] }),
+            }, async () => {
+              const stale = makeSseRes(), before = activeTurnCount()
+              await Promise.all([getRouteHandler('post', '/:id/chat')(makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: `agent:${agentId}:dashboard-chat` }, on() {} }), stale), stale.done])
+              assert(stale.events.some(event => event.type === 'error' && /conversation changed/.test(String(event.data))))
+              assert(!stale.events.some(event => event.type === 'start'), 'Stale context must not start execution')
+              await waitForActiveTurnCount(before)
+              assert.strictEqual(activeTurnCount(), before)
+            })
           }))
       } finally {
         if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
