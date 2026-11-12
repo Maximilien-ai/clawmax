@@ -16,9 +16,12 @@ existing suites now contain more assertions. Coverage: **83.90% statements/lines
 **81.62% branches**, **92.21% functions**. Strict frontend typing retains its
 291-diagnostic baseline with no new patterns.
 
-[Current checklist](planning/RC98_ACCEPTANCE_2026-11-12.md): one human judgment on
-the revised weighting. Preview: http://localhost:5180/builder,
-`2.0.0-dev.9132ec6d`, **RC98 Prompt Readiness Acceptance**. Earlier workspaces remain.
+Owner accepted the weighting November 12. The requested resize follow-up
+`c4ee5caf` keeps the default prompt height, permits dragging shorter/taller, and
+passes four theme/viewport drag checks, focused suites, types, lint and build.
+[Current checklist](planning/RC98_ACCEPTANCE_2026-11-12.md): one optional feel check
+of resizing. Preview: http://localhost:5180/builder, `2.0.0-dev.c4ee5caf`,
+**RC98 Prompt Readiness Acceptance**. Earlier workspaces remain.
 Full source evidence and security comparison are recorded there; current-head CI
 is required before merge. Local CodeQL adds no findings; its raw baseline still
 needs reconciliation before RC98 promotion. RC98 has not been cut.

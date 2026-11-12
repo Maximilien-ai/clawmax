@@ -4,13 +4,30 @@ Existing [PR #242](https://github.com/Maximilien-ai/clawmax/pull/242) fixes [#24
 
 ## Your one check
 
-- [ ] **Approve the weighting:** domain detail contributes **15 points**, so the seven categories total **100**. Goal 20, Context 15, Inputs 10, Output 15, Constraints 15 and Success 10 stay unchanged. Ready/Excellent thresholds remain 80/90. `reviewReason: human-judgment`
+- [ ] **Resize feels useful:** refresh http://localhost:5180/builder and drag the prompt's bottom-right corner up and down. The default height is unchanged; the existing expand/shrink button restores the presets. No generation is needed. Reply **accept resize**. `reviewReason: human-judgment`
 
-Reply **accept #243** (or **accept #242**) if that balance is suitable. The arithmetic, score ceiling, live updates and advisory behavior have already been verified; no need to repeat those engineering checks.
+Preview: **`2.0.0-dev.c4ee5caf`**, same **RC98 Prompt Readiness Acceptance** workspace; earlier data is retained.
 
-Optional visual reference: **http://localhost:5180/builder**, workspace **RC98 Prompt Readiness Acceptance**, version **`2.0.0-dev.9132ec6d`**. Click **Open Editor** and enter a prompt to inspect its category breakdown. Generation is not required. The isolated preview has no copied provider keys and retains earlier acceptance workspaces. Its synthetic agent only avoids first-run onboarding.
+## Archived scoring acceptance
 
-## Engineering evidence
+Owner accepted the weighting November 12 with “It's good.” [Receipt](https://github.com/Maximilien-ai/clawmax/issues/243#issuecomment-6829263864). No repeat scoring acceptance is required.
+
+
+- [x] **Approve the weighting:** domain detail contributes **15 points**, so the seven categories total **100**. Goal 20, Context 15, Inputs 10, Output 15, Constraints 15 and Success 10 stay unchanged. Ready/Excellent thresholds remain 80/90. `reviewReason: human-judgment`
+
+The arithmetic, score ceiling, live updates and advisory behavior have already been verified; no need to repeat those engineering checks.
+
+Optional visual reference: **http://localhost:5180/builder**, workspace **RC98 Prompt Readiness Acceptance**, version **`2.0.0-dev.c4ee5caf`**. Click **Open Editor** and enter a prompt to inspect its category breakdown. Generation is not required. The isolated preview has no copied provider keys and retains earlier acceptance workspaces. Its synthetic agent only avoids first-run onboarding.
+
+## Resize follow-up evidence
+
+Source `c4ee5caf29c0855bfa684df8c29cc747e620525f` adds vertical prompt resizing to this existing PR. Expanded default stays 192px; reduced preset stays 88px. Both presets now allow dragging in either direction, within a viewport-relative maximum. The hint identifies the native resize corner, and the existing button provides keyboard-accessible presets. Resize height is local to the current mounted view; no saved preference is promised.
+
+- [x] Four light/dark × desktop/phone browser runs pass actual mouse drags shorter/taller, unchanged default, keyboard preset reset, retained long drafts, internal scrolling and reachable actions after a synthetic Builder response. All API writes are intercepted; no model calls. Script: `SYSTEM/dashboard/scripts/builder-prompt-resize-browser.test.mjs`. Artifacts/log: `/private/tmp/clawmax-builder-resize-browser/`, `/private/tmp/clawmax-builder-resize-browser.log`.
+- [x] Builder layout and three mobile-layout cases, focused lint, server TypeScript and production build pass. Strict frontend diagnostics are byte-identical to the 291-diagnostic scoring baseline.
+- [ ] Current-head CI must pass before merge. Full 571-check suite and CodeQL evidence below belong to `9132ec6d`; the small resize follow-up has focused verification, not a new full-suite/security claim.
+
+## Scoring engineering evidence
 
 - [x] All seven domains total exactly 100: general, agent, skill, template, workflow, plugin and builder. Both partial domain rules award 8/7; empty/rich prompts score 0/100; 80/90 thresholds remain unchanged. **69 assertions** pass.
 - [x] **35 integration contracts** and **six scoring-runner cases** pass. The shell runner now requires exit zero and a positive actual assertion count; missing/zero output and failing processes cannot report success from pass-looking text.

@@ -11,7 +11,8 @@
 The [November 12 checklist](planning/RC98_ACCEPTANCE_2026-11-12.md) records a
 571/571 full local pass and all-domain browser/scoring evidence for `9132ec6d`.
 The rubric totals 100, retaining advisory behavior and existing thresholds.
-Weighting approval and current-head CI are required before merging existing #242.
+Owner accepted the weighting. The requested prompt-resize follow-up passes focused
+checks on `c4ee5caf`; current-head CI remains required before merging existing #242.
 
 ### Scheduler #287/#288 merged; retained release boundaries
 
