@@ -4,9 +4,9 @@ Existing [PR #242](https://github.com/Maximilien-ai/clawmax/pull/242) fixes [#24
 
 ## Your one check
 
-- [ ] **Resize feels useful:** refresh http://localhost:5180/builder and drag the prompt's bottom-right corner up and down. The default height is unchanged; the existing expand/shrink button restores the presets. No generation is needed. Reply **accept resize**. `reviewReason: human-judgment`
+- [ ] **Resize feels useful:** refresh http://localhost:5180/builder and drag the visible **Resize ↕** bar below the prompt up and down. The default height is unchanged; the existing expand/shrink button restores the presets. No generation is needed. Reply **accept resize**. `reviewReason: human-judgment`
 
-Preview: **`2.0.0-dev.c4ee5caf`**, same **RC98 Prompt Readiness Acceptance** workspace; earlier data is retained.
+Preview: **`2.0.0-dev.3cb9f071`**, same **RC98 Prompt Readiness Acceptance** workspace; earlier data is retained.
 
 ## Archived scoring acceptance
 
@@ -17,9 +17,11 @@ Owner accepted the weighting November 12 with “It's good.” [Receipt](https:/
 
 The arithmetic, score ceiling, live updates and advisory behavior have already been verified; no need to repeat those engineering checks.
 
-Optional visual reference: **http://localhost:5180/builder**, workspace **RC98 Prompt Readiness Acceptance**, version **`2.0.0-dev.c4ee5caf`**. Click **Open Editor** and enter a prompt to inspect its category breakdown. Generation is not required. The isolated preview has no copied provider keys and retains earlier acceptance workspaces. Its synthetic agent only avoids first-run onboarding.
+Optional visual reference: **http://localhost:5180/builder**, workspace **RC98 Prompt Readiness Acceptance**, version **`2.0.0-dev.3cb9f071`**. Click **Open Editor** and enter a prompt to inspect its category breakdown. Generation is not required. The isolated preview has no copied provider keys and retains earlier acceptance workspaces. Its synthetic agent only avoids first-run onboarding.
 
 ## Resize follow-up evidence
+
+Visible-handle follow-up source: `3cb9f0710c1e2dfd690faba50ab36687146adffa`. The owner could not discover the native corner grip, so a blue Resize bar with up/down chevrons now sits directly below the input. It supports captured mouse/touch dragging, Arrow Up/Down adjustments and Home to restore the current preset. Pointer release/cancellation ends dragging; bounds retain the input minimum and viewport maximum. Four theme/viewport browser runs passed actual handle dragging and keyboard controls, with real touch gestures at phone width. Build, lint, server types and focused layout suites pass; strict frontend diagnostic patterns are unchanged. Artifacts: `/private/tmp/clawmax-builder-handle-browser/`. This supersedes the corner-only interaction below; the earlier criteria/results remain historical evidence. The isolated launcher now aligns its readiness workspace with its .env selection to prevent the earlier timeout shutdown.
 
 Source `c4ee5caf29c0855bfa684df8c29cc747e620525f` adds vertical prompt resizing to this existing PR. Expanded default stays 192px; reduced preset stays 88px. Both presets now allow dragging in either direction, within a viewport-relative maximum. The hint identifies the native resize corner, and the existing button provides keyboard-accessible presets. Resize height is local to the current mounted view; no saved preference is promised.
 

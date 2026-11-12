@@ -20,7 +20,7 @@ Owner accepted the weighting November 12. The requested resize follow-up
 `c4ee5caf` keeps the default prompt height, permits dragging shorter/taller, and
 passes four theme/viewport drag checks, focused suites, types, lint and build.
 [Current checklist](planning/RC98_ACCEPTANCE_2026-11-12.md): one optional feel check
-of resizing. Preview: http://localhost:5180/builder, `2.0.0-dev.c4ee5caf`,
+of the visible Resize bar (mouse/touch/keyboard checks pass on `3cb9f071`). Preview: http://localhost:5180/builder, `2.0.0-dev.3cb9f071`,
 **RC98 Prompt Readiness Acceptance**. Earlier workspaces remain.
 Full source evidence and security comparison are recorded there; current-head CI
 is required before merge. Local CodeQL adds no findings; its raw baseline still
