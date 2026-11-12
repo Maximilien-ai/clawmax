@@ -1,4 +1,8 @@
-import { Router } from 'express'
+import { generateChannelDraft } from '../lib/ai-generator'
+import { Router, type RequestHandler } from 'express'
+import { MessageHistoryRecoveryError } from '../lib/message-storage-identity'
+import { ChannelRecipientError, channelRecipients, channelSessionId } from '../lib/channel-recipients'
+import { getWorkspaceManager, WorkspaceContextUnavailableError } from '../lib/workspace-manager'
 import { spawn } from 'child_process'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import fs from 'fs'
@@ -38,6 +42,32 @@ const NON_OPENCLAW_CALL_AGENT_TIMEOUT_MS = 120000
 
 const CHANNEL_RUNTIME_ERROR_PATTERN = /FsSafeError: directory changed during operation|(?:Unknown|Unsupported) model:|No API key found for provider|Incorrect API key provided|has auth issue \(skipping all models\)|insufficient_quota|quota exceeded|rate limit|too many requests|429\b|is in cooldown \(suspending lanes\)|EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released|All models failed|No API keys available|No execution path configured|gateway|timeout|n_keep:\s*\d+\s*>=\s*n_ctx:\s*\d+/i
 
+// Pin the active workspace through delayed replies and turn queues. Translate
+// ambiguous legacy history into a visible recovery response before any dispatch.
+function messageHistoryRoute(handler: RequestHandler): RequestHandler {
+  return (req, res, next) => {
+    const handleError = (error: unknown) => {
+      if (error instanceof MessageHistoryRecoveryError) {
+        if (!res.headersSent) res.status(409).json({ ok: false, code: error.code, error: error.message })
+      } else if (error instanceof WorkspaceContextUnavailableError) {
+        if (!res.headersSent) res.status(409).json({ ok: false, code: 'workspace_changed', error: 'This chat’s workspace is no longer available. Reopen a chat in an existing workspace.' })
+      } else if (error instanceof ChannelRecipientError) {
+        if (!res.headersSent) res.status(error.status).json({ ok: false, code: error.code, error: error.message })
+      } else next(error)
+    }
+    try {
+      const manager = getWorkspaceManager()
+      const workspaceId = manager.getActiveWorkspace().id
+      const expectedWorkspace = req.headers?.['x-clawmax-workspace']
+      if (expectedWorkspace !== undefined && expectedWorkspace !== workspaceId) {
+        res.status(409).json({ ok: false, code: 'workspace_changed', error: 'Workspace changed. Reopen this chat in the active workspace.' })
+        return
+      }
+      return manager.withWorkspace(workspaceId, () => handler(req, res, next)).catch(handleError)
+    } catch (error) { handleError(error) }
+  }
+}
+
 // List all communities
 router.get('/communities', (req, res) => {
   try {
@@ -59,14 +89,21 @@ router.get('/communities', (req, res) => {
 router.get('/message-counts', (req, res) => {
   try {
     const counts: Record<string, number> = {}
+    const recoveryRequired: string[] = []
+    const countChannel = (type: 'group' | 'community', name: string) => {
+      try { counts[`${type}:${name}`] = getMessages(type, name).length }
+      catch (error) {
+        if (error instanceof MessageHistoryRecoveryError) recoveryRequired.push(`${type}:${name}`)
+        else throw error
+      }
+    }
 
     // Count group messages
     const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
     if (fs.existsSync(groupsPath)) {
       const { groups } = parseGroupsWithMembers(fs.readFileSync(groupsPath, 'utf-8'))
       for (const group of groups) {
-        const messages = getMessages('group', group.name)
-        counts[`group:${group.name}`] = messages.length
+        countChannel('group', group.name)
       }
     }
 
@@ -76,12 +113,11 @@ router.get('/message-counts', (req, res) => {
       const content = fs.readFileSync(commPath, 'utf-8')
       const communityNames = Array.from(content.matchAll(/^###\s+(.+)$/gm)).map(m => m[1].trim())
       for (const name of communityNames) {
-        const messages = getMessages('community', name)
-        counts[`community:${name}`] = messages.length
+        countChannel('community', name)
       }
     }
 
-    res.json({ counts })
+    res.json({ counts, ...(recoveryRequired.length ? { recoveryRequired } : {}) })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
@@ -118,6 +154,22 @@ router.get('/groups', (req, res) => {
     }) })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
+  }
+})
+
+// Generation produces a reviewable draft; creation remains an explicit separate request.
+router.post('/channel-draft', async (req, res) => {
+  const { kind, description, byokKeys } = req.body || {}
+  if (!['group', 'community'].includes(kind) || typeof description !== 'string' || !description.trim() || description.length > 20000) {
+    return res.status(400).json({ error: 'Choose a group or community and describe what you want (up to 20,000 characters).' })
+  }
+  try {
+    const communitiesPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
+    const communities = fs.existsSync(communitiesPath) ? parseGroupsWithMembers(fs.readFileSync(communitiesPath, 'utf8')).communities.map(item => item.name) : []
+    const draft = await generateChannelDraft({ kind, description, communities, agents: listAgents().filter(agent => !agent.archived).map(agent => ({ id: agent.id, tags: agent.tags || [] })) }, byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
+    res.json({ draft })
+  } catch (error: any) {
+    res.status(400).json({ error: /No API key configured/i.test(error.message) ? 'Configure a model provider in BYOK before generating a draft.' : error.message || 'Could not generate a draft. Try again.' })
   }
 })
 
@@ -365,8 +417,13 @@ export async function callAgent(
   message: string,
   sessionId: string,
   byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
-  actor?: { userId?: string; login?: string; email?: string | null }
+  actor?: { userId?: string; login?: string; email?: string | null },
+  assertChannelAccess?: () => void
 ): Promise<string> {
+  // Ids arrive from a URL (`/direct-messages/:from/:to`) and from `mentions` in a body, and become paths:
+  // `AGENTS/<id>/IDENTITY.md`, the runtime's state and auth folders under `~/.openclaw/agents/<id>`.
+  if (!/^[a-z][a-z0-9_-]*$/.test(agentId)) throw new Error(`Invalid agent id: ${JSON.stringify(agentId).slice(0, 80)}`)
+  assertChannelAccess?.()
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const integrationConfig = readWorkspaceIntegrationConfig()
   const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
@@ -431,7 +488,7 @@ export async function callAgent(
           })
         }
         return responseText
-      })
+      }, { assertAuthorized: assertChannelAccess })
     }
 
     const gatewayRunning = shouldTreatGatewayAsRunning(
@@ -521,7 +578,7 @@ export async function callAgent(
     proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); turn.touch() })
 
     proc.on('close', (code: number) => {
-      console.log(`[callAgent] ${agentId}: exit code=${code}, stdout len=${stdout.length}, stderr len=${stderr.length}`)
+      console.log("[callAgent] %s: exit code=%s, stdout len=%s, stderr len=%s", agentId, code, stdout.length, stderr.length)
       const rawDiagnostic = `${stdout}\n${stderr}`.trim()
       const runtimeError = CHANNEL_RUNTIME_ERROR_PATTERN.test(rawDiagnostic)
         ? deriveChatError(rawDiagnostic, resolvedAgent.provider as any, { agentId, model: resolvedAgent.model })
@@ -533,8 +590,8 @@ export async function callAgent(
       }
 
       try {
-        console.log(`[callAgent] ${agentId}: stdout=${stdout.slice(0, 500)}`)
-        console.log(`[callAgent] ${agentId}: stderr=${stderr.slice(0, 500)}`)
+        console.log("[callAgent] %s: stdout=%s", agentId, stdout.slice(0, 500))
+        console.log("[callAgent] %s: stderr=%s", agentId, stderr.slice(0, 500))
 
         // Extract JSON from stdout or stderr — the CLI may mix warning lines with JSON in stderr
         // Strategy: try each line starting with '{' as a JSON candidate, longest first
@@ -604,13 +661,6 @@ export async function callAgent(
               dashboardInstanceId: getConfiguredDashboardInstanceId(),
             })
           }
-          const actualSessionId = result?.meta?.agentMeta?.sessionId || result?.result?.meta?.agentMeta?.sessionId
-          if (actualSessionId) {
-            try {
-              const sessPath = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'sessions')
-              fs.mkdirSync(sessPath, { recursive: true })
-            } catch {}
-          }
         } else if (stdout.trim()) {
           // Gateway mode may return plain text without --json wrapper
           responseText = stdout.trim()
@@ -621,12 +671,12 @@ export async function callAgent(
           return
         }
         if (!responseText) {
-          console.log(`[callAgent] ${agentId}: empty response, stdout=${stdout.slice(0, 200)}, stderr=${stderr.slice(0, 200)}`)
+          console.log("[callAgent] %s: empty response, stdout=%s, stderr=%s", agentId, stdout.slice(0, 200), stderr.slice(0, 200))
         }
 
         settle(() => resolve(responseText))
       } catch (parseErr) {
-        console.error(`[callAgent] ${agentId}: parse error:`, parseErr, `stdout=${stdout.slice(0, 300)}, stderr=${stderr.slice(0, 300)}`)
+        console.error("[callAgent] %s: parse error:", agentId, parseErr, `stdout=${stdout.slice(0, 300)}, stderr=${stderr.slice(0, 300)}`)
         // If we have any stdout text at all, return it as-is rather than failing
         if (stdout.trim()) {
           settle(() => resolve(stdout.trim()))
@@ -640,7 +690,7 @@ export async function callAgent(
       settle(() => reject(err))
     })
     })
-    }, { persistAuthProfiles: true, skipModelConfigMutation: true }))
+    }, { persistAuthProfiles: true, skipModelConfigMutation: true }), { assertAuthorized: assertChannelAccess })
   })
 }
 
@@ -867,16 +917,17 @@ router.patch('/groups/:name/members', (req, res) => {
 })
 
 // Get messages for a community
-router.get('/communities/:name/messages', (req, res) => {
+router.get('/communities/:name/messages', messageHistoryRoute((req, res) => {
   const { name } = req.params
   const messages = getMessages('community', decodeURIComponent(name))
   res.json({ messages })
-})
+}))
 
 // Send message to a community
-router.post('/communities/:name/messages', async (req, res) => {
+router.post('/communities/:name/messages', messageHistoryRoute(async (req, res) => {
   const { name } = req.params
-  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
+  const { content, mentions: requestedMentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
+  let mentions = requestedMentions
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })
@@ -884,6 +935,7 @@ router.post('/communities/:name/messages', async (req, res) => {
   }
 
   const decodedName = decodeURIComponent(name)
+  mentions = channelRecipients('community', decodedName, mentions)
   const session = getAuthenticatedSession(req)
 
   // Save message (use provided 'from' or default to 'User')
@@ -900,37 +952,36 @@ router.post('/communities/:name/messages', async (req, res) => {
 
   // Call mentioned agents asynchronously (don't block response)
   if (mentions && mentions.length > 0) {
-    console.log(`[Group Chat] Calling ${mentions.length} agents for community "${decodedName}":`, mentions)
+    console.log("[Group Chat] Calling %s agents for community \"%s\":", mentions.length, decodedName, mentions)
 
     // Call agents sequentially with delay to avoid gateway contention
     ;(async () => {
       const communityContext = `[You are participating in a ClawMax community named "${decodedName}". Respond normally in this shared chat when addressed. Do not look for or mention a separate session label. Message from ${from || 'User'}:]\n\n${content}`
 
-      for (let i = 0; i < mentions.length; i++) {
-        const agentId = mentions[i]
+      for (const [i, agentId] of mentions.entries()) {
         if (i > 0) await new Promise(r => setTimeout(r, 3000))
         try {
-          const agentSessionId = `community:${decodedName}:${agentId}`
-          console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
-          let response = await callAgent(agentId, communityContext, agentSessionId, byok, session || undefined)
+          const agentSessionId = channelSessionId('community', decodedName, agentId)
+          console.log("[Group Chat] Calling agent %s", agentId)
+          let response = await callAgent(agentId, communityContext, agentSessionId, byok, session || undefined, () => { channelRecipients('community', decodedName, [agentId]) })
 
           // Retry once if empty response
           if (!response || !response.trim()) {
-            console.log(`[Group Chat] Agent ${agentId} returned empty — retrying after 2s`)
+            console.log("[Group Chat] Agent %s returned empty \u2014 retrying after 2s", agentId)
             await new Promise(r => setTimeout(r, 2000))
-            response = await callAgent(agentId, communityContext, agentSessionId, byok, session || undefined)
+            response = await callAgent(agentId, communityContext, agentSessionId, byok, session || undefined, () => { channelRecipients('community', decodedName, [agentId]) })
           }
 
-          console.log(`[Group Chat] Agent ${agentId} responded:`, response)
+          console.log("[Group Chat] Agent %s responded", agentId)
           if (response && response.trim()) {
             addMessage('community', decodedName, {
               from: agentId,
               content: response,
               mentions: []
             })
-            console.log(`[Group Chat] Added ${agentId} response to history`)
+            console.log("[Group Chat] Added %s response to history", agentId)
           } else {
-            console.log(`[Group Chat] Agent ${agentId} returned empty response after retry`)
+            console.log("[Group Chat] Agent %s returned empty response after retry", agentId)
             addMessage('community', decodedName, {
               from: agentId,
               content: '*(Agent did not return a response. Try mentioning them directly with @)*',
@@ -938,7 +989,7 @@ router.post('/communities/:name/messages', async (req, res) => {
             })
           }
         } catch (err) {
-          console.error(`[Group Chat] Failed to get response from agent ${agentId}:`, err)
+          console.error("[Group Chat] Failed to get response from agent %s:", agentId, err)
           addMessage('community', decodedName, {
             from: agentId,
             content: `**Error:** ${err instanceof Error ? err.message : 'Agent failed to respond.'}`,
@@ -948,19 +999,20 @@ router.post('/communities/:name/messages', async (req, res) => {
       }
     })().catch(err => console.error('[Group Chat] Error calling agents:', err))
   }
-})
+}))
 
 // Get messages for a group
-router.get('/groups/:name/messages', (req, res) => {
+router.get('/groups/:name/messages', messageHistoryRoute((req, res) => {
   const { name } = req.params
   const messages = getMessages('group', decodeURIComponent(name))
   res.json({ messages })
-})
+}))
 
 // Send message to a group
-router.post('/groups/:name/messages', async (req, res) => {
+router.post('/groups/:name/messages', messageHistoryRoute(async (req, res) => {
   const { name } = req.params
-  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
+  const { content, mentions: requestedMentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
+  let mentions = requestedMentions
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })
@@ -970,7 +1022,7 @@ router.post('/groups/:name/messages', async (req, res) => {
   const decodedName = decodeURIComponent(name)
   const session = getAuthenticatedSession(req)
   const templateMentions = Array.isArray(mentions) && mentions.some(id => typeof id === 'string' && /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(id))
-  const devTemporaryChat = templateMentions && /^bulk-chat-\d{13}$/.test(decodedName)
+  const devTemporaryChat = Array.isArray(mentions) && templateMentions && /^bulk-chat-\d{13}$/.test(decodedName)
     && mentions.length >= 1 && mentions.length <= 8
     && new Set(mentions).size === mentions.length
     && mentions.every(id => typeof id === 'string' && isDevHostSkillChatReady(req, id))
@@ -978,6 +1030,8 @@ router.post('/groups/:name/messages', async (req, res) => {
     res.status(409).json({ ok: false, error: 'Template Agents require the admitted local dev chat path' })
     return
   }
+
+  if (!devTemporaryChat) mentions = channelRecipients('group', decodedName, mentions)
 
   // Save message (use provided 'from' or default to 'User')
   const message = addMessage('group', decodedName, {
@@ -1007,39 +1061,38 @@ router.post('/groups/:name/messages', async (req, res) => {
 
   // Call mentioned agents asynchronously (don't block response)
   if (mentions && mentions.length > 0) {
-    console.log(`[Group Chat] Calling ${mentions.length} agents for group "${decodedName}":`, mentions)
+    console.log("[Group Chat] Calling %s agents for group \"%s\":", mentions.length, decodedName, mentions)
 
     // Call agents sequentially with delay to avoid gateway contention
     ;(async () => {
       // Build context-aware message so agents know they're in a group
       const groupContext = `[You are participating in a ClawMax group named "${decodedName}". Respond normally in this shared chat when addressed. Do not look for or mention a separate session label. Message from ${from || 'User'}:]\n\n${content}`
 
-      for (let i = 0; i < mentions.length; i++) {
-        const agentId = mentions[i]
+      for (const [i, agentId] of mentions.entries()) {
         // Small delay between agents to avoid gateway race
         if (i > 0) await new Promise(r => setTimeout(r, 3000))
         try {
-          const agentSessionId = `group:${decodedName}:${agentId}`
-          console.log(`[Group Chat] Calling agent ${agentId} with message: "${content}"`)
-          let response = await callAgent(agentId, groupContext, agentSessionId, byok, session || undefined)
+          const agentSessionId = channelSessionId('group', decodedName, agentId)
+          console.log("[Group Chat] Calling agent %s", agentId)
+          let response = await callAgent(agentId, groupContext, agentSessionId, byok, session || undefined, () => { channelRecipients('group', decodedName, [agentId]) })
 
           // Retry once if empty response (common with 2nd+ agent due to gateway timing)
           if (!response || !response.trim()) {
-            console.log(`[Group Chat] Agent ${agentId} returned empty — retrying after 2s`)
+            console.log("[Group Chat] Agent %s returned empty \u2014 retrying after 2s", agentId)
             await new Promise(r => setTimeout(r, 2000))
-            response = await callAgent(agentId, groupContext, agentSessionId, byok, session || undefined)
+            response = await callAgent(agentId, groupContext, agentSessionId, byok, session || undefined, () => { channelRecipients('group', decodedName, [agentId]) })
           }
 
-          console.log(`[Group Chat] Agent ${agentId} responded:`, response)
+          console.log("[Group Chat] Agent %s responded", agentId)
           if (response && response.trim()) {
             addMessage('group', decodedName, {
               from: agentId,
               content: response,
               mentions: []
             })
-            console.log(`[Group Chat] Added ${agentId} response to history`)
+            console.log("[Group Chat] Added %s response to history", agentId)
           } else {
-            console.log(`[Group Chat] Agent ${agentId} returned empty response after retry`)
+            console.log("[Group Chat] Agent %s returned empty response after retry", agentId)
             addMessage('group', decodedName, {
               from: agentId,
               content: '*(Agent did not return a response. Try mentioning them directly with @)*',
@@ -1047,7 +1100,7 @@ router.post('/groups/:name/messages', async (req, res) => {
             })
           }
         } catch (err) {
-          console.error(`[Group Chat] Failed to get response from agent ${agentId}:`, err)
+          console.error("[Group Chat] Failed to get response from agent %s:", agentId, err)
           addMessage('group', decodedName, {
             from: agentId,
             content: `**Error:** ${err instanceof Error ? err.message : 'Agent failed to respond.'}`,
@@ -1057,61 +1110,61 @@ router.post('/groups/:name/messages', async (req, res) => {
       }
     })().catch(err => console.error('[Group Chat] Error calling agents:', err))
   }
-})
+}))
 
 // Clear messages (archives them first)
-router.delete('/communities/:name/messages', (req, res) => {
+router.delete('/communities/:name/messages', messageHistoryRoute((req, res) => {
   const { name } = req.params
   const result = clearMessages('community', decodeURIComponent(name))
   res.json({ ok: true, ...result })
-})
+}))
 
-router.delete('/groups/:name/messages', (req, res) => {
+router.delete('/groups/:name/messages', messageHistoryRoute((req, res) => {
   const { name } = req.params
   const result = clearMessages('group', decodeURIComponent(name))
   res.json({ ok: true, ...result })
-})
+}))
 
 // Get archives list
-router.get('/communities/:name/archives', async (req, res) => {
+router.get('/communities/:name/archives', messageHistoryRoute(async (req, res) => {
   const { name } = req.params
   const archives = await getArchives('community', decodeURIComponent(name))
   res.json({ archives })
-})
+}))
 
-router.get('/groups/:name/archives', async (req, res) => {
+router.get('/groups/:name/archives', messageHistoryRoute(async (req, res) => {
   const { name } = req.params
   const archives = await getArchives('group', decodeURIComponent(name))
   res.json({ archives })
-})
+}))
 
 // Get archived messages
-router.get('/communities/:name/archives/:filename', (req, res) => {
+router.get('/communities/:name/archives/:filename', messageHistoryRoute((req, res) => {
   const { name, filename } = req.params
   const messages = getArchivedMessages('community', decodeURIComponent(name), filename)
   res.json({ messages })
-})
+}))
 
-router.get('/groups/:name/archives/:filename', (req, res) => {
+router.get('/groups/:name/archives/:filename', messageHistoryRoute((req, res) => {
   const { name, filename } = req.params
   const messages = getArchivedMessages('group', decodeURIComponent(name), filename)
   res.json({ messages })
-})
+}))
 
 // Delete archive
-router.delete('/communities/:name/archives/:filename', (req, res) => {
+router.delete('/communities/:name/archives/:filename', messageHistoryRoute((req, res) => {
   const { name, filename } = req.params
   const { deleteArchivedMessages } = require('../lib/messages')
   const success = deleteArchivedMessages('community', decodeURIComponent(name), filename)
   res.json({ ok: success })
-})
+}))
 
-router.delete('/groups/:name/archives/:filename', (req, res) => {
+router.delete('/groups/:name/archives/:filename', messageHistoryRoute((req, res) => {
   const { name, filename } = req.params
   const { deleteArchivedMessages } = require('../lib/messages')
   const success = deleteArchivedMessages('group', decodeURIComponent(name), filename)
   res.json({ ok: success })
-})
+}))
 
 // GET /api/communities/:name/workflows — get workflows targeting this community
 router.get('/communities/:name/workflows', (req, res) => {
@@ -1199,7 +1252,7 @@ router.post('/direct-messages/:from/:to', async (req, res) => {
         addMessage('direct', key, { from: to, content: response, mentions: [from] })
       }
     } catch (err) {
-      console.error(`[DM] Failed to get response from ${to}:`, err)
+      console.error("[DM] Failed to get response from %s:", to, err)
     }
   }
 

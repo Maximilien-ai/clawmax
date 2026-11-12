@@ -1,21 +1,28 @@
+import { ScrollableMarkdownTable } from './ScrollableMarkdownTable'
 import { channelLabel } from '../lib/channelLabel'
-import { useEffect, useLayoutEffect, useState, useRef, useCallback, type ChangeEvent } from 'react'
+import { useEffect, useLayoutEffect, useState, useRef, useCallback, type ChangeEvent, type KeyboardEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { nextChatFollowState } from '../lib/agentChatScroll'
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import { buildPersistentDashboardChatSessionId, resolveDashboardChatSessionId } from '../lib/agentChatSession'
 import { buildAgentChatTimelineRows, shouldShowCalendarDate } from '../lib/agentChatTimeline'
-import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, getAgentChatLinkClassName, type AgentChatMarkdownRole } from '../lib/agentChatMarkdown'
+import { getAgentChatInlineCodeClassName, getAgentChatLinkClassName, isCodeBlockNode, type AgentChatMarkdownRole } from '../lib/agentChatMarkdown'
+import { copyText } from '../lib/clipboard'
+import { AssistantCodeBlock, CopyIcon, UserCodeBlock } from './ChatCodeBlock'
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
 import { forwardChatMessage, loadForwardTargets, type ForwardTarget } from '../lib/agentChatForward'
+import { useDismissiblePopover } from '../lib/dismissiblePopover'
+import { useAgentPanelPersistence } from '../lib/agentPanelPersistence'
+import { KeepAgentPanelOpenButton } from './KeepAgentPanelOpenButton'
 import { appendAgentInboxAttachmentContext, buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, type AgentInboxAttachmentRef } from '../lib/agentInbox'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
+import { normalizeChatMessage } from '../../../server/lib/chat-normalization'
 import { createPromptAttachment } from '../lib/promptAttachments'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
-import { formatAgentWorkStatus, summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
+import { formatAgentWorkStatus, isRuntimeDiagnosticText, summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
 import { INCOMPLETE_AGENT_CHAT_MESSAGE, markIncompleteAgentReply } from '../lib/agentChatStream'
 import { buildAgentChatMarkdown, getAgentChatDownloadState } from '../lib/agentChatExport'
 import { parseAgentChatHistory, reconcileAgentChatHistory } from '../lib/agentChatHistory'
@@ -27,6 +34,8 @@ import { readChatComposerExpanded, saveChatComposerExpanded } from '../lib/chatC
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  /** A reply bubble this tab filled with a failure summary instead of the agent's text. */
+  failed?: boolean
   timestamp: number
   id: string
   /** Sent or received by this tab and not yet confirmed by the persisted transcript. */
@@ -86,117 +95,13 @@ function stripAnsi(str: string): string {
   return str.replace(/\x1b\[[0-9;]*m/g, '').replace(/\[[\d;]*m/g, '')
 }
 
-// Detect if content is an error/diagnostic message
-function isErrorContent(content: string): boolean {
-  return /\[diagnostic\]|lane task error|session file locked|Error:|error="/i.test(content)
-}
-
-function isRuntimeStatusLine(trimmed: string): boolean {
-  return /^(🕒|🧠|🔑|🧮|📚|🧹|🧵|⚙️|🪢)\s/.test(trimmed)
-}
-
-function isToolArtifactLine(trimmed: string): boolean {
-  return (
-    trimmed === '(processing...)' ||
-    trimmed === 'Files:' ||
-    /^total\s+\d+/.test(trimmed) ||
-    /^[drwx-]{10}\s/.test(trimmed) ||
-    /^-rw[rx-]{7}\s/.test(trimmed) ||
-    /^[A-Za-z0-9_.-]+\.(md|txt|json|csv|pdf|html|yml|yaml)$/.test(trimmed) ||
-    /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ||
-    trimmed === 'No notes yet.'
-  )
-}
-
-// Strip OpenClaw internal data from message content
+// Persisted history and `complete` text are normalized by the server already; live deltas pass only
+// its line-level warning filter. Render both through the same normalizer, so a reply looks the same
+// while streaming, after it finishes, and after a reopen. (This used to be a drifted copy that also
+// deleted fenced code and JSON examples.)
 function cleanMessageContent(content: string): string {
   if (!content) return content
-
-  // Strip ANSI codes first
-  content = stripAnsi(content)
-
-  // Detect raw gateway message payloads: [ { "id": "...", "content": "..." } ]
-  // Extract just the content fields
-  try {
-    const trimmed = content.trim()
-    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
-      const parsed = JSON.parse(trimmed)
-      const items = Array.isArray(parsed) ? parsed : [parsed]
-      if (items.length > 0 && items[0].content && items[0].from) {
-        return items.map(m => m.content).filter(Boolean).join('\n\n')
-      }
-      if (items.length > 0 && items[0].payloads) {
-        return items[0].payloads.map((p: any) => p.text).filter(Boolean).join('\n\n')
-      }
-    }
-  } catch {}
-
-  // Process line by line — keep only human-readable content
-  const lines = content.split('\n')
-  const cleanedLines: string[] = []
-  let braceDepth = 0 // Track JSON nesting depth
-  let bracketDepth = 0
-  let skippingArtifactBlock = false
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    const trimmed = line.trim()
-
-    // Track JSON brace/bracket depth
-    if (braceDepth > 0 || bracketDepth > 0) {
-      for (const ch of trimmed) {
-        if (ch === '{') braceDepth++
-        else if (ch === '}') braceDepth = Math.max(0, braceDepth - 1)
-        else if (ch === '[') bracketDepth++
-        else if (ch === ']') bracketDepth = Math.max(0, bracketDepth - 1)
-      }
-      continue // Skip everything inside JSON blocks
-    }
-
-    // Detect start of JSON block
-    if (trimmed === '{' || trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      braceDepth += (trimmed.match(/\{/g) || []).length - (trimmed.match(/\}/g) || []).length
-      bracketDepth += (trimmed.match(/\[/g) || []).length - (trimmed.match(/\]/g) || []).length
-      if (braceDepth > 0 || bracketDepth > 0) continue
-      // Single-line JSON (opened and closed on same line)
-      continue
-    }
-
-    if (!trimmed) {
-      skippingArtifactBlock = false
-      cleanedLines.push(line)
-      continue
-    }
-
-    // Skip lines with ANSI escape codes
-    if (trimmed.match(/\[[\d;]*m/) || trimmed.match(/\x1b\[/)) continue
-
-    // Skip OpenClaw internal lines
-    if (isRuntimeStatusLine(trimmed) || trimmed.startsWith('🦞 OpenClaw') || trimmed.match(/^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/)) continue
-
-    // Skip inline tool calls
-    if (trimmed.match(/\{"type"\s*:\s*"/)) continue
-
-    // Skip bare timestamps
-    if (trimmed.match(/^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/)) continue
-
-    // Skip lines that are just closing braces
-    if (trimmed.match(/^[}\]],?\s*$/)) continue
-
-    if (isToolArtifactLine(trimmed)) {
-      skippingArtifactBlock = true
-      continue
-    }
-
-    if (skippingArtifactBlock) {
-      continue
-    }
-
-    cleanedLines.push(line)
-  }
-
-  const cleaned = cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
-  return cleaned || '(processing...)'
+  return normalizeChatMessage(content) || '(processing...)'
 }
 
 /**
@@ -237,6 +142,7 @@ export function splitTrailingSystemNotice(content: string): { text: string; noti
 }
 
 export default function AgentChatPanel({ agentId, agentName, agentStatus, agentGeneration, onClose, onSuccess, onNavigateToDoc }: Props) {
+  const panelPersistence = useAgentPanelPersistence(onClose)
   const { config } = useAuth()
   const { showSuccess, showError } = useToast()
   // Staged Template Agents can only chat when their server-owned dev runtime
@@ -273,6 +179,20 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [forwardingTo, setForwardingTo] = useState<string | null>(null)
   const [forwardError, setForwardError] = useState<string | null>(null)
   const [forwardMenuAlign, setForwardMenuAlign] = useState<'left' | 'right'>('right')
+  // Only the open picker's elements carry these refs; one picker is open at a time.
+  const forwardRootRef = useRef<HTMLDivElement | null>(null)
+  const forwardTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const forwardMenuRef = useRef<HTMLDivElement | null>(null)
+  const forwardOpenedByKeyboardRef = useRef(false)
+  const closeForwardPicker = useCallback(() => setForwardTargetMsgId(null), [])
+  const forwardPopover = useDismissiblePopover({
+    open: forwardTargetMsgId !== null,
+    onClose: closeForwardPicker,
+    rootRef: forwardRootRef,
+    triggerRef: forwardTriggerRef,
+    // Stay open while a forward is sending, so a failure is reported where it was started.
+    holdOpen: forwardingTo !== null,
+  })
   const [isSlideMode, setIsSlideMode] = useState(() => {
     // Load saved preference from localStorage
     const saved = localStorage.getItem(`agent-chat-mode-${agentId}`)
@@ -286,6 +206,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string; active?: boolean; kind?: 'current' | 'conversation' | 'archive-file'; resumable?: boolean }>>([])
   const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: any[]; active?: boolean; resumable?: boolean } | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [inputHistory, setInputHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
@@ -593,6 +514,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       remarkPlugins={[remarkGfm]}
       urlTransform={transformWorkspaceMarkdownUrl}
       components={{
+        table: ScrollableMarkdownTable,
         a: ({ href, children }) => {
           if (href?.startsWith('workspace-file:') && onNavigateToDoc) {
             const file = href.replace('workspace-file:', '')
@@ -615,14 +537,13 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
           }
           return <a href={href} target="_blank" rel="noreferrer" className={getAgentChatLinkClassName(role)}>{children}</a>
         },
-        code: ({ children, className }) => (
-          <code className={className?.includes('language-') ? className : getAgentChatInlineCodeClassName(role)}>
+        // A block without a language has no class either; it is still a block, not inline code.
+        code: ({ node, children, className }) => (
+          <code className={className?.includes('language-') || isCodeBlockNode(node) ? className : getAgentChatInlineCodeClassName(role)}>
             {children}
           </code>
         ),
-        pre: ({ children }) => (
-          <pre className={getAgentChatCodeBlockClassName(role)}>{children}</pre>
-        ),
+        pre: role === 'user' ? UserCodeBlock : AssistantCodeBlock,
       }}
     >
       {linkifyWorkspaceFiles(clean ? cleanMessageContent(content) : content)}
@@ -878,7 +799,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               setError(friendly)
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
-                  ? { ...m, content: friendly }
+                  ? { ...m, content: friendly, failed: true }
                   : m
               ))
               setStreaming(false)
@@ -914,7 +835,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
       if (assistantId) {
         setMessages(prev => prev.map(m =>
           m.id === assistantId
-            ? { ...m, content: friendly }
+            ? { ...m, content: friendly, failed: true }
             : m
         ))
       }
@@ -996,12 +917,38 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
   // Opens toward the side with room: a short reply's Forward button sits near the panel's left edge,
   // where a menu opening leftwards was cut off by the scrolling message list.
-  function openForwardPicker(messageId: string, anchor: HTMLElement) {
+  function openForwardPicker(messageId: string, anchor: HTMLElement, byKeyboard: boolean) {
+    forwardOpenedByKeyboardRef.current = byKeyboard
     const viewport = anchor.closest('.overflow-y-auto')?.getBoundingClientRect()
     setForwardMenuAlign(viewport && anchor.getBoundingClientRect().right - FORWARD_MENU_WIDTH_PX < viewport.left + 8 ? 'left' : 'right')
     setForwardTargetMsgId(messageId)
     setForwardError(null)
     void refreshForwardTargets()
+  }
+
+  const forwardMenuItems = () => Array.from(forwardMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') || [])
+
+  // Opened from the keyboard, focus the first target once one is listed (targets load on open).
+  useEffect(() => {
+    if (!forwardTargetMsgId || !forwardOpenedByKeyboardRef.current) return
+    const [first] = forwardMenuItems()
+    if (!first) return
+    first.focus()
+    forwardOpenedByKeyboardRef.current = false
+  }, [forwardTargetMsgId, forwardTargets.targets.length])
+
+  // Menu-button keyboard pattern: arrows move between targets (wrapping), Home and End jump.
+  function handleForwardKeyDown(event: KeyboardEvent) {
+    if (!forwardTargetMsgId || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    const items = forwardMenuItems()
+    if (items.length === 0) return
+    event.preventDefault()
+    const current = items.indexOf(document.activeElement as HTMLButtonElement)
+    const next = event.key === 'Home' ? 0
+      : event.key === 'End' ? items.length - 1
+        : event.key === 'ArrowDown' ? (current + 1) % items.length
+          : current <= 0 ? items.length - 1 : current - 1
+    items[next].focus()
   }
 
   async function forwardToGroup(target: ForwardTarget) {
@@ -1116,6 +1063,17 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
     setTimeout(() => setCopyFeedback(false), 2000)
   }
 
+  async function copyMessage(message: Message) {
+    try {
+      // What the bubble shows: the reply as rendered from, never the raw runtime transcript.
+      await copyText(message.role === 'assistant' ? cleanMessageContent(message.content) : message.content)
+      setCopiedMessageId(message.id)
+      setTimeout(() => setCopiedMessageId(current => (current === message.id ? null : current)), 2000)
+    } catch {
+      showError('Could not copy the message. Your browser blocked clipboard access.')
+    }
+  }
+
   function downloadConversation() {
     try {
       const exported = buildAgentChatMarkdown(agentName, messages.map(message => ({
@@ -1155,7 +1113,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
   if (gatewayAvailable === false) {
     return (
-      <div className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`}>
+      <div ref={panelPersistence.panelRef} tabIndex={-1} className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`} onClick={panelPersistence.onBackdropClick} onKeyDown={panelPersistence.onEscape}>
         <div className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full w-full sm:w-[600px] absolute right-0 top-0' : 'rounded-xl w-full sm:w-[600px] mx-2 sm:mx-0'} p-4 sm:p-6`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Agent Chat: {agentName}</h2>
@@ -1167,7 +1125,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               >
                 {isSlideMode ? '◧' : '»'}
               </button>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl p-2 min-w-[40px] min-h-[40px] flex items-center justify-center">×</button>
+              <KeepAgentPanelOpenButton keepOpen={panelPersistence.keepOpen} onToggle={panelPersistence.toggleKeepOpen} />
+              <button onClick={onClose} aria-label="Close chat" className="text-gray-400 hover:text-gray-600 text-xl p-2 min-w-[40px] min-h-[40px] flex items-center justify-center">×</button>
             </div>
           </div>
           <div className="text-center py-8">
@@ -1208,15 +1167,31 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const downloadState = getAgentChatDownloadState(messages, loadingHistory, streaming)
   const removesFromHistoryOnly = archives.find((archive) => archive.filename === deleteConfirm)?.kind === 'conversation'
 
+  function handlePanelEscape(event: React.KeyboardEvent<HTMLElement>) {
+    if (event.key !== 'Escape' || event.defaultPrevented) return
+    // Dismiss the innermost surface before closing the conversation beneath it.
+    const dismissChild = forwardTargetMsgId !== null ? () => {
+      forwardTriggerRef.current?.focus()
+      setForwardTargetMsgId(null)
+    }
+      : deleteConfirm !== null ? () => setDeleteConfirm(null)
+        : showClearConfirm ? () => setShowClearConfirm(false)
+          : viewingArchive !== null ? () => setViewingArchive(null)
+            : showArchives ? () => setShowArchives(false) : null
+    if (dismissChild) {
+      event.preventDefault()
+      event.stopPropagation()
+      dismissChild()
+    } else panelPersistence.onEscape(event)
+  }
+
   return (
     <div
+      ref={panelPersistence.panelRef}
+      tabIndex={-1}
       className={`fixed inset-0 z-50 ${isSlideMode ? '' : 'flex items-center justify-center bg-black/40'}`}
-      onClick={(e) => {
-        // Close when clicking outside panel (backdrop)
-        if (e.target === e.currentTarget) {
-          onClose()
-        }
-      }}
+      onClick={panelPersistence.onBackdropClick}
+      onKeyDown={handlePanelEscape}
     >
       <div
         className={`bg-white dark:bg-gray-800 shadow-2xl ${isSlideMode ? 'h-full absolute right-0 top-0' : 'rounded-xl h-[90vh] sm:h-[600px]'} w-full sm:w-[700px] flex flex-col`}
@@ -1240,15 +1215,17 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               <ProductIconCell iconName="download" label={downloadState.title} size="sm" className="border-transparent bg-transparent text-current" />
               <span>Download</span>
             </button>
+            <KeepAgentPanelOpenButton keepOpen={panelPersistence.keepOpen} onToggle={panelPersistence.toggleKeepOpen} />
             <button
               onClick={onClose}
+              aria-label="Close chat"
               className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
             >
               <ProductIconCell iconName="close" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
-            <p className="min-w-0 text-xs text-gray-400">Real-time streaming from the active runtime</p>
+            <p className="min-w-0 text-xs text-gray-400">Responses from the active runtime</p>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
               <button
                 onClick={resetAgentSession}
@@ -1373,7 +1350,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
 
             const msg = timelineMessageMap.get(row.key)
             if (!msg) return null
-            const msgIsError = msg.role === 'assistant' && isErrorContent(msg.content)
+            const msgIsError = msg.role === 'assistant' && (msg.failed === true || isRuntimeDiagnosticText(msg.content))
             const isStreamingPlaceholder = streaming && msg.role === 'assistant' && msg.id === messages[messages.length - 1]?.id
             return (
             <div
@@ -1381,7 +1358,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-lg px-4 py-2 relative group ${
+                className={`min-w-0 max-w-[80%] rounded-lg px-4 py-2 relative group ${
                   msgIsError
                     ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
                     : msg.role === 'user'
@@ -1396,7 +1373,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                     {rawViewIds.has(msg.id) ? (
                       <pre className="text-xs whitespace-pre-wrap break-words font-mono overflow-auto max-h-60">{cleanMessageContent(msg.content)}</pre>
                     ) : (
-                      <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                      <div className="min-w-0 text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                         {renderMarkdown(bubbleText || (isStreamingPlaceholder ? '▌' : ''), true, 'assistant')}
                       </div>
                     )}
@@ -1438,7 +1415,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                   </>
                 ) : (
                   <>
-                    <div className="text-sm prose prose-sm prose-invert agent-chat-user-markdown max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                    <div className="min-w-0 text-sm prose prose-sm prose-invert agent-chat-user-markdown max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                       {renderMarkdown(msg.content || '', false, 'user')}
                     </div>
                     {onNavigateToDoc && getResolvedFileMentions(msg.content || '').length > 0 && (
@@ -1465,29 +1442,47 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                 )}
 
                 {/* Action buttons on hover */}
-                <div className="absolute -bottom-2 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className={`absolute -bottom-2 right-0 flex items-center gap-1 ${forwardTargetMsgId === msg.id ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 focus-within:opacity-100 transition-opacity`}>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); void copyMessage(msg) }}
+                    className="bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-full p-1.5 shadow-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                    title={copiedMessageId === msg.id ? 'Copied' : 'Copy message'}
+                    aria-label={copiedMessageId === msg.id ? 'Message copied' : 'Copy message'}
+                  >
+                    <CopyIcon state={copiedMessageId === msg.id ? 'copied' : 'idle'} className="w-3 h-3" />
+                  </button>
                   {/* Forward to group */}
                   <div
+                    ref={forwardTargetMsgId === msg.id ? forwardRootRef : undefined}
                     className="relative"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape' && forwardTargetMsgId === msg.id) {
-                        e.stopPropagation()
-                        setForwardTargetMsgId(null)
-                      }
-                    }}
+                    onKeyDown={handleForwardKeyDown}
+                    {...(forwardTargetMsgId === msg.id ? forwardPopover : {})}
                   >
                     <button
-                      onClick={(e) => { e.stopPropagation(); forwardTargetMsgId === msg.id ? setForwardTargetMsgId(null) : openForwardPicker(msg.id, e.currentTarget) }}
+                      ref={forwardTargetMsgId === msg.id ? forwardTriggerRef : undefined}
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); forwardTargetMsgId === msg.id ? setForwardTargetMsgId(null) : openForwardPicker(msg.id, e.currentTarget, e.detail === 0) }}
                       className="bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 rounded-full p-1.5 shadow-md hover:bg-purple-50 dark:hover:bg-purple-900/30"
                       title="Forward to group"
+                      aria-label="Forward message"
+                      aria-haspopup="menu"
+                      aria-expanded={forwardTargetMsgId === msg.id}
+                      aria-controls={forwardTargetMsgId === msg.id ? `forward-menu-${msg.id}` : undefined}
                     >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                       </svg>
                     </button>
                     {forwardTargetMsgId === msg.id && (
-                      <div className={`absolute bottom-full ${forwardMenuAlign === 'left' ? 'left-0' : 'right-0'} mb-1 w-48 max-h-40 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50`}>
-                        <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase">Forward to</div>
+                      <div
+                        ref={forwardMenuRef}
+                        id={`forward-menu-${msg.id}`}
+                        role="menu"
+                        aria-label="Forward to"
+                        className={`absolute bottom-full ${forwardMenuAlign === 'left' ? 'left-0' : 'right-0'} mb-1 w-48 max-h-40 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50`}
+                      >
+                        <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase" aria-hidden="true">Forward to</div>
                         {forwardTargets.targets.length === 0 && forwardTargets.status === 'loading' && (
                           <div className="px-3 py-2 text-xs text-gray-400" role="status">Loading...</div>
                         )}
@@ -1506,11 +1501,13 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                         {forwardTargets.targets.map(g => (
                           <button
                             key={`${g.type}:${g.name}`}
+                            type="button"
+                            role="menuitem"
                             onClick={() => forwardToGroup(g)}
                             disabled={forwardingTo === `${g.type}:${g.name}`}
-                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 focus:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500 dark:hover:bg-gray-700 dark:focus:bg-gray-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
                           >
-                            <span className="text-gray-400">{g.type === 'community' ? '🏘' : '👥'}</span>
+                            <span className="text-gray-400" aria-hidden="true">{g.type === 'community' ? '🏘' : '👥'}</span>
                             <span className="truncate text-gray-700 dark:text-gray-200">{channelLabel(g)}</span>
                             {forwardingTo === `${g.type}:${g.name}` && <span className="text-[10px] text-gray-400">sending...</span>}
                           </button>
@@ -1556,6 +1553,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
             </div>
           )}
         </div>
+
+        <span className="sr-only" aria-live="polite">{copiedMessageId ? 'Message copied' : ''}</span>
 
         {/* Error */}
         {error && (
@@ -1655,6 +1654,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
                   e.preventDefault()
                   sendMessage()
                 } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  e.stopPropagation()
                   if (streaming) {
                     cancelStreaming()
                   } else {

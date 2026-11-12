@@ -34,4 +34,11 @@ assert(
   'Paused pipeline banner must explain both blocked starts and active-run behavior',
 )
 
-console.log('WorkflowLifecycleSafety.test.ts: 14 assertions passed')
+// The editor hands create and edit its run limit and handoff settings; both requests must send them.
+const createBody = workflowSource.slice(workflowSource.indexOf('const handleCreateWorkflow'), workflowSource.indexOf('const handleEditWorkflow'))
+const editBody = workflowSource.slice(workflowSource.indexOf('const handleEditWorkflow'), workflowSource.indexOf('const handleEditWorkflow') + 2500)
+for (const [label, body] of [['create', createBody], ['edit', editBody]]) {
+  assert(['maxRuns: data.maxRuns', 'outputDefinitions: data.outputDefinitions', 'inputRefs: data.inputRefs'].every((field) => body.includes(field)), `Workflow ${label} must save the run limit and handoff settings`)
+}
+
+console.log('WorkflowLifecycleSafety.test.ts: 16 assertions passed')

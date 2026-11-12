@@ -1,3 +1,4 @@
+import { ProductIconCell } from '../lib/productIcons'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -7,6 +8,7 @@ import { getDocHubAssetLabel } from '../lib/docHubAssetPresentation'
 import { DocHubSelectionActionBar } from '../components/DocHubSelectionActionBar'
 import { DocHubTreePaneLayout } from '../components/DocHubTreePaneLayout'
 import { MarkdownDocumentViewer } from '../components/MarkdownDocumentViewer'
+import { MobileSafeDialog } from '../components/MobileSafeDialog'
 
 type DocSection = 'ORG' | 'AGENTS' | 'WORKFLOWS' | 'SYSTEM'
 
@@ -243,6 +245,9 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   // Edit mode
   const [editMode, setEditMode] = useState(false)
   const [draft, setDraft] = useState('')
+  const documentDrafts = useRef(new Map<string, string>())
+  const selectedPathRef = useRef<string | null>(null)
+  const loadSequence = useRef(0)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<Array<{ field: string; message: string; value?: any }>>([])
@@ -328,7 +333,23 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     }
   }, [resizingTree])
 
+  useEffect(() => {
+    selectedPathRef.current = selected
+  }, [selected])
+
+  useEffect(() => {
+    const warnAboutDrafts = (event: BeforeUnloadEvent) => {
+      if (!documentDrafts.current.size) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warnAboutDrafts)
+    return () => window.removeEventListener('beforeunload', warnAboutDrafts)
+  }, [])
+
   function loadFile(path: string) {
+    const sequence = ++loadSequence.current
+    selectedPathRef.current = path
     setSelected(path)
     setMobileTreeOpen(false) // Close mobile sidebar when selecting a file
     setLoading(true)
@@ -358,8 +379,12 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     }
 
     fetch(`/api/docs/content?path=${encodeURIComponent(path)}`)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to load file')
+        return r.json()
+      })
       .then(d => {
+        if (sequence !== loadSequence.current) return
         setPreviewKind(d.kind || 'markdown')
         if (d.kind === 'image') {
           setImageDataUrl(d.dataUrl || null)
@@ -381,10 +406,17 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
           setPdfDataUrl(null)
           setCodeLanguage(null)
           setContent(d.content || '')
+          const retainedDraft = documentDrafts.current.get(path)
+          setDraft(retainedDraft ?? d.content ?? '')
+          setEditMode(retainedDraft !== undefined)
         }
         setLoading(false)
       })
-      .catch(() => { setError('Failed to load file'); setLoading(false) })
+      .catch(() => {
+        if (sequence !== loadSequence.current) return
+        setError('Failed to load file')
+        setLoading(false)
+      })
   }
 
   function openEntry(entry: DocEntry) {
@@ -399,6 +431,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   }
 
   function cancelEdit() {
+    if (selected) documentDrafts.current.delete(selected)
     setEditMode(false)
     setDraft(content)
     setSaveError(null)
@@ -406,7 +439,9 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   }
 
   function saveFile() {
-    if (!selected) return
+    if (!selected || saving) return
+    const savePath = selected
+    const savedDraft = draft
     setSaving(true)
     setSaveError(null)
     setValidationErrors([])
@@ -414,24 +449,29 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     fetch('/api/docs/content', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: selected, content: draft }),
+      body: JSON.stringify({ path: savePath, content: savedDraft }),
     })
-      .then(r => r.json())
+      .then(async r => ({ ...(await r.json()), httpOk: r.ok }))
       .then(d => {
         setSaving(false)
-        if (d.ok) {
-          setContent(draft)
-          setEditMode(false)
-          setSaveSuccess(true)
-          setTimeout(() => setSaveSuccess(false), 3000)
+        if (d.httpOk && d.ok) {
+          if (documentDrafts.current.get(savePath) === savedDraft) documentDrafts.current.delete(savePath)
+          if (selectedPathRef.current === savePath) {
+            setContent(savedDraft)
+            const remainingDraft = documentDrafts.current.get(savePath)
+            setDraft(remainingDraft ?? savedDraft)
+            setEditMode(remainingDraft !== undefined)
+            setSaveSuccess(true)
+            setTimeout(() => setSaveSuccess(false), 3000)
+          }
         } else {
-          setSaveError(d.error ?? 'Save failed')
+          setSaveError(d.error ?? `Failed to save ${savePath}. Your draft is kept.`)
           if (d.validationErrors && Array.isArray(d.validationErrors)) {
             setValidationErrors(d.validationErrors)
           }
         }
       })
-      .catch(() => { setSaving(false); setSaveError('Save failed') })
+      .catch(() => { setSaving(false); setSaveError(`Failed to save ${savePath}. Your draft is kept.`) })
   }
 
   function downloadSelectedFile() {
@@ -549,14 +589,14 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     setCreateError(null)
 
     try {
-      const res = await fetch('/api/docs/content', {
+      const res = await fetch('/api/docs/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: fullPath, content: newDocContent }),
       })
       const data = await res.json()
 
-      if (data.ok) {
+      if (res.ok && data.ok) {
         await refreshEntries()
         // Close dialog and load the new file
         closeCreateDialog()
@@ -1200,6 +1240,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-8 py-3 border-b border-gray-100 shrink-0">
               <span className="min-w-0 break-all text-xs text-gray-500 dark:text-gray-400 font-mono">{selected}</span>
               <div className="flex flex-wrap items-center gap-2">
+                {editMode && draft !== content && <span className="text-xs text-amber-700 dark:text-amber-300">Unsaved changes</span>}
                 {selectedIsCodePreview && codeLanguage && (
                   <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-medium text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300">
                     {codeLanguage}
@@ -1267,9 +1308,9 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
             {/* Validation Errors */}
             {validationErrors.length > 0 && (
-              <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-950/40 dark:border-red-800">
                 <div className="flex items-start gap-2 mb-2">
-                  <span className="text-red-600 font-semibold text-sm">❌ Validation Failed</span>
+                  <span className="text-red-600 dark:text-red-300 font-semibold text-sm">❌ Validation Failed</span>
                 </div>
                 <div className="space-y-2">
                   {validationErrors.map((err, idx) => (
@@ -1277,12 +1318,12 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                       <span className="font-mono text-xs text-red-700 bg-red-100 px-1.5 py-0.5 rounded">{err.field}</span>
                       <span className="text-gray-700 ml-2 dark:text-gray-300">{err.message}</span>
                       {err.value !== undefined && (
-                        <span className="text-gray-500 ml-2 italic">({JSON.stringify(err.value)})</span>
+                        <span className="text-gray-500 dark:text-gray-400 ml-2 italic">({JSON.stringify(err.value)})</span>
                       )}
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-gray-600 mt-3">
+                <p className="text-xs text-gray-600 dark:text-gray-300 mt-3">
                   Please fix the errors above and try saving again. The document will not be saved until all validation errors are resolved.
                 </p>
               </div>
@@ -1327,9 +1368,16 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   </div>
                 )}
                 <textarea
+                  aria-label="Document content"
                   className="flex-1 w-full px-8 py-6 font-mono text-sm text-gray-800 resize-none outline-none border-none bg-gray-50 dark:text-gray-200 dark:bg-gray-900"
                   value={draft}
-                  onChange={e => setDraft(e.target.value)}
+                  onChange={e => {
+                    const nextDraft = e.target.value
+                    setDraft(nextDraft)
+                    if (!selected) return
+                    if (nextDraft === content) documentDrafts.current.delete(selected)
+                    else documentDrafts.current.set(selected, nextDraft)
+                  }}
                   spellCheck={false}
                   autoFocus
                 />
@@ -1411,7 +1459,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
         )}
         {!loading && !error && !selected && (
           <div className="flex flex-col items-center justify-center h-full text-gray-400">
-            <span className="text-4xl mb-4">📄</span>
+            <ProductIconCell iconName="docs" label="Document" size="lg" className="mb-4 border-0 bg-transparent text-gray-400 dark:bg-transparent dark:text-gray-400 [&>svg]:h-8 [&>svg]:w-8" />
             <p className="text-sm">Select a document to read</p>
           </div>
         )}
@@ -1527,12 +1575,22 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       )}
 
       {showCreateDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-gray-100">Create New Document</h3>
+        <MobileSafeDialog
+          ariaLabelledBy="create-document-title"
+          panelClassName="max-w-2xl"
+          header={<h3 id="create-document-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create New Document</h3>}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <button onClick={closeCreateDialog} className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700">Cancel</button>
+              <button onClick={createDocument} disabled={creating} className={`px-4 py-2 text-sm rounded font-medium ${creating ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-sky-600 text-white hover:bg-sky-700'}`}>
+                {creating ? 'Creating...' : 'Create Document'}
+              </button>
+            </div>
+          }
+        >
 
             {createError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+              <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
                 {createError}
               </div>
             )}
@@ -1581,25 +1639,7 @@ Start writing..."
               </div>
             </div>
 
-            <div className="flex gap-2 justify-end mt-6">
-              <button
-                onClick={closeCreateDialog}
-                className="px-4 py-2 text-sm rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={createDocument}
-                disabled={creating}
-                className={`px-4 py-2 text-sm rounded font-medium transition-colors ${
-                  creating ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-sky-600 text-white hover:bg-sky-700'
-                }`}
-              >
-                {creating ? 'Creating...' : 'Create Document'}
-              </button>
-            </div>
-          </div>
-        </div>
+        </MobileSafeDialog>
       )}
 
       {showUploadDialog && (

@@ -4,6 +4,23 @@ import path from 'path'
 import { getWorkspaceManager, type Workspace } from './workspace-manager'
 import { sanitizeWorkspaceExportName, type WorkspaceExportManifest } from './workspace-export'
 import { extractZipSecurely } from './archive-security'
+import { hasGitDirSegment } from './workspace'
+import { resolvePathWithin } from './path-segment'
+
+export function resolveWorkspaceImportTarget(requested: string | undefined, slug: string): string {
+  const home = os.homedir()
+  const defaultRoot = path.join(home, '.openclaw', 'workspaces')
+  if (!requested?.trim()) return resolvePathWithin(defaultRoot, slug)
+  // A browser request cannot grant access to an arbitrary server directory.
+  // Operators can explicitly allow additional roots in deployment environment.
+  const roots = [home, ...(process.env.CLAWMAX_WORKSPACE_IMPORT_ROOTS || '').split(path.delimiter).filter(Boolean)]
+  const target = path.resolve(requested.trim())
+  for (const root of roots) {
+    const base = path.resolve(root)
+    if (target.startsWith(`${base}${path.sep}`)) return resolvePathWithin(base, path.relative(base, target))
+  }
+  throw new Error('Import destination must be inside your home or an operator-configured CLAWMAX_WORKSPACE_IMPORT_ROOTS directory')
+}
 
 function resolveSingleExtractedRoot(extractDir: string): string {
   const entries = fs.readdirSync(extractDir, { withFileTypes: true })
@@ -32,7 +49,9 @@ function ensureWorkspaceMissing(targetPath: string) {
 
 function copyDirectoryContents(sourceDir: string, targetDir: string) {
   fs.mkdirSync(targetDir, { recursive: true })
-  fs.cpSync(sourceDir, targetDir, { recursive: true })
+  // An export never contains .git (WORKSPACE_EXPORT_SECRET_GLOBS); an imported one would let the archive's
+  // .git/config run commands when the dashboard next commits a document (see hasGitDirSegment).
+  fs.cpSync(sourceDir, targetDir, { recursive: true, filter: (source) => !hasGitDirSegment(path.relative(sourceDir, source)) })
 }
 
 function registerImportedWorkspace(name: string, workspacePath: string, options?: { color?: string; tags?: string[]; activate?: boolean }): Workspace {
@@ -90,9 +109,8 @@ export function importWorkspaceFromZipArchive(zipPath: string, options?: {
   const extractedRoot = resolveSingleExtractedRoot(extractDir)
   const manifest = loadManifestFromExtractedRoot(extractedRoot)
   const workspaceName = options?.targetName?.trim() || manifest.workspace.name || manifest.workspace.id || 'Imported Workspace'
-  const defaultRoot = path.join(os.homedir(), '.openclaw', 'workspaces')
   const slug = sanitizeWorkspaceExportName(workspaceName)
-  const targetPath = path.resolve(options?.targetPath?.trim() || path.join(defaultRoot, slug))
+  const targetPath = resolveWorkspaceImportTarget(options?.targetPath, slug)
 
   ensureWorkspaceMissing(targetPath)
   copyDirectoryContents(extractedRoot, targetPath)

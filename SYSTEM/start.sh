@@ -17,16 +17,12 @@ cd "$SCRIPT_DIR/dashboard"
 
 BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
-FRONTEND_ORIGIN="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
+FRONTEND_ORIGIN="http://localhost:${FRONTEND_PORT}"
 API_ORIGIN="${DASHBOARD_PUBLIC_URL:-http://localhost:${BACKEND_PORT}}"
 REPO_ROOT="$(pwd | sed 's|/SYSTEM/dashboard||')"
 export DASHBOARD_PORT="$BACKEND_PORT"
 export DASHBOARD_CLIENT_PORT="$FRONTEND_PORT"
-export DASHBOARD_APP_URL="$FRONTEND_ORIGIN"
 export DASHBOARD_PUBLIC_URL="$API_ORIGIN"
-if [ -z "$CORS_ORIGIN" ]; then
-  export CORS_ORIGIN="$FRONTEND_ORIGIN"
-fi
 
 # Default to auth bypass for local dev unless auth was explicitly configured.
 # This keeps `./SYSTEM/start.sh` friction-free while allowing callers to opt back
@@ -68,6 +64,34 @@ append_delimited_value() {
   fi
 }
 
+# The API gives these two launcher values precedence over .env (server/lib/dashboard-env.ts),
+# so they are resolved here from both sources:
+# - DASHBOARD_APP_URL: the shell value, else .env, else the origin this script serves.
+# - CORS_ORIGIN: a shell value is used exactly as given. Otherwise the .env origins (for
+#   example an ngrok URL), the app URL and the served origin are trusted, so a .env written
+#   for another port cannot lock the Dashboard out of the origin it actually serves. An app
+#   URL set in the shell names the served origin itself, so the local port is not added to it.
+resolve_dashboard_origins() {
+  local served_origin="$1" dotenv_app_url="$2" dotenv_cors_origin="$3"
+  if [ -n "$DASHBOARD_APP_URL" ]; then
+    served_origin=""
+  fi
+  export DASHBOARD_APP_URL="${DASHBOARD_APP_URL:-${dotenv_app_url:-$served_origin}}"
+  if [ -n "$CORS_ORIGIN" ]; then
+    return 0
+  fi
+  local origins="" origin entries
+  IFS=',' read -ra entries <<< "$dotenv_cors_origin,$DASHBOARD_APP_URL,$served_origin"
+  for origin in "${entries[@]}"; do
+    origin="${origin//[[:space:]]/}"
+    if [ -n "$origin" ]; then
+      origins="$(append_delimited_value "$origins" "$origin" ",")"
+    fi
+  done
+  export CORS_ORIGIN="$origins"
+}
+resolve_dashboard_origins "$FRONTEND_ORIGIN" "$(read_dotenv_var DASHBOARD_APP_URL)" "$(read_dotenv_var CORS_ORIGIN)"
+
 # Public development always exposes the public product plugins. Additional
 # development repositories are opt-in through generic roots; this host must not
 # know external repository names or product-specific plugin identities.
@@ -106,52 +130,7 @@ if [ -z "$OPENCLAW_WORKSPACE" ]; then
   export OPENCLAW_WORKSPACE="$REPO_ROOT/WORKSPACES/default"
 fi
 
-ensure_pinned_openclaw_for_dev() {
-  if [ "${CLAWMAX_ALLOW_UNPINNED_OPENCLAW:-}" = "true" ]; then
-    return 0
-  fi
-
-  local expected_version="${CLAWMAX_OPENCLAW_TARGET#v}"
-  local selected_bin="${OPENCLAW_BIN:-}"
-  local version_output=""
-  if [ -z "$selected_bin" ]; then
-    selected_bin="$(resolve_openclaw_cli 2>/dev/null || true)"
-  fi
-  if [ -n "$selected_bin" ] && [ -x "$selected_bin" ]; then
-    version_output="$("$selected_bin" --version 2>&1 || true)"
-  fi
-
-  if [[ "$version_output" != *"$expected_version"* ]]; then
-    if [ -n "$version_output" ]; then
-      echo "↻ Installed OpenClaw does not match ${CLAWMAX_OPENCLAW_TARGET}: $version_output"
-    else
-      echo "↻ OpenClaw is unavailable; preparing ${CLAWMAX_OPENCLAW_TARGET}..."
-    fi
-    echo "↻ Preparing pinned OpenClaw ${CLAWMAX_OPENCLAW_TARGET} for local development..."
-    selected_bin="$(bash "$SCRIPT_DIR/prepare-openclaw-target.sh" --print-bin)" || return 1
-    version_output="$("$selected_bin" --version 2>&1 || true)"
-  fi
-
-  if [[ "$version_output" != *"$expected_version"* ]]; then
-    echo "Local development requires OpenClaw ${CLAWMAX_OPENCLAW_TARGET}; selected binary reports: ${version_output:-unavailable}" >&2
-    return 1
-  fi
-
-  export OPENCLAW_BIN="$selected_bin"
-  local prepared_package_root
-  prepared_package_root="$(cd "$(dirname "$selected_bin")/../src" 2>/dev/null && pwd || true)"
-  if [ -f "$prepared_package_root/package.json" ]; then
-    export OPENCLAW_PACKAGE_ROOT="$prepared_package_root"
-  else
-    local real_bin package_root
-    real_bin="$(node -e 'const fs=require("fs"); process.stdout.write(fs.realpathSync(process.argv[1]))' "$selected_bin" 2>/dev/null || true)"
-    package_root="$(dirname "$real_bin" 2>/dev/null || true)"
-    if [ -f "$package_root/package.json" ]; then
-      export OPENCLAW_PACKAGE_ROOT="$package_root"
-    fi
-  fi
-  echo "✓ Using pinned OpenClaw: $version_output"
-}
+. "$SCRIPT_DIR/openclaw-dev-runtime.sh"
 
 # Parse arguments
 FOLLOW_LOGS=false
@@ -193,6 +172,44 @@ restart_port_if_needed() {
   fi
 }
 
+# Classifies `openclaw gateway status --json` as "<state>\t<detail>". The structured fields are
+# stable across OpenClaw releases; the human-readable wording is not (2026.9 prints "Service
+# unit not found." where earlier releases printed "Service not installed").
+gateway_status_state() {
+  node -e '
+let raw = ""
+process.stdin.on("data", chunk => { raw += chunk }).on("end", () => {
+  let status
+  try { status = JSON.parse(raw) } catch { process.stdout.write("unknown\tno status JSON"); return }
+  const rpc = status?.rpc || {}
+  const detail = [rpc.connectFailure?.kind, String(rpc.error || "").split("\n")[0]].filter(Boolean).join(": ")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/((?:token|secret|key|password|authorization)\w*["\x27]?\s*[:=]\s*)\S+/gi, "$1<redacted>")
+    .replace(/[A-Za-z0-9_+\/=.-]{32,}/g, "<redacted>").slice(0, 200)
+  const state = rpc.ok === true ? "ready"
+    : status?.port?.status !== "free" ? "port-busy"
+    : status?.service?.runtime?.missingUnit === true ? "missing-unit"
+    : status?.service ? "stopped"
+    : "unknown"
+  process.stdout.write(`${state}\t${detail}`)
+})'
+}
+
+# CLI failure output, indented, with control characters stripped and anything that may be a
+# credential redacted: long opaque strings and the value of token/secret/key/password settings.
+redact_cli_output() {
+  node -e '
+let raw = ""
+process.stdin.on("data", chunk => { raw += chunk }).on("end", () => {
+  for (const line of raw.split("\n").filter(Boolean)) {
+    const safe = line.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "")
+      .replace(/((?:token|secret|key|password|authorization)\w*["\x27]?\s*[:=]\s*)\S+/gi, "$1<redacted>")
+      .replace(/[A-Za-z0-9_+\/=.-]{32,}/g, "<redacted>")
+    process.stdout.write(`    ${safe}\n`)
+  }
+})'
+}
+
 ensure_local_gateway_ready() {
   if [ "$(uname -s)" != "Darwin" ] || ! openclaw_cli_available; then
     return
@@ -202,18 +219,44 @@ ensure_local_gateway_ready() {
     return
   fi
 
-  local gateway_status
-  gateway_status="$(openclaw_cli_run gateway status 2>/dev/null || true)"
+  local state detail action output attempt
+  IFS=$'\t' read -r state detail <<< "$(openclaw_cli_run gateway status --json 2>/dev/null | gateway_status_state)"
+  case "$state" in
+    ready) return ;;
+    missing-unit)
+      action=install
+      echo "↻ Installing and starting the local OpenClaw gateway LaunchAgent..."
+      ;;
+    stopped)
+      action=restart
+      echo "↻ Starting the local OpenClaw gateway..."
+      ;;
+    port-busy)
+      # Another process owns the port (a gateway still booting, or one rejecting this config's
+      # credentials). Replacing it could start a second gateway on the same state directory.
+      echo "⚠ The OpenClaw gateway port is in use but did not accept this Dashboard's connection (${detail:-no detail}). Leaving it untouched; agent chat may fail. Check: openclaw gateway status"
+      return
+      ;;
+    *)
+      echo "⚠ Could not read the OpenClaw gateway status (${detail:-no detail}); agent chat may fail. Check: openclaw gateway status"
+      return
+      ;;
+  esac
 
-  if echo "$gateway_status" | grep -qi "Service not installed"; then
-    echo "↻ Installing local OpenClaw gateway LaunchAgent..."
-    openclaw_cli_run gateway install >/dev/null 2>&1 || true
+  if ! output="$(openclaw_cli_run gateway "$action" 2>&1)"; then
+    echo "⚠ 'openclaw gateway $action' failed; agent chat will not work until the gateway runs:"
+    printf '%s\n' "$output" | tail -n 5 | redact_cli_output
+    return
   fi
-
-  if ! echo "$gateway_status" | grep -qi "RPC probe: ok"; then
-    echo "↻ Ensuring local OpenClaw gateway is running..."
-    openclaw_cli_run gateway restart >/dev/null 2>&1 || true
-  fi
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    IFS=$'\t' read -r state detail <<< "$(openclaw_cli_run gateway status --json 2>/dev/null | gateway_status_state)"
+    if [ "$state" = "ready" ]; then
+      echo "✓ OpenClaw gateway is ready"
+      return
+    fi
+    sleep 2
+  done
+  echo "⚠ The OpenClaw gateway is not answering yet (${detail:-no detail}); agent chat waits for it. Check: openclaw gateway status"
 }
 
 if [ -z "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ] && [ "$(uname -s)" = "Darwin" ] && openclaw_cli_available; then

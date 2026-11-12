@@ -191,7 +191,7 @@ assert(pluginPageSource.includes('its contents are not copied into this Eval'), 
 assert(pluginPageSource.includes('zIndexClassName="z-[130]"'), 'The trial-case editor must remain above its parent Eval dialog')
 assert(pluginPageSource.includes('from-rose-400 via-amber-300 to-emerald-400'), 'Quality controls must expose a low-to-high semantic gauge')
 assert(pluginPageSource.includes('from-emerald-400 via-amber-300 to-rose-400'), 'Duration controls must expose a fast-to-slow semantic gauge')
-assert((agentsSource.match(/const menuWidth = 224/g) || []).length >= 3, 'Agent action menus must reserve enough width for icon and Template labels')
+assert((agentsSource.match(/useViewportBoundedMenu\([^\n]+, 224,/g) || []).length >= 3, 'Agent action menus must reserve enough width for icon and Template labels')
 assert(pluginPageSource.includes("setError(`Could not use this suggestion:"), 'Suggestion failures must be visible instead of becoming rejected click promises')
 assert(pluginPageSource.includes("applying ? 'Adding...' : inUse ? 'In use' : 'Use'"), 'Suggestion actions must expose progress and in-use state')
 assert(pluginPageSource.includes("applyingTemplateIds.has(template.id) ? 'Adding...' : usedTemplateIds.has(template.id) ? 'In use' : 'Use'"), 'Suggestion list actions must expose progress and in-use state')

@@ -18,7 +18,7 @@ const agentsSource = fs.readFileSync(
 assert(wizardSource.includes('availableModels,'), 'Agent generation must send the runtime-visible model list')
 assert(wizardSource.includes('modelPreference,'), 'Agent generation must send the selected quality, balanced, or cost preference')
 assert(wizardSource.includes('data.modelRecommendation'), 'Agent generation must retain the server recommendation')
-assert(wizardSource.includes("set('model', resolveAddAgentWizardSuggestedModel"), 'Generated recommendations must still pass through availability validation')
+assert(/setForm\(current => \([\s\S]*?model: resolveAddAgentWizardSuggestedModel\([\s\S]*?currentModel: current\.model/.test(wizardSource), 'Generated recommendations must validate against the latest selected model, not a stale request closure')
 assert(wizardSource.includes('setModelRecommendation(null)'), 'Starting over must clear stale recommendation evidence')
 assert(wizardSource.includes('<ModelFitPreferenceControl'), 'Agent creation must expose recommendation priority before generation')
 assert(wizardSource.includes('<ModelFitRecommendationPanel'), 'Agent creation must use the shared recommendation presentation')

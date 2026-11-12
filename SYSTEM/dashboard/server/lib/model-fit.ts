@@ -1,3 +1,5 @@
+import { getModelLifecycleEntry } from './openAiModelLifecycle'
+
 export type ModelFitPreference = 'quality' | 'balanced' | 'cost'
 
 export interface ModelFitRequirements {
@@ -38,6 +40,8 @@ function getKnownRuntimeIncompatibility(model: string): string | null {
   if (/^openai\/(?:o1|o1-mini|o3|o3-mini)$/.test(value)) {
     return 'Excluded from automatic selection because this OpenClaw runtime attaches web search, which this model alias rejects.'
   }
+  const lifecycle = getModelLifecycleEntry(model)
+  if (lifecycle) return `Excluded from new suggestions because this model is ${lifecycle.status}.`
   return null
 }
 

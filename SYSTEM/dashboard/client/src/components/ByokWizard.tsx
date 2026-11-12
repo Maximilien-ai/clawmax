@@ -1,5 +1,6 @@
+import { SearchableModelSelect } from './SearchableModelSelect'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { readIntegrationValidationResponse } from '../lib/integrationValidationResponse'
+import { INTEGRATION_VALIDATION_UNAVAILABLE, IntegrationValidationError, readIntegrationValidationResponse } from '../lib/integrationValidationResponse'
 import { createPortal } from 'react-dom'
 import { MobileSafeDialog } from './MobileSafeDialog'
 import { CLOUD_LOCAL_EXECUTION_NOTICE, cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
@@ -12,7 +13,8 @@ import { filterPartnersByCategory, formatPartnerCategoryLabel, getPartnerCategor
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { resolveResendTestRecipientEmail } from '../lib/resendTestEmail'
-import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
+import { formatOpenAiDeprecationNotice } from '../lib/openAiModelLifecycle'
+import { groupActiveModelOptions } from '../lib/modelSelectGroups'
 import { describeRuntimeStatusesFetchError, describeRuntimeStatusesViewState } from '../lib/runtimeStatusesLoading'
 import { resolveReloadedAgentRuntime } from '../lib/agentRuntimeReload'
 import { PartnerLogo } from './PartnerLogo'
@@ -329,7 +331,7 @@ export function ByokWizard({
   const [mailOAuthBusy, setMailOAuthBusy] = useState<string | null>(null)
   const [mailOAuthError, setMailOAuthError] = useState<string | null>(null)
   const mailOAuthPopupRef = useRef<Window | null>(null)
-  const preferredModelRef = useRef<HTMLSelectElement | null>(null)
+  const preferredModelRef = useRef<HTMLButtonElement | null>(null)
   const searchedPartnerRef = useRef<string | null>(null)
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
@@ -770,7 +772,7 @@ export function ByokWizard({
     const resolveSource = (provider: ProviderKey | 'openaiCompatible') => {
       if (provider === 'openai') {
         if (openaiKey) return 'browser BYOK'
-        if (config?.userKeyDefaults?.openai) return 'user default'
+        if (config?.userKeyDefaults?.openai) return 'deployment default'
         if (config?.systemKeyDefaults?.openai) return 'system default'
         return 'not configured'
       }
@@ -1331,6 +1333,7 @@ export function ByokWizard({
     const providerScope = scope === 'openai' || scope === 'openaiCompatible' || scope === 'anthropic' || scope === 'gemini' || scope === 'openrouter' || scope === 'xai' || scope === 'ollama' ? scope : null
     const scopedPayload = {
       openai: scope === 'all' || providerScope === 'openai' ? openaiKey.trim() : '',
+      useConfiguredOpenaiKey: (scope === 'all' || providerScope === 'openai') && !openaiKey.trim() && !!config?.userKeyDefaults?.openai,
       openaiCompatibleApiKey: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleApiKey.trim() : '',
       openaiCompatibleBaseUrl: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleBaseUrl.trim() : '',
       openaiCompatibleDefaultModel: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleDefaultModel.trim() : '',
@@ -1490,7 +1493,8 @@ export function ByokWizard({
       )
       return true
     } catch (err: any) {
-      const message = 'Integration validation unavailable. Settings may be saved, but are not verified. Retry validation when the service is ready.'
+      // Network and timeout errors keep the generic text; only curated response errors are shown.
+      const message = err instanceof IntegrationValidationError ? err.message : INTEGRATION_VALIDATION_UNAVAILABLE
       const affected = (key: string) => providerScope ? key === providerScope : scope === 'current-partner' ? key === currentPartnerSlug : true
       setValidation(current => Object.fromEntries(Object.entries(current).map(([key, entry]) =>
         [key, affected(key) ? { status: 'error', message } : entry])) as ValidationState)
@@ -1839,31 +1843,14 @@ export function ByokWizard({
     return renderValidation(resultKey)
   }
 
-  const buildPreferredOptions = (currentValue: string) => {
-    const discoveredPreferredOptions = [
-      ...((modelsByProvider.openai?.models || [])
-        .filter((model) => isSelectableLifecycleModel(model, currentValue))
-        .map((model) => ({ value: model, label: `${formatOpenAiModelLabel(model).replace(/^openai\//, '')} (OpenAI)` }))),
-      ...((modelsByProvider.anthropic?.models || [])
-        .filter((model) => isSelectableLifecycleModel(model, currentValue))
-        .map((model) => ({ value: model, label: `${formatOpenAiModelLabel(model).replace(/^anthropic\//, '')} (Anthropic)` }))),
-      ...((modelsByProvider.gemini?.models || [])
-        .filter((model) => isSelectableLifecycleModel(model, currentValue))
-        .map((model) => ({ value: model, label: `${formatOpenAiModelLabel(model).replace(/^google\//, '').replace(/^gemini\//, '')} (Gemini)` }))),
-      ...((modelsByProvider.openrouter?.models || [])
-        .map((model) => ({ value: model, label: `${model.replace(/^openrouter\//, '')} (OpenRouter)` }))),
-      ...((modelsByProvider.ollama?.models || []).map((model) => ({ value: model, label: `${model.replace(/^ollama\//, '')} (Ollama)` }))),
-      ...((modelsByProvider['openai-compatible']?.models || [])
-        .filter((model) => isSelectableLifecycleModel(model, currentValue))
-        .map((model) => ({ value: model, label: `${formatOpenAiModelLabel(model).replace(/^openai-compatible\//, '')} (OpenAI-Compatible)` }))),
-    ]
-    return discoveredPreferredOptions.filter((option, index, arr) =>
-      arr.findIndex((candidate) => candidate.value === option.value) === index
-    )
+  const fallbackModelCatalog = {
+    openai: { models: hasOpenAiAvailable ? ['openai/gpt-5.4', 'openai/gpt-5.4-mini', 'openai/gpt-5.4-nano'] : [] },
+    anthropic: { models: hasAnthropicAvailable ? ['anthropic/claude-opus-4-6', 'anthropic/claude-sonnet-4-20250514'] : [] },
+    gemini: { models: hasGeminiAvailable ? ['google/gemini-3.1-pro-preview', 'google/gemini-2.5-flash', 'google/gemini-2.5-flash-lite'] : [] },
+    ollama: { models: ollamaEnabled && ollamaConfigured && ollamaDefaultModel ? [`ollama/${ollamaDefaultModel}`] : [] },
   }
-  const uniquePreferredOptions = buildPreferredOptions(preferredModel)
-  const uniqueSystemPreferredOptions = buildPreferredOptions(systemPreferredModel).filter((option, index, arr) =>
-    arr.findIndex((candidate) => candidate.value === option.value) === index
+  const preferredModelGroups = groupActiveModelOptions(
+    Object.values(modelsByProvider).some(provider => provider.models.length > 0) ? modelsByProvider : fallbackModelCatalog,
   )
 
   const currentStepIndex = stepOrder.indexOf(step)
@@ -2314,7 +2301,7 @@ export function ByokWizard({
     <>
       <button
         onClick={handleReopen}
-        className={`text-xs rounded-full border px-2.5 py-1 transition-colors ${
+        className={`shrink-0 whitespace-nowrap text-xs rounded-full border px-2.5 py-1 transition-colors ${
           triggerReady && !needsAttention
             ? 'border-emerald-300/60 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
             : 'border-amber-300/60 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
@@ -2322,7 +2309,8 @@ export function ByokWizard({
         title={needsAttention ? 'Needs attention: review agent configuration and readiness checks' : triggerTitle}
       >
         {triggerLabel}
-        {needsAttention && <span className="ml-1" aria-label="Needs attention">⚠ Needs attention</span>}
+        {/* The words give way to the icon where the header is narrow; screen readers always hear them. */}
+        {needsAttention && <span className="ml-1"><span aria-hidden="true">⚠</span><span className="sr-only 2xl:not-sr-only"> Needs attention</span></span>}
       </button>
 
       {!open ? null : createPortal(
@@ -2334,12 +2322,12 @@ export function ByokWizard({
             <div className="flex items-start justify-between gap-3 sm:gap-4">
               <div className="min-w-0">
                 <h2 id={`integrations-title-${initialStep}`} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  {initialStep === 'partners' ? 'Partner Integrations' : 'Models & Partner Integrations'}
+                  {initialStep === 'partners' ? 'Partner Integrations' : initialStep === 'runtime' ? 'Runtime Settings' : 'Model Integration'}
                 </h2>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {initialStep === 'partners'
                     ? 'Choose and configure independent, optional integrations for this workspace.'
-                    : 'Provider secrets stay local to this browser. Workspace defaults persist per workspace for template apply and runtime follow-through.'}
+                    : 'Keys you enter stay in this browser. Deployment-provided keys stay on the server. Model defaults apply to new agents in this workspace.'}
                 </p>
               </div>
               <button
@@ -2448,7 +2436,7 @@ export function ByokWizard({
                     <div className="min-w-0">
                       <div className="font-medium text-gray-900 dark:text-gray-100">Model providers (BYOK)</div>
                       <div className="mt-1 text-sm">
-                        System keys may be limited or unavailable. Bring Your Own Keys (BYOK) to ensure your agents can run with the models and providers you choose, billed to your own account.
+                        {hasDefaultUserKeys ? 'Your deployment provides model access. You can create agents now, or enter your own key to override the deployment default.' : 'System keys may be limited or unavailable. Bring Your Own Keys (BYOK) to ensure your agents can run with the models and providers you choose, billed to your own account.'}
                       </div>
                     </div>
                     <div className="text-xs opacity-80 max-w-xl sm:text-right">
@@ -2555,7 +2543,8 @@ export function ByokWizard({
                           </button>
                         )}
                       </div>
-                      <input id="byok-openai" type="password" value={openaiKey} onChange={(e) => { setOpenaiKey(e.target.value); setValidation((current) => ({ ...current, openai: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openai; return next }) }} placeholder="sk-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                      <input id="byok-openai" type="password" value={openaiKey} onChange={(e) => { setOpenaiKey(e.target.value); setValidation((current) => ({ ...current, openai: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openai; return next }) }} placeholder={config?.userKeyDefaults?.openai ? "Configured by deployment — enter a key to override" : "sk-..."} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                      {!openaiKey && config?.userKeyDefaults?.openai && <p className="mt-2 text-sm text-green-700 dark:text-green-300">OpenAI is configured by your deployment. No key entry is needed to create or chat with agents. The key stays on the server.</p>}
                       {renderValidation('openai')}
                     </div>
                   )}
@@ -2792,37 +2781,15 @@ export function ByokWizard({
 
                   {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || ollamaConfigured) && (
                     <div className={`pt-4 border-t border-gray-200 dark:border-gray-700 ${highlightPreferredModel ? 'rounded-lg border border-purple-300 bg-purple-50/70 px-3 pb-3 dark:border-purple-700 dark:bg-purple-900/20' : ''}`}>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model for newly created agents</label>
-                      <select ref={preferredModelRef} value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
+                      <label htmlFor="new-agent-default-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model for newly created agents</label>
+                      <SearchableModelSelect searchLabel="Search models" id="new-agent-default-model" ref={preferredModelRef} value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (best for configured keys)</option>
-                        {uniquePreferredOptions.length > 0 ? uniquePreferredOptions.map((option) => (
-                          <option key={option.value} value={option.value}>{option.label}</option>
-                        )) : (
-                          <>
-                            {hasAnthropicAvailable && (
-                              <>
-                                <option value="anthropic/claude-opus-4-6">Claude Opus 4.6 (best reasoning)</option>
-                                <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4 (fast)</option>
-                              </>
-                            )}
-                            {hasOpenAiAvailable && (
-                              <>
-                                <option value="openai/gpt-5.4">GPT-5.4</option>
-                                <option value="openai/gpt-5.4-mini">GPT-5.4 Mini (cost efficient)</option>
-                                <option value="openai/gpt-5.4-nano">GPT-5.4 Nano</option>
-                              </>
-                            )}
-                            {hasGeminiAvailable && (
-                              <>
-                                <option value="google/gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (best reasoning)</option>
-                                <option value="google/gemini-2.5-flash">Gemini 2.5 Flash (balanced)</option>
-                                <option value="google/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (cost efficient)</option>
-                              </>
-                            )}
-                            {ollamaEnabled && ollamaConfigured && ollamaDefaultModel && <option value={`ollama/${ollamaDefaultModel}`}>Ollama {ollamaDefaultModel} (local default)</option>}
-                          </>
-                        )}
-                      </select>
+                        {preferredModelGroups.map(group => (
+                          <optgroup key={group.label} label={group.label}>
+                            {group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                          </optgroup>
+                        ))}
+                      </SearchableModelSelect>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">This controls the Add Agent wizard and agent template apply flows. Discovered provider models appear here automatically when available.</p>
                       {preferredModelDeprecation && (
                         <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{preferredModelDeprecation}</p>
@@ -2836,37 +2803,15 @@ export function ByokWizard({
                   )}
                   {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || ollamaConfigured) && (
                     <div className="pt-3">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model for built-in/system agents only</label>
-                      <select value={systemPreferredModel} onChange={(e) => setSystemPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
+                      <label htmlFor="system-agent-default-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model for built-in/system agents only</label>
+                      <SearchableModelSelect searchLabel="Search system agent models" id="system-agent-default-model" value={systemPreferredModel} onChange={(e) => setSystemPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (follow the best available configured model)</option>
-                        {uniqueSystemPreferredOptions.length > 0 ? uniqueSystemPreferredOptions.map((option) => (
-                          <option key={`system-${option.value}`} value={option.value}>{option.label}</option>
-                        )) : (
-                          <>
-                            {hasAnthropicAvailable && (
-                              <>
-                                <option value="anthropic/claude-opus-4-6">Claude Opus 4.6 (best reasoning)</option>
-                                <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4 (fast)</option>
-                              </>
-                            )}
-                            {hasOpenAiAvailable && (
-                              <>
-                                <option value="openai/gpt-5.4">GPT-5.4</option>
-                                <option value="openai/gpt-5.4-mini">GPT-5.4 Mini (cost efficient)</option>
-                                <option value="openai/gpt-5.4-nano">GPT-5.4 Nano</option>
-                              </>
-                            )}
-                            {hasGeminiAvailable && (
-                              <>
-                                <option value="google/gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (best reasoning)</option>
-                                <option value="google/gemini-2.5-flash">Gemini 2.5 Flash (balanced)</option>
-                                <option value="google/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (cost efficient)</option>
-                              </>
-                            )}
-                            {ollamaEnabled && ollamaConfigured && ollamaDefaultModel && <option value={`ollama/${ollamaDefaultModel}`}>Ollama {ollamaDefaultModel} (local default)</option>}
-                          </>
-                        )}
-                      </select>
+                        {preferredModelGroups.map(group => (
+                          <optgroup key={group.label} label={group.label}>
+                            {group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                          </optgroup>
+                        ))}
+                      </SearchableModelSelect>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">This does not affect Add Agent. It is only used for built-in/system agents when they do not already have an explicit model.</p>
                       {systemPreferredModelDeprecation && (
                         <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{systemPreferredModelDeprecation}</p>
@@ -2875,59 +2820,7 @@ export function ByokWizard({
                   )}
                 </div>
 
-                {!isCloud && <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
-                    Run via CLI — enable the CLIs you want (no API key needed)
-                  </div>
-                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                    Separate from the model-provider keys above. Turn on the CLIs you want to use — each runs agents with its own login (your Claude subscription or Factory login). Enable both to run some agents on Claude and others on Droid.
-                  </p>
-                  {runtimeStatusesLoading && runtimeStatuses.length === 0 ? (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Detecting installed CLIs…</div>
-                  ) : (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {runtimeStatuses.filter((status) => isSelectableRuntimeId(status.id)).map((status) => {
-                        const runtimeEnabled = enabledRuntimes.includes(status.id)
-                        return (
-                          <button
-                            key={status.id}
-                            type="button"
-                            role="checkbox"
-                            aria-checked={runtimeEnabled}
-                            onClick={() => { enabledRuntimesDirtyRef.current = true; setEnabledRuntimes((prev) => prev.includes(status.id) ? prev.filter((rt) => rt !== status.id) : [...prev, status.id]) }}
-                            disabled={!status.installed && !runtimeEnabled}
-                            className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 disabled:cursor-not-allowed ${
-                              runtimeEnabled
-                                ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100'
-                                : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
-                            }`}
-                            title={status.installed ? `${runtimeEnabled ? 'Disable' : 'Enable'} ${status.label}` : `${status.label} is not installed`}
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="flex items-center gap-2 font-medium">
-                                <span className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] leading-none ${runtimeEnabled ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
-                                  {runtimeEnabled ? '✓' : ''}
-                                </span>
-                                {status.label}
-                              </span>
-                              <span className="text-xs uppercase tracking-wide opacity-80">
-                                {status.installed ? `detected${status.version ? ` ${status.version}` : ''}` : 'not installed'}
-                              </span>
-                            </div>
-                            <div className="mt-1 pl-6 text-xs opacity-80">
-                              {status.installed ? (runtimeEnabled ? 'Enabled · runs agents with its own login' : 'Runs agents with its own login') : status.installHint}
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                  <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
-                    {enabledRuntimes.length > 0
-                      ? <>Enabled: {enabledRuntimes.map((rt) => runtimeStatuses.find((status) => status.id === rt)?.label || rt).join(', ')}. Now pick a runtime for each agent in the agent editor — agents you don’t assign keep using the model-provider keys above.</>
-                      : <>No CLI enabled — all agents use the model-provider keys above. Enable a CLI to make it available, then assign it per agent.</>}
-                  </div>
-                </div>}
+
 
               </>
             )}

@@ -226,8 +226,8 @@ export function writeLocalSecrets(scope: SecretScope, subjectId: string, secrets
 export function replaceWorkflowFieldValue(content: string, fieldLabel: string, value: string) {
   if (!value.trim()) return content
   const escaped = fieldLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const pattern = new RegExp(`^(-\\s+\\*\\*${escaped}:\\*\\*)\\s+.*$`, 'gim')
-  return content.replace(pattern, `$1 ${value.trim()}`)
+  const pattern = new RegExp(`^(-[ \\t]+\\*\\*${escaped}:\\*\\*)[ \\t]*[^\\r\\n]*$`, 'gim')
+  return content.replace(pattern, (_line, prefix) => `${prefix} ${value.trim()}`)
 }
 
 export function summarizeSecretReadiness(

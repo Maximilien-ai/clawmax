@@ -1,14 +1,16 @@
 import fs from 'fs'
+import { isPlainPathSegment } from './path-segment'
 import { openClawStatePath } from './openclaw-profile-paths'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
 import path from 'path'
 import matter from 'gray-matter'
+import { parseFrontMatter } from './front-matter'
 import cronstrue from 'cronstrue'
 import { execFile, execFileSync, spawn } from 'child_process'
 import { promisify } from 'util'
 import { safeEnv, workflowExecutionEnv } from './safe-env'
 import { createHash, randomUUID } from 'crypto'
-import { getWorkspacePath, listAgents, parseGroups } from './workspace'
+import { getWorkspacePath, listAgents, parseGroups, resolveWorkspacePath } from './workspace'
 import { listTeams, type Team } from './teams'
 import { addMessage } from './messages'
 import { getConfiguredDashboardInstanceId, traceAgentChat, traceWorkflowExecution } from './opik'
@@ -28,7 +30,7 @@ import { resolveOpenClawCliPath } from './openclaw-cli'
 import { createBrokerCapabilityToken } from './skill-secret-broker'
 import { executeAgentRuntimeTurn, isRuntimeCancelledError } from './agent-runtime'
 import { hasRuntimeSession } from './runtime-sessions'
-import { withRegisteredTurn } from './agent-turns'
+import { cancelTurn, withRegisteredTurn } from './agent-turns'
 import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from './process-tree'
 
 // Use dynamic workspace path to support multi-workspace
@@ -409,6 +411,8 @@ export interface WorkflowExecution {
   heartbeatAt?: string
   error?: string
   inputs?: Record<string, string>  // Structured inputs parsed from workflow content
+  /** Set on records whose `inputs` never held run secrets; inputs of older records are never returned (publicExecution). */
+  inputsExcludeSecrets?: true
   outputs?: Record<string, {
     type: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
     summary?: string
@@ -564,6 +568,10 @@ export function deriveWorkflowExecutionOutputs(
   }
 }
 
+// Ids and output keys become file and directory names below WORKFLOWS/; they come from request bodies,
+// imported workflow files and other workflows' `inputRefs`, so each must stay one path segment.
+const WORKFLOW_ID_PATTERN = /^[a-z0-9-]+$/
+
 export function persistWorkflowExecutionOutputArtifacts(
   workflowId: string,
   outputs?: WorkflowExecution['outputs'],
@@ -577,7 +585,7 @@ export function persistWorkflowExecutionOutputArtifacts(
       if (!output || output.artifactPath) return [key, output]
 
       const normalizedKey = `${key || ''}`.trim()
-      if (!normalizedKey) return [key, output]
+      if (!isPlainPathSegment(normalizedKey) || !WORKFLOW_ID_PATTERN.test(workflowId)) return [key, output]
 
       if ((output.type === 'markdown' || output.type === 'text') && typeof output.value === 'string' && output.value.trim()) {
         const extension = output.type === 'markdown' ? 'md' : 'txt'
@@ -616,6 +624,110 @@ function hydrateExecutionArtifacts(
     }
   }
   return execution
+}
+
+/** The `- **Label:** value` lines of a workflow: its structured run inputs and their defaults. */
+function workflowContentFields(content: string): Array<[label: string, value: string]> {
+  return [...content.matchAll(/^-\s+\*\*(.+?):\*\*\s+(.+)$/gm)].map((match) => [match[1].trim(), match[2].trim()])
+}
+
+/**
+ * Records written before run secrets were kept out of `inputs` (no inputsExcludeSecrets marker) may
+ * hold browser vault and BYOK values there under any key (a vault key named like a workflow field
+ * replaced that field's value), so their inputs are never returned or exported, even after
+ * redactStoredExecutionSecrets has removed what it can recognize from the file.
+ */
+export function publicExecution<T extends Pick<WorkflowExecution, 'inputs' | 'inputsExcludeSecrets'>>(execution: T): T {
+  return execution.inputsExcludeSecrets || !execution.inputs ? execution : { ...execution, inputs: undefined }
+}
+
+/**
+ * Whether a workspace-relative path reaches WORKFLOWS/executions, through any letter case or symlink.
+ * Resolved exactly as the workspace file readers resolve it (resolveWorkspacePath), so both check one file.
+ */
+export function isWorkflowExecutionPath(relativePath: string, workspacePath: string = getWorkspacePath()): boolean {
+  const target = resolveWorkspacePath(relativePath, workspacePath)
+  if (!target) return false
+  try {
+    const executionsDir = fs.realpathSync.native(path.join(workspacePath, 'WORKFLOWS', 'executions'))
+    const relative = path.relative(executionsDir, fs.realpathSync.native(target))
+    return !relative.startsWith('..') && !path.isAbsolute(relative)
+  } catch {
+    return false
+  }
+}
+
+/** The run record files exported and cleaned below; symlinks are skipped, and `execution` is null for invalid JSON. */
+export const WORKFLOW_EXECUTION_RECORD_GLOBS = ['WORKFLOWS/executions/*/*.json', 'WORKFLOWS/executions/*/archived/*.json'] as const
+export function readStoredExecutions(workspacePath: string): Array<{ workflowId: string; filePath: string; relative: string; execution: WorkflowExecution | null }> {
+  const isDirectory = (target: string) => fs.existsSync(target) && fs.lstatSync(target).isDirectory()
+  const executionsDir = path.join(workspacePath, 'WORKFLOWS', 'executions')
+  const records: ReturnType<typeof readStoredExecutions> = []
+  if (!isDirectory(executionsDir)) return records
+  for (const workflowId of fs.readdirSync(executionsDir).filter((entry) => WORKFLOW_ID_PATTERN.test(entry))) {
+    for (const dir of [path.join(executionsDir, workflowId), path.join(executionsDir, workflowId, 'archived')]) {
+      if (!isDirectory(dir)) continue
+      for (const file of fs.readdirSync(dir).filter((entry) => entry.endsWith('.json'))) {
+        const filePath = path.join(dir, file)
+        if (!fs.lstatSync(filePath).isFile()) continue
+        let execution: WorkflowExecution | null = null
+        try {
+          execution = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+        } catch {}
+        records.push({ workflowId, filePath, relative: path.relative(workspacePath, filePath), execution })
+      }
+    }
+  }
+  return records
+}
+
+// Provider and service credential formats (OpenAI/Anthropic/xAI, Stripe, Notion, GitHub, GitLab, Slack, Google, AWS, Hugging Face, PEM, bearer).
+const CREDENTIAL_VALUE_PATTERN = /\b(?:sk|xai|glpat)-[A-Za-z0-9_-]{16,}|\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}|\bsecret_[A-Za-z0-9]{20,}|\b(?:gh[pousr]|github_pat|hf)_[A-Za-z0-9_]{16,}|\bxox[abprs]-[A-Za-z0-9-]{10,}|\bAIza[0-9A-Za-z_-]{35}|\b(?:AKIA|ASIA)[0-9A-Z]{16}\b|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bbearer\s+[A-Za-z0-9._~+/-]{16,}/i
+
+/** An unmarked record's inputs worth keeping: the workflow's own fields, Run Instructions and prompt, minus declared secret keys and credential-shaped values. */
+function legacyInputsToKeep(inputs: Record<string, string>, workflow: Workflow | null): Record<string, string> {
+  const fieldLabels = new Set([...workflowContentFields(workflow?.content || '').map(([label]) => label), 'Run Instructions', 'prompt'])
+  const secretKeys = new Set((workflow?.secretRequirements || []).map((requirement) => requirement.key))
+  return Object.fromEntries(Object.entries(inputs).filter(([key, value]) => (
+    fieldLabels.has(key) && !secretKeys.has(key) && !CREDENTIAL_VALUE_PATTERN.test(String(value))
+  )))
+}
+
+/**
+ * Explicit cleanup of stored records (scripts/redact-workflow-execution-secrets.ts): unmarked
+ * records, archived and running ones included, keep only legacyInputsToKeep. Reports files with
+ * removed and kept input names, never values; writes only with `apply`, changing nothing but
+ * `inputs`, through an exclusive temporary file renamed over the record.
+ */
+export function redactStoredExecutionSecrets(workspacePath: string, options: { apply: boolean }): {
+  redacted: Array<{ file: string; removedInputs: string[]; keptInputs: string[] }>
+  unreadable: string[]
+} {
+  const result: ReturnType<typeof redactStoredExecutionSecrets> = { redacted: [], unreadable: [] }
+  const definitions = new Map<string, Workflow | null>()
+  for (const { workflowId, filePath, relative, execution } of readStoredExecutions(workspacePath)) {
+    if (!execution) {
+      result.unreadable.push(relative)
+      continue
+    }
+    if (execution.inputsExcludeSecrets || !execution.inputs) continue
+    if (!definitions.has(workflowId)) {
+      const definitionPath = path.join(workspacePath, 'WORKFLOWS', `${workflowId}.md`)
+      definitions.set(workflowId, fs.existsSync(definitionPath) ? parseWorkflowMd(fs.readFileSync(definitionPath, 'utf-8'), workflowId) : null)
+    }
+    const kept = legacyInputsToKeep(execution.inputs, definitions.get(workflowId) || null)
+    const removedInputs = Object.keys(execution.inputs).filter((key) => !(key in kept))
+    if (removedInputs.length === 0) continue
+    result.redacted.push({ file: relative, removedInputs, keptInputs: Object.keys(kept) })
+    if (!options.apply) continue
+    const temporaryPath = `${filePath}.redact-${process.pid}.tmp`
+    fs.writeFileSync(temporaryPath, JSON.stringify({
+      ...execution,
+      inputs: Object.keys(kept).length > 0 ? kept : undefined,
+    }, null, 2), { encoding: 'utf-8', mode: fs.statSync(filePath).mode, flag: 'wx' })
+    fs.renameSync(temporaryPath, filePath)
+  }
+  return result
 }
 
 interface WorkflowRuntimeOverrides {
@@ -724,7 +836,7 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
   }
 
   for (const line of lines) {
-    if (/^(FAIL|FAILED)\b/i.test(line)) {
+    if (/^(?:FAIL|FAILED)(?:$|\s*[:—-]\s*\S)/i.test(line) || /^Failed to\s+\S/i.test(line)) {
       return line
     }
     if (/\b[A-Z0-9_-]+\s+FAIL\b/.test(line)) {
@@ -1157,7 +1269,7 @@ function getRecursiveDownstreamWorkflowIds(workflowId: string, workflows: Workfl
  */
 export function parseWorkflowMd(content: string, id?: string): Workflow | null {
   try {
-    const { data, content: body } = matter(content)
+    const { data, content: body } = parseFrontMatter(content)
     if (!data.name && !id) return null
 
     return {
@@ -1218,25 +1330,51 @@ export function workflowToMarkdown(workflow: Workflow): string {
   if (workflow.secretRequirements?.length) fm.secretRequirements = workflow.secretRequirements
   if (workflow.outputDefinitions?.length) fm.outputDefinitions = workflow.outputDefinitions
   if (workflow.inputRefs?.length) fm.inputRefs = workflow.inputRefs
+  if (workflow.dependsOn !== undefined) fm.dependsOn = workflow.dependsOn
+  if (workflow.type !== undefined) fm.type = workflow.type
 
   return matter.stringify(workflow.content || '', fm)
 }
 
+/**
+ * An unknown IANA zone passes the schema (any non-empty string) but makes node-cron throw while
+ * scheduling, after the workflow was saved. Null when the zone is absent or valid.
+ */
+export function invalidWorkflowTimezoneError(timezone: unknown): string | null {
+  if (timezone === undefined || timezone === null || timezone === '') return null
+  if (typeof timezone === 'string') {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone })
+      return null
+    } catch {}
+  }
+  return `Invalid timezone "${String(timezone)}": use an IANA time zone such as UTC or America/New_York`
+}
+
 // Helper: Validate cron expression
 export function validateCron(cronExpression: string): { valid: boolean; error?: string; humanReadable?: string } {
+  if (cronExpression?.trim() === 'manual') return { valid: true, humanReadable: 'Manual only' }
   try {
     const humanReadable = cronstrue.toString(cronExpression)
     return { valid: true, humanReadable }
   } catch (error: any) {
-    return { valid: false, error: error.message }
+    return { valid: false, error: error instanceof Error ? error.message : String(error) }
   }
 }
 
 // ========== OpenClaw Cron Integration ==========
+//
+// The in-process scheduler (lib/scheduler.ts) owns every workflow schedule: each tick starts one
+// tracked run of all participants, under the pause switch, the budget and the run limit. Earlier
+// versions also registered one Gateway cron job per OpenClaw participant, named
+// `clawmax-<workflow>-<agent>`, so every tick ran those agents a second time, untracked and
+// unbudgeted. Nothing registers such jobs any more; syncing a workflow removes the ones left behind.
 
 function runCronCmd(args: string[]): { ok: boolean; output: string; error?: string } {
   try {
-    const output = execFileSync('openclaw', ['cron', ...args], {
+    const executable = resolveOpenClawCliPath()
+    if (!executable) throw new Error('Selected OpenClaw runtime is unavailable. Restore the configured runtime before retrying.')
+    const output = execFileSync(executable, ['cron', ...args], {
       encoding: 'utf-8',
       timeout: 15000,
       env: safeEnv()
@@ -1263,7 +1401,9 @@ async function runCronCmdAsync(
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      const { stdout } = await execFileAsync('openclaw', ['cron', ...args], {
+      const executable = resolveOpenClawCliPath()
+      if (!executable) throw new Error('Selected OpenClaw runtime is unavailable. Restore the configured runtime before retrying.')
+      const { stdout } = await execFileAsync(executable, ['cron', ...args], {
         encoding: 'utf-8',
         timeout: timeoutMs,
         env: safeEnv(),
@@ -1280,196 +1420,93 @@ async function runCronCmdAsync(
   return { ok: false, output: '', error: lastError, attempts }
 }
 
-function buildCronAddArgs(workflow: Workflow, agentId: string, jobName: string, agentModel: string): string[] {
-  return [
-    'add',
-    '--name', jobName,
-    '--agent', agentId,
-    '--cron', workflow.schedule,
-    '--tz', workflow.timezone || 'UTC',
-    '--message', JSON.stringify(workflow.content).slice(0, 2000),
-    ...(agentModel ? ['--model', agentModel] : []),
-    '--no-deliver',
-    '--json',
-  ]
+type WorkflowCronSyncResult = { ok: boolean; cronJobId?: string; error?: string }
+
+// The names earlier versions gave their jobs: `clawmax-<workflow id>-<agent id>`. Nothing else names Gateway
+// jobs this way, and only such a job is removed: a workflow file (it can be imported) may name any id.
+const LEGACY_WORKFLOW_CRON_JOB_NAME = /^clawmax-[a-z0-9-]+-[a-z][a-z0-9_-]*$/
+
+function storedCronJobIds(workflow: Workflow): string[] {
+  return (workflow.cronJobId || '').split(',').map((id) => id.trim()).filter(Boolean)
+}
+
+/** The Gateway's legacy workflow jobs, or null when the list is unreadable or not the whole inventory. */
+function parseLegacyWorkflowCronJobs(output: string): Array<{ id: string; name: string; agentId?: string }> | null {
+  try {
+    const data = JSON.parse(output)
+    if (!Array.isArray(data?.jobs)) return null
+    // The CLI reads every page itself; a reply that still says more exist is not the whole list, and an id
+    // missing from a partial list is not proof the job is gone.
+    if (data.hasMore !== undefined && data.hasMore !== false) return null
+    if (data.total !== undefined && (!Number.isSafeInteger(data.total) || data.total !== data.jobs.length)) return null
+    if (data.offset !== undefined && data.offset !== 0) return null
+    if (data.nextOffset !== undefined && data.nextOffset !== null) return null
+    const ids = new Set<string>()
+    for (const job of data.jobs) {
+      if (!job || typeof job.id !== 'string' || !job.id.trim() || /[\0\r\n]/.test(job.id)
+        || (job.name !== undefined && typeof job.name !== 'string') || ids.has(job.id)) return null
+      ids.add(job.id)
+    }
+    const legacy = data.jobs.filter((job: { id: string; name?: string }) => typeof job.name === 'string' && LEGACY_WORKFLOW_CRON_JOB_NAME.test(job.name))
+    // A Gateway-supplied id must never be interpreted as a CLI option.
+    if (legacy.some((job: { id: string }) => job.id.startsWith('-'))) return null
+    return legacy.map((job: { id: string; name: string; agentId?: unknown; effectiveAgentId?: unknown }) => ({
+      id: job.id, name: job.name,
+      agentId: typeof job.agentId === 'string' ? job.agentId
+        : job.agentId === undefined && typeof job.effectiveAgentId === 'string' ? job.effectiveAgentId : undefined,
+    }))
+  } catch {
+    return null
+  }
+}
+
+const LEGACY_REMOVAL_FAILED = "Could not remove a Gateway cron job an earlier version registered for this workflow; until it is removed it runs the workflow's OpenClaw agents a second time on schedule"
+
+/** Removes the legacy Gateway jobs stored on the workflow (see above); registers none. */
+export function syncWorkflowToCron(workflow: Workflow): WorkflowCronSyncResult {
+  const stored = storedCronJobIds(workflow)
+  if (stored.length === 0) return { ok: true }
+  const listed = runCronCmd(['list', '--json', '--all'])
+  const legacy = listed.ok ? parseLegacyWorkflowCronJobs(listed.output) : null
+  if (!legacy) {
+    return { ok: false, cronJobId: workflow.cronJobId, error: `${LEGACY_REMOVAL_FAILED} (the Gateway's job list could not be read: ${listed.error || 'incomplete or unreadable'})` }
+  }
+  // A crafted workflow must not target even another workflow's legacy jobs.
+  const prefix = `clawmax-${workflow.id}-`
+  const referenced = legacy.filter(job => stored.includes(job.id) && job.name.startsWith(prefix))
+  if (referenced.some(job => !job.agentId || !/^[a-z][a-z0-9_-]*$/.test(job.agentId))) {
+    return { ok: false, cronJobId: workflow.cronJobId, error: 'Legacy scheduled-job ownership is ambiguous. Review Runtime before retrying cleanup.' }
+  }
+  // Hyphens in both ids make prefix/suffix guessing ambiguous; use Gateway agent metadata.
+  const legacyIds = new Set(referenced.filter(job => job.name === `${prefix}${job.agentId}`).map(job => job.id))
+  const remaining: string[] = []
+  const errors: string[] = []
+  // A stored id the Gateway does not list as a legacy job is gone already, or is not this dashboard's to remove.
+  for (const id of stored.filter((storedId) => legacyIds.has(storedId))) {
+    const removed = runCronCmd(['rm', id])
+    if (!removed.ok) {
+      remaining.push(id)
+      errors.push(removed.error || 'OpenClaw cron command failed')
+    }
+  }
+  if (remaining.length === 0) return { ok: true }
+  return { ok: false, cronJobId: remaining.join(','), error: `${LEGACY_REMOVAL_FAILED} (${errors.join('; ')})` }
 }
 
 /**
- * Sync a workflow to OpenClaw cron. Creates or updates the cron job.
- * Returns the cron job ID if successful.
+ * Startup, off the request path: removes every legacy workflow job on the Gateway, including jobs of
+ * workflows deleted since and jobs whose id was never stored.
  */
-export function syncWorkflowToCron(workflow: Workflow, participants: string[]): { ok: boolean; cronJobId?: string; error?: string } {
-  if (getWorkflowPipelineState().paused || !workflow.enabled || workflow.schedule === 'manual') {
-    // If disabled or manual, remove any existing cron job
-    if (workflow.cronJobId) {
-      removeCronJob(workflow.cronJobId)
-    }
-    return { ok: true }
+export async function removeLegacyWorkflowCronJobsAsync(): Promise<{ ok: boolean; error?: string }> {
+  const listed = await runCronCmdAsync(['list', '--json', '--all'])
+  const legacy = listed.ok ? parseLegacyWorkflowCronJobs(listed.output) : null
+  if (!legacy) return { ok: false, error: `Could not read the Gateway's cron jobs to remove old workflow registrations: ${listed.error || 'incomplete or unreadable list'}` }
+  const errors: string[] = []
+  for (const job of legacy) {
+    const removed = await runCronCmdAsync(['rm', job.id])
+    if (!removed.ok) errors.push(`${job.name}: ${removed.error || 'OpenClaw cron command failed'}`)
   }
-
-  if (participants.length === 0) {
-    return { ok: false, error: 'No participants resolved for workflow' }
-  }
-
-  // Use first participant as the cron agent (OpenClaw cron targets one agent per job)
-  // For multiagent workflows, we create one cron job per agent
-  const results: string[] = []
-  let skippedNonOpenClaw = 0
-
-  for (const agentId of participants) {
-    const jobName = `clawmax-${workflow.id}-${agentId}`
-
-    // Remove existing job if any (e.g. a stale registration from before the agent's runtime was
-    // switched away from openclaw)
-    const existingJobs = listCronJobs()
-    const existing = existingJobs.find(j => j.name === jobName)
-    if (existing) {
-      removeCronJob(existing.id)
-    }
-
-    // openclaw cron only knows how to invoke the openclaw CLI — claude/droid participants are
-    // scheduled entirely by the in-process node-cron scheduler in lib/scheduler.ts instead.
-    const agentRuntime = resolveAgentExecutionConfig(agentId).runtime
-    if (agentRuntime !== 'openclaw') {
-      skippedNonOpenClaw++
-      console.log(`[Cron] cron: skipped openclaw cron registration for ${agentId} (runtime ${agentRuntime}); in-process scheduler covers it`)
-      continue
-    }
-
-    // Try to get agent's model from IDENTITY.md
-    let agentModel = ''
-    try {
-      const { parseIdentity } = require('./workspace')
-      const identity = parseIdentity(agentId)
-      if (identity?.model) agentModel = identity.model
-    } catch {}
-
-    const args = buildCronAddArgs(workflow, agentId, jobName, agentModel)
-
-    const result = runCronCmd(args)
-    if (result.ok) {
-      try {
-        const parsed = JSON.parse(result.output)
-        results.push(parsed.id || parsed.jobId || jobName)
-      } catch {
-        results.push(jobName)
-      }
-    } else {
-      console.error(`[Cron] Failed to add job for agent ${agentId}:`, result.error)
-    }
-  }
-
-  // Every participant was a non-openclaw runtime — nothing was attempted, so this isn't a
-  // failure, there's simply no openclaw cron registration for the in-process scheduler to need.
-  const attemptedOpenClawRegistration = participants.length > skippedNonOpenClaw
-  return {
-    ok: attemptedOpenClawRegistration ? results.length > 0 : true,
-    cronJobId: results.length > 0 ? results.join(',') : undefined,
-  }
-}
-
-async function listCronJobsAsync(): Promise<Array<{ id: string; name: string; enabled: boolean }>> {
-  const result = await runCronCmdAsync(['list', '--json', '--all'])
-  if (!result.ok) return []
-  try {
-    const data = JSON.parse(result.output)
-    return data.jobs || []
-  } catch {
-    return []
-  }
-}
-
-/** Non-blocking startup variant used so optional Gateway cron work cannot starve core APIs. */
-export async function syncWorkflowToCronAsync(workflow: Workflow, participants: string[]): Promise<{ ok: boolean; cronJobId?: string; error?: string }> {
-  if (getWorkflowPipelineState().paused || !workflow.enabled || workflow.schedule === 'manual') {
-    if (workflow.cronJobId) {
-      for (const id of workflow.cronJobId.split(',')) {
-        await runCronCmdAsync(['rm', id.trim()])
-      }
-    }
-    return { ok: true }
-  }
-
-  if (participants.length === 0) return { ok: false, error: 'No participants resolved for workflow' }
-
-  const existingJobs = await listCronJobsAsync()
-  const results: string[] = []
-  let skippedNonOpenClaw = 0
-  const failures: string[] = []
-
-  for (const agentId of participants) {
-    const jobName = `clawmax-${workflow.id}-${agentId}`
-    const existing = existingJobs.find((job) => job.name === jobName)
-    if (existing) {
-      const removed = await runCronCmdAsync(['rm', existing.id])
-      if (!removed.ok) {
-        failures.push(`${agentId}: ${removed.error || 'failed to remove stale cron job'}`)
-        continue
-      }
-    }
-
-    const agentRuntime = resolveAgentExecutionConfig(agentId).runtime
-    if (agentRuntime !== 'openclaw') {
-      skippedNonOpenClaw++
-      continue
-    }
-
-    let agentModel = ''
-    try {
-      const { parseIdentity } = require('./workspace')
-      const identity = parseIdentity(agentId)
-      if (identity?.model) agentModel = identity.model
-    } catch {}
-
-    const added = await runCronCmdAsync(buildCronAddArgs(workflow, agentId, jobName, agentModel))
-    if (!added.ok) {
-      failures.push(`${agentId}: ${added.error || 'failed to add cron job'}`)
-      continue
-    }
-    try {
-      const parsed = JSON.parse(added.output)
-      results.push(parsed.id || parsed.jobId || jobName)
-    } catch {
-      results.push(jobName)
-    }
-  }
-
-  const attemptedOpenClawRegistration = participants.length > skippedNonOpenClaw
-  return {
-    ok: failures.length === 0 && (attemptedOpenClawRegistration ? results.length > 0 : true),
-    cronJobId: results.length > 0 ? results.join(',') : undefined,
-    ...(failures.length > 0 ? { error: failures.join('; ') } : {}),
-  }
-}
-
-export function removeCronJob(jobId: string): void {
-  // Handle comma-separated job IDs (multiagent workflows)
-  for (const id of jobId.split(',')) {
-    runCronCmd(['rm', id.trim()])
-  }
-}
-
-export function enableCronJob(jobId: string): void {
-  for (const id of jobId.split(',')) {
-    runCronCmd(['enable', id.trim()])
-  }
-}
-
-export function disableCronJob(jobId: string): void {
-  for (const id of jobId.split(',')) {
-    runCronCmd(['disable', id.trim()])
-  }
-}
-
-function listCronJobs(): Array<{ id: string; name: string; enabled: boolean }> {
-  const result = runCronCmd(['list', '--json', '--all'])
-  if (!result.ok) return []
-  try {
-    const data = JSON.parse(result.output)
-    return data.jobs || []
-  } catch {
-    return []
-  }
+  return errors.length === 0 ? { ok: true } : { ok: false, error: `${LEGACY_REMOVAL_FAILED} (${errors.join('; ')})` }
 }
 
 // List all workflows
@@ -1510,7 +1547,7 @@ export function listWorkflowTemplates(): Workflow[] {
     const filePath = path.join(templatesDir, file)
     try {
       const content = fs.readFileSync(filePath, 'utf-8')
-      const { data, content: markdownContent } = matter(content)
+      const { data, content: markdownContent } = parseFrontMatter(content)
 
       const template: Workflow = {
         id: path.basename(file, '.md'),
@@ -1555,7 +1592,7 @@ export function getWorkflow(id: string): Workflow | null {
 
   try {
     const fileContent = fs.readFileSync(filePath, 'utf-8')
-    const { data, content } = matter(fileContent)
+    const { data, content } = parseFrontMatter(fileContent)
 
     return reconcileWorkflowStateFromExecutions({
       id,
@@ -1611,6 +1648,10 @@ export function createWorkflow(data: Partial<Workflow>): { success: boolean; id?
       if (!cronValidation.valid) {
         return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }
       }
+    }
+    const timezoneError = invalidWorkflowTimezoneError(data.timezone)
+    if (timezoneError) {
+      return { success: false, error: timezoneError }
     }
 
     // Schema validation passed — these fields are guaranteed present
@@ -1711,6 +1752,10 @@ export function updateWorkflow(id: string, data: Partial<Workflow>): { success: 
       if (!cronValidation.valid) {
         return { success: false, error: `Invalid cron expression: ${cronValidation.error}` }
       }
+    }
+    const timezoneError = invalidWorkflowTimezoneError(data.timezone)
+    if (timezoneError) {
+      return { success: false, error: timezoneError }
     }
 
     const updated: Workflow = {
@@ -1855,6 +1900,7 @@ export function resolveParticipants(workflow: Workflow, agents: any[], teams: Te
 
 // List executions for a workflow
 export function listExecutions(workflowId: string, limit: number = 10): WorkflowExecution[] {
+  if (!WORKFLOW_ID_PATTERN.test(workflowId)) return []
   const executionDir = path.join(getExecutionsDir(), workflowId)
 
   if (!fs.existsSync(executionDir)) {
@@ -1870,7 +1916,7 @@ export function listExecutions(workflowId: string, limit: number = 10): Workflow
       const execution = hydrateExecutionArtifacts(workflowId, JSON.parse(content), filePath)
       executions.push(execution)
     } catch (error) {
-      console.error(`Error reading execution ${file}:`, error)
+      console.error(`Error reading execution ${file}:`, error instanceof SyntaxError ? 'invalid JSON' : error)
     }
   }
 
@@ -1892,6 +1938,7 @@ export function getLatestExecution(workflowId: string): WorkflowExecution | null
 
 // Get single execution
 export function getExecution(workflowId: string, executionId: string): WorkflowExecution | null {
+  if (!WORKFLOW_ID_PATTERN.test(workflowId) || !/^[a-zA-Z0-9_-]+$/.test(executionId)) return null
   const filePath = path.join(getExecutionsDir(), workflowId, `${executionId}.json`)
 
   if (!fs.existsSync(filePath)) {
@@ -1902,7 +1949,7 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
     const content = fs.readFileSync(filePath, 'utf-8')
     return hydrateExecutionArtifacts(workflowId, JSON.parse(content), filePath)
   } catch (error) {
-    console.error(`Error reading execution ${executionId}:`, error)
+    console.error(`Error reading execution ${executionId}:`, error instanceof SyntaxError ? 'invalid JSON' : error)
     return null
   }
 }
@@ -2039,9 +2086,6 @@ export function triggerWorkflow(workflowId: string, options?: {
       // Schedule disable after execution completes
       setTimeout(() => {
         updateWorkflow(workflowId, { enabled: false })
-        if (workflow.cronJobId) {
-          disableCronJob(workflow.cronJobId)
-        }
       }, 5000)
     }
 
@@ -2085,14 +2129,11 @@ export function triggerWorkflow(workflowId: string, options?: {
 
     // Persist only explicit workflow/user-provided run inputs.
     // Workspace integration defaults still flow into runtime context, but should not
-    // appear as editable run inputs on unrelated workflows.
+    // appear as editable run inputs on unrelated workflows. Run secrets (options.secrets)
+    // stay in memory for this run and are never copied into the persisted inputs.
     const executionInputs: Record<string, string> = {}
     const content = workflow.content || ''
-    const fieldRegex = /^-\s+\*\*(.+?):\*\*\s+(.+)$/gm
-    let fieldMatch
-    while ((fieldMatch = fieldRegex.exec(content)) !== null) {
-      const label = fieldMatch[1].trim()
-      const value = fieldMatch[2].trim()
+    for (const [label, value] of workflowContentFields(content)) {
       if (value && !value.startsWith('[')) {
         executionInputs[label] = value
       }
@@ -2102,13 +2143,6 @@ export function triggerWorkflow(workflowId: string, options?: {
       : ''
     if (options?.inputs) {
       for (const [key, value] of Object.entries(options.inputs)) {
-        if (typeof value === 'string' && value.trim()) {
-          executionInputs[key] = value.trim()
-        }
-      }
-    }
-    if (options?.secrets) {
-      for (const [key, value] of Object.entries(options.secrets)) {
         if (typeof value === 'string' && value.trim()) {
           executionInputs[key] = value.trim()
         }
@@ -2187,7 +2221,11 @@ export function triggerWorkflow(workflowId: string, options?: {
       }
       runtimeContextLines.push('- Use the upstream artifact path or summary as the source of truth; do not restate the full upstream document unless necessary.')
     }
-    const resolvedPathInputs = Object.entries(executionInputs)
+    // Declared non-sensitive run values reach the prompt (above), so path-like ones are resolved like inputs.
+    const declaredRunValues = (workflow.secretRequirements || [])
+      .filter((requirement) => !requirement.sensitive && options?.secrets?.[requirement.key]?.trim())
+      .map((requirement) => [requirement.key, options!.secrets![requirement.key]] as [string, string])
+    const resolvedPathInputs = [...Object.entries(executionInputs), ...declaredRunValues]
       .filter(([label, value]) => typeof value === 'string' && isPathLikeRunInput(label, value))
       .map(([label, value]) => ({
         label,
@@ -2219,6 +2257,7 @@ export function triggerWorkflow(workflowId: string, options?: {
       ownerBootId: WORKFLOW_RUNNER_BOOT_ID,
       heartbeatAt: new Date().toISOString(),
       inputs: Object.keys(executionInputs).length > 0 ? executionInputs : undefined,
+      inputsExcludeSecrets: true,
       outputs: normalizeWorkflowExecutionOutputs(options?.outputs),
     }
 
@@ -2320,6 +2359,8 @@ export function triggerWorkflow(workflowId: string, options?: {
           const agentResponse = await withRegisteredTurn(participant.agentId, (turn) => runExclusiveAgentExecution(participant.agentId, async () => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             if (resolvedAgent.runtime !== 'openclaw') {
+              // Stopped while this step waited for the agent's lock, as the openclaw path checks too.
+              if (isExecutionCancelled(executionId)) throw new Error('Workflow execution was cancelled')
               // 2.0 builds executionEnv per attempt inside executeAttempt(), so the runtime path
               // builds its own provider-isolated env instead of reusing an outer binding that no
               // longer exists. Mirrors executeAttempt() so claude/droid agents get the same
@@ -2351,21 +2392,35 @@ export function triggerWorkflow(workflowId: string, options?: {
 
               const runtimeSessionId = buildWorkflowSessionId(executionId, participant.agentId)
               const startedAt = Date.now()
-              const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
-                runtime: resolvedAgent.runtime,
-                agentId: participant.agentId,
-                agentDir: resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', participant.agentId),
-                message: executionMessage,
-                scopedSessionId: runtimeSessionId,
-                model: resolvedAgent.model,
-                mode: 'json',
-                env: runtimeExecutionEnv,
-                // No deadline: a workflow step runs until it finishes or is cancelled. The registered
-                // turn's signal is the only way this ever stops early -- a throwaway
-                // `new AbortController().signal` here was a signal nothing could ever call abort() on.
-                signal: turn.signal,
-                onActivity: turn.touch,
-              })
+              // An operator's Stop (cancelExecution) reaches this step through its turn: claude/droid run
+              // no process the openclaw canceller knows about, so Stop marked the run cancelled while the
+              // step kept working and the workflow refused new runs until it finished.
+              const executionProcesses = activeExecutionProcesses.get(executionId) || new Set<() => void>()
+              const cancelThisStep = () => { cancelTurn(turn.turnId) }
+              executionProcesses.add(cancelThisStep)
+              activeExecutionProcesses.set(executionId, executionProcesses)
+              let runtimeTurn: Awaited<ReturnType<typeof executeAgentRuntimeTurn>>
+              try {
+                runtimeTurn = await executeAgentRuntimeTurn({
+                  runtime: resolvedAgent.runtime,
+                  agentId: participant.agentId,
+                  agentDir: resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', participant.agentId),
+                  message: executionMessage,
+                  scopedSessionId: runtimeSessionId,
+                  model: resolvedAgent.model,
+                  mode: 'json',
+                  env: runtimeExecutionEnv,
+                  // No deadline: a workflow step runs until it finishes or is cancelled. The registered
+                  // turn's signal is the only way this ever stops early -- a throwaway
+                  // `new AbortController().signal` here was a signal nothing could ever call abort() on.
+                  signal: turn.signal,
+                  onActivity: turn.touch,
+                })
+              } finally {
+                executionProcesses.delete(cancelThisStep)
+                if (executionProcesses.size === 0) activeExecutionProcesses.delete(executionId)
+              }
+              const { text, errorText, missingCliError } = runtimeTurn
               if (missingCliError) throw new Error(missingCliError)
               if (errorText) {
                 throw new Error(isRuntimeCancelledError(errorText) ? 'Workflow step was stopped.' : errorText)

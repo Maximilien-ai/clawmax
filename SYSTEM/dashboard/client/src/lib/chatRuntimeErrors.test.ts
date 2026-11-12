@@ -1,4 +1,4 @@
-import { formatAgentWorkStatus, summarizeAgentChatFailure } from './chatRuntimeErrors'
+import { formatAgentWorkStatus, isRuntimeDiagnosticText, summarizeAgentChatFailure } from './chatRuntimeErrors'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -124,6 +124,41 @@ test('formatAgentWorkStatus distinguishes long tool-enabled requests', () => {
   assert(/45s elapsed/.test(formatAgentWorkStatus(45_000)), 'Expected seconds elapsed')
   assert(/1m 15s elapsed/.test(formatAgentWorkStatus(75_000)), 'Expected minutes elapsed')
   assert(/several minutes/.test(formatAgentWorkStatus(75_000)), 'Do not promise a runtime deadline that is not enforced')
+})
+
+test('isRuntimeDiagnosticText flags runtime diagnostics, never code or prose that mentions errors', () => {
+  const rows: Array<[string, boolean]> = [
+    ['[diagnostic] lane task error: lane=main', true],
+    ['Error: session file locked (timeout 10000ms)', true],
+    ['request failed error="model unavailable"', true],
+    ['Handle it:\n\n```python\ntry:\n    parse(x)\nexcept ValueError:\n    pass\n```', false],
+    ['Catch `TypeError:` explicitly.', false],
+    ['```\nError: raised by the example\n```', false],
+    ['The API returns an error when the token expires.', false],
+  ]
+  for (const [text, expected] of rows) {
+    assert(isRuntimeDiagnosticText(text) === expected, `${expected ? "Expected" : "Did not expect"} a diagnostic: ${text}`)
+  }
+})
+
+test('summarizeAgentChatFailure tells Gateway failures apart and keeps the server diagnosis', () => {
+  const unreachable = 'Gateway not reachable at ws://127.0.0.1:18789 (ECONNREFUSED).\nStart it with `openclaw gateway run` or check `openclaw gateway status`.\nConfig: /Users/someone/.openclaw/openclaw.json'
+  const cases: Array<[string, RegExp]> = [
+    ['OpenClaw Gateway is not running at 127.0.0.1:18789, so agent chat cannot start.\nConfig: /Users/private', /^OpenClaw Gateway is not running/],
+    [unreachable, /^OpenClaw Gateway is not running at 127\.0\.0\.1:18789, so agent chat cannot start\./],
+    ['gateway connect failed: AUTH_TOKEN_MISMATCH', /^OpenClaw Gateway rejected the Dashboard's connection \(AUTH_TOKEN_MISMATCH\)\./],
+    ['gateway closed (1006): ', /^OpenClaw Gateway closed the connection \(code 1006\)\./],
+    ['gateway remote mode misconfigured: gateway.remote.url missing', /^OpenClaw Gateway is set to remote mode/],
+    // The server's specific message must not be replaced by the generic gateway text.
+    ['OpenClaw Gateway is not running at 127.0.0.1:18789, so agent chat cannot start.', /^OpenClaw Gateway is not running at 127\.0\.0\.1:18789/],
+    ['gateway request failed: something new', /^Agent chat could not reach the gateway runtime\.$/],
+    ['The selected model is blocked by this instance or agent model policy.', /This is not a gateway connectivity failure\.$/],
+  ]
+  for (const [raw, expected] of cases) {
+    const message = summarizeAgentChatFailure(raw)
+    assert(expected.test(message), `Unexpected message for ${JSON.stringify(raw)}: ${message}`)
+    assert(!/Config:|\/Users\//.test(message), `Raw detail leaked: ${message}`)
+  }
 })
 
 console.log('\n========================================')

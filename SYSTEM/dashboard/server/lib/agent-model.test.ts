@@ -273,8 +273,8 @@ test('automatic model-fit fields remain next to the active model or backup', () 
 test('model normalization distinguishes OpenAI families from arbitrary provider IDs', () => {
   nodeAssert.strictEqual(normalizeAgentModelInput('   '), '')
   nodeAssert.strictEqual(normalizeAgentModelInput(' o1-preview '), 'openai/o1-preview')
-  nodeAssert.strictEqual(normalizeAgentModelInput(' o3-mini '), 'openai/o3-mini')
-  nodeAssert.strictEqual(normalizeAgentModelInput(' chatgpt-4o-latest '), 'openai/chatgpt-4o-latest')
+  nodeAssert.strictEqual(normalizeAgentModelInput(' o3-mini '), 'openai/gpt-5.5')
+  nodeAssert.strictEqual(normalizeAgentModelInput(' chatgpt-4o-latest '), 'openai/gpt-5.5')
   nodeAssert.strictEqual(normalizeAgentModelInput(' text-embedding-3-small '), 'openai/text-embedding-3-small')
   nodeAssert.strictEqual(normalizeAgentModelInput(' gemma-local '), 'gemma-local')
   nodeAssert.strictEqual(normalizeAgentModelInput('custom/gpt-4o'), 'custom/gpt-4o')
@@ -357,8 +357,18 @@ test('normalizeAgentModelInput qualifies common OpenAI aliases', () => {
   assert(normalizeAgentModelInput('gpt-4o-mini') === 'openai/gpt-4o-mini', 'Expected bare gpt-4o-mini to become openai-qualified')
   assert(normalizeAgentModelInput('gpt4o-mini') === 'openai/gpt-4o-mini', 'Expected compact gpt4o-mini to normalize')
   assert(normalizeAgentModelInput('gpt40-mini') === 'openai/gpt-4o-mini', 'Expected common zero/o typo to normalize')
-  assert(normalizeAgentModelInput('gpt-4o') === 'openai/gpt-4.1', 'Expected retired gpt-4o alias to normalize to gpt-4.1')
-  assert(normalizeAgentModelInput('openai/gpt-4o') === 'openai/gpt-4.1', 'Expected retired qualified gpt-4o to normalize to gpt-4.1')
+  assert(normalizeAgentModelInput('gpt-4o') === 'openai/gpt-4o', 'Expected still-active gpt-4o alias to remain unchanged')
+  assert(normalizeAgentModelInput('openai/gpt-4o') === 'openai/gpt-4o', 'Expected still-active qualified gpt-4o to remain unchanged')
+  assert(normalizeAgentModelInput('gpt-4') === 'openai/gpt-5.5', 'Retired bare GPT-4 must migrate')
+  assert(normalizeAgentModelInput('openai/gpt-4') === 'openai/gpt-5.5', 'Retired qualified GPT-4 must migrate')
+  assert(normalizeAgentModelInput('openai/gpt-3.5-turbo') === 'openai/gpt-5.4-mini', 'Retired economical model must migrate')
+  const originalNow = Date.now
+  try {
+    Date.now = () => Date.parse('2027-01-14T00:00:00Z')
+    assert(normalizeAgentModelInput('openai/gpt-4.1') === 'openai/gpt-5.5', 'Known shutdown must migrate automatically when its date arrives')
+  } finally {
+    Date.now = originalNow
+  }
   assert(normalizeAgentModelInput('ollama/qwen2.5:latest') === 'ollama/qwen2.5:latest', 'Expected qualified Ollama model to stay unchanged')
 })
 

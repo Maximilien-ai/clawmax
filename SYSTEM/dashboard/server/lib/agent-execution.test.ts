@@ -93,6 +93,26 @@ console.log(`\n${YELLOW}=== Agent Execution Test Suite ===${RESET}\n`)
 const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
 
+test('existing and built-in agents resolve retired primary and backup models before execution', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-retirement-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'retirement-probe')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4\n- **Backup Model:** openai/gpt-3.5-turbo\n- **Tags:** built-in\n')
+  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({ agents: { list: [{ id: 'retirement-probe', workspace: agentWorkspace, model: 'openai/gpt-4' }] } }))
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  clearModelCache()
+  resetWorkspaceManagerForTests()
+  for (let reopen = 0; reopen < 2; reopen++) {
+    const resolved = resolveAgentExecutionConfig('retirement-probe')
+    assert(resolved.model === 'openai/gpt-5.5', 'Saved retired primary must not execute')
+    assert(resolved.backupModel === 'openai/gpt-5.4-mini', 'Saved retired backup must not execute')
+    resetWorkspaceManagerForTests()
+  }
+})
+
 test('resolveAgentExecutionConfig falls back to IDENTITY model when openclaw.json omits model', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const workspace = path.join(home, 'workspace')
@@ -197,7 +217,7 @@ test('resolveAgentExecutionConfig does not invent an implicit fallback model fro
   }
 })
 
-test('resolveAgentExecutionConfig remaps retired openai/gpt-4o identities to openai/gpt-4.1', () => {
+test('resolveAgentExecutionConfig preserves still-active openai/gpt-4o identities', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const workspace = path.join(home, 'workspace')
   const agentWorkspace = path.join(workspace, 'AGENTS', 'double-agent')
@@ -218,7 +238,7 @@ test('resolveAgentExecutionConfig remaps retired openai/gpt-4o identities to ope
   resetWorkspaceManagerForTests()
 
   const resolved = resolveAgentExecutionConfig('double-agent')
-  assert(resolved.model === 'openai/gpt-4.1', `Expected retired gpt-4o identity to resolve to gpt-4.1, got ${resolved.model || 'missing'}`)
+  assert(resolved.model === 'openai/gpt-4o', `Expected active gpt-4o identity to remain unchanged, got ${resolved.model || 'missing'}`)
   assert(resolved.provider === 'openai', 'Expected provider to remain openai')
 })
 

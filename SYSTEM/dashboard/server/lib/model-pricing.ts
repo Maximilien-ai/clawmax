@@ -24,7 +24,11 @@ const MODEL_PRICING: Array<{ match: string; pricing: ModelPricing }> = [
 
 export function getModelPricing(model: string): ModelPricing | null {
   const normalized = String(model || '').toLowerCase()
-  const match = MODEL_PRICING.find((entry) => normalized.includes(entry.match))
+  // The most specific entry wins: `gpt-4o` is also a substring of `gpt-4o-mini`, which costs 33x less.
+  let match: (typeof MODEL_PRICING)[number] | undefined
+  for (const entry of MODEL_PRICING) {
+    if (normalized.includes(entry.match) && (!match || entry.match.length > match.match.length)) match = entry
+  }
   return match?.pricing || null
 }
 

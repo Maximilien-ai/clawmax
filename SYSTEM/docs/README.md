@@ -1,18 +1,28 @@
 # ClawMax Documentation
 
-> Last updated: October 12, 2026
+> Last updated: November 12, 2026
 
 Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
-`v1.9.9`. RC91 is the latest tagged test candidate in this checkout. PR #212
-and dual-instance acceptance remain open. Start with the
-[current Dashboard gate](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md).
+`v1.9.9`. Start with the [November 12 acceptance and RC98 gates](planning/RC98_ACCEPTANCE_2026-11-12.md).
+RC98 has not been cut. Earlier RC preview/evidence files below describe their
+original source snapshots, not the current candidate or runtime state.
 
 ## Active Documents
 
 | Document | Description |
 |----------|-------------|
+| [planning/RC98_ACCEPTANCE_2026-11-12.md](planning/RC98_ACCEPTANCE_2026-11-12.md) | Accepted readiness weighting, prompt-resize follow-up, 571-check evidence, browser/security results and remaining RC98 gates |
+| [planning/RC98_ACCEPTANCE_2026-11-11.md](planning/RC98_ACCEPTANCE_2026-11-11.md) | Accepted and merged scheduler batch: wording receipt, 571-check evidence and retained limitations |
+| [planning/RC98_ACCEPTANCE_2026-11-10.md](planning/RC98_ACCEPTANCE_2026-11-10.md) | Accepted #404 checks, full 570-check evidence, remediated CodeQL and current CI gate, exact dev identity and remaining RC98 gates |
+| [planning/MESSAGE_ISOLATION_404_2026-11-10.md](planning/MESSAGE_ISOLATION_404_2026-11-10.md) | #404 exact-source validation, legacy ownership and feedback status |
+| [guides/RECOVER_CHANNEL_HISTORY.md](guides/RECOVER_CHANNEL_HISTORY.md) | Owner recovery, backups and rollback for older channel histories |
+| [planning/RC98_ACCEPTANCE_2026-11-08.md](planning/RC98_ACCEPTANCE_2026-11-08.md) | Historical first-batch acceptance, prior test evidence and all-feedback/reply reconciliation |
+| [planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) | RC95 source preview: five included PRs, four holds, four human/provider acceptance checks and engineering evidence |
 | [FIRST_AGENT_TUTORIAL.md](FIRST_AGENT_TUTORIAL.md) | Low-code guide to define, create, test, and improve a first ClawMax agent |
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
+| [planning/RC94_REVIEW_HANDOFF_2026-10-26.md](planning/RC94_REVIEW_HANDOFF_2026-10-26.md) | Historical RC94 reviewer checklist; current PR disposition is in the RC95 preview |
+| [planning/RC94_IMAGE_HANDOFF_2026-10-26.md](planning/RC94_IMAGE_HANDOFF_2026-10-26.md) | RC94 test-image monitoring, fixed source identity, local validation evidence, and pending image gates |
+| [planning/RC94_SOURCE_SETUP_FIX_2026-10-26.md](planning/RC94_SOURCE_SETUP_FIX_2026-10-26.md) | Source setup/start/update fix, pinned pnpm bootstrap, command guidance, and Mike clean-machine acceptance |
 | [planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md) | Active PR #212, image, MBP14, test10, and Template execution gates |
 | [planning/PRE_RC89_MAINTENANCE_PARITY_2026-09-29.md](planning/PRE_RC89_MAINTENANCE_PARITY_2026-09-29.md) | 1.9.10 feature reconciliation into 2.0, focused evidence and pre-RC89 acceptance |
 | [LESSONS_LEARNED_2026-09-27.md](LESSONS_LEARNED_2026-09-27.md) | Hackathon recap, Cognee4 canary evidence, pending branches and next-day owners |
@@ -86,3 +96,8 @@ and dual-instance acceptance remain open. Start with the
 | `videos/archive/` | Historical workflow and add-agent recordings; current 2.0 replacement videos are still planned |
 | `archive/` | Historical docs no longer actively maintained |
 | `planning/archive/` | Completed and superseded execution plans |
+
+## Development notes
+
+- [Agent runtimes](planning/AGENT_RUNTIMES.md) — in-progress implementation notes; not a supported-feature guarantee.
+- [RC96 local acceptance](planning/RC96_PREVIEW_ACCEPTANCE_2026-10-28.md) — candidate scope, exclusions and six independent acceptance checks.

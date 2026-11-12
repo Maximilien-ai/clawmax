@@ -1,3 +1,4 @@
+import { ChannelAiDraftEditor, ChannelMemberPicker } from '../components/ChannelAiDraftEditor'
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import GroupChatPanel from '../components/GroupChatPanel'
 import { useToast } from '../components/Toast'
@@ -114,6 +115,11 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const channelActionsMenuButtonRef = useRef<HTMLButtonElement>(null)
   const [showCreateCommunity, setShowCreateCommunity] = useState(false)
   const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [channelGenerating, setChannelGenerating] = useState(false)
+  const [channelSaving, setChannelSaving] = useState(false)
+  const [channelError, setChannelError] = useState('')
+  const [channelMembers, setChannelMembers] = useState<string[]>([])
+  useEffect(() => { setChannelError(''); setChannelMembers([]) }, [showCreateCommunity, showCreateGroup])
   const [newCommunityName, setNewCommunityName] = useState('')
   const [newCommunityDesc, setNewCommunityDesc] = useState('')
   const [newGroupName, setNewGroupName] = useState('')
@@ -304,12 +310,15 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   }
 
   const handleCreateCommunity = async () => {
+    if (channelGenerating || channelSaving) return
+    setChannelError('')
     if (!newCommunityName.trim()) return
     if (workspaceCommunities.some((community) => community.name.toLowerCase() === newCommunityName.trim().toLowerCase())) {
-      showSuccess(`Community "${newCommunityName}" already exists`)
+      setChannelError(`Community "${newCommunityName}" already exists`)
       return
     }
 
+    setChannelSaving(true)
     try {
       const response = await fetch('/api/communities', {
         method: 'POST',
@@ -317,6 +326,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         body: JSON.stringify({
           name: newCommunityName.trim(),
           description: newCommunityDesc.trim() || undefined,
+          members: channelMembers,
           channels: ['whatsapp'],
         }),
       })
@@ -330,17 +340,20 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       window.dispatchEvent(new CustomEvent('channels-updated'))
       fetchAgents()
     } catch (error) {
-      console.error('Failed to create community:', error)
-    }
+      setChannelError('Failed to create community. Your draft is preserved; try again.')
+    } finally { setChannelSaving(false) }
   }
 
   const handleCreateGroup = async () => {
+    if (channelGenerating || channelSaving) return
+    setChannelError('')
     if (!newGroupName.trim()) return
     if (workspaceGroups.some((group) => group.name.toLowerCase() === newGroupName.trim().toLowerCase())) {
-      showSuccess(`Group "${newGroupName}" already exists`)
+      setChannelError(`Group "${newGroupName}" already exists`)
       return
     }
 
+    setChannelSaving(true)
     try {
       const response = await fetch('/api/groups', {
         method: 'POST',
@@ -349,6 +362,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           name: newGroupName.trim(),
           description: newGroupDesc.trim() || undefined,
           community: newGroupCommunity.trim() || undefined,
+          members: channelMembers,
           channels: ['whatsapp'],
         }),
       })
@@ -363,8 +377,8 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       window.dispatchEvent(new CustomEvent('channels-updated'))
       fetchAgents()
     } catch (error) {
-      console.error('Failed to create group:', error)
-    }
+      setChannelError('Failed to create group. Your draft is preserved; try again.')
+    } finally { setChannelSaving(false) }
   }
 
   const handleDeleteChannel = async (channel: Channel) => {
@@ -1151,7 +1165,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                   </span>
                 </h2>
               </div>
-              <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {sortedCommunities.map(channel => (
                   <ChannelGridCard
                     key={`community-${channel.name}`}
@@ -1162,6 +1176,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                     isSelected={selectedChannelKeys.has(`community:${channel.name}`)}
                     onToggleSelect={() => toggleChannelSelection(channel)}
                     onManageTags={() => setTagManageTarget(channel)}
+                    onManageMembers={() => setMemberManageTarget(channel)}
                     onNavigateToAgent={onNavigateToAgent}
                     onOpenChat={() => openChat(channel)}
                     onDelete={() => handleDeleteChannel(channel)}
@@ -1190,7 +1205,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                   </span>
                 </h2>
               </div>
-              <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {sortedGroups.map(channel => (
                   <ChannelGridCard
                     key={`group-${channel.name}`}
@@ -1201,6 +1216,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                     isSelected={selectedChannelKeys.has(`group:${channel.name}`)}
                     onToggleSelect={() => toggleChannelSelection(channel)}
                     onManageTags={() => setTagManageTarget(channel)}
+                    onManageMembers={() => setMemberManageTarget(channel)}
                     onNavigateToAgent={onNavigateToAgent}
                     onOpenChat={() => openChat(channel)}
                     onDelete={() => handleDeleteChannel(channel)}
@@ -1292,12 +1308,17 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
 
     {showCreateCommunity && (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+        <div role="dialog" aria-label={showCreateGroup ? "Create Group" : "Create Community"} aria-modal="true" className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90dvh] flex flex-col" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Community</h2>
-            <button onClick={() => setShowCreateCommunity(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
+            <button disabled={channelGenerating || channelSaving} onClick={() => setShowCreateCommunity(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto">
+            <ChannelAiDraftEditor agents={agents} members={channelMembers} onMembersChange={setChannelMembers} kind={showCreateGroup ? 'group' : 'community'} disabled={channelSaving} onBusyChange={setChannelGenerating} onDraft={draft => {
+              if (showCreateGroup) { setNewGroupName(draft.name); setNewGroupDesc(draft.description); setNewGroupCommunity(draft.community || '') }
+              else { setNewCommunityName(draft.name); setNewCommunityDesc(draft.description) }
+              setChannelMembers(draft.members)
+            }} />
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
               <input
@@ -1318,10 +1339,12 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                 placeholder="Optional description"
               />
             </div>
+            <ChannelMemberPicker agents={agents} members={channelMembers} onChange={setChannelMembers} />
           </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <button onClick={() => setShowCreateCommunity(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
-            <button onClick={handleCreateCommunity} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Community</button>
+          <div className="mt-6 flex flex-wrap justify-end gap-3 shrink-0">
+            {channelError && <p role="alert" className="w-full text-sm text-red-600">{channelError}</p>}
+            <button disabled={channelGenerating || channelSaving} onClick={() => setShowCreateCommunity(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
+            <button disabled={channelGenerating || channelSaving || !newCommunityName.trim()} onClick={handleCreateCommunity} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Community</button>
           </div>
         </div>
       </div>
@@ -1329,12 +1352,17 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
 
     {showCreateGroup && (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+        <div role="dialog" aria-label={showCreateGroup ? "Create Group" : "Create Community"} aria-modal="true" className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90dvh] flex flex-col" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Group</h2>
-            <button onClick={() => setShowCreateGroup(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
+            <button disabled={channelGenerating || channelSaving} onClick={() => setShowCreateGroup(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto">
+            <ChannelAiDraftEditor agents={agents} members={channelMembers} onMembersChange={setChannelMembers} kind={showCreateGroup ? 'group' : 'community'} disabled={channelSaving} onBusyChange={setChannelGenerating} onDraft={draft => {
+              if (showCreateGroup) { setNewGroupName(draft.name); setNewGroupDesc(draft.description); setNewGroupCommunity(draft.community || '') }
+              else { setNewCommunityName(draft.name); setNewCommunityDesc(draft.description) }
+              setChannelMembers(draft.members)
+            }} />
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
               <input
@@ -1365,10 +1393,12 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                 placeholder="Optional description"
               />
             </div>
+            <ChannelMemberPicker agents={agents} members={channelMembers} onChange={setChannelMembers} />
           </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <button onClick={() => setShowCreateGroup(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
-            <button onClick={handleCreateGroup} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Group</button>
+          <div className="mt-6 flex flex-wrap justify-end gap-3 shrink-0">
+            {channelError && <p role="alert" className="w-full text-sm text-red-600">{channelError}</p>}
+            <button disabled={channelGenerating || channelSaving} onClick={() => setShowCreateGroup(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
+            <button disabled={channelGenerating || channelSaving || !newGroupName.trim()} onClick={handleCreateGroup} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Group</button>
           </div>
         </div>
       </div>
@@ -1494,7 +1524,7 @@ function CommunicationTable({
                     </td>
                   )}
                   <td className="px-4 py-3">
-                    <button onClick={() => onOpenChat(channel)} className="text-left">
+                    <button onClick={event => { event.stopPropagation(); onOpenChat(channel) }} className="text-left">
                       <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
                         <span>{channel.displayName || channel.name}</span>
                         {unreadCount > 0 && (
@@ -1525,7 +1555,7 @@ function CommunicationTable({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => onOpenChat(channel)} className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600">Open</button>
+                      <button onClick={event => { event.stopPropagation(); onOpenChat(channel) }} className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600">Open</button>
                       <button onClick={() => onManageMembers(channel)} className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600">Members</button>
                       <button onClick={() => onManageTags(channel)} className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600">Tags</button>
                       <button onClick={() => onDelete(channel)} className="px-2 py-1 text-xs rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40">Delete</button>
@@ -1598,10 +1628,31 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
     onSave(Array.from(selectedMembers))
   }
 
+  // Focus starts in the search box and Tab stays in the dialog. Escape closes it like Cancel, without
+  // saving and without reaching the page's own Escape handlers. Closing returns focus to the control
+  // that opened the dialog; only a real close does, as StrictMode's rehearsal unmount leaves it attached.
+  const dialogRef = React.useRef<HTMLDivElement>(null)
+  const [returnFocus] = React.useState(() => document.activeElement as HTMLElement | null)
+  React.useEffect(() => {
+    const dialog = dialogRef.current
+    return () => { if (!dialog?.isConnected) returnFocus?.focus() }
+  }, [returnFocus])
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.stopPropagation()
+      onClose()
+    } else if (event.key === 'Tab') {
+      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled)') || [])
+      const first = controls[0], last = controls[controls.length - 1]
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { event.preventDefault(); last?.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Members</h3>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="manage-members-title" tabIndex={-1} onKeyDown={handleKeyDown} className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col outline-none" onClick={e => e.stopPropagation()}>
+        <h3 id="manage-members-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Members</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 inline-flex items-center gap-2">
           <ProductIconCell iconName={channel.type === 'community' ? 'community' : 'group'} label={channel.type === 'community' ? 'Community' : 'Group'} size="sm" className="border-transparent bg-transparent text-current" />
           {channel.displayName || channel.name}
@@ -1616,6 +1667,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            autoFocus
             placeholder="Search agents by name or ID..."
             className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-sky-400 text-sm"
           />
@@ -1671,8 +1723,8 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
                   onClick={() => toggleMember(agent.id)}
                   className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${
                     isSelected
-                      ? 'bg-sky-50 border border-sky-200 hover:bg-sky-100'
-                      : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:bg-gray-900'
+                      ? 'bg-sky-50 border border-sky-200 hover:bg-sky-100 dark:bg-sky-900/40 dark:border-sky-700 dark:hover:bg-sky-900/60'
+                      : 'bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
                   <input
@@ -1684,7 +1736,7 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{agent.name}</span>
-                      <span className="text-xs text-gray-400">({agent.id})</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-300">({agent.id})</span>
                     </div>
                   </div>
                   <span className={`w-2 h-2 rounded-full ${STATUS_DOT[agent.status]}`} />
@@ -2025,7 +2077,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate dark:text-gray-100">{channel.displayName || channel.name}</h3>
+            <h3 title={channel.name} className="font-semibold text-gray-900 dark:text-gray-100 text-sm break-words min-w-0">{channel.displayName || channel.name}</h3>
             {unreadCount > 0 && (
               <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 dark:bg-red-500 text-white text-[10px] font-bold shrink-0 shadow-sm">
                 {unreadCount > 99 ? '99+' : unreadCount}
@@ -2441,7 +2493,7 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
   )
 }
 
-function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode, isSelected, onToggleSelect, onManageTags, onNavigateToAgent, onOpenChat, onDelete, unreadCount = 0 }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; selectionMode: boolean; isSelected: boolean; onToggleSelect: () => void; onManageTags: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; onDelete?: () => void; unreadCount?: number }) {
+function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode, isSelected, onToggleSelect, onManageTags, onManageMembers, onNavigateToAgent, onOpenChat, onDelete, unreadCount = 0 }: { channel: Channel; selectedTags: Set<string>; selectedAgents: Set<string>; selectionMode: boolean; isSelected: boolean; onToggleSelect: () => void; onManageTags: () => void; onManageMembers: () => void; onNavigateToAgent?: (agentId: string) => void; onOpenChat?: () => void; onDelete?: () => void; unreadCount?: number }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const typeColor = channel.type === 'community'
     ? 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30'
@@ -2473,7 +2525,7 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode,
       )}
       <div className="flex items-center gap-1.5 mb-2">
         <ProductIconCell iconName={channel.type === 'community' ? 'community' : 'group'} label={channel.type === 'community' ? 'Community' : 'Group'} size="sm" />
-        <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100">{channel.displayName || channel.name}</span>
+        <span title={channel.name} className="font-semibold text-gray-900 dark:text-gray-100 text-sm break-words min-w-0 flex-1">{channel.displayName || channel.name}</span>
         {unreadCount > 0 && (
           <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 dark:bg-red-500 text-white text-[10px] font-bold shrink-0 shadow-sm">
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -2501,12 +2553,21 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode,
           </div>
         )}
       </div>
-      <div className="text-xs text-gray-500 mb-2">
+      <button
+        type="button"
+        aria-label={`View members of ${channel.displayName || channel.name}`}
+        onClick={e => {
+          e.stopPropagation()
+          if (selectionMode) { onToggleSelect(); return }
+          onManageMembers()
+        }}
+        className="text-xs text-gray-500 mb-2 underline decoration-dotted underline-offset-4 hover:text-sky-600"
+      >
         {channel.members.length} member{channel.members.length !== 1 ? 's' : ''}
         {onlineCount > 0 && (
           <span className="ml-1 text-green-600 dark:text-green-400">· {onlineCount} online</span>
         )}
-      </div>
+      </button>
       <div className="mt-2 flex items-end gap-0.5">
       <div className="flex flex-wrap gap-0.5 flex-1" onClick={(e) => { e.stopPropagation(); onManageTags(); }}>
         {channel.tags.length > 0 ? (

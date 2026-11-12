@@ -1,10 +1,49 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: October 12, 2026
+**Last Updated**: November 12, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
 ## Active Issues
+
+### Prompt-readiness #243/#242 acceptance and CI
+
+The [November 12 checklist](planning/RC98_ACCEPTANCE_2026-11-12.md) records a
+571/571 full local pass and all-domain browser/scoring evidence for `9132ec6d`.
+The rubric totals 100, retaining advisory behavior and existing thresholds.
+Owner accepted the weighting. The requested prompt-resize follow-up passes focused
+checks on `8e22489d` (thin answer/prompt dividers); current-head CI remains required before merging existing #242.
+
+### Scheduler #287/#288 merged; retained release boundaries
+
+The [November 11 scheduler checkpoint](planning/RC98_ACCEPTANCE_2026-11-11.md)
+records a 571/571 full local pass, exact-source CI, native cleanup and UI evidence.
+Owner accepted the wording; #288 merged as `4d3d686a`, and #287 is closed.
+Two Dashboard writers sharing one workspace remain outside its single-process
+claim; manually renamed legacy jobs require owner review. Degraded legacy cleanup
+is an unresolved operational condition, not proof duplicates stopped. Same-query
+local CodeQL adds no findings, while the raw baseline still needs reconciliation
+with existing dispositions before RC98. Strict frontend typing retains 291 baseline
+diagnostics; no complete security audit or RC readiness is claimed.
+
+### #404 addressed; legacy recovery and rollback limitations retained
+
+The owner accepted #404, PR #417 merged as `0de68dae`, and its linked feedback is
+closed as addressed. Existing ambiguous history remains preserved and blocked for
+owner recovery, including after conflicting names are removed. New named-channel
+writes use `.v2`; older builds cannot read those writes and may show stale legacy
+history after rollback. Use full backups and the [recovery guide](guides/RECOVER_CHANNEL_HISTORY.md).
+Source completion does not establish an installed-instance upgrade.
+
+### RC95 source preview gates
+
+The [RC95 preview](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) is available for
+local acceptance. The candidate CodeQL aggregate gate reports existing High
+CSRF alert #705, also open on main; origin-admission tests pass, but the alert
+has not been dismissed. Dashboard owns its disposition before RC95 release.
+Client TypeScript retains 291 existing diagnostics with no new diagnostics in
+this preview. Four remaining Daniyar PRs require lifecycle evidence before
+inclusion; they are not part of the preview or reviewer queue.
 
 ### RC91 installed chat compatibility on MBP14
 

@@ -4,6 +4,7 @@ import os from 'os'
 import path from 'path'
 import { execFileSync } from 'child_process'
 import { extractZipSecurely } from './archive-security'
+import { resolvePathWithin } from './path-segment'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-archive-security-'))
 
@@ -14,6 +15,16 @@ function makeZip(name: string, source: string): string {
 }
 
 try {
+  const directory = path.join(root, 'confined')
+  fs.mkdirSync(directory)
+  for (const relative of ['..', '../confined-other/file', '/tmp/outside', 'nested/../../outside', 'x\\y', 'x\0y']) {
+    assert.throws(() => resolvePathWithin(directory, relative), /inside its root/)
+  }
+  assert.equal(resolvePathWithin(directory, 'nested/new-file'), path.join(directory, 'nested', 'new-file'))
+  const outside = path.join(root, 'outside')
+  fs.mkdirSync(outside)
+  fs.symlinkSync(outside, path.join(directory, 'link'), 'dir')
+  assert.throws(() => resolvePathWithin(directory, 'link/file'), /Symbolic links/)
   const safeZip = makeZip('safe', [
     'import sys, zipfile',
     'with zipfile.ZipFile(sys.argv[1], "w") as zf:',
@@ -58,7 +69,7 @@ try {
     /size limit/i,
   )
 
-  console.log('archive-security.test.ts: 8 tests passed')
+  console.log('archive-security.test.ts: 16 tests passed')
 } finally {
   fs.rmSync(root, { recursive: true, force: true })
 }

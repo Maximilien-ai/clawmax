@@ -354,34 +354,48 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
     || (config?.allowSystemKeysForUserExecution && (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || (config as any)?.systemKeyDefaults?.openaiCompatible))
   )
 
-  const openaiFingerprint = buildByokVerificationFingerprint('openai', { openai: byok.openai })
-  const anthropicFingerprint = buildByokVerificationFingerprint('anthropic', { anthropic: byok.anthropic })
-  const openaiCompatibleFingerprint = buildByokVerificationFingerprint('openaiCompatible', {
-    openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
-    openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
-    openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
-  })
-  const openaiVerified = !!openaiFingerprint && verifiedProviders.openai === openaiFingerprint
-  const anthropicVerified = !!anthropicFingerprint && verifiedProviders.anthropic === anthropicFingerprint
-  const openaiCompatibleVerified = !!openaiCompatibleFingerprint && verifiedProviders.openaiCompatible === openaiCompatibleFingerprint
-  const hasHostedBrowserKey = !!(byok.openai?.trim() || byok.anthropic?.trim() || (byok.openaiCompatibleBaseUrl?.trim() && byok.openaiCompatibleDefaultModel?.trim()))
-  const hasVerifiedHostedBrowserKey = openaiVerified || anthropicVerified || openaiCompatibleVerified
+  // Judge the provider the server will actually run, in its order (getAvailableProvider): OpenAI, a
+  // complete OpenAI-compatible profile, Anthropic, Gemini, then server keys. The BYOK dialog saves its
+  // local default URL even when the compatible profile is never set up, and the server skips a
+  // profile without a default model, so such a profile only matters when nothing else can run.
+  const compatibleIncomplete = !!byok.openaiCompatibleBaseUrl?.trim() && !byok.openaiCompatibleDefaultModel?.trim()
+  const selectedProvider = byok.openai?.trim()
+    ? 'openai'
+    : byok.openaiCompatibleBaseUrl?.trim() && !compatibleIncomplete
+      ? 'openaiCompatible'
+      : byok.anthropic?.trim() ? 'anthropic' : byok.geminiApiKey?.trim() ? 'gemini' : null
+  // Generation uses server keys without the user-execution permission that agent turns need.
+  const serverHostedKey = !!(
+    config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.gemini
+    || config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini
+  )
 
-  if (byok.openaiCompatibleBaseUrl?.trim() && !byok.openaiCompatibleDefaultModel?.trim()) {
+  if (!selectedProvider && compatibleIncomplete && !hasSharedHostedExecution && !serverHostedKey) {
     return {
       enabled: true,
       warning: 'OpenAI-compatible AI generation needs a default model in BYOK. Add one before using templates, agents, workflows, or skills generation.',
     }
   }
 
-  if (hasHostedBrowserKey && !hasVerifiedHostedBrowserKey && !hasSharedHostedExecution) {
-    return {
-      enabled: true,
-      warning: 'Your browser-local OpenAI, Anthropic, or OpenAI-compatible setup has not been verified yet. AI generation may fail until you run Check Key in BYOK.',
+  if (selectedProvider && !hasSharedHostedExecution) {
+    const fingerprint = buildByokVerificationFingerprint(selectedProvider, {
+      openai: byok.openai,
+      anthropic: byok.anthropic,
+      geminiApiKey: byok.geminiApiKey,
+      openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
+      openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
+      openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
+    })
+    if (verifiedProviders[selectedProvider] !== fingerprint) {
+      const label = { openai: 'OpenAI key', anthropic: 'Anthropic key', gemini: 'Gemini key', openaiCompatible: 'OpenAI-compatible setup' }[selectedProvider]
+      return {
+        enabled: true,
+        warning: `Your browser-local ${label} has not been verified yet. AI generation may fail until you run Check Key in BYOK.`,
+      }
     }
   }
 
-  if (!hasHostedBrowserKey && !hasSharedHostedExecution) {
+  if (!selectedProvider && !hasSharedHostedExecution) {
     return {
       enabled: true,
       warning: 'No verified hosted execution path is available for AI generation yet. Add and check an OpenAI, Anthropic, or OpenAI-compatible setup in BYOK if generation fails.',
@@ -411,32 +425,20 @@ export function hasChatExecutionAccess(config?: AiExecutionConfig | null): boole
   return false
 }
 
-/** Build query string with BYOK keys for model discovery endpoints */
-export function byokModelParams(): string {
-  return byokModelParamsWithOptions()
-}
-
-export function byokModelParamsWithOptions(options?: { showAll?: boolean }): string {
-  const keys = readStoredByokKeys()
-  const params = new URLSearchParams()
-  if (keys.openai) params.set('openaiKey', keys.openai)
-  if (keys.anthropic) params.set('anthropicKey', keys.anthropic)
-  if (keys.geminiApiKey) params.set('geminiKey', keys.geminiApiKey)
-  if (keys.openrouter) params.set('openrouterKey', keys.openrouter)
-  if (keys.xai) params.set('xaiKey', keys.xai)
-  if (keys.ollamaBaseUrl) params.set('ollamaBaseUrl', keys.ollamaBaseUrl)
-  if (keys.openaiCompatibleApiKey) params.set('openaiCompatibleApiKey', keys.openaiCompatibleApiKey)
-  if (keys.openaiCompatibleBaseUrl) params.set('openaiCompatibleBaseUrl', keys.openaiCompatibleBaseUrl)
-  if (keys.openaiCompatibleDefaultModel) params.set('openaiCompatibleDefaultModel', keys.openaiCompatibleDefaultModel)
-  if (options?.showAll) params.set('showAll', 'true')
-  const qs = params.toString()
-  return qs ? `?${qs}` : ''
-}
-
-/** Fetch models with BYOK keys included */
+/** Fetch models with BYOK keys included, in the body: a URL ends up in proxy, server and browser logs. */
 export async function fetchModelsWithByok(options?: { showAll?: boolean }): Promise<{ models: string[]; modelsByProvider: Record<string, any> }> {
-  const res = await fetch(`/api/agents/models${byokModelParamsWithOptions(options)}`)
-  if (!res.ok) throw new Error('Failed to load models')
+  const res = await fetch('/api/agents/models/discover', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...byokForRequest(), showAll: options?.showAll === true }),
+  })
+  if (!res.ok) {
+    // Keep the route's reason (e.g. an endpoint origin the server does not allow) so the wizard can
+    // say what to fix instead of a bare failure.
+    let reason = ''
+    try { reason = String((await res.json())?.error || '').trim() } catch { /* not JSON */ }
+    throw new Error(reason || 'Failed to load models')
+  }
   return res.json()
 }
 

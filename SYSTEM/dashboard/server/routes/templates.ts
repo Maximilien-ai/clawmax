@@ -25,6 +25,7 @@ import {
   readWorkspaceAgentFilesForOrganizationTemplate,
   buildTemplateFeedbackMetadata,
 } from '../lib/templates'
+import { isPlainPathSegment } from '../lib/path-segment'
 import { listWorkflowTemplates, listWorkflows, getWorkflow, createWorkflow, parseWorkflowMd, workflowToMarkdown } from '../lib/workflows'
 import { generateTemplateFromNL, normalizeTemplateGenerationTarget, setRequestByokKeys } from '../lib/ai-generator'
 import { getWorkspacePath, listAgents as listWorkspaceAgents, parseGroups } from '../lib/workspace'
@@ -33,8 +34,15 @@ import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { buildNamedExportFilename } from '../lib/export-filename'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
+import { isWorkflowFieldOptional, isWorkflowPlaceholderValue, readWorkflowFields, type WorkflowInputDeclaration } from '../lib/workflow-required-fields'
 
 const router = Router()
+
+// A slug names a template's folder, which DELETE removes recursively: `..%2F..%2F` must not leave the templates folder.
+router.param('slug', (_req, res, next, slug) => {
+  if (!isPlainPathSegment(slug)) return res.status(400).json({ error: 'Invalid template slug' })
+  next()
+})
 
 function resolveSessionAuthor(req: any): string | undefined {
   const session = getAuthenticatedSession(req)
@@ -45,7 +53,7 @@ function resolveSessionAuthor(req: any): string | undefined {
 type CustomizationValidationInput = {
   githubRepo?: string
   useGithub?: boolean
-  workflows?: Array<{ id: string; name?: string; content?: string }>
+  workflows?: Array<{ id: string; name?: string; content?: string; inputs?: WorkflowInputDeclaration[] }>
 }
 
 function getOrganizationTemplateConflicts(template: any, options?: {
@@ -184,17 +192,6 @@ function isValidUrl(value: string): boolean {
   }
 }
 
-function isPlaceholderValue(value: string): boolean {
-  const trimmed = value.trim()
-  return (
-    !trimmed ||
-    /^\[[^\]]*\]$/.test(trimmed) ||
-    /^\{\{[^}]+\}\}$/.test(trimmed) ||
-    trimmed === '...' ||
-    trimmed === '…'
-  )
-}
-
 export function validateOrganizationCustomization(
   input: CustomizationValidationInput,
   options?: { repoExists?: (repo: string) => boolean }
@@ -226,28 +223,24 @@ export function validateOrganizationCustomization(
     }
   }
 
-  const fieldRegex = /^-\s+\*\*(.+?):\*\*\s+(.+)$/gm
   const urlishLabelRegex = /\b(url|link|site|webhook|endpoint|api|docs?)\b/i
 
   for (const workflow of input.workflows || []) {
     const content = workflow.content || ''
-    let match: RegExpExecArray | null
-    while ((match = fieldRegex.exec(content)) !== null) {
-      const label = match[1].trim()
-      const value = match[2].trim()
+    for (const { label, value } of readWorkflowFields(content)) {
       const workflowName = workflow.name || workflow.id
-      const optional = /\boptional\b/i.test(label) || /\boptional\b/i.test(value)
+      const optional = isWorkflowFieldOptional(label, value, workflow.inputs)
 
-      if (!optional && isPlaceholderValue(value)) {
+      if (!optional && isWorkflowPlaceholderValue(value)) {
         errors.push(`Workflow "${workflowName}" has an empty required field: ${label}.`)
         continue
       }
 
-      if (/github repo/i.test(label) && !isPlaceholderValue(value) && !repoPattern.test(value)) {
+      if (/github repo/i.test(label) && !isWorkflowPlaceholderValue(value) && !repoPattern.test(value)) {
         errors.push(`Workflow "${workflowName}" has an invalid GitHub repo for "${label}". Use owner/repo.`)
       }
 
-      if (urlishLabelRegex.test(label) && !isPlaceholderValue(value) && !isValidUrl(value)) {
+      if (urlishLabelRegex.test(label) && !isWorkflowPlaceholderValue(value) && !isValidUrl(value)) {
         errors.push(`Workflow "${workflowName}" has an invalid URL for "${label}".`)
       }
     }
@@ -550,10 +543,10 @@ router.get('/agents/:slug/files', (req, res) => {
 
     const candidateDirs = [
       path.join(getAgentTemplatesDir(), slug),
-      template.metadata?.basedOnSlug && template.metadata?.basedOnSource === 'workspace'
+      isPlainPathSegment(template.metadata?.basedOnSlug) && template.metadata?.basedOnSource === 'workspace'
         ? path.join(getAgentTemplatesDir(), template.metadata.basedOnSlug)
         : null,
-      template.metadata?.basedOnSlug && template.metadata?.basedOnSource === 'system'
+      isPlainPathSegment(template.metadata?.basedOnSlug) && template.metadata?.basedOnSource === 'system'
         ? path.join(getGlobalAgentTemplatesDir(), template.metadata.basedOnSlug)
         : null,
       path.join(getGlobalAgentTemplatesDir(), slug),
@@ -724,6 +717,7 @@ router.post('/organizations/validate-customization', (req, res) => {
     id: workflow.id,
     name: workflow.name,
     content: typeof workflowOverrides?.[workflow.id] === 'string' ? workflowOverrides[workflow.id] : workflow.content,
+    inputs: Array.isArray(workflow.inputs) ? workflow.inputs : undefined,
   }))
 
   const result = validateOrganizationCustomization({
@@ -820,6 +814,8 @@ router.post('/organizations/import', async (req, res) => {
 // GET /api/templates/workflows/:id/export-md — Export workflow as WORKFLOW.md
 // NOTE: must be before /:type/:slug/export-md to avoid being caught by it
 router.get('/workflows/:id/export-md', (req, res) => {
+  // Same id rule as the workflows router: the id is joined into a file path, and Express decodes %2F.
+  if (!/^[a-z0-9-]+$/.test(req.params.id)) return res.status(400).json({ error: 'Invalid workflow ID' })
   const workflow = getWorkflow(req.params.id)
   if (!workflow) return res.status(404).json({ error: 'Workflow not found' })
 

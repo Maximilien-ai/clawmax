@@ -18,6 +18,8 @@ import { repairAgentConfigSections } from '../lib/agent-config-repair'
 import type { AgentModelConfigUpdateResult } from '../lib/agent-model'
 import {
   normalizeAgentModelInput,
+  readAgentBackupModelFromConfigFile,
+  readAgentModelFromConfigFile,
   validateAgentModelPolicyInConfigFile,
   resetAgentSessionsForModelChange,
   updateAgentBackupModelInConfigFile,
@@ -30,7 +32,9 @@ import {
   upsertAgentRuntimeInIdentityContent,
   upsertAgentTagsInIdentityContent,
 } from '../lib/agent-model'
-import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, listRuntimeModels, normalizeAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime, runtimeAcceptsModelId, runtimeLabel } from '../lib/agent-runtime'
+import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, listRuntimeModels, normalizeAgentRuntime, resolveAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime, runtimeAcceptsModelId, runtimeLabel } from '../lib/agent-runtime'
+import { describeOpenClawModelRejection } from '../lib/openclaw-model-catalog'
+import { openClawConfigPath } from '../lib/openclaw-profile-paths'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, getLatestRuntimeTranscriptSessionId, hasRuntimeTranscripts, readRuntimeTranscript, readRuntimeTranscriptAsArchiveLines } from '../lib/runtime-transcripts'
 import { validateAgentCostLimit } from '../lib/budget'
@@ -43,6 +47,7 @@ import {
   resolveSystemExecutionProviderKeys,
 } from '../lib/dashboard-env'
 import { discoverModels, getAvailableModelsCached, clearModelCache } from '../lib/model-discovery'
+import { ModelEndpointPolicyError } from '../lib/model-endpoint-policy'
 import { recommendModelsForDescription, type ModelFitPreference } from '../lib/model-fit'
 import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
 import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleDirectory, importAgentFromOpenClaw, importAgentFromZipArchive, listImportableOpenClawAgents } from '../lib/openclaw-agent-transfer'
@@ -161,6 +166,22 @@ function validateAgentModelPolicy(agentId: string, model: string, backupModel?: 
     agentId, [model, backupModel], path.join(getWorkspacePath(), 'AGENTS', agentId), true)
 }
 
+/**
+ * Rejects a model newly chosen for an agent that runs on OpenClaw when the runtime cannot run it.
+ * A model the agent already has is left alone, so saving other settings never forces a change on
+ * an existing agent; replacing an unrunnable legacy model stays an explicit choice.
+ */
+function describeNewOpenClawModelRejection(agentId: string, identityRuntime: string | undefined, model: string, backupModel?: string): string | null {
+  if (resolveAgentRuntime(agentId, identityRuntime) !== 'openclaw') return null
+  const configPath = openClawConfigPath()
+  const options = { workspacePath: path.join(getWorkspacePath(), 'AGENTS', agentId) }
+  const current = new Set([readAgentModelFromConfigFile(configPath, agentId, options).model, readAgentBackupModelFromConfigFile(configPath, agentId, options).backupModel])
+  return describeOpenClawModelRejection([
+    { model: current.has(model) ? undefined : model, label: 'primary model' },
+    { model: backupModel && !current.has(backupModel) ? backupModel : undefined, label: 'backup model' },
+  ])
+}
+
 function updateAgentBackupModelInConfig(agentId: string, backupModel: string | undefined): AgentModelConfigUpdateResult {
   const HOME = process.env.HOME || ''
   const defaultConfigPath = path.join(HOME, '.openclaw', 'openclaw.json')
@@ -248,7 +269,8 @@ function summarizeAiGenerationError(error: unknown): string {
     return 'AI generation timed out while contacting the configured provider. Try again, verify the provider key and system generation model, or choose a faster model.'
   }
 
-  return message || 'AI generation failed.'
+  // Providers echo part of a rejected key ("sk-proj-****…wXyZ"); the wizard shows this text on screen.
+  return message.replace(/\b(?:sk-|xai-|AIza)[A-Za-z0-9*_-]{4,}/g, '[redacted key]') || 'AI generation failed.'
 }
 
 /**
@@ -320,6 +342,10 @@ async function registerAgentInConfig(agentId: string, profile: boolean): Promise
 }
 
 const router = Router()
+
+// Every `:id` here is an agent id that ends up in a path (`AGENTS/<id>`, `~/.openclaw/agents/<id>`), and
+// Express decodes `%2F` inside a parameter, so it is checked once for every route rather than per handler.
+router.param('id', (_req, res, next, id) => (/^[a-z][a-z0-9_-]*$/.test(id) ? next() : res.status(400).json({ ok: false, error: 'Invalid agent id' })))
 const AGENT_GENERATION_HEADER = 'x-clawmax-agent-generation'
 
 function rejectStaleAgentRoute(req: express.Request, res: express.Response, agentId: string): boolean {
@@ -891,29 +917,30 @@ router.post('/validate-provision', async (req, res) => {
   res.json(result)
 })
 
+// A key in a URL is written wherever URLs are: the rate-limit log, proxies, browser history.
+const PROVIDER_KEY_QUERY_PARAMS = ['openaiKey', 'anthropicKey', 'geminiKey', 'openrouterKey', 'xaiKey', 'openaiCompatibleApiKey']
+
 // GET /api/agents/models — dynamic discovery from provider APIs (cached 1hr)
-// Must be defined before /:id routes.
+// Must be defined before /:id routes. Keys go in the body of POST /models/discover.
 router.get('/models', async (req, res) => {
+  if (PROVIDER_KEY_QUERY_PARAMS.some((param) => req.query[param] !== undefined)) {
+    return res.status(400).json({ error: 'Provider keys are not accepted in a URL. Send them in the body of POST /api/agents/models/discover.' })
+  }
   try {
     const byokKeys = {
-      openai: req.query.openaiKey as string | undefined,
-      anthropic: req.query.anthropicKey as string | undefined,
-      gemini: req.query.geminiKey as string | undefined,
-      openrouter: req.query.openrouterKey as string | undefined,
-      xai: req.query.xaiKey as string | undefined,
       ollamaBaseUrl: req.query.ollamaBaseUrl as string | undefined,
-      openaiCompatibleApiKey: req.query.openaiCompatibleApiKey as string | undefined,
       openaiCompatibleBaseUrl: req.query.openaiCompatibleBaseUrl as string | undefined,
       openaiCompatibleDefaultModel: req.query.openaiCompatibleDefaultModel as string | undefined,
     }
     const showAll = String(req.query.showAll || '').toLowerCase() === 'true'
     const result = await discoverModels(
-      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.openrouter || byokKeys.xai || byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl ? byokKeys : undefined,
+      byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl ? byokKeys : undefined,
       { showAll }
     )
     res.json(result)
   } catch (err) {
     console.error('Model discovery failed:', err)
+    if (err instanceof ModelEndpointPolicyError) return res.status(400).json({ error: err.message })
     res.status(500).json({ error: 'Failed to discover models' })
   }
 })
@@ -921,10 +948,11 @@ router.get('/models', async (req, res) => {
 // POST /api/agents/models/discover — BYOK-aware discovery without putting keys in a URL or clearing the model cache.
 router.post('/models/discover', async (req, res) => {
   try {
-    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
-    res.json(await discoverModels(body))
+    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string; showAll?: boolean }
+    res.json(await discoverModels(body, { showAll: body.showAll === true }))
   } catch (err) {
     console.error('Model discovery failed:', err)
+    if (err instanceof ModelEndpointPolicyError) return res.status(400).json({ error: err.message })
     res.status(500).json({ error: 'Failed to discover models' })
   }
 })
@@ -952,6 +980,7 @@ router.post('/models/refresh', async (req, res) => {
     res.json(result)
   } catch (err) {
     console.error('Model refresh failed:', err)
+    if (err instanceof ModelEndpointPolicyError) return res.status(400).json({ error: err.message })
     res.status(500).json({ error: 'Failed to refresh models' })
   }
 })
@@ -1021,6 +1050,17 @@ router.post('/provision', async (req, res) => {
     res.status(400).json({
       error: `The ${runtimeLabel(provisionRuntime)} runtime cannot run '${resolvedModel}'. Choose one of its own models (${provisionRuntimeModels.slice(0, 4).join(', ')}) or pick a different runtime.`,
     })
+    return
+  }
+  // The same guarantee for OpenClaw, whose catalog is what resolves provider models at chat time.
+  const openClawModelRejection = (provisionRuntime || resolveWorkspaceRuntime()) === 'openclaw'
+    ? describeOpenClawModelRejection([
+      { model: resolvedModel, label: 'primary model' },
+      { model: backupModel ? normalizeAgentModelInput(backupModel) : undefined, label: 'backup model' },
+    ])
+    : null
+  if (openClawModelRejection) {
+    res.status(400).json({ error: openClawModelRejection })
     return
   }
   const inputValidation = validateProvisionInput({ ...(req.body || {}), model: resolvedModel }, {
@@ -1874,7 +1914,7 @@ router.post('/bulk-impact', (req, res) => {
 })
 
 // DELETE /api/agents/bulk — bulk delete multiple agents
-router.delete('/bulk', (req, res) => {
+router.delete('/bulk', async (req, res) => {
   const { agents: agentsToDelete, removeStateDir } = req.body as { agents?: Array<{ id: string; archived?: boolean }>; removeStateDir?: boolean }
 
   if (!agentsToDelete || !Array.isArray(agentsToDelete) || agentsToDelete.length === 0) {
@@ -1893,10 +1933,12 @@ router.delete('/bulk', (req, res) => {
   let failureCount = 0
 
   for (const agent of agentsToDelete) {
-    const result = deleteAgent(agent.id, removeStateDir === true, agent.archived || false)
-    results[agent.id] = { ok: result.errors.length === 0, ...result }
+    const { status, body } = await deleteAgentSafely(agent.id, removeStateDir === true, agent.archived || false)
+    const steps: string[] = Array.isArray(body.steps) ? body.steps : []
+    const errors: string[] = Array.isArray(body.errors) ? body.errors : body.error ? [String(body.error)] : []
+    results[agent.id] = { ok: status === 200 && errors.length === 0, steps, errors }
 
-    if (result.errors.length === 0) {
+    if (results[agent.id].ok) {
       successCount++
     } else {
       failureCount++
@@ -1914,26 +1956,25 @@ router.delete('/bulk', (req, res) => {
   })
 })
 
-// DELETE /api/agents/:id
-router.delete('/:id', async (req, res) => {
-  const { id } = req.params
-  const { removeStateDir } = req.body as { removeStateDir?: boolean }
-  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
-    res.status(400).json({ ok: false, error: 'Invalid agent id' })
-    return
-  }
+/**
+ * Deletes one agent with every lifecycle safeguard: a per-agent lock, in-flight turns stopped first,
+ * the pinned workspace state cleared, and the Gateway registration removed before the files. Bulk
+ * delete runs the same steps; it used to call deleteAgent directly, leaving the agent registered in a
+ * running Gateway and its turns running.
+ */
+async function deleteAgentSafely(id: string, removeStateDir: boolean, archived = false): Promise<{ status: number; body: Record<string, any> }> {
   if (!beginAgentDeletion(id)) {
-    res.status(409).json({ ok: false, error: 'Agent deletion is already in progress' })
-    return
+    return { status: 409, body: { ok: false, error: 'Agent deletion is already in progress' } }
   }
   try {
     if (!await quiesceAgentForDeletion(id)) {
-      res.status(409).json({ ok: false, error: 'Agent is still stopping; retry deletion shortly' })
-      return
+      return { status: 409, body: { ok: false, error: 'Agent is still stopping; retry deletion shortly' } }
     }
     const agentWorkspaceDir = path.join(getAgentsDir(), id)
     const lifecycleSteps: string[] = []
-    if (removeStateDir === true) {
+    {
+      // Every deletion removes the workspace, so its initialization attestation must
+      // be cleared even when optional profile-state removal was not requested.
       try {
         // OpenClaw 2026.8.2 removes the config entry before moving workspace
         // files to Trash. On persistent container volumes that move can fail,
@@ -1942,12 +1983,14 @@ router.delete('/:id', async (req, res) => {
         await clearPinnedOpenClawWorkspaceState(agentWorkspaceDir)
         lifecycleSteps.push(`Cleared OpenClaw workspace state for ${id}`)
       } catch (err: any) {
-        res.status(503).json({
-          ok: false,
-          steps: [],
-          errors: [String(err?.message || err || 'Failed to clear OpenClaw workspace state')],
-        })
-        return
+        return {
+          status: 503,
+          body: {
+            ok: false,
+            steps: [],
+            errors: [String(err?.message || err || 'Failed to clear OpenClaw workspace state')],
+          },
+        }
       }
     }
     if (isGatewayRunning().running) {
@@ -1956,20 +1999,34 @@ router.delete('/:id', async (req, res) => {
         // deleteAgent below owns the persistent-volume filesystem lifecycle.
         await getGatewayClient().deleteAgentNative(id, false)
       } catch (err: any) {
-        res.status(503).json({
-          ok: false,
-          steps: [],
-          errors: [`Failed to remove agent from OpenClaw lifecycle: ${String(err?.message || err || 'unknown error')}`],
-        })
-        return
+        return {
+          status: 503,
+          body: {
+            ok: false,
+            steps: [],
+            errors: [`Failed to remove agent from OpenClaw lifecycle: ${String(err?.message || err || 'unknown error')}`],
+          },
+        }
       }
     }
-    const result = deleteAgent(id, removeStateDir === true)
+    const result = deleteAgent(id, removeStateDir, archived)
     result.steps.unshift(...lifecycleSteps)
-    res.json({ ok: result.errors.length === 0, ...result })
+    return { status: 200, body: { ok: result.errors.length === 0, ...result } }
   } finally {
     finishAgentDeletion(id)
   }
+}
+
+// DELETE /api/agents/:id
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params
+  const { removeStateDir } = req.body as { removeStateDir?: boolean }
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    res.status(400).json({ ok: false, error: 'Invalid agent id' })
+    return
+  }
+  const outcome = await deleteAgentSafely(id, removeStateDir === true)
+  res.status(outcome.status).json(outcome.body)
 })
 
 // GET /api/agents/:id/impact — impact summary for delete confirmation
@@ -2126,10 +2183,14 @@ router.get('/:id/identity', (req, res) => {
     // If we can't read live config, fall back to IDENTITY.md metadata
   }
 
+  const selectedModel = liveConfig?.model || metadata.model || runtimeIdentity.model
+  const modelWarning = resolveAgentRuntime(id, runtimeIdentity.runtime) === 'openclaw'
+    ? describeOpenClawModelRejection([{ model: selectedModel, label: 'current model' }]) : null
   res.json({
     content,
     metadata,
     liveConfig,
+    modelWarning: modelWarning ? { model: selectedModel, message: modelWarning } : null,
     modelFit: {
       selectionMode: runtimeIdentity.modelSelection === 'auto' ? 'auto' : 'manual',
       preference: ['quality', 'balanced', 'cost'].includes(runtimeIdentity.modelPreference)
@@ -3118,6 +3179,17 @@ router.post('/bulk-model', async (req, res) => {
       results.push({ id: String(agentId), ok: false, error: 'Template Agent model is revision-owned; plan a new revision to change it' })
       continue
     }
+    // Each id becomes a config entry, a workspace path and a runtime sessions path, so it gets the
+    // single-agent routes' checks before anything is written.
+    if (!/^[a-z][a-z0-9_-]*$/.test(agentId)) {
+      results.push({ id: agentId, ok: false, error: 'Invalid agent id' })
+      continue
+    }
+    const identityPath = path.join(getWorkspacePath(), 'AGENTS', agentId, 'IDENTITY.md')
+    if (!fs.existsSync(identityPath)) {
+      results.push({ id: agentId, ok: false, error: 'Agent not found' })
+      continue
+    }
     try {
       const configUpdate = updateAgentModelInConfig(agentId, normalizedModel)
       if (!configUpdate.ok) {
@@ -3125,12 +3197,7 @@ router.post('/bulk-model', async (req, res) => {
         continue
       }
 
-      // Update IDENTITY.md
-      const agentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
-      const identityPath = path.join(agentDir, 'IDENTITY.md')
-      if (fs.existsSync(identityPath)) {
-        updateAgentIdentityModel(identityPath, normalizedModel)
-      }
+      updateAgentIdentityModel(identityPath, normalizedModel)
 
       if (configUpdate.changed) {
         resetAgentRuntimeForModelChange(agentId)
@@ -3290,6 +3357,8 @@ router.put('/:id/config', (req, res) => {
       if (identityModel) {
         const admission = validateAgentModelPolicy(id, identityModel, identityBackupModel)
         if (!admission.ok) return res.status(409).json({ error: admission.error, code: 'model_policy_conflict' })
+        const runtimeRejection = describeNewOpenClawModelRejection(id, parsedIdentity.runtime, identityModel, identityBackupModel)
+        if (runtimeRejection) return res.status(400).json({ error: runtimeRejection, code: 'model_runtime_unsupported' })
         configUpdate = updateAgentModelInConfig(id, identityModel)
         if (!configUpdate.ok) {
           return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
@@ -3374,6 +3443,9 @@ router.patch('/:id/model', (req, res) => {
   try {
     const admission = validateAgentModelPolicy(id, normalizedModel, typeof backupModel === 'string' ? backupModel : undefined)
     if (!admission.ok) return res.status(409).json({ error: admission.error, code: 'model_policy_conflict' })
+    const identityRuntime = fs.existsSync(identityPath) ? parseIdentity(fs.readFileSync(identityPath, 'utf-8')).runtime : undefined
+    const runtimeRejection = describeNewOpenClawModelRejection(id, identityRuntime, normalizedModel, typeof backupModel === 'string' ? normalizeAgentModelInput(backupModel) : undefined)
+    if (runtimeRejection) return res.status(400).json({ error: runtimeRejection, code: 'model_runtime_unsupported' })
     const configUpdate = updateAgentModelInConfig(id, normalizedModel)
     if (!configUpdate.ok) {
       return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
@@ -3853,6 +3925,10 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
+  // Same rule as restore and delete: the name (and a `current:` session id) is joined into a path.
+  if (filename.includes('..') || filename.includes('/')) {
+    return res.status(400).json({ error: 'Invalid filename' })
+  }
   if (rejectStaleAgentRoute(req, res, id)) return
 
   try {
@@ -4324,6 +4400,9 @@ router.post('/:id/communities', (req, res) => {
   if (!Array.isArray(communities) && !Array.isArray(groups)) {
     return res.status(400).json({ error: 'Must provide communities or groups array' })
   }
+  if ([communities, groups].some(values => Array.isArray(values) && values.some(value => typeof value !== 'string' || !value.trim()))) {
+    return res.status(400).json({ error: 'Memberships must contain non-empty names' })
+  }
 
   const agents = listAgents()
   const agent = agents.find(a => a.id === id)
@@ -4349,6 +4428,9 @@ router.post('/:id/communities', (req, res) => {
 
     // Parse current communities and groups
     const { communities: allCommunities, groups: allGroups } = parseGroups(communitiesContent + '\n' + groupsContent)
+    if (Array.isArray(groups) && groups.some(name => !allGroups.some(group => group.name === name))) {
+      return res.status(400).json({ error: 'A selected group no longer exists. Refresh groups and try again.' })
+    }
 
     // Update communities if provided
     if (Array.isArray(communities)) {
@@ -4378,7 +4460,7 @@ router.post('/:id/communities', (req, res) => {
         }
 
         // Exit current community if we hit a section header
-        if (trimmed.startsWith('##')) {
+        if (/^##\s/.test(trimmed)) {
           if (currentCommunity && !currentCommunityHasMembers && communities.includes(currentCommunity) && currentCommunityIndex >= 0) {
             updatedCommunities.splice(i, 0, `- **Members:** ${id}`)
             i++
@@ -4438,7 +4520,7 @@ router.post('/:id/communities', (req, res) => {
         }
 
         // Exit current group if we hit a section header
-        if (trimmed.startsWith('##')) {
+        if (/^##\s/.test(trimmed)) {
           if (currentGroup && !currentGroupHasMembers && groups.includes(currentGroup) && lastMetadataLineIndex >= 0) {
             updatedGroups.splice(lastMetadataLineIndex + 1, 0, `- **Members:** ${id}`)
             i++

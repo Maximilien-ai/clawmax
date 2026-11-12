@@ -34,6 +34,8 @@ import path from 'path'
 import { REPO_ROOT } from './paths'
 import { materializeDashboardAgentList } from './openclaw-config'
 import { parseGroupsWithMembers } from './workspace'
+import { setOpenClawModelCatalogForTests } from './openclaw-model-catalog'
+import { resolveAgentExecutionConfig } from './agent-execution'
 
 // ANSI color codes
 const GREEN = '\x1b[32m'
@@ -52,6 +54,9 @@ delete process.env.OPENCLAW_CONFIG_PATH
 delete process.env.OPENCLAW_STATE_DIR
 delete process.env.OPENCLAW_GATEWAY_URL
 delete process.env.OPENCLAW_GATEWAY_TOKEN
+// Fixtures pick arbitrary provider models; an OpenClaw installed on the machine must not judge them.
+// Runtime-catalog admission is pinned explicitly in the tests that exercise it.
+setOpenClawModelCatalogForTests(null)
 
 function readMaterializedConfig(configPath: string): any {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
@@ -1191,6 +1196,44 @@ test('importAgentFromTemplate registers created agents into the active OpenClaw 
   }
 })
 
+test('CEO template: a model OpenClaw cannot run is rejected before the agent is written; its listed id runs', async () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-ceo-runtime-model-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+  const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
+  // OpenClaw 2026.9.7 lists `gpt-5.4-mini`; its dated snapshot fails every turn with "Unknown model".
+  setOpenClawModelCatalogForTests({ version: '2026.9.7', providers: new Map([['openai', new Set(['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano'])]]) })
+  try {
+    const rejected = await importAgentFromTemplate('ceo-template', { newAgentId: 'ceo', model: 'openai/gpt-5.4-mini-2026-03-17' })
+    assert(rejected.ok === false, 'The dated snapshot must be rejected at creation, not at the first chat')
+    assert(/not in the openai model catalog of the installed OpenClaw 2026\.9\.7 runtime/.test(rejected.error || ''), `Expected the runtime cause: ${rejected.error}`)
+    assert((rejected.error || '').includes('Use `openai/gpt-5.4-mini`'), `Expected the explicit replacement: ${rejected.error}`)
+    assert(!fs.existsSync(path.join(tempWorkspace, 'AGENTS', 'ceo')), 'Nothing may be written for a rejected agent')
+    assert(!readMaterializedConfig(configPath)?.agents?.list?.some((agent: any) => agent.id === 'ceo'), 'A rejected agent must not be registered')
+
+    const created = await importAgentFromTemplate('ceo-template', { newAgentId: 'ceo', model: 'openai/gpt-5.4-mini' })
+    assert(created.ok === true, `The runtime-listed model must be accepted: ${created.error}`)
+    const registered = readMaterializedConfig(configPath)?.agents?.list?.find((agent: any) => agent.id === 'ceo')
+    assertEqual(registered?.model, 'openai/gpt-5.4-mini', 'Expected the selected model in openclaw.json')
+    const execution = resolveAgentExecutionConfig('ceo')
+    assertEqual(execution.runtime, 'openclaw', 'Expected the CEO agent to execute on OpenClaw')
+    assertEqual(execution.model, 'openai/gpt-5.4-mini', 'Chat must execute with the runtime-listed model')
+  } finally {
+    setOpenClawModelCatalogForTests(null)
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
 test('importAgentFromTemplate resolves a real default model when no override is provided', async () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
@@ -1951,6 +1994,9 @@ test('importOrganizationTemplate namespaces groups and communities for prefixed 
     const communitiesMd = fs.readFileSync(path.join(tempWorkspace, 'ORG', 'COMMUNITIES.md'), 'utf-8')
     const kickoff = getWorkflow('test-leadership-kickoff')
 
+    const { channelDisplayName } = require('./channel-display-name')
+    assert(channelDisplayName(tempWorkspace, 'group', 'test-Leadership') === 'Leadership', 'Expected readable group name')
+    assert(channelDisplayName(tempWorkspace, 'community', 'test-Build-a-Company') === 'Build-a-Company', 'Expected readable community name')
     assert(groupsMd.includes('### test-Leadership'), 'Expected prefixed import to namespace workspace group names')
     assert(communitiesMd.includes('### test-Build-a-Company'), 'Expected prefixed import to namespace workspace community names')
     assert(kickoff !== null, 'Expected kickoff workflow to exist after prefixed import')

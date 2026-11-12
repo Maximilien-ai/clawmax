@@ -25,6 +25,8 @@ try {
         else if (path.includes('/agents') || path.includes('/notifications') || path.includes('/groups') || path.includes('/communities')) json = []
         await route.fulfill({ status, json })
       })
+      // After the catch-all so it takes precedence: the app mounts only once the API reports live.
+      await page.route('**/api/health/live', route => route.fulfill({ json: { alive: true } }))
       const meteringResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/metering')
       await page.goto(`${base}/workflows`)
       await page.getByRole('heading', { name: 'Workflows', exact: true }).waitFor()

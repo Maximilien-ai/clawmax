@@ -84,6 +84,18 @@ test('safeEnv preserves OpenClaw runtime selection without forwarding its gatewa
   assert(typeof env.OPENCLAW_GATEWAY_TOKEN === 'undefined', 'Expected gateway secret to remain out of shared child env')
 })
 
+test('Web deployment user key reaches agent child execution without browser BYOK', () => {
+  const before = process.env.USER_OPENAI_API_KEY
+  try {
+    process.env.USER_OPENAI_API_KEY = 'synthetic-deployed-user-key'
+    const env = userExecutionEnv()
+    assert(env.OPENAI_API_KEY === 'synthetic-deployed-user-key', 'OpenClaw child must receive deployed user key under its provider variable')
+    assert(env.USER_OPENAI_API_KEY === undefined, 'Do not forward deployment configuration wholesale')
+  } finally {
+    if (before === undefined) delete process.env.USER_OPENAI_API_KEY; else process.env.USER_OPENAI_API_KEY = before
+  }
+})
+
 test('user execution prefers BYOK request keys over env defaults', () => {
   const keys = resolveUserExecutionProviderKeys(
     {

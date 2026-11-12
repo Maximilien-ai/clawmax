@@ -21,7 +21,7 @@ function read(root: string, relative: string): any {
 export function readBriefDeliveryConfig(root: string): BriefDeliveryConfig | null {
   let c: BriefDeliveryConfig
   try { c = read(root, 'SYSTEM/brief-delivery.json') } catch (error: any) { if (error.code === 'ENOENT') return null; throw error }
-  if (c.version !== 1 || typeof c.enabled !== 'boolean' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.recipient)
+  if (c.version !== 1 || typeof c.enabled !== 'boolean' || typeof c.recipient !== 'string' || c.recipient.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.recipient)
     || !/^[a-z][a-z0-9-]+$/.test(c.reporterId) || !Number.isFinite(Date.parse(c.enabledAt))
     || !Array.isArray(c.workflowIds) || !c.workflowIds.length || !c.workflowIds.every(id => /^tr-[a-f0-9]{16}-workflow-[a-f0-9]{12}$/.test(id))) throw new Error('Invalid brief delivery configuration')
   return c

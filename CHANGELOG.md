@@ -4,6 +4,17 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC95 source preview (October 27, 2026)
+- Replace the remaining emoji in Documents empty state and agent group management with the shared outline icons.
+- Ship P1–P12 acceptance checks in Review for fresh installs. Add explicit review email submission with report preview, secret redaction, retained status/download, and duplicate-send protection; requires configured Resend.
+- Complete AI workflow drafts with a real managed owner and validated required settings; show Create validation/save failures beside the action and preserve drafts for retry.
+- Add AI draft generation for Groups and Communities with editable existing-agent membership and explicit Create. Keep both creation actions reachable after the first item is saved.
+- Refresh already-open agent details after configuration saves, including model changes.
+- Preserve the saved new-agent default through AI generation even when discovery omits it; wait for defaults before Generate. Show confirmed runtime model incompatibilities in config, reject the reproduced unsupported o3 snapshot on the pinned runtime, and keep repairs explicit.
+- Integrate Daniyar PRs #219, #252, #258, #268 and #270: chat formatting/copy, authenticated long context, required workflow inputs, config keyboard access, and bounded sign-in startup recovery.
+- Integrate new PRs #320–#327: local-origin handling, bounded API startup readiness, Gateway diagnostics, conservative model/runtime compatibility, Anthropic validation, template categories, viewport-safe menus and the final tour step. Custom model configurations remain selectable.
+- Include clean-source VM testing, consistent Node prerequisites and isolated native dev previews with source-specific version labels. See the [RC95 acceptance and remaining holds](SYSTEM/docs/planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md). No RC95 images or stable promotion yet.
+
 ### Current 2.0 development (October 12, 2026)
 - Discover current OpenAI, Anthropic, and xAI prompt models from each provider catalog when checking credentials, try up to three suitable models before reporting limited validation, and stop depending on retired fixed model IDs.
 - RC91 is a tagged test candidate, not a stable promotion. The active goal is a single identified next candidate accepted on MBP14 and test10; see the [dual-instance gate](SYSTEM/docs/planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md).
