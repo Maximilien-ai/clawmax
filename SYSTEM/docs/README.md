@@ -3,7 +3,7 @@
 > Last updated: November 11, 2026
 
 Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
-`v1.9.9`. Start with the [November 10 acceptance and RC98 gates](planning/RC98_ACCEPTANCE_2026-11-10.md).
+`v1.9.9`. Start with the [November 11 acceptance and RC98 gates](planning/RC98_ACCEPTANCE_2026-11-11.md).
 RC98 has not been cut. Earlier RC preview/evidence files below describe their
 original source snapshots, not the current candidate or runtime state.
 
@@ -11,6 +11,7 @@ original source snapshots, not the current candidate or runtime state.
 
 | Document | Description |
 |----------|-------------|
+| [planning/RC98_ACCEPTANCE_2026-11-11.md](planning/RC98_ACCEPTANCE_2026-11-11.md) | Current scheduler batch: one wording check, 571-check full evidence, CodeQL baseline comparison and remaining RC98 gates |
 | [planning/RC98_ACCEPTANCE_2026-11-10.md](planning/RC98_ACCEPTANCE_2026-11-10.md) | Accepted #404 checks, full 570-check evidence, remediated CodeQL and current CI gate, exact dev identity and remaining RC98 gates |
 | [planning/MESSAGE_ISOLATION_404_2026-11-10.md](planning/MESSAGE_ISOLATION_404_2026-11-10.md) | #404 exact-source validation, legacy ownership and feedback status |
 | [guides/RECOVER_CHANNEL_HISTORY.md](guides/RECOVER_CHANNEL_HISTORY.md) | Owner recovery, backups and rollback for older channel histories |

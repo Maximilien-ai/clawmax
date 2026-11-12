@@ -884,6 +884,14 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Workflow deletion recovery tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/workflowDeletion.test.ts; then
+  pass "Workflow deletion recovery tests"
+else
+  fail "Workflow deletion recovery tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent loading helper unit tests...${NC}"
 if npx ts-node --transpileOnly client/src/lib/agentReadiness.test.ts; then
   pass "Agent readiness warning tests"
@@ -3617,9 +3625,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Workflow cron command security tests...${NC}"
-npx ts-node --transpileOnly server/lib/workflow-cron-security.test.ts > /tmp/clawmax-workflow-cron-security.out 2>&1 || true
-if grep -q "workflow-cron-security.test.ts: 17 tests passed" /tmp/clawmax-workflow-cron-security.out; then
-  pass "Workflow cron command security tests (17 tests)"
+npx ts-node --transpileOnly server/lib/workflow-cron-security.test.ts > /tmp/clawmax-workflow-cron-security.out 2>&1
+workflow_cron_security_status=$?
+if [ "$workflow_cron_security_status" -eq 0 ] && grep -Eq "workflow-cron-security.test.ts: [1-9][0-9]* tests passed" /tmp/clawmax-workflow-cron-security.out; then
+  workflow_cron_security_count=$(sed -n 's/.*workflow-cron-security.test.ts: \([0-9][0-9]*\) tests passed.*/\1/p' /tmp/clawmax-workflow-cron-security.out | tail -n 1)
+  pass "Workflow cron command security tests (${workflow_cron_security_count} tests)"
 else
   cat /tmp/clawmax-workflow-cron-security.out
   fail "Workflow cron command security tests"

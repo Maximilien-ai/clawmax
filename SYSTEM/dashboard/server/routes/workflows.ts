@@ -18,7 +18,6 @@ import {
   getDAGStatus,
   parseWorkflowMd,
   syncWorkflowToCron,
-  removeCronJob,
   getWorkflowPipelineState,
   setWorkflowPipelinePaused,
 } from '../lib/workflows'
@@ -68,11 +67,9 @@ function synchronizeWorkflowScheduling(workflowId: string, syncScheduler = true)
   const workflow = getWorkflow(workflowId)
   if (!workflow) return warnings
 
-  const participants = resolveParticipants(workflow, listAgents()).map((participant) => participant.agentId)
-  const syncResult = syncWorkflowToCron(workflow, participants)
-  if (!syncResult.ok && workflow.enabled && workflow.schedule !== 'manual') {
-    warnings.push(syncResult.error || 'Failed to sync workflow with gateway cron')
-  } else if ((workflow.cronJobId || undefined) !== syncResult.cronJobId) {
+  const syncResult = syncWorkflowToCron(workflow)
+  if (!syncResult.ok) warnings.push(syncResult.error || 'Failed to sync workflow with gateway cron')
+  if ((workflow.cronJobId || undefined) !== syncResult.cronJobId) {
     const persistResult = updateWorkflow(workflow.id, { cronJobId: syncResult.cronJobId })
     if (!persistResult.success) {
       warnings.push(persistResult.error || 'Failed to persist workflow cron registration')
@@ -560,6 +557,15 @@ router.delete('/:id', (req, res) => {
     }
 
     const existing = getWorkflow(id)
+    if (existing?.cronJobId) {
+      const cleanup = syncWorkflowToCron(existing)
+      if (!cleanup.ok) {
+        return res.status(503).json({
+          code: 'workflow_legacy_cleanup_failed',
+          error: 'The workflow was kept because its older scheduled jobs could not be stopped. Check Runtime status before trying again.',
+        })
+      }
+    }
     const result = deleteWorkflow(id)
 
     if (!result.success) {
@@ -569,9 +575,6 @@ router.delete('/:id', (req, res) => {
       return res.status(500).json({ error: 'Failed to delete workflow', details: result.error })
     }
 
-    if (existing?.cronJobId) {
-      removeCronJob(existing.cronJobId)
-    }
     syncAllWorkflows({ syncCronRegistrations: false })
     res.json({ message: 'Workflow deleted successfully' })
   } catch (error: any) {

@@ -1,5 +1,10 @@
 # RC98 acceptance — November 10
 
+Historical acceptance/evidence snapshot. The [November 11 checklist](RC98_ACCEPTANCE_2026-11-11.md)
+records #404 merged, feedback addressed, and the current scheduler batch. Pending
+#404 merge/notification statements below describe their original checkpoint;
+they are superseded by that closure receipt. Earlier criteria and results are retained.
+
 Dashboard owner checklist. RC98 has not been cut. This source includes merged
 PRs #385, #386, #349, #347, #341 and #340. The seven document/workflow/budget feedback
 fixes already accepted by the owner do not need another manual check.
