@@ -10,7 +10,7 @@ assert(workspace?.id, 'Select an isolated acceptance workspace first')
 const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true })
 try {
   for (const theme of ['light', 'dark']) for (const width of [1440, 390]) {
-    const page = await browser.newPage({ viewport: { width, height: width === 390 ? 844 : 1000 }, colorScheme: theme })
+    const page = await browser.newPage({ viewport: { width, height: width === 390 ? 844 : 1000 }, colorScheme: theme, hasTouch: width === 390 })
     page.setDefaultTimeout(15000)
     page.setDefaultNavigationTimeout(20000)
     await page.addInitScript(({ theme }) => {
@@ -37,18 +37,20 @@ try {
     const draft = 'Audience: founders. Return a markdown launch plan.\n'.repeat(40)
     await input.fill(draft)
     const drag = async delta => {
-      await input.scrollIntoViewIfNeeded()
-      const box = await input.boundingBox()
-      await page.mouse.move(box.x + box.width - 4, box.y + box.height - 4)
+      const handle = page.getByRole('button', { name: 'Resize Builder prompt vertically', exact: true })
+      await handle.scrollIntoViewIfNeeded()
+      const box = await handle.boundingBox()
+      assert(box && box.height >= 32, 'Visible handle needs a usable target')
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
       await page.mouse.down()
-      await page.mouse.move(box.x + box.width - 4, box.y + box.height - 4 + delta, { steps: 12 })
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + delta, { steps: 12 })
       await page.mouse.up()
       return input.evaluate(el => el.getBoundingClientRect().height)
     }
     const shorter = await drag(-70)
-    assert(shorter < initialHeight - 40 && shorter >= 88, 'Native drag must shrink the expanded prompt')
+    assert(shorter < initialHeight - 40 && shorter >= 88, 'Handle drag must shrink the expanded prompt')
     const taller = await drag(130)
-    assert(taller > initialHeight + 20, 'Native drag must grow the prompt')
+    assert(taller > initialHeight + 20, 'Handle drag must grow the prompt')
     assert.equal(await input.inputValue(), draft, 'Resizing preserves the draft')
     assert(await input.evaluate(el => el.scrollHeight > el.clientHeight), 'Long drafts scroll within the resized input')
     assert(await input.evaluate(el => el.getBoundingClientRect().width <= window.innerWidth), 'Vertical resizing must not overflow horizontally')
@@ -59,6 +61,25 @@ try {
     await expand.focus(); await page.keyboard.press('Enter')
     assert.equal(await input.evaluate(el => el.getBoundingClientRect().height), 192, 'Keyboard preset restores the default')
     assert.equal(await input.inputValue(), draft)
+    const handle = page.getByRole('button', { name: 'Resize Builder prompt vertically', exact: true })
+    await handle.focus()
+    await page.keyboard.press('ArrowDown')
+    assert.equal(await input.evaluate(el => el.getBoundingClientRect().height), 216)
+    await page.keyboard.press('ArrowUp')
+    assert.equal(await input.evaluate(el => el.getBoundingClientRect().height), 192)
+    await page.keyboard.press('Home')
+    assert.equal(await input.evaluate(el => el.getBoundingClientRect().height), 192)
+    if (width === 390) {
+      await handle.scrollIntoViewIfNeeded()
+      const box = await handle.boundingBox(), x = box.x + box.width / 2, y = box.y + box.height / 2
+      const cdp = await page.context().newCDPSession(page)
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - 60 }] })
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      assert(await input.evaluate(el => el.getBoundingClientRect().height) < 160, 'Touch dragging must shrink the prompt')
+      await cdp.detach()
+      await handle.focus(); await page.keyboard.press('Home')
+    }
     await drag(100)
     for (const name of ['Open Editor', 'Recommend Next Step']) {
       const action = page.getByRole('button', { name, exact: true })
@@ -72,6 +93,6 @@ try {
     await input.scrollIntoViewIfNeeded()
     await page.screenshot({ path: `${artifacts}/${theme}-${width}.png`, fullPage: true })
     await page.close()
-    console.log(`PASS Builder resize ${theme} ${width}: default, drag shorter/taller, presets, draft, scrolling and actions`)
+    console.log(`PASS Builder resize ${theme} ${width}: visible handle, mouse/touch, keyboard, presets, draft, scrolling and actions`)
   }
 } finally { await browser.close() }
