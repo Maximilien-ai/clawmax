@@ -1308,9 +1308,9 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
             {/* Validation Errors */}
             {validationErrors.length > 0 && (
-              <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-950/40 dark:border-red-800">
                 <div className="flex items-start gap-2 mb-2">
-                  <span className="text-red-600 font-semibold text-sm">❌ Validation Failed</span>
+                  <span className="text-red-600 dark:text-red-300 font-semibold text-sm">❌ Validation Failed</span>
                 </div>
                 <div className="space-y-2">
                   {validationErrors.map((err, idx) => (
@@ -1318,12 +1318,12 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                       <span className="font-mono text-xs text-red-700 bg-red-100 px-1.5 py-0.5 rounded">{err.field}</span>
                       <span className="text-gray-700 ml-2 dark:text-gray-300">{err.message}</span>
                       {err.value !== undefined && (
-                        <span className="text-gray-500 ml-2 italic">({JSON.stringify(err.value)})</span>
+                        <span className="text-gray-500 dark:text-gray-400 ml-2 italic">({JSON.stringify(err.value)})</span>
                       )}
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-gray-600 mt-3">
+                <p className="text-xs text-gray-600 dark:text-gray-300 mt-3">
                   Please fix the errors above and try saving again. The document will not be saved until all validation errors are resolved.
                 </p>
               </div>

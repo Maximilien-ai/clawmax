@@ -1,10 +1,31 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: October 27, 2026
+**Last Updated**: November 11, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
 ## Active Issues
+
+### Scheduler #287/#288 candidate and retained release boundaries
+
+The [November 11 scheduler checkpoint](planning/RC98_ACCEPTANCE_2026-11-11.md)
+records a 571/571 full local pass, exact-source CI, native cleanup and UI evidence.
+The existing PR awaits wording acceptance and current-head CI/review before merge.
+Two Dashboard writers sharing one workspace remain outside its single-process
+claim; manually renamed legacy jobs require owner review. Degraded legacy cleanup
+is an unresolved operational condition, not proof duplicates stopped. Same-query
+local CodeQL adds no findings, while the raw baseline still needs reconciliation
+with existing dispositions before RC98. Strict frontend typing retains 291 baseline
+diagnostics; no complete security audit or RC readiness is claimed.
+
+### #404 addressed; legacy recovery and rollback limitations retained
+
+The owner accepted #404, PR #417 merged as `0de68dae`, and its linked feedback is
+closed as addressed. Existing ambiguous history remains preserved and blocked for
+owner recovery, including after conflicting names are removed. New named-channel
+writes use `.v2`; older builds cannot read those writes and may show stale legacy
+history after rollback. Use full backups and the [recovery guide](guides/RECOVER_CHANNEL_HISTORY.md).
+Source completion does not establish an installed-instance upgrade.
 
 ### RC95 source preview gates
 
