@@ -2495,9 +2495,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Prompt quality scoring unit tests...${NC}"
-npx ts-node --transpileOnly client/src/lib/promptQuality.test.ts > /tmp/clawmax-prompt-quality.out 2>&1 || true
-if grep -q "promptQuality.test.ts: 12 tests passed" /tmp/clawmax-prompt-quality.out; then
-  pass "Prompt quality scoring unit tests (12 tests)"
+npx ts-node --transpileOnly client/src/lib/promptQuality.test.ts > /tmp/clawmax-prompt-quality.out 2>&1
+prompt_quality_status=$?
+if [ "$prompt_quality_status" -eq 0 ] && grep -Eq "promptQuality.test.ts: [1-9][0-9]* tests passed" /tmp/clawmax-prompt-quality.out; then
+  prompt_quality_count=$(sed -n 's/.*promptQuality.test.ts: \([0-9][0-9]*\) tests passed.*/\1/p' /tmp/clawmax-prompt-quality.out | tail -n 1)
+  pass "Prompt quality scoring unit tests (${prompt_quality_count} tests)"
 else
   cat /tmp/clawmax-prompt-quality.out
   fail "Prompt quality scoring unit tests"

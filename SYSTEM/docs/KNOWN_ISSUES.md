@@ -1,16 +1,24 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: November 11, 2026
+**Last Updated**: November 12, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
 ## Active Issues
 
-### Scheduler #287/#288 candidate and retained release boundaries
+### Prompt-readiness #243/#242 acceptance and CI
+
+The [November 12 checklist](planning/RC98_ACCEPTANCE_2026-11-12.md) records a
+571/571 full local pass and all-domain browser/scoring evidence for `9132ec6d`.
+The rubric totals 100, retaining advisory behavior and existing thresholds.
+Owner accepted the weighting. The requested prompt-resize follow-up passes focused
+checks on `8e22489d` (thin answer/prompt dividers); current-head CI remains required before merging existing #242.
+
+### Scheduler #287/#288 merged; retained release boundaries
 
 The [November 11 scheduler checkpoint](planning/RC98_ACCEPTANCE_2026-11-11.md)
 records a 571/571 full local pass, exact-source CI, native cleanup and UI evidence.
-The existing PR awaits wording acceptance and current-head CI/review before merge.
+Owner accepted the wording; #288 merged as `4d3d686a`, and #287 is closed.
 Two Dashboard writers sharing one workspace remain outside its single-process
 claim; manually renamed legacy jobs require owner review. Degraded legacy cleanup
 is an unresolved operational condition, not proof duplicates stopped. Same-query

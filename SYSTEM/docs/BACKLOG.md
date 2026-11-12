@@ -1,33 +1,36 @@
 # Backlog
 
-## November 11 current scheduler checkpoint
+## November 12 current prompt-readiness checkpoint
 
-#404 is owner-accepted, merged in #417 (`0de68dae`) and closed. Its Management
-feedback is closed as addressed, with a saved thank-you/future-version reply and
-requested email; delivery is not inferred from the queued receipt.
+Existing [PR #242](https://github.com/Maximilien-ai/clawmax/pull/242), addressing
+[#243](https://github.com/Maximilien-ai/clawmax/issues/243), is refreshed from merged
+main without rewriting contributor history. The rubric now totals 100 in all seven
+domains: domain detail contributes 15 (rules 8/7), with other weights and 80/90
+thresholds unchanged. Scores remain local and advisory.
 
-Existing [PR #288](https://github.com/Maximilien-ai/clawmax/pull/288) is refreshed
-from merged main without rewriting its fork history. It addresses #287's duplicate
-scheduled turns and unsafe Gateway-job cleanup. Product source `21e5bda1` passed
-**571/571** full local checks, zero failures, with **83.90%** statements/lines,
-**81.61%** branches and **92.21%** functions. Focused tests, real isolated Gateway
-cleanup and four theme/viewport deletion-flow browser runs passed. CI passed on
-that product head; any later documentation head still needs current-head CI.
+Product/test source `9132ec6d` passed **571/571** full local checks, including
+**69 scoring assertions**, 35 integration contracts, six runner failure/count
+cases, production build and server types. Browser checks passed all seven domains
+at desktop/mobile widths in both themes. The headline suite count remains 571;
+existing suites now contain more assertions. Coverage: **83.90% statements/lines**,
+**81.62% branches**, **92.21% functions**. Strict frontend typing retains its
+291-diagnostic baseline with no new patterns.
 
-[Current owner checklist](planning/RC98_ACCEPTANCE_2026-11-11.md): one human judgment
-on recovery-message clarity; no repeat engineering checks. Preview is
-http://localhost:5180, `2.0.0-dev.21e5bda1`, **RC98 Scheduler Acceptance**, with one
-paused fixture. Earlier acceptance data is retained.
+Owner accepted the weighting November 12. The requested resize follow-up
+`c4ee5caf` keeps the default prompt height, permits dragging shorter/taller, and
+passes four theme/viewport drag checks, focused suites, types, lint and build.
+[Current checklist](planning/RC98_ACCEPTANCE_2026-11-12.md): one optional feel check
+of the two thin answer/prompt dividers (independent mouse/touch/keyboard checks pass on `8e22489d`). Preview: http://localhost:5180/builder, `2.0.0-dev.8e22489d`,
+**RC98 Prompt Readiness Acceptance**. Earlier workspaces remain.
+Full source evidence and security comparison are recorded there; current-head CI
+is required before merge. Local CodeQL adds no findings; its raw baseline still
+needs reconciliation before RC98 promotion. RC98 has not been cut.
 
-Because default CodeQL excludes fork PRs, official local CLI 2.27.4 / JS queries
-2.5.0 scanned both public source archives. **Zero added/removed findings and zero
-findings on changed lines**; both inventories retain 606 raw results (12
-critical-rated, 588 high-rated, 6 other). These are baseline scan results, not
-confirmed/waived vulnerabilities or a complete audit. Dashboard owns reconciliation
-with existing dispositions before RC98 promotion. Strict client typing retains
-291 baseline diagnostics, with no new patterns. Keep current CI, the other
-specific engineering and image gates, and fresh feedback/email reconciliation
-separate; RC98 has not been cut.
+#288 is owner-accepted and merged as `4d3d686a`; #287 is closed. Its final CI and
+acceptance receipts are in the [November 11 record](planning/RC98_ACCEPTANCE_2026-11-11.md).
+#404 is accepted, merged in #417 and closed; its Management feedback is closed
+with a saved thank-you/future-version reply. Email was requested; delivery remains
+unconfirmed. Keep fresh feedback intake, email verification and release gates open.
 
 The following dated checkpoints retain their original evidence and statuses.
 

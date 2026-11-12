@@ -2,9 +2,13 @@
 
 Dashboard source checkpoint for existing [PR #288](https://github.com/Maximilien-ai/clawmax/pull/288), addressing [#287](https://github.com/Maximilien-ai/clawmax/issues/287). This is not an RC image or fleet deployment. Stable remains v1.9.9; RC98 has not been cut.
 
-## Your check
+## Acceptance recorded November 12
 
-- [ ] **Recovery wording is clear.** Read the message below and judge whether it makes clear that a failed cleanup preserves the workflow and that deletion can be retried after checking Runtime. No need to force a failure, delete your workflows, or run an agent. `reviewReason: human-judgment`
+Owner accepted the wording with “love message. accept #288”. [Acceptance receipt](https://github.com/Maximilien-ai/clawmax/pull/288#issuecomment-6825106459). PR #288 merged November 12 as `4d3d686a544f718d650804dffce16e524ec8c859`; #287 is closed. [Final review-head CI passed](https://github.com/Maximilien-ai/clawmax/actions/runs/43129574990). No owner check remains for this batch. The historical preview below has been superseded by the [November 12 checklist](RC98_ACCEPTANCE_2026-11-12.md).
+
+## Original check and preview
+
+- [x] **Recovery wording is clear.** Read the message below and judge whether it makes clear that a failed cleanup preserves the workflow and that deletion can be retried after checking Runtime. No need to force a failure, delete your workflows, or run an agent. `reviewReason: human-judgment`
 
 > The workflow was kept because its older scheduled jobs could not be stopped. Check Runtime status before trying again.
 
@@ -33,7 +37,7 @@ Product/test source: `21e5bda1dcf282b0cc0d13833db5c1c610749eb2` (later documenta
 - [x] Same-query CodeQL comparison: **zero added/removed findings**, **zero findings on added/modified lines**, successful query execution, on exact product source `21e5bda1` against merged main `0de68dae`. GitHub default setup excludes fork PRs; this is a local regression scan, not a missing remote run labelled green. Official CLI **2.27.4**, JavaScript queries **2.5.0**, standard **89-query** code-scanning suite. Both archives produced **606 raw results**: **12 critical-rated**, **588 high-rated**, **6 other**. These baseline results are not automatically waived or claimed fixed. Dashboard owns reconciliation with existing alert dispositions before RC98 promotion; this is not a complete security audit. Source archives contain only committed public files. CLI ZIP SHA-256 verified: `7da72a7a758ef272985cce665ddb22bccc0b0a212f09f175d943eb5ff5fc57e4`.
   Results: `/private/tmp/clawmax-288-codeql/base.sarif`, `final.sarif`, `comparison-final.json`. Main extracted **936/936**, candidate **940/940** JavaScript/TypeScript files. Reproduce with official CLI `database create --language=javascript-typescript --build-mode=none`, then `database analyze` using `codeql/javascript-queries@2.5.0/codeql-suites/javascript-code-scanning.qls` on both identified archives; compare `(ruleId, artifact URI, primaryLocationLineHash)` with multiplicities. Go/Actions source was unchanged; this does not claim a new scan of other languages.
 - [x] [CI passed on product source `21e5bda1`](https://github.com/Maximilien-ai/clawmax/actions/runs/43116966047).
-- [ ] Pass the actual current PR head's CI before owner merge if the final documentation checkpoint triggers another run. Previous comparable CI took about **43 minutes**; earlier heads' results do not establish a newer head's status.
+- [x] Final review head `4516a01f` passed CI before merge; see the receipt above.
 
 CodeQL archives contain committed public source only, excluding ignored credentials and private plugins. No query or repository security setting was disabled. The unsuccessful same-commit dispatch probe created no replacement PR, and its temporary validation branch was deleted.
 
