@@ -2652,6 +2652,7 @@ export default function Builder({
                   id="builder-prompt-input"
                   ref={textareaRef}
                   rows={promptExpanded ? 7 : 3}
+                  aria-describedby="builder-prompt-resize-hint"
                   value={prompt}
                   onChange={(event) => {
                     const nextValue = event.target.value
@@ -2665,8 +2666,11 @@ export default function Builder({
                   onKeyUp={(event) => updatePromptMentionState(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
                   onKeyDown={handlePromptKeyDown}
                   placeholder="Describe what to build, use @ to mention an agent, or enter /question followed by a question."
-                  className={`w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-base text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700 sm:text-sm ${promptExpanded ? 'min-h-[12rem] max-h-[24rem]' : 'min-h-[5.5rem] max-h-[10rem]'}`}
+                  className={`w-full min-h-[5.5rem] max-h-[max(5.5rem,60vh)] resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-base text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700 sm:text-sm ${promptExpanded ? 'h-[12rem]' : 'h-[5.5rem]'}`}
                 />
+                <p id="builder-prompt-resize-hint" className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                  Drag the bottom-right corner to resize, or use the expand/shrink button.
+                </p>
               </div>
               <div className="mt-2">
                 <PromptQualityPanel prompt={prompt} domain="builder" compact collapsible />
