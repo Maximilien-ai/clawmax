@@ -1882,6 +1882,14 @@ else
   fail "Agent chat history reconciliation unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Dashboard conversation persistence tests...${NC}"
+if npx ts-node --transpileOnly server/lib/dashboard-chat-conversations.test.ts > /tmp/clawmax-conversation-record.out 2>&1 && grep -Eq 'dashboard-chat-conversations.test.ts: [1-9][0-9]* tests passed' /tmp/clawmax-conversation-record.out; then
+  pass "Dashboard conversation persistence tests ($(grep -c '^✓ ' /tmp/clawmax-conversation-record.out) tests)"
+else
+  cat /tmp/clawmax-conversation-record.out
+  fail "Dashboard conversation persistence tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace doc navigation helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceDocNavigation.test.ts > /tmp/clawmax-workspace-doc-navigation.out 2>&1 || true
 if grep -q "workspaceDocNavigation.test.ts:" /tmp/clawmax-workspace-doc-navigation.out; then

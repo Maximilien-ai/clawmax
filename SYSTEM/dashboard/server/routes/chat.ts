@@ -9,7 +9,7 @@ import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunn
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
-import { defaultDashboardChatSeed, readDashboardChatConversations, type DashboardChatConversations } from '../lib/dashboard-chat-conversations'
+import { defaultDashboardChatSeed, readDashboardChatConversations, rememberDashboardConversationSession, type DashboardChatConversations } from '../lib/dashboard-chat-conversations'
 import { recoverRejectedGatewayChat } from '../lib/gateway-chat-recovery'
 import { checkBudgetBlock } from '../lib/budget'
 import { createStreamingWarningFilter, normalizeChatMessage, stripBenignChatRuntimeWarnings } from '../lib/chat-normalization'
@@ -935,7 +935,8 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   }
   const sessionSeed = dashboardConversation?.activeSeed || sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace)
   // A resumed conversation runs its exact session, even if the agent's model has changed since.
-  const resumedSessionId = dashboardConversation?.activeSessionId
+  const resumedSessionId = dashboardConversation?.activeSessionId && (!dashboardConversation.activeSessionModel || dashboardConversation.activeSessionModel === resolvedAgent.model)
+    ? dashboardConversation.activeSessionId : undefined
   // A seed the server chose (the conversation record's, or its own default) may name a chat stored
   // under the older, shorter session-key digest; only those may continue such a session.
   const serverOwnedSeed = Boolean(dashboardConversation) || !sessionId
@@ -1100,6 +1101,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
       const executionSessionId = currentSessionId
 
       await runExclusiveAgentExecution(id, async () => {
+        assertCurrentDashboardConversation()
         if (!isRequestedChatAgentCurrent(req, id)) {
           throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
         }
@@ -1273,7 +1275,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
             // recovery seed (a locked session) is handed out for it to keep.
             send('start', {
               sessionId: executionSessionId,
-              resumeSessionId: chatSessionRetryAttempt > 0 ? attemptSessionSeed : (sessionId || attemptSessionSeed),
+              resumeSessionId: dashboardConversation ? defaultDashboardChatSeed(id) : chatSessionRetryAttempt > 0 ? attemptSessionSeed : (sessionId || attemptSessionSeed),
               turnId: turn.turnId,
             })
             invalidateAgentStatusCache(id)
@@ -1444,6 +1446,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
       }
 
       await runExclusiveAgentExecution(id, async () => {
+        assertCurrentDashboardConversation()
         if (!isRequestedChatAgentCurrent(req, id)) {
           throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
         }
@@ -1501,6 +1504,12 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
           console.warn(`[Chat Route] Recovering agent ${id} with a fresh chat session after an OpenClaw session conflict`)
         },
       }).then((attemptResult) => {
+        if (dashboardConversation && attemptResult.completionText && !attemptResult.incompleteReason && (chatSessionRetryAttempt > 0 || attemptResult.model !== resolvedAgent.model)) {
+          if (!attemptResult.sessionId) throw new Error('The recovered reply did not identify its conversation. Refresh chat before sending again.')
+          const conversationModel = resolvedAgent.model || attemptResult.model
+          if (!conversationModel) throw new Error('The recovered reply did not identify its model. Refresh chat before sending again.')
+          rememberDashboardConversationSession(id, dashboardConversation, attemptResult.sessionId, conversationModel)
+        }
         clearInterval(keepalive)
         if (attemptResult.incompleteReason) {
           send('error', attemptResult.incompleteReason)

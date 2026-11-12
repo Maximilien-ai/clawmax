@@ -503,7 +503,7 @@ function resolveAgentChatSessionId(agentId: string, homeDir: string = process.en
   // Once a conversation was cleared or resumed, the record names the current one. Its session is
   // exactly what chat turns run, so no legacy lookup below may find the ended one instead.
   const conversations = readDashboardChatConversations(agentId)
-  if (conversations.activeSessionId) return conversations.activeSessionId
+  if (conversations.activeSessionId && (!conversations.activeSessionModel || conversations.activeSessionModel === resolvedAgent.model)) return conversations.activeSessionId
   if (conversations.activeSeed !== defaultDashboardChatSeed(agentId)) return scopeStoredDashboardSessionId(agentId, conversations.activeSeed, resolvedAgent.model, homeDir)
   const sessionKey = getAgentDashboardSessionKey(agentId)
   const preferredSessionId = scopeStoredDashboardSessionId(agentId, sessionKey, resolvedAgent.model, homeDir)

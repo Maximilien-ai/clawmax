@@ -318,6 +318,50 @@ async function run() {
     })
   })
 
+  await test('automatic recovery persists the current session and keeps every browser tab on the canonical chat', async () => {
+    await withScratchHome(async home => {
+      const previousWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+      process.env.CLAWMAX_TEST_WORKSPACE = path.join(home, 'workspace')
+      fs.mkdirSync(process.env.CLAWMAX_TEST_WORKSPACE, { recursive: true })
+      const agentId = 'recovered-conversation-agent'
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-recovered-chat-'))
+      const marker = path.join(dir, 'attempted')
+      const cli = writeFakeCli(dir, 'openclaw', `
+        const fs = require('fs')
+        if (!fs.existsSync(${JSON.stringify(marker)})) {
+          fs.writeFileSync(${JSON.stringify(marker)}, 'first attempt')
+          process.stderr.write('session file locked')
+          process.exit(1)
+        }
+        process.stdout.write('session=' + process.argv[process.argv.indexOf('--session-id') + 1] + '\\n')
+      `)
+      try {
+        const conversations = require('../lib/dashboard-chat-conversations')
+        const seed = `agent:${agentId}:dashboard-chat`
+        const turn = async () => {
+          const res = makeSseRes()
+          await Promise.all([getRouteHandler('post', '/:id/chat')(makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: seed }, on() {} }), res), res.done])
+          await waitForActiveTurnCount(0)
+          const session = String(res.events.find(event => event.type === 'complete')?.data?.text || '').replace('session=', '').trim()
+          assert(session, JSON.stringify(res.events))
+          assert(res.events.filter(event => event.type === 'start').every(event => event.data?.resumeSessionId === seed), 'No tab may become pinned to a private recovery seed')
+          return session
+        }
+        await withOpenclawReadiness(agentId, {}, () => withModuleOverrides(openclawCliModulePath, { resolveOpenClawCliPath: () => cli }, async () => {
+          const recovered = await turn()
+          assert.strictEqual(conversations.readDashboardChatConversations(agentId).activeSessionId, recovered)
+          assert.strictEqual(await turn(), recovered, 'A reopened browser follows the recovered runtime context')
+          conversations.startNewDashboardConversation(agentId)
+          assert.notStrictEqual(await turn(), recovered, 'Clear in another tab cannot send a later turn to the old recovered session')
+        }))
+      } finally {
+        if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+        else process.env.CLAWMAX_TEST_WORKSPACE = previousWorkspace
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
   await test('resend-dispatch chat registers and releases a turn -- it used to never register at all', async () => {
     await withScratchHome(async () => {
       await withOpenclawReadiness('resend-agent', { skillIds: ['clawmax-resend'] }, () =>

@@ -25,6 +25,8 @@ export interface DashboardChatConversations {
   activeSeed: string
   /** Set while a resumed conversation is active: its exact session id, whatever the model is now. */
   activeSessionId?: string
+  /** Recovery follows this exact session while the configured model stays the same. */
+  activeSessionModel?: string
   /** Newest first. */
   ended: EndedDashboardConversation[]
 }
@@ -60,23 +62,39 @@ export function readDashboardChatConversations(agentId: string): DashboardChatCo
   if (
     typeof parsed?.activeSeed !== 'string' || !parsed.activeSeed || !Array.isArray(parsed.ended)
     || (parsed.activeSessionId !== undefined && (typeof parsed.activeSessionId !== 'string' || !SESSION_ID_RE.test(parsed.activeSessionId)))
+    || (parsed.activeSessionModel !== undefined && (typeof parsed.activeSessionModel !== 'string' || !parsed.activeSessionModel || !parsed.activeSessionId))
   ) {
     throw new Error(`The dashboard chat record for ${agentId} is malformed`)
   }
   return {
     activeSeed: parsed.activeSeed,
     ...(parsed.activeSessionId ? { activeSessionId: parsed.activeSessionId } : {}),
+    ...(parsed.activeSessionModel ? { activeSessionModel: parsed.activeSessionModel } : {}),
     ended: parsed.ended.filter((entry: any) => typeof entry?.sessionId === 'string' && SESSION_ID_RE.test(entry.sessionId) && typeof entry?.seed === 'string' && typeof entry?.endedAt === 'number'),
   }
 }
 
+/** Persist a recovered/backup session so reopen and other tabs follow the same conversation. */
+export function rememberDashboardConversationSession(agentId: string, expected: DashboardChatConversations, sessionId: string, model: string): void {
+  if (!SESSION_ID_RE.test(sessionId) || !model) throw new Error('Invalid recovered conversation')
+  const current = readDashboardChatConversations(agentId)
+  if (current.activeSeed !== expected.activeSeed || current.activeSessionId !== expected.activeSessionId) {
+    throw new Error('The conversation changed before its recovered session could be saved')
+  }
+  writeDashboardChatConversations(agentId, { ...current, activeSessionId: sessionId, activeSessionModel: model })
+}
+
 function writeDashboardChatConversations(agentId: string, conversations: DashboardChatConversations): void {
   const file = conversationsPath(agentId)
-  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 })
   // Write-then-rename: a crash mid-write must not leave a record that brings a cleared chat back.
   const temporary = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`
-  fs.writeFileSync(temporary, JSON.stringify(conversations, null, 2))
-  fs.renameSync(temporary, file)
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(conversations, null, 2), { mode: 0o600, flag: 'wx' })
+    fs.renameSync(temporary, file)
+  } finally {
+    fs.rmSync(temporary, { force: true })
+  }
 }
 
 function withEnded(list: EndedDashboardConversation[], ended: Omit<EndedDashboardConversation, 'endedAt'> | undefined): EndedDashboardConversation[] {
