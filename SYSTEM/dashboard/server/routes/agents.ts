@@ -3642,12 +3642,14 @@ router.get('/:id/chat/messages', async (req, res) => {
  * an archive file, then remove it, so the same session id would start empty.
  */
 function archiveLegacyChatSession(id: string, actualSessionId: string): boolean {
+  if (!actualSessionId || /[^a-zA-Z0-9_-]/.test(actualSessionId)) throw new Error('Invalid stored session id')
+  const safeSessionId = path.basename(actualSessionId)
   const sessionsDir = getAgentSessionsDir(id)
   const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
   const sessionsIndex = fs.existsSync(sessionsIndexPath)
     ? JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
     : {}
-  const jsonlPath = path.join(sessionsDir, `${actualSessionId}.jsonl`)
+  const jsonlPath = path.join(sessionsDir, `${safeSessionId}.jsonl`)
   const openclawExists = fs.existsSync(jsonlPath)
   const runtimeTurns = readRuntimeTranscript(id, actualSessionId)
 
@@ -3659,7 +3661,7 @@ function archiveLegacyChatSession(id: string, actualSessionId: string): boolean 
 
     const timestamp = Date.now()
     const date = new Date(timestamp).toISOString().split('T')[0]
-    const archiveFile = path.join(archiveDir, `${actualSessionId}_${date}_${timestamp}.jsonl`)
+    const archiveFile = path.join(archiveDir, `${safeSessionId}_${date}_${timestamp}.jsonl`)
 
     let archiveContent: string
     if (openclawExists && runtimeTurns.length > 0) {

@@ -2897,6 +2897,28 @@ async function run() {
     fs.rmSync(recordPath)
   })
 
+  await test('legacy Clear refuses imported session pointers outside the agent directory', async () => {
+    const id = 'legacy-session-boundary'
+    writeAgent(workspacePath, id, '**Name:** Legacy boundary\n**Model:** openai/gpt-4o-mini\n')
+    const sessions = path.join(tmpHome, '.openclaw', 'agents', id, 'sessions')
+    const foreign = path.join(tmpHome, '.openclaw', 'agents', 'foreign-session-boundary', 'sessions')
+    fs.mkdirSync(sessions, { recursive: true })
+    fs.mkdirSync(foreign, { recursive: true })
+    const foreignFile = path.join(foreign, 'private.jsonl')
+    fs.writeFileSync(foreignFile, JSON.stringify({ type: 'message', message: { role: 'user', content: 'Foreign private fixture', timestamp: 1 } }))
+    const index = path.join(sessions, 'sessions.json')
+    fs.writeFileSync(index, JSON.stringify({ [`agent:${id}:dashboard-chat`]: { sessionId: '../../foreign-session-boundary/sessions/private' } }))
+    const beforeIndex = fs.readFileSync(index), beforeForeign = fs.readFileSync(foreignFile)
+    const res = makeRes()
+    await getRouteHandler('delete', '/:id/chat/messages')(makeReq({ params: { id } }), res)
+    assert.strictEqual(res.statusCode, 500)
+    assert.match(String(res.jsonBody.error), /Invalid stored session id/)
+    assert.deepStrictEqual(fs.readFileSync(foreignFile), beforeForeign)
+    assert.deepStrictEqual(fs.readFileSync(index), beforeIndex)
+    assert(!fs.existsSync(path.join(sessions, 'archive')), 'Invalid metadata cannot create an archive of foreign content')
+    assert(!fs.existsSync(path.join(workspacePath, 'SYSTEM', 'dashboard-chat', `${id}.json`)))
+  })
+
   await test('Clear, Reset and Continue reject running, queued and cancelling turns without changing the conversation', async () => {
     const id = 'conversation-busy-agent'
     writeAgent(workspacePath, id, '**Name:** Busy chat\n**Model:** openai/gpt-4o-mini\n')
