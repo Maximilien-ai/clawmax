@@ -500,7 +500,7 @@ function EvalCasesDialog({
                   placeholder={`Trial case ${index + 1}`}
                 />
               </label>
-              <button type="button" onClick={() => setCases((current) => current.filter((item) => item.id !== entry.id))} className="mt-5 inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-300" aria-label={`Delete ${entry.name || `case ${index + 1}`}`}>×</button>
+              <button type="button" onClick={() => setCases((current) => current.filter((item) => item.id !== entry.id))} className="mt-5 inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 dark:border-red-900 dark:text-red-300" aria-label={`Delete ${entry.name || `case ${index + 1}`}`}>×</button>
             </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               {(['input', 'expected'] as const).map((field) => {
