@@ -1,3 +1,4 @@
+import { openClawStatePath } from '../lib/openclaw-profile-paths'
 import { Router, type Request, type Response } from 'express'
 import WebSocket from 'ws'
 import { parseChatJsonBody } from '../lib/chat-request-body'
@@ -727,12 +728,11 @@ function evaluateChatExecutionReadiness(
 
 function persistDashboardChatSession(agentId: string, sessionId: string) {
   try {
-    const homeDir = process.env.HOME || ''
-    const nativeStorePath = path.join(homeDir, '.openclaw', 'agents', agentId, 'agent', 'openclaw-agent.sqlite')
+    const nativeStorePath = path.join(openClawStatePath(), 'agents', path.basename(agentId), 'agent', 'openclaw-agent.sqlite')
     if (hasReadyOpenClawNativeAgentStore(nativeStorePath)) return
     const sessionKey = `agent:${agentId}:dashboard-chat`
-    const resolvedSessionId = resolvePersistedAgentSessionId(agentId, sessionKey, sessionId, homeDir) || sessionId
-    const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
+    const resolvedSessionId = resolvePersistedAgentSessionId(agentId, sessionKey, sessionId) || sessionId
+    const sessionsDir = path.join(openClawStatePath(), 'agents', path.basename(agentId), 'sessions')
     const sessionsPath = path.join(sessionsDir, 'sessions.json')
     if (!fs.existsSync(sessionsDir)) {
       fs.mkdirSync(sessionsDir, { recursive: true })

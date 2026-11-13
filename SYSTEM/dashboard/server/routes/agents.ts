@@ -34,7 +34,7 @@ import {
 } from '../lib/agent-model'
 import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, listRuntimeModels, normalizeAgentRuntime, resolveAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime, runtimeAcceptsModelId, runtimeLabel } from '../lib/agent-runtime'
 import { describeOpenClawModelRejection } from '../lib/openclaw-model-catalog'
-import { openClawConfigPath } from '../lib/openclaw-profile-paths'
+import { openClawConfigPath, openClawStatePath } from '../lib/openclaw-profile-paths'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, getLatestRuntimeTranscriptSessionId, hasRuntimeTranscripts, readRuntimeTranscript, readRuntimeTranscriptAsArchiveLines } from '../lib/runtime-transcripts'
 import { validateAgentCostLimit } from '../lib/budget'
@@ -230,7 +230,7 @@ function isAgentDurablyRegistered(agentId: string, expectedWorkspace: string): b
 
 function resetAgentRuntimeForModelChange(agentId: string) {
   const HOME = process.env.HOME || ''
-  const reset = resetAgentSessionsForModelChange(HOME, agentId)
+  const reset = resetAgentSessionsForModelChange(HOME, agentId, openClawStatePath())
   if (!reset.ok) {
     throw new Error(reset.error || `Failed to reset runtime sessions for ${agentId}`)
   }
@@ -238,7 +238,7 @@ function resetAgentRuntimeForModelChange(agentId: string) {
 
 function resetAgentRuntimeSessions(agentId: string) {
   const HOME = process.env.HOME || ''
-  const reset = resetAgentSessionsForModelChange(HOME, agentId)
+  const reset = resetAgentSessionsForModelChange(HOME, agentId, openClawStatePath())
   if (!reset.ok) {
     throw new Error(reset.error || `Failed to reset runtime sessions for ${agentId}`)
   }
@@ -484,9 +484,9 @@ export function synthesizeAgentAiDescription(
   return synthesizePromptOnlyDescription(aiDescription)
 }
 
-function getAgentSessionsDir(agentId: string, homeDir: string = process.env.HOME || ''): string {
+function getAgentSessionsDir(agentId: string, homeDir?: string): string {
   if (!agentId || /[^a-zA-Z0-9_-]/.test(agentId)) throw new Error('Invalid agent id')
-  return path.join(homeDir, '.openclaw', 'agents', path.basename(agentId), 'sessions')
+  return path.join(openClawStatePath(homeDir), 'agents', path.basename(agentId), 'sessions')
 }
 
 function getAgentDashboardSessionKey(agentId: string): string {
@@ -499,7 +499,7 @@ function rejectBusyConversationChange(id: string, res: express.Response): boolea
   return true
 }
 
-function resolveAgentChatSessionId(agentId: string, homeDir: string = process.env.HOME || ''): string | null {
+function resolveAgentChatSessionId(agentId: string, homeDir?: string): string | null {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   // Once a conversation was cleared or resumed, the record names the current one. Its session is
   // exactly what chat turns run, so no legacy lookup below may find the ended one instead.
@@ -585,7 +585,7 @@ function parseVisibleChatMessages(jsonlContent: string): Array<{ id?: string; ro
   return messages
 }
 
-function readChatSessionMessages(agentId: string, sessionId: string, homeDir: string = process.env.HOME || '') {
+function readChatSessionMessages(agentId: string, sessionId: string, homeDir?: string) {
   return parseVisibleChatMessages(readPersistedChatTranscript(agentId, sessionId, homeDir) ?? '')
 }
 
@@ -594,7 +594,7 @@ function readChatSessionMessages(agentId: string, sessionId: string, homeDir: st
 // by the same scoped session id, so a single agent's history can legitimately span both — e.g. an
 // agent chatted with while pinned to openclaw, then re-pinned to droid under the same model. Sorted
 // oldest-first (newest-last), matching the chronological order both individual stores already use.
-function readMergedChatSessionMessages(agentId: string, sessionId: string, homeDir: string = process.env.HOME || '') {
+function readMergedChatSessionMessages(agentId: string, sessionId: string, homeDir?: string) {
   const openclawMessages = readChatSessionMessages(agentId, sessionId, homeDir)
   const runtimeMessages = readRuntimeTranscript(agentId, sessionId)
     // Runtime transcripts have no event ids; time plus role stays stable when the merge below
@@ -2980,11 +2980,11 @@ router.post('/:id/chat/messages', async (req, res) => {
 
   try {
     const HOME = process.env.HOME || ''
-    const sessionsPath = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'sessions.json')
+    const sessionsPath = path.join(getAgentSessionsDir(id), 'sessions.json')
     const resolvedAgent = resolveAgentExecutionConfig(id)
     // The dashboard chat's current conversation, the one its history shows. This used to scope an
     // already scoped id a second time, so these turns ran in a session the chat never displayed.
-    const sessionId = resolveAgentChatSessionId(id, HOME) || scopeStoredDashboardSessionId(id, sessionKey, resolvedAgent.model, HOME)
+    const sessionId = resolveAgentChatSessionId(id) || scopeStoredDashboardSessionId(id, sessionKey, resolvedAgent.model)
 
     if (resolvedAgent.runtime !== 'openclaw') {
       // Claude Code / Factory Droid: spawn via the shared runtime adapter instead of the
@@ -3160,7 +3160,7 @@ router.post('/:id/reset-session', (req, res) => {
     // file a pre-SQLite OpenClaw left for this agent is archived too. The chat itself is archived
     // first, like Clear does: a claude/droid transcript lives outside the files moved below.
     const HOME = process.env.HOME || ''
-    const { ended } = endDashboardChatConversation(id, HOME, { archiveLegacyFiles: true })
+    const { ended } = endDashboardChatConversation(id, { archiveLegacyFiles: true })
     resetAgentRuntimeSessions(id)
     startNewDashboardConversation(id, ended)
     res.json({ ok: true, agentId: id })
@@ -3625,23 +3625,23 @@ router.get('/:id/chat/messages', async (req, res) => {
 
   try {
     const HOME = process.env.HOME || ''
-    const sessionsDir = getAgentSessionsDir(id, HOME)
+    const sessionsDir = getAgentSessionsDir(id)
     const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
 
     // Check if either store has anything for this agent — openclaw's own session index/dir, or a
     // non-openclaw (claude/droid) runtime transcript. A claude/droid-only agent never gets an
     // openclaw sessions dir at all, so this check must not bail out before consulting the latter.
-    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir) && !hasRuntimeTranscripts(id) && !hasNativeChatStore(id, HOME)) {
+    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir) && !hasRuntimeTranscripts(id) && !hasNativeChatStore(id)) {
       return res.json({ messages: [] })
     }
 
-    const actualSessionId = resolveAgentChatSessionId(id, HOME)
+    const actualSessionId = resolveAgentChatSessionId(id)
 
     if (!actualSessionId) {
       return res.json({ messages: [] })
     }
 
-    res.json({ messages: readMergedChatSessionMessages(id, actualSessionId, HOME) })
+    res.json({ messages: readMergedChatSessionMessages(id, actualSessionId) })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
@@ -3651,8 +3651,8 @@ router.get('/:id/chat/messages', async (req, res) => {
  * Legacy stores (OpenClaw session files, claude/droid runtime transcripts): write the conversation to
  * an archive file, then remove it, so the same session id would start empty.
  */
-function archiveLegacyChatSession(id: string, actualSessionId: string, HOME: string): boolean {
-  const sessionsDir = getAgentSessionsDir(id, HOME)
+function archiveLegacyChatSession(id: string, actualSessionId: string): boolean {
+  const sessionsDir = getAgentSessionsDir(id)
   const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
   const sessionsIndex = fs.existsSync(sessionsIndexPath)
     ? JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
@@ -3713,7 +3713,7 @@ function archiveLegacyChatSession(id: string, actualSessionId: string, HOME: str
     if (sessionsIndex[sessionKey]?.sessionId === actualSessionId) {
       delete sessionsIndex[sessionKey]
     }
-    if (fs.existsSync(sessionsIndexPath) || !hasNativeChatStore(id, HOME)) {
+    if (fs.existsSync(sessionsIndexPath) || !hasNativeChatStore(id)) {
       fs.writeFileSync(sessionsIndexPath, JSON.stringify(sessionsIndex, null, 2))
     }
 
@@ -3739,14 +3739,14 @@ function isEndedDashboardConversation(agentId: string, sessionId: string): boole
  * a conversation in OpenClaw's own store stays there and is listed in History; one in a legacy store
  * is written to an archive file (unless the caller archives those files itself).
  */
-function endDashboardChatConversation(id: string, HOME: string, options: { archiveLegacyFiles: boolean }): { archived: boolean; ended?: { sessionId: string; seed: string } } {
-  const actualSessionId = resolveAgentChatSessionId(id, HOME)
+function endDashboardChatConversation(id: string, options: { archiveLegacyFiles: boolean }): { archived: boolean; ended?: { sessionId: string; seed: string } } {
+  const actualSessionId = resolveAgentChatSessionId(id)
   if (!actualSessionId) return { archived: false }
-  if (readNativeChatTranscript(id, actualSessionId, HOME) !== undefined || (hasNativeChatStore(id, HOME) && readRuntimeTranscript(id, actualSessionId).length > 0)) {
-    if (readMergedChatSessionMessages(id, actualSessionId, HOME).length === 0) return { archived: false }
+  if (readNativeChatTranscript(id, actualSessionId) !== undefined || (hasNativeChatStore(id) && readRuntimeTranscript(id, actualSessionId).length > 0)) {
+    if (readMergedChatSessionMessages(id, actualSessionId).length === 0) return { archived: false }
     return { archived: true, ended: { sessionId: actualSessionId, seed: readDashboardChatConversations(id).activeSeed } }
   }
-  return { archived: options.archiveLegacyFiles && archiveLegacyChatSession(id, actualSessionId, HOME) }
+  return { archived: options.archiveLegacyFiles && archiveLegacyChatSession(id, actualSessionId) }
 }
 
 // Clear the agent chat: the conversation moves to History and a new one starts.
@@ -3759,7 +3759,7 @@ router.delete('/:id/chat/messages', async (req, res) => {
   if (rejectBusyConversationChange(id, res)) return
 
   try {
-    const { archived, ended } = endDashboardChatConversation(id, process.env.HOME || '', { archiveLegacyFiles: true })
+    const { archived, ended } = endDashboardChatConversation(id, { archiveLegacyFiles: true })
     startNewDashboardConversation(id, ended)
     res.json({ ok: true, archived })
   } catch (err) {
@@ -3777,14 +3777,14 @@ router.get('/:id/chat/archives', async (req, res) => {
 
   try {
     const HOME = process.env.HOME || ''
-    const sessionsDir = getAgentSessionsDir(id, HOME)
+    const sessionsDir = getAgentSessionsDir(id)
     const archiveDir = path.join(sessionsDir, 'archive')
 
-    const activeSessionId = resolveAgentChatSessionId(id, HOME)
+    const activeSessionId = resolveAgentChatSessionId(id)
     // readMergedChatSessionMessages pulls from both stores, so this entry (and its message count/
     // timestamp below) reflects claude/droid runtime-transcript turns too, not just openclaw's own
     // session file — a claude/droid-only agent never has an openclaw .jsonl to stat at all.
-    const activeSessionMessages = activeSessionId ? readMergedChatSessionMessages(id, activeSessionId, HOME) : []
+    const activeSessionMessages = activeSessionId ? readMergedChatSessionMessages(id, activeSessionId) : []
     const activeSessionPath = activeSessionId ? path.join(sessionsDir, `${activeSessionId}.jsonl`) : null
     const activeSessionTimestamp = activeSessionPath && fs.existsSync(activeSessionPath)
       ? fs.statSync(activeSessionPath).mtimeMs
@@ -3801,7 +3801,7 @@ router.get('/:id/chat/archives', async (req, res) => {
 
     // Conversations ended by Clear or Reset Session that stay in OpenClaw's own store.
     const endedEntries = readDashboardChatConversations(id).ended.flatMap((entry) => {
-      const messages = readMergedChatSessionMessages(id, entry.sessionId, HOME)
+      const messages = readMergedChatSessionMessages(id, entry.sessionId)
       if (messages.length === 0) return []
       return [{
         filename: `session:${entry.sessionId}`,
@@ -3872,7 +3872,7 @@ router.get('/:id/chat/archives', async (req, res) => {
     ]
     // An archive file from a pre-SQLite OpenClaw cannot be continued once the agent has the SQLite
     // store: the runtime would start an empty session under it, and the agent would remember none of it.
-    const legacyArchivesResumable = !hasNativeChatStore(id, HOME)
+    const legacyArchivesResumable = !hasNativeChatStore(id)
 
     // Check for cached titles
     const titlesPath = path.join(archiveDir, '.titles.json')
@@ -3944,7 +3944,7 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
 
   try {
     const HOME = process.env.HOME || ''
-    const sessionsDir = getAgentSessionsDir(id, HOME)
+    const sessionsDir = getAgentSessionsDir(id)
     const archiveDir = path.join(sessionsDir, 'archive')
 
     if (filename.startsWith('current:')) {
@@ -3954,14 +3954,14 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
       }
       // Must match the archives-list entry, which counts messages from both stores — reading only
       // openclaw's JSONL here would show an empty transcript for a claude/droid-only current chat.
-      return res.json({ messages: readMergedChatSessionMessages(id, sessionId, HOME) })
+      return res.json({ messages: readMergedChatSessionMessages(id, sessionId) })
     }
     const endedSessionId = endedConversationId(filename)
     if (endedSessionId) {
       if (!isEndedDashboardConversation(id, endedSessionId)) {
         return res.status(404).json({ error: 'Conversation not found in History' })
       }
-      return res.json({ messages: readMergedChatSessionMessages(id, endedSessionId, HOME) })
+      return res.json({ messages: readMergedChatSessionMessages(id, endedSessionId) })
     }
 
     const filePath = path.join(archiveDir, filename)
@@ -4003,12 +4003,12 @@ router.post('/:id/chat/archives/:filename/restore', async (req, res) => {
       if (!isEndedDashboardConversation(id, sessionId)) {
         return res.status(404).json({ error: 'Conversation not found in History' })
       }
-      const { ended } = endDashboardChatConversation(id, HOME, { archiveLegacyFiles: true })
+      const { ended } = endDashboardChatConversation(id, { archiveLegacyFiles: true })
       resumeDashboardConversation(id, sessionId, ended)
-      return res.json({ ok: true, sessionId, messages: readMergedChatSessionMessages(id, sessionId, HOME) })
+      return res.json({ ok: true, sessionId, messages: readMergedChatSessionMessages(id, sessionId) })
     }
 
-    const sessionsDir = getAgentSessionsDir(id, HOME)
+    const sessionsDir = getAgentSessionsDir(id)
     const archiveDir = path.join(sessionsDir, 'archive')
     const filePath = path.join(archiveDir, filename)
     const titlesPath = path.join(archiveDir, '.titles.json')
@@ -4016,7 +4016,7 @@ router.post('/:id/chat/archives/:filename/restore', async (req, res) => {
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Archive not found' })
     }
-    if (hasNativeChatStore(id, HOME)) {
+    if (hasNativeChatStore(id)) {
       return res.status(409).json({ error: 'This chat was saved by an earlier OpenClaw version. You can view or download it, but the agent cannot continue it.' })
     }
 
@@ -4026,7 +4026,7 @@ router.post('/:id/chat/archives/:filename/restore', async (req, res) => {
     }
 
     // The current conversation is archived first; restoring used to copy over its session file.
-    endDashboardChatConversation(id, HOME, { archiveLegacyFiles: true })
+    endDashboardChatConversation(id, { archiveLegacyFiles: true })
     const sessionId = scopeSessionIdToModel(startNewDashboardConversation(id).activeSeed, resolveAgentExecutionConfig(id).model)
     fs.mkdirSync(sessionsDir, { recursive: true })
     const sessionPath = path.join(sessionsDir, `${sessionId}.jsonl`)
@@ -4084,7 +4084,7 @@ router.delete('/:id/chat/archives/:filename', async (req, res) => {
       return res.json({ ok: true, removedFromHistory: true })
     }
     const HOME = process.env.HOME || ''
-    const archiveDir = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'archive')
+    const archiveDir = path.join(getAgentSessionsDir(id), 'archive')
     const filePath = path.join(archiveDir, filename)
 
     // Security: ensure filename doesn't contain path traversal
