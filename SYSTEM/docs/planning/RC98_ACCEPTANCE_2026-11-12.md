@@ -1,12 +1,21 @@
-# RC98 prompt-readiness acceptance — November 12
+# Archived RC98 prompt-readiness acceptance — November 12
 
-Existing [PR #242](https://github.com/Maximilien-ai/clawmax/pull/242) fixes [#243](https://github.com/Maximilien-ai/clawmax/issues/243). Product/test source: `9132ec6d19cdeab4eba965a42c5465342314b4e9`, refreshed from merged main `4d3d686a`. Stable remains v1.9.9; RC98 has not been cut.
+[PR #242](https://github.com/Maximilien-ai/clawmax/pull/242) merged as
+`420e35bc7fb1d979c0f421c3615ef4a06671ea50`; #243 is closed. Both the scoring
+weighting and thin answer/prompt dividers are owner-accepted. No reviewer checks
+remain for this batch. Stable remains v1.9.9; RC98 has not been cut.
 
-## Your one check
+Current reviewer queue and release gates: [chat acceptance #227](RC98_CHAT_ACCEPTANCE_2026-11-12.md).
+The source identities, preview URLs and intermediate CI statuses below are
+historical; use the current checklist for the running preview.
 
-- [ ] **Resize feels useful:** refresh http://localhost:5180/builder and drag the **thin divider below the Builder answer** and the **thin divider below the prompt** up and down. Each resizes its own area. The default height is unchanged; the existing expand/shrink button restores the presets. No generation is needed. Reply **accept resize**. `reviewReason: human-judgment`
+## Archived resize acceptance
 
-Preview: **`2.0.0-dev.8e22489d`**, same **RC98 Prompt Readiness Acceptance** workspace; earlier data is retained.
+- [x] **Resize feels useful:** owner accepted both thin answer/prompt dividers
+  with “accept resize.” `reviewReason: human-judgment`
+  [Acceptance](https://github.com/Maximilien-ai/clawmax/issues/243#issuecomment-6831081937).
+- [x] Final head `e9df7c42` [CI passed](https://github.com/Maximilien-ai/clawmax/actions/runs/43270326285)
+  before merge. [Merge receipt](https://github.com/Maximilien-ai/clawmax/issues/243#issuecomment-6838306279).
 
 ## Archived scoring acceptance
 
@@ -21,7 +30,7 @@ Optional visual reference: **http://localhost:5180/builder**, workspace **RC98 P
 
 ## Resize follow-up evidence
 
-Current follow-up source: `8e22489d`. Both handles are now thin dividers: a 1px line with a 4px center grip in 12px of layout height, with an expanded invisible hit area. The labeled bar and visible instruction paragraph have been removed to save space. One divider below the conversation resizes the answer area; one below the textarea resizes the prompt independently. Default sizing is preserved. Both use the shared `VerticalResizeHandle` component with captured mouse/touch dragging, keyboard arrows, Home reset, cancellation cleanup, minimum height and viewport-relative maximum. Answer minimum is 128px; prompt minimum is 88px. Size remains local to the mounted view.
+Historical follow-up source: `8e22489d`. Both handles are now thin dividers: a 1px line with a 4px center grip in 12px of layout height, with an expanded invisible hit area. The labeled bar and visible instruction paragraph have been removed to save space. One divider below the conversation resizes the answer area; one below the textarea resizes the prompt independently. Default sizing is preserved. Both use the shared `VerticalResizeHandle` component with captured mouse/touch dragging, keyboard arrows, Home reset, cancellation cleanup, minimum height and viewport-relative maximum. Answer minimum is 128px; prompt minimum is 88px. Size remains local to the mounted view.
 
 Four light/dark × desktop/phone browser runs pass independent answer growth/shrink, long-answer scrolling, prompt draft retention, thin layout height, keyboard reset, actual touch and cancellation, preset controls and reachable actions. API writes are intercepted. Focused layout suites, server types, lint and build pass; strict frontend diagnostic patterns retain the existing baseline. Artifacts/log: `/private/tmp/clawmax-builder-thin-browser/`, `/private/tmp/clawmax-builder-thin-browser.log`. Full 571-check/CodeQL evidence remains on the earlier identified scoring source; no full-suite/security rerun is claimed for these UI follow-ups.
 
@@ -33,7 +42,7 @@ Source `c4ee5caf29c0855bfa684df8c29cc747e620525f` adds vertical prompt resizing 
 
 - [x] Four light/dark × desktop/phone browser runs pass actual mouse drags shorter/taller, unchanged default, keyboard preset reset, retained long drafts, internal scrolling and reachable actions after a synthetic Builder response. All API writes are intercepted; no model calls. Script: `SYSTEM/dashboard/scripts/builder-prompt-resize-browser.test.mjs`. Artifacts/log: `/private/tmp/clawmax-builder-resize-browser/`, `/private/tmp/clawmax-builder-resize-browser.log`.
 - [x] Builder layout and three mobile-layout cases, focused lint, server TypeScript and production build pass. Strict frontend diagnostics are byte-identical to the 291-diagnostic scoring baseline.
-- [ ] Current-head CI must pass before merge. Full 571-check suite and CodeQL evidence below belong to `9132ec6d`; the small resize follow-up has focused verification, not a new full-suite/security claim.
+- [x] Superseded merge gate: final head `e9df7c42` passed CI and merged. Full 571-check suite and CodeQL evidence below belong to `9132ec6d`; the resize follow-up has focused verification. The combined source is covered by the later 574-check #227 run.
 
 ## Scoring engineering evidence
 
@@ -52,13 +61,13 @@ Source `c4ee5caf29c0855bfa684df8c29cc747e620525f` adds vertical prompt resizing 
 
 - [x] Same-query local CodeQL: **zero added/removed findings**, **zero findings on changed lines**, successful execution. Official CLI **2.27.4**, JS queries **2.5.0**, standard **89-query** suite; **941/941** JS/TS files extracted. Baseline `21e5bda1` is code-equivalent to merged main `4d3d686a` (only two Markdown files differ). Candidate `9132ec6d` and baseline both have **606 raw results**: 12 critical-rated, 588 high-rated, 6 other. These are baseline scan results requiring reconciliation with existing dispositions, not automatically confirmed or waived vulnerabilities. Dashboard owns reconciliation before RC98 promotion. No complete security audit is claimed.
   Archives contain committed public regular files only; ignored credentials/private plugins are excluded, and the absolute `mandate.schema.json` link is not followed. Evidence: `/private/tmp/clawmax-242-codeql/{create.log,analyze.log,result.sarif,comparison.json}`; baseline `/private/tmp/clawmax-288-codeql/final.sarif`. Reproduce with `codeql database create --language=javascript-typescript --build-mode=none`, then `database analyze` with the pinned `javascript-code-scanning.qls`. Compare `(ruleId, artifact URI, primaryLocationLineHash)` with multiplicities. GitHub default setup skips fork PRs; this local comparison does not label a missing remote CodeQL run green. No security configuration or queries were disabled.
-- [ ] **Engineering merge gate:** current PR head CI must pass. Product/test run: [43245328324](https://github.com/Maximilien-ai/clawmax/actions/runs/43245328324), pending at documentation time. Any documentation-only head also needs its own run; use the [PR checks](https://github.com/Maximilien-ai/clawmax/pull/242/checks). Comparable CI takes about 43 minutes. Owner acceptance may happen while CI runs; merge afterward.
+- [x] **Engineering merge gate complete:** final head `e9df7c42` passed [CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43270326285), then #242 merged. Earlier run [43245328324](https://github.com/Maximilien-ai/clawmax/actions/runs/43245328324) was pending at the original checkpoint.
 
 ## Completed batches and feedback
 
 - [x] #288 wording accepted November 12; merged as `4d3d686a544f718d650804dffce16e524ec8c859`; #287 closed. [Acceptance](https://github.com/Maximilien-ai/clawmax/pull/288#issuecomment-6825106459), [merge receipt](https://github.com/Maximilien-ai/clawmax/issues/287#issuecomment-6825155649), [final CI passed](https://github.com/Maximilien-ai/clawmax/actions/runs/43129574990). No repeat owner checks.
 - [x] #404 accepted, #417 merged and linked Management feedback closed. Thank-you/future-version email requested; delivery remains unconfirmed. Do not send a duplicate notification. Earlier budget, docs, membership, Details and dark-mode fixes remain accepted and merged; their evidence stays in the November 8–11 records.
-- [ ] #243 remains open until #242 merges. Reconcile any linked feedback then, preserving separate unresolved issues and recording the resolution/reporter reply. Source completion does not establish an installed upgrade.
+- [x] #243 closed after #242 merged. Its scoring-only feedback report was resolved and closed; the thank-you/future-version email was verified sent. An already-closed report received no duplicate reply. Multi-topic resize reports remain open for the rest of #413. Source completion does not establish an installed upgrade.
 
 ## Remaining RC98 gates
 

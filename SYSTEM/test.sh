@@ -1874,6 +1874,22 @@ else
   fail "Workspace file mention edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent chat history reconciliation unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentChatHistory.test.ts > /tmp/clawmax-agent-chat-history.out 2>&1; then
+  pass "Agent chat history reconciliation unit tests ($(grep -c '^✓ ' /tmp/clawmax-agent-chat-history.out) tests)"
+else
+  cat /tmp/clawmax-agent-chat-history.out
+  fail "Agent chat history reconciliation unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Dashboard conversation persistence tests...${NC}"
+if npx ts-node --transpileOnly server/lib/dashboard-chat-conversations.test.ts > /tmp/clawmax-conversation-record.out 2>&1 && grep -Eq 'dashboard-chat-conversations.test.ts: [1-9][0-9]* tests passed' /tmp/clawmax-conversation-record.out; then
+  pass "Dashboard conversation persistence tests ($(grep -c '^✓ ' /tmp/clawmax-conversation-record.out) tests)"
+else
+  cat /tmp/clawmax-conversation-record.out
+  fail "Dashboard conversation persistence tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace doc navigation helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceDocNavigation.test.ts > /tmp/clawmax-workspace-doc-navigation.out 2>&1 || true
 if grep -q "workspaceDocNavigation.test.ts:" /tmp/clawmax-workspace-doc-navigation.out; then
@@ -5928,6 +5944,16 @@ else
 fi
 
 # Step 7: Test group message
+if [ "$BYOK_JSON" != "{}" ]; then
+  echo -e "${YELLOW}→ Testing real agent conversation lifecycle...${NC}"
+  if CLAWMAX_LIFECYCLE_TEST_WORKSPACE="$SYSTEM_TEST_WS" CLAWMAX_LIFECYCLE_TEST_BYOK="$BYOK_JSON" CLAWMAX_LIFECYCLE_TEST_AUTH="$DASHBOARD_AUTH" node "$SYSTEM_DIR/test-chat-lifecycle.cjs" "$API_BASE" > /tmp/clawmax-live-chat-lifecycle.out 2>&1; then
+    pass "Live chat Clear/History/Continue context"
+  else
+    cat /tmp/clawmax-live-chat-lifecycle.out
+    fail "Live chat Clear/History/Continue context"
+  fi
+fi
+
 echo -e "${YELLOW}→ Testing group messaging...${NC}"
 group_msg=$(apicurl -X POST "$API_BASE/api/groups/Test%20Chat/messages" \
   -H 'Content-Type: application/json' \
