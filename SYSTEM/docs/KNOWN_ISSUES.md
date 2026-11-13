@@ -6,6 +6,11 @@
 
 ## Active Issues
 
+All 107 issues open at the November 13 audit start are initially classified by
+type, area and reported-impact priority; #273 is verified/closed, leaving 106 open
+with no unlabelled entries. This does not establish current reproducibility or
+complete closure evidence. [Triage table and limits](planning/ISSUE_TRIAGE_2026-11-13.md).
+
 ### Agent chat #223/#227 merged; retained runtime limitations
 
 The [current chat checklist](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md) records

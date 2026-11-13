@@ -70,3 +70,43 @@ jobs:
         env:
           CONTRACT_ROOT: ${{ runner.temp }}/image-action-contract
         run: cmp "$CONTRACT_ROOT/source/gcp-mirror-target.json" "$CONTRACT_ROOT/download/gcp-mirror-target.json"
+
+  build-export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+      - uses: docker/setup-buildx-action@v3
+      - name: Create synthetic scratch build context
+        env:
+          CONTRACT_ROOT: ${{ runner.temp }}/image-build-action-contract
+        run: |
+          node --input-type=module <<'NODE'
+          import { mkdirSync, writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          const directory = join(process.env.CONTRACT_ROOT, 'context');
+          mkdirSync(directory, { recursive: true });
+          writeFileSync(join(directory, 'Dockerfile'), 'FROM scratch\nCOPY evidence.json /evidence.json\n');
+          writeFileSync(join(directory, 'evidence.json'), JSON.stringify({
+            purpose: 'synthetic build action check; not a ClawMax release image',
+            source_sha: process.env.GITHUB_SHA
+          }) + '\n');
+          NODE
+      - name: Build both platform exports with the updated action
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ runner.temp }}/image-build-action-contract/context
+          file: ${{ runner.temp }}/image-build-action-contract/context/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: false
+          provenance: false
+          outputs: type=local,dest=${{ runner.temp }}/image-build-action-contract/result,platform-split=true
+      - name: Verify both exported files without publishing
+        env:
+          CONTRACT_ROOT: ${{ runner.temp }}/image-build-action-contract
+        run: |
+          for platform in linux_amd64 linux_arm64; do
+            cmp "$CONTRACT_ROOT/context/evidence.json" "$CONTRACT_ROOT/result/$platform/evidence.json"
+          done

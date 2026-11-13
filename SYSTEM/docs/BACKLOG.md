@@ -6,19 +6,27 @@
 exact chat product source `09249852` passed **574/574** local checks. No repeat
 owner acceptance is needed. [Archived chat evidence](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md).
 
-Next are **11 existing Dependabot PRs**, starting **#294 download → #297 upload →
-#295 build**. #294 is refreshed from main and adds a hosted artifact round trip;
-local mirror/image contracts, workflow parsing/shell syntax and server types pass.
-Hosted CI remains required. Refresh each successor after the preceding merge.
-[Maintenance checklist and full queue](planning/DEPENDABOT_2026-11-13.md).
+The first dependency batch has **#294 merged `2f62920a`** and **#297 merged
+`5ebca2ad`**, both after green checks. #295 is refreshed for its final hosted gate.
+CI now uses [affected-path scope](CI_TEST_SCOPE.md): workflow/docs changes run
+focused contracts and the unchanged audit; application/dependency/runtime/shared
+or unknown changes and releases keep full validation. #297's required job took
+33 seconds. No branch-protection checks were bypassed.
 
-Full issue triage remains open (108-issue snapshot, initially 103 unlabelled).
-`feedback` already labels 63 confirmed intake-linked issues. Last archive-inclusive
-feedback snapshot: 73 reports, 52 open / 21 closed, every open report linked.
-Resolve topics individually, retain unresolved issues and verify future-version
-thank-you notifications. Scoring #243 is closed/notified; #413 remains partially
-open. Stable remains v1.9.9; RC98 has not been cut. The checklist retains all
-release engineering and installed/provider gates.
+Next #300 (Archiver types) is prepared in an isolated checkout: lint, server types,
+build, audit and five ZIP/archive suites pass. Refresh it after #295 merges and
+require its current CI. [Maintenance checklist and full queue](planning/DEPENDABOT_2026-11-13.md).
+
+Initial triage is complete for **107 starting open issues**: primary type, area
+and reported-impact priority, preserving existing labels. Dependabot automation
+#273 is verified/closed, leaving **106 open and zero unlabelled**. There are 54
+open feedback-labelled issues; no new provenance was inferred.
+[Full triage table](planning/ISSUE_TRIAGE_2026-11-13.md). Current-source verification,
+proven duplicate/already-fixed closures and per-topic reporter replies remain open
+work. Last feedback audit: 73 reports, 52 open / 21 closed, all open linked; this
+is not a new live intake audit. Scoring #243 is closed/notified; #413 remains partly
+open. Stable remains v1.9.9; RC98 has not been cut. All release engineering and
+installed/provider gates remain in the maintenance checklist.
 
 The following dated checkpoints retain their original evidence and statuses.
 

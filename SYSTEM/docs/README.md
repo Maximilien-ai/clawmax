@@ -12,6 +12,8 @@ original source snapshots, not the current candidate or runtime state.
 | Document | Description |
 |----------|-------------|
 | [planning/DEPENDABOT_2026-11-13.md](planning/DEPENDABOT_2026-11-13.md) | Current dependency queue, #294 contracts, merge order, issue triage and retained RC98 gates |
+| [CI_TEST_SCOPE.md](CI_TEST_SCOPE.md) | Required CI selects focused workflow/docs checks and full application/dependency/runtime validation; reproducible commands and fallback guards |
+| [planning/ISSUE_TRIAGE_2026-11-13.md](planning/ISSUE_TRIAGE_2026-11-13.md) | All 107 starting issues classified; #273 closed, 106 remain open; evidence and closure-verification queue |
 | [planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md) | Archived, accepted and merged #227 chat evidence, 574-check result and retained limitations |
 | [planning/RC98_ACCEPTANCE_2026-11-12.md](planning/RC98_ACCEPTANCE_2026-11-12.md) | Archived, accepted and merged #242 scoring/resize evidence and feedback closure |
 | [planning/RC98_ACCEPTANCE_2026-11-11.md](planning/RC98_ACCEPTANCE_2026-11-11.md) | Accepted and merged scheduler batch: wording receipt, 571-check evidence and retained limitations |
