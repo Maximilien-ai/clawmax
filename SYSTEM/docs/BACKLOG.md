@@ -13,9 +13,11 @@ focused contracts and the unchanged audit; application/dependency/runtime/shared
 or unknown changes and releases keep full validation. #297's required job took
 33 seconds. No branch-protection checks were bypassed.
 
-Next #300 (Archiver types) is prepared in an isolated checkout: lint, server types,
-build, audit and five ZIP/archive suites pass. It is refreshed onto final main;
-required CI on that current head remains pending. [Maintenance checklist and full queue](planning/DEPENDABOT_2026-11-13.md).
+#300 (Archiver types) also merged as `2337cd96` after full required CI and CodeQL
+passed. Next #299 (concurrently) is refreshed in an isolated checkout: 12 launcher
+tests, lint, server types, build and audit pass. New real-command tests cover
+failure reporting and descendant cleanup without touching unrelated processes.
+Current-head CI is required before merge. [Maintenance checklist and full queue](planning/DEPENDABOT_2026-11-13.md).
 
 Initial triage is complete for **107 starting open issues**: primary type, area
 and reported-impact priority, preserving existing labels. Dependabot automation

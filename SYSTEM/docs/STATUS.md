@@ -9,7 +9,8 @@
 **Status**: `v1.9.9` remains stable. #227 is accepted and merged on main as
 `9ad021b0`, after final CI and 574/574 local chat-source checks. RC98 has not been
 cut. CI updates #294 (`2f62920a`), #297 (`5ebca2ad`) and #295 (`4e4c11ef`)
-are merged after green checks. #300 is locally validated and awaits refreshed CI. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
+are merged after green checks. #300 (`2337cd96`) also merged after full CI.
+Next #299 passes focused local launcher/type/build/audit checks and awaits CI. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
 while limiting workflow/docs-only changes to focused validation. Current work is the [dependency maintenance queue](planning/DEPENDABOT_2026-11-13.md),
 with initial classification of all 107 starting issues complete (#273 closed,
 106 remain open, none unlabelled). Current-source closure and feedback-topic

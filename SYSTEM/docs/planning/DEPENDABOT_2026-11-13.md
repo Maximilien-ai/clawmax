@@ -69,26 +69,39 @@ full-suite or external-provider claim is made for these CI updates.
   require Node 24-capable runners and remove deprecated summary environment names;
   inspect actual usage before reporting #295 compatible.
 
-## Remaining dependency queue
+## Next dependency checkpoint
 
 | PR | Scope | Required evidence before merge |
 | --- | --- | --- |
 | #384 | Node 24.22 Docker base | Align CI Node pin; build/runtime and version contracts |
 | #296 | Cognee OpenClaw plugin | Compatibility with pinned OpenClaw 2026.9.7 and packaging |
 | #298 | 18 minor/patch packages | Lockfile, dependency audit, types/build and affected tests |
-| #300 | Archiver types major | Prepared `52c0374f`: lint, server types, build, audit and five ZIP/archive suites pass; refresh after #295 and require current CI |
+| #300 | Archiver types major | Merged `2337cd96` after [full required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43403233466) and CodeQL passed on `93ad6e1a` |
 | #301 | c8 major | Coverage runner, output and failure propagation |
-| #299 | concurrently major | Local start/stop and child-process cleanup |
+| #299 | concurrently major | Prepared `c784ddf4`: 12 launcher cases, lint/server types/build/audit pass; current CI pending |
 | #303 | dotenv major | Env precedence, credential parsing and cold-start isolation |
 | #302 | react-markdown major | Markdown rendering/security, chat/docs and responsive views |
 
-The #300 source is refreshed onto completed main `4e4c11ef` as `dd43578e`, plus
-a documentation checkpoint, in isolated `/private/tmp/clawmax-dependency-300`.
-Its two dependency files are unchanged from locally validated `52c0374f`; the
-Archiver runtime stays v8. Lint, server types, build, audit and five archive suites
-pass. Required current-head CI remains pending; the selector verifies this package
-diff chooses full Dashboard validation. No new live-provider rerun is claimed.
-The other seven remain pending; ordering may change with compatibility findings.
+#300 is complete. Its Archiver runtime remains v8, now matched by the v8 types.
+
+Next #299 is refreshed onto `2337cd96` in isolated
+`/private/tmp/clawmax-dependency-299`. Installed concurrently **10.0.6** was tested
+with Node **24.19.0** (upstream requires Node >=22); production lock entries are
+unchanged. The repository uses the CLI with explicit comma-separated names and
+colors, not the removed API options. [Upstream release notes](https://github.com/open-cli-tools/concurrently/releases/tag/v10.0.0).
+
+Twelve local launcher tests pass, including three new real `npm run dev` fixture
+cases: both named commands succeed, a failing child cannot report success, and
+owned npm/concurrently/worker descendants stop while an unrelated process remains.
+The new suite is registered as its own check in `SYSTEM/test.sh`. Lint, server
+types, production build, shell syntax and the existing dependency-audit policy pass.
+No live provider calls or full local Dashboard-suite rerun was required for these
+focused checks; required current-head CI still selects full validation for this
+dependency/shared-helper diff. Normal duration is approximately 43 minutes.
+
+No manual product acceptance is needed. #299 must stay unmerged until CI passes.
+The other six updates remain pending; order can change with compatibility findings.
+
 Dashboard owns validation before merge and RC98 inclusion.
 
 ## Feedback, triage and release gates
