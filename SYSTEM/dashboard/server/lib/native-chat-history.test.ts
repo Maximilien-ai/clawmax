@@ -39,6 +39,32 @@ try {
   const expected = [message('first'), message('last')].join('\n')
   assert.equal(readNativeChatTranscript('alpha', 'chat-window', home), expected)
   assert.equal(readPersistedChatTranscript('alpha', 'chat-window', home), expected)
+  const previousState = process.env.OPENCLAW_STATE_DIR, previousHome = process.env.HOME
+  const selected = path.join(home, 'selected-state')
+  const selectedDirectory = path.join(selected, 'agents/alpha/agent')
+  fs.mkdirSync(selectedDirectory, { recursive: true })
+  const selectedFile = path.join(selectedDirectory, 'openclaw-agent.sqlite')
+  fs.copyFileSync(filename, selectedFile)
+  const selectedDb = new DatabaseSync(selectedFile)
+  selectedDb.prepare('UPDATE transcript_events SET event_json = ? WHERE session_id = ? AND seq = 1').run(message('selected first'), 'chat-window')
+  selectedDb.close()
+  const selectedBefore = fs.readFileSync(selectedFile)
+  try {
+    process.env.HOME = home
+    process.env.OPENCLAW_STATE_DIR = selected
+    assert.equal(readNativeChatTranscript('alpha', 'chat-window'), [message('selected first'), message('last')].join('\n'), 'Implicit reads must use the runtime-selected state')
+    assert.equal(readNativeChatTranscript('alpha', 'chat-window', home), expected, 'Explicit fixture homes retain their own isolation')
+    assert.deepEqual(fs.readFileSync(selectedFile), selectedBefore, 'Selected-profile reads remain read-only')
+    process.env.OPENCLAW_STATE_DIR = path.join(home, 'absent-selected-state')
+    assert.equal(hasNativeChatStore('alpha'), false)
+    assert.equal(readPersistedChatTranscript('alpha', 'chat-window'), undefined, 'An absent selected store must never fall back to the installed profile')
+  } finally {
+    if (previousState === undefined) delete process.env.OPENCLAW_STATE_DIR
+    else process.env.OPENCLAW_STATE_DIR = previousState
+    if (previousHome === undefined) delete process.env.HOME
+    else process.env.HOME = previousHome
+  }
+
   assert.throws(() => readPersistedChatTranscript('alpha', '../../../private', home), /Invalid session id/, 'Legacy transcript paths must reject traversal')
   assert.throws(() => readPersistedChatTranscript('alpha', 'bad/segment', home), /Invalid session id/, 'Session ids cannot contain path separators')
   assert.equal(readNativeChatTranscript('alpha', 'chat-window', home), expected, 'reopening must retain history')

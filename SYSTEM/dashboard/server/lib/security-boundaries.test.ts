@@ -23,6 +23,11 @@ const assert = Object.assign(
 )
 
 const indexSource = fs.readFileSync(path.resolve(__dirname, '..', 'index.ts'), 'utf8')
+const mutationGuardOffset = indexSource.indexOf("app.use('/api', browserMutationGuard(allowedCorsOrigins))")
+assert(mutationGuardOffset > 0, 'The browser mutation guard must cover the complete API')
+for (const route of ["app.post('/api/auth/verify'", "app.use('/api', protect, channelsRouter)", "app.use('/api/cli/v1'"]) {
+  assert(indexSource.indexOf(route) > mutationGuardOffset, 'Cookie-authenticated API routes must be registered after CSRF origin admission')
+}
 
 const protectedRouterMounts = [
   "app.use('/api/docs', protect, docsRouter)",
