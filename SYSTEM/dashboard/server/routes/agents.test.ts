@@ -9,7 +9,7 @@ import os from 'os'
 import path from 'path'
 import assert from 'assert'
 import { EventEmitter } from 'events'
-import { listActiveTurns, cancelTurn } from '../lib/agent-turns'
+import { listActiveTurns, cancelTurn, registerTurn, releaseTurn } from '../lib/agent-turns'
 import { getAgentLifecycleGeneration } from '../lib/workspace'
 
 const GREEN = '\x1b[32m'
@@ -148,6 +148,14 @@ async function withModelDiscoveryStubs<T>(overrides: Record<string, any>, fn: ()
     Object.assign(modelDiscovery, originals)
     delete require.cache[require.resolve('./agents')]
   }
+}
+
+async function withConversationRuntimes<T>(fn: () => Promise<T>): Promise<T> {
+  const integrations = require('../lib/workspace-integrations')
+  const original = integrations.readWorkspaceIntegrationConfig
+  integrations.readWorkspaceIntegrationConfig = () => ({ ...original(), enabledRuntimes: ['claude', 'droid'] })
+  try { return await fn() }
+  finally { integrations.readWorkspaceIntegrationConfig = original }
 }
 
 async function withAgentRuntimeStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
@@ -2406,7 +2414,7 @@ async function run() {
     }
   })
 
-  await test('clearing a mixed openclaw+runtime chat archives both stores in timestamp order (droid P1 regression)', async () => {
+  await test('clearing a mixed chat retains both raw stores and ordered History without changing its runtime session', async () => {
     const { scopeSessionIdToModel } = require('../lib/agent-execution')
     writeAgent(workspacePath, 'mixed-agent', [
       '# IDENTITY.md',
@@ -2436,23 +2444,29 @@ async function run() {
     fs.writeFileSync(path.join(transcriptDir, `${sid}.jsonl`),
       JSON.stringify({ role: 'user', content: 'runtime-middle', ts: 2 }) + '\n', 'utf-8')
 
+    const rawSession = fs.readFileSync(path.join(sessionsDir, `${sid}.jsonl`))
+    const rawRuntime = fs.readFileSync(path.join(transcriptDir, `${sid}.jsonl`))
     const clearHandler = getRouteHandler('delete', '/:id/chat/messages')
     const clearRes = makeRes()
     await clearHandler(makeReq({ params: { id: 'mixed-agent' } }), clearRes)
     assert.strictEqual(clearRes.jsonBody?.archived, true, 'Expected the mixed chat to be archived, not deleted')
 
-    const archiveDir = path.join(sessionsDir, 'archive')
-    const archiveFile = fs.readdirSync(archiveDir).find((name) => name.startsWith(sid))
-    assert.ok(archiveFile, 'Expected an archive file to be written')
-    const archivedLines = fs.readFileSync(path.join(archiveDir, archiveFile!), 'utf-8').trim().split('\n').map((line) => JSON.parse(line))
-    // The empty OpenClaw row must be preserved verbatim (droid P1: parsing openclaw through the
-    // visible-message filter would have dropped it), so all 4 rows survive in timestamp order.
-    assert.strictEqual(archivedLines.length, 4, 'Expected all 4 rows (incl. the empty openclaw turn) to be archived')
-    const textOf = (msg: any) => Array.isArray(msg.content)
-      ? msg.content.map((c: any) => c?.text || '').join('')
-      : String(msg.content ?? '')
-    assert.deepStrictEqual(archivedLines.map((l) => textOf(l.message)), ['openclaw-early', 'runtime-middle', '', 'openclaw-late'],
-      'Expected interleaved chronological order across both stores with the empty openclaw turn intact')
+    assert.deepStrictEqual(fs.readFileSync(path.join(sessionsDir, `${sid}.jsonl`)), rawSession, 'Every raw OpenClaw row, including empty content, must survive unchanged')
+    assert.deepStrictEqual(fs.readFileSync(path.join(transcriptDir, `${sid}.jsonl`)), rawRuntime, 'Runtime transcript and CLI session identity remain available')
+    const conversations = require('../lib/dashboard-chat-conversations')
+    assert.strictEqual(conversations.readDashboardChatConversations('mixed-agent').ended[0].sessionId, sid)
+    const detail = makeRes()
+    await getRouteHandler('get', '/:id/chat/archives/:filename')(makeReq({ params: { id: 'mixed-agent', filename: `session:${sid}` } }), detail)
+    assert.deepStrictEqual(detail.jsonBody.messages.map((message: any) => message.content), ['openclaw-early', 'runtime-middle', 'openclaw-late'], 'History remains chronological while the raw empty row stays preserved')
+    const reset = makeRes()
+    await getRouteHandler('post', '/:id/reset-session')(makeReq({ params: { id: 'mixed-agent' } }), reset)
+    assert.strictEqual(reset.statusCode, 200)
+    assert.deepStrictEqual(fs.readFileSync(path.join(sessionsDir, `${sid}.jsonl`)), rawSession, 'A later Reset cannot move a session retained in History')
+    const afterReset = makeRes()
+    await getRouteHandler('get', '/:id/chat/archives/:filename')(makeReq({ params: { id: 'mixed-agent', filename: `session:${sid}` } }), afterReset)
+    assert.deepStrictEqual(afterReset.jsonBody.messages, detail.jsonBody.messages)
+
+
   })
 
   await test('chat archives route ignores trajectory rows, parses prefixed timestamps, and avoids noisy titles', async () => {
@@ -2751,6 +2765,328 @@ async function run() {
     assert.strictEqual(String(listRes.jsonBody?.archives?.[0]?.title || ''), 'Current conversation', 'Expected restored current history entry title')
     assert.strictEqual(fs.existsSync(path.join(archiveDir, archiveFilename)), false, 'Expected restored archive file to be consumed from the archive directory')
   })
+
+  await test('clear starts a new conversation the agent has no context of, keeps the old one in History, and Continue resumes it exactly', async () => {
+    // OpenClaw has no offline reset or delete, so Clear used to archive nothing for a SQLite-store
+    // agent: the chat emptied, then the next poll brought every message back, and the next turn ran
+    // in the same session with the whole old context.
+    const { scopeSessionIdToModel } = require('../lib/agent-execution')
+    const conversations = require('../lib/dashboard-chat-conversations')
+    const id = 'clear-agent'
+    writeAgent(workspacePath, id, '**Name:** Clear agent\n**Model:** openai/gpt-4o-mini\n')
+    const nativeDir = path.join(tmpHome, '.openclaw', 'agents', id, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const dbPath = path.join(nativeDir, 'openclaw-agent.sqlite')
+    const db = new DatabaseSync(dbPath)
+    db.exec(`
+      CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT);
+      CREATE TABLE session_windows (session_id TEXT);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT);
+      CREATE TABLE session_transcript_index_state (session_id TEXT, needs_rebuild INTEGER);
+      CREATE TABLE session_transcript_active_events (session_id TEXT, event_seq INTEGER, active_position INTEGER);
+    `)
+    // The real store's shape for a migrated chat: the legacy dashboard-chat key names the session.
+    const addSession = (key: string, sessionId: string, turns: Array<[string, string]>) => {
+      db.prepare('INSERT INTO session_nodes VALUES (?, ?)').run(key, sessionId)
+      db.prepare('INSERT INTO session_windows VALUES (?)').run(sessionId)
+      db.prepare('INSERT INTO session_transcript_index_state VALUES (?, 0)').run(sessionId)
+      turns.forEach(([role, text], index) => {
+        db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?)').run(sessionId, index + 1, JSON.stringify({ type: 'message', id: `${sessionId}-${index}`, message: { role, content: text, timestamp: index + 1 } }))
+        db.prepare('INSERT INTO session_transcript_active_events VALUES (?, ?, ?)').run(sessionId, index + 1, index)
+      })
+    }
+    addSession(`agent:${id}:dashboard-chat`, 'old-window', [['user', 'Old question'], ['assistant', 'Old answer']])
+    const history = async () => {
+      const res = makeRes()
+      await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), res)
+      assert.strictEqual(res.statusCode, 200, JSON.stringify(res.jsonBody))
+      return res.jsonBody.messages.map((message: any) => message.content)
+    }
+    assert.deepStrictEqual(await history(), ['Old question', 'Old answer'])
+
+    db.close()
+    const storeBefore = fs.readFileSync(dbPath)
+    const clearRes = makeRes()
+    await getRouteHandler('delete', '/:id/chat/messages')(makeReq({ params: { id } }), clearRes)
+    assert.deepStrictEqual(clearRes.jsonBody, { ok: true, archived: true })
+    for (let reopen = 0; reopen < 2; reopen++) {
+      assert.deepStrictEqual(await history(), [], 'A cleared chat must stay empty on every poll and reopen')
+    }
+    assert.deepStrictEqual(fs.readFileSync(dbPath), storeBefore, 'Clear must not modify or delete anything in the runtime store')
+
+    // The next turn runs a new session, so the agent starts without the old conversation.
+    const record = conversations.readDashboardChatConversations(id)
+    const newSessionId = scopeSessionIdToModel(record.activeSeed, 'openai/gpt-4o-mini')
+    assert.notStrictEqual(newSessionId, 'old-window')
+    assert.deepStrictEqual(record.ended.map((entry: any) => entry.sessionId), ['old-window'])
+    const writer = new DatabaseSync(dbPath)
+    const db2 = writer
+    db2.prepare('INSERT INTO session_nodes VALUES (?, ?)').run(`agent:${id}:explicit:${newSessionId}`, newSessionId)
+    db2.prepare('INSERT INTO session_windows VALUES (?)').run(newSessionId)
+    db2.prepare('INSERT INTO session_transcript_index_state VALUES (?, 0)').run(newSessionId)
+    db2.prepare('INSERT INTO transcript_events VALUES (?, ?, ?)').run(newSessionId, 1, JSON.stringify({ type: 'message', id: 'new-0', message: { role: 'user', content: 'New question', timestamp: 10 } }))
+    db2.prepare('INSERT INTO session_transcript_active_events VALUES (?, ?, ?)').run(newSessionId, 1, 0)
+    writer.close()
+    assert.deepStrictEqual(await history(), ['New question'], 'History follows the new conversation, not the legacy key')
+
+    // History lists the ended conversation; it can be read and continued, not deleted from the runtime.
+    conversations.setEndedDashboardConversationTitle(id, 'old-window', 'Old thread')
+    const listRes = makeRes()
+    await getRouteHandler('get', '/:id/chat/archives')(makeReq({ params: { id } }), listRes)
+    const ended = listRes.jsonBody.archives.find((archive: any) => archive.filename === 'session:old-window')
+    assert.deepStrictEqual(
+      { kind: ended?.kind, resumable: ended?.resumable, messageCount: ended?.messageCount, title: ended?.title },
+      { kind: 'conversation', resumable: true, messageCount: 2, title: 'Old thread' },
+    )
+    const detailRes = makeRes()
+    await getRouteHandler('get', '/:id/chat/archives/:filename')(makeReq({ params: { id, filename: 'session:old-window' } }), detailRes)
+    assert.deepStrictEqual(detailRes.jsonBody.messages.map((message: any) => message.content), ['Old question', 'Old answer'])
+    const strangerRes = makeRes()
+    await getRouteHandler('get', '/:id/chat/archives/:filename')(makeReq({ params: { id, filename: `session:${newSessionId}` } }), strangerRes)
+    assert.strictEqual(strangerRes.statusCode, 404, 'History reads only conversations this chat ended')
+
+    const restoreRes = makeRes()
+    await getRouteHandler('post', '/:id/chat/archives/:filename/restore')(makeReq({ params: { id, filename: 'session:old-window' } }), restoreRes)
+    assert.strictEqual(restoreRes.statusCode, 200, JSON.stringify(restoreRes.jsonBody))
+    assert.deepStrictEqual(restoreRes.jsonBody.messages.map((message: any) => message.content), ['Old question', 'Old answer'])
+    assert.deepStrictEqual(await history(), ['Old question', 'Old answer'], 'Continue makes the ended conversation current again')
+    const resumed = conversations.readDashboardChatConversations(id)
+    assert.strictEqual(resumed.activeSessionId, 'old-window', 'Continue resumes the exact session, so the agent has its context')
+    assert.deepStrictEqual(resumed.ended.map((entry: any) => entry.sessionId), [newSessionId], 'The conversation it replaced is ended, not lost')
+
+    const removeRes = makeRes()
+    await getRouteHandler('delete', '/:id/chat/archives/:filename')(makeReq({ params: { id, filename: `session:${newSessionId}` } }), removeRes)
+    assert.deepStrictEqual(removeRes.jsonBody, { ok: true, removedFromHistory: true })
+    assert.deepStrictEqual(conversations.readDashboardChatConversations(id).ended, [])
+    const reader = new DatabaseSync(dbPath, { readOnly: true })
+    assert.strictEqual(reader.prepare('SELECT COUNT(*) AS n FROM transcript_events WHERE session_id = ?').get(newSessionId).n, 1, 'Removing from History leaves the runtime transcript alone')
+    reader.close()
+
+    // A pre-SQLite archive file can be read but not continued: the runtime would start an empty
+    // session under it and the agent would remember none of it.
+    const archiveDir = path.join(tmpHome, '.openclaw', 'agents', id, 'sessions', 'archive')
+    fs.mkdirSync(archiveDir, { recursive: true })
+    fs.writeFileSync(path.join(archiveDir, 'legacy-chat_2026-01-01_1767225600000.jsonl'), JSON.stringify({ type: 'message', message: { role: 'user', content: 'Legacy question', timestamp: 1 } }))
+    fs.writeFileSync(path.join(archiveDir, '.titles.json'), JSON.stringify({ 'legacy-chat_2026-01-01_1767225600000.jsonl': 'Legacy thread' }))
+    const legacyList = makeRes()
+    await getRouteHandler('get', '/:id/chat/archives')(makeReq({ params: { id } }), legacyList)
+    const legacyEntry = legacyList.jsonBody.archives.find((archive: any) => archive.filename === 'legacy-chat_2026-01-01_1767225600000.jsonl')
+    assert.deepStrictEqual({ kind: legacyEntry?.kind, resumable: legacyEntry?.resumable }, { kind: 'archive-file', resumable: false })
+    const legacyRestore = makeRes()
+    await getRouteHandler('post', '/:id/chat/archives/:filename/restore')(makeReq({ params: { id, filename: 'legacy-chat_2026-01-01_1767225600000.jsonl' } }), legacyRestore)
+    assert.strictEqual(legacyRestore.statusCode, 409)
+    assert(fs.existsSync(path.join(archiveDir, 'legacy-chat_2026-01-01_1767225600000.jsonl')), 'A refused Continue leaves the archive in place')
+
+    // Session ids become file paths: an edited or imported record cannot smuggle one in.
+    const recordFile = path.join(workspacePath, 'SYSTEM', 'dashboard-chat', `${id}.json`)
+    const goodRecord = fs.readFileSync(recordFile, 'utf-8')
+    fs.writeFileSync(recordFile, JSON.stringify({ ...JSON.parse(goodRecord), ended: [{ sessionId: '../../other-agent/sessions/x', seed: 's', endedAt: 1 }, { sessionId: newSessionId, seed: 's', endedAt: 2 }] }))
+    assert.deepStrictEqual(conversations.readDashboardChatConversations(id).ended.map((entry: any) => entry.sessionId), [newSessionId], 'A path-like ended id is dropped')
+    fs.writeFileSync(recordFile, JSON.stringify({ ...JSON.parse(goodRecord), activeSessionId: '../escape' }))
+    assert.throws(() => conversations.readDashboardChatConversations(id), /malformed/, 'A path-like active id fails loudly')
+    fs.writeFileSync(recordFile, goodRecord)
+
+    // An unreadable record fails loudly instead of quietly bringing the first conversation back.
+    const recordPath = path.join(workspacePath, 'SYSTEM', 'dashboard-chat', `${id}.json`)
+    fs.writeFileSync(recordPath, '{not json')
+    const brokenRes = makeRes()
+    await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), brokenRes)
+    assert.strictEqual(brokenRes.statusCode, 500)
+    assert.match(String(brokenRes.jsonBody.error), /could not be read/)
+    fs.rmSync(recordPath)
+  })
+
+  await test('legacy Clear refuses imported session pointers outside the agent directory', async () => {
+    const id = 'legacy-session-boundary'
+    writeAgent(workspacePath, id, '**Name:** Legacy boundary\n**Model:** openai/gpt-4o-mini\n')
+    const sessions = path.join(tmpHome, '.openclaw', 'agents', id, 'sessions')
+    const foreign = path.join(tmpHome, '.openclaw', 'agents', 'foreign-session-boundary', 'sessions')
+    fs.mkdirSync(sessions, { recursive: true })
+    fs.mkdirSync(foreign, { recursive: true })
+    const foreignFile = path.join(foreign, 'private.jsonl')
+    fs.writeFileSync(foreignFile, JSON.stringify({ type: 'message', message: { role: 'user', content: 'Foreign private fixture', timestamp: 1 } }))
+    const index = path.join(sessions, 'sessions.json')
+    fs.writeFileSync(index, JSON.stringify({ [`agent:${id}:dashboard-chat`]: { sessionId: '../../foreign-session-boundary/sessions/private' } }))
+    const beforeIndex = fs.readFileSync(index), beforeForeign = fs.readFileSync(foreignFile)
+    const res = makeRes()
+    await getRouteHandler('delete', '/:id/chat/messages')(makeReq({ params: { id } }), res)
+    assert.strictEqual(res.statusCode, 500)
+    assert.match(String(res.jsonBody.error), /Invalid stored session id/)
+    assert.deepStrictEqual(fs.readFileSync(foreignFile), beforeForeign)
+    assert.deepStrictEqual(fs.readFileSync(index), beforeIndex)
+    assert(!fs.existsSync(path.join(sessions, 'archive')), 'Invalid metadata cannot create an archive of foreign content')
+    assert(!fs.existsSync(path.join(workspacePath, 'SYSTEM', 'dashboard-chat', `${id}.json`)))
+  })
+
+  await test('Clear, Reset and Continue reject running, queued and cancelling turns without changing the conversation', async () => {
+    const id = 'conversation-busy-agent'
+    writeAgent(workspacePath, id, '**Name:** Busy chat\n**Model:** openai/gpt-4o-mini\n')
+    const conversations = require('../lib/dashboard-chat-conversations')
+    conversations.startNewDashboardConversation(id, { sessionId: 'old-busy-session', seed: 'previous' })
+    const record = path.join(workspacePath, 'SYSTEM', 'dashboard-chat', `${id}.json`)
+    const before = fs.readFileSync(record)
+    const running = registerTurn(id), queued = registerTurn(id)
+    const requests = [
+      ['delete', '/:id/chat/messages'], ['post', '/:id/reset-session'], ['post', '/:id/chat/archives/:filename/restore'],
+    ] as const
+    try {
+      for (const [method, route] of requests) {
+        const res = makeRes()
+        await getRouteHandler(method, route)(makeReq({ params: { id, filename: 'session:old-busy-session' } }), res)
+        assert.strictEqual(res.statusCode, 409)
+        assert.strictEqual(res.jsonBody.code, 'chat_turn_active')
+        assert.deepStrictEqual(fs.readFileSync(record), before)
+      }
+      cancelTurn(running.turnId)
+      releaseTurn(queued.turnId)
+      const cancelling = makeRes()
+      await getRouteHandler('delete', '/:id/chat/messages')(makeReq({ params: { id } }), cancelling)
+      assert.strictEqual(cancelling.statusCode, 409, 'Cancellation must settle before switching context')
+      assert.deepStrictEqual(fs.readFileSync(record), before)
+    } finally {
+      releaseTurn(running.turnId)
+      releaseTurn(queued.turnId)
+    }
+    const settled = makeRes()
+    await getRouteHandler('delete', '/:id/chat/messages')(makeReq({ params: { id } }), settled)
+    assert.strictEqual(settled.statusCode, 200)
+    assert.notDeepStrictEqual(fs.readFileSync(record), before)
+  })
+
+  await test('Clear and Continue retain runtime transcripts and never create a legacy index beside a native store', async () => withConversationRuntimes(async () => {
+    const id = 'mixed-runtime-clear-agent'
+    writeAgent(workspacePath, id, '**Name:** Mixed runtime\n**Model:** anthropic/claude-sonnet-4-20250514\n**Runtime:** claude\n')
+    const { scopeSessionIdToModel } = require('../lib/agent-execution')
+    const sid = scopeSessionIdToModel(`agent:${id}:dashboard-chat`, 'anthropic/claude-sonnet-4-20250514')
+    const nativeDir = path.join(tmpHome, '.openclaw', 'agents', id, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const nativePath = path.join(nativeDir, 'openclaw-agent.sqlite')
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(nativePath)
+    db.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT)')
+    db.close()
+    const nativeBefore = fs.readFileSync(nativePath)
+    const transcriptDir = path.join(workspacePath, 'SYSTEM', 'runtime-transcripts', id)
+    fs.mkdirSync(transcriptDir, { recursive: true })
+    const transcript = path.join(transcriptDir, `${sid}.jsonl`)
+    fs.writeFileSync(transcript, JSON.stringify({ role: 'user', content: 'Keep this runtime context', ts: 1 }) + '\n')
+    const before = fs.readFileSync(transcript)
+    const clear = makeRes()
+    await getRouteHandler('delete', '/:id/chat/messages')(makeReq({ params: { id } }), clear)
+    assert.strictEqual(clear.statusCode, 200)
+    assert.deepStrictEqual(fs.readFileSync(transcript), before)
+    assert.deepStrictEqual(fs.readFileSync(nativePath), nativeBefore)
+    assert(!fs.existsSync(path.join(tmpHome, '.openclaw', 'agents', id, 'sessions', 'sessions.json')))
+    const conversations = require('../lib/dashboard-chat-conversations')
+    conversations.setEndedDashboardConversationTitle(id, sid, 'Runtime thread')
+    const identityPath = path.join(workspacePath, 'AGENTS', id, 'IDENTITY.md')
+    const identity = fs.readFileSync(identityPath, 'utf8')
+    fs.writeFileSync(identityPath, identity.replace('**Runtime:** claude', '**Runtime:** droid'))
+    const list = makeRes()
+    await getRouteHandler('get', '/:id/chat/archives')(makeReq({ params: { id } }), list)
+    assert.strictEqual(list.jsonBody.archives.find((entry: any) => entry.filename === `session:${sid}`).resumable, false)
+    const refused = makeRes()
+    await getRouteHandler('post', '/:id/chat/archives/:filename/restore')(makeReq({ params: { id, filename: `session:${sid}` } }), refused)
+    assert.strictEqual(refused.statusCode, 409, 'A different runtime cannot claim the original CLI context')
+    assert.deepStrictEqual(fs.readFileSync(transcript), before)
+    fs.writeFileSync(identityPath, identity)
+    const restore = makeRes()
+    await getRouteHandler('post', '/:id/chat/archives/:filename/restore')(makeReq({ params: { id, filename: `session:${sid}` } }), restore)
+    assert.strictEqual(restore.statusCode, 200)
+    const history = makeRes()
+    await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), history)
+    assert.deepStrictEqual(history.jsonBody.messages.map((message: any) => message.content), ['Keep this runtime context'])
+  }))
+
+  await test('legacy runtime transcript copies stay viewable but cannot pretend to resume a native CLI context', async () => withConversationRuntimes(async () => {
+    const id = 'legacy-runtime-archive-agent'
+    writeAgent(workspacePath, id, '**Name:** Legacy runtime\n**Model:** anthropic/claude-sonnet-4-20250514\n**Runtime:** claude\n')
+    const directory = path.join(tmpHome, '.openclaw', 'agents', id, 'sessions', 'archive')
+    fs.mkdirSync(directory, { recursive: true })
+    const filename = 'legacy_2026-01-01_1767225600000.jsonl'
+    fs.writeFileSync(path.join(directory, filename), JSON.stringify({ type: 'message', message: { role: 'user', content: 'Old exported context', timestamp: 1 } }))
+    fs.writeFileSync(path.join(directory, '.titles.json'), JSON.stringify({ [filename]: 'Old exported context' }))
+    const list = makeRes()
+    await getRouteHandler('get', '/:id/chat/archives')(makeReq({ params: { id } }), list)
+    assert.strictEqual(list.jsonBody.archives.find((entry: any) => entry.filename === filename).resumable, false)
+    const before = fs.readFileSync(path.join(directory, filename))
+    const restore = makeRes()
+    await getRouteHandler('post', '/:id/chat/archives/:filename/restore')(makeReq({ params: { id, filename } }), restore)
+    assert.strictEqual(restore.statusCode, 409)
+    assert.deepStrictEqual(fs.readFileSync(path.join(directory, filename)), before)
+    const detail = makeRes()
+    await getRouteHandler('get', '/:id/chat/archives/:filename')(makeReq({ params: { id, filename } }), detail)
+    assert.strictEqual(detail.jsonBody.messages[0].content, 'Old exported context')
+  }))
+
+  await test('Reset Session starts a new conversation like Clear and keeps the old one in History, for SQLite and claude/droid agents', async () => withConversationRuntimes(async () => {
+    const { scopeSessionIdToModel } = require('../lib/agent-execution')
+    const conversations = require('../lib/dashboard-chat-conversations')
+    // A SQLite-store agent: the ended conversation stays in OpenClaw's store and is listed.
+    const nativeId = 'reset-native-agent'
+    writeAgent(workspacePath, nativeId, '**Name:** Reset native\n**Model:** openai/gpt-4o-mini\n')
+    const nativeDir = path.join(tmpHome, '.openclaw', 'agents', nativeId, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const dbPath = path.join(nativeDir, 'openclaw-agent.sqlite')
+    const db = new DatabaseSync(dbPath)
+    const sid = scopeSessionIdToModel(`agent:${nativeId}:dashboard-chat`, 'openai/gpt-4o-mini')
+    db.exec(`
+      CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT);
+      CREATE TABLE session_windows (session_id TEXT);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT);
+      CREATE TABLE session_transcript_index_state (session_id TEXT, needs_rebuild INTEGER);
+      CREATE TABLE session_transcript_active_events (session_id TEXT, event_seq INTEGER, active_position INTEGER);
+    `)
+    db.prepare('INSERT INTO session_nodes VALUES (?, ?)').run(`agent:${nativeId}:explicit:${sid}`, sid)
+    db.prepare('INSERT INTO session_windows VALUES (?)').run(sid)
+    db.prepare('INSERT INTO session_transcript_index_state VALUES (?, 0)').run(sid)
+    db.prepare('INSERT INTO transcript_events VALUES (?, 1, ?)').run(sid, JSON.stringify({ type: 'message', id: 'q', message: { role: 'user', content: 'Native question', timestamp: 1 } }))
+    db.prepare('INSERT INTO session_transcript_active_events VALUES (?, 1, 0)').run(sid)
+    db.close()
+    const storeBefore = fs.readFileSync(dbPath)
+
+    // A claude-pinned agent: its chat lives in ClawMax's runtime transcripts, outside the files the
+    // runtime reset moves, so Reset must archive it the way Clear does.
+    const runtimeId = 'reset-runtime-agent'
+    writeAgent(workspacePath, runtimeId, '**Name:** Reset runtime\n**Model:** anthropic/claude-sonnet-4-20250514\n**Runtime:** claude\n')
+    const runtimeSid = scopeSessionIdToModel(`agent:${runtimeId}:dashboard-chat`, 'anthropic/claude-sonnet-4-20250514')
+    const transcriptDir = path.join(workspacePath, 'SYSTEM', 'runtime-transcripts', runtimeId)
+    fs.mkdirSync(transcriptDir, { recursive: true })
+    fs.writeFileSync(path.join(transcriptDir, `${runtimeSid}.jsonl`), JSON.stringify({ role: 'user', content: 'Runtime question', ts: 1 }) + '\n')
+
+    for (const [agentId, question] of [[nativeId, 'Native question'], [runtimeId, 'Runtime question']]) {
+      const before = makeRes()
+      await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id: agentId } }), before)
+      assert.deepStrictEqual(before.jsonBody.messages.map((message: any) => message.content), [question], `${agentId} starts with its chat`)
+      const reset = makeRes()
+      await getRouteHandler('post', '/:id/reset-session')(makeReq({ params: { id: agentId } }), reset)
+      assert.strictEqual(reset.statusCode, 200, JSON.stringify(reset.jsonBody))
+      const after = makeRes()
+      await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id: agentId } }), after)
+      assert.deepStrictEqual(after.jsonBody.messages, [], `${agentId}: the next turn starts a new conversation`)
+      // Titles set up front keep this test offline (listing History asks a model for missing ones).
+      const endedId = conversations.readDashboardChatConversations(agentId).ended[0]?.sessionId
+      if (endedId) conversations.setEndedDashboardConversationTitle(agentId, endedId, 'Old thread')
+      const legacyArchiveDir = path.join(tmpHome, '.openclaw', 'agents', agentId, 'sessions', 'archive')
+      if (fs.existsSync(legacyArchiveDir)) {
+        fs.writeFileSync(path.join(legacyArchiveDir, '.titles.json'), JSON.stringify(Object.fromEntries(fs.readdirSync(legacyArchiveDir).filter((name) => name.endsWith('.jsonl')).map((name) => [name, 'Old thread']))))
+      }
+      const archives = makeRes()
+      await getRouteHandler('get', '/:id/chat/archives')(makeReq({ params: { id: agentId } }), archives)
+      const listed = archives.jsonBody.archives.filter((archive: any) => !archive.active)
+      assert.strictEqual(listed.length, 1, `${agentId}: the old chat is in History`)
+      const detail = makeRes()
+      await getRouteHandler('get', '/:id/chat/archives/:filename')(makeReq({ params: { id: agentId, filename: listed[0].filename } }), detail)
+      assert.deepStrictEqual(detail.jsonBody.messages.map((message: any) => message.content), [question])
+      const resumed = makeRes()
+      await getRouteHandler('post', '/:id/chat/archives/:filename/restore')(makeReq({ params: { id: agentId, filename: listed[0].filename } }), resumed)
+      assert.strictEqual(resumed.statusCode, 200)
+      assert.strictEqual(conversations.readDashboardChatConversations(agentId).activeSessionId, agentId === runtimeId ? runtimeSid : sid, 'Continue must use the original CLI session identity')
+    }
+    assert.deepStrictEqual(fs.readFileSync(dbPath), storeBefore, 'Reset must not modify the runtime store')
+  }))
 
   await test('chat archive restore and delete routes reject current-session and path-traversal filenames', async () => {
     const restoreHandler = getRouteHandler('post', '/:id/chat/archives/:filename/restore')

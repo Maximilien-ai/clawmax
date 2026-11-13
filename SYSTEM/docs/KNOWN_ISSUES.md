@@ -1,10 +1,50 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: October 27, 2026
+**Last Updated**: November 13, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
 ## Active Issues
+
+### Agent chat #223/#227 merged; retained runtime limitations
+
+The [current chat checklist](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md) records
+**574/574** exact-source checks on `09249852`, including real native context
+reset/resumption, focused persistence/polling/runtime contracts and four responsive
+theme runs. Owner acceptance and final CI are complete; #227 merged as `9ad021b0` and #223 is closed.
+Legacy transcript-only archives cannot promise continuation; a runtime mismatch
+blocks Continue. Actual external Claude/Droid provider execution is not claimed.
+Strict frontend typing retains 290 baseline diagnostics. Same-query CodeQL adds no
+findings and removes 47; retained raw findings need Dashboard disposition before
+RC98 promotion. This is not a complete security audit or RC readiness claim.
+
+### Prompt-readiness #243/#242 complete
+
+Scoring weighting and both thin Builder dividers are owner-accepted. #242 merged
+as `420e35bc` after CI passed; #243 is closed. The scoring-only feedback report is
+closed and its thank-you/future-version email was verified sent. Broader #413
+panels/sidebar remain open. [Archived evidence](planning/RC98_ACCEPTANCE_2026-11-12.md).
+
+### Scheduler #287/#288 merged; retained release boundaries
+
+The [November 11 scheduler checkpoint](planning/RC98_ACCEPTANCE_2026-11-11.md)
+records a 571/571 full local pass, exact-source CI, native cleanup and UI evidence.
+Owner accepted the wording; #288 merged as `4d3d686a`, and #287 is closed.
+Two Dashboard writers sharing one workspace remain outside its single-process
+claim; manually renamed legacy jobs require owner review. Degraded legacy cleanup
+is an unresolved operational condition, not proof duplicates stopped. Same-query
+local CodeQL adds no findings, while the raw baseline still needs reconciliation
+with existing dispositions before RC98. Strict frontend typing retains 291 baseline
+diagnostics; no complete security audit or RC readiness is claimed.
+
+### #404 addressed; legacy recovery and rollback limitations retained
+
+The owner accepted #404, PR #417 merged as `0de68dae`, and its linked feedback is
+closed as addressed. Existing ambiguous history remains preserved and blocked for
+owner recovery, including after conflicting names are removed. New named-channel
+writes use `.v2`; older builds cannot read those writes and may show stale legacy
+history after rollback. Use full backups and the [recovery guide](guides/RECOVER_CHANNEL_HISTORY.md).
+Source completion does not establish an installed-instance upgrade.
 
 ### RC95 source preview gates
 

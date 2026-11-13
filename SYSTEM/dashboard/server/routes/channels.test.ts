@@ -124,6 +124,12 @@ function getRouteHandlerFromRouter(router: any, method: 'get' | 'post' | 'delete
 }
 
 async function run() {
+  const ai = require('../lib/ai-generator')
+  const originalTitle = ai.generateArchiveTitle
+  ai.generateArchiveTitle = async () => 'Synthetic archived chat'
+  const opik = require('../lib/opik')
+  const originalTrace = opik.traceAgentChat
+  opik.traceAgentChat = () => undefined
   console.log(`\n${YELLOW}=== Channels Routes Test Suite ===${RESET}\n`)
 
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-channels-routes-home-'))
@@ -133,6 +139,53 @@ async function run() {
   process.env.OPENCLAW_WORKSPACE = workspacePath
   process.env.CLAWMAX_TEST_WORKSPACE = workspacePath
   resetWorkspaceManagerForTests()
+
+  await test('ambiguous legacy history returns recovery responses without changing messages or archives', async () => {
+    for (const [kind, plural, file] of [['group', 'groups', 'GROUPS.md'], ['community', 'communities', 'COMMUNITIES.md']] as const) {
+      const catalog = path.join(workspacePath, 'ORG', file)
+      const before = fs.readFileSync(catalog, 'utf8')
+      const parent = path.join(workspacePath, 'SYSTEM', 'messages', plural)
+      const legacy = path.join(parent, 'recovery_team.json')
+      const archive = path.join(parent, 'archive', 'recovery_team_2026-11-10_1.json')
+      const bytes = JSON.stringify([{ id: 'old', from: 'User', content: 'Synthetic retained history', timestamp: 1, mentions: [] }])
+      fs.mkdirSync(path.dirname(archive), { recursive: true })
+      fs.writeFileSync(catalog, before + '\n### Recovery Team\n\n### Recovery_Team\n')
+      fs.writeFileSync(legacy, bytes)
+      fs.writeFileSync(archive, bytes)
+      try {
+        for (const [method, suffix] of [['get', 'messages'], ['post', 'messages'], ['delete', 'messages'], ['get', 'archives'], ['get', 'archives/:filename'], ['delete', 'archives/:filename']] as const) {
+          const handler = getRouteHandler(method, `/${plural}/:name/${suffix}`)
+          const response = makeRes()
+          await handler(makeReq({ params: { name: 'Recovery Team', filename: path.basename(archive) }, body: { content: 'must-not-write', mentions: [] } }), response, (error: Error) => { throw error })
+          assert.equal(response.statusCode, 409, `${kind} ${method} ${suffix}`)
+          assert.equal(response.jsonBody.code, 'message_history_recovery_required')
+          assert.match(response.jsonBody.error, /Existing messages are unchanged/)
+        }
+        const counts = makeRes()
+        await getRouteHandler('get', '/message-counts')(makeReq(), counts)
+        assert.equal(counts.statusCode, 200, 'one recovery channel must not disable all message counts')
+        assert(counts.jsonBody.recoveryRequired.includes(`${kind}:Recovery Team`))
+        assert.equal(counts.jsonBody.counts[`${kind}:Recovery Team`], undefined, 'blocked history has no false zero count')
+        assert.equal(fs.readFileSync(legacy, 'utf8'), bytes)
+        assert.equal(fs.readFileSync(archive, 'utf8'), bytes)
+      } finally {
+        fs.writeFileSync(catalog, before)
+        fs.unlinkSync(legacy)
+        fs.unlinkSync(archive)
+      }
+    }
+  })
+
+  await test('stale workspace history headers cannot read, write or clear the newly active workspace', async () => {
+    for (const [method, suffix] of [['get', 'messages'], ['post', 'messages'], ['delete', 'messages'], ['get', 'archives']] as const) {
+      const handler = getRouteHandler(method, `/groups/:name/${suffix}`)
+      const response = makeRes()
+      await handler(makeReq({ headers: { 'x-clawmax-workspace': 'not-the-active-workspace' }, params: { name: 'scope-check' }, body: { content: 'must-not-write', mentions: [] } }), response, (error: Error) => { throw error })
+      assert.equal(response.statusCode, 409)
+      assert.equal(response.jsonBody.code, 'workspace_changed')
+    }
+    assert.deepEqual(require('../lib/messages').getMessages('group', 'scope-check'), [])
+  })
 
   await test('AI channel generation validates requests, returns drafts without persistence, and reports failure', async () => {
     const ai = require('../lib/ai-generator')
@@ -739,7 +792,7 @@ async function run() {
     const agentDir = path.join(openclawDir, 'agents', 'double-agent', 'agent')
     fs.mkdirSync(agentWorkspace, { recursive: true })
     fs.mkdirSync(path.dirname(agentDir), { recursive: true })
-    fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/qwen/qwen3.6-27b\n', 'utf-8')
+    fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Name:** Double Agent\n- **Model:** openai-compatible/qwen/qwen3.6-27b\n', 'utf-8')
     fs.writeFileSync(path.join(openclawDir, 'openclaw.json'), JSON.stringify({
       agents: {
         list: [
@@ -748,6 +801,9 @@ async function run() {
       },
     }, null, 2))
 
+    const membershipFile = path.join(workspacePath, 'ORG', 'GROUPS.md')
+    const membershipBefore = fs.readFileSync(membershipFile, 'utf8')
+    fs.appendFileSync(membershipFile, '\n### Temp Group\n\n- **Members:** double-agent\n')
     const spawnCalls: string[][] = []
     global.fetch = (async (input: any, init?: any) => {
       const url = String(input)
@@ -842,6 +898,7 @@ async function run() {
       if (originalPackageRoot === undefined) delete process.env.OPENCLAW_PACKAGE_ROOT
       else process.env.OPENCLAW_PACKAGE_ROOT = originalPackageRoot
       cliResolver.resolveOpenClawCliPath = originalResolveCli
+      fs.writeFileSync(membershipFile, membershipBefore)
       childProcess.spawn = originalSpawn
       global.fetch = originalFetch
     }
@@ -939,6 +996,8 @@ async function run() {
     })
   })
 
+  ai.generateArchiveTitle = originalTitle
+  opik.traceAgentChat = originalTrace
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
