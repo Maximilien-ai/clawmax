@@ -4,11 +4,19 @@
 
 **Development Line**: 2.0.0
 
-**Last Updated**: October 27, 2026
+**Last Updated**: November 13, 2026
 
-**Status**: `v1.9.9` remains stable. RC94 images were published from `326f2684`; later source fixes landed on main through PR #291. The active RC95 source preview is on `integration/rc95-daniyar` in draft PR #304 and has no release image yet. Independent acceptance, candidate CI and the recorded security gate remain open. See the [RC95 preview acceptance](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md). Older installed-instance gates remain in their dated release records.
+**Status**: `v1.9.9` remains stable. #227 is accepted and merged on main as
+`9ad021b0`, after final CI and 574/574 local chat-source checks. RC98 has not been
+cut. CI updates #294 (`2f62920a`), #297 (`5ebca2ad`) and #295 (`4e4c11ef`)
+are merged after green checks. #300 is locally validated and awaits refreshed CI. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
+while limiting workflow/docs-only changes to focused validation. Current work is the [dependency maintenance queue](planning/DEPENDABOT_2026-11-13.md),
+with initial classification of all 107 starting issues complete (#273 closed,
+106 remain open, none unlabelled). Current-source closure and feedback-topic
+verification remain. Installed/provider, security and final
+public/private image validation remain open; no new deployment is claimed.
 
-## RC95 source preview on October 27
+## Historical RC95 source preview on October 27
 
 [Draft PR #304](https://github.com/Maximilien-ai/clawmax/pull/304) combines 13 of
 Daniyar's 17 reviewed PRs (all eight new #320–#327 included) on `integration/rc95-daniyar`, with four held for

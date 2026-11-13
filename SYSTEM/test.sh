@@ -884,6 +884,14 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Workflow deletion recovery tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/workflowDeletion.test.ts; then
+  pass "Workflow deletion recovery tests"
+else
+  fail "Workflow deletion recovery tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent loading helper unit tests...${NC}"
 if npx ts-node --transpileOnly client/src/lib/agentReadiness.test.ts; then
   pass "Agent readiness warning tests"
@@ -1078,12 +1086,21 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Workspace budget client tests...${NC}"
-npx ts-node --transpileOnly client/src/lib/workspaceBudget.test.ts > /tmp/clawmax-workspace-budget-client.out 2>&1 || true
-if grep -q "Workspace budget client tests passed" /tmp/clawmax-workspace-budget-client.out; then
-  pass "Workspace budget client tests (8 assertions)"
+if npx ts-node --transpileOnly client/src/lib/workspaceBudget.test.ts > /tmp/clawmax-workspace-budget-client.out 2>&1 && grep -q "Workspace budget client tests passed" /tmp/clawmax-workspace-budget-client.out; then
+  workspace_budget_cases=$(grep -o '[0-9]\+ cases' /tmp/clawmax-workspace-budget-client.out | tail -1)
+  pass "Workspace budget client tests (${workspace_budget_cases:-count unavailable})"
 else
   cat /tmp/clawmax-workspace-budget-client.out
   fail "Workspace budget client tests"
+fi
+
+echo -e "${YELLOW}→ Running Workspace budget loading tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/workspaceBudgetLoad.test.ts > /tmp/clawmax-workspace-budget-load.out 2>&1 && grep -q "Workspace budget loading tests passed" /tmp/clawmax-workspace-budget-load.out; then
+  workspace_budget_load_cases=$(grep -o '[0-9]\+ cases' /tmp/clawmax-workspace-budget-load.out | tail -1)
+  pass "Workspace budget loading tests (${workspace_budget_load_cases:-count unavailable})"
+else
+  cat /tmp/clawmax-workspace-budget-load.out
+  fail "Workspace budget loading tests"
 fi
 
 echo -e "${YELLOW}→ Running Workspace scope edge-case unit tests...${NC}"
@@ -1857,6 +1874,22 @@ else
   fail "Workspace file mention edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent chat history reconciliation unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/agentChatHistory.test.ts > /tmp/clawmax-agent-chat-history.out 2>&1; then
+  pass "Agent chat history reconciliation unit tests ($(grep -c '^✓ ' /tmp/clawmax-agent-chat-history.out) tests)"
+else
+  cat /tmp/clawmax-agent-chat-history.out
+  fail "Agent chat history reconciliation unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Dashboard conversation persistence tests...${NC}"
+if npx ts-node --transpileOnly server/lib/dashboard-chat-conversations.test.ts > /tmp/clawmax-conversation-record.out 2>&1 && grep -Eq 'dashboard-chat-conversations.test.ts: [1-9][0-9]* tests passed' /tmp/clawmax-conversation-record.out; then
+  pass "Dashboard conversation persistence tests ($(grep -c '^✓ ' /tmp/clawmax-conversation-record.out) tests)"
+else
+  cat /tmp/clawmax-conversation-record.out
+  fail "Dashboard conversation persistence tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace doc navigation helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceDocNavigation.test.ts > /tmp/clawmax-workspace-doc-navigation.out 2>&1 || true
 if grep -q "workspaceDocNavigation.test.ts:" /tmp/clawmax-workspace-doc-navigation.out; then
@@ -2478,9 +2511,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Prompt quality scoring unit tests...${NC}"
-npx ts-node --transpileOnly client/src/lib/promptQuality.test.ts > /tmp/clawmax-prompt-quality.out 2>&1 || true
-if grep -q "promptQuality.test.ts: 12 tests passed" /tmp/clawmax-prompt-quality.out; then
-  pass "Prompt quality scoring unit tests (12 tests)"
+npx ts-node --transpileOnly client/src/lib/promptQuality.test.ts > /tmp/clawmax-prompt-quality.out 2>&1
+prompt_quality_status=$?
+if [ "$prompt_quality_status" -eq 0 ] && grep -Eq "promptQuality.test.ts: [1-9][0-9]* tests passed" /tmp/clawmax-prompt-quality.out; then
+  prompt_quality_count=$(sed -n 's/.*promptQuality.test.ts: \([0-9][0-9]*\) tests passed.*/\1/p' /tmp/clawmax-prompt-quality.out | tail -n 1)
+  pass "Prompt quality scoring unit tests (${prompt_quality_count} tests)"
 else
   cat /tmp/clawmax-prompt-quality.out
   fail "Prompt quality scoring unit tests"
@@ -2731,7 +2766,7 @@ if node "$SYSTEM_DIR/patch-openclaw-roster-removal.test.mjs"; then
 else
   fail "OpenClaw explicit roster-removal patch"
 fi
-for template_suite in server/lib/portable-template-zip.test.ts server/lib/portable-template.test.ts server/routes/instance-templates.test.ts server/routes/instance-template-lifecycle.test.ts server/routes/host-agent-skill-authority.test.ts server/routes/dev-host-skill-chat.test.ts server/lib/host-agent-skill-client.test.ts server/lib/template-host-skill-tool.test.ts server/lib/template-service-platform.test.ts server/lib/dev-host-skill-agent.test.ts server/lib/messages-workspace-isolation.test.ts server/lib/messages-archive-boundary.test.ts server/lib/workspace-file-transaction.test.ts server/lib/template-revisions.test.ts server/lib/template-resource-graph.test.ts server/lib/template-resource-files.test.ts server/lib/template-skill-package.test.ts server/lib/template-agent-auth.test.ts server/lib/template-community.test.ts server/lib/template-authority.test.ts server/lib/template-authority-revalidation.test.ts server/lib/template-host-skill-inspection.test.ts server/lib/template-gateway-transaction.test.ts server/lib/template-apply-coordinator.test.ts server/lib/workspace-agent-registration.test.ts server/lib/workspace-recovery-admission.test.ts server/lib/template-recovery-worker.test.ts server/lib/recovery-serving-gate.test.ts server/lib/recovery-serving-http.test.ts; do
+for template_suite in server/lib/portable-template-zip.test.ts server/lib/portable-template.test.ts server/routes/instance-templates.test.ts server/routes/instance-template-lifecycle.test.ts server/routes/host-agent-skill-authority.test.ts server/routes/dev-host-skill-chat.test.ts server/lib/host-agent-skill-client.test.ts server/lib/template-host-skill-tool.test.ts server/lib/template-service-platform.test.ts server/lib/dev-host-skill-agent.test.ts server/lib/messages-workspace-isolation.test.ts server/lib/message-storage-isolation.test.ts server/routes/channel-routing-isolation.test.ts server/lib/messages-archive-boundary.test.ts server/lib/workspace-file-transaction.test.ts server/lib/template-revisions.test.ts server/lib/template-resource-graph.test.ts server/lib/template-resource-files.test.ts server/lib/template-skill-package.test.ts server/lib/template-agent-auth.test.ts server/lib/template-community.test.ts server/lib/template-authority.test.ts server/lib/template-authority-revalidation.test.ts server/lib/template-host-skill-inspection.test.ts server/lib/template-gateway-transaction.test.ts server/lib/template-apply-coordinator.test.ts server/lib/workspace-agent-registration.test.ts server/lib/workspace-recovery-admission.test.ts server/lib/template-recovery-worker.test.ts server/lib/recovery-serving-gate.test.ts server/lib/recovery-serving-http.test.ts; do
   if npx ts-node --transpileOnly "$template_suite" > /tmp/clawmax-portable-template-suite.out 2>&1; then
     pass "Portable Template contract: $template_suite"
   else
@@ -3021,17 +3056,14 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Dashboard env unit tests...${NC}"
-if [ "$SKIP_CI_QUARANTINED_TESTS" = "true" ]; then
-  warn "Skipping Dashboard env unit tests in required CI lane (still covered locally and in quarantined CI)"
+dashboard_env_status=0
+npx ts-node --transpileOnly server/lib/dashboard-env.test.ts > /tmp/clawmax-dashboard-env.out 2>&1 || dashboard_env_status=$?
+if [ "$dashboard_env_status" -eq 0 ] && grep -q "TEST_RESULT: PASS" /tmp/clawmax-dashboard-env.out; then
+  dashboard_env_count=$(grep "Tests passed:" /tmp/clawmax-dashboard-env.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Dashboard env unit tests (${dashboard_env_count:-?} tests)"
 else
-  dashboard_env_output="$(npx ts-node --transpileOnly server/lib/dashboard-env.test.ts 2>&1 || true)"
-  printf '%s\n' "$dashboard_env_output" > /tmp/clawmax-dashboard-env.out
-  if printf '%s\n' "$dashboard_env_output" | grep -q "TEST_RESULT: PASS"; then
-    dashboard_env_count=$(grep "Tests passed:" /tmp/clawmax-dashboard-env.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
-    pass "Dashboard env unit tests (${dashboard_env_count:-?} tests)"
-  else
-    fail "Dashboard env unit tests"
-  fi
+  cat /tmp/clawmax-dashboard-env.out
+  fail "Dashboard env unit tests"
 fi
 
 echo -e "${YELLOW}→ Running offline on-prem backup contract tests...${NC}"
@@ -3611,9 +3643,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Workflow cron command security tests...${NC}"
-npx ts-node --transpileOnly server/lib/workflow-cron-security.test.ts > /tmp/clawmax-workflow-cron-security.out 2>&1 || true
-if grep -q "workflow-cron-security.test.ts: 17 tests passed" /tmp/clawmax-workflow-cron-security.out; then
-  pass "Workflow cron command security tests (17 tests)"
+npx ts-node --transpileOnly server/lib/workflow-cron-security.test.ts > /tmp/clawmax-workflow-cron-security.out 2>&1
+workflow_cron_security_status=$?
+if [ "$workflow_cron_security_status" -eq 0 ] && grep -Eq "workflow-cron-security.test.ts: [1-9][0-9]* tests passed" /tmp/clawmax-workflow-cron-security.out; then
+  workflow_cron_security_count=$(sed -n 's/.*workflow-cron-security.test.ts: \([0-9][0-9]*\) tests passed.*/\1/p' /tmp/clawmax-workflow-cron-security.out | tail -n 1)
+  pass "Workflow cron command security tests (${workflow_cron_security_count} tests)"
 else
   cat /tmp/clawmax-workflow-cron-security.out
   fail "Workflow cron command security tests"
@@ -3763,6 +3797,15 @@ if grep -q "All tests passed" /tmp/clawmax-workflow-routes.out; then
   pass "Workflow test total (${workflow_total} tests across lib + routes)"
 else
   fail "Workflow routes unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Workflow run secret persistence tests...${NC}"
+if npx ts-node --transpileOnly server/lib/workflow-execution-secrets.test.ts > /tmp/clawmax-workflow-execution-secrets.out 2>&1 && grep -q "Workflow run secret tests passed:" /tmp/clawmax-workflow-execution-secrets.out; then
+  workflow_secret_count=$(sed -n 's/^Workflow run secret tests passed: //p' /tmp/clawmax-workflow-execution-secrets.out | tail -1)
+  pass "Workflow run secret persistence tests (${workflow_secret_count:-?} cases)"
+else
+  cat /tmp/clawmax-workflow-execution-secrets.out
+  fail "Workflow run secret persistence tests"
 fi
 
 echo -e "${YELLOW}→ Running Workflow lifecycle safety tests...${NC}"
@@ -5901,6 +5944,16 @@ else
 fi
 
 # Step 7: Test group message
+if [ "$BYOK_JSON" != "{}" ]; then
+  echo -e "${YELLOW}→ Testing real agent conversation lifecycle...${NC}"
+  if CLAWMAX_LIFECYCLE_TEST_WORKSPACE="$SYSTEM_TEST_WS" CLAWMAX_LIFECYCLE_TEST_BYOK="$BYOK_JSON" CLAWMAX_LIFECYCLE_TEST_AUTH="$DASHBOARD_AUTH" node "$SYSTEM_DIR/test-chat-lifecycle.cjs" "$API_BASE" > /tmp/clawmax-live-chat-lifecycle.out 2>&1; then
+    pass "Live chat Clear/History/Continue context"
+  else
+    cat /tmp/clawmax-live-chat-lifecycle.out
+    fail "Live chat Clear/History/Continue context"
+  fi
+fi
+
 echo -e "${YELLOW}→ Testing group messaging...${NC}"
 group_msg=$(apicurl -X POST "$API_BASE/api/groups/Test%20Chat/messages" \
   -H 'Content-Type: application/json' \
@@ -5910,6 +5963,77 @@ if echo "$group_msg" | jq -e '.ok == true' > /dev/null 2>&1; then
   pass "Group message sent"
 else
   warn "Group message may not be supported via this endpoint"
+fi
+
+# Exercise the real runtime: distinct near-colliding group names and a same-named
+# community must keep replies scoped after native CLI execution completes.
+echo -e "${YELLOW}→ Testing live channel reply isolation...${NC}"
+if [ "$BYOK_JSON" = "{}" ]; then
+  warn "Live channel reply isolation skipped (no explicit integration provider credentials)"
+else
+isolation_community=$(apicurl -X POST "$API_BASE/api/communities" -H 'Content-Type: application/json' \
+  -d '{"name":"Isolation Live","description":"Synthetic channel-isolation check","members":["test-agent1"],"tags":["system-test"]}' 2>/dev/null)
+isolation_group_a=$(apicurl -X POST "$API_BASE/api/groups" -H 'Content-Type: application/json' \
+  -d '{"name":"Isolation Live","description":"Synthetic alpha history","members":["test-agent1"],"community":"Isolation Live","tags":["system-test"]}' 2>/dev/null)
+isolation_group_b=$(apicurl -X POST "$API_BASE/api/groups" -H 'Content-Type: application/json' \
+  -d '{"name":"Isolation_Live","description":"Synthetic beta history","members":["test-agent2"],"community":"Isolation Live","tags":["system-test"]}' 2>/dev/null)
+
+wait_for_isolated_channel_reply() {
+  local isolation_kind="$1" isolation_marker="$2" isolation_waited=0 isolation_history
+  while [ "$isolation_waited" -lt 120 ]; do
+    isolation_history=$(apicurl "$API_BASE/api/$isolation_kind/Isolation%20Live/messages" 2>/dev/null)
+    if echo "$isolation_history" | jq -e --arg marker "$isolation_marker" 'any(.messages[]?; .from == "test-agent1" and (.content | contains($marker)))' >/dev/null 2>&1; then
+      return 0
+    fi
+    if echo "$isolation_history" | jq -e 'any(.messages[]?; .from == "test-agent1" and (.content | startswith("**Error:**")))' >/dev/null 2>&1; then
+      return 1
+    fi
+    sleep 1
+    isolation_waited=$((isolation_waited + 1))
+  done
+  return 1
+}
+
+if echo "$isolation_community" | jq -e '.ok == true' >/dev/null 2>&1 \
+  && echo "$isolation_group_a" | jq -e '.ok == true' >/dev/null 2>&1 \
+  && echo "$isolation_group_b" | jq -e '.ok == true' >/dev/null 2>&1; then
+  pass "Disjoint channel-isolation fixtures created"
+  isolation_alpha_marker="CHANNEL_ALPHA_$$"
+  isolation_alpha_payload=$(jq -nc --arg content "Reply with exactly $isolation_alpha_marker" --slurpfile byok <(printf '%s' "$BYOK_JSON") '{content:$content,mentions:["test-agent1"],byok:$byok[0]}')
+  isolation_alpha_send=$(apicurl -X POST "$API_BASE/api/groups/Isolation%20Live/messages" -H 'Content-Type: application/json' -d "$isolation_alpha_payload" 2>/dev/null)
+  if echo "$isolation_alpha_send" | jq -e '.ok == true' >/dev/null 2>&1 && wait_for_isolated_channel_reply groups "$isolation_alpha_marker"; then
+    pass "Live group reply reaches only its addressed channel"
+  else
+    fail "Live group reply did not settle in its addressed channel"
+  fi
+  isolation_beta_history=$(apicurl "$API_BASE/api/groups/Isolation_Live/messages" 2>/dev/null)
+  isolation_council_history=$(apicurl "$API_BASE/api/communities/Isolation%20Live/messages" 2>/dev/null)
+  if echo "$isolation_beta_history" | jq -e '.messages == []' >/dev/null 2>&1 \
+    && echo "$isolation_council_history" | jq -e '.messages == []' >/dev/null 2>&1; then
+    pass "Group reply cannot enter another group or same-named community"
+  else
+    fail "Group reply crossed a channel boundary"
+  fi
+  isolation_council_marker="CHANNEL_COUNCIL_$$"
+  isolation_council_payload=$(jq -nc --arg content "Reply with exactly $isolation_council_marker" --slurpfile byok <(printf '%s' "$BYOK_JSON") '{content:$content,mentions:["test-agent1"],byok:$byok[0]}')
+  isolation_council_send=$(apicurl -X POST "$API_BASE/api/communities/Isolation%20Live/messages" -H 'Content-Type: application/json' -d "$isolation_council_payload" 2>/dev/null)
+  if echo "$isolation_council_send" | jq -e '.ok == true' >/dev/null 2>&1 && wait_for_isolated_channel_reply communities "$isolation_council_marker"; then
+    pass "Live community reply stays in its own history and runtime session"
+  else
+    fail "Live community reply did not settle in its addressed channel"
+  fi
+  isolation_alpha_history=$(apicurl "$API_BASE/api/groups/Isolation%20Live/messages" 2>/dev/null)
+  isolation_beta_history=$(apicurl "$API_BASE/api/groups/Isolation_Live/messages" 2>/dev/null)
+  if echo "$isolation_alpha_history" | jq -e --arg marker "$isolation_council_marker" '.messages | length == 2 and all(.[]; (.content | contains($marker) | not))' >/dev/null 2>&1 \
+    && echo "$isolation_beta_history" | jq -e '.messages == []' >/dev/null 2>&1; then
+    pass "Community execution leaves both group histories unchanged"
+  else
+    fail "Community reply crossed a group-history boundary"
+  fi
+else
+  fail "Channel-isolation fixtures could not be created"
+fi
+
 fi
 
 # Step 8: Test workflow trigger + DAG progression
@@ -6126,7 +6250,7 @@ format_perf_metric() {
 
 echo "Duration: ${INTEGRATION_DURATION}s"
 echo "Model: ${SYSTEM_TEST_MODEL:-openai/gpt-4o-mini}"
-echo "Est. cost: ~$0.01-0.05 (based on ~3 agent calls)"
+echo "Agent calls: approximately 5, including live channel-isolation checks"
 echo "Perf:"
 echo "  Workflow list: $(format_perf_metric "$PERF_WORKFLOW_LIST_MS")"
 echo "  Agent chat round-trip: $(format_perf_metric "$PERF_CHAT_ROUNDTRIP_MS")"
@@ -6157,6 +6281,7 @@ echo "Test Summary"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 total=$((passed + failed))
+echo "Counts below are top-level suite/API checks; individual suite case counts are shown above."
 echo "Total:  $total"
 echo -e "${GREEN}Passed: $passed${NC}"
 echo -e "${RED}Failed: $failed${NC}"

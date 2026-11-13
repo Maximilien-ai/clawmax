@@ -8,6 +8,8 @@ async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-message-archive-boundary-'))
   const previous = process.env.CLAWMAX_TEST_WORKSPACE
   process.env.CLAWMAX_TEST_WORKSPACE = root
+  fs.mkdirSync(path.join(root, 'ORG'), { recursive: true })
+  for (const kind of ['Groups', 'Communities']) fs.writeFileSync(path.join(root, 'ORG', kind.toUpperCase() + '.md'), `# ${kind}\n\n## ${kind}\n\n### team\n\n### teammate\n\n### new-team\n`)
   try {
     for (const [type, subdir] of [
       ['group', 'groups'], ['community', 'communities'], ['direct', 'direct'],
