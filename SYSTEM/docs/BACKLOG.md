@@ -1,39 +1,24 @@
 # Backlog
 
-## November 12 current chat checkpoint
+## November 13 dependency maintenance checkpoint
 
-Existing [PR #227](https://github.com/Maximilien-ai/clawmax/pull/227) addresses
-[#223](https://github.com/Maximilien-ai/clawmax/issues/223): stable history polling,
-private durable conversation selection, fresh contexts after Clear/Reset and exact
-session continuation. Source `09249852` includes merged #242 (`420e35bc`).
-Full local integration/validation/coverage passes **574/574**, zero failures:
-**83.91% statements/lines**, **81.78% branches**, **92.32% functions**. Real
-OpenClaw Clear/History/Continue context checks pass, along with focused contracts,
-desktop/mobile light/dark browser checks, build, server types and lint. Strict
-frontend typing retains 290 baseline diagnostics, zero new normalized patterns.
+#227 is accepted and merged as `9ad021b0`; #223 is closed. Final CI passed and
+exact chat product source `09249852` passed **574/574** local checks. No repeat
+owner acceptance is needed. [Archived chat evidence](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md).
 
-[Current checklist](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md): one human wording
-check at **http://localhost:5180/agents**, **RC98 Chat Acceptance**,
-**`2.0.0-dev.09249852`**. Current-head CI must pass before the owner merges.
-Local CodeQL adds no findings, removes 47 and has none on changed primary lines;
-retained raw findings require disposition before RC98 promotion. RC98 has not been
-cut; no image or installed upgrade is claimed.
+Next are **11 existing Dependabot PRs**, starting **#294 download → #297 upload →
+#295 build**. #294 is refreshed from main and adds a hosted artifact round trip;
+local mirror/image contracts, workflow parsing/shell syntax and server types pass.
+Hosted CI remains required. Refresh each successor after the preceding merge.
+[Maintenance checklist and full queue](planning/DEPENDABOT_2026-11-13.md).
 
-After #227, work through the **11 existing Dependabot PRs** in tested compatible
-batches and give the owner a merge order. Also triage **all 108 open issues**
-(snapshot initially 103 unlabelled). `feedback` is already applied to **63
-confirmed clawmax.ai-linked Dashboard issues**, preserving other labels; full
-issue type/area/priority triage remains open. Archive-inclusive feedback audit:
-**73 reports, 52 open / 21 closed**; every open report has GitHub issue links.
-Audit each separate topic before closure, resolve proven duplicates/already-fixed
-reports, and verify thank-you/future-version notification delivery.
-
-#242 scoring and both thin Builder dividers are accepted and merged, #243 closed,
-and its scoring-only feedback closure/email delivery verified. #413 remains partly
-open for other panels/sidebar. [Archived scoring/resize evidence](planning/RC98_ACCEPTANCE_2026-11-12.md).
-#288/#287 and #417/#404 remain accepted and merged; #404 email delivery still needs
-verification before any duplicate notification. Release engineering and owning-team
-installed/provider gates remain in the current checklist.
+Full issue triage remains open (108-issue snapshot, initially 103 unlabelled).
+`feedback` already labels 63 confirmed intake-linked issues. Last archive-inclusive
+feedback snapshot: 73 reports, 52 open / 21 closed, every open report linked.
+Resolve topics individually, retain unresolved issues and verify future-version
+thank-you notifications. Scoring #243 is closed/notified; #413 remains partially
+open. Stable remains v1.9.9; RC98 has not been cut. The checklist retains all
+release engineering and installed/provider gates.
 
 The following dated checkpoints retain their original evidence and statuses.
 
