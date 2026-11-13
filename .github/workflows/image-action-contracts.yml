@@ -51,13 +51,14 @@ jobs:
             platforms: ['linux/amd64', 'linux/arm64']
           }) + '\n');
           NODE
-      - name: Upload evidence using the current producer
-        uses: actions/upload-artifact@v4
+      - name: Upload evidence using the updated producer
+        uses: actions/upload-artifact@v7
         with:
           name: image-action-contract-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/image-action-contract/source/gcp-mirror-target.json
           if-no-files-found: error
           retention-days: 1
+          archive: true
       - name: Download evidence using the updated consumer
         uses: actions/download-artifact@v8
         with:
