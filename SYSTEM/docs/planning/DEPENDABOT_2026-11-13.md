@@ -15,15 +15,39 @@ evidence and limitations. Stable remains v1.9.9; RC98 has not been cut.
    evidence and read permissions. The normal required test and artifact job must
    both pass before merge. No human product acceptance is needed.
 2. [#297 — upload-artifact v7](https://github.com/Maximilien-ai/clawmax/pull/297):
-   refresh after #294 merges, upgrade the round-trip producer too, and preserve
-   zipped evidence naming/layout. Pending implementation/validation.
+   prepared atop #294 as `a1d447fa`, with all three producers explicitly using
+   `archive: true`. The hosted v7-upload/v8-download round trip passes. Refresh
+   after #294 merges; normal required CI must pass on that fresh head.
 3. [#295 — build-push-action v7](https://github.com/Maximilien-ai/clawmax/pull/295):
-   refresh after preceding merges; verify runner/runtime and build inputs. Pending
-   implementation/validation. No published-image or multiarchitecture claim yet.
+   prepared atop #297 as `3f5debc8`. Hosted synthetic amd64/arm64 scratch-build
+   exports and the artifact round trip pass. Refresh after preceding merges;
+   normal required CI must pass on that fresh head. No release image is published.
 
 Strict branch protection requires a fresh main base and one approving review.
 Refresh the next PR after each merge; this order does not waive that requirement.
 Use existing PRs, without force pushes or blanket merges.
+
+## Prepared update evidence
+
+| PR | Tested source | Hosted action checks | Normal CI |
+| --- | --- | --- | --- |
+| #294 | `02395f29` | [Passed v4 → v8 round trip](https://github.com/Maximilien-ai/clawmax/actions/runs/43391500989) | [Running at checkpoint](https://github.com/Maximilien-ai/clawmax/actions/runs/43391500968) |
+| #297 | `a1d447fa` | [Passed v7 → v8 round trip](https://github.com/Maximilien-ai/clawmax/actions/runs/43392509010) | [Running at checkpoint](https://github.com/Maximilien-ai/clawmax/actions/runs/43392509000) |
+| #295 | `3f5debc8` | [Passed artifact and both build exports](https://github.com/Maximilien-ai/clawmax/actions/runs/43393347135) | [Running at checkpoint](https://github.com/Maximilien-ai/clawmax/actions/runs/43393347089) |
+
+The #295 scratch context contains synthetic JSON only and exports local files;
+it verifies action execution for both platforms without exercising production
+packaging, registry pushes or runtime readiness. Those remain separate RC gates.
+The small hosted jobs are expected under five minutes; the build job has a
+ten-minute timeout. Documentation-only checkpoints require their own normal CI.
+
+Local checks on both updated sources pass the same 7 mirror/evidence tests,
+promotion/packaging contracts, 8 lifecycle assertions and all 8 workflow YAML
+parses. All three v7 upload steps accept the official metadata inputs and preserve
+zip mode. All three v7 build steps use supported inputs and hosted runners; no
+removed summary environment settings are used. New inline shell syntax passes.
+Application source is unchanged from merged main; no additional application
+full-suite or external-provider claim is made for these CI updates.
 
 ## #294 evidence and compatibility
 
