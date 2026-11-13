@@ -9,7 +9,9 @@
 **Status**: `v1.9.9` remains stable. #227 is accepted and merged on main as
 `9ad021b0`, after final CI and 574/574 local chat-source checks. RC98 has not been
 cut. Current work is the [dependency maintenance queue](planning/DEPENDABOT_2026-11-13.md),
-followed by complete issue/feedback triage. Installed/provider, security and final
+with initial classification of all 107 starting issues complete (#273 closed,
+106 remain open, none unlabelled). Current-source closure and feedback-topic
+verification remain. Installed/provider, security and final
 public/private image validation remain open; no new deployment is claimed.
 
 ## Historical RC95 source preview on October 27

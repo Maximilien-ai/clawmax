@@ -12,13 +12,16 @@ local mirror/image contracts, workflow parsing/shell syntax and server types pas
 Hosted CI remains required. Refresh each successor after the preceding merge.
 [Maintenance checklist and full queue](planning/DEPENDABOT_2026-11-13.md).
 
-Full issue triage remains open (108-issue snapshot, initially 103 unlabelled).
-`feedback` already labels 63 confirmed intake-linked issues. Last archive-inclusive
-feedback snapshot: 73 reports, 52 open / 21 closed, every open report linked.
-Resolve topics individually, retain unresolved issues and verify future-version
-thank-you notifications. Scoring #243 is closed/notified; #413 remains partially
-open. Stable remains v1.9.9; RC98 has not been cut. The checklist retains all
-release engineering and installed/provider gates.
+Initial triage is complete for **107 starting open issues**: primary type, area
+and reported-impact priority, preserving existing labels. Dependabot automation
+#273 is verified/closed, leaving **106 open and zero unlabelled**. There are 54
+open feedback-labelled issues; no new provenance was inferred.
+[Full triage table](planning/ISSUE_TRIAGE_2026-11-13.md). Current-source verification,
+proven duplicate/already-fixed closures and per-topic reporter replies remain open
+work. Last feedback audit: 73 reports, 52 open / 21 closed, all open linked; this
+is not a new live intake audit. Scoring #243 is closed/notified; #413 remains partly
+open. Stable remains v1.9.9; RC98 has not been cut. All release engineering and
+installed/provider gates remain in the maintenance checklist.
 
 The following dated checkpoints retain their original evidence and statuses.
 

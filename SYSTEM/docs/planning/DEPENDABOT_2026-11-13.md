@@ -88,12 +88,17 @@ Dashboard owns validation before merge and RC98 inclusion.
 
 ## Feedback, triage and release gates
 
-No new human acceptance tasks are introduced. Continue all-open-issue type/area/
-priority triage (108-issue snapshot, initially 103 unlabelled), then reconcile any
-remaining feedback topics with their issue states and notify reporters accurately.
-`feedback` already labels 63 confirmed intake-linked issues; the last audit found
-73 reports, 52 open and 21 closed, with links on every open report. These are dated
-snapshots, not a claim of a new live intake audit or complete topic resolution.
+No new human acceptance tasks are introduced. Initial type/area/reported-impact
+priority classification is complete for all **107 issues open at audit start**;
+all original labels are preserved. #273 is closed with schema/live-PR evidence,
+leaving **106 open, zero unlabelled**, verified after applying the labels.
+[Complete issue table and limits](ISSUE_TRIAGE_2026-11-13.md).
+
+The 54 open intake-linked issues retain `feedback`; the earlier 63-total provenance
+map is unchanged. The last feedback audit found 73 reports, 52 open and 21 closed,
+with links on every open report. These remain dated snapshots, not a new live
+intake audit or complete topic resolution. Verify current-source closure criteria
+and each separate feedback topic before resolving reports and notifying reporters.
 
 Retain the chat record's RC98 gates: current CI/security dispositions, frontend
 typing baseline, mobile Workflow navigation and late budget-read cancellation
