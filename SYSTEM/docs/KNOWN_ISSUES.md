@@ -1,17 +1,17 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: November 12, 2026
+**Last Updated**: November 13, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
 ## Active Issues
 
-### Agent chat #223/#227 acceptance and current CI
+### Agent chat #223/#227 merged; retained runtime limitations
 
 The [current chat checklist](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md) records
 **574/574** exact-source checks on `09249852`, including real native context
 reset/resumption, focused persistence/polling/runtime contracts and four responsive
-theme runs. One wording judgment and current-head CI remain before the owner merges.
+theme runs. Owner acceptance and final CI are complete; #227 merged as `9ad021b0` and #223 is closed.
 Legacy transcript-only archives cannot promise continuation; a runtime mismatch
 blocks Continue. Actual external Claude/Droid provider execution is not claimed.
 Strict frontend typing retains 290 baseline diagnostics. Same-query CodeQL adds no
