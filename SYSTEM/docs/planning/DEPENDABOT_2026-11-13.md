@@ -77,14 +77,14 @@ full-suite or external-provider claim is made for these CI updates.
 | #296 | Cognee OpenClaw plugin | Compatibility with pinned OpenClaw 2026.9.7 and packaging |
 | #298 | 18 minor/patch packages | Lockfile, dependency audit, types/build and affected tests |
 | #300 | Archiver types major | Merged `2337cd96` after [full required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43403233466) and CodeQL passed on `93ad6e1a` |
-| #301 | c8 major | Coverage runner, output and failure propagation |
-| #299 | concurrently major | Prepared `c784ddf4`: 12 launcher cases, lint/server types/build/audit pass; current CI pending |
+| #301 | c8 major | Prepared `103472b1`: five coverage contracts pass on c8 v11/v12; lint/types/build/audit pass; full current CI pending |
+| #299 | concurrently major | Merged `4dffd39c` after [required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43445911233) and CodeQL passed on `7b479c73` |
 | #303 | dotenv major | Env precedence, credential parsing and cold-start isolation |
 | #302 | react-markdown major | Markdown rendering/security, chat/docs and responsive views |
 
 #300 is complete. Its Archiver runtime remains v8, now matched by the v8 types.
 
-Next #299 is refreshed onto `2337cd96` in isolated
+Completed #299 was refreshed onto `2337cd96` in isolated
 `/private/tmp/clawmax-dependency-299`. Installed concurrently **10.0.6** was tested
 with Node **24.19.0** (upstream requires Node >=22); production lock entries are
 unchanged. The repository uses the CLI with explicit comma-separated names and
@@ -99,8 +99,24 @@ No live provider calls or full local Dashboard-suite rerun was required for thes
 focused checks; required current-head CI still selects full validation for this
 dependency/shared-helper diff. Normal duration is approximately 43 minutes.
 
-No manual product acceptance is needed. #299 must stay unmerged until CI passes.
-The other six updates remain pending; order can change with compatibility findings.
+#299 merged as `4dffd39c` after its required CI and CodeQL passed.
+
+Next #301 is refreshed onto that main in isolated `/private/tmp/clawmax-dependency-301`.
+Its c8 v12 lockfile retains the merged types/launcher updates and leaves production
+lock entries unchanged. Node 24.19.0 satisfies the stricter yargs requirement;
+the project's declared Node >=22.19.0 range remains compatible.
+[Upstream c8 release notes](https://github.com/bcoe/c8/releases/tag/v12.0.0).
+
+[Five coverage contracts](../../coverage-tool.test.mjs) pass against both installed
+c8 11.0.0 and 12.0.0: Bash/nested Node collection, text/JSON/HTML reporters,
+unexecuted-file inclusion, preserved failure exit code 7, failing branch thresholds
+and TypeScript source maps. The suite is registered as a distinct required test.
+Lint, server types, production build, test-runner syntax and the unchanged audit
+policy pass. Required CI still runs the full runner with the new collector; no
+extra local live-provider run or release readiness is claimed.
+
+No manual product acceptance is needed. #301 stays unmerged until current CI passes.
+The other five updates remain pending; order can change with compatibility findings.
 
 Dashboard owns validation before merge and RC98 inclusion.
 
