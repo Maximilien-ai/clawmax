@@ -46,9 +46,9 @@ jobs:
         if: steps.scope.outputs.dashboard == 'false'
         run: |
           node --test SYSTEM/mirror-gcp-image.test.mjs SYSTEM/mirror-gcp-target.test.mjs
-          sh SYSTEM/promote-tested-image.test.sh
-          sh SYSTEM/dockerfile-openclaw-builder.test.sh
-          sh SYSTEM/container-agent-lifecycle-smoke.test.sh
+          bash SYSTEM/promote-tested-image.test.sh
+          bash SYSTEM/dockerfile-openclaw-builder.test.sh
+          bash SYSTEM/container-agent-lifecycle-smoke.test.sh
 
       - name: Install OpenClaw CLI
         if: steps.scope.outputs.dashboard != 'false'

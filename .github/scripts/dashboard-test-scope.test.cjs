@@ -108,4 +108,10 @@ test('CI retains its required job, unconditional security audit and default-full
   assert.match(block('Reject high and critical dependency advisories'), /npm run security:audit/)
   assert.doesNotMatch(block('Validate test selection'), /\n\s+if:/)
   assert.match(block('Validate automation and image contracts'), /if: steps\.scope\.outputs\.dashboard == 'false'/)
+  for (const match of block('Validate automation and image contracts').matchAll(/^\s+(sh|bash) (SYSTEM\/[^\s]+\.sh)$/gm)) {
+    const source = fs.readFileSync(path.join(__dirname, '../..', match[2]), 'utf8')
+    if (/^#![^\n]*\bbash\b/.test(source)) {
+      assert.equal(match[1], 'bash', `${match[2]} requires Bash, including on Linux where sh is dash`)
+    }
+  }
 })
