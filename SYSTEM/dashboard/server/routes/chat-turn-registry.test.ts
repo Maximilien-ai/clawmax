@@ -67,6 +67,8 @@ function makeSseRes() {
   const done = new Promise<void>((resolve) => { resolveDone = resolve })
   return {
     statusCode: 200,
+    status(code: number) { this.statusCode = code; return this },
+    json(body: any) { events.push({ type: 'rejected', data: body }); this.end(); return this },
     writeHead() { return this },
     flushHeaders() {},
     write(chunk: string) {
@@ -358,6 +360,54 @@ async function run() {
         if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
         else process.env.CLAWMAX_TEST_WORKSPACE = previousWorkspace
         fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  await test('Claude and Droid Clear/Continue retain the native CLI session identity across requests', async () => {
+    await withScratchHome(async home => {
+      const previousWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+      const workspace = path.join(home, 'runtime-workspace')
+      fs.mkdirSync(workspace)
+      process.env.CLAWMAX_TEST_WORKSPACE = workspace
+      try {
+        for (const runtime of ['claude', 'droid']) {
+          const agentId = `runtime-context-${runtime}`
+          const model = 'anthropic/claude-sonnet-4-20250514'
+          const seen: string[] = []
+          await withModuleOverrides(agentExecutionModulePath, {
+            resolveAgentExecutionConfig: () => ({ workspace: path.join(workspace, 'AGENTS', agentId), model, provider: 'anthropic', runtime }),
+            deriveWorkspaceRootFromAgentWorkspace: () => workspace,
+          }, () => withModuleOverrides(workspaceIntegrationsModulePath, { readWorkspaceIntegrationConfig: () => ({}), hasWorkspaceManagedPartnerSecrets: () => false },
+            () => withModuleOverrides(safeEnvModulePath, { userExecutionEnv: () => ({ ANTHROPIC_API_KEY: 'sk-test' }) },
+              () => withModuleOverrides(agentRuntimeModulePath, {
+                buildRuntimePlan: () => ({ cliPath: 'synthetic-runtime', args: [], streamsDeltas: false }),
+                executeAgentRuntimeTurn: async (options: any) => {
+                seen.push(options.scopedSessionId)
+                options.onPlan({ cliPath: 'synthetic-runtime', args: [] })
+                return { text: 'Runtime fixture response', errorText: '' }
+              } }, async () => {
+                const conversations = require('../lib/dashboard-chat-conversations')
+                const seed = `agent:${agentId}:dashboard-chat`
+                const turn = async () => {
+                  const res = makeSseRes()
+                  await Promise.all([getRouteHandler('post', '/:id/chat')(makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: seed }, on() {} }), res), res.done])
+                  await waitForActiveTurnCount(0)
+                  assert(res.events.some(event => event.type === 'complete' && event.data?.text === 'Runtime fixture response'), JSON.stringify(res.events))
+                }
+                await turn()
+                const first = seen[0]
+                const cleared = conversations.startNewDashboardConversation(agentId, { sessionId: first, seed, runtime })
+                await turn()
+                assert.notStrictEqual(seen[1], first, `${runtime}: Clear must use a fresh CLI session`)
+                conversations.resumeDashboardConversation(agentId, first, { sessionId: seen[1], seed: cleared.activeSeed, runtime })
+                await turn()
+                assert.strictEqual(seen[2], first, `${runtime}: Continue must resume the original CLI session`)
+              }))))
+        }
+      } finally {
+        if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+        else process.env.CLAWMAX_TEST_WORKSPACE = previousWorkspace
       }
     })
   })

@@ -203,7 +203,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, agentG
   const [isListening, setIsListening] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [showArchives, setShowArchives] = useState(false)
-  // `conversation`: a chat ended by Clear that OpenClaw keeps; Continue resumes it and Delete only
+  // `conversation`: a chat ended by Clear that keeps its runtime context; Continue resumes it and Delete only
   // removes it from History. `archive-file`: a legacy archive, the chat's only copy.
   const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string; active?: boolean; kind?: 'current' | 'conversation' | 'archive-file'; resumable?: boolean }>>([])
   const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: any[]; active?: boolean; resumable?: boolean } | null>(null)

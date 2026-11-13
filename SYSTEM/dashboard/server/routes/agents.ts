@@ -7,7 +7,7 @@ import os from 'os'
 import { streamZipExport } from '../lib/zip-export'
 import { hasNativeChatStore, readNativeChatTranscript, readPersistedChatTranscript } from '../lib/native-chat-history'
 import { listAgents, getActiveAgentLifecycleGeneration, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
-import { defaultDashboardChatSeed, forgetEndedDashboardConversation, readDashboardChatConversations, resumeDashboardConversation, setEndedDashboardConversationTitle, startNewDashboardConversation } from '../lib/dashboard-chat-conversations'
+import { defaultDashboardChatSeed, forgetEndedDashboardConversation, readDashboardChatConversations, resumeDashboardConversation, setEndedDashboardConversationTitle, startNewDashboardConversation, type EndedDashboardConversation } from '../lib/dashboard-chat-conversations'
 import { generateAgentFiles, generateAgentMeta, generateArchiveTitle, withGenerationAttribution, withGenerationRuntimePin } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning, probeGatewayResponsive } from '../lib/gateway-rpc'
@@ -229,14 +229,6 @@ function isAgentDurablyRegistered(agentId: string, expectedWorkspace: string): b
 }
 
 function resetAgentRuntimeForModelChange(agentId: string) {
-  const HOME = process.env.HOME || ''
-  const reset = resetAgentSessionsForModelChange(HOME, agentId, openClawStatePath())
-  if (!reset.ok) {
-    throw new Error(reset.error || `Failed to reset runtime sessions for ${agentId}`)
-  }
-}
-
-function resetAgentRuntimeSessions(agentId: string) {
   const HOME = process.env.HOME || ''
   const reset = resetAgentSessionsForModelChange(HOME, agentId, openClawStatePath())
   if (!reset.ok) {
@@ -3156,12 +3148,10 @@ router.post('/:id/reset-session', (req, res) => {
   if (rejectBusyConversationChange(id, res)) return
 
   try {
-    // Same new conversation as Clear (the old one stays in History), and, as before, every session
-    // file a pre-SQLite OpenClaw left for this agent is archived too. The chat itself is archived
-    // first, like Clear does: a claude/droid transcript lives outside the files moved below.
+    // A fresh server-owned seed resets chat context without moving files referenced by History.
+    // Native and CLI-runtime conversations retain their exact session identity for Continue.
     const HOME = process.env.HOME || ''
     const { ended } = endDashboardChatConversation(id, { archiveLegacyFiles: true })
-    resetAgentRuntimeSessions(id)
     startNewDashboardConversation(id, ended)
     res.json({ ok: true, agentId: id })
   } catch (err: any) {
@@ -3739,12 +3729,12 @@ function isEndedDashboardConversation(agentId: string, sessionId: string): boole
  * a conversation in OpenClaw's own store stays there and is listed in History; one in a legacy store
  * is written to an archive file (unless the caller archives those files itself).
  */
-function endDashboardChatConversation(id: string, options: { archiveLegacyFiles: boolean }): { archived: boolean; ended?: { sessionId: string; seed: string } } {
+function endDashboardChatConversation(id: string, options: { archiveLegacyFiles: boolean }): { archived: boolean; ended?: Omit<EndedDashboardConversation, 'endedAt'> } {
   const actualSessionId = resolveAgentChatSessionId(id)
   if (!actualSessionId) return { archived: false }
-  if (readNativeChatTranscript(id, actualSessionId) !== undefined || (hasNativeChatStore(id) && readRuntimeTranscript(id, actualSessionId).length > 0)) {
+  if (readNativeChatTranscript(id, actualSessionId) !== undefined || readRuntimeTranscript(id, actualSessionId).length > 0) {
     if (readMergedChatSessionMessages(id, actualSessionId).length === 0) return { archived: false }
-    return { archived: true, ended: { sessionId: actualSessionId, seed: readDashboardChatConversations(id).activeSeed } }
+    return { archived: true, ended: { sessionId: actualSessionId, seed: readDashboardChatConversations(id).activeSeed, runtime: resolveAgentExecutionConfig(id).runtime || 'openclaw' } }
   }
   return { archived: options.archiveLegacyFiles && archiveLegacyChatSession(id, actualSessionId) }
 }
@@ -3800,7 +3790,9 @@ router.get('/:id/chat/archives', async (req, res) => {
       : []
 
     // Conversations ended by Clear or Reset Session that stay in OpenClaw's own store.
-    const endedEntries = readDashboardChatConversations(id).ended.flatMap((entry) => {
+    const conversations = readDashboardChatConversations(id)
+    const currentRuntime = resolveAgentExecutionConfig(id).runtime || 'openclaw'
+    const endedEntries = conversations.ended.flatMap((entry) => {
       const messages = readMergedChatSessionMessages(id, entry.sessionId)
       if (messages.length === 0) return []
       return [{
@@ -3872,7 +3864,7 @@ router.get('/:id/chat/archives', async (req, res) => {
     ]
     // An archive file from a pre-SQLite OpenClaw cannot be continued once the agent has the SQLite
     // store: the runtime would start an empty session under it, and the agent would remember none of it.
-    const legacyArchivesResumable = !hasNativeChatStore(id)
+    const legacyArchivesResumable = !hasNativeChatStore(id) && currentRuntime === 'openclaw'
 
     // Check for cached titles
     const titlesPath = path.join(archiveDir, '.titles.json')
@@ -3889,6 +3881,7 @@ router.get('/:id/chat/archives', async (req, res) => {
     const archives = await Promise.all(
       fileInfos.map(async info => {
         const endedSessionId = endedConversationId(info.filename)
+        const endedRuntime = conversations.ended.find(entry => entry.sessionId === endedSessionId)?.runtime
         let title = info.active ? 'Current conversation' : endedSessionId ? info.title : cachedTitles[info.filename]
         if (!info.active && !isUsableArchiveTitle(title)) {
           title = ''
@@ -3910,7 +3903,9 @@ router.get('/:id/chat/archives', async (req, res) => {
           // What Continue and Delete mean differ: an ended conversation is resumed exactly and only
           // leaves the list; an archive file is the conversation's only copy.
           kind: info.active ? 'current' : endedSessionId ? 'conversation' : 'archive-file',
-          resumable: !info.active && (Boolean(endedSessionId) || legacyArchivesResumable),
+          resumable: !info.active && (endedSessionId
+            ? !endedRuntime || endedRuntime === currentRuntime
+            : legacyArchivesResumable),
         }
       })
     )
@@ -4003,6 +3998,10 @@ router.post('/:id/chat/archives/:filename/restore', async (req, res) => {
       if (!isEndedDashboardConversation(id, sessionId)) {
         return res.status(404).json({ error: 'Conversation not found in History' })
       }
+      const originalRuntime = readDashboardChatConversations(id).ended.find(entry => entry.sessionId === sessionId)?.runtime
+      if (originalRuntime && originalRuntime !== (resolveAgentExecutionConfig(id).runtime || 'openclaw')) {
+        return res.status(409).json({ error: 'This conversation belongs to a different runtime. Switch back to its original runtime before continuing.' })
+      }
       const { ended } = endDashboardChatConversation(id, { archiveLegacyFiles: true })
       resumeDashboardConversation(id, sessionId, ended)
       return res.json({ ok: true, sessionId, messages: readMergedChatSessionMessages(id, sessionId) })
@@ -4016,8 +4015,8 @@ router.post('/:id/chat/archives/:filename/restore', async (req, res) => {
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Archive not found' })
     }
-    if (hasNativeChatStore(id)) {
-      return res.status(409).json({ error: 'This chat was saved by an earlier OpenClaw version. You can view or download it, but the agent cannot continue it.' })
+    if (hasNativeChatStore(id) || (resolveAgentExecutionConfig(id).runtime || 'openclaw') !== 'openclaw') {
+      return res.status(409).json({ error: 'You can view or download this saved archive, but its original runtime context cannot be continued.' })
     }
 
     const restoredMessages = parseVisibleChatMessages(fs.readFileSync(filePath, 'utf-8'))

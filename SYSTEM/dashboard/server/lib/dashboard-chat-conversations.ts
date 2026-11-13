@@ -18,6 +18,7 @@ export interface EndedDashboardConversation {
   seed: string
   endedAt: number
   title?: string
+  runtime?: string
 }
 
 export interface DashboardChatConversations {
