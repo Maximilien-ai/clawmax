@@ -1,16 +1,21 @@
-# RC98 chat acceptance — November 12
+# Archived RC98 chat acceptance — November 12
 
 Existing [PR #227](https://github.com/Maximilien-ai/clawmax/pull/227) addresses
 [#223](https://github.com/Maximilien-ai/clawmax/issues/223), part of #214.
 Product/test source: `092498528046d13a1b748f93729a77b0797d4e19`, refreshed from
 merged main `420e35bc`. Stable remains v1.9.9; RC98 has not been cut.
 
-## Your one check
+Owner accepted #227 November 13; it merged as `9ad021b0` and #223 is closed.
+[Acceptance receipt](https://github.com/Maximilien-ai/clawmax/pull/227#issuecomment-6847518580).
+No human checks remain. The source/preview identity below is historical; current
+work is the [dependency maintenance queue](DEPENDABOT_2026-11-13.md).
+
+## Archived human acceptance
 
 Open **http://localhost:5180/agents**, workspace **RC98 Chat Acceptance**, version
 **`2.0.0-dev.09249852`**. Open **Chat Acceptance Inspector**, then Chat.
 
-- [ ] **Clear/History wording is clear:** open Clear and read the confirmation,
+- [x] **Clear/History wording is clear:** open Clear and read the confirmation,
   then Cancel. Open History, select **Example previous conversation — wording
   only**, open Delete and read the confirmation, then Cancel. Clear should explain
   that the current conversation moves to History and a new context starts; Remove
@@ -66,10 +71,9 @@ workspaces remain available. All engineering checks below belong to Dashboard.
   queries or security settings were disabled. Dashboard owns reconciliation of
   retained raw findings with existing dispositions **before RC98 promotion**;
   this is regression evidence, not a complete security audit.
-- [ ] **Engineering merge gate:** current-head [PR checks](https://github.com/Maximilien-ai/clawmax/pull/227/checks)
-  must pass. Product/test CI: [43346353032](https://github.com/Maximilien-ai/clawmax/actions/runs/43346353032).
-  The final documentation-only checkpoint also needs its own CI run. Comparable
-  CI takes about 43 minutes; acceptance can happen while it runs. The owner merges.
+- [x] **Engineering merge gate complete:** final head `5be6371b` passed
+  [CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43348900604), then the
+  owner merged #227. Product-source evidence above remains on `09249852`.
 
 ## Behavior and retained limits
 
