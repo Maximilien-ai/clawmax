@@ -12,6 +12,12 @@ const file = path.join(process.env.CLAWMAX_TEST_WORKSPACE, 'SYSTEM/dashboard-cha
 let passed = 0
 function test(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`) }
 try {
+  test('record paths reject separators, encodings and trailing line breaks', () => {
+    for (const id of ['../outside', 'agent/other', 'agent\\other', '%2e%2e', 'agent\n', 'agent\r', '.']) {
+      assert.throws(() => startNewDashboardConversation(id), /Invalid agent id/)
+    }
+    assert(!fs.existsSync(path.join(root, 'outside.json')))
+  })
   test('recovery metadata survives rereads and preserves ended conversations', () => {
     const current = startNewDashboardConversation('agent', { sessionId: 'older', seed: 'older-seed' })
     rememberDashboardConversationSession('agent', current, 'recovered-session', 'ollama/llama3')

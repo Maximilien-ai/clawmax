@@ -485,7 +485,8 @@ export function synthesizeAgentAiDescription(
 }
 
 function getAgentSessionsDir(agentId: string, homeDir: string = process.env.HOME || ''): string {
-  return path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
+  if (!agentId || /[^a-zA-Z0-9_-]/.test(agentId)) throw new Error('Invalid agent id')
+  return path.join(homeDir, '.openclaw', 'agents', path.basename(agentId), 'sessions')
 }
 
 function getAgentDashboardSessionKey(agentId: string): string {

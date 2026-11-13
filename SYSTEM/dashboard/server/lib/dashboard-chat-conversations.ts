@@ -42,8 +42,8 @@ export function defaultDashboardChatSeed(agentId: string): string {
 const SESSION_ID_RE = /^(?!.*\.\.)[A-Za-z0-9_.-]+$/
 
 function conversationsPath(agentId: string): string {
-  if (!/^[a-zA-Z0-9_-]+$/.test(agentId)) throw new Error('Invalid agent id')
-  return path.join(getWorkspacePath(), 'SYSTEM', 'dashboard-chat', `${agentId}.json`)
+  if (!agentId || /[^a-zA-Z0-9_-]/.test(agentId)) throw new Error('Invalid agent id')
+  return path.join(getWorkspacePath(), 'SYSTEM', 'dashboard-chat', `${path.basename(agentId)}.json`)
 }
 
 /**

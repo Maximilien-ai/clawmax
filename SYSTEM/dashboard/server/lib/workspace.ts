@@ -2606,7 +2606,7 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
   // The dashboard chat record names this agent's conversations: a recreated agent with the same id
   // must not inherit them (dashboard-chat-conversations.ts).
   try {
-    fs.rmSync(path.join(getWorkspacePath(), 'SYSTEM', 'dashboard-chat', `${id}.json`), { force: true })
+    fs.rmSync(path.join(getWorkspacePath(), 'SYSTEM', 'dashboard-chat', `${path.basename(id)}.json`), { force: true })
   } catch (e) {
     errors.push(`Failed to remove dashboard chat record: ${e}`)
   }
