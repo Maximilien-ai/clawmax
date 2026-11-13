@@ -26,6 +26,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -33,7 +35,23 @@ jobs:
           cache: npm
           cache-dependency-path: SYSTEM/dashboard/package-lock.json
 
+      - name: Validate test selection
+        run: node --test .github/scripts/dashboard-test-scope.test.cjs
+
+      - name: Select dashboard validation scope
+        id: scope
+        run: node .github/scripts/dashboard-test-scope.cjs
+
+      - name: Validate automation and image contracts
+        if: steps.scope.outputs.dashboard == 'false'
+        run: |
+          node --test SYSTEM/mirror-gcp-image.test.mjs SYSTEM/mirror-gcp-target.test.mjs
+          sh SYSTEM/promote-tested-image.test.sh
+          sh SYSTEM/dockerfile-openclaw-builder.test.sh
+          sh SYSTEM/container-agent-lifecycle-smoke.test.sh
+
       - name: Install OpenClaw CLI
+        if: steps.scope.outputs.dashboard != 'false'
         run: |
           chmod +x ./SYSTEM/prepare-openclaw-target.sh
           openclaw_bin="$(./SYSTEM/prepare-openclaw-target.sh --print-bin)"
@@ -44,14 +62,17 @@ jobs:
           "$openclaw_bin" --version
 
       - name: Install Claude Code and Factory Droid CLIs
+        if: steps.scope.outputs.dashboard != 'false'
         run: |
           chmod +x ./SYSTEM/install-runtime-clis.sh
           ./SYSTEM/install-runtime-clis.sh
 
       - name: Install jq
+        if: steps.scope.outputs.dashboard != 'false'
         run: sudo apt-get install -y jq
 
       - name: Run setup
+        if: steps.scope.outputs.dashboard != 'false'
         run: ./setup.sh < /dev/null
 
       - name: Reject high and critical dependency advisories
@@ -59,12 +80,15 @@ jobs:
         run: npm run security:audit
 
       - name: Lint and validate developer commands
+        if: steps.scope.outputs.dashboard != 'false'
         run: ./lint.sh
 
       - name: Build dashboard
+        if: steps.scope.outputs.dashboard != 'false'
         run: ./build.sh
 
       - name: Prepare dashboard env
+        if: steps.scope.outputs.dashboard != 'false'
         run: |
           cat > SYSTEM/dashboard/.env <<EOF
           OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}
@@ -76,6 +100,7 @@ jobs:
           EOF
 
       - name: Start dashboard server
+        if: steps.scope.outputs.dashboard != 'false'
         run: |
           cd SYSTEM/dashboard
           npx ts-node server/index.ts > /tmp/clawmax-ci-dashboard.log 2>&1 &
@@ -94,4 +119,5 @@ jobs:
           }
 
       - name: Run tests
+        if: steps.scope.outputs.dashboard != 'false'
         run: ./test.sh --coverage
