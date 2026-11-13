@@ -6,13 +6,24 @@
 
 ## Active Issues
 
-### Prompt-readiness #243/#242 acceptance and CI
+### Agent chat #223/#227 acceptance and current CI
 
-The [November 12 checklist](planning/RC98_ACCEPTANCE_2026-11-12.md) records a
-571/571 full local pass and all-domain browser/scoring evidence for `9132ec6d`.
-The rubric totals 100, retaining advisory behavior and existing thresholds.
-Owner accepted the weighting. The requested prompt-resize follow-up passes focused
-checks on `8e22489d` (thin answer/prompt dividers); current-head CI remains required before merging existing #242.
+The [current chat checklist](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md) records
+**574/574** exact-source checks on `09249852`, including real native context
+reset/resumption, focused persistence/polling/runtime contracts and four responsive
+theme runs. One wording judgment and current-head CI remain before the owner merges.
+Legacy transcript-only archives cannot promise continuation; a runtime mismatch
+blocks Continue. Actual external Claude/Droid provider execution is not claimed.
+Strict frontend typing retains 290 baseline diagnostics. Same-query CodeQL adds no
+findings and removes 47; retained raw findings need Dashboard disposition before
+RC98 promotion. This is not a complete security audit or RC readiness claim.
+
+### Prompt-readiness #243/#242 complete
+
+Scoring weighting and both thin Builder dividers are owner-accepted. #242 merged
+as `420e35bc` after CI passed; #243 is closed. The scoring-only feedback report is
+closed and its thank-you/future-version email was verified sent. Broader #413
+panels/sidebar remain open. [Archived evidence](planning/RC98_ACCEPTANCE_2026-11-12.md).
 
 ### Scheduler #287/#288 merged; retained release boundaries
 

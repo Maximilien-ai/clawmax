@@ -1,36 +1,39 @@
 # Backlog
 
-## November 12 current prompt-readiness checkpoint
+## November 12 current chat checkpoint
 
-Existing [PR #242](https://github.com/Maximilien-ai/clawmax/pull/242), addressing
-[#243](https://github.com/Maximilien-ai/clawmax/issues/243), is refreshed from merged
-main without rewriting contributor history. The rubric now totals 100 in all seven
-domains: domain detail contributes 15 (rules 8/7), with other weights and 80/90
-thresholds unchanged. Scores remain local and advisory.
+Existing [PR #227](https://github.com/Maximilien-ai/clawmax/pull/227) addresses
+[#223](https://github.com/Maximilien-ai/clawmax/issues/223): stable history polling,
+private durable conversation selection, fresh contexts after Clear/Reset and exact
+session continuation. Source `09249852` includes merged #242 (`420e35bc`).
+Full local integration/validation/coverage passes **574/574**, zero failures:
+**83.91% statements/lines**, **81.78% branches**, **92.32% functions**. Real
+OpenClaw Clear/History/Continue context checks pass, along with focused contracts,
+desktop/mobile light/dark browser checks, build, server types and lint. Strict
+frontend typing retains 290 baseline diagnostics, zero new normalized patterns.
 
-Product/test source `9132ec6d` passed **571/571** full local checks, including
-**69 scoring assertions**, 35 integration contracts, six runner failure/count
-cases, production build and server types. Browser checks passed all seven domains
-at desktop/mobile widths in both themes. The headline suite count remains 571;
-existing suites now contain more assertions. Coverage: **83.90% statements/lines**,
-**81.62% branches**, **92.21% functions**. Strict frontend typing retains its
-291-diagnostic baseline with no new patterns.
+[Current checklist](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md): one human wording
+check at **http://localhost:5180/agents**, **RC98 Chat Acceptance**,
+**`2.0.0-dev.09249852`**. Current-head CI must pass before the owner merges.
+Local CodeQL adds no findings, removes 47 and has none on changed primary lines;
+retained raw findings require disposition before RC98 promotion. RC98 has not been
+cut; no image or installed upgrade is claimed.
 
-Owner accepted the weighting November 12. The requested resize follow-up
-`c4ee5caf` keeps the default prompt height, permits dragging shorter/taller, and
-passes four theme/viewport drag checks, focused suites, types, lint and build.
-[Current checklist](planning/RC98_ACCEPTANCE_2026-11-12.md): one optional feel check
-of the two thin answer/prompt dividers (independent mouse/touch/keyboard checks pass on `8e22489d`). Preview: http://localhost:5180/builder, `2.0.0-dev.8e22489d`,
-**RC98 Prompt Readiness Acceptance**. Earlier workspaces remain.
-Full source evidence and security comparison are recorded there; current-head CI
-is required before merge. Local CodeQL adds no findings; its raw baseline still
-needs reconciliation before RC98 promotion. RC98 has not been cut.
+After #227, work through the **11 existing Dependabot PRs** in tested compatible
+batches and give the owner a merge order. Also triage **all 108 open issues**
+(snapshot initially 103 unlabelled). `feedback` is already applied to **63
+confirmed clawmax.ai-linked Dashboard issues**, preserving other labels; full
+issue type/area/priority triage remains open. Archive-inclusive feedback audit:
+**73 reports, 52 open / 21 closed**; every open report has GitHub issue links.
+Audit each separate topic before closure, resolve proven duplicates/already-fixed
+reports, and verify thank-you/future-version notification delivery.
 
-#288 is owner-accepted and merged as `4d3d686a`; #287 is closed. Its final CI and
-acceptance receipts are in the [November 11 record](planning/RC98_ACCEPTANCE_2026-11-11.md).
-#404 is accepted, merged in #417 and closed; its Management feedback is closed
-with a saved thank-you/future-version reply. Email was requested; delivery remains
-unconfirmed. Keep fresh feedback intake, email verification and release gates open.
+#242 scoring and both thin Builder dividers are accepted and merged, #243 closed,
+and its scoring-only feedback closure/email delivery verified. #413 remains partly
+open for other panels/sidebar. [Archived scoring/resize evidence](planning/RC98_ACCEPTANCE_2026-11-12.md).
+#288/#287 and #417/#404 remain accepted and merged; #404 email delivery still needs
+verification before any duplicate notification. Release engineering and owning-team
+installed/provider gates remain in the current checklist.
 
 The following dated checkpoints retain their original evidence and statuses.
 

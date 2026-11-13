@@ -3,7 +3,7 @@
 > Last updated: November 12, 2026
 
 Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
-`v1.9.9`. Start with the [November 12 acceptance and RC98 gates](planning/RC98_ACCEPTANCE_2026-11-12.md).
+`v1.9.9`. Start with the [November 12 chat acceptance and RC98 gates](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md).
 RC98 has not been cut. Earlier RC preview/evidence files below describe their
 original source snapshots, not the current candidate or runtime state.
 
@@ -11,7 +11,8 @@ original source snapshots, not the current candidate or runtime state.
 
 | Document | Description |
 |----------|-------------|
-| [planning/RC98_ACCEPTANCE_2026-11-12.md](planning/RC98_ACCEPTANCE_2026-11-12.md) | Accepted readiness weighting, prompt-resize follow-up, 571-check evidence, browser/security results and remaining RC98 gates |
+| [planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md) | Current #227 wording acceptance, 574-check evidence, CodeQL comparison, feedback and Dependabot/issue-triage queue |
+| [planning/RC98_ACCEPTANCE_2026-11-12.md](planning/RC98_ACCEPTANCE_2026-11-12.md) | Archived, accepted and merged #242 scoring/resize evidence and feedback closure |
 | [planning/RC98_ACCEPTANCE_2026-11-11.md](planning/RC98_ACCEPTANCE_2026-11-11.md) | Accepted and merged scheduler batch: wording receipt, 571-check evidence and retained limitations |
 | [planning/RC98_ACCEPTANCE_2026-11-10.md](planning/RC98_ACCEPTANCE_2026-11-10.md) | Accepted #404 checks, full 570-check evidence, remediated CodeQL and current CI gate, exact dev identity and remaining RC98 gates |
 | [planning/MESSAGE_ISOLATION_404_2026-11-10.md](planning/MESSAGE_ISOLATION_404_2026-11-10.md) | #404 exact-source validation, legacy ownership and feedback status |
