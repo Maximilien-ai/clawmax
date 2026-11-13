@@ -17,9 +17,9 @@ evidence and limitations. Stable remains v1.9.9; RC98 has not been cut.
    unknown changes. Final selector, artifact and CodeQL checks passed; the required
    focused job took **33 seconds**, with Dashboard tests correctly skipped.
 3. [#295 — build-push-action v7](https://github.com/Maximilien-ai/clawmax/pull/295):
-   refreshed after both merges as `9fca78d7`; local selector/image contracts pass.
-   Current-head hosted checks remain the merge gate. Synthetic amd64/arm64 local
-   exports passed on earlier source; no release image is published.
+   **merged** as `4e4c11ef` after final head `5880bb7d` passed required focused
+   CI, artifact transport, both synthetic platform exports and CodeQL. No release
+   image is published.
 
 Strict branch protection requires a fresh main base and one approving review.
 Refresh the next PR after each merge; this order does not waive that requirement.
@@ -31,7 +31,7 @@ Use existing PRs, without force pushes or blanket merges.
 | --- | --- | --- | --- |
 | #294 | `02395f29` | [Passed v4 → v8 round trip](https://github.com/Maximilien-ai/clawmax/actions/runs/43391500989) | [Passed before merge](https://github.com/Maximilien-ai/clawmax/actions/runs/43391500968) |
 | #297 | `c33bfc5f` | [Passed v7 → v8 round trip](https://github.com/Maximilien-ai/clawmax/actions/runs/43399644873) | [Passed before merge](https://github.com/Maximilien-ai/clawmax/actions/runs/43399644860) |
-| #295 | `9fca78d7` plus documentation checkpoint | Local refreshed contracts pass; prior hosted exports passed | [Current-head checks](https://github.com/Maximilien-ai/clawmax/pull/295/checks) required before merge |
+| #295 | `5880bb7d` | [Passed transport and both exports](https://github.com/Maximilien-ai/clawmax/actions/runs/43401590469) | [Passed before merge](https://github.com/Maximilien-ai/clawmax/actions/runs/43401590660) |
 
 The #295 scratch context contains synthetic JSON only and exports local files;
 it verifies action execution for both platforms without exercising production
@@ -82,8 +82,12 @@ full-suite or external-provider claim is made for these CI updates.
 | #303 | dotenv major | Env precedence, credential parsing and cold-start isolation |
 | #302 | react-markdown major | Markdown rendering/security, chat/docs and responsive views |
 
-The #300 source is prepared in isolated `/private/tmp/clawmax-dependency-300`;
-its update changes only the dev types and lockfile, retaining Archiver runtime v8.
+The #300 source is refreshed onto completed main `4e4c11ef` as `dd43578e`, plus
+a documentation checkpoint, in isolated `/private/tmp/clawmax-dependency-300`.
+Its two dependency files are unchanged from locally validated `52c0374f`; the
+Archiver runtime stays v8. Lint, server types, build, audit and five archive suites
+pass. Required current-head CI remains pending; the selector verifies this package
+diff chooses full Dashboard validation. No new live-provider rerun is claimed.
 The other seven remain pending; ordering may change with compatibility findings.
 Dashboard owns validation before merge and RC98 inclusion.
 

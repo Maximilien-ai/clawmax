@@ -7,15 +7,15 @@ exact chat product source `09249852` passed **574/574** local checks. No repeat
 owner acceptance is needed. [Archived chat evidence](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md).
 
 The first dependency batch has **#294 merged `2f62920a`** and **#297 merged
-`5ebca2ad`**, both after green checks. #295 is refreshed for its final hosted gate.
+`5ebca2ad`**, and **#295 merged `4e4c11ef`**, all after green checks.
 CI now uses [affected-path scope](CI_TEST_SCOPE.md): workflow/docs changes run
 focused contracts and the unchanged audit; application/dependency/runtime/shared
 or unknown changes and releases keep full validation. #297's required job took
 33 seconds. No branch-protection checks were bypassed.
 
 Next #300 (Archiver types) is prepared in an isolated checkout: lint, server types,
-build, audit and five ZIP/archive suites pass. Refresh it after #295 merges and
-require its current CI. [Maintenance checklist and full queue](planning/DEPENDABOT_2026-11-13.md).
+build, audit and five ZIP/archive suites pass. It is refreshed onto final main;
+required CI on that current head remains pending. [Maintenance checklist and full queue](planning/DEPENDABOT_2026-11-13.md).
 
 Initial triage is complete for **107 starting open issues**: primary type, area
 and reported-impact priority, preserving existing labels. Dependabot automation
