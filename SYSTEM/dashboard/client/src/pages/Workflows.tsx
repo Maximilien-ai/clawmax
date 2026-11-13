@@ -1,4 +1,5 @@
 import { updateMentionSelection } from '../lib/agentMentions'
+import { deleteWorkflowBatch, requireWorkflowDeletion } from '../lib/workflowDeletion'
 import { loadWorkflowAgents } from '../lib/workflowAgents'
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -1264,7 +1265,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             method: 'DELETE'
           })
 
-          if (!resp.ok) throw new Error('Failed to delete')
+          await requireWorkflowDeletion(resp, 'Failed to delete workflow')
 
           showSuccess(`Deleted workflow "${workflow.name}"`)
           fetchWorkflows()
@@ -1276,7 +1277,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
           setDeleteDialog(null)
         } catch (err) {
-          showError('Failed to delete workflow')
+          showError(err instanceof Error ? err.message : 'Failed to delete workflow')
         }
       }
     })
@@ -1494,22 +1495,24 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       consequences: getWorkflowDeleteConsequences(selectedWorkflowsList, workflows),
       onConfirm: async () => {
         try {
-          await Promise.all(
-            selectedWorkflowsList.map(async workflow => {
-              const resp = await fetch(`/api/workflows/${workflow.id}`, { method: 'DELETE' })
-              if (!resp.ok) throw new Error(`Failed to delete ${workflow.name}`)
-            })
-          )
-          showSuccess(`Deleted ${selectedWorkflowsList.length} workflow${selectedWorkflowsList.length !== 1 ? 's' : ''}`)
-          fetchWorkflows()
-          setSelectedWorkflowIds(new Set())
-          setSelectionMode(false)
-
-          if (selectedWorkflow && selectedWorkflowIds.has(selectedWorkflow.id)) {
+          const result = await deleteWorkflowBatch(selectedWorkflowsList.map(workflow => workflow.id), async id => {
+            const resp = await fetch(`/api/workflows/${id}`, { method: 'DELETE' })
+            await requireWorkflowDeletion(resp, 'Failed to delete workflow')
+          })
+          await fetchWorkflows()
+          const deletedIds = new Set(result.deleted)
+          setSelectedWorkflowIds(new Set(result.failed.map(failure => failure.id)))
+          setSelectionMode(result.failed.length > 0)
+          if (selectedWorkflow && deletedIds.has(selectedWorkflow.id)) {
             setSelectedWorkflow(null)
             setShowDetailPanel(false)
           }
           setDeleteDialog(null)
+          if (result.failed.length) {
+            showError(`${result.failed[0].error} (${result.failed.length} kept; ${result.deleted.length} deleted.)`)
+          } else {
+            showSuccess(`Deleted ${result.deleted.length} workflow${result.deleted.length !== 1 ? 's' : ''}`)
+          }
         } catch (err) {
           showError('Failed to delete workflows')
         }

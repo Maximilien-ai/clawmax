@@ -67,6 +67,8 @@ function makeSseRes() {
   const done = new Promise<void>((resolve) => { resolveDone = resolve })
   return {
     statusCode: 200,
+    status(code: number) { this.statusCode = code; return this },
+    json(body: any) { events.push({ type: 'rejected', data: body }); this.end(); return this },
     writeHead() { return this },
     flushHeaders() {},
     write(chunk: string) {
@@ -249,6 +251,164 @@ async function run() {
         await waitForActiveTurnCount(before)
         assert.strictEqual(activeTurnCount(), before, 'the missingCliError early return must not leak the turn')
       })))))
+    })
+  })
+
+  // The browser names "the dashboard chat", not a session. After Clear (or Continue), the server's
+  // record decides which session a turn runs, so the agent never gets the cleared conversation back.
+  await test('a dashboard chat turn runs the current conversation after Clear and Continue, never the ended one', async () => {
+    await withScratchHome(async (home) => {
+      const workspace = path.join(home, 'workspace')
+      fs.mkdirSync(workspace, { recursive: true })
+      const previousWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+      process.env.CLAWMAX_TEST_WORKSPACE = workspace
+      const agentId = 'conversation-agent'
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-fake-openclaw-'))
+      // Replies with the session it was asked to run.
+      const cli = writeFakeCli(dir, 'openclaw', `
+        process.stdout.write('session=' + process.argv[process.argv.indexOf('--session-id') + 1] + '\\n')
+        process.exit(0)
+      `)
+      try {
+        const conversations = require('../lib/dashboard-chat-conversations')
+        const { scopeSessionIdToModel } = require('../lib/agent-execution')
+        const turn = async () => {
+          const res = makeSseRes()
+          const req = makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: `agent:${agentId}:dashboard-chat` }, on() {} })
+          await Promise.all([getRouteHandler('post', '/:id/chat')(req, res), res.done])
+          const start = res.events.find((e) => e.type === 'start')
+          return { session: String(res.events.find((e) => e.type === 'complete')?.data?.text || '').replace('session=', '').trim(), resume: start?.data?.resumeSessionId }
+        }
+        await withOpenclawReadiness(agentId, {}, () =>
+          withModuleOverrides(openclawCliModulePath, { resolveOpenClawCliPath: () => cli }, async () => {
+            const first = await turn()
+            assert.strictEqual(first.session, scopeSessionIdToModel(`agent:${agentId}:dashboard-chat`, 'ollama/llama3'), 'Before any Clear, the original conversation')
+
+            const cleared = conversations.startNewDashboardConversation(agentId, { sessionId: first.session, seed: `agent:${agentId}:dashboard-chat` })
+            const second = await turn()
+            assert.strictEqual(second.session, scopeSessionIdToModel(cleared.activeSeed, 'ollama/llama3'), 'After Clear, a new session')
+            assert.notStrictEqual(second.session, first.session)
+            assert.strictEqual(second.resume, `agent:${agentId}:dashboard-chat`, 'The panel keeps asking for the dashboard chat, never pinning a conversation')
+
+            conversations.resumeDashboardConversation(agentId, first.session, { sessionId: second.session, seed: cleared.activeSeed })
+            assert.strictEqual((await turn()).session, first.session, 'Continue runs the exact ended session again')
+
+            const other = makeSseRes()
+            await Promise.all([getRouteHandler('post', '/:id/chat')(makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: 'some-other-session' }, on() {} }), other), other.done])
+            assert.match(String(other.events.find((e) => e.type === 'complete')?.data?.text), /session=some-other-session/, 'Other callers keep their own sessions')
+            await waitForActiveTurnCount(0)
+
+            // A Clear can complete during the gateway-readiness await, before the turn is registered.
+            // Revalidate the captured conversation before any CLI can be spawned.
+            let reads = 0
+            await withModuleOverrides(require.resolve('../lib/dashboard-chat-conversations'), {
+              readDashboardChatConversations: () => ({ activeSeed: ++reads === 1 ? 'captured-conversation' : 'replacement-conversation', ended: [] }),
+            }, async () => {
+              const stale = makeSseRes(), before = activeTurnCount()
+              await Promise.all([getRouteHandler('post', '/:id/chat')(makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: `agent:${agentId}:dashboard-chat` }, on() {} }), stale), stale.done])
+              assert(stale.events.some(event => event.type === 'error' && /conversation changed/.test(String(event.data))))
+              assert(!stale.events.some(event => event.type === 'start'), 'Stale context must not start execution')
+              await waitForActiveTurnCount(before)
+              assert.strictEqual(activeTurnCount(), before)
+            })
+          }))
+      } finally {
+        if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+        else process.env.CLAWMAX_TEST_WORKSPACE = previousWorkspace
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  await test('automatic recovery persists the current session and keeps every browser tab on the canonical chat', async () => {
+    await withScratchHome(async home => {
+      const previousWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+      process.env.CLAWMAX_TEST_WORKSPACE = path.join(home, 'workspace')
+      fs.mkdirSync(process.env.CLAWMAX_TEST_WORKSPACE, { recursive: true })
+      const agentId = 'recovered-conversation-agent'
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-recovered-chat-'))
+      const marker = path.join(dir, 'attempted')
+      const cli = writeFakeCli(dir, 'openclaw', `
+        const fs = require('fs')
+        if (!fs.existsSync(${JSON.stringify(marker)})) {
+          fs.writeFileSync(${JSON.stringify(marker)}, 'first attempt')
+          process.stderr.write('session file locked')
+          process.exit(1)
+        }
+        process.stdout.write('session=' + process.argv[process.argv.indexOf('--session-id') + 1] + '\\n')
+      `)
+      try {
+        const conversations = require('../lib/dashboard-chat-conversations')
+        const seed = `agent:${agentId}:dashboard-chat`
+        const turn = async () => {
+          const res = makeSseRes()
+          await Promise.all([getRouteHandler('post', '/:id/chat')(makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: seed }, on() {} }), res), res.done])
+          await waitForActiveTurnCount(0)
+          const session = String(res.events.find(event => event.type === 'complete')?.data?.text || '').replace('session=', '').trim()
+          assert(session, JSON.stringify(res.events))
+          assert(res.events.filter(event => event.type === 'start').every(event => event.data?.resumeSessionId === seed), 'No tab may become pinned to a private recovery seed')
+          return session
+        }
+        await withOpenclawReadiness(agentId, {}, () => withModuleOverrides(openclawCliModulePath, { resolveOpenClawCliPath: () => cli }, async () => {
+          const recovered = await turn()
+          assert.strictEqual(conversations.readDashboardChatConversations(agentId).activeSessionId, recovered)
+          assert.strictEqual(await turn(), recovered, 'A reopened browser follows the recovered runtime context')
+          conversations.startNewDashboardConversation(agentId)
+          assert.notStrictEqual(await turn(), recovered, 'Clear in another tab cannot send a later turn to the old recovered session')
+        }))
+      } finally {
+        if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+        else process.env.CLAWMAX_TEST_WORKSPACE = previousWorkspace
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  await test('Claude and Droid Clear/Continue retain the native CLI session identity across requests', async () => {
+    await withScratchHome(async home => {
+      const previousWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+      const workspace = path.join(home, 'runtime-workspace')
+      fs.mkdirSync(workspace)
+      process.env.CLAWMAX_TEST_WORKSPACE = workspace
+      try {
+        for (const runtime of ['claude', 'droid']) {
+          const agentId = `runtime-context-${runtime}`
+          const model = 'anthropic/claude-sonnet-4-20250514'
+          const seen: string[] = []
+          await withModuleOverrides(agentExecutionModulePath, {
+            resolveAgentExecutionConfig: () => ({ workspace: path.join(workspace, 'AGENTS', agentId), model, provider: 'anthropic', runtime }),
+            deriveWorkspaceRootFromAgentWorkspace: () => workspace,
+          }, () => withModuleOverrides(workspaceIntegrationsModulePath, { readWorkspaceIntegrationConfig: () => ({}), hasWorkspaceManagedPartnerSecrets: () => false },
+            () => withModuleOverrides(safeEnvModulePath, { userExecutionEnv: () => ({ ANTHROPIC_API_KEY: 'sk-test' }) },
+              () => withModuleOverrides(agentRuntimeModulePath, {
+                buildRuntimePlan: () => ({ cliPath: 'synthetic-runtime', args: [], streamsDeltas: false }),
+                executeAgentRuntimeTurn: async (options: any) => {
+                seen.push(options.scopedSessionId)
+                options.onPlan({ cliPath: 'synthetic-runtime', args: [] })
+                return { text: 'Runtime fixture response', errorText: '' }
+              } }, async () => {
+                const conversations = require('../lib/dashboard-chat-conversations')
+                const seed = `agent:${agentId}:dashboard-chat`
+                const turn = async () => {
+                  const res = makeSseRes()
+                  await Promise.all([getRouteHandler('post', '/:id/chat')(makeReq({ params: { id: agentId }, body: { message: 'hi', sessionId: seed }, on() {} }), res), res.done])
+                  await waitForActiveTurnCount(0)
+                  assert(res.events.some(event => event.type === 'complete' && event.data?.text === 'Runtime fixture response'), JSON.stringify(res.events))
+                }
+                await turn()
+                const first = seen[0]
+                const cleared = conversations.startNewDashboardConversation(agentId, { sessionId: first, seed, runtime })
+                await turn()
+                assert.notStrictEqual(seen[1], first, `${runtime}: Clear must use a fresh CLI session`)
+                conversations.resumeDashboardConversation(agentId, first, { sessionId: seen[1], seed: cleared.activeSeed, runtime })
+                await turn()
+                assert.strictEqual(seen[2], first, `${runtime}: Continue must resume the original CLI session`)
+              }))))
+        }
+      } finally {
+        if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+        else process.env.CLAWMAX_TEST_WORKSPACE = previousWorkspace
+      }
     })
   })
 

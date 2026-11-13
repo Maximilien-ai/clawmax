@@ -49,32 +49,32 @@ const DOMAIN_RULES: Record<PromptQualityDomain, Array<{
   suggestion: string
 }>> = {
   agent: [
-    { pattern: /\b(role|agent|assistant|manager|engineer|analyst|researcher|writer|specialist|responsible)\b/i, points: 10, suggestion: 'Name the agent role and its primary responsibility.' },
-    { pattern: /\b(tool|skill|api|access|handoff|communicate|memory|tone|personality|permission)\b/i, points: 10, suggestion: 'Describe needed skills, tools, collaboration, permissions, or tone.' },
+    { pattern: /\b(role|agent|assistant|manager|engineer|analyst|researcher|writer|specialist|responsible)\b/i, points: 8, suggestion: 'Name the agent role and its primary responsibility.' },
+    { pattern: /\b(tool|skill|api|access|handoff|communicate|memory|tone|personality|permission)\b/i, points: 7, suggestion: 'Describe needed skills, tools, collaboration, permissions, or tone.' },
   ],
   skill: [
-    { pattern: /\b(when to use|trigger|use when|agent should|purpose|skill)\b/i, points: 10, suggestion: 'Explain when an agent should use this skill.' },
-    { pattern: /\b(steps?|instructions?|commands?|examples?|errors?|failures?|dependencies|dependency|requirements?|outputs?)\b/i, points: 10, suggestion: 'Specify the steps, expected output, dependencies, and failure behavior.' },
+    { pattern: /\b(when to use|trigger|use when|agent should|purpose|skill)\b/i, points: 8, suggestion: 'Explain when an agent should use this skill.' },
+    { pattern: /\b(steps?|instructions?|commands?|examples?|errors?|failures?|dependencies|dependency|requirements?|outputs?)\b/i, points: 7, suggestion: 'Specify the steps, expected output, dependencies, and failure behavior.' },
   ],
   template: [
-    { pattern: /\b(team|company|organization|agent|role|department|member)\b/i, points: 10, suggestion: 'Define the team or company structure and key roles.' },
-    { pattern: /\b(workflow|handoff|schedule|deliverable|group|community|collaborate|report)\b/i, points: 10, suggestion: 'Describe workflows, handoffs, schedules, and final deliverables.' },
+    { pattern: /\b(team|company|organization|agent|role|department|member)\b/i, points: 8, suggestion: 'Define the team or company structure and key roles.' },
+    { pattern: /\b(workflow|handoff|schedule|deliverable|group|community|collaborate|report)\b/i, points: 7, suggestion: 'Describe workflows, handoffs, schedules, and final deliverables.' },
   ],
   workflow: [
-    { pattern: /\b(trigger|schedule|cron|daily|weekly|when|event|start)\b/i, points: 10, suggestion: 'State what triggers the workflow and how often it runs.' },
-    { pattern: /\b(step|agent|participant|handoff|dependency|blocker|result|complete|output)\b/i, points: 10, suggestion: 'Name participants, ordered steps, dependencies, and completion output.' },
+    { pattern: /\b(trigger|schedule|cron|daily|weekly|when|event|start)\b/i, points: 8, suggestion: 'State what triggers the workflow and how often it runs.' },
+    { pattern: /\b(step|agent|participant|handoff|dependency|blocker|result|complete|output)\b/i, points: 7, suggestion: 'Name participants, ordered steps, dependencies, and completion output.' },
   ],
   plugin: [
-    { pattern: /\b(plugin|guardrail|eval|optimization|record|page|action|setting|provider|integration)\b/i, points: 10, suggestion: 'Name the plugin behavior or record the user is creating.' },
-    { pattern: /\b(scope|target|agent|workflow|permission|capability|history|notification|result|enabled)\b/i, points: 10, suggestion: 'Define targets, permissions, state, and visible results or history.' },
+    { pattern: /\b(plugin|guardrail|eval|optimization|record|page|action|setting|provider|integration)\b/i, points: 8, suggestion: 'Name the plugin behavior or record the user is creating.' },
+    { pattern: /\b(scope|target|agent|workflow|permission|capability|history|notification|result|enabled)\b/i, points: 7, suggestion: 'Define targets, permissions, state, and visible results or history.' },
   ],
   builder: [
-    { pattern: /\b(agent|team|company|template|skill|workflow|existing|reuse|new)\b/i, points: 10, suggestion: 'Clarify whether to create or reuse an agent, team, skill, template, or workflow.' },
-    { pattern: /\b(test|verify|deliverable|result|success|done|output|deploy|run)\b/i, points: 10, suggestion: 'Describe the expected result and how ClawMax should verify it.' },
+    { pattern: /\b(agent|team|company|template|skill|workflow|existing|reuse|new)\b/i, points: 8, suggestion: 'Clarify whether to create or reuse an agent, team, skill, template, or workflow.' },
+    { pattern: /\b(test|verify|deliverable|result|success|done|output|deploy|run)\b/i, points: 7, suggestion: 'Describe the expected result and how ClawMax should verify it.' },
   ],
   general: [
-    { pattern: /\b(who|what|where|when|why|how|user|system|process)\b/i, points: 10, suggestion: 'Add the actor, task, and operating context.' },
-    { pattern: /\b(output|result|deliverable|constraint|success|verify)\b/i, points: 10, suggestion: 'Add the expected result, constraints, and success check.' },
+    { pattern: /\b(who|what|where|when|why|how|user|system|process)\b/i, points: 8, suggestion: 'Add the actor, task, and operating context.' },
+    { pattern: /\b(output|result|deliverable|constraint|success|verify)\b/i, points: 7, suggestion: 'Add the expected result, constraints, and success check.' },
   ],
 }
 
@@ -142,7 +142,7 @@ export function scorePromptQuality(prompt: string, domain: PromptQualityDomain =
       'domain',
       domain === 'general' ? 'Task detail' : `${domain[0].toUpperCase()}${domain.slice(1)} detail`,
       domainEarned,
-      20,
+      15,
       missingDomainRule?.suggestion || domainRules[0].suggestion,
     ),
   ]

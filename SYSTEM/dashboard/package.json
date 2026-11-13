@@ -48,7 +48,7 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
-    "@types/archiver": "^7.0.0",
+    "@types/archiver": "^8.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
@@ -60,7 +60,7 @@
     "@vitejs/plugin-react": "^6.0.4",
     "autoprefixer": "^10.4.17",
     "c8": "^11.0.0",
-    "concurrently": "^8.2.2",
+    "concurrently": "^10.0.6",
     "eslint": "10.10.0",
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",
