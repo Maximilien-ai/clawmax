@@ -3216,6 +3216,12 @@ else
   cat /tmp/clawmax-concurrently-lifecycle.out
   fail "Dev launcher command and process lifecycle tests"
 fi
+if node --test "$SYSTEM_DIR/coverage-tool.test.mjs" > /tmp/clawmax-coverage-tool.out 2>&1; then
+  pass "Coverage tool reports, subprocesses and failure propagation"
+else
+  cat /tmp/clawmax-coverage-tool.out
+  fail "Coverage tool reports, subprocesses and failure propagation"
+fi
 if node "$SYSTEM_DIR/test-isolated-gateway.test.mjs" > /tmp/clawmax-isolated-gateway.out 2>&1; then
   pass "Isolated gateway startup and cleanup tests"
 else
