@@ -21,15 +21,18 @@ on v11/v12. #303 (dotenv and live chat test repair) merged as `cbd1ee68` after
 #302 (react-markdown) merged as `2979a628` after required CI/CodeQL passed and
 the owner merged it. Eight rendering tests and eight browser cases pass on both
 versions; strict frontend typing retains 290 baseline diagnostics with none added.
-Next #384 aligns Node 24.22 Docker and CI pins. Its eleven drift-contract cases
-and four native runtime cases pass, including Linux arm64/amd64 smoke. A ZIP import
-compatibility fix and private skill-test fixtures address failures found by the
-first full run; focused import/security suites pass. The product retest passes
-581/581, but a caller-registry preservation guard exposed broader unit defaults,
-now isolated with a private unit home/workspace and two canary cases. The registry
-preservation retest passed its byte check; the remaining fresh-workspace import
-ordering assumption is fixed and covered. Final complete validation and current-head
-CI remain pending.
+#384 merged as `d9d87c50` after **581/581** final local checks with byte-identical
+operator registry, Linux runtime/build validation and green required CI/CodeQL.
+#298 merged as `a9626631` after **582/582**, browser/PDF checks and green CI/CodeQL;
+main and dependencies are synchronized. The thirteen compatible updates retain
+the existing OpenTelemetry family; #418 tracks a supported migration.
+
+The last Dependabot PR, #296, is under review against pinned OpenClaw 2026.9.7.
+Its scoped Undici patch removes the proposed bundle's High advisory, and its new
+unbound offline capture queue is disabled pending the labelled #419 consent,
+destination-binding and revocation work. Live memory requests are retained.
+Synthetic transport and host-loading checks pass; current CI and Linux package
+checks remain required. Six older product PRs remain after the dependency queue.
 No additional owner acceptance is required for these test/dependency changes.
 [Maintenance checklist and remaining queue](planning/DEPENDABOT_2026-11-14.md).
 

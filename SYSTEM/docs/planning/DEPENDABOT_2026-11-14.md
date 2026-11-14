@@ -112,7 +112,7 @@ Evidence: `/private/tmp/clawmax-384-audit.json`. Dashboard owns lower-severity
 follow-up before stable 2.0; the policy is unchanged and this is not a complete
 security audit.
 
-## Active: #298, compatible minor/patch dependencies
+## Completed: #298, compatible minor/patch dependencies
 
 [Existing PR #298](https://github.com/Maximilien-ai/clawmax/pull/298) incorporates
 main `d9d87c50` without force pushes, retaining the previously merged majors.
@@ -141,13 +141,19 @@ Engineering checklist:
   (333 production, 258 development, 33 optional; categories overlap). Evidence:
   `/private/tmp/clawmax-298-audit.{json,log}`. Dashboard owns lower-severity
   remediation before stable 2.0; this is not a complete security audit.
-- [ ] Desktop/mobile light/dark browser rendering and PDF preview checks.
-- [ ] Full local integration/validation/coverage on the final committed source,
-  disposable runtime and before/after operator-registry preservation guard.
-  Expected duration **12–15 minutes**; expected system groups **582** (one added
-  group contains four runtime cases; group totals are not individual assertions).
-- [ ] Required CI/CodeQL green on the final head, normally **33–43 minutes**.
-- [ ] Fresh main check and merge, then synchronize the primary checkout/dependencies.
+- [x] Eight light/dark desktop/mobile rendering cases and four PDF preview/download
+  checks pass; downloaded PDF is rendered for inspection and document definitions
+  match main. Artifacts: `/private/tmp/clawmax-298-browser/`.
+- [x] Final committed source `175380d0` passed **582/582** local integration,
+  validation and coverage checks; operator registry stayed **byte-identical**.
+  Log: `/private/tmp/clawmax-298-full.log`. Statements/lines 59.06%, branches
+  76.59%, functions 65.51%. The initial 581/582 result identified a stale Vite
+  security assertion; both manifest and lock assertions now enforce 8.3.5.
+- [x] [Required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43601839058)
+  and [CodeQL](https://github.com/Maximilien-ai/clawmax/actions/runs/43601835831)
+  passed on `175380d0`. CI took **26 minutes 39 seconds**.
+- [x] Merged as `a96266315ba248f8286be647be1a17cf277030ac`; main and installed
+  dependencies synchronized, clean working tree.
 
 Exact installed updates: `@types/ws` 8.18.2, cronstrue 3.39.0,
 express-rate-limit 8.7.4, marked 18.1.1, node-cron 4.6.0, pdfmake 0.3.13,
@@ -155,11 +161,64 @@ ws 8.23.0, TypeScript ESLint parser 8.72.0, React Vite plugin 6.3.0,
 autoprefixer 10.6.2, ESLint 10.13.0, PostCSS 8.5.33 and Vite 8.3.5.
 Focused logs: `/private/tmp/clawmax-298-{lock,install,tree,lint,build,focused}.*`.
 
+## Active: #296, optional-memory package compatibility
+
+[Existing PR #296](https://github.com/Maximilien-ai/clawmax/pull/296) is refreshed
+onto merged main `a9626631`, without force pushes. Dependency checkpoint
+`cb2acb75` pins the partner package to **2026.10.13**, with a scoped **Undici
+7.30.1** override. The lock follows the existing Docker install policy
+(`--omit=dev --ignore-scripts --legacy-peer-deps`), containing only two installed
+packages instead of introducing a second OpenClaw runtime via peers. The host
+remains **OpenClaw 2026.9.7** on **Node 24.22.0**.
+
+The upgrade's new offline capture queue has no destination/affected-user consent
+binding. `8591c370` disables that new retention/replay path in the image-owned
+package with an exact-version, fail-closed patch. Live requests are preserved;
+failed captures clearly report that they cannot be buffered. Existing pending
+files are neither read/replayed nor deleted. The mitigation is idempotent and
+refuses unexpected package versions, consumers or queue implementations.
+[Security follow-up #419](https://github.com/Maximilien-ai/clawmax/issues/419)
+tracks destination/user/consent binding, immediate revocation, private durable
+storage and legacy recovery before offline retention may be enabled. Dashboard
+owns this gate; no broader egress or manually installed plugin certification is
+claimed.
+
+Engineering checklist; **no Dashboard UI acceptance is required**:
+
+- [x] Clean locked install, raw production audit and inactive discovery on pinned
+  OpenClaw pass in synthetic HOME/config/state. Initial two-package audit exits 1
+  with **1 High / 1 Moderate** package finding. The scoped patch exits 0 with
+  **zero findings** across two installed dependencies (three production inventory
+  entries including root). Logs: `/private/tmp/clawmax-296-{baseline-audit,
+  patched-audit}.json`, `clawmax-296-install.log`. This is a bundle-specific audit,
+  not a complete security review. Dashboard's separate 4 Low/10 Moderate baseline
+  remains owned before stable 2.0.
+- [x] Seven CI-scope guards and eight real bundle transport/hardening cases pass
+  on macOS Node 24.22: credential refusal before HTTP, multipart bytes through
+  patched Undici, JSON/status errors, abort/disconnect settlement, no retention
+  or replay, unchanged legacy bytes and fail-closed patching. Required CI now
+  unconditionally installs, audits, hardens and tests the optional bundle.
+- [x] Actual plugin registration loads in the pinned runtime's memory slot with
+  synthetic credentials, all capture/recall disabled and external fetch blocked;
+  status `loaded`, no loader error. This proves SDK compatibility, not live
+  provider readiness. Evidence: `/private/tmp/clawmax-296-activation/`.
+- [x] Docker packaging/pin contracts and container-entrypoint fixtures pass.
+  Dashboard source and dependency files are byte-identical to merged #298, so
+  its **582/582** full local result is reused. No repeat local Dashboard suite or
+  browser audit is needed for this package-only change.
+- [ ] Focused Linux arm64/amd64 bundle builds and transport/hardening checks.
+  Expected **2–3 minutes** with cached Node bases; no provider/user data enters
+  these containers. These are local package probes, not release images.
+- [ ] Required current-head CI/CodeQL green; observed CI range **27–43 minutes**.
+- [ ] Fresh-main review/merge and primary checkout synchronization. Final receipts
+  will be recorded on the PR without restarting CI for evidence-only edits.
+
 ## Remaining queue and release boundary
 
-After #298, review [#296](https://github.com/Maximilien-ai/clawmax/pull/296)'s
-optional memory integration compatibility with the pinned runtime. Use existing
-PRs and preserve a fresh main base after each merge. Order can change with findings.
+After #296, the six older product PRs remain for source/evidence review:
+#292, #229, #228, #194, #192 and #191. They are not automatically resolved by these
+dependency merges. Tracing migration #418 and consent-bound offline replay #419
+remain active, labelled follow-ups. Use existing PRs and keep each merge fresh.
 
 The [November 13 record](DEPENDABOT_2026-11-13.md) retains earlier merge evidence,
 dated feedback/issue snapshots and unresolved RC98 gates. Final runtime images

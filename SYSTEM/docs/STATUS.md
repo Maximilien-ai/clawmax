@@ -13,15 +13,15 @@ are merged after green checks. #300 (`2337cd96`) also merged after full CI.
 #299 (`4dffd39c`) and #301 (`513349eb`) also merged after required CI and
 CodeQL. #303 merged as `cbd1ee68` after **577/577** final local checks and green
 required CI/CodeQL; the live chat context test fix is now on main. #302 merged as
-`2979a628` after green required CI/CodeQL and the owner merge. Next #384 aligns
-Node 24.22 across Docker/CI; pin/native-runtime tests pass on the candidate and both
-Linux architectures. The first full run exposed ZIP promotion incompatibility;
-the fix passes focused import/security suites. The 581/581 product retest exposed
-broader unit-fixture state leakage, now addressed by a private unit home/workspace
-boundary and canary tests. The preservation retest kept the registry byte-identical
-and exposed one fresh-workspace directory-order assumption, now corrected and
-covered. Final complete validation and CI remain pending. Strict frontend typing retains 290 existing diagnostics
-with none added by #302. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
+`2979a628` after green required CI/CodeQL and the owner merge. #384 merged as
+`d9d87c50` after 581/581 final local checks, registry-preservation verification,
+Linux runtime/build probes and green CI/CodeQL. Node 24.22, ZIP promotion and unit
+fixture isolation are on main. #298 merged as `a9626631` after **582/582** local
+checks and green CI/CodeQL; main dependencies are synchronized. Strict frontend
+typing retains 290 baseline diagnostics with none added. The final Dependabot
+PR, #296, is under review: optional-memory compatibility, patched transport and a
+fail-closed restriction on new offline capture replay. Consent-bound replay
+remains tracked in #419; tracing migration remains in #418. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
 while limiting workflow/docs-only changes to focused validation. Current work is the [November 14 dependency queue](planning/DEPENDABOT_2026-11-14.md),
 with initial classification of all 107 starting issues complete (#273 closed,
 106 remain open, none unlabelled). Current-source closure and feedback-topic
