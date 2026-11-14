@@ -14,7 +14,7 @@ Eight rendering tests and eight browser cases pass on both renderer versions;
 strict frontend typing retains 290 baseline diagnostics, with none added.
 The primary main checkout and installed Markdown dependency are synchronized.
 
-## Next: #384, Node 24.22.0
+## Completed: #384, Node 24.22.0
 
 [Existing PR #384](https://github.com/Maximilien-ai/clawmax/pull/384) is refreshed
 onto `2979a628` without force pushes. Product source `c95e79f3`, fixture-path
@@ -90,15 +90,16 @@ Engineering checklist; **no independent human acceptance is needed**:
   `41c0b9e1532fde1e0d84341e365a2711bd660c281e0e7117f634f1506b668a6a`.
   A compiled Linux ZIP probe also passed existing-directory merge, binary/empty
   directory retention and overwrite rejection. No image was published.
-- [ ] Exact final-source full local integration/validation/coverage under Node
-  24.22, with disposable gateway/workspace and the configured test provider.
-  Expected **12–15 minutes**; only the selected provider key is passed in child
-  memory, without copying the primary ignored `.env` into the worktree. A private
-  before/after hash must confirm the operator registry remains byte-identical.
-  The earlier 581/581 result does not satisfy that additional preservation gate.
-- [ ] Final required CI/CodeQL and image-action contracts are green on the current
-  head. Full required CI runs under Node 24.22; normal duration **33–43 minutes**.
-- [ ] Merge only after required checks pass and main remains fresh.
+- [x] Exact final-source (`4d22641a`) local integration/validation/coverage passed
+  **581/581** on Node 24.22. The operator registry remained **byte-identical**.
+  Evidence: `/private/tmp/clawmax-384-final-full.log`. Statements/lines 59.06%,
+  branches 76.59%, functions 65.51%; this is a measured baseline, not a claim of
+  global coverage improvement.
+- [x] Final [required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43568118761),
+  [CodeQL](https://github.com/Maximilien-ai/clawmax/actions/runs/43568115989) and
+  [image-action contracts](https://github.com/Maximilien-ai/clawmax/actions/runs/43568118784)
+  passed on the reviewed head. Required CI took approximately 43 minutes.
+- [x] Merged as `d9d87c50dd2e598e938f525a22777436db0d6ccb`; main synchronized.
 
 Evidence logs: `/private/tmp/clawmax-384-{node-download,linux-amd64,builder-image,
 lint,types,build,audit}.log`; full-suite receipt will be recorded on the PR.
@@ -111,10 +112,52 @@ Evidence: `/private/tmp/clawmax-384-audit.json`. Dashboard owns lower-severity
 follow-up before stable 2.0; the policy is unchanged and this is not a complete
 security audit.
 
+## Active: #298, compatible minor/patch dependencies
+
+[Existing PR #298](https://github.com/Maximilien-ai/clawmax/pull/298) incorporates
+main `d9d87c50` without force pushes, retaining the previously merged majors.
+Dependency checkpoint `685ef6b8` updates thirteen direct dependency ranges/pins;
+`ee4065d8` adds four real-library runtime cases and registers one system group.
+No product behavior changes are intended, and no human acceptance is required.
+
+The proposed OpenTelemetry versions conflict: Node SDK 2.12.0 requires API
+`>=1.0.0 <1.10.0`, while exporter 0.300.0 pulls SDK/core/resources 3.0.0 requiring
+API `>=1.10.0 <1.11.0`. The complete existing tracing family is retained. The
+labelled [follow-up #418](https://github.com/Maximilien-ai/clawmax/issues/418)
+tracks a compatible migration; Dashboard owns assessment before stable 2.0.
+No tracing/export consent or runtime configuration changes are included.
+
+Engineering checklist:
+
+- [x] Clean Node 24.22 locked install and `npm ls --all --json`: no invalid peers.
+- [x] Lint, server TypeScript and production frontend build pass.
+- [x] Focused scheduler, cron security, next-run, gateway protocol/client, dynamic
+  API security, PDF generation and Markdown rendering suites pass in private unit
+  fixtures. Four new runtime cases verify timezone/stopped-task behavior, actual
+  HTTP quota enforcement, WebSocket text/binary retention and oversized-message
+  refusal. Shell syntax and lint pass after registration.
+- [x] Audit policy passes with zero High/Critical. Raw audit exits 1 with
+  **4 Low / 10 Moderate**, fourteen total, across 590 reported dependencies
+  (333 production, 258 development, 33 optional; categories overlap). Evidence:
+  `/private/tmp/clawmax-298-audit.{json,log}`. Dashboard owns lower-severity
+  remediation before stable 2.0; this is not a complete security audit.
+- [ ] Desktop/mobile light/dark browser rendering and PDF preview checks.
+- [ ] Full local integration/validation/coverage on the final committed source,
+  disposable runtime and before/after operator-registry preservation guard.
+  Expected duration **12–15 minutes**; expected system groups **582** (one added
+  group contains four runtime cases; group totals are not individual assertions).
+- [ ] Required CI/CodeQL green on the final head, normally **33–43 minutes**.
+- [ ] Fresh main check and merge, then synchronize the primary checkout/dependencies.
+
+Exact installed updates: `@types/ws` 8.18.2, cronstrue 3.39.0,
+express-rate-limit 8.7.4, marked 18.1.1, node-cron 4.6.0, pdfmake 0.3.13,
+ws 8.23.0, TypeScript ESLint parser 8.72.0, React Vite plugin 6.3.0,
+autoprefixer 10.6.2, ESLint 10.13.0, PostCSS 8.5.33 and Vite 8.3.5.
+Focused logs: `/private/tmp/clawmax-298-{lock,install,tree,lint,build,focused}.*`.
+
 ## Remaining queue and release boundary
 
-After #384, review [#298](https://github.com/Maximilien-ai/clawmax/pull/298)'s
-grouped minor/patch packages, then [#296](https://github.com/Maximilien-ai/clawmax/pull/296)'s
+After #298, review [#296](https://github.com/Maximilien-ai/clawmax/pull/296)'s
 optional memory integration compatibility with the pinned runtime. Use existing
 PRs and preserve a fresh main base after each merge. Order can change with findings.
 
