@@ -3228,6 +3228,12 @@ else
   cat /tmp/clawmax-node-runtime-pin.out
   fail "Node Docker and CI pin alignment tests"
 fi
+if node --test "$SYSTEM_DIR/node-runtime-smoke.test.cjs" > /tmp/clawmax-node-runtime-smoke.out 2>&1; then
+  pass "Native Node SQLite, stream cancellation and child shutdown tests (4 tests)"
+else
+  cat /tmp/clawmax-node-runtime-smoke.out
+  fail "Native Node SQLite, stream cancellation and child shutdown tests"
+fi
 if node --test "$SYSTEM_DIR/coverage-tool.test.mjs" > /tmp/clawmax-coverage-tool.out 2>&1; then
   pass "Coverage tool reports, subprocesses and failure propagation"
 else
