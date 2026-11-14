@@ -771,7 +771,10 @@ test_validation() {
 
 # Section 0: TypeScript & Unit Tests
 . "$SYSTEM_DIR/test-unit-environment.sh"
-clawmax_enter_unit_environment
+if ! clawmax_enter_unit_environment; then
+  echo 'Unable to create a private unit-test environment' >&2
+  exit 1
+fi
 if node --test "$SYSTEM_DIR/test-provider-keys.test.cjs"; then
   pass "Integration provider credential parsing"
 else
@@ -3234,11 +3237,11 @@ else
   cat /tmp/clawmax-node-runtime-smoke.out
   fail "Native Node SQLite, stream cancellation and child shutdown tests"
 fi
-if node --test "$SYSTEM_DIR/test-skill-import-isolation.test.cjs" > /tmp/clawmax-skill-import-isolation.out 2>&1; then
-  pass "Skill import fixture registry and workspace isolation"
+if node --test "$SYSTEM_DIR/test-unit-workspace-isolation.test.cjs" > /tmp/clawmax-unit-workspace-isolation.out 2>&1; then
+  pass "Unit fixture registry and workspace isolation"
 else
-  cat /tmp/clawmax-skill-import-isolation.out
-  fail "Skill import fixture registry and workspace isolation"
+  cat /tmp/clawmax-unit-workspace-isolation.out
+  fail "Unit fixture registry and workspace isolation"
 fi
 if node --test "$SYSTEM_DIR/coverage-tool.test.mjs" > /tmp/clawmax-coverage-tool.out 2>&1; then
   pass "Coverage tool reports, subprocesses and failure propagation"
