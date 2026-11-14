@@ -79,6 +79,13 @@ jobs:
         working-directory: SYSTEM/dashboard
         run: npm run security:audit
 
+      - name: Reject high and critical optional-memory advisories
+        working-directory: SYSTEM/cognee-bundle
+        run: |
+          npm ci --omit=dev --ignore-scripts --legacy-peer-deps
+          npm audit --omit=dev --audit-level=high
+          node --test transport.test.cjs
+
       - name: Lint and validate developer commands
         if: steps.scope.outputs.dashboard != 'false'
         run: ./lint.sh

@@ -106,6 +106,12 @@ test('CI retains its required job, unconditional security audit and default-full
   }
   assert.doesNotMatch(block('Reject high and critical dependency advisories'), /\n\s+if:/)
   assert.match(block('Reject high and critical dependency advisories'), /npm run security:audit/)
+  const memoryAudit = block('Reject high and critical optional-memory advisories')
+  assert.doesNotMatch(memoryAudit, /\n\s+if:|continue-on-error/)
+  assert.match(memoryAudit, /working-directory: SYSTEM\/cognee-bundle/)
+  assert.match(memoryAudit, /npm ci --omit=dev --ignore-scripts --legacy-peer-deps/)
+  assert.match(memoryAudit, /npm audit --omit=dev --audit-level=high/)
+  assert.match(memoryAudit, /node --test transport\.test\.cjs/)
   assert.doesNotMatch(block('Validate test selection'), /\n\s+if:/)
   assert.match(block('Validate automation and image contracts'), /if: steps\.scope\.outputs\.dashboard == 'false'/)
   for (const match of block('Validate automation and image contracts').matchAll(/^\s+(sh|bash) (SYSTEM\/[^\s]+\.sh)$/gm)) {
