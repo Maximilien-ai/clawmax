@@ -254,7 +254,9 @@ COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas
 # or peer OpenClaw runtime. Startup registers it disabled by default.
 COPY SYSTEM/cognee-bundle/package*.json /opt/clawmax-cognee/
 COPY SYSTEM/cognee-bundle/smoke.cjs /opt/clawmax-cognee/smoke.cjs
+COPY SYSTEM/cognee-bundle/harden.cjs /opt/clawmax-cognee/harden.cjs
 RUN npm ci --prefix /opt/clawmax-cognee --omit=dev --ignore-scripts --legacy-peer-deps
+RUN node /opt/clawmax-cognee/harden.cjs
 ENV CLAWMAX_BUNDLED_COGNEE_PATH=/opt/clawmax-cognee/node_modules/@cognee/cognee-openclaw
 
 WORKDIR /app

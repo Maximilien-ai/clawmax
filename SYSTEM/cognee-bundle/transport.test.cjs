@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const http = require('node:http')
+const os = require('node:os')
 const path = require('node:path')
 const { once } = require('node:events')
 const { pathToFileURL } = require('node:url')
@@ -96,4 +97,48 @@ test('a disconnected upstream settles the package transport without retrying', {
   const base = await endpoint(t, req => { requests++; req.socket.destroy() })
   await assert.rejects(client(CogneeHttpClient, base).fetchAPI('/fixture', { method: 'GET' }, 300001, undefined, 0))
   assert.equal(requests, 1)
+})
+
+
+test('capture hardening is repeatable and neither retains nor replays pending messages', async t => {
+  const { execFileSync } = require('node:child_process')
+  const target = path.join(bundle, 'dist/src/write-buffer.js')
+  const hardenedBytes = fs.readFileSync(target)
+  execFileSync(process.execPath, [path.join(__dirname, 'harden.cjs')])
+  assert.deepEqual(fs.readFileSync(target), hardenedBytes)
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-memory-buffer-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const pendingPath = path.join(root, 'pending-entries.json')
+  const pendingBytes = JSON.stringify({ entries: [{ datasetName: 'synthetic-dataset', sessionId: 'synthetic-session', kind: 'qa', entry: { text: 'retained synthetic fixture' }, queuedAt: Date.now() }] })
+  fs.writeFileSync(pendingPath, pendingBytes, { mode: 0o600 })
+  const { writeBufferFor } = await import(pathToFileURL(target).href)
+  const buffer = writeBufferFor(pendingPath)
+  assert.equal(buffer.maybeNonEmpty, false)
+  await assert.rejects(buffer.enqueue({ entry: { text: 'must not persist' } }), /Offline capture retention is disabled/)
+  let sent = 0
+  assert.equal(await buffer.drain(async () => { sent++ }, { budgetMs: 1000 }), 0)
+  assert.equal(sent, 0)
+  assert.equal(await buffer.size(), 0)
+  assert.equal(fs.readFileSync(pendingPath, 'utf8'), pendingBytes)
+  const absentPath = path.join(root, 'must-not-be-created.json')
+  await assert.rejects(writeBufferFor(absentPath).enqueue({}), /Offline capture retention is disabled/)
+  assert(!fs.existsSync(absentPath))
+})
+
+test('hardening refuses an unreviewed version, consumer or queue without modifying bytes', t => {
+  const { execFileSync } = require('node:child_process')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-memory-hardening-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const synthetic = path.join(root, 'node_modules/@cognee/cognee-openclaw')
+  fs.mkdirSync(path.join(synthetic, 'dist/src'), { recursive: true })
+  fs.copyFileSync(path.join(__dirname, 'harden.cjs'), path.join(root, 'harden.cjs'))
+  const queue = path.join(synthetic, 'dist/src/write-buffer.js')
+  const originalBytes = 'unreviewed synthetic queue implementation'
+  for (const [version, consumer] of [['unexpected', ''], ['2026.10.13', 'changed consumer'], ['2026.10.13', 'const writeBuffer = writeBufferFor();']]) {
+    fs.writeFileSync(path.join(synthetic, 'package.json'), JSON.stringify({ version }))
+    fs.writeFileSync(path.join(synthetic, 'dist/src/plugin.js'), consumer)
+    fs.writeFileSync(queue, originalBytes)
+    assert.throws(() => execFileSync(process.execPath, [path.join(root, 'harden.cjs')], { stdio: 'pipe' }))
+    assert.equal(fs.readFileSync(queue, 'utf8'), originalBytes)
+  }
 })

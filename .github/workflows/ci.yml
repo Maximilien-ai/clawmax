@@ -84,6 +84,7 @@ jobs:
         run: |
           npm ci --omit=dev --ignore-scripts --legacy-peer-deps
           npm audit --omit=dev --audit-level=high
+          node harden.cjs
           node --test transport.test.cjs
 
       - name: Lint and validate developer commands

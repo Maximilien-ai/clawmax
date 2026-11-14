@@ -111,6 +111,7 @@ test('CI retains its required job, unconditional security audit and default-full
   assert.match(memoryAudit, /working-directory: SYSTEM\/cognee-bundle/)
   assert.match(memoryAudit, /npm ci --omit=dev --ignore-scripts --legacy-peer-deps/)
   assert.match(memoryAudit, /npm audit --omit=dev --audit-level=high/)
+  assert.match(memoryAudit, /node harden\.cjs/)
   assert.match(memoryAudit, /node --test transport\.test\.cjs/)
   assert.doesNotMatch(block('Validate test selection'), /\n\s+if:/)
   assert.match(block('Validate automation and image contracts'), /if: steps\.scope\.outputs\.dashboard == 'false'/)
