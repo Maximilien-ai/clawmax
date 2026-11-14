@@ -17,7 +17,8 @@ The primary main checkout and installed Markdown dependency are synchronized.
 ## Next: #384, Node 24.22.0
 
 [Existing PR #384](https://github.com/Maximilien-ai/clawmax/pull/384) is refreshed
-onto `2979a628` without force pushes. Product/test source `c95e79f3` aligns all
+onto `2979a628` without force pushes. Product source `c95e79f3`, fixture-path
+cleanup `fdd21642` and unit-boundary fix `8d775d5f` align all
 three Docker stages and all three explicit CI Node steps on **24.22.0**, retaining
 build-platform compilation and target-platform runtime selection. Package and
 lockfile bytes are unchanged from main.
@@ -59,18 +60,36 @@ Engineering checklist; **no independent human acceptance is needed**:
   and dangling symlinks, directory/file collisions, late writers and empty `.git`
   directories; collisions retain existing bytes.
 - [x] Skill-import API tests now own private workspace/registry fixtures. A
-  subprocess canary test verifies that the caller registry and live workspace are
-  unchanged, and is separately registered in the system runner. The operator's
+  subprocess canary test verifies their standalone isolation. The full product
+  retest passed **581/581**, but its private caller-registry hash detected other
+  unit suites reconciling the caller registry. Evidence:
+  `/private/tmp/clawmax-384-product-full-before-unit-boundary.log`. The operator's
   Personal pointer was restored to the confirmed default with a private backup;
   every other registry field was verified unchanged. No registry contents are
   copied into this repository.
-- [ ] Final Docker-format builder validation on the ZIP-fixed product/test source,
-  using local tag `localhost/clawmax-pr384-builder:c95e79f3` without publication.
+- [x] The unit-phase boundary now supplies a private home and workspace, restores
+  the exact live-test environment afterward and fails closed if fixture creation
+  fails. Two canary cases cover standalone skills and the broader boundary,
+  executing the actual skills, workflows and template-registry suites against a
+  synthetic caller registry. All pass on Node 24.19 and 24.22, including cleanup
+  and environment restoration. The registered isolation suite is
+  [test-unit-workspace-isolation.test.cjs](../../test-unit-workspace-isolation.test.cjs).
+- [x] Two new CodeQL path-flow findings in the late-collision test hook were
+  resolved using fixed fixture-owned paths and an explicit exclusive-mode
+  assertion. [CodeQL](https://github.com/Maximilien-ai/clawmax/actions/runs/43563896220)
+  passed on `fdd21642`; no suppression or alert dismissal was used. Final-head
+  security checks remain required after the unit-boundary checkpoint.
+- [x] Final Docker-format builder validation on ZIP-fixed product source passed:
+  `localhost/clawmax-pr384-builder:c95e79f3`, image
+  `41c0b9e1532fde1e0d84341e365a2711bd660c281e0e7117f634f1506b668a6a`.
+  A compiled Linux ZIP probe also passed existing-directory merge, binary/empty
+  directory retention and overwrite rejection. No image was published.
 - [ ] Exact final-source full local integration/validation/coverage under Node
   24.22, with disposable gateway/workspace and the configured test provider.
   Expected **12–15 minutes**; only the selected provider key is passed in child
   memory, without copying the primary ignored `.env` into the worktree. A private
-  before/after hash also checks that the operator registry remains unchanged.
+  before/after hash must confirm the operator registry remains byte-identical.
+  The earlier 581/581 result does not satisfy that additional preservation gate.
 - [ ] Final required CI/CodeQL and image-action contracts are green on the current
   head. Full required CI runs under Node 24.22; normal duration **33–43 minutes**.
 - [ ] Merge only after required checks pass and main remains fresh.

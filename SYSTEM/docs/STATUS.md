@@ -16,8 +16,10 @@ required CI/CodeQL; the live chat context test fix is now on main. #302 merged a
 `2979a628` after green required CI/CodeQL and the owner merge. Next #384 aligns
 Node 24.22 across Docker/CI; pin/native-runtime tests pass on the candidate and both
 Linux architectures. The first full run exposed ZIP promotion incompatibility;
-the fix passes focused import/security suites and adds registry-isolated test
-fixtures. Final full-suite and CI validation remain pending. Strict frontend typing retains 290 existing diagnostics
+the fix passes focused import/security suites. The 581/581 product retest exposed
+broader unit-fixture state leakage, now addressed by a private unit home/workspace
+boundary and canary tests. Final full-suite preservation and CI validation remain
+pending. Strict frontend typing retains 290 existing diagnostics
 with none added by #302. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
 while limiting workflow/docs-only changes to focused validation. Current work is the [November 14 dependency queue](planning/DEPENDABOT_2026-11-14.md),
 with initial classification of all 107 starting issues complete (#273 closed,
