@@ -16,11 +16,13 @@ or unknown changes and releases keep full validation. #297's required job took
 #300 (Archiver types) merged as `2337cd96`, and #299 (dev launcher) merged as
 `4dffd39c`, after required CI and CodeQL passed. #301 (c8 coverage) merged as
 `513349eb` after full required CI and CodeQL. Its five coverage contracts pass
-on v11/v12. Next #303 (dotenv) adds three credential parsing cases and a focused
-live chat test repair: a named conversation-only code, identical value-free
-probes, exact ended-session selection and fresh/restored session assertions.
-All 12 new HTTP oracle regression cases pass; full final-source validation is
-pending. No additional owner acceptance is required for these test/dependency changes.
+on v11/v12. #303 (dotenv and live chat test repair) merged as `cbd1ee68` after
+577/577 local integration/validation/coverage checks and required CI/CodeQL.
+Next #302 (react-markdown) passes eight new rendering tests and eight production
+chat/document browser cases on v9.1.0 and v10.1.0, including both themes and
+desktop/mobile. Types/build/lint and the audit policy pass; strict frontend typing
+retains 290 baseline diagnostics with none added. Current-head CI is pending.
+No additional owner acceptance is required for these test/dependency changes.
 [Maintenance checklist and full queue](planning/DEPENDABOT_2026-11-13.md).
 
 Initial triage is complete for **107 starting open issues**: primary type, area
