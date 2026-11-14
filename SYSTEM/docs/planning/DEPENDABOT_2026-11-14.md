@@ -17,7 +17,7 @@ The primary main checkout and installed Markdown dependency are synchronized.
 ## Next: #384, Node 24.22.0
 
 [Existing PR #384](https://github.com/Maximilien-ai/clawmax/pull/384) is refreshed
-onto `2979a628` without force pushes. Product/test source `b471da9a` aligns all
+onto `2979a628` without force pushes. Product/test source `c95e79f3` aligns all
 three Docker stages and all three explicit CI Node steps on **24.22.0**, retaining
 build-platform compilation and target-platform runtime selection. Package and
 lockfile bytes are unchanged from main.
@@ -46,12 +46,31 @@ Engineering checklist; **no independent human acceptance is needed**:
   clean dependency installation and production compilation. Local image
   `localhost/clawmax-pr384-builder:b471da9a`, ID
   `81789678686ad837e1c509a106ed96b8dce9afc2dec47b095519b859f4e3c709`.
-  Node 24.22/arm64 and both compiled artifacts are verified. This is a local build
-  without publication, not the complete runtime image.
+  Node 24.22/arm64 and both compiled artifacts are verified. This initial build
+  predates the ZIP fix below; final builder validation is tracked separately.
+- [x] The first full Node 24.22 run completed **577/580**, identifying three ZIP
+  import suites affected by directory-level `cpSync(errorOnExist)` behavior.
+  Evidence: `/private/tmp/clawmax-384-initial-full.log`.
+- [x] ZIP promotion now preflights each directory/file destination, merges existing
+  directories and preserves empty ones, then creates files with `COPYFILE_EXCL`.
+  Fourteen workspace-upload cases (six added), skill-import routes, twelve Docs
+  route cases and sixteen archive-security cases pass under Node 24.22. The
+  workspace-upload cases also pass on Node 24.19. Added coverage includes outside
+  and dangling symlinks, directory/file collisions, late writers and empty `.git`
+  directories; collisions retain existing bytes.
+- [x] Skill-import API tests now own private workspace/registry fixtures. A
+  subprocess canary test verifies that the caller registry and live workspace are
+  unchanged, and is separately registered in the system runner. The operator's
+  Personal pointer was restored to the confirmed default with a private backup;
+  every other registry field was verified unchanged. No registry contents are
+  copied into this repository.
+- [ ] Final Docker-format builder validation on the ZIP-fixed product/test source,
+  using local tag `localhost/clawmax-pr384-builder:c95e79f3` without publication.
 - [ ] Exact final-source full local integration/validation/coverage under Node
   24.22, with disposable gateway/workspace and the configured test provider.
   Expected **12–15 minutes**; only the selected provider key is passed in child
-  memory, without copying the primary ignored `.env` into the worktree.
+  memory, without copying the primary ignored `.env` into the worktree. A private
+  before/after hash also checks that the operator registry remains unchanged.
 - [ ] Final required CI/CodeQL and image-action contracts are green on the current
   head. Full required CI runs under Node 24.22; normal duration **33–43 minutes**.
 - [ ] Merge only after required checks pass and main remains fresh.

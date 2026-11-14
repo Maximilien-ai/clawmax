@@ -22,7 +22,9 @@ on v11/v12. #303 (dotenv and live chat test repair) merged as `cbd1ee68` after
 the owner merged it. Eight rendering tests and eight browser cases pass on both
 versions; strict frontend typing retains 290 baseline diagnostics with none added.
 Next #384 aligns Node 24.22 Docker and CI pins. Its eleven drift-contract cases
-and four native runtime cases pass, including Linux arm64/amd64 smoke. Final local
+and four native runtime cases pass, including Linux arm64/amd64 smoke. A ZIP import
+compatibility fix and private skill-test fixtures address failures found by the
+first full run; focused import/security suites pass. Final local
 integration/validation/coverage and current-head CI remain pending.
 No additional owner acceptance is required for these test/dependency changes.
 [Maintenance checklist and remaining queue](planning/DEPENDABOT_2026-11-14.md).
