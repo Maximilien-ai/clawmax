@@ -151,7 +151,7 @@ async function main() {
         },
       }), res)
 
-      assert.equal(res.statusCode, 200)
+      assert.equal(res.statusCode, 200, JSON.stringify(res.jsonBody))
       assert.equal(res.jsonBody?.ok, true)
       assert.equal(res.jsonBody?.skillId, 'workspace-ls')
       assert.equal(typeof res.jsonBody?.upload?.extractedFiles, 'number')

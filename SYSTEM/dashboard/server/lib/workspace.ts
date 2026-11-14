@@ -882,11 +882,24 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
       return { ok: false, error: 'ZIP contains a .git folder, which cannot be added to the workspace' }
     }
 
-    const conflicts = listing
-      .filter(Boolean)
-      .map((entry) => path.resolve(targetDir, entry))
-      .filter((destination) => fs.existsSync(destination))
-      .map((destination) => path.relative(workspacePath, destination))
+    const entries: Array<{ source: string; destination: string; directory: boolean }> = []
+    const collect = (sourceDir: string) => {
+      for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+        const source = path.join(sourceDir, entry.name)
+        const relative = path.relative(stagingDir, source)
+        const destination = resolveWorkspacePath(path.relative(workspacePath, path.join(targetDir, relative)), workspacePath)
+        if (!destination || (!entry.isDirectory() && !entry.isFile())) {
+          throw new Error(`ZIP contains an unsafe extraction destination: ${relative}`)
+        }
+        entries.push({ source, destination, directory: entry.isDirectory() })
+        if (entry.isDirectory()) collect(source)
+      }
+    }
+    collect(stagingDir)
+    const conflicts = entries.filter((entry) => {
+      const existing = fs.lstatSync(entry.destination, { throwIfNoEntry: false })
+      return existing && (!entry.directory || !existing.isDirectory())
+    }).map((entry) => path.relative(workspacePath, entry.destination))
 
     if (conflicts.length > 0) {
       return {
@@ -895,7 +908,16 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
       }
     }
 
-    fs.cpSync(stagingDir, targetDir, { recursive: true, errorOnExist: true, force: false })
+    // Node 24.22 rejects cp(errorOnExist) even for an existing destination directory.
+    // Merge validated directories explicitly; exclusive file creation still refuses
+    // collisions that appear after preflight, without replacing existing bytes.
+    for (const entry of entries) {
+      if (!resolveWorkspacePath(path.relative(workspacePath, entry.destination), workspacePath)) {
+        throw new Error('ZIP extraction destination changed outside the workspace')
+      }
+      if (entry.directory) fs.mkdirSync(entry.destination, { recursive: true })
+      else fs.copyFileSync(entry.source, entry.destination, fs.constants.COPYFILE_EXCL)
+    }
 
     const files = listing
       .filter((entry) => !entry.endsWith('/'))
