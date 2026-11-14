@@ -77,9 +77,9 @@ full-suite or external-provider claim is made for these CI updates.
 | #296 | Cognee OpenClaw plugin | Compatibility with pinned OpenClaw 2026.9.7 and packaging |
 | #298 | 18 minor/patch packages | Lockfile, dependency audit, types/build and affected tests |
 | #300 | Archiver types major | Merged `2337cd96` after [full required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43403233466) and CodeQL passed on `93ad6e1a` |
-| #301 | c8 major | Prepared `103472b1`: five coverage contracts pass on c8 v11/v12; lint/types/build/audit pass; full current CI pending |
+| #301 | c8 major | Merged `513349eb` after [required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43461950201) and CodeQL passed on `c9388b21` |
 | #299 | concurrently major | Merged `4dffd39c` after [required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43445911233) and CodeQL passed on `7b479c73` |
-| #303 | dotenv major | Env precedence, credential parsing and cold-start isolation |
+| #303 | dotenv major + live-test repair | Prepared dotenv 18.0.8; six provider parser cases and 12 lifecycle oracle cases pass; final local integration/validation/coverage and current-head CI pending |
 | #302 | react-markdown major | Markdown rendering/security, chat/docs and responsive views |
 
 #300 is complete. Its Archiver runtime remains v8, now matched by the v8 types.
@@ -115,8 +115,41 @@ Lint, server types, production build, test-runner syntax and the unchanged audit
 policy pass. Required CI still runs the full runner with the new collector; no
 extra local live-provider run or release readiness is claimed.
 
-No manual product acceptance is needed. #301 stays unmerged until current CI passes.
-The other five updates remain pending; order can change with compatibility findings.
+No manual product acceptance is needed. #301 merged as `513349eb` after required
+CI and CodeQL passed. The remaining five updates are #303, #302, #384, #298
+and #296; order can change with compatibility findings.
+
+## #303 and intermittent live chat test repair
+
+The existing dotenv PR retains separate dependency, parser-test and lifecycle-test
+commits. It is refreshed onto merged #301 without force pushes. Installed dotenv
+**18.0.8** passes the actual Vite build with a synthetic ignored `.env`, Dashboard
+env/precedence tests, and six provider-key parsing cases (three added for BOM/export/
+CRLF/quoted bytes, namespace/interpolation boundaries and nonmutation). No operator
+credentials are copied into the worktree.
+
+The owner's main-source run failed only `Live chat Clear/History/Continue context`:
+the agent answered with a session-ID suffix instead of `UNKNOWN`. The old question
+asked broadly for an opaque code. Its original random code has the distinct format
+`CTX` plus 16 uppercase hexadecimal characters, so the reported answer does not by
+itself demonstrate retained old context. The unfixed local reproduction also
+passed this live check; final full-suite results remain separate evidence.
+
+[The repaired live probe](../../test-chat-lifecycle.cjs) names a conversation-only
+assignment and asks the same value-free question in fresh and continued sessions.
+It still requires exactly `UNKNOWN` for fresh and the original random value after
+Continue. It additionally verifies a different fresh native session, absence of
+the old code from the fresh transcript, exact original-ended archive selection,
+exact restored transcript and original native-session restoration. It never
+accepts arbitrary text merely because it differs from the old code.
+
+[Twelve HTTP regression cases](../../test-chat-lifecycle.test.cjs) pass, including
+the reported session-ID answer, real context leakage, reused session, repopulated
+history, wrong restoration, runtime errors and workspace-mutation refusal. This
+is a distinct registered suite in `SYSTEM/test.sh`; its scripted replies test the
+oracle and do not substitute for the real provider lifecycle check. Full final
+local integration/validation/coverage is expected **12–15 minutes**; hosted full
+CI is approximately **43 minutes**. Neither pending result is reported as green.
 
 Dashboard owns validation before merge and RC98 inclusion.
 

@@ -3216,6 +3216,12 @@ else
   cat /tmp/clawmax-concurrently-lifecycle.out
   fail "Dev launcher command and process lifecycle tests"
 fi
+if node --test "$SYSTEM_DIR/test-chat-lifecycle.test.cjs" > /tmp/clawmax-chat-lifecycle-oracle.out 2>&1; then
+  pass "Chat lifecycle live-test oracle and session boundaries"
+else
+  cat /tmp/clawmax-chat-lifecycle-oracle.out
+  fail "Chat lifecycle live-test oracle and session boundaries"
+fi
 if node --test "$SYSTEM_DIR/coverage-tool.test.mjs" > /tmp/clawmax-coverage-tool.out 2>&1; then
   pass "Coverage tool reports, subprocesses and failure propagation"
 else

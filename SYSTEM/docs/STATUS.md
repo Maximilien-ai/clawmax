@@ -10,8 +10,10 @@
 `9ad021b0`, after final CI and 574/574 local chat-source checks. RC98 has not been
 cut. CI updates #294 (`2f62920a`), #297 (`5ebca2ad`) and #295 (`4e4c11ef`)
 are merged after green checks. #300 (`2337cd96`) also merged after full CI.
-#299 (`4dffd39c`) also merged after required CI and CodeQL. Next #301 passes
-focused coverage/type/build/audit checks and awaits full CI. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
+#299 (`4dffd39c`) and #301 (`513349eb`) also merged after required CI and
+CodeQL. Next #303 upgrades dotenv, adds credential parsing regressions, and
+hardens the live chat lifecycle test's ambiguous context probe; final local and
+current-head CI validation are pending. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
 while limiting workflow/docs-only changes to focused validation. Current work is the [dependency maintenance queue](planning/DEPENDABOT_2026-11-13.md),
 with initial classification of all 107 starting issues complete (#273 closed,
 106 remain open, none unlabelled). Current-source closure and feedback-topic

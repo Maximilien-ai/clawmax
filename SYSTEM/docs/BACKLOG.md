@@ -14,10 +14,13 @@ or unknown changes and releases keep full validation. #297's required job took
 33 seconds. No branch-protection checks were bypassed.
 
 #300 (Archiver types) merged as `2337cd96`, and #299 (dev launcher) merged as
-`4dffd39c`, after required CI and CodeQL passed. Next #301 (c8 coverage) is refreshed
-in an isolated checkout: five coverage contracts pass on v11/v12, and lint, server
-types, build and audit pass. Production lock entries are unchanged. Required
-current CI will exercise the full runner with v12 before merge.
+`4dffd39c`, after required CI and CodeQL passed. #301 (c8 coverage) merged as
+`513349eb` after full required CI and CodeQL. Its five coverage contracts pass
+on v11/v12. Next #303 (dotenv) adds three credential parsing cases and a focused
+live chat test repair: a named conversation-only code, identical value-free
+probes, exact ended-session selection and fresh/restored session assertions.
+All 12 new HTTP oracle regression cases pass; full final-source validation is
+pending. No additional owner acceptance is required for these test/dependency changes.
 [Maintenance checklist and full queue](planning/DEPENDABOT_2026-11-13.md).
 
 Initial triage is complete for **107 starting open issues**: primary type, area
