@@ -3231,6 +3231,12 @@ else
   cat /tmp/clawmax-node-runtime-pin.out
   fail "Node Docker and CI pin alignment tests"
 fi
+if node --test scripts/dependency-runtime.test.cjs > /tmp/clawmax-dependency-runtime.out 2>&1; then
+  pass "Dependency scheduling, rate limiting and WebSocket runtime tests (4 tests)"
+else
+  cat /tmp/clawmax-dependency-runtime.out
+  fail "Dependency scheduling, rate limiting and WebSocket runtime tests"
+fi
 if node --test "$SYSTEM_DIR/node-runtime-smoke.test.cjs" > /tmp/clawmax-node-runtime-smoke.out 2>&1; then
   pass "Native Node SQLite, stream cancellation and child shutdown tests (4 tests)"
 else
