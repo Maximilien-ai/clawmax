@@ -41,6 +41,13 @@ const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workspace-upload-
 const workspacePath = path.join(tmpRoot, 'workspace')
 fs.mkdirSync(workspacePath, { recursive: true })
 
+function zipEntries(entries: Record<string, string>): Buffer {
+  const directory = fs.mkdtempSync(path.join(tmpRoot, 'zip-entries-'))
+  const archive = path.join(directory, 'bundle.zip')
+  execFileSync('python3', ['-c', 'import json,sys,zipfile\nwith zipfile.ZipFile(sys.argv[1], "w") as z:\n for name,body in json.load(sys.stdin).items(): z.writestr(name,body)', archive], { input: JSON.stringify(entries) })
+  return fs.readFileSync(archive)
+}
+
 test('resolveWorkspacePath keeps writes inside workspace', () => {
   const safe = resolveWorkspacePath('AGENTS/shared/readme.txt', workspacePath)
   const unsafe = resolveWorkspacePath('../escape.txt', workspacePath)
@@ -112,6 +119,77 @@ test('extractZipBufferToWorkspace rejects archives that would overwrite existing
   assert(!result.ok, 'Expected conflicting extraction to fail')
   assert(/overwrite existing paths/i.test(result.error || ''), 'Expected overwrite conflict error')
   assert(fs.readFileSync(existingPath, 'utf-8') === 'preexisting', 'Expected existing file to remain unchanged')
+})
+
+test('ZIP imports merge existing directories while retaining unrelated files, binary bytes and empty directories', () => {
+  const target = path.join(workspacePath, 'ORG/merged')
+  fs.mkdirSync(path.join(target, 'nested'), { recursive: true })
+  fs.writeFileSync(path.join(target, 'nested/keep.txt'), 'original')
+  const result = extractZipBufferToWorkspace('ORG/merged', zipEntries({ 'nested/new.bin': 'new\u0000bytes', 'empty/': '' }), workspacePath)
+  assert(result.ok, `Expected directory merge: ${result.error}`)
+  assert(fs.readFileSync(path.join(target, 'nested/keep.txt'), 'utf8') === 'original', 'Unrelated existing file must survive')
+  assert(fs.readFileSync(path.join(target, 'nested/new.bin')).equals(Buffer.from('new\u0000bytes')), 'Binary bytes must be exact')
+  assert(fs.statSync(path.join(target, 'empty')).isDirectory(), 'Empty archive directories must survive')
+  assert(JSON.stringify(result.files) === JSON.stringify(['ORG/merged/nested/new.bin']), 'Only imported files belong in the upload receipt')
+})
+
+test('ZIP preflight rejects an outside destination link before creating other archive files', () => {
+  const target = path.join(workspacePath, 'ORG/linked-import')
+  const outside = path.join(tmpRoot, 'outside-zip')
+  fs.mkdirSync(target, { recursive: true })
+  fs.mkdirSync(outside)
+  fs.symlinkSync(outside, path.join(target, 'nested'))
+  const result = extractZipBufferToWorkspace('ORG/linked-import', zipEntries({ 'a-good.txt': 'safe', 'nested/escape.txt': 'unsafe' }), workspacePath)
+  assert(!result.ok, 'A linked destination outside the workspace must fail')
+  assert(!fs.existsSync(path.join(outside, 'escape.txt')), 'No outside write is allowed')
+  assert(!fs.existsSync(path.join(target, 'a-good.txt')), 'Preflight must precede all copied files')
+})
+
+test('ZIP preflight treats a dangling destination symlink as an existing path', () => {
+  const target = path.join(workspacePath, 'ORG/dangling-import')
+  fs.mkdirSync(target, { recursive: true })
+  const outside = path.join(tmpRoot, 'never-create.txt')
+  fs.symlinkSync(outside, path.join(target, 'blocked.txt'))
+  const result = extractZipBufferToWorkspace('ORG/dangling-import', zipEntries({ 'a-good.txt': 'safe', 'blocked.txt': 'unsafe' }), workspacePath)
+  assert(!result.ok, 'A dangling link must not be replaced')
+  assert(fs.lstatSync(path.join(target, 'blocked.txt')).isSymbolicLink(), 'Existing link must survive')
+  assert(!fs.existsSync(outside) && !fs.existsSync(path.join(target, 'a-good.txt')), 'No file may be copied before collision rejection')
+})
+
+test('ZIP preflight rejects a file where an archive needs a directory', () => {
+  const target = path.join(workspacePath, 'ORG/file-parent-import')
+  fs.mkdirSync(target, { recursive: true })
+  fs.writeFileSync(path.join(target, 'nested'), 'keep parent')
+  const result = extractZipBufferToWorkspace('ORG/file-parent-import', zipEntries({ 'a-good.txt': 'safe', 'nested/new.txt': 'new' }), workspacePath)
+  assert(!result.ok, 'A file cannot become an archive directory')
+  assert(fs.readFileSync(path.join(target, 'nested'), 'utf8') === 'keep parent', 'Original parent bytes must survive')
+  assert(!fs.existsSync(path.join(target, 'a-good.txt')), 'Directory collisions must be found before copying')
+})
+
+test('ZIP file creation cannot overwrite a file created after preflight', () => {
+  const relative = 'ORG/late-import'
+  const target = path.join(workspacePath, relative, 'late.txt')
+  const fixtureSource = path.join(tmpRoot, 'late-copy-fixture.txt')
+  fs.writeFileSync(fixtureSource, 'archive')
+  const copy = fs.copyFileSync
+  fs.copyFileSync = ((_source: fs.PathLike, destination: fs.PathLike, mode?: number) => {
+    assert(String(destination) === target, 'The copy hook must only receive its private fixture destination')
+    assert(mode === fs.constants.COPYFILE_EXCL, 'The importer must request exclusive file creation')
+    fs.writeFileSync(target, 'concurrent owner')
+    return copy(fixtureSource, target, fs.constants.COPYFILE_EXCL)
+  }) as typeof fs.copyFileSync
+  try {
+    const result = extractZipBufferToWorkspace(relative, zipEntries({ 'late.txt': 'archive' }), workspacePath)
+    assert(!result.ok, 'A late collision must fail')
+    assert(fs.readFileSync(target, 'utf8') === 'concurrent owner', 'Exclusive creation must preserve concurrent bytes')
+  } finally { fs.copyFileSync = copy }
+})
+
+test('ZIP preflight rejects empty .git directories before copying other entries', () => {
+  const result = extractZipBufferToWorkspace('ORG/git-directory-import', zipEntries({ 'a-good.txt': 'safe', '.git/': '' }), workspacePath)
+  assert(!result.ok, 'Empty .git directories are still forbidden')
+  const target = path.join(workspacePath, 'ORG/git-directory-import')
+  assert(!fs.existsSync(path.join(target, '.git')) && !fs.existsSync(path.join(target, 'a-good.txt')), 'No forbidden or unrelated entry may be copied')
 })
 
 test('DocHub upload ledger permits uploaded-file moves and deletes only inside the original boundary', () => {

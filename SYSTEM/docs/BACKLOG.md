@@ -1,5 +1,177 @@
 # Backlog
 
+## November 14 dependency maintenance checkpoint
+
+#227 is accepted and merged as `9ad021b0`; #223 is closed. Final CI passed and
+exact chat product source `09249852` passed **574/574** local checks. No repeat
+owner acceptance is needed. [Archived chat evidence](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md).
+
+The first dependency batch has **#294 merged `2f62920a`** and **#297 merged
+`5ebca2ad`**, and **#295 merged `4e4c11ef`**, all after green checks.
+CI now uses [affected-path scope](CI_TEST_SCOPE.md): workflow/docs changes run
+focused contracts and the unchanged audit; application/dependency/runtime/shared
+or unknown changes and releases keep full validation. #297's required job took
+33 seconds. No branch-protection checks were bypassed.
+
+#300 (Archiver types) merged as `2337cd96`, and #299 (dev launcher) merged as
+`4dffd39c`, after required CI and CodeQL passed. #301 (c8 coverage) merged as
+`513349eb` after full required CI and CodeQL. Its five coverage contracts pass
+on v11/v12. #303 (dotenv and live chat test repair) merged as `cbd1ee68` after
+577/577 local integration/validation/coverage checks and required CI/CodeQL.
+#302 (react-markdown) merged as `2979a628` after required CI/CodeQL passed and
+the owner merged it. Eight rendering tests and eight browser cases pass on both
+versions; strict frontend typing retains 290 baseline diagnostics with none added.
+Next #384 aligns Node 24.22 Docker and CI pins. Its eleven drift-contract cases
+and four native runtime cases pass, including Linux arm64/amd64 smoke. A ZIP import
+compatibility fix and private skill-test fixtures address failures found by the
+first full run; focused import/security suites pass. The product retest passes
+581/581, but a caller-registry preservation guard exposed broader unit defaults,
+now isolated with a private unit home/workspace and two canary cases. The registry
+preservation retest passed its byte check; the remaining fresh-workspace import
+ordering assumption is fixed and covered. Final complete validation and current-head
+CI remain pending.
+No additional owner acceptance is required for these test/dependency changes.
+[Maintenance checklist and remaining queue](planning/DEPENDABOT_2026-11-14.md).
+
+Initial triage is complete for **107 starting open issues**: primary type, area
+and reported-impact priority, preserving existing labels. Dependabot automation
+#273 is verified/closed, leaving **106 open and zero unlabelled**. There are 54
+open feedback-labelled issues; no new provenance was inferred.
+[Full triage table](planning/ISSUE_TRIAGE_2026-11-13.md). Current-source verification,
+proven duplicate/already-fixed closures and per-topic reporter replies remain open
+work. Last feedback audit: 73 reports, 52 open / 21 closed, all open linked; this
+is not a new live intake audit. Scoring #243 is closed/notified; #413 remains partly
+open. Stable remains v1.9.9; RC98 has not been cut. All release engineering and
+installed/provider gates remain in the maintenance checklist.
+
+The following dated checkpoints retain their original evidence and statuses.
+
+## November 10 current acceptance checkpoint
+
+Merged main is `da30720f`, including #385/#386/#349/#347/#341/#340. The earlier
+seven feedback fixes, membership keyboard behavior, editing from Details and
+dark-mode follow-up are owner-accepted; no repeat manual checks are needed.
+PR #340 CI passed in about 23 minutes.
+
+Candidate **`c938a49f`** fixes #404 channel history/recipient/session/browser
+isolation and preserves ambiguous older histories for owner recovery. Exact-source
+full integration/validation/coverage passed **570/570**, zero failures, in 11.7
+minutes: 83.83% statements/lines, 81.48% branches, 92.11% functions. Required
+storage/routing tests and four theme/viewport browser runs passed. Strict frontend
+TypeScript retains its 291-diagnostic baseline with no new patterns.
+
+Dev: **http://localhost:5180**, **`2.0.0-dev.c938a49f`**, workspace **RC98 Isolation
+Acceptance**. The [current owner checklist](planning/RC98_ACCEPTANCE_2026-11-10.md)
+records both human judgments accepted November 11: navigation clarity between
+seeded chats and clarity of the legacy recovery notice. No owner checks remain.
+[PR #417](https://github.com/Maximilien-ai/clawmax/pull/417) has security follow-ups
+`50d180bb`/`602347c5`: paths, log formats, recipient iteration and stronger tests.
+CodeQL analysis and aggregate gates passed on `602347c5`, zero open PR-ref alerts;
+the production/test CSRF false positives have explicit HTTP/contract evidence.
+Storage has 15 scenarios; security tests pass 133 HTTP and 103 contract assertions.
+Current-head CI and the final full local rerun remain to verify. #404 and its
+feedback stay open until the reviewed merge. No repeat owner acceptance is needed.
+[Implementation evidence](planning/MESSAGE_ISOLATION_404_2026-11-10.md) and
+[recovery/rollback guidance](guides/RECOVER_CHANNEL_HISTORY.md) preserve the boundary.
+
+The pending chat audit found #339/#343 already implemented in `116db34b`; both
+PRs were closed as superseded after four browser scenarios. #333 was closed with
+evidence and a feedback reply. Actual incremental streaming (#225/#229) remains
+separate. After #404, assess scheduler reliability #288 against current source
+before implementing. RC98 has not been cut. CI/security, other concrete engineering
+follow-ups, later feedback arrivals/delivery and matching public/private images
+remain separate gates in the current checklist.
+
+## November 8 historical acceptance and feedback checkpoint
+
+Use the [current owner checklist and RC98 gates](planning/RC98_ACCEPTANCE_2026-11-08.md).
+Budget #376/#377/#378 is ready at http://localhost:5180/templates,
+`2.0.0-dev.5e273269`. Source is committed/pushed on
+`fix/workspace-budget-persistence`; no new PR was created or merged.
+Owner accepted all three on November 8 with `accept #376/#377/#378 merge and
+give me next batch`. The existing #386 will be used for the authorized merge;
+no new PR is needed. Merge and submitter-notification receipts remain separate.
+Both desktop/mobile budget browser checks passed on this exact dev snapshot.
+Real mobile creation/retry persisted zero without duplicate creation; a failed
+budget read followed by rename preserved 42/enforcement off. Server types,
+lint, build, client helper tests, 8 server budget cases and 8 dialog audit
+assertions pass. The owner's first full run on `50ca52b7` passed 560/561 checks;
+the sole Dashboard env failure read a local system key in a non-hermetic test.
+`96292200` replaces that setup with isolated cold-start fixtures (35 cases),
+restores required-CI coverage and reports failure diagnostics. `1f1f46a7` adds
+a distinct budget-loading check: 12 parse/save cases and 19 load cases, with
+corrected case-count labels. **The exact owner command rerun on `5e273269`
+passed 562/562, zero failures**, including live agent/workflow integration.
+Coverage: statements/lines 83.54%, branches 81.31%, functions 91.93%; observed
+duration ~10.2 minutes. Log: `/private/tmp/clawmax-rc98-full-rerun-5e273269.log`.
+The headline total counts suite/API checks, not each nested case/assertion.
+Desktop/mobile UI and API identities were verified after restarting the dev.
+Strict frontend types remain a baseline gate: 291 diagnostics
+on both main and this branch, with identical lines. No new remote candidate CI
+has run: the existing CI workflow does not run on this saved non-PR branch.
+
+All four prior owner-accepted fixes (#351/#355/#367/#375) are merged in #385.
+Their central feedback reports were read, answered and closed as addressed on
+November 8 after Management login was repaired. Four email notifications are
+queued/pending in the service digest when requested; a fresh #351 receipt
+confirms its resolution email was sent at 14:05:17Z. Verify other deliveries
+separately. Replies thank
+submitters and state inclusion in a future ClawMax version, not a live upgrade.
+
+Owner clarified feedback scope: **all feedback, regardless of event/date**.
+Authenticated full-page/all-archive baseline is 73 reports (72 open/1 closed),
+including 58 Dashboard, 8 Web and 7 Unassigned. Reconcile each report's complete
+scope; reuse existing issues and create missing issues. Close supported fixes,
+duplicates with canonical links, and acknowledged positives; retain concrete
+unresolved work. Central Management remains the ownership/link source of truth.
+Web/CLI-owned implementation requires its owning team's evidence/coordination.
+Final authenticated all-page audit: **16 closed, 57 open**; 15 closures this pass
+(4 accepted Dashboard fixes, 5 positives, 1 verified supported request, 3
+duplicates and 2 Web-owned verified fixes). Created 35 scoped issues for 26
+unlinked reports (Dashboard #387–416, Web/intake #37–41); existing #243 reused.
+**Zero open reports lack issue links or replies; all expected multi-topic links
+are present.** These issues track future work, not implemented RC98 scope.
+Web/CLI #42 records keychain refresh/OAuth throttling seen during bulk updates;
+controlled sequential retries completed the reconciliation and the one failed
+notification request was retried. Recent email receipts remain asynchronous.
+
+Evening soft scope: #349 → #347 → #341, after required review and current checks.
+Their rebased test checks passed; #242, #298 and #384 failed full CI and remain
+on hold. Twenty-six PRs remain open in the November 8 snapshot. RC98 is not cut;
+acceptance, exact-source full gates, runtime/persistence and matching public/private
+image validation remain separate requirements. Older counts/statuses below are
+historical checkpoints, superseded by this section and the current checklist.
+
+## November 7 PR rebase checkpoint and merge order
+
+Rebased against merged main `ed02d56b816aa502d21691e1d35cb8aaf0e5b48a`
+(#346 and #385 included). Fifteen existing PR heads were pushed with explicit
+force-with-lease protection: #347, #349, #341, #242, #294, #297, #295, #384,
+#296, #300, #301, #299, #303, #302, #298. #341 was retargeted from the old RC95
+integration branch to main so normal CI runs. No PRs were created or merged.
+
+Review/merge only after fresh CI and required review, in this order:
+
+1. #349 — workflow secret redaction (rebased focused regression: 8 cases passed).
+2. #242 — readiness score cap (rebased focused regression: 13 tests passed).
+3. #347 — membership dialog keyboard behavior.
+4. #341 — edit agent configuration from Details.
+5. Separate tooling/dependency review: #384, #294, #297, #295, #296, then #298,
+   #300, #301, #299, #303, #302. These are not automatically RC98 scope.
+
+The first four touch independent production files. The package-update PRs
+share package.json/package-lock.json; merge those serially and refresh/rebase
+the next one after each merge. Apply the same pause/rebase/CI rule whenever a
+previous merge changes the next PR's files. Old green checks are superseded.
+Fresh CI typically takes ~40 minutes and may queue during this batch.
+
+Unchanged pending conflict resolution: #340, #339, #343, #288, #191, #194,
+#227, #228, #229, #292, #192. Do not merge these yet. Resolve/review focused
+stability work before the larger runtime/streaming/export proposals; #192 also
+needs the explicit consent/privacy boundary review. No conflict was resolved
+by dropping either side. Detailed old/new SHAs, conflict paths and logs are in
+`/private/tmp/clawmax-pr-rebase-20261107/report.json`.
+
 ## November 5 feedback: first acceptance batch
 
 Inventory: [Web's reviewed 58-report backlog](https://github.com/Maximilien-ai/clawmax-ai/blob/a21b1eb86accba99a7757ee4aafbbe9dd546ca94/docs/operations/DASHBOARD_FEEDBACK_BACKLOG_2026-11-05.md).
@@ -72,6 +244,18 @@ existing issues, and keep ownership/links in central Management Feedback.
   is still running. Merge/release, report closure and emails remain separate.
 - [ ] **Next: #376–378 — workspace budget persistence.** Private report context
   still needs authenticated review; investigate reported group-message isolation early.
+  Draft checkpoint on `fix/workspace-budget-persistence`: Create/Overwrite now
+  reuse the zero-preserving budget helper, check budget-write failures, retain
+  the created workspace ID for budget-only retries, and defer success notification
+  until configuration is saved. The form uses the shared mobile dialog. The
+  accepted dev snapshot is unchanged. This is not owner-ready: run creation,
+  overwrite, transport/HTTP failure, retry-without-duplicate and desktop/mobile
+  browser checks; implement #377's failed-read/metadata-only-save protection.
+  TypeScript, lint, budget helper tests (8 assertions) and mobile dialog audit
+  (8 assertions) passed before push. CI is expected to take about 40 minutes.
+  This branch builds on #385; do not merge the budget draft before that base.
+  CI currently runs only for PRs targeting main, so the draft temporarily targets
+  main and includes its base commits; rebase it after #385 merges.
 
 Current product source: `226a33d931118ca592f45a2f29b842867c0b1633`.
 The original document checkpoint `fa70ac39` passed full CI and CodeQL. The

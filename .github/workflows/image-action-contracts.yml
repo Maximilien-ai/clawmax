@@ -1,0 +1,112 @@
+name: Image action contracts
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/image-action-contracts.yml
+      - .github/workflows/mirror-gcp-image.yml
+      - .github/workflows/container-image.yml
+      - .github/workflows/test-container-image.yml
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/image-action-contracts.yml
+      - .github/workflows/mirror-gcp-image.yml
+      - .github/workflows/container-image.yml
+      - .github/workflows/test-container-image.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-action-contracts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  artifact-roundtrip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.0
+      - name: Validate mirror ownership and image evidence contracts
+        run: node --test SYSTEM/mirror-gcp-target.test.mjs SYSTEM/mirror-gcp-image.test.mjs
+      - name: Create synthetic mirror evidence
+        env:
+          CONTRACT_ROOT: ${{ runner.temp }}/image-action-contract
+        run: |
+          node --input-type=module <<'NODE'
+          import { mkdirSync, writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          const directory = join(process.env.CONTRACT_ROOT, 'source');
+          mkdirSync(directory, { recursive: true });
+          writeFileSync(join(directory, 'gcp-mirror-target.json'), JSON.stringify({
+            purpose: 'synthetic artifact transport check; not published image evidence',
+            source_sha: process.env.GITHUB_SHA,
+            platforms: ['linux/amd64', 'linux/arm64']
+          }) + '\n');
+          NODE
+      - name: Upload evidence using the updated producer
+        uses: actions/upload-artifact@v7
+        with:
+          name: image-action-contract-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/image-action-contract/source/gcp-mirror-target.json
+          if-no-files-found: error
+          retention-days: 1
+          archive: true
+      - name: Download evidence using the updated consumer
+        uses: actions/download-artifact@v8
+        with:
+          name: image-action-contract-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/image-action-contract/download
+          run-id: ${{ github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify extraction layout and exact evidence bytes
+        env:
+          CONTRACT_ROOT: ${{ runner.temp }}/image-action-contract
+        run: cmp "$CONTRACT_ROOT/source/gcp-mirror-target.json" "$CONTRACT_ROOT/download/gcp-mirror-target.json"
+
+  build-export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.0
+      - uses: docker/setup-buildx-action@v3
+      - name: Create synthetic scratch build context
+        env:
+          CONTRACT_ROOT: ${{ runner.temp }}/image-build-action-contract
+        run: |
+          node --input-type=module <<'NODE'
+          import { mkdirSync, writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          const directory = join(process.env.CONTRACT_ROOT, 'context');
+          mkdirSync(directory, { recursive: true });
+          writeFileSync(join(directory, 'Dockerfile'), 'FROM scratch\nCOPY evidence.json /evidence.json\n');
+          writeFileSync(join(directory, 'evidence.json'), JSON.stringify({
+            purpose: 'synthetic build action check; not a ClawMax release image',
+            source_sha: process.env.GITHUB_SHA
+          }) + '\n');
+          NODE
+      - name: Build both platform exports with the updated action
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ runner.temp }}/image-build-action-contract/context
+          file: ${{ runner.temp }}/image-build-action-contract/context/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: false
+          provenance: false
+          outputs: type=local,dest=${{ runner.temp }}/image-build-action-contract/result,platform-split=true
+      - name: Verify both exported files without publishing
+        env:
+          CONTRACT_ROOT: ${{ runner.temp }}/image-build-action-contract
+        run: |
+          for platform in linux_amd64 linux_arm64; do
+            cmp "$CONTRACT_ROOT/context/evidence.json" "$CONTRACT_ROOT/result/$platform/evidence.json"
+          done
