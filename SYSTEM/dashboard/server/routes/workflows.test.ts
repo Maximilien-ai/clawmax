@@ -295,7 +295,6 @@ async function run() {
         resolveParticipants: () => [],
         syncWorkflowToCron: () => ({ ok: false, error: 'cron sync failed', cronJobId: null }),
         updateWorkflow: () => ({ success: true }),
-        removeCronJob: (cronJobId: string) => { deletedCronJobId = cronJobId; return true },
         deleteWorkflow: (id: string) => ({ success: id === 'route-test-workflow' }),
       } as any,
     })
@@ -337,17 +336,39 @@ async function run() {
         deleteWorkflow: (id: string) => id === 'route-test-workflow'
           ? { success: true }
           : { success: false, error: 'Workflow not found' },
-        removeCronJob: (cronJobId: string) => { deletedCronJobId = cronJobId; return true },
+        syncWorkflowToCron: (workflow: any) => { deletedCronJobId = workflow.cronJobId; return { ok: true } },
       } as any,
     })
     let deleteRes = makeRes()
     await deleteHandler(makeReq({ id: 'route-test-workflow' }), deleteRes)
     assert(deleteRes.statusCode === 200, `Expected workflow delete success, got ${deleteRes.statusCode}`)
-    assert(deletedCronJobId === 'cron-123', 'Expected cron job removal for deleted workflow')
+    assert(deletedCronJobId === 'cron-123', 'Expected the deleted workflow\'s legacy cron job to be removed')
 
     deleteRes = makeRes()
     await deleteHandler(makeReq({ id: 'missing-workflow' }), deleteRes)
     assert(deleteRes.statusCode === 404, `Expected missing workflow delete to return 404, got ${deleteRes.statusCode}`)
+  })
+
+  await test('failed legacy cleanup retains the workflow and history until retry succeeds', async () => {
+    let exists = true, historyExists = true, failCleanup = true, deletions = 0
+    const handler = getRouteHandler('delete', '/:id', {
+      workflows: {
+        getWorkflow: () => exists ? { id: 'kept-workflow', cronJobId: 'legacy-job' } : null,
+        syncWorkflowToCron: () => ({ ok: !failCleanup, error: '/private/runtime/token' }),
+        deleteWorkflow: () => { deletions++; exists = false; historyExists = false; return { success: true } },
+      } as any,
+      scheduler: { syncAllWorkflows: () => {} } as any,
+    })
+    const denied = makeRes()
+    await handler(makeReq({ id: 'kept-workflow' }), denied)
+    assert(denied.statusCode === 503, 'Failed cleanup must not report successful deletion')
+    assert(denied.jsonBody.code === 'workflow_legacy_cleanup_failed', 'The client needs a stable retry reason')
+    assert(!JSON.stringify(denied.jsonBody).includes('/private'), 'Runtime diagnostics must not leak into the user error')
+    assert(exists && historyExists && deletions === 0, 'The workflow and history must be retained')
+    failCleanup = false
+    const retried = makeRes()
+    await handler(makeReq({ id: 'kept-workflow' }), retried)
+    assert(retried.statusCode === 200 && deletions === 1 && !exists && !historyExists, 'A successful retry deletes once')
   })
 
   await test('workflow import preserves known dependencies and rejects unresolved references before creating', async () => {

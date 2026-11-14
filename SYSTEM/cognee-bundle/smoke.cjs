@@ -7,7 +7,7 @@ const { execFileSync } = require('node:child_process')
 const bundle = process.env.CLAWMAX_BUNDLED_COGNEE_PATH
 assert(bundle, 'bundled path is required')
 const pkg = JSON.parse(fs.readFileSync(path.join(bundle, 'package.json'), 'utf8'))
-assert.equal(pkg.version, '2026.9.2')
+assert.equal(pkg.version, '2026.10.13')
 assert.equal(JSON.parse(fs.readFileSync(path.join(bundle, 'openclaw.plugin.json'), 'utf8')).id, 'cognee-openclaw')
 for (const entry of pkg.openclaw.extensions) assert(fs.statSync(path.join(bundle, entry)).isFile())
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cognee-image-smoke-'))

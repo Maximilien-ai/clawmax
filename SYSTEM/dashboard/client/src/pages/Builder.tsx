@@ -19,6 +19,7 @@ import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import { comparePromptQuality } from '../lib/promptQuality'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import PromptQualityPanel from '../components/PromptQualityPanel'
+import VerticalResizeHandle from '../components/VerticalResizeHandle'
 
 type BuilderAction = {
   id: string
@@ -2390,7 +2391,7 @@ export default function Builder({
           <div className={`flex min-w-0 flex-col rounded-3xl border border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-950/50 ${
             hasConversation ? 'mt-3 p-2.5' : 'mt-4 p-3'
           } ${reserveTranscriptSpace ? 'flex-1' : 'flex-none'}`}>
-            <div ref={transcriptViewportRef} className={`${reserveTranscriptSpace ? 'min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 lg:basis-0 lg:min-h-[8rem]' : 'hidden'}`}>
+            <div id="builder-answer-content" ref={transcriptViewportRef} className={`${reserveTranscriptSpace ? 'min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 lg:basis-0 lg:min-h-[8rem]' : 'hidden'}`}>
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className="max-w-[88%]">
@@ -2582,6 +2583,9 @@ export default function Builder({
               )}
               <div ref={transcriptEndRef} />
             </div>
+            {reserveTranscriptSpace && (
+              <VerticalResizeHandle targetRef={transcriptViewportRef} controls="builder-answer-content" label="Resize Builder answer vertically" minHeight={128} />
+            )}
 
             <div className="mt-2.5 shrink-0 rounded-2xl border border-sky-200/80 bg-sky-50/70 p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-sky-900/60 dark:bg-sky-950/20">
               <div className="mb-2 flex items-center justify-between gap-3">
@@ -2652,6 +2656,7 @@ export default function Builder({
                   id="builder-prompt-input"
                   ref={textareaRef}
                   rows={promptExpanded ? 7 : 3}
+                  aria-describedby="builder-prompt-input-resize-hint"
                   value={prompt}
                   onChange={(event) => {
                     const nextValue = event.target.value
@@ -2665,8 +2670,9 @@ export default function Builder({
                   onKeyUp={(event) => updatePromptMentionState(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
                   onKeyDown={handlePromptKeyDown}
                   placeholder="Describe what to build, use @ to mention an agent, or enter /question followed by a question."
-                  className={`w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-base text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700 sm:text-sm ${promptExpanded ? 'min-h-[12rem] max-h-[24rem]' : 'min-h-[5.5rem] max-h-[10rem]'}`}
+                  className={`w-full min-h-[5.5rem] max-h-[max(5.5rem,60vh)] resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-base text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700 sm:text-sm ${promptExpanded ? 'h-[12rem]' : 'h-[5.5rem]'}`}
                 />
+                <VerticalResizeHandle targetRef={textareaRef} controls="builder-prompt-input" label="Resize Builder prompt vertically" />
               </div>
               <div className="mt-2">
                 <PromptQualityPanel prompt={prompt} domain="builder" compact collapsible />

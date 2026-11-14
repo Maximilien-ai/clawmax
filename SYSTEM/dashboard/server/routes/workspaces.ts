@@ -17,7 +17,7 @@ import { inferWorkspaceDashboardCompanies } from './workspace-dashboards'
 import { buildWorkspaceExportManifest, getWorkspaceExportFileName, getWorkspaceExportRootName, WORKSPACE_EXPORT_SECRET_GLOBS } from '../lib/workspace-export'
 import { importWorkspaceFromZipArchive } from '../lib/workspace-import'
 import { listTeams } from '../lib/teams'
-import { listWorkflows } from '../lib/workflows'
+import { listWorkflows, publicExecution, readStoredExecutions, WORKFLOW_EXECUTION_RECORD_GLOBS } from '../lib/workflows'
 import fs from 'fs'
 import os from 'os'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
@@ -177,8 +177,12 @@ router.get('/:id/export', async (req, res) => {
       archive.glob('**/*', {
         cwd: workspace.path,
         dot: true,
-        ignore: [...WORKSPACE_EXPORT_SECRET_GLOBS],
+        ignore: [...WORKSPACE_EXPORT_SECRET_GLOBS, ...WORKFLOW_EXECUTION_RECORD_GLOBS],
       }, { prefix: rootName })
+      // Run records go through publicExecution: older ones can hold run secrets in their inputs.
+      for (const { relative, execution } of readStoredExecutions(workspace.path)) {
+        if (execution) archive.append(JSON.stringify(publicExecution(execution), null, 2), { name: `${rootName}/${relative.split(path.sep).join('/')}` })
+      }
       archive.append(JSON.stringify(manifest, null, 2), { name: `${rootName}/SYSTEM/export-manifest.json` })
     })
   } catch (err: any) {

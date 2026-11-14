@@ -6,7 +6,8 @@ import { createNotification } from './notifications'
 import { listAgents, getWorkspacePath, parseGroups } from './workspace'
 import { listExecutions, listWorkflows } from './workflows'
 import { readAgentLifecycleAuditEvents } from './agent-lifecycle-audit'
-import { getMessages } from './messages'
+import { getMessages, archiveSources } from './messages'
+import { archiveMatches } from './message-storage-identity'
 import { materializeDashboardAgentList } from './openclaw-config'
 
 export const PLUGIN_HOST_API_VERSION = 'clawmax.ai/v2' as const
@@ -2474,25 +2475,18 @@ export function getWorkflowLifecycleEvidence(plugin: PluginManifest, workflowId:
 }
 
 function listCommunicationArchiveMetadata(subjectType: 'group' | 'community', name: string): Array<{ filename: string; timestamp: number; messageCount: number }> {
-  const archiveDir = path.join(getWorkspacePath(), 'SYSTEM', 'messages', subjectType === 'group' ? 'groups' : 'communities', 'archive')
-  if (!fs.existsSync(archiveDir)) return []
-  const safeName = name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()
-  try {
-    return fs.readdirSync(archiveDir)
-      .filter((filename) => filename.startsWith(`${safeName}_`) && filename.endsWith('.json'))
-      .map((filename) => {
-        const timestamp = Number(filename.match(/_(\d+)\.json$/)?.[1] || 0)
-        let messageCount = 0
-        try {
-          const parsed = JSON.parse(fs.readFileSync(path.join(archiveDir, filename), 'utf-8'))
-          messageCount = Array.isArray(parsed) ? parsed.length : 0
-        } catch {}
-        return { filename, timestamp, messageCount }
-      })
-      .sort((a, b) => b.timestamp - a.timestamp)
-  } catch {
-    return []
-  }
+  return archiveSources(subjectType, name).flatMap(({ directory: archiveDir, prefix }) => {
+    if (!fs.existsSync(archiveDir)) return []
+    return fs.readdirSync(archiveDir).filter(filename => archiveMatches(prefix, filename)).map(filename => {
+      const timestamp = Number(filename.match(/_(\d+)\.json$/)?.[1] || 0)
+      let messageCount = 0
+      try {
+        const parsed = JSON.parse(fs.readFileSync(path.join(archiveDir, filename), 'utf8'))
+        messageCount = Array.isArray(parsed) ? parsed.length : 0
+      } catch {}
+      return { filename, timestamp, messageCount }
+    })
+  }).sort((a, b) => b.timestamp - a.timestamp)
 }
 
 export function getCommunicationLifecycleEvidence(

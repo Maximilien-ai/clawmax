@@ -4,6 +4,13 @@ import os from 'os'
 import path from 'path'
 import { addMessage, getMessages } from './messages'
 
+function messageFile(directory: string, type: string): string {
+  const store = type === 'direct' ? directory : path.join(directory, '.v2')
+  const files = fs.readdirSync(store).filter(name => name.endsWith('.json'))
+  assert.equal(files.length, 1, 'exactly one persisted history per workspace')
+  return path.join(store, files[0])
+}
+
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-message-isolation-'))
 const previous = process.env.CLAWMAX_TEST_WORKSPACE
 try {
@@ -17,8 +24,8 @@ try {
     process.env.CLAWMAX_TEST_WORKSPACE = path.join(root, 'alpha')
     assert.deepEqual(getMessages(type, 'shared-name').map(message => message.id), [alpha.id])
     const directory = type === 'group' ? 'groups' : type === 'community' ? 'communities' : 'direct'
-    const alphaDisk = JSON.parse(fs.readFileSync(path.join(root, 'alpha', 'SYSTEM', 'messages', directory, 'shared-name.json'), 'utf8'))
-    const betaDisk = JSON.parse(fs.readFileSync(path.join(root, 'beta', 'SYSTEM', 'messages', directory, 'shared-name.json'), 'utf8'))
+    const alphaDisk = JSON.parse(fs.readFileSync(messageFile(path.join(root, 'alpha', 'SYSTEM', 'messages', directory), type), 'utf8'))
+    const betaDisk = JSON.parse(fs.readFileSync(messageFile(path.join(root, 'beta', 'SYSTEM', 'messages', directory), type), 'utf8'))
     assert.deepEqual(alphaDisk.map((message: any) => message.content), ['alpha-only'])
     assert.deepEqual(betaDisk.map((message: any) => message.content), ['beta-only'])
   }

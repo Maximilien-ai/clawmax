@@ -66,8 +66,8 @@ function DiffSection({
   if (diff.length === 0) return null
 
   const accent = color === 'purple'
-    ? { border: 'border-purple-200', bg: 'bg-purple-50', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700' }
-    : { border: 'border-indigo-200', bg: 'bg-indigo-50', text: 'text-indigo-700', badge: 'bg-indigo-100 text-indigo-700' }
+    ? { border: 'border-purple-200 dark:border-purple-700', bg: 'bg-purple-50 dark:bg-purple-900/30', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-200' }
+    : { border: 'border-indigo-200 dark:border-indigo-700', bg: 'bg-indigo-50 dark:bg-indigo-900/30', text: 'text-indigo-700', badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-200' }
 
   return (
     <div>
@@ -79,9 +79,9 @@ function DiffSection({
             className={`flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${
               entry.selected
                 ? entry.kind === 'local_only'
-                  ? 'border-amber-200 bg-amber-50'
+                  ? 'border-amber-200 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/30'
                   : `${accent.border} ${accent.bg}`
-                : 'border-gray-100 bg-gray-50 opacity-60'
+                : 'border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-900'
             }`}
           >
             <input
@@ -97,11 +97,11 @@ function DiffSection({
                   <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${accent.badge}`}>in WA</span>
                 )}
                 {entry.kind === 'local_only' && (
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium shrink-0">orphaned</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-200 font-medium shrink-0">orphaned</span>
                 )}
               </div>
               {entry.description && (
-                <p className="text-xs text-gray-400 mt-0.5 truncate">{entry.description}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate">{entry.description}</p>
               )}
             </div>
           </label>

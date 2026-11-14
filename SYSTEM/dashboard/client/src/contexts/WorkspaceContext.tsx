@@ -35,7 +35,7 @@ interface WorkspaceContextValue {
   // Actions
   reorderWorkspaces: (fromIndex: number, toIndex: number) => void
   switchWorkspace: (id: string) => Promise<void>
-  createWorkspace: (name: string, path: string, options?: { color?: string; tags?: string[]; mode?: 'create' | 'adopt' | 'overwrite' }) => Promise<Workspace>
+  createWorkspace: (name: string, path: string, options?: { color?: string; tags?: string[]; mode?: 'create' | 'adopt' | 'overwrite'; notifySuccess?: boolean }) => Promise<Workspace>
   updateWorkspace: (id: string, updates: { name?: string; color?: string; tags?: string[] }) => Promise<void>
   deleteWorkspace: (id: string) => Promise<void>
   refreshWorkspaces: () => Promise<void>
@@ -133,13 +133,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const createWorkspace = useCallback(async (
     name: string,
     path: string,
-    options?: { color?: string; tags?: string[]; mode?: 'create' | 'adopt' | 'overwrite' }
+    options?: { color?: string; tags?: string[]; mode?: 'create' | 'adopt' | 'overwrite'; notifySuccess?: boolean }
   ): Promise<Workspace> => {
     try {
+      const { notifySuccess = true, ...createOptions } = options || {}
       const res = await fetch('/api/workspaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, path, ...options })
+        body: JSON.stringify({ name, path, ...createOptions })
       })
 
       if (!res.ok) {
@@ -149,7 +150,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
       const data = await res.json()
       await refreshWorkspaces()
-      showSuccess(`Workspace "${name}" created successfully`)
+      if (notifySuccess) showSuccess(`Workspace "${name}" created successfully`)
       return data.workspace
     } catch (err: any) {
       console.error('Failed to create workspace:', err)

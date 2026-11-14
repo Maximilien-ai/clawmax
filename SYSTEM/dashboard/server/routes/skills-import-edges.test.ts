@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import router, { __test } from './skills'
+import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 
 type Handler = (req: any, res: any) => any
 
@@ -128,6 +129,30 @@ async function main() {
     }
   })
 
+  await test('directory import creates the custom skills root in a fresh workspace', async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-fresh-workspace-'))
+    const sourceParent = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-fresh-source-'))
+    const sourceRoot = path.join(sourceParent, 'fresh-directory-probe')
+    const previousWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+    fs.mkdirSync(path.join(workspaceRoot, 'SYSTEM'))
+    fs.mkdirSync(sourceRoot)
+    fs.writeFileSync(path.join(sourceRoot, 'SKILL.md'), '# fresh-directory-probe')
+    process.env.CLAWMAX_TEST_WORKSPACE = workspaceRoot
+    try {
+      assert.equal(fs.existsSync(path.join(workspaceRoot, 'SKILLS', 'custom')), false)
+      const res = makeRes()
+      await importHandler(makeReq({ body: { sourcePath: sourceRoot } }), res)
+      assert.equal(res.statusCode, 200, JSON.stringify(res.jsonBody))
+      assert.equal(res.jsonBody?.skillId, 'fresh-directory-probe')
+      assert(fs.existsSync(path.join(workspaceRoot, 'SKILLS', 'custom', 'fresh-directory-probe', 'SKILL.md')))
+    } finally {
+      if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+      else process.env.CLAWMAX_TEST_WORKSPACE = previousWorkspace
+      fs.rmSync(workspaceRoot, { recursive: true, force: true })
+      fs.rmSync(sourceParent, { recursive: true, force: true })
+    }
+  })
+
   await test('import-upload imports a zipped single skill from the client into the active workspace', async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-upload-workspace-'))
     const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-upload-source-'))
@@ -150,7 +175,7 @@ async function main() {
         },
       }), res)
 
-      assert.equal(res.statusCode, 200)
+      assert.equal(res.statusCode, 200, JSON.stringify(res.jsonBody))
       assert.equal(res.jsonBody?.ok, true)
       assert.equal(res.jsonBody?.skillId, 'workspace-ls')
       assert.equal(typeof res.jsonBody?.upload?.extractedFiles, 'number')
@@ -173,7 +198,27 @@ async function main() {
   console.log('\nAll tests passed')
 }
 
-main().catch((error) => {
+async function runWithPrivateWorkspace() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-import-suite-'))
+  const keys = ['CLAWMAX_TEST_WORKSPACE', 'CLAWMAX_WORKSPACE_REGISTRY_PATH'] as const
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]))
+  fs.mkdirSync(path.join(root, 'workspace'), { recursive: true })
+  process.env.CLAWMAX_TEST_WORKSPACE = path.join(root, 'workspace')
+  process.env.CLAWMAX_WORKSPACE_REGISTRY_PATH = path.join(root, 'registry.json')
+  resetWorkspaceManagerForTests()
+  try {
+    await main()
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key]
+      else process.env[key] = previous[key]
+    }
+    resetWorkspaceManagerForTests()
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+}
+
+runWithPrivateWorkspace().catch((error) => {
   console.error(error)
   process.exit(1)
 })

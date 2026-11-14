@@ -1,16 +1,27 @@
 # ClawMax Documentation
 
-> Last updated: October 27, 2026
+> Last updated: November 14, 2026
 
 Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
-`v1.9.9`. Start with the [RC95 source preview and acceptance](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md).
-Existing RC94 images retain their original source; RC95 images have not been built.
-Older release evidence and installed-instance gates remain linked below.
+`v1.9.9`. Start with [November 14 dependency maintenance and RC98 gates](planning/DEPENDABOT_2026-11-14.md).
+RC98 has not been cut. Earlier RC preview/evidence files below describe their
+original source snapshots, not the current candidate or runtime state.
 
 ## Active Documents
 
 | Document | Description |
 |----------|-------------|
+| [planning/DEPENDABOT_2026-11-14.md](planning/DEPENDABOT_2026-11-14.md) | #302 merge receipt, Node #384 validation checklist and remaining dependency queue |
+| [planning/DEPENDABOT_2026-11-13.md](planning/DEPENDABOT_2026-11-13.md) | Prior dependency contracts/merges, issue triage and retained RC98 gates |
+| [CI_TEST_SCOPE.md](CI_TEST_SCOPE.md) | Required CI selects focused workflow/docs checks and full application/dependency/runtime validation; reproducible commands and fallback guards |
+| [planning/ISSUE_TRIAGE_2026-11-13.md](planning/ISSUE_TRIAGE_2026-11-13.md) | All 107 starting issues classified; #273 closed, 106 remain open; evidence and closure-verification queue |
+| [planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md) | Archived, accepted and merged #227 chat evidence, 574-check result and retained limitations |
+| [planning/RC98_ACCEPTANCE_2026-11-12.md](planning/RC98_ACCEPTANCE_2026-11-12.md) | Archived, accepted and merged #242 scoring/resize evidence and feedback closure |
+| [planning/RC98_ACCEPTANCE_2026-11-11.md](planning/RC98_ACCEPTANCE_2026-11-11.md) | Accepted and merged scheduler batch: wording receipt, 571-check evidence and retained limitations |
+| [planning/RC98_ACCEPTANCE_2026-11-10.md](planning/RC98_ACCEPTANCE_2026-11-10.md) | Accepted #404 checks, full 570-check evidence, remediated CodeQL and current CI gate, exact dev identity and remaining RC98 gates |
+| [planning/MESSAGE_ISOLATION_404_2026-11-10.md](planning/MESSAGE_ISOLATION_404_2026-11-10.md) | #404 exact-source validation, legacy ownership and feedback status |
+| [guides/RECOVER_CHANNEL_HISTORY.md](guides/RECOVER_CHANNEL_HISTORY.md) | Owner recovery, backups and rollback for older channel histories |
+| [planning/RC98_ACCEPTANCE_2026-11-08.md](planning/RC98_ACCEPTANCE_2026-11-08.md) | Historical first-batch acceptance, prior test evidence and all-feedback/reply reconciliation |
 | [planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) | RC95 source preview: five included PRs, four holds, four human/provider acceptance checks and engineering evidence |
 | [FIRST_AGENT_TUTORIAL.md](FIRST_AGENT_TUTORIAL.md) | Low-code guide to define, create, test, and improve a first ClawMax agent |
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |

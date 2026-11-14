@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import zlib from 'zlib'
+import { openClawStatePath } from './openclaw-profile-paths'
 
 type TranscriptEventRow = { event_json: string | null; event_zstd?: Uint8Array | null }
 
@@ -29,16 +30,16 @@ function decodeTranscriptEvent(row: TranscriptEventRow): string {
   }
 }
 
-function databasePath(agentId: string, home: string): string {
-  if (!/^[a-zA-Z0-9_-]+$/.test(agentId)) throw new Error('Invalid agent id')
-  return path.join(home, '.openclaw', 'agents', agentId, 'agent', 'openclaw-agent.sqlite')
+function databasePath(agentId: string, home?: string): string {
+  if (!agentId || /[^a-zA-Z0-9_-]/.test(agentId)) throw new Error('Invalid agent id')
+  return path.join(openClawStatePath(home), 'agents', path.basename(agentId), 'agent', 'openclaw-agent.sqlite')
 }
 
-export function hasNativeChatStore(agentId: string, home: string): boolean {
+export function hasNativeChatStore(agentId: string, home?: string): boolean {
   return fs.existsSync(databasePath(agentId, home))
 }
 
-function readNative<T>(agentId: string, home: string, read: (db: any) => T): T | undefined {
+function readNative<T>(agentId: string, home: string | undefined, read: (db: any) => T): T | undefined {
   const filename = databasePath(agentId, home)
   if (!fs.existsSync(filename)) return undefined
   const { DatabaseSync } = require('node:sqlite')
@@ -54,7 +55,7 @@ function readNative<T>(agentId: string, home: string, read: (db: any) => T): T |
   }
 }
 
-export function resolveNativeChatSession(agentId: string, sessionKey: string, home: string): string | undefined {
+export function resolveNativeChatSession(agentId: string, sessionKey: string, home?: string): string | undefined {
   return readNative(agentId, home, db => {
     const row = db.prepare('SELECT current_session_id FROM session_nodes WHERE session_key = ?').get(sessionKey)
     return row?.current_session_id as string | undefined
@@ -62,7 +63,7 @@ export function resolveNativeChatSession(agentId: string, sessionKey: string, ho
 }
 
 /** Whether the agent store holds a session (any window, current or not) with this id. */
-export function hasNativeChatSession(agentId: string, sessionId: string, home: string): boolean {
+export function hasNativeChatSession(agentId: string, sessionId: string, home?: string): boolean {
   return readNative(agentId, home, db => {
     const hasTable = (name: string) => Boolean(db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?").get(name))
     if (hasTable('session_windows')) return Boolean(db.prepare('SELECT 1 FROM session_windows WHERE session_id = ?').get(sessionId))
@@ -70,7 +71,7 @@ export function hasNativeChatSession(agentId: string, sessionId: string, home: s
   }) ?? false
 }
 
-export function readNativeChatTranscript(agentId: string, sessionId: string, home: string): string | undefined {
+export function readNativeChatTranscript(agentId: string, sessionId: string, home?: string): string | undefined {
   return readNative(agentId, home, db => {
     const hasTable = (name: string) => Boolean(db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?").get(name))
     if (!hasTable('transcript_events')) return undefined
@@ -107,10 +108,10 @@ export function readNativeChatTranscript(agentId: string, sessionId: string, hom
  * (OpenClaw 2 records `--session-id` turns there and writes no JSONL), otherwise the legacy
  * `sessions/<id>.jsonl` file. Undefined when neither exists; throws when the store cannot be read.
  */
-export function readPersistedChatTranscript(agentId: string, sessionId: string, home: string): string | undefined {
+export function readPersistedChatTranscript(agentId: string, sessionId: string, home?: string): string | undefined {
   if (!/^[a-zA-Z0-9_-]+$/.test(sessionId)) throw new Error('Invalid session id')
   const nativeTranscript = readNativeChatTranscript(agentId, sessionId, home)
   if (nativeTranscript !== undefined) return nativeTranscript
-  const jsonlPath = path.join(home, '.openclaw', 'agents', agentId, 'sessions', `${sessionId}.jsonl`)
+  const jsonlPath = path.join(openClawStatePath(home), 'agents', path.basename(agentId), 'sessions', `${path.basename(sessionId)}.jsonl`)
   return fs.existsSync(jsonlPath) ? fs.readFileSync(jsonlPath, 'utf-8') : undefined
 }

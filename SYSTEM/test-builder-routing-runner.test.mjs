@@ -86,6 +86,31 @@ try {
     assert.doesNotMatch(result.stdout, succeeds ? /RESULT_FAIL/ : /RESULT_PASS/)
   }
   console.log('Dynamic security runner: 5 count/exit-status cases passed')
+  const promptStart = source.indexOf('npx ts-node --transpileOnly client/src/lib/promptQuality.test.ts')
+  const promptEnd = source.indexOf('\nfi', promptStart)
+  assert(promptStart >= 0 && promptEnd > promptStart)
+  const promptOutput = "'" + path.join(directory, 'prompt.out').replaceAll("'", "'\"'\"'") + "'"
+  const promptBlock = source.slice(promptStart, promptEnd + 3).replaceAll('/tmp/clawmax-prompt-quality.out', promptOutput)
+  for (const [exitCode, output, succeeds] of [
+    [0, 'promptQuality.test.ts: 69 tests passed', true],
+    [0, 'promptQuality.test.ts: 70 tests passed', true],
+    [0, 'promptQuality.test.ts: 0 tests passed', false],
+    [0, 'incomplete output', false],
+    [1, 'promptQuality.test.ts: 69 tests passed', false],
+    [137, 'promptQuality.test.ts: 69 tests passed', false],
+  ]) {
+    const result = spawnSync('bash', ['-c', `
+      npx() { echo '${output}'; return ${exitCode}; }
+      pass() { echo 'RESULT_PASS'; }
+      fail() { echo 'RESULT_FAIL'; }
+      ${promptBlock}
+    `], { encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, succeeds ? /RESULT_PASS/ : /RESULT_FAIL/)
+    assert.doesNotMatch(result.stdout, succeeds ? /RESULT_FAIL/ : /RESULT_PASS/)
+  }
+  console.log('Prompt scoring runner: 6 count/exit-status cases passed')
+
 } finally {
   fs.rmSync(directory, { recursive: true, force: true })
 }

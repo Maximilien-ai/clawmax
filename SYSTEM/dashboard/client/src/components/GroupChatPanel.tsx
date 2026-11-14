@@ -17,6 +17,7 @@ import {
 import { ProductIconCell } from '../lib/productIcons'
 import { createPromptAttachment } from '../lib/promptAttachments'
 import { useAuth } from '../contexts/AuthContext'
+import { useWorkspace } from '../contexts/WorkspaceContext'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import { shouldSendChatOnKeyDown } from '../lib/chatComposer'
@@ -92,16 +93,48 @@ function formatChatTime(timestamp: number | undefined, includeDate: boolean): st
   return `${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} ${timeLabel}`
 }
 
-function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent, onNavigateToDoc }: Props) {
+function GroupChatPanel(props: Props) {
+  const { activeWorkspace } = useWorkspace()
+  if (!activeWorkspace) return null
+  const cacheKey = buildCommunicationCacheKey(props.channel.type, props.channel.name, activeWorkspace.id)
+  return <GroupChatConversation key={cacheKey} {...props} cacheKey={cacheKey} workspaceId={activeWorkspace.id} />
+}
+
+function GroupChatConversation({ channel, onClose, mode = 'overlay', onExpand, onMessageSent, onNavigateToDoc, cacheKey, workspaceId }: Props & { cacheKey: string; workspaceId: string }) {
   const { config } = useAuth()
   const chatEnabled = hasChatExecutionAccess(config)
-  const cacheKey = buildCommunicationCacheKey(channel.type, channel.name)
   const [messages, setMessages] = useState<Message[]>(() => groupChatMessageCache.get(cacheKey) || [])
   const [input, setInput] = useState('')
   const [composerExpanded, setComposerExpanded] = useState(readChatComposerExpanded)
   const [loading, setLoading] = useState(() => (groupChatMessageCache.get(cacheKey) || []).length === 0)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [historyBlocked, setHistoryBlocked] = useState(false)
+  const blockedHistory = useRef(false)
+  const live = useRef(true)
+  useEffect(() => { live.current = true; return () => { live.current = false } }, [])
+
+  function fetchChannel(endpoint: string, init: RequestInit = {}) {
+    const headers = new Headers(init.headers)
+    headers.set('X-Clawmax-Workspace', workspaceId)
+    return fetch(endpoint, { ...init, headers })
+  }
+  async function historyResponse(response: Response) {
+    const data = await response.json().catch(() => ({}))
+    if (!live.current) throw new Error('Chat changed')
+    if (!response.ok) {
+      if (data.code === 'message_history_recovery_required' || data.code === 'workspace_changed') {
+        blockedHistory.current = true
+        setHistoryBlocked(true)
+        groupChatMessageCache.delete(cacheKey)
+        groupChatArchiveCache.delete(cacheKey)
+        setMessages([])
+        setArchives([])
+      }
+      throw new Error(data.error || 'Unable to load channel history. Try again.')
+    }
+    return data
+  }
   const [showMentions, setShowMentions] = useState(false)
   const [mentionQuery, setMentionQuery] = useState('')
   const [mentionPosition, setMentionPosition] = useState(0)
@@ -343,7 +376,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
 
   async function fetchMessages() {
     // Only show loading on initial fetch, not on polling
-    if (messages.length === 0) {
+    if (messages.length === 0 && !blockedHistory.current) {
       setLoading(true)
       setError(null)
     }
@@ -351,9 +384,14 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       const endpoint = channel.type === 'community'
         ? `/api/communities/${encodeURIComponent(channel.name)}/messages`
         : `/api/groups/${encodeURIComponent(channel.name)}/messages`
-      const r = await fetch(endpoint)
-      const data = await r.json()
+      const r = await fetchChannel(endpoint)
+      const data = await historyResponse(r)
       const newMessages = data.messages || []
+      if (blockedHistory.current) {
+        blockedHistory.current = false
+        setHistoryBlocked(false)
+        setError(null)
+      }
       groupChatMessageCache.set(cacheKey, newMessages)
 
       // Clear typing indicators for agents who have responded
@@ -374,7 +412,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         return prevMessages // Same reference — no re-render
       })
     } catch (e) {
-      setError(String(e))
+      if (live.current) setError(String(e))
     } finally {
       if (messages.length === 0) {
         setLoading(false)
@@ -383,7 +421,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   }
 
   async function sendMessage() {
-    if ((!input.trim() && attachments.length === 0) || sending) return
+    if ((!input.trim() && attachments.length === 0) || sending || historyBlocked) return
     if (!chatEnabled) {
       setError('Group chat is disabled because no AI execution path is configured. Open BYOK or Keys & Secrets first.')
       return
@@ -430,21 +468,24 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       const uploadedAttachments = currentAttachments.length > 0
         ? await ensureUploadedAttachments(currentAttachments)
         : []
+      if (!live.current) return
       const messageContent = buildAgentInboxDisplayMessage(userMessage, uploadedAttachments)
 
       if (copyAttachmentsToMentionedAgents && uploadedAttachments.length > 0 && mentionedAgents.length > 0) {
         for (const agent of mentionedAgents) {
+          if (!live.current) return
           await uploadAttachmentsToTarget(buildAgentInboxTargetPath(agent.id), currentAttachments)
         }
       }
 
+      if (!live.current) return
       setAttachments([])
 
       const endpoint = channel.type === 'community'
         ? `/api/communities/${encodeURIComponent(channel.name)}/messages`
         : `/api/groups/${encodeURIComponent(channel.name)}/messages`
 
-      const r = await fetch(endpoint, {
+      const r = await fetchChannel(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -454,6 +495,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         }),
       })
 
+      if (!live.current) return
       if (r.ok) {
         // Show typing indicators for mentioned agents
         if (mentionedAgents.length > 0) {
@@ -473,7 +515,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         // Notify parent about message sent (for status refresh and toasts)
         onMessageSent?.(mentionedAgents.map(a => a.id), !hasExplicitMentions || hasAll)
       } else {
-        const data = await r.json()
+        const data = await historyResponse(r)
         setError(data.error || 'Failed to send message')
         setInput(userMessage)
         if (uploadedAttachments.length > 0) {
@@ -481,7 +523,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         }
       }
     } catch (e) {
-      setError(String(e))
+      if (live.current) setError(String(e))
       setInput(userMessage)
       if (currentAttachments.length > 0) {
         setAttachments(currentAttachments)
@@ -681,7 +723,8 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         ? `/api/communities/${encodeURIComponent(channel.name)}/messages`
         : `/api/groups/${encodeURIComponent(channel.name)}/messages`
 
-      const r = await fetch(endpoint, { method: 'DELETE' })
+      const r = await fetchChannel(endpoint, { method: 'DELETE' })
+      await historyResponse(r)
       if (r.ok) {
         setMessages([])
         groupChatMessageCache.set(cacheKey, [])
@@ -693,14 +736,14 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         const archivesEndpoint = channel.type === 'community'
           ? `/api/communities/${encodeURIComponent(channel.name)}/archives`
           : `/api/groups/${encodeURIComponent(channel.name)}/archives`
-        const archivesR = await fetch(archivesEndpoint)
-        const archivesData = await archivesR.json()
+        const archivesR = await fetchChannel(archivesEndpoint)
+        const archivesData = await historyResponse(archivesR)
         const nextArchives = archivesData.archives || []
         groupChatArchiveCache.set(cacheKey, nextArchives)
         setArchives(nextArchives)
       }
     } catch (err) {
-      console.error('Failed to clear messages:', err)
+      if (live.current) setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -710,14 +753,14 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         ? `/api/communities/${encodeURIComponent(channel.name)}/archives`
         : `/api/groups/${encodeURIComponent(channel.name)}/archives`
 
-      const r = await fetch(endpoint)
-      const data = await r.json()
+      const r = await fetchChannel(endpoint)
+      const data = await historyResponse(r)
       const nextArchives = data.archives || []
       groupChatArchiveCache.set(cacheKey, nextArchives)
       setArchives(nextArchives)
       setShowArchives(true)
     } catch (err) {
-      console.error('Failed to fetch archives:', err)
+      if (live.current) setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -727,13 +770,13 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         ? `/api/communities/${encodeURIComponent(channel.name)}/archives`
         : `/api/groups/${encodeURIComponent(channel.name)}/archives`
 
-      const r = await fetch(endpoint)
-      const data = await r.json()
+      const r = await fetchChannel(endpoint)
+      const data = await historyResponse(r)
       const nextArchives = data.archives || []
       groupChatArchiveCache.set(cacheKey, nextArchives)
       setArchives(nextArchives)
     } catch (err) {
-      console.error('Failed to fetch archives list:', err)
+      if (live.current) setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -743,7 +786,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         ? `/api/communities/${encodeURIComponent(channel.name)}/archives/${filename}`
         : `/api/groups/${encodeURIComponent(channel.name)}/archives/${filename}`
 
-      await fetch(endpoint, { method: 'DELETE' })
+      await historyResponse(await fetchChannel(endpoint, { method: 'DELETE' }))
       const nextArchives = archives.filter(a => a.filename !== filename)
       groupChatArchiveCache.set(cacheKey, nextArchives)
       setArchives(nextArchives)
@@ -752,7 +795,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         setViewingArchive(null)
       }
     } catch (err) {
-      console.error('Failed to delete archive:', err)
+      if (live.current) setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -762,12 +805,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         ? `/api/communities/${encodeURIComponent(channel.name)}/archives/${filename}`
         : `/api/groups/${encodeURIComponent(channel.name)}/archives/${filename}`
 
-      const r = await fetch(endpoint)
-      const data = await r.json()
+      const r = await fetchChannel(endpoint)
+      const data = await historyResponse(r)
       setViewingArchive({ filename, messages: data.messages || [] })
       setShowArchives(false)
     } catch (err) {
-      console.error('Failed to load archive:', err)
+      if (live.current) setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -852,7 +895,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
               </button>
               <button
                 onClick={fetchArchives}
-                disabled={archives.length === 0}
+                disabled={historyBlocked || archives.length === 0}
                 className={`text-xs px-2 py-1.5 rounded transition-colors hidden sm:inline-flex ${
                   archives.length === 0
                     ? 'text-gray-300 cursor-not-allowed'
@@ -869,7 +912,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                 onClick={() => setShowClearConfirm(true)}
                 className="text-xs px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 hidden sm:inline-flex"
                 title="Clear chat (archives first)"
-                disabled={messages.length === 0}
+                disabled={historyBlocked || messages.length === 0}
               >
                 <span className="inline-flex items-center gap-1">
                   <ProductIconCell iconName="delete" label="Clear" size="sm" className="border-transparent bg-transparent text-current" />
@@ -911,12 +954,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
           )}
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 dark:bg-red-900/30 dark:border-red-800 dark:text-red-200">
               {error}
             </div>
           )}
 
-          {!loading && messages.length === 0 && (
+          {!loading && !error && messages.length === 0 && (
             <p className="text-sm text-gray-400 text-center mt-8">
               No messages yet. Start a conversation below.
             </p>
@@ -1166,7 +1209,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                 title="Enter to send; Shift+Enter for a new line. Use @name to address an agent."
                 aria-label="Message group"
                 className="block w-full min-h-10 max-h-40 resize-y px-4 pr-10 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                disabled={sending || isListening || !chatEnabled}
+                disabled={sending || isListening || historyBlocked || !chatEnabled}
               />
               <button
                 type="button"
@@ -1182,7 +1225,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
               <button
                 ref={sendButtonRef}
                 onClick={sendMessage}
-                disabled={(!input.trim() && attachments.length === 0) || sending || !chatEnabled}
+                disabled={(!input.trim() && attachments.length === 0) || sending || historyBlocked || !chatEnabled}
                 className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
               >
                 {sending ? 'Sending...' : 'Send'}

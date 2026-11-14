@@ -50,8 +50,8 @@ export function removeRespondedAgentsFromPending(
   return nextPending
 }
 
-export function buildCommunicationCacheKey(type: 'community' | 'group', name: string): string {
-  return `${type}:${name}`
+export function buildCommunicationCacheKey(type: 'community' | 'group', name: string, workspaceId: string): string {
+  return JSON.stringify([workspaceId, type, name])
 }
 
 export function resolveCommunicationDocPath(

@@ -430,12 +430,12 @@ export function scopeSessionIdToModel(sessionId: string, model?: string): string
 }
 
 /** Only continue an old hashed session when the caller supplies a server-generated seed. */
-export function scopeStoredDashboardSessionId(agentId: string, sessionSeed: string, model?: string, homeDir = process.env.HOME || ''): string {
+export function scopeStoredDashboardSessionId(agentId: string, sessionSeed: string, model?: string, homeDir?: string): string {
   const current = scopeSessionIdToModel(sessionSeed, model)
   const legacy = scopedSessionIdWithDigest(sessionSeed, model, 'sha1', 8)
-  if (current === legacy || !homeDir || !/^[a-zA-Z0-9_-]+$/.test(agentId)) return current
+  if (current === legacy || homeDir === '' || !/^[a-zA-Z0-9_-]+$/.test(agentId)) return current
   if (hasNativeChatSession(agentId, legacy, homeDir)) return legacy
-  const legacyFile = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions', `${legacy}.jsonl`)
+  const legacyFile = path.join(openClawStatePath(homeDir), 'agents', agentId, 'sessions', `${legacy}.jsonl`)
   if (fs.existsSync(legacyFile) || readRuntimeTranscript(agentId, legacy).length > 0) return legacy
   return current
 }
@@ -444,9 +444,9 @@ export function resolvePersistedAgentSessionId(
   agentId: string,
   sessionKey: string,
   preferredSessionId?: string,
-  homeDir: string = process.env.HOME || ''
+  homeDir?: string
 ): string | undefined {
-  if (!agentId || !homeDir) return preferredSessionId
+  if (!agentId || homeDir === '') return preferredSessionId
 
   // The session a turn ran, when the runtime has it. A key migrated from the legacy dashboard-chat
   // index keeps pointing at the conversation it held then, which is no longer this one once the chat
@@ -455,7 +455,7 @@ export function resolvePersistedAgentSessionId(
   const nativeSession = resolveNativeChatSession(agentId, sessionKey, homeDir)
   if (nativeSession) return nativeSession
 
-  const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
+  const sessionsDir = path.join(openClawStatePath(homeDir), 'agents', agentId, 'sessions')
   const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
 
   const hasSessionFile = (sessionId: string | undefined): sessionId is string =>
@@ -509,7 +509,7 @@ export function resolvePersistedAgentSessionId(
  * A session's persisted transcript lines: the native agent store when it holds the session (OpenClaw
  * 2 records `--session-id` turns there and writes no JSONL), otherwise the legacy JSONL file.
  */
-function readPersistedSessionLines(agentId: string, sessionId: string, homeDir: string): string[] | null {
+function readPersistedSessionLines(agentId: string, sessionId: string, homeDir?: string): string[] | null {
   let transcript: string | undefined
   try {
     transcript = readPersistedChatTranscript(agentId, sessionId, homeDir)
@@ -526,7 +526,7 @@ export function readLatestAssistantUsageFromPersistedSession(
   agentId: string,
   sessionKey: string,
   preferredSessionId?: string,
-  homeDir: string = process.env.HOME || ''
+  homeDir?: string
 ): {
   sessionId?: string
   inputTokens?: number
@@ -537,7 +537,7 @@ export function readLatestAssistantUsageFromPersistedSession(
   provider?: string
 } | null {
   const sessionId = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
-  if (!sessionId || !homeDir) return null
+  if (!sessionId || homeDir === '') return null
 
   const lines = readPersistedSessionLines(agentId, sessionId, homeDir)
   if (!lines) return null
@@ -567,7 +567,7 @@ export function readLatestAssistantTextFromPersistedSession(
   agentId: string,
   sessionKey: string,
   preferredSessionId?: string,
-  homeDir: string = process.env.HOME || ''
+  homeDir?: string
 ): {
   sessionId?: string
   content?: string
@@ -575,7 +575,7 @@ export function readLatestAssistantTextFromPersistedSession(
   messageId?: string
 } | null {
   const sessionId = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
-  if (!sessionId || !homeDir) return null
+  if (!sessionId || homeDir === '') return null
 
   const lines = readPersistedSessionLines(agentId, sessionId, homeDir)
   if (!lines) return null

@@ -8,7 +8,7 @@ import os from 'os'
 import { createHash, randomUUID } from 'crypto'
 import { execFileSync } from 'child_process'
 import { extractZipSecurely } from './archive-security'
-import { getWorkspaceManager } from './workspace-manager'
+import { getWorkspaceManager, hasScopedWorkspace } from './workspace-manager'
 import { assertWorkspaceRecovered } from './workspace-recovery-admission'
 import { getPausedAgents } from './agent-state'
 import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
@@ -35,7 +35,8 @@ export function getWorkspacePath(): string {
     const manager = getWorkspaceManager()
     const activeWorkspace = manager.getActiveWorkspace()
     workspacePath = activeWorkspace.path
-  } catch {
+  } catch (error) {
+    if (hasScopedWorkspace()) throw error
     // Fallback to env var or default
     workspacePath = process.env.OPENCLAW_WORKSPACE || WORKSPACE
   }
@@ -881,11 +882,24 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
       return { ok: false, error: 'ZIP contains a .git folder, which cannot be added to the workspace' }
     }
 
-    const conflicts = listing
-      .filter(Boolean)
-      .map((entry) => path.resolve(targetDir, entry))
-      .filter((destination) => fs.existsSync(destination))
-      .map((destination) => path.relative(workspacePath, destination))
+    const entries: Array<{ source: string; destination: string; directory: boolean }> = []
+    const collect = (sourceDir: string) => {
+      for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+        const source = path.join(sourceDir, entry.name)
+        const relative = path.relative(stagingDir, source)
+        const destination = resolveWorkspacePath(path.relative(workspacePath, path.join(targetDir, relative)), workspacePath)
+        if (!destination || (!entry.isDirectory() && !entry.isFile())) {
+          throw new Error(`ZIP contains an unsafe extraction destination: ${relative}`)
+        }
+        entries.push({ source, destination, directory: entry.isDirectory() })
+        if (entry.isDirectory()) collect(source)
+      }
+    }
+    collect(stagingDir)
+    const conflicts = entries.filter((entry) => {
+      const existing = fs.lstatSync(entry.destination, { throwIfNoEntry: false })
+      return existing && (!entry.directory || !existing.isDirectory())
+    }).map((entry) => path.relative(workspacePath, entry.destination))
 
     if (conflicts.length > 0) {
       return {
@@ -894,7 +908,16 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
       }
     }
 
-    fs.cpSync(stagingDir, targetDir, { recursive: true, errorOnExist: true, force: false })
+    // Node 24.22 rejects cp(errorOnExist) even for an existing destination directory.
+    // Merge validated directories explicitly; exclusive file creation still refuses
+    // collisions that appear after preflight, without replacing existing bytes.
+    for (const entry of entries) {
+      if (!resolveWorkspacePath(path.relative(workspacePath, entry.destination), workspacePath)) {
+        throw new Error('ZIP extraction destination changed outside the workspace')
+      }
+      if (entry.directory) fs.mkdirSync(entry.destination, { recursive: true })
+      else fs.copyFileSync(entry.source, entry.destination, fs.constants.COPYFILE_EXCL)
+    }
 
     const files = listing
       .filter((entry) => !entry.endsWith('/'))
@@ -1083,6 +1106,16 @@ export function updateGroupMembers(type: 'community' | 'group', name: string, ne
 }
 
 /** Create a new community or group */
+function preserveChannelHistoryIdentity(type: 'group' | 'community', name: string): void {
+  // Lazy import: message storage itself resolves the current workspace here.
+  const { messageStorageIdentity, MessageHistoryRecoveryError } = require('./message-storage-identity')
+  try { messageStorageIdentity(type, name) }
+  catch (error) {
+    // A durable recovery record protects old bytes while catalog edits proceed.
+    if (!(error instanceof MessageHistoryRecoveryError)) throw error
+  }
+}
+
 export function createGroup(
   type: 'community' | 'group',
   name: string,
@@ -1116,6 +1149,16 @@ export function createGroup(
     if (existingEntries.some(e => e.name === name)) {
       console.error(`${type} "${name}" already exists`)
       return false
+    }
+
+    const legacyEntries = parseGroups(content)
+    const previousNames = new Set([
+      ...existingEntries.map(entry => entry.name),
+      ...(type === 'group' ? legacyEntries.groups : legacyEntries.communities).map(entry => entry.name),
+    ])
+    const legacyKey = (value: string) => value.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()
+    for (const previousName of previousNames) {
+      if (legacyKey(previousName) === legacyKey(name)) preserveChannelHistoryIdentity(type, previousName)
     }
 
     // Find insertion point (after the ## Communities or ## Groups header)
@@ -1177,6 +1220,7 @@ export function createGroup(
 /** Delete a community or group */
 export function deleteGroup(type: 'community' | 'group', name: string): boolean {
   try {
+    preserveChannelHistoryIdentity(type, name)
     const workspacePath = getWorkspacePath()
     const filePath = type === 'community'
       ? path.join(workspacePath, 'ORG', 'COMMUNITIES.md')
@@ -2579,6 +2623,14 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
     steps.push(`Removed workspace ${archived ? 'AGENTS/archive/' : 'AGENTS/'}${id}/`)
   } catch (e) {
     errors.push(`Failed to remove workspace: ${e}`)
+  }
+
+  // The dashboard chat record names this agent's conversations: a recreated agent with the same id
+  // must not inherit them (dashboard-chat-conversations.ts).
+  try {
+    fs.rmSync(path.join(getWorkspacePath(), 'SYSTEM', 'dashboard-chat', `${path.basename(id)}.json`), { force: true })
+  } catch (e) {
+    errors.push(`Failed to remove dashboard chat record: ${e}`)
   }
 
   // Remove shared home agent dir (~/.openclaw/agents/<id>)
