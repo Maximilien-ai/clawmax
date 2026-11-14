@@ -4962,7 +4962,7 @@ const AgentTableView = React.memo(function AgentTableView({
                           setOpenDropdown(null)
                           onStatus(agent)
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 transition-colors flex items-center gap-2 dark:text-gray-300"
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                       >
                         <ProductIconCell iconName="status" label="Status & Logs" size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
                         Status & Logs
