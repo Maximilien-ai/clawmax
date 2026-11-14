@@ -5069,17 +5069,11 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "17. Custom Skills Import"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Test SKILLS directory exists
+# Resolve the workspace for the import's filesystem assertions.
 # Get actual workspace path from health endpoint (reuse from Section 12 if available, otherwise fetch)
 if [ -z "$WORKSPACE" ]; then
   WORKSPACE=$(apicurl "$API_BASE/api/health" | jq -r '.workspace')
 fi
-if [ -d "$WORKSPACE/SKILLS/custom" ]; then
-  pass "SKILLS/custom directory exists"
-else
-  fail "SKILLS/custom directory not found (workspace: $WORKSPACE)"
-fi
-
 # Create a test skill for import
 TEST_SKILL_DIR=$(mktemp -d /tmp/clawmax-test-skill-XXXXXX)
 
@@ -5109,6 +5103,14 @@ EOF
 response=$(apicurl -X POST "$API_BASE/api/skills/import" \
   -H 'Content-Type: application/json' \
   -d "{\"sourcePath\":\"$TEST_SKILL_DIR\"}")
+
+# A fresh workspace creates this directory on import; unit fixtures must not
+# prepare it as a side effect before the API operation runs.
+if [ -d "$WORKSPACE/SKILLS/custom" ]; then
+  pass "SKILLS/custom directory exists after import"
+else
+  fail "SKILLS/custom directory not found after import (workspace: $WORKSPACE)"
+fi
 
 if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
   test_skill_id=$(echo "$response" | jq -r '.skillId')

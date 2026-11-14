@@ -129,6 +129,30 @@ async function main() {
     }
   })
 
+  await test('directory import creates the custom skills root in a fresh workspace', async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-fresh-workspace-'))
+    const sourceParent = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-fresh-source-'))
+    const sourceRoot = path.join(sourceParent, 'fresh-directory-probe')
+    const previousWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+    fs.mkdirSync(path.join(workspaceRoot, 'SYSTEM'))
+    fs.mkdirSync(sourceRoot)
+    fs.writeFileSync(path.join(sourceRoot, 'SKILL.md'), '# fresh-directory-probe')
+    process.env.CLAWMAX_TEST_WORKSPACE = workspaceRoot
+    try {
+      assert.equal(fs.existsSync(path.join(workspaceRoot, 'SKILLS', 'custom')), false)
+      const res = makeRes()
+      await importHandler(makeReq({ body: { sourcePath: sourceRoot } }), res)
+      assert.equal(res.statusCode, 200, JSON.stringify(res.jsonBody))
+      assert.equal(res.jsonBody?.skillId, 'fresh-directory-probe')
+      assert(fs.existsSync(path.join(workspaceRoot, 'SKILLS', 'custom', 'fresh-directory-probe', 'SKILL.md')))
+    } finally {
+      if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+      else process.env.CLAWMAX_TEST_WORKSPACE = previousWorkspace
+      fs.rmSync(workspaceRoot, { recursive: true, force: true })
+      fs.rmSync(sourceParent, { recursive: true, force: true })
+    }
+  })
+
   await test('import-upload imports a zipped single skill from the client into the active workspace', async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-upload-workspace-'))
     const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-upload-source-'))
