@@ -79,8 +79,8 @@ full-suite or external-provider claim is made for these CI updates.
 | #300 | Archiver types major | Merged `2337cd96` after [full required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43403233466) and CodeQL passed on `93ad6e1a` |
 | #301 | c8 major | Merged `513349eb` after [required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43461950201) and CodeQL passed on `c9388b21` |
 | #299 | concurrently major | Merged `4dffd39c` after [required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43445911233) and CodeQL passed on `7b479c73` |
-| #303 | dotenv major + live-test repair | Prepared dotenv 18.0.8; six provider parser cases and 12 lifecycle oracle cases pass; final local integration/validation/coverage and current-head CI pending |
-| #302 | react-markdown major | Markdown rendering/security, chat/docs and responsive views |
+| #303 | dotenv major + live-test repair | Merged `cbd1ee68` after 577/577 local checks, [required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43524334234) and CodeQL passed on `c83876fb` |
+| #302 | react-markdown major | Prepared `318a25e5` on merged #303: eight rendering tests and eight browser cases pass on both versions; server types/build/lint/audit pass, frontend baseline unchanged; final CI pending |
 
 #300 is complete. Its Archiver runtime remains v8, now matched by the v8 types.
 
@@ -116,8 +116,8 @@ policy pass. Required CI still runs the full runner with the new collector; no
 extra local live-provider run or release readiness is claimed.
 
 No manual product acceptance is needed. #301 merged as `513349eb` after required
-CI and CodeQL passed. The remaining five updates are #303, #302, #384, #298
-and #296; order can change with compatibility findings.
+CI and CodeQL passed. #303 subsequently merged as `cbd1ee68`. The remaining four
+updates are #302, #384, #298 and #296; order can change with compatibility findings.
 
 ## #303 and intermittent live chat test repair
 
@@ -149,7 +149,48 @@ history, wrong restoration, runtime errors and workspace-mutation refusal. This
 is a distinct registered suite in `SYSTEM/test.sh`; its scripted replies test the
 oracle and do not substitute for the real provider lifecycle check. Full final
 local integration/validation/coverage is expected **12–15 minutes**; hosted full
-CI is approximately **43 minutes**. Neither pending result is reported as green.
+CI is approximately **43 minutes**. Final source `c83876fb` passed **577/577**
+local integration/validation/coverage checks, including the real provider lifecycle
+and group/community isolation. [Required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43524334234)
+and CodeQL passed before merge `cbd1ee68`. The primary checkout is synced to that
+merged main and its installed dotenv matches the lockfile.
+
+## #302 Markdown renderer compatibility
+
+The existing PR upgrades react-markdown **9.1.0 → 10.1.0**. It retains current
+dotenv/c8/launcher/types updates and is refreshed onto merged #303 without force
+pushes. [Upstream v10 removes the component-level `className` prop](https://github.com/remarkjs/react-markdown/releases/tag/10.0.0);
+the inspected production call sites already use wrappers or component mappings.
+No product layout or renderer configuration changes are needed.
+
+[Eight rendering regression tests](../../dashboard/client/src/lib/markdownRendering.test.tsx)
+pass on both versions: production document GFM/frontmatter handling, raw HTML
+escaping, unsafe URL/image rejection, preserved safe links, explicit workspace-file
+URLs, workflow image suppression, partial code fences and incomplete/empty input.
+This is a separate registered system-suite check. Existing code-copy and document
+viewer tests also pass. Server TypeScript, lint, production build and the unchanged
+dependency audit policy pass. Strict frontend TypeScript reports **290 existing
+diagnostics on both versions, with zero added or removed lines**; it is not green.
+The policy command exits 0. The recorded `npm audit --json` exits 1 for **14 lower
+severity advisories (4 Low, 10 Moderate), zero High/Critical**, across a reported
+591-dependency inventory (336 production, 256 development, 32 optional; npm's
+categories overlap). Evidence: `/private/tmp/clawmax-302-audit{.log,.json}`.
+Dashboard owns lower-severity follow-up before stable 2.0; this dependency
+checkpoint is not a complete security audit and does not change the audit policy.
+
+[Browser regression](../../dashboard/scripts/markdown-rendering-browser.test.mjs)
+mounts production AgentChatPanel and MarkdownDocumentViewer with synthetic content,
+intercepts local APIs and blocks external destinations. Eight cases on each version
+cover light/dark at 1440/390px, formatted tables/tasks, safe links, real code-copy
+bytes, workspace-document navigation, source/preview switching and absence of
+page-wide horizontal overflow. Fixtures explicitly use standards mode and are
+removed afterward. Screenshots/logs: `/private/tmp/clawmax-302-browser/` and
+`/private/tmp/clawmax-302-browser-{baseline,candidate}.log`.
+
+No independent human acceptance is required. Final current-head required CI and
+CodeQL remain merge gates; full hosted CI normally takes **33–43 minutes**. The
+577/577 live-provider result belongs to merged #303, whose server source is
+unchanged by this renderer update; it is not a new full-local #302 result.
 
 Dashboard owns validation before merge and RC98 inclusion.
 

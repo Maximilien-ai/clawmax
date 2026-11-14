@@ -11,9 +11,11 @@
 cut. CI updates #294 (`2f62920a`), #297 (`5ebca2ad`) and #295 (`4e4c11ef`)
 are merged after green checks. #300 (`2337cd96`) also merged after full CI.
 #299 (`4dffd39c`) and #301 (`513349eb`) also merged after required CI and
-CodeQL. Next #303 upgrades dotenv, adds credential parsing regressions, and
-hardens the live chat lifecycle test's ambiguous context probe; final local and
-current-head CI validation are pending. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
+CodeQL. #303 merged as `cbd1ee68` after **577/577** final local checks and green
+required CI/CodeQL; the live chat context test fix is now on main. Next #302
+upgrades react-markdown with eight new rendering tests and eight browser cases
+passing on both versions; final current-head CI remains pending. Strict frontend
+typing retains 290 existing diagnostics with none added. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
 while limiting workflow/docs-only changes to focused validation. Current work is the [dependency maintenance queue](planning/DEPENDABOT_2026-11-13.md),
 with initial classification of all 107 starting issues complete (#273 closed,
 106 remain open, none unlabelled). Current-source closure and feedback-topic
