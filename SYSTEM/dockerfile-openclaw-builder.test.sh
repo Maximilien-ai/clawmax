@@ -58,9 +58,7 @@ for channel in whatsapp discord telegram slack; do
 done
 assert_contains "ARG BUILDPLATFORM"
 assert_contains "ARG TARGETPLATFORM"
-assert_contains "FROM --platform=\$BUILDPLATFORM node:24.19.0-bookworm-slim AS openclaw-builder"
-assert_contains "FROM --platform=\$BUILDPLATFORM node:24.19.0-bookworm-slim AS builder"
-assert_contains "FROM --platform=\$TARGETPLATFORM node:24.19.0-bookworm-slim AS runtime"
+node "$ROOT_DIR/SYSTEM/node-runtime-pin.cjs"
 assert_contains "    gpg \\"
 assert_contains "COPY SYSTEM/install-1password-cli.sh ./SYSTEM/install-1password-cli.sh"
 assert_contains "RUN command -v gpg >/dev/null && sh -n ./SYSTEM/install-1password-cli.sh"

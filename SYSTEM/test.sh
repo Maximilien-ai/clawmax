@@ -771,7 +771,10 @@ test_validation() {
 
 # Section 0: TypeScript & Unit Tests
 . "$SYSTEM_DIR/test-unit-environment.sh"
-clawmax_enter_unit_environment
+if ! clawmax_enter_unit_environment; then
+  echo 'Unable to create a private unit-test environment' >&2
+  exit 1
+fi
 if node --test "$SYSTEM_DIR/test-provider-keys.test.cjs"; then
   pass "Integration provider credential parsing"
 else
@@ -3222,6 +3225,24 @@ else
   cat /tmp/clawmax-chat-lifecycle-oracle.out
   fail "Chat lifecycle live-test oracle and session boundaries"
 fi
+if node --test "$SYSTEM_DIR/node-runtime-pin.test.cjs" > /tmp/clawmax-node-runtime-pin.out 2>&1; then
+  pass "Node Docker and CI pin alignment tests (11 tests)"
+else
+  cat /tmp/clawmax-node-runtime-pin.out
+  fail "Node Docker and CI pin alignment tests"
+fi
+if node --test "$SYSTEM_DIR/node-runtime-smoke.test.cjs" > /tmp/clawmax-node-runtime-smoke.out 2>&1; then
+  pass "Native Node SQLite, stream cancellation and child shutdown tests (4 tests)"
+else
+  cat /tmp/clawmax-node-runtime-smoke.out
+  fail "Native Node SQLite, stream cancellation and child shutdown tests"
+fi
+if node --test "$SYSTEM_DIR/test-unit-workspace-isolation.test.cjs" > /tmp/clawmax-unit-workspace-isolation.out 2>&1; then
+  pass "Unit fixture registry and workspace isolation"
+else
+  cat /tmp/clawmax-unit-workspace-isolation.out
+  fail "Unit fixture registry and workspace isolation"
+fi
 if node --test "$SYSTEM_DIR/coverage-tool.test.mjs" > /tmp/clawmax-coverage-tool.out 2>&1; then
   pass "Coverage tool reports, subprocesses and failure propagation"
 else
@@ -5048,17 +5069,11 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "17. Custom Skills Import"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Test SKILLS directory exists
+# Resolve the workspace for the import's filesystem assertions.
 # Get actual workspace path from health endpoint (reuse from Section 12 if available, otherwise fetch)
 if [ -z "$WORKSPACE" ]; then
   WORKSPACE=$(apicurl "$API_BASE/api/health" | jq -r '.workspace')
 fi
-if [ -d "$WORKSPACE/SKILLS/custom" ]; then
-  pass "SKILLS/custom directory exists"
-else
-  fail "SKILLS/custom directory not found (workspace: $WORKSPACE)"
-fi
-
 # Create a test skill for import
 TEST_SKILL_DIR=$(mktemp -d /tmp/clawmax-test-skill-XXXXXX)
 
@@ -5088,6 +5103,14 @@ EOF
 response=$(apicurl -X POST "$API_BASE/api/skills/import" \
   -H 'Content-Type: application/json' \
   -d "{\"sourcePath\":\"$TEST_SKILL_DIR\"}")
+
+# A fresh workspace creates this directory on import; unit fixtures must not
+# prepare it as a side effect before the API operation runs.
+if [ -d "$WORKSPACE/SKILLS/custom" ]; then
+  pass "SKILLS/custom directory exists after import"
+else
+  fail "SKILLS/custom directory not found after import (workspace: $WORKSPACE)"
+fi
 
 if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
   test_skill_id=$(echo "$response" | jq -r '.skillId')

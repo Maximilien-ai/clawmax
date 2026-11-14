@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.19.0
+          node-version: 24.22.0
       - name: Validate mirror ownership and image evidence contracts
         run: node --test SYSTEM/mirror-gcp-target.test.mjs SYSTEM/mirror-gcp-image.test.mjs
       - name: Create synthetic mirror evidence
@@ -77,7 +77,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.19.0
+          node-version: 24.22.0
       - uses: docker/setup-buildx-action@v3
       - name: Create synthetic scratch build context
         env:
