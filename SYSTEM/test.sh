@@ -4023,6 +4023,14 @@ else
   fail "Dev host Skill chat presentation tests"
 fi
 
+echo -e "${YELLOW}→ Running Markdown rendering compatibility tests...${NC}"
+if npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/lib/markdownRendering.test.tsx > /tmp/clawmax-markdown-rendering.out 2>&1; then
+  pass "Markdown rendering compatibility tests (8 tests)"
+else
+  cat /tmp/clawmax-markdown-rendering.out
+  fail "Markdown rendering compatibility tests"
+fi
+
 echo -e "${YELLOW}→ Running Agent chat code block Copy tests...${NC}"
 if npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/ChatCodeBlock.test.tsx > /tmp/clawmax-agent-chat-code-block.out 2>&1; then
   pass "Agent chat code block Copy tests"
