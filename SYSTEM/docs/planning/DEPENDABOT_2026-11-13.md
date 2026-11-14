@@ -1,5 +1,9 @@
 # Dependency maintenance — November 13
 
+Continuation: [November 14 checkpoint](DEPENDABOT_2026-11-14.md). #302 is now
+merged as `2979a628`; the remaining queue is #384, #298 and #296. Detailed pending
+states below are retained as the November 13 evidence snapshot.
+
 #227 is owner-accepted and merged as `9ad021b08d24d2b5c0cdbc719f28fe5587976274`;
 #223 is closed. Its final CI passed; the exact product/test source passed 574/574
 local integration/validation/coverage checks. [Acceptance receipt](https://github.com/Maximilien-ai/clawmax/pull/227#issuecomment-6847518580).

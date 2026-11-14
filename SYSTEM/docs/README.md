@@ -1,9 +1,9 @@
 # ClawMax Documentation
 
-> Last updated: November 13, 2026
+> Last updated: November 14, 2026
 
 Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
-`v1.9.9`. Start with [November 13 dependency maintenance and RC98 gates](planning/DEPENDABOT_2026-11-13.md).
+`v1.9.9`. Start with [November 14 dependency maintenance and RC98 gates](planning/DEPENDABOT_2026-11-14.md).
 RC98 has not been cut. Earlier RC preview/evidence files below describe their
 original source snapshots, not the current candidate or runtime state.
 
@@ -11,7 +11,8 @@ original source snapshots, not the current candidate or runtime state.
 
 | Document | Description |
 |----------|-------------|
-| [planning/DEPENDABOT_2026-11-13.md](planning/DEPENDABOT_2026-11-13.md) | Current dependency queue, #294 contracts, merge order, issue triage and retained RC98 gates |
+| [planning/DEPENDABOT_2026-11-14.md](planning/DEPENDABOT_2026-11-14.md) | #302 merge receipt, Node #384 validation checklist and remaining dependency queue |
+| [planning/DEPENDABOT_2026-11-13.md](planning/DEPENDABOT_2026-11-13.md) | Prior dependency contracts/merges, issue triage and retained RC98 gates |
 | [CI_TEST_SCOPE.md](CI_TEST_SCOPE.md) | Required CI selects focused workflow/docs checks and full application/dependency/runtime validation; reproducible commands and fallback guards |
 | [planning/ISSUE_TRIAGE_2026-11-13.md](planning/ISSUE_TRIAGE_2026-11-13.md) | All 107 starting issues classified; #273 closed, 106 remain open; evidence and closure-verification queue |
 | [planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md) | Archived, accepted and merged #227 chat evidence, 574-check result and retained limitations |

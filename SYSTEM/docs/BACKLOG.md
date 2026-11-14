@@ -1,6 +1,6 @@
 # Backlog
 
-## November 13 dependency maintenance checkpoint
+## November 14 dependency maintenance checkpoint
 
 #227 is accepted and merged as `9ad021b0`; #223 is closed. Final CI passed and
 exact chat product source `09249852` passed **574/574** local checks. No repeat
@@ -18,12 +18,14 @@ or unknown changes and releases keep full validation. #297's required job took
 `513349eb` after full required CI and CodeQL. Its five coverage contracts pass
 on v11/v12. #303 (dotenv and live chat test repair) merged as `cbd1ee68` after
 577/577 local integration/validation/coverage checks and required CI/CodeQL.
-Next #302 (react-markdown) passes eight new rendering tests and eight production
-chat/document browser cases on v9.1.0 and v10.1.0, including both themes and
-desktop/mobile. Types/build/lint and the audit policy pass; strict frontend typing
-retains 290 baseline diagnostics with none added. Current-head CI is pending.
+#302 (react-markdown) merged as `2979a628` after required CI/CodeQL passed and
+the owner merged it. Eight rendering tests and eight browser cases pass on both
+versions; strict frontend typing retains 290 baseline diagnostics with none added.
+Next #384 aligns Node 24.22 Docker and CI pins. Its eleven drift-contract cases
+and four native runtime cases pass, including Linux arm64/amd64 smoke. Final local
+integration/validation/coverage and current-head CI remain pending.
 No additional owner acceptance is required for these test/dependency changes.
-[Maintenance checklist and full queue](planning/DEPENDABOT_2026-11-13.md).
+[Maintenance checklist and remaining queue](planning/DEPENDABOT_2026-11-14.md).
 
 Initial triage is complete for **107 starting open issues**: primary type, area
 and reported-impact priority, preserving existing labels. Dependabot automation

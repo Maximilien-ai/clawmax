@@ -1,0 +1,81 @@
+# Dependency maintenance — November 14
+
+Stable remains **v1.9.9**; development is **2.0.0**, with pinned OpenClaw
+**2026.9.7**. RC98 has not been cut. Dashboard owns these public-source changes;
+no deployment or combined-image readiness is claimed.
+
+## Completed merge
+
+The owner merged [#302](https://github.com/Maximilien-ai/clawmax/pull/302) as
+`2979a62859982a7c48e0bb1bda6b598df25249f7`. Exact reviewed head `b4f1bf71`
+passed [required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43553001886)
+and [CodeQL](https://github.com/Maximilien-ai/clawmax/actions/runs/43552997161).
+Eight rendering tests and eight browser cases pass on both renderer versions;
+strict frontend typing retains 290 baseline diagnostics, with none added.
+The primary main checkout and installed Markdown dependency are synchronized.
+
+## Next: #384, Node 24.22.0
+
+[Existing PR #384](https://github.com/Maximilien-ai/clawmax/pull/384) is refreshed
+onto `2979a628` without force pushes. Product/test source `b471da9a` aligns all
+three Docker stages and all three explicit CI Node steps on **24.22.0**, retaining
+build-platform compilation and target-platform runtime selection. Package and
+lockfile bytes are unchanged from main.
+[Official release notes](https://nodejs.org/en/blog/release/v24.22.0).
+
+Engineering checklist; **no independent human acceptance is needed**:
+
+- [x] Eleven [pin-contract cases](../../node-runtime-pin.test.cjs) pass: stale CI,
+  split Docker versions, wrong platform, missing stages/pins, floating versions,
+  unreviewed majors and new-workflow drift are rejected. The Docker packaging
+  contract calls the same guard and the unit suite is registered separately.
+- [x] Four [native runtime cases](../../node-runtime-smoke.test.cjs) pass on the
+  current macOS Node 24.19 baseline, candidate macOS Node 24.22, and Linux Node
+  24.22 **arm64 and amd64**: exact runtime identity, SQLite WAL persistence,
+  streamed fetch cancellation and owned child SIGTERM settlement. This suite is
+  separately registered in the system runner.
+- [x] The official macOS arm64 Node archive is isolated under
+  `/private/tmp/clawmax-node-24.22.0/` and verified against the published SHA256:
+  `75ddfb875bbd868ebe57536f4442225f54dd10f6d2178dd439de869a5c648dc3`.
+  Global Node is unchanged. Only synthetic test code enters the Linux containers;
+  no provider credentials, user workspace or host configuration is mounted.
+- [x] Node 24.22 lint, server types, production build, source-engine boundaries,
+  OpenClaw Docker packaging contract, eight workflow YAML parses and unchanged
+  dependency-audit policy pass.
+- [x] Docker-format Dashboard **builder target** builds on Linux arm64, including
+  clean dependency installation and production compilation. Local image
+  `localhost/clawmax-pr384-builder:b471da9a`, ID
+  `81789678686ad837e1c509a106ed96b8dce9afc2dec47b095519b859f4e3c709`.
+  Node 24.22/arm64 and both compiled artifacts are verified. This is a local build
+  without publication, not the complete runtime image.
+- [ ] Exact final-source full local integration/validation/coverage under Node
+  24.22, with disposable gateway/workspace and the configured test provider.
+  Expected **12–15 minutes**; only the selected provider key is passed in child
+  memory, without copying the primary ignored `.env` into the worktree.
+- [ ] Final required CI/CodeQL and image-action contracts are green on the current
+  head. Full required CI runs under Node 24.22; normal duration **33–43 minutes**.
+- [ ] Merge only after required checks pass and main remains fresh.
+
+Evidence logs: `/private/tmp/clawmax-384-{node-download,linux-amd64,builder-image,
+lint,types,build,audit}.log`; full-suite receipt will be recorded on the PR.
+The native arm64 and macOS checks also have session tool output.
+
+The audit policy exits 0 with **zero High/Critical** advisories. Recorded
+`npm audit --json` exits 1 for **4 Low / 10 Moderate** findings across 591 reported
+dependencies (336 production, 256 development, 32 optional; categories overlap).
+Evidence: `/private/tmp/clawmax-384-audit.json`. Dashboard owns lower-severity
+follow-up before stable 2.0; the policy is unchanged and this is not a complete
+security audit.
+
+## Remaining queue and release boundary
+
+After #384, review [#298](https://github.com/Maximilien-ai/clawmax/pull/298)'s
+grouped minor/patch packages, then [#296](https://github.com/Maximilien-ai/clawmax/pull/296)'s
+optional memory integration compatibility with the pinned runtime. Use existing
+PRs and preserve a fresh main base after each merge. Order can change with findings.
+
+The [November 13 record](DEPENDABOT_2026-11-13.md) retains earlier merge evidence,
+dated feedback/issue snapshots and unresolved RC98 gates. Final runtime images
+still require public/private amd64/arm64 builds, registry and restart smoke,
+version identity and source-boundary evidence before RC readiness. The focused
+Node base smoke and Dashboard builder checks do not establish those release gates.

@@ -4,7 +4,7 @@
 
 **Development Line**: 2.0.0
 
-**Last Updated**: November 13, 2026
+**Last Updated**: November 14, 2026
 
 **Status**: `v1.9.9` remains stable. #227 is accepted and merged on main as
 `9ad021b0`, after final CI and 574/574 local chat-source checks. RC98 has not been
@@ -12,11 +12,13 @@ cut. CI updates #294 (`2f62920a`), #297 (`5ebca2ad`) and #295 (`4e4c11ef`)
 are merged after green checks. #300 (`2337cd96`) also merged after full CI.
 #299 (`4dffd39c`) and #301 (`513349eb`) also merged after required CI and
 CodeQL. #303 merged as `cbd1ee68` after **577/577** final local checks and green
-required CI/CodeQL; the live chat context test fix is now on main. Next #302
-upgrades react-markdown with eight new rendering tests and eight browser cases
-passing on both versions; final current-head CI remains pending. Strict frontend
-typing retains 290 existing diagnostics with none added. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
-while limiting workflow/docs-only changes to focused validation. Current work is the [dependency maintenance queue](planning/DEPENDABOT_2026-11-13.md),
+required CI/CodeQL; the live chat context test fix is now on main. #302 merged as
+`2979a628` after green required CI/CodeQL and the owner merge. Next #384 aligns
+Node 24.22 across Docker/CI; 15 new pin/native-runtime tests pass on the candidate,
+including native smoke on both Linux architectures. Final full-suite and CI
+validation remain pending. Strict frontend typing retains 290 existing diagnostics
+with none added by #302. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
+while limiting workflow/docs-only changes to focused validation. Current work is the [November 14 dependency queue](planning/DEPENDABOT_2026-11-14.md),
 with initial classification of all 107 starting issues complete (#273 closed,
 106 remain open, none unlabelled). Current-source closure and feedback-topic
 verification remain. Installed/provider, security and final
