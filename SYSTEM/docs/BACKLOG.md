@@ -26,8 +26,10 @@ and four native runtime cases pass, including Linux arm64/amd64 smoke. A ZIP imp
 compatibility fix and private skill-test fixtures address failures found by the
 first full run; focused import/security suites pass. The product retest passes
 581/581, but a caller-registry preservation guard exposed broader unit defaults,
-now isolated with a private unit home/workspace and two canary cases. The final
-complete preservation retest and current-head CI remain pending.
+now isolated with a private unit home/workspace and two canary cases. The registry
+preservation retest passed its byte check; the remaining fresh-workspace import
+ordering assumption is fixed and covered. Final complete validation and current-head
+CI remain pending.
 No additional owner acceptance is required for these test/dependency changes.
 [Maintenance checklist and remaining queue](planning/DEPENDABOT_2026-11-14.md).
 

@@ -74,6 +74,12 @@ Engineering checklist; **no independent human acceptance is needed**:
   synthetic caller registry. All pass on Node 24.19 and 24.22, including cleanup
   and environment restoration. The registered isolation suite is
   [test-unit-workspace-isolation.test.cjs](../../test-unit-workspace-isolation.test.cjs).
+- [x] Full preservation validation on `f23587ec` completed **580/581** with the
+  operator registry **byte-identical**. The remaining check assumed `SKILLS/custom`
+  existed before import because unit suites used to create it accidentally.
+  A fresh-workspace route regression now verifies on-demand initialization, and
+  the integration directory assertion runs after the import request. The check
+  is retained. Evidence: `/private/tmp/clawmax-384-preserved-before-import-order.log`.
 - [x] Two new CodeQL path-flow findings in the late-collision test hook were
   resolved using fixed fixture-owned paths and an explicit exclusive-mode
   assertion. [CodeQL](https://github.com/Maximilien-ai/clawmax/actions/runs/43563896220)
