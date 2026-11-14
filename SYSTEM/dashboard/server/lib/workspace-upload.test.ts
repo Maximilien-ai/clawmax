@@ -169,10 +169,14 @@ test('ZIP preflight rejects a file where an archive needs a directory', () => {
 test('ZIP file creation cannot overwrite a file created after preflight', () => {
   const relative = 'ORG/late-import'
   const target = path.join(workspacePath, relative, 'late.txt')
+  const fixtureSource = path.join(tmpRoot, 'late-copy-fixture.txt')
+  fs.writeFileSync(fixtureSource, 'archive')
   const copy = fs.copyFileSync
-  fs.copyFileSync = ((source: fs.PathLike, destination: fs.PathLike, mode?: number) => {
-    if (String(destination) === target) fs.writeFileSync(target, 'concurrent owner')
-    return copy(source, destination, mode)
+  fs.copyFileSync = ((_source: fs.PathLike, destination: fs.PathLike, mode?: number) => {
+    assert(String(destination) === target, 'The copy hook must only receive its private fixture destination')
+    assert(mode === fs.constants.COPYFILE_EXCL, 'The importer must request exclusive file creation')
+    fs.writeFileSync(target, 'concurrent owner')
+    return copy(fixtureSource, target, fs.constants.COPYFILE_EXCL)
   }) as typeof fs.copyFileSync
   try {
     const result = extractZipBufferToWorkspace(relative, zipEntries({ 'late.txt': 'archive' }), workspacePath)
