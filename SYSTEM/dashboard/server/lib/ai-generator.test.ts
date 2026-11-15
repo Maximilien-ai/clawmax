@@ -523,9 +523,16 @@ test('An OpenAI-compatible endpoint that advertises no chat model still reports 
     }) as any) as any
 
     await warmOpenAiCompatibleGenerationModel({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any)
-    setRequestByokKeys({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any)
+    const byok = { openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' }
+    const defaults = resolveOpenAiCompatibleGenerationDefaults(byok, {})
+    assert.equal(defaults.defaultModel, undefined, 'embedding models cannot become a chat default')
+    // The integration runner legitimately supplies a hosted key. This case models
+    // no alternate provider rather than depending on the caller's credentials.
+    assert.equal(resolveGenerationProvider(byok, {
+      skipCliRuntime: true, systemKeys: {}, compatibleDefaults: defaults,
+    }).provider, 'openai-compatible')
     assert.throws(
-      () => createAiGenerationClient({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any),
+      () => buildClientForSelection({ provider: 'openai-compatible', key: 'openai-compatible', ...defaults }),
       /requires a default model/i,
     )
   })
