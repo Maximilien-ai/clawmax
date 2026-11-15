@@ -7,7 +7,7 @@
 import { buildByokVerificationFingerprint, byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, hasCogneeConfiguration, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
 import { cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
 import strictAssert from 'node:assert/strict'
-import { buildByokVerificationFingerprint, fetchModelsWithByok, getByokStorageKey, hasAnyLLMKeys, readStoredByokKeys } from './byok'
+import { fetchModelsWithByok, getByokStorageKey, hasAnyLLMKeys, readStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
