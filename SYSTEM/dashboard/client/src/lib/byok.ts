@@ -49,6 +49,8 @@ interface AiExecutionConfig {
   resendRuntimeConfigured?: boolean
   defaultOllamaBaseUrl?: string
   defaultOpenAiCompatibleBaseUrl?: string
+  workspaceOpenAiCompatibleBaseUrl?: string
+  workspaceOpenAiCompatibleDefaultModel?: string
   recommendedModel?: string
   systemKeyDefaults?: {
     openai?: boolean
@@ -292,15 +294,18 @@ export function byokForRequest(): ByokRequestPayload {
 }
 
 /** Ignore unavailable local paths on cloud without erasing browser settings. */
-function usableBrowserKeys(config?: Pick<AiExecutionConfig, 'deploymentKind'> | null): StoredByokKeys {
-  const keys = readStoredByokKeys()
+function usableBrowserKeys(config?: Pick<AiExecutionConfig, 'deploymentKind' | 'workspaceOpenAiCompatibleBaseUrl' | 'workspaceOpenAiCompatibleDefaultModel'> | null): StoredByokKeys {
+  let keys = readStoredByokKeys()
+  if (!keys.openaiCompatibleBaseUrl?.trim() && config?.workspaceOpenAiCompatibleBaseUrl?.trim()) {
+    keys = { ...keys, openaiCompatibleBaseUrl: config.workspaceOpenAiCompatibleBaseUrl, openaiCompatibleDefaultModel: config.workspaceOpenAiCompatibleDefaultModel, openaiCompatibleApiKey: undefined }
+  }
   if (config?.deploymentKind !== 'cloud') return keys
   const compatibleUrl = keys.openaiCompatibleBaseUrl && !cloudModelEndpointError(keys.openaiCompatibleBaseUrl) ? keys.openaiCompatibleBaseUrl : ''
   return { ...keys, ollamaBaseUrl: '', ollamaDefaultModel: '', openaiCompatibleBaseUrl: compatibleUrl, openaiCompatibleDefaultModel: compatibleUrl ? keys.openaiCompatibleDefaultModel : '' }
 }
 
 /** Check if any LLM API keys are available (BYOK, system, or user defaults). */
-export function hasAnyLLMKeys(config?: Pick<AiExecutionConfig, 'systemKeyDefaults' | 'userKeyDefaults' | 'deploymentKind'> | null): boolean {
+export function hasAnyLLMKeys(config?: Pick<AiExecutionConfig, 'systemKeyDefaults' | 'userKeyDefaults' | 'deploymentKind' | 'workspaceOpenAiCompatibleBaseUrl' | 'workspaceOpenAiCompatibleDefaultModel'> | null): boolean {
   const byok = usableBrowserKeys(config)
   if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.openrouter || byok.xai || byok.ollamaBaseUrl || byok.ollamaDefaultModel || byok.openaiCompatibleBaseUrl || byok.openaiCompatibleDefaultModel) return true
   if (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.gemini || config?.systemKeyDefaults?.openrouter || config?.systemKeyDefaults?.xai || config?.systemKeyDefaults?.openaiCompatible) return true
@@ -354,28 +359,21 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
     || (config?.allowSystemKeysForUserExecution && (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || (config as any)?.systemKeyDefaults?.openaiCompatible))
   )
 
-  // Judge the provider the server will actually run, in its order (getAvailableProvider): OpenAI, a
-  // complete OpenAI-compatible profile, Anthropic, Gemini, then server keys. The BYOK dialog saves its
-  // local default URL even when the compatible profile is never set up, and the server skips a
-  // profile without a default model, so such a profile only matters when nothing else can run.
-  const compatibleIncomplete = !!byok.openaiCompatibleBaseUrl?.trim() && !byok.openaiCompatibleDefaultModel?.trim()
+  // A checked endpoint may discover its default model; an untouched default URL
+  // must not displace a configured hosted provider.
+  const compatibleUrl = byok.openaiCompatibleBaseUrl?.trim()
+  const compatibleFingerprint = buildByokVerificationFingerprint('openaiCompatible', {
+    openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
+    openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
+    openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
+  })
+  const compatibleReady = compatibleUrl && (byok.openaiCompatibleDefaultModel?.trim()
+    || verifiedProviders.openaiCompatible === compatibleFingerprint)
   const selectedProvider = byok.openai?.trim()
     ? 'openai'
-    : byok.openaiCompatibleBaseUrl?.trim() && !compatibleIncomplete
+    : compatibleReady
       ? 'openaiCompatible'
-      : byok.anthropic?.trim() ? 'anthropic' : byok.geminiApiKey?.trim() ? 'gemini' : null
-  // Generation uses server keys without the user-execution permission that agent turns need.
-  const serverHostedKey = !!(
-    config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.gemini
-    || config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini
-  )
-
-  if (!selectedProvider && compatibleIncomplete && !hasSharedHostedExecution && !serverHostedKey) {
-    return {
-      enabled: true,
-      warning: 'OpenAI-compatible AI generation needs a default model in BYOK. Add one before using templates, agents, workflows, or skills generation.',
-    }
-  }
+      : byok.anthropic?.trim() ? 'anthropic' : byok.geminiApiKey?.trim() ? 'gemini' : compatibleUrl ? 'openaiCompatible' : null
 
   if (selectedProvider && !hasSharedHostedExecution) {
     const fingerprint = buildByokVerificationFingerprint(selectedProvider, {
@@ -390,7 +388,7 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
       const label = { openai: 'OpenAI key', anthropic: 'Anthropic key', gemini: 'Gemini key', openaiCompatible: 'OpenAI-compatible setup' }[selectedProvider]
       return {
         enabled: true,
-        warning: `Your browser-local ${label} has not been verified yet. AI generation may fail until you run Check Key in BYOK.`,
+        warning: `Your ${selectedProvider === 'openaiCompatible' ? 'OpenAI-compatible setup' : `browser-local ${label}`} has not been verified yet. AI generation may fail until you run ${selectedProvider === 'openaiCompatible' ? 'Check Connection' : 'Check Key'} in BYOK.`,
       }
     }
   }

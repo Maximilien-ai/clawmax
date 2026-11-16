@@ -27,12 +27,12 @@ operator registry, Linux runtime/build validation and green required CI/CodeQL.
 main and dependencies are synchronized. The thirteen compatible updates retain
 the existing OpenTelemetry family; #418 tracks a supported migration.
 
-The last Dependabot PR, #296, is under review against pinned OpenClaw 2026.9.7.
-Its scoped Undici patch removes the proposed bundle's High advisory, and its new
-unbound offline capture queue is disabled pending the labelled #419 consent,
-destination-binding and revocation work. Live memory requests are retained.
-Synthetic transport and host-loading checks pass; current CI and Linux package
-checks remain required. Six older product PRs remain after the dependency queue.
+#296 merged as `703d65eb` after eight bundle cases passed on macOS and both Linux
+architectures, with green required CI/CodeQL. The package's patched transport audits
+clean; new unbound offline replay remains disabled until #419 is addressed. No
+Dependabot PRs remain. Six older product PRs remain; current work is
+[#191 compatible-provider defaults](planning/PR191_ACCEPTANCE_2026-11-14.md), with
+full Dashboard validation and a minimal external-provider check before RC use.
 No additional owner acceptance is required for these test/dependency changes.
 [Maintenance checklist and remaining queue](planning/DEPENDABOT_2026-11-14.md).
 

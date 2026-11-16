@@ -19,8 +19,9 @@ Linux runtime/build probes and green CI/CodeQL. Node 24.22, ZIP promotion and un
 fixture isolation are on main. #298 merged as `a9626631` after **582/582** local
 checks and green CI/CodeQL; main dependencies are synchronized. Strict frontend
 typing retains 290 baseline diagnostics with none added. The final Dependabot
-PR, #296, is under review: optional-memory compatibility, patched transport and a
-fail-closed restriction on new offline capture replay. Consent-bound replay
+PR, #296, merged as `703d65eb` after cross-platform bundle tests and green CI/CodeQL.
+Its new offline capture replay remains disabled. The dependency PR queue is cleared;
+current work is [#191 compatible-provider defaults](planning/PR191_ACCEPTANCE_2026-11-14.md). Consent-bound replay
 remains tracked in #419; tracing migration remains in #418. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
 while limiting workflow/docs-only changes to focused validation. Current work is the [November 14 dependency queue](planning/DEPENDABOT_2026-11-14.md),
 with initial classification of all 107 starting issues complete (#273 closed,
