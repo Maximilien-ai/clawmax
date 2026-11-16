@@ -501,6 +501,7 @@ function resolveAgentChatSessionId(agentId: string, homeDir?: string): string | 
   const sessionKey = getAgentDashboardSessionKey(agentId)
   const preferredSessionId = scopeStoredDashboardSessionId(agentId, sessionKey, resolvedAgent.model, homeDir)
   const persisted = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
+  if (persisted && /[^a-zA-Z0-9_-]/.test(persisted)) throw new Error('Invalid stored session id')
   // claude/droid chats never write openclaw's sessions.json index, so their "current session"
   // pointer is the newest runtime transcript. Prefer the store that matches the agent's runtime
   // so switching runtimes shows that runtime's conversation, with the other store as fallback.
