@@ -376,6 +376,7 @@ app.get('/api/auth/config', (_req, res) => {
   const userKeys = getUserDefaultProviderKeys()
   const executionKeys = resolveSystemExecutionProviderKeys(rawEnv)
   const integrationConfig = getResolvedWorkspaceIntegrationConfig()
+  const workspaceModelDefaultsVisible = isDashboardAuthBypassAllowed(process.env) || !!getAuthenticatedSession(_req)
   const managedRuntime = isManagedRuntime(rawEnv)
   const deploymentKind = getDashboardDeploymentKind(rawEnv)
   const devHostAuthReady = process.env.CLAWMAX_DEV_MAXIMILIEN_AUTH_BRIDGE === '1'
@@ -399,6 +400,8 @@ app.get('/api/auth/config', (_req, res) => {
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
     defaultOllamaBaseUrl: getDefaultOllamaBaseUrl(rawEnv),
     defaultOpenAiCompatibleBaseUrl: getDefaultOpenAICompatibleBaseUrl(rawEnv),
+    workspaceOpenAiCompatibleBaseUrl: workspaceModelDefaultsVisible ? integrationConfig.openaiCompatibleBaseUrl || undefined : undefined,
+    workspaceOpenAiCompatibleDefaultModel: workspaceModelDefaultsVisible ? integrationConfig.openaiCompatibleDefaultModel || undefined : undefined,
     // CLI runtimes enabled in BYOK sign in with their own login, so their presence is enough to
     // make AI generation available even with no provider keys at all. Published here so every
     // generation surface can gate on it, not just the agent wizard.

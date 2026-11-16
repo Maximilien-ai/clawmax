@@ -150,4 +150,14 @@ test('Auto with only deprecated models offered resolves to no model, so the wiza
 test('a server recommendation still wins over the Auto fallback', () => {
   assert.equal(resolveAddAgentWizardDefaultModel({ models: OPENAI_SORTED, config: { recommendedModel: 'openai/gpt-5.5' } }), 'openai/gpt-5.5')
 })
-console.log('addAgentDefaultModel.test.ts: 21 tests passed')
+test('a removed OpenAI key cannot leave its stale preferred default over the offered compatible model', () => {
+  const local = 'openai-compatible/qwen/qwen3.6-27b'
+  assert.equal(resolveAddAgentWizardDefaultModel({ models: [local], config: { preferredModel: 'openai/gpt-5.4-mini' }, byok: { preferredModel: 'openai/gpt-5.4-mini', openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleDefaultModel: 'qwen/qwen3.6-27b' } }), local)
+})
+test('restoring an OpenAI key gives GPT-5.4-mini priority over the configured compatible default', () => {
+  assert.equal(resolveAddAgentWizardDefaultModel({ models: ['openai-compatible/qwen/qwen3.6-27b', 'openai/gpt-5.4-mini'], byok: { openai: 'synthetic-openai-key', openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleDefaultModel: 'qwen/qwen3.6-27b' } }), 'openai/gpt-5.4-mini')
+})
+test('workspace-only LM Studio keeps its configured model ahead of the alphabetic catalog', () => {
+  assert.equal(resolveAddAgentWizardDefaultModel({ models: ['openai-compatible/google/gemma-4-e4b', 'openai-compatible/qwen/qwen3.6-27b'], config: { preferredModel: 'openai/gpt-5.4-mini', workspaceOpenAiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', workspaceOpenAiCompatibleDefaultModel: 'qwen/qwen3.6-27b' } }), 'openai-compatible/qwen/qwen3.6-27b')
+})
+console.log('addAgentDefaultModel.test.ts: 24 tests passed')

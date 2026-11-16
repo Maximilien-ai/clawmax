@@ -49,6 +49,8 @@ interface AiExecutionConfig {
   resendRuntimeConfigured?: boolean
   defaultOllamaBaseUrl?: string
   defaultOpenAiCompatibleBaseUrl?: string
+  workspaceOpenAiCompatibleBaseUrl?: string
+  workspaceOpenAiCompatibleDefaultModel?: string
   recommendedModel?: string
   systemKeyDefaults?: {
     openai?: boolean
@@ -292,15 +294,18 @@ export function byokForRequest(): ByokRequestPayload {
 }
 
 /** Ignore unavailable local paths on cloud without erasing browser settings. */
-function usableBrowserKeys(config?: Pick<AiExecutionConfig, 'deploymentKind'> | null): StoredByokKeys {
-  const keys = readStoredByokKeys()
+function usableBrowserKeys(config?: Pick<AiExecutionConfig, 'deploymentKind' | 'workspaceOpenAiCompatibleBaseUrl' | 'workspaceOpenAiCompatibleDefaultModel'> | null): StoredByokKeys {
+  let keys = readStoredByokKeys()
+  if (!keys.openaiCompatibleBaseUrl?.trim() && config?.workspaceOpenAiCompatibleBaseUrl?.trim()) {
+    keys = { ...keys, openaiCompatibleBaseUrl: config.workspaceOpenAiCompatibleBaseUrl, openaiCompatibleDefaultModel: config.workspaceOpenAiCompatibleDefaultModel, openaiCompatibleApiKey: undefined }
+  }
   if (config?.deploymentKind !== 'cloud') return keys
   const compatibleUrl = keys.openaiCompatibleBaseUrl && !cloudModelEndpointError(keys.openaiCompatibleBaseUrl) ? keys.openaiCompatibleBaseUrl : ''
   return { ...keys, ollamaBaseUrl: '', ollamaDefaultModel: '', openaiCompatibleBaseUrl: compatibleUrl, openaiCompatibleDefaultModel: compatibleUrl ? keys.openaiCompatibleDefaultModel : '' }
 }
 
 /** Check if any LLM API keys are available (BYOK, system, or user defaults). */
-export function hasAnyLLMKeys(config?: Pick<AiExecutionConfig, 'systemKeyDefaults' | 'userKeyDefaults' | 'deploymentKind'> | null): boolean {
+export function hasAnyLLMKeys(config?: Pick<AiExecutionConfig, 'systemKeyDefaults' | 'userKeyDefaults' | 'deploymentKind' | 'workspaceOpenAiCompatibleBaseUrl' | 'workspaceOpenAiCompatibleDefaultModel'> | null): boolean {
   const byok = usableBrowserKeys(config)
   if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.openrouter || byok.xai || byok.ollamaBaseUrl || byok.ollamaDefaultModel || byok.openaiCompatibleBaseUrl || byok.openaiCompatibleDefaultModel) return true
   if (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.gemini || config?.systemKeyDefaults?.openrouter || config?.systemKeyDefaults?.xai || config?.systemKeyDefaults?.openaiCompatible) return true
@@ -383,7 +388,7 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
       const label = { openai: 'OpenAI key', anthropic: 'Anthropic key', gemini: 'Gemini key', openaiCompatible: 'OpenAI-compatible setup' }[selectedProvider]
       return {
         enabled: true,
-        warning: `Your browser-local ${label} has not been verified yet. AI generation may fail until you run Check Key in BYOK.`,
+        warning: `Your ${selectedProvider === 'openaiCompatible' ? 'OpenAI-compatible setup' : `browser-local ${label}`} has not been verified yet. AI generation may fail until you run ${selectedProvider === 'openaiCompatible' ? 'Check Connection' : 'Check Key'} in BYOK.`,
       }
     }
   }

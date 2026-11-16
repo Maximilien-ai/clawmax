@@ -791,6 +791,66 @@ test('the normal picker and default list drop dated snapshots the installed Open
   }
 })
 
+test('discovery uses a keyless workspace endpoint and never sends a different protected credential', async () => {
+  const fs = require('fs'), os = require('os'), path = require('path')
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'model-discovery-workspace-'))
+  const previous = process.env.CLAWMAX_TEST_WORKSPACE
+  const previousSystem = { url: process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL, key: process.env.SYSTEM_OPENAI_COMPATIBLE_API_KEY, allow: process.env.ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION }
+  try {
+    process.env.CLAWMAX_TEST_WORKSPACE = workspace
+    process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL = 'http://unrelated-server:9999/v1'
+    process.env.SYSTEM_OPENAI_COMPATIBLE_API_KEY = 'synthetic-protected-key'
+    process.env.ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION = 'true'
+    fs.mkdirSync(path.join(workspace, 'SYSTEM'))
+    fs.writeFileSync(path.join(workspace, 'SYSTEM/integrations.json'), JSON.stringify({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1', openaiCompatibleDefaultModel: 'qwen/qwen3.6-27b' }))
+    clearModelCache()
+    const calls: Array<{ url: string; authorization?: string }> = []
+    global.fetch = (async (url: any, init: any) => {
+      calls.push({ url: String(url), authorization: init?.headers?.Authorization })
+      return { ok: true, json: async () => ({ data: [{ id: 'qwen/qwen3.6-27b' }] }) } as any
+    }) as any
+    const discovered = await discoverModels()
+    assert(discovered.models.includes('openai-compatible/qwen/qwen3.6-27b'), 'Saved keyless workspace models must be discoverable without browser metadata')
+    assert(calls.length === 1 && calls[0].url === 'http://172.16.1.70:8000/v1/models' && !calls[0].authorization, 'The unrelated protected key must not be paired with the workspace URL')
+  } finally {
+    global.fetch = originalFetch
+    if (previous === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE; else process.env.CLAWMAX_TEST_WORKSPACE = previous
+    for (const [key, value] of [['SYSTEM_OPENAI_COMPATIBLE_BASE_URL', previousSystem.url], ['SYSTEM_OPENAI_COMPATIBLE_API_KEY', previousSystem.key], ['ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION', previousSystem.allow]] as const) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value
+    }
+    clearModelCache(); fs.rmSync(workspace, { recursive: true, force: true })
+  }
+})
+
+test('workspace discovery uses the protected key only when user-execution policy permits it', async () => {
+  const fs = require('fs'), os = require('os'), path = require('path')
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'model-discovery-policy-'))
+  const names = ['CLAWMAX_TEST_WORKSPACE', 'SYSTEM_OPENAI_COMPATIBLE_BASE_URL', 'SYSTEM_OPENAI_COMPATIBLE_API_KEY', 'ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION'] as const
+  const previous = names.map(name => process.env[name])
+  try {
+    process.env.CLAWMAX_TEST_WORKSPACE = workspace
+    process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL = 'http://172.16.1.70:8000/v1'
+    process.env.SYSTEM_OPENAI_COMPATIBLE_API_KEY = 'synthetic-policy-key'
+    fs.mkdirSync(path.join(workspace, 'SYSTEM'))
+    fs.writeFileSync(path.join(workspace, 'SYSTEM/integrations.json'), JSON.stringify({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' }))
+    for (const allowed of [false, true]) {
+      process.env.ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION = String(allowed)
+      clearModelCache()
+      const authorizations: string[] = []
+      global.fetch = (async (_url: any, init: any) => {
+        const auth = init?.headers?.Authorization || ''; authorizations.push(auth)
+        return { ok: !!auth, status: auth ? 200 : 401, json: async () => ({ data: [{ id: 'authenticated-chat' }] }) } as any
+      }) as any
+      const result = await discoverModels()
+      assert(authorizations.length === 1 && authorizations[0] === (allowed ? 'Bearer synthetic-policy-key' : ''), 'Discovery must enforce user execution policy before borrowing protected credentials')
+      assert(result.models.includes('openai-compatible/authenticated-chat') === allowed, 'A denied credential cannot advertise its private model catalog')
+    }
+  } finally {
+    names.forEach((name, index) => { if (previous[index] === undefined) delete process.env[name]; else process.env[name] = previous[index] })
+    global.fetch = originalFetch; clearModelCache(); fs.rmSync(workspace, { recursive: true, force: true })
+  }
+})
+
 testChain.then(() => {
   global.fetch = originalFetch
   if (originalKind === undefined) delete process.env.DASHBOARD_DEPLOYMENT_KIND

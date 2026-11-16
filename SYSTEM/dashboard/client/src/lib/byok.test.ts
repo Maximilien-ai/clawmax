@@ -524,6 +524,20 @@ async function main() {
     assert(shouldAutoValidateByokOnSave() === false, 'Expected BYOK save to persist settings without global provider validation')
   })
 
+  await test('keyless workspace compatible configuration enables generation and chat without a browser key', () => {
+    localStorage.clear()
+    const config = { deploymentKind: 'local' as const, workspaceOpenAiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', workspaceOpenAiCompatibleDefaultModel: 'qwen/qwen3.6-27b' }
+    assert(hasAiGenerationAccess(config), 'Workspace LM Studio should enable generation')
+    assert(hasChatExecutionAccess(config), 'Workspace LM Studio should enable chat')
+    assert(hasAnyLLMKeys(config), 'A keyless endpoint is a configured execution path')
+    const fingerprint = buildByokVerificationFingerprint('openaiCompatible', { openaiCompatibleBaseUrl: config.workspaceOpenAiCompatibleBaseUrl, openaiCompatibleDefaultModel: config.workspaceOpenAiCompatibleDefaultModel })
+    writeStoredByokKeys({ verifiedProviders: { openaiCompatible: fingerprint } })
+    assert(!getAiGenerationReadiness(config).warning, 'The matching checked keyless endpoint should not warn about a missing OpenAI key')
+    localStorage.clear()
+    assert(!hasChatExecutionAccess({}), 'An untouched default URL must not imply a configured path')
+    assert(!hasChatExecutionAccess({ ...config, deploymentKind: 'cloud' }), 'Cloud must still reject workspace loopback')
+  })
+
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)
