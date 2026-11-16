@@ -19,7 +19,7 @@ const workspace = { id: 'auto-default', name: 'Auto default fixture', path: '/tm
 async function newPage(width) {
   const page = await browser.newPage({ viewport: { width, height: 860 } })
   page.setDefaultTimeout(10000)
-  await page.addInitScript(theme => localStorage.setItem('theme', theme), process.env.TEST_THEME || 'light')
+  await page.addInitScript(theme => localStorage.setItem('dark-mode', String(theme === 'dark')), process.env.TEST_THEME || 'light')
   page.errors = []
   page.on('pageerror', (error) => page.errors.push(error.stack))
   await page.route('**/api/**', async (route) => {
@@ -71,6 +71,7 @@ async function openWizard(page, preferredModel) {
     localStorage.setItem('clawmax-byok-preview', JSON.stringify({ openai: 'sk-fixture-not-a-real-key', ...(preferred ? { preferredModel: preferred } : {}) }))
   }, preferredModel)
   await page.reload()
+  assert.equal(await page.locator('html').evaluate(el => el.classList.contains('dark')), process.env.TEST_THEME === 'dark', 'Requested color theme must actually render')
   await page.getByRole('button').filter({ hasText: /^Create\s*▾$/ }).click()
   await page.getByRole('button').filter({ hasText: /^\s*Create with Wizard\s*$/ }).click()
   await page.getByRole('heading', { name: 'Add Agent', level: 2 }).waitFor()

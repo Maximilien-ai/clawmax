@@ -17,6 +17,7 @@ import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } fro
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
 import { readRuntimeTranscript } from './runtime-transcripts'
+import { needsCompatibleModelPolicyNormalization, normalizeCompatibleModelPolicies } from './compatible-model-policy'
 
 interface OpenClawAgentRecord {
   id: string
@@ -1311,6 +1312,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
     config.models = config.models || {}
     config.models.providers = providers
     config.models.providers.lmstudio = nextProviderConfig
+    normalizeCompatibleModelPolicies(config, agentId, execution.workspace)
     writeOpenClawConfigFile(configPath, config)
     return true
   }
@@ -1466,7 +1468,8 @@ export async function withTemporaryAgentAuthProfiles<T>(
             typeof entry === 'object' && entry !== null && String(entry.id || '').trim() === executionLmstudioModelId
           )
         ) ||
-        !hasExecutionModelAuthorization
+        !hasExecutionModelAuthorization ||
+        needsCompatibleModelPolicyNormalization(currentOpenClawConfig, agentId, execution.workspace)
       )
     )
 
@@ -1496,6 +1499,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
           (providerKeys.openaiCompatibleApiKey?.trim() && latestOpenAiCompatibleProvider.config?.apiKey !== providerKeys.openaiCompatibleApiKey.trim()) ||
           !latestHasExecutionModel ||
           !latestHasExecutionModelAuthorization ||
+          needsCompatibleModelPolicyNormalization(latestOpenClawConfig, agentId, execution.workspace) ||
           latestContextWindowStale
         ) {
           changed = applyOpenAiCompatibleProviderConfig(

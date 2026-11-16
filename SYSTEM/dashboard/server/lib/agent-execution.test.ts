@@ -34,6 +34,7 @@ import {
 import { REPO_ROOT } from './paths'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import { materializeDashboardAgentList } from './openclaw-config'
+import { needsCompatibleModelPolicyNormalization, normalizeCompatibleModelPolicies } from './compatible-model-policy'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -1587,6 +1588,7 @@ test('withTemporaryAgentAuthProfiles authorizes the exact LM Studio execution mo
       },
     },
     agents: {
+      defaults: { modelPolicy: { allow: ['openai/*', 'openai-compatible/google/gemma-4-31b-qat'] } },
       list: [
         { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/google/gemma-4-31b-qat' }
       ]
@@ -1645,6 +1647,7 @@ test('withTemporaryAgentAuthProfiles authorizes the exact LM Studio execution mo
         const currentConfig = readMaterializedConfig(configPath)
         assert(currentConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
         assert(currentConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected exact LM Studio execution ref to be authorized for OpenClaw overrides')
+        assert(JSON.stringify(currentConfig.agents.defaults.modelPolicy.allow) === JSON.stringify(['openai/*', 'lmstudio/google/gemma-4-31b-qat']), 'Expected existing logical permission normalized without broader grant')
         assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected stable LM Studio base URL persisted')
         assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected stable LM Studio api marker persisted')
         assert(currentConfig.models.providers.lmstudio.apiKey === 'lmstudio-secret', 'Expected stable LM Studio api key persisted')
@@ -1656,6 +1659,16 @@ test('withTemporaryAgentAuthProfiles authorizes the exact LM Studio execution mo
         assert(activeEntry.maxTokens === 8192, 'Expected stable LM Studio model entry to carry a bounded max token output limit')
       }
     )
+    // A matching provider/model catalog must still refresh a newly saved logical policy.
+    const updated = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+    updated.agents.defaults.modelPolicy.allow = ['openai-compatible/google/gemma-4-31b-qat']
+    fs.writeFileSync(configPath, JSON.stringify(updated))
+    await withTemporaryAgentAuthProfiles('test-compatible',
+      { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'lmstudio-secret' },
+      'openai-compatible/google/gemma-4-31b-qat', 'openai-compatible', async () => {
+        const refreshed = readMaterializedConfig(configPath)
+        assert(JSON.stringify(refreshed.agents.defaults.modelPolicy.allow) === '["lmstudio/google/gemma-4-31b-qat"]', 'Expected policy-only change persisted on an already matching provider')
+      })
   } finally {
     global.fetch = originalFetch
   }
@@ -2985,6 +2998,33 @@ test('withTemporaryAgentAuthProfiles falls back when the selected OpenClaw lacks
     if (typeof originalPackageRoot === 'undefined') delete process.env.OPENCLAW_PACKAGE_ROOT
     else process.env.OPENCLAW_PACKAGE_ROOT = originalPackageRoot
   }
+})
+
+test('compatible model policies canonicalize exact and prefix permissions without adding grants', () => {
+  const config = { agents: { defaults: { modelPolicy: { allow: ['openai/*', 'openai-compatible/qwen/qwen3.6-27b', 'openai-compatible/vendor/*'] } } } }
+  assert(needsCompatibleModelPolicyNormalization(config, 'target'), 'Expected logical policy reference detected')
+  normalizeCompatibleModelPolicies(config, 'target')
+  assert(JSON.stringify(config.agents.defaults.modelPolicy.allow) === JSON.stringify(['openai/*', 'lmstudio/qwen/qwen3.6-27b', 'lmstudio/vendor/*']), 'Expected same exact and wildcard scopes')
+  assert(!needsCompatibleModelPolicyNormalization(config, 'target'), 'Expected idempotent normalization')
+  config.agents.defaults.modelPolicy.allow = ['openai/*']
+  normalizeCompatibleModelPolicies(config, 'target')
+  assert(JSON.stringify(config.agents.defaults.modelPolicy.allow) === '["openai/*"]', 'Must not grant a denied compatible model or restore a removed permission')
+})
+
+test('compatible policy normalization preserves per-agent overrides, foreign workspaces and other agents', () => {
+  const config: any = { agents: {
+    defaults: { modelPolicy: { allow: [] } },
+    entries: { target: { workspace: '/workspace/target', modelPolicy: { allow: ['openai-compatible/qwen/qwen3.6-27b'] } }, other: { modelPolicy: { allow: ['openai-compatible/*'] } } },
+    list: [{ id: 'target', workspace: '/foreign/target', modelPolicy: { allow: ['openai-compatible/*'] } }],
+  } }
+  normalizeCompatibleModelPolicies(config, 'target', '/workspace/target')
+  assert(config.agents.entries.target.modelPolicy.allow[0] === 'lmstudio/qwen/qwen3.6-27b', 'Expected target override translated')
+  assert(config.agents.defaults.modelPolicy.allow.length === 0, 'Empty policy must stay empty')
+  assert(config.agents.entries.other.modelPolicy.allow[0] === 'openai-compatible/*', 'Other agent must remain untouched')
+  assert(config.agents.list[0].modelPolicy.allow[0] === 'openai-compatible/*', 'Foreign workspace must remain untouched')
+  const absent = { agents: { defaults: {} } }
+  normalizeCompatibleModelPolicies(absent, 'target')
+  assert(JSON.stringify(absent) === '{"agents":{"defaults":{}}}', 'Must not create a policy')
 })
 
 setTimeout(async () => {
