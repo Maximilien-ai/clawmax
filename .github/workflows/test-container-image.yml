@@ -63,7 +63,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.vars.outputs.ref }}
 
@@ -254,7 +254,7 @@ jobs:
     needs: [build, publish-manifest]
     steps:
       - name: Checkout image publishing tools
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
