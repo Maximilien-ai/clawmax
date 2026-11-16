@@ -21,14 +21,16 @@ review/CI/security gates, and verify the combined Dashboard with the full suite.
 ## Merge order and current dependency work
 
 1. [#424 — Resend 6.37.0](https://github.com/Maximilien-ai/clawmax/pull/424).
-   Current tested checkpoint `39d896a7` includes both accepted fixes. Lint,
+   Merged as `08b4779d` from tested checkpoint `39d896a7`, including both accepted fixes. Lint,
    server typing, production build, clean locked install and dependency-tree
    validation pass. Three new tests exercise the actual installed SDK through
    the production OTP route: successful delivery, provider rejection and a
    network failure. Every request is intercepted; no email is sent. The auth
    suite is now 15 cases. Existing auth edge, Resend command/helper and
-   integration route suites also pass. Full local validation is running;
-   current-head CI/security results and final merge receipt belong on the PR.
+   integration route suites also pass. Full local validation passed **582/582**, with the caller registry unchanged.
+   [Required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43949931099)
+   and [CodeQL](https://github.com/Maximilien-ai/clawmax/actions/runs/43949924658)
+   passed. The CI run took approximately **44 minutes**.
 2. [#421 — compatible grouped updates](https://github.com/Maximilien-ai/clawmax/pull/421).
    Keep dotenv 18.0.10, marked 18.1.3, pdfmake 0.3.14, TypeScript ESLint parser
    8.72.1, concurrently 10.0.7, ESLint 10.14.0 and Vite 8.3.7. Retain the
@@ -43,15 +45,15 @@ review/CI/security gates, and verify the combined Dashboard with the full suite.
    with network access disabled and rendered for inspection. The unchanged
    PDF task-list defect is tracked separately as
    [#426](https://github.com/Maximilien-ai/clawmax/issues/426); pre-render
-   document definitions match the main baseline exactly. Update this PR
-   onto merged #424 before the final combined full run and final CI.
+   document definitions match the main baseline exactly. This PR now includes merged #424 for the final combined full run and CI.
 
 Normal branch rules require an approving review and current-base `test` success.
 Auto-merge is disabled in this repository, so Dashboard performs each normal
 merge after validation; no admin bypass or settings change is authorized or used.
 A base-only merge with identical file-tree identity may reuse local/source-scan
 receipts, while required current-head CI still reruns. Expected CI is **26–43
-minutes** and full local integration/validation/coverage **12–15 minutes**.
+minutes** (most recent Resend run: approximately **44 minutes**) and full
+local integration/validation/coverage **12–15 minutes**.
 
 ## Held major migrations — do not manually merge failing heads
 
@@ -73,11 +75,13 @@ The owner may explicitly prioritize a separately validated migration later.
   **10 Moderate / 0 Low / 0 High / 0 Critical**, across **577** reported
   dependencies (320 production, 258 development, 33 optional; counts overlap).
   Evidence: `/private/tmp/clawmax-424-audit.json` and `-audit-policy.log`.
-- #421 checkpoint: the same policy passes; raw audit currently reports
-  **10 Moderate / 0 Low / 0 High / 0 Critical** across **597** dependencies
-  (340 production, 258 development, 33 optional). The combined post-Resend
-  counts must be recorded separately on #421. Evidence:
-  `/private/tmp/clawmax-421-audit.json` and `-audit-policy.log`.
+- #421 combined checkpoint, including merged #424: the same policy passes;
+  raw audit reports **10 Moderate / 0 Low / 0 High / 0 Critical** across **577**
+  dependencies (320 production, 258 development, 33 optional). All 14 tracing
+  lock entries match merged main exactly. Clean install, full dependency tree,
+  focused Markdown/PDF/tracing/OTP suites, lint, server types and build pass.
+  Evidence: `/private/tmp/clawmax-421-audit.json`, `-audit-policy.log`,
+  `-combined-focused.log` and `-combined-otp.log`.
 - Dashboard owns the residual Moderate findings before stable 2.0. This is
   dependency-regression evidence, not a complete security audit. CodeQL's
   workflow success and its PR comparison are checked separately before merge.
