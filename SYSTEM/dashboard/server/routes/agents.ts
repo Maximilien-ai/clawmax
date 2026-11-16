@@ -5,9 +5,9 @@ import fs from 'fs'
 import { hasAgentDirectory } from '../lib/agent-directory'
 import os from 'os'
 import { streamZipExport } from '../lib/zip-export'
-import { hasNativeChatStore, readNativeChatTranscript, readPersistedChatTranscript } from '../lib/native-chat-history'
+import { hasNativeChatSession, hasNativeChatStore, readNativeChatTranscript, readPersistedChatTranscript } from '../lib/native-chat-history'
 import { listAgents, getActiveAgentLifecycleGeneration, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
-import { defaultDashboardChatSeed, forgetEndedDashboardConversation, readDashboardChatConversations, resumeDashboardConversation, setEndedDashboardConversationTitle, startNewDashboardConversation, type EndedDashboardConversation } from '../lib/dashboard-chat-conversations'
+import { defaultDashboardChatSeed, rememberDashboardConversationSession, forgetEndedDashboardConversation, readDashboardChatConversations, resumeDashboardConversation, setEndedDashboardConversationTitle, startNewDashboardConversation, type EndedDashboardConversation } from '../lib/dashboard-chat-conversations'
 import { generateAgentFiles, generateAgentMeta, generateArchiveTitle, withGenerationAttribution, withGenerationRuntimePin } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning, probeGatewayResponsive } from '../lib/gateway-rpc'
@@ -55,7 +55,7 @@ import { normalizeChatMessage } from '../lib/chat-normalization'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
 import { hasReadyOpenClawNativeAgentStore, runExclusiveAgentExecution } from '../lib/agent-execution'
 import { cancelTurnsForAgent, listActiveTurns, withRegisteredTurn } from '../lib/agent-turns'
-import { scopeSessionIdToModel, scopeStoredDashboardSessionId, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
+import { scopeSessionIdToModel, scopeStoredDashboardSessionId, resolveLegacyDashboardChatSessionId, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
 import { resolveDefaultAgentModel, warmDefaultAgentModelEndpoint } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
@@ -507,6 +507,19 @@ function resolveAgentChatSessionId(agentId: string, homeDir?: string): string | 
   const latestTranscript = getLatestRuntimeTranscriptSessionId(agentId)
   if (resolvedAgent.runtime && resolvedAgent.runtime !== 'openclaw') {
     return latestTranscript || persisted || null
+  }
+  // Pre-receipt builds used an identity-timestamp seed. Recover only its exact
+  // native session; broad prefix/newest-session guesses can revive a cleared or
+  // unrelated conversation. A durable pin makes the next turn use what we show.
+  if (!conversations.activeSessionId && conversations.ended.length === 0
+    && hasNativeChatStore(agentId, homeDir)
+    && (!persisted || !fs.existsSync(path.join(getAgentSessionsDir(agentId, homeDir), `${persisted}.jsonl`)))
+    && (!persisted || !hasNativeChatSession(agentId, persisted, homeDir))) {
+    const legacy = resolveLegacyDashboardChatSessionId(agentId, resolvedAgent.workspace, resolvedAgent.model, homeDir)
+    if (legacy && resolvedAgent.model) {
+      rememberDashboardConversationSession(agentId, conversations, legacy, resolvedAgent.model)
+      return legacy
+    }
   }
   return persisted || latestTranscript || null
 }

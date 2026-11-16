@@ -659,6 +659,29 @@ test('resolvePersistedAgentSessionId uses mapped session file when preferred ali
   assert(resolved === 'real-session', `Expected mapped session id, got ${resolved}`)
 })
 
+test('a mapped current legacy chat outranks a stale native semantic pointer while exact native sessions keep priority', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-mixed-history-'))
+  try {
+    const directory = path.join(home, '.openclaw', 'agents', 'mixed')
+    fs.mkdirSync(path.join(directory, 'sessions'), { recursive: true })
+    fs.mkdirSync(path.join(directory, 'agent'))
+    fs.writeFileSync(path.join(directory, 'sessions', 'sessions.json'), JSON.stringify({ 'agent:mixed:dashboard-chat': { sessionId: 'real-chat' } }))
+    fs.writeFileSync(path.join(directory, 'sessions', 'real-chat.jsonl'), '{"type":"message"}\n')
+    const filename = path.join(directory, 'agent', 'openclaw-agent.sqlite')
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(filename)
+    db.exec(`CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT);
+      INSERT INTO session_nodes VALUES ('agent:mixed:dashboard-chat', 'stale-unrelated');
+      CREATE TABLE session_windows (session_id TEXT);
+      INSERT INTO session_windows VALUES ('stale-unrelated'), ('exact-native');`)
+    db.close()
+    const before = fs.readFileSync(filename)
+    assert(resolvePersistedAgentSessionId('mixed', 'agent:mixed:dashboard-chat', 'not-started', home) === 'real-chat', 'The dashboard legacy index must outrank an unrelated semantic native pointer')
+    assert(resolvePersistedAgentSessionId('mixed', 'agent:mixed:dashboard-chat', 'exact-native', home) === 'exact-native', 'A server-owned exact native context must outrank the old semantic index')
+    assert(fs.readFileSync(filename).equals(before), 'Resolution must not alter native data')
+  } finally { fs.rmSync(home, { recursive: true, force: true }) }
+})
+
 test('resolvePersistedAgentSessionId falls back to newest session file when no mapping resolves', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-home-'))
   const sessionsDir = path.join(home, '.openclaw', 'agents', 'ceo', 'sessions')
