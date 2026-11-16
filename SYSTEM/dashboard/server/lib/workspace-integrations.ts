@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { getWorkspacePath } from './workspace'
+import { getBestAvailableModel, getSystemProviderKeys, resolveUserExecutionProviderKeys } from './dashboard-env'
 import { normalizeAgentRuntime } from './agent-runtime'
 
 export interface WorkspaceIntegrationConfig {
@@ -102,6 +103,10 @@ export function getResolvedWorkspaceIntegrationConfig(): WorkspaceIntegrationCon
 
   return {
     ...config,
+    // Non-secret effective defaults for a deployment-provided OpenAI account.
+    // Saved workspace choices always win; no browser key copy or config write is needed.
+    preferredModel: config.preferredModel || (resolveUserExecutionProviderKeys().openai ? 'openai/gpt-5.4-mini' : undefined),
+    systemPreferredModel: config.systemPreferredModel || ((getSystemProviderKeys().openai || resolveUserExecutionProviderKeys().openai) ? getBestAvailableModel() : undefined),
     partners: Object.keys(partners).length > 0 ? partners : config.partners,
   }
 }
@@ -147,6 +152,11 @@ export function writeWorkspaceIntegrationConfig(input: WorkspaceIntegrationConfi
   }
 
   const filePath = getWorkspaceIntegrationsPath()
+  const previousAgentForge = readWorkspaceIntegrationConfig().partners?.agentforge
+  if (JSON.stringify(previousAgentForge) !== JSON.stringify(next.partners?.agentforge)) {
+    const { revokeActivityExportWorkspaceDestination } = require('./activity-export') as typeof import('./activity-export')
+    revokeActivityExportWorkspaceDestination(getWorkspacePath(), 'agentforge')
+  }
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, JSON.stringify(next, null, 2), 'utf-8')
   return next
@@ -183,6 +193,10 @@ export function writeWorkspaceIntegrationSecrets(input: WorkspaceIntegrationSecr
   }
 
   const filePath = getWorkspaceIntegrationSecretsPath()
+  if (readWorkspaceIntegrationSecrets().partners?.agentforge?.apiKey !== next.partners?.agentforge?.apiKey) {
+    const { revokeActivityExportWorkspaceDestination } = require('./activity-export') as typeof import('./activity-export')
+    revokeActivityExportWorkspaceDestination(getWorkspacePath(), 'agentforge')
+  }
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, JSON.stringify(next, null, 2), { encoding: 'utf-8', mode: 0o600 })
   return next

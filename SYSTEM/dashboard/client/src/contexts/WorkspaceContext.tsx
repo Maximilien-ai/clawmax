@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useToast } from '../components/Toast'
 import { applyWorkspaceOrder, reorderWorkspaceList, serializeWorkspaceOrder } from '../lib/workspace-order'
 import { setActiveWorkspaceSecretScope } from '../lib/localSecrets'
+import { workspaceSwitchError } from '../lib/workspaceSwitchResponse'
 
 export interface Workspace {
   id: string
@@ -34,7 +35,7 @@ interface WorkspaceContextValue {
   // Actions
   reorderWorkspaces: (fromIndex: number, toIndex: number) => void
   switchWorkspace: (id: string) => Promise<void>
-  createWorkspace: (name: string, path: string, options?: { color?: string; tags?: string[]; mode?: 'create' | 'adopt' | 'overwrite' }) => Promise<Workspace>
+  createWorkspace: (name: string, path: string, options?: { color?: string; tags?: string[]; mode?: 'create' | 'adopt' | 'overwrite'; notifySuccess?: boolean }) => Promise<Workspace>
   updateWorkspace: (id: string, updates: { name?: string; color?: string; tags?: string[] }) => Promise<void>
   deleteWorkspace: (id: string) => Promise<void>
   refreshWorkspaces: () => Promise<void>
@@ -108,12 +109,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const switchWorkspace = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/workspaces/${id}/activate`, {
-        method: 'PUT'
+        method: 'PUT',
+        signal: AbortSignal.timeout(15000),
       })
 
       if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'Failed to switch workspace')
+        throw new Error(await workspaceSwitchError(res))
       }
 
       setActiveWorkspace((prev) => {
@@ -132,13 +133,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const createWorkspace = useCallback(async (
     name: string,
     path: string,
-    options?: { color?: string; tags?: string[]; mode?: 'create' | 'adopt' | 'overwrite' }
+    options?: { color?: string; tags?: string[]; mode?: 'create' | 'adopt' | 'overwrite'; notifySuccess?: boolean }
   ): Promise<Workspace> => {
     try {
+      const { notifySuccess = true, ...createOptions } = options || {}
       const res = await fetch('/api/workspaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, path, ...options })
+        body: JSON.stringify({ name, path, ...createOptions })
       })
 
       if (!res.ok) {
@@ -148,7 +150,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
       const data = await res.json()
       await refreshWorkspaces()
-      showSuccess(`Workspace "${name}" created successfully`)
+      if (notifySuccess) showSuccess(`Workspace "${name}" created successfully`)
       return data.workspace
     } catch (err: any) {
       console.error('Failed to create workspace:', err)

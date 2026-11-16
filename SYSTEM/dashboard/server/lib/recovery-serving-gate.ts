@@ -29,9 +29,9 @@ export class RecoveryServingGate {
 /** Mount before audit, authentication and all runtime/resource routes. No broad
  * auth or CLI exemption: those handlers may read or mutate workspace state.
  */
-export function recoveryRequestGate(isReady: () => boolean): RequestHandler {
+export function recoveryRequestGate(isReady: () => boolean, allowRecovery: (pathname: string, method: string) => boolean = () => false): RequestHandler {
   return (req, res, next) => {
-    if (isReady() || ((req.method === 'GET' || req.method === 'HEAD') && ['/health', '/health/live', '/recovery'].includes(req.path))) return next()
+    if (isReady() || allowRecovery(req.path, req.method) || ((req.method === 'GET' || req.method === 'HEAD') && ['/health', '/health/live', '/recovery'].includes(req.path))) return next()
     res.setHeader('Cache-Control', 'no-store')
     res.setHeader('Retry-After', '30')
     return res.status(503).json({

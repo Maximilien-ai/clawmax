@@ -7,9 +7,9 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { createHash } from 'crypto'
 import {
-  clearModelCache,
-} from './model-discovery'
+  clearModelCache, resolveOpenAiCompatibleDefaultModel } from './model-discovery'
 import {
   deriveWorkspaceRootFromAgentWorkspace,
   getAgentExecutionRetryDelay,
@@ -21,9 +21,10 @@ import {
   readLatestAssistantUsageFromPersistedSession,
   resolvePersistedAgentSessionId,
   resolveAgentExecutionConfig,
+  resolvePinnedOpenClawAuthBridge,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
-  stableDashboardSeedPrefix,
+  scopeStoredDashboardSessionId,
   shouldUpdateNativeAuthStore,
   shouldUseExplicitBackupModelRetry,
   shouldRetryWithBackupModel,
@@ -33,8 +34,6 @@ import {
 import { REPO_ROOT } from './paths'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import { materializeDashboardAgentList } from './openclaw-config'
-import { hasNativeTranscript, listNativeSessionIds, markNativeTranscriptCleared, readNativeTranscriptLines, getNativeClearWatermarkClearedAt, countVisibleNativeTranscriptMessages } from './openclaw-native-transcripts'
-import { resetAgentSessionsForModelChange } from './agent-model'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -92,6 +91,27 @@ console.log(`\n${YELLOW}=== Agent Execution Test Suite ===${RESET}\n`)
 
 const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+const originalDeploymentKind = process.env.DASHBOARD_DEPLOYMENT_KIND
+
+test('existing and built-in agents resolve retired primary and backup models before execution', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-retirement-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'retirement-probe')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4\n- **Backup Model:** openai/gpt-3.5-turbo\n- **Tags:** built-in\n')
+  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({ agents: { list: [{ id: 'retirement-probe', workspace: agentWorkspace, model: 'openai/gpt-4' }] } }))
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  clearModelCache()
+  resetWorkspaceManagerForTests()
+  for (let reopen = 0; reopen < 2; reopen++) {
+    const resolved = resolveAgentExecutionConfig('retirement-probe')
+    assert(resolved.model === 'openai/gpt-5.5', 'Saved retired primary must not execute')
+    assert(resolved.backupModel === 'openai/gpt-5.4-mini', 'Saved retired backup must not execute')
+    resetWorkspaceManagerForTests()
+  }
+})
 
 test('resolveAgentExecutionConfig falls back to IDENTITY model when openclaw.json omits model', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
@@ -197,7 +217,7 @@ test('resolveAgentExecutionConfig does not invent an implicit fallback model fro
   }
 })
 
-test('resolveAgentExecutionConfig remaps retired openai/gpt-4o identities to openai/gpt-4.1', () => {
+test('resolveAgentExecutionConfig preserves still-active openai/gpt-4o identities', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const workspace = path.join(home, 'workspace')
   const agentWorkspace = path.join(workspace, 'AGENTS', 'double-agent')
@@ -218,7 +238,7 @@ test('resolveAgentExecutionConfig remaps retired openai/gpt-4o identities to ope
   resetWorkspaceManagerForTests()
 
   const resolved = resolveAgentExecutionConfig('double-agent')
-  assert(resolved.model === 'openai/gpt-4.1', `Expected retired gpt-4o identity to resolve to gpt-4.1, got ${resolved.model || 'missing'}`)
+  assert(resolved.model === 'openai/gpt-4o', `Expected active gpt-4o identity to remain unchanged, got ${resolved.model || 'missing'}`)
   assert(resolved.provider === 'openai', 'Expected provider to remain openai')
 })
 
@@ -526,6 +546,42 @@ test('scopeSessionIdToModel isolates chats across model changes', () => {
   assert(scoped.includes('ollama-qwen2-5-latest'), 'Expected sanitized model suffix')
 })
 
+test('long session keys avoid the legacy collision and continue a stored dashboard chat', () => {
+  const prefix = 'group-demo-window-with-a-very-long-common-prefix-'
+  const first = scopeSessionIdToModel(`${prefix}1596`, 'openai/gpt-5')
+  const second = scopeSessionIdToModel(`${prefix}27592`, 'openai/gpt-5')
+  assert(first !== second, 'Distinct long sessions must not share the known legacy key')
+  assert(first.length <= 48 && second.length <= 48, 'Session IDs must stay within the runtime limit')
+
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-upgrade-'))
+  const agentId = 'upgrade-agent'
+  const seed = `dashboard-${agentId}-a-long-server-generated-stamp-chat`
+  const model = 'openai/gpt-5'
+  const combined = `${seed}-${model.replace(/[^a-zA-Z0-9_-]+/g, '-')}`
+  const oldHash = createHash('sha1').update(combined).digest('hex').slice(0, 8)
+  const legacy = `${seed.slice(0, 39)}-${oldHash}`
+  const sessionsDir = path.join(home, '.openclaw', 'agents', agentId, 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, `${legacy}.jsonl`), '{"message":"stored"}\n')
+  try {
+    assert(scopeStoredDashboardSessionId(agentId, seed, model, home) === legacy, 'Existing stored chat must keep its original session ID')
+    assert(resolvePersistedAgentSessionId(agentId, `agent:${agentId}:dashboard-chat`, legacy, home) === legacy, 'Existing chat history must remain readable')
+    assert(scopeStoredDashboardSessionId(agentId, seed, model, home) === legacy, 'A new lookup after restart must still select the stored session')
+    fs.unlinkSync(path.join(sessionsDir, `${legacy}.jsonl`))
+    assert(scopeStoredDashboardSessionId(agentId, seed, model, home) === scopeSessionIdToModel(seed, model), 'A new chat must use the wider digest')
+    const nativeDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
+    fs.mkdirSync(nativeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(path.join(nativeDir, 'openclaw-agent.sqlite'))
+    db.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT); CREATE TABLE session_windows (session_id TEXT)')
+    db.prepare('INSERT INTO session_windows (session_id) VALUES (?)').run(legacy)
+    db.close()
+    assert(scopeStoredDashboardSessionId(agentId, seed, model, home) === legacy, 'Native stored sessions must also survive the key upgrade')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
 test('toExecutionModelOverride maps OpenClaw-retired OpenAI models to the supported mini model', () => {
   assert(toExecutionModelOverride('openai/gpt-4o-mini', 'openai') === 'openai/gpt-5.4-mini', 'Expected gpt-4o-mini execution remap')
   assert(toExecutionModelOverride('openai/gpt-4o', 'openai') === 'openai/gpt-5.4-mini', 'Expected gpt-4o execution remap')
@@ -626,697 +682,6 @@ test('resolvePersistedAgentSessionId falls back to newest session file when no m
   assert(resolved === 'newer-session', `Expected newest session fallback, got ${resolved}`)
 })
 
-test('resolvePersistedAgentSessionId resolves the OpenClaw 2 native session recorded under the dashboard-chat key', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-session-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentDir = path.join(home, '.openclaw', 'agents', 'native-ceo', 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)').run(
-    'agent:native-ceo:dashboard-chat',
-    'native-session-abc',
-    JSON.stringify({ sessionId: 'native-session-abc', updatedAt: Date.now() }),
-    Date.now()
-  )
-  database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)').run(
-    'native-session-abc',
-    0,
-    JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'hi' }] } }),
-    Date.now()
-  )
-  database.close()
-
-  // No sessions.json, no .jsonl anywhere — the only way to resolve a session id is the native store.
-  const resolved = resolvePersistedAgentSessionId(
-    'native-ceo',
-    'agent:native-ceo:dashboard-chat',
-    'scoped-preferred-id-with-no-file-or-native-row',
-    home
-  )
-
-  assert(resolved === 'native-session-abc', `Expected native session id from session_nodes, got ${resolved}`)
-})
-
-test('resolvePersistedAgentSessionId never falls back to a native session that is not shaped like this agent\'s own dashboard chat', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-newest-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentDir = path.join(home, '.openclaw', 'agents', 'native-newest', 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  // Neither row's session_key matches "agent:native-newest:dashboard-chat" (or an "explicit:"
-  // sub-key of it), and neither session id carries this agent's "dashboard-native-newest-" seed
-  // prefix — a scheduled workflow run and an unrelated CLI invocation, both more recently touched
-  // than anything the dashboard itself ever recorded for this agent. Resolving to either would
-  // render a stranger's conversation as the user's current chat, so neither may ever be returned
-  // no matter how recent it is.
-  insertSession.run('agent:native-newest:workflow-run', 'workflow-session', JSON.stringify({ sessionId: 'workflow-session', updatedAt: 1000 }), 1000)
-  insertSession.run('unrelated-cli-run-key', 'newer-session', JSON.stringify({ sessionId: 'newer-session', updatedAt: 5000 }), 5000)
-  database.close()
-
-  // No sessions.json, and the preferred id matches neither native session, nor does either
-  // session look like this agent's own dashboard chat — the correct answer is "nothing found",
-  // not "closest thing available".
-  const resolved = resolvePersistedAgentSessionId(
-    'native-newest',
-    'agent:native-newest:dashboard-chat',
-    'scoped-preferred-id-matching-neither-session',
-    home
-  )
-
-  assert(resolved === 'scoped-preferred-id-matching-neither-session', `Expected no unrelated native session to be offered as the current conversation, got ${resolved}`)
-})
-
-test('resolvePersistedAgentSessionId recovers an earlier dashboard-chat session recorded under a different identity-file stamp', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-seed-shift-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentDir = path.join(home, '.openclaw', 'agents', 'seed-shift-agent', 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  // buildDashboardChatSeed anchors its stamp to IDENTITY.md's mtime, so editing that file (e.g. a
-  // model change) changes the exact session id the dashboard asks for next — but the earlier
-  // conversation, recorded under the OLD stamp, is still this agent's own dashboard chat and must
-  // still be recovered, not treated as "never existed". Also seed an unrelated session that is
-  // touched more recently, to prove recency alone still isn't what wins.
-  insertSession.run('agent:seed-shift-agent:dashboard-chat', 'dashboard-seed-shift-agent-oldstamp-chat', JSON.stringify({ sessionId: 'dashboard-seed-shift-agent-oldstamp-chat', updatedAt: 1000 }), 1000)
-  insertSession.run('unrelated-cli-run-key', 'newer-unrelated-session', JSON.stringify({ sessionId: 'newer-unrelated-session', updatedAt: 5000 }), 5000)
-  database.close()
-
-  const resolved = resolvePersistedAgentSessionId(
-    'seed-shift-agent',
-    'agent:seed-shift-agent:dashboard-chat',
-    'dashboard-seed-shift-agent-newstamp-chat',
-    home
-  )
-
-  assert(resolved === 'dashboard-seed-shift-agent-oldstamp-chat', `Expected the earlier dashboard-chat session (matched by session_key) to be recovered, got ${resolved}`)
-})
-
-test('resolvePersistedAgentSessionId recovers a dashboard chat scoped straight from the session key, preferring the one with content', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-key-scoped-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentId = 'dgx-spark-researcher'
-  const sessionKey = `agent:${agentId}:dashboard-chat`
-  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  // The real shape on an installation that has been chatting since before buildDashboardChatSeed:
-  // the conversation lives under a session id scoped from the session key itself (truncated with a
-  // hash by scopeSessionIdToModel), while an empty placeholder sits under the plain key. The
-  // placeholder must not win just because it matches the key exactly.
-  const conversationId = scopeSessionIdToModel(sessionKey, 'sonnet-something-long-enough-to-truncate')
-  insertSession.run(`agent:${agentId}:explicit:${conversationId}`, conversationId, JSON.stringify({ sessionId: conversationId, updatedAt: 9000 }), 9000)
-  insertSession.run(sessionKey, `agent-${agentId}-dashboard-chat-sonnet.trajectory`, JSON.stringify({ sessionId: `agent-${agentId}-dashboard-chat-sonnet.trajectory`, updatedAt: 1000 }), 1000)
-  insertSession.run('unrelated-cli-run-key', 'newer-unrelated-session', JSON.stringify({ sessionId: 'newer-unrelated-session', updatedAt: 99000 }), 99000)
-  insertEvent.run(conversationId, 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'whats the latest' } }), 9000)
-  insertEvent.run('newer-unrelated-session', 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'scheduled run' } }), 99000)
-  database.close()
-
-  const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, `dashboard-${agentId}-newstamp-chat`, home)
-  assert(resolved === conversationId, `Expected the key-scoped conversation carrying messages, got ${resolved}`)
-  assert(resolved !== 'newer-unrelated-session', 'Expected an unrelated, more recent session never to be offered')
-})
-
-test('resolvePersistedAgentSessionId prefers this agent conversation over a newer empty placeholder under the same key', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-key-empty-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentId = 'placeholder-agent'
-  const sessionKey = `agent:${agentId}:dashboard-chat`
-  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  // An empty trajectory placeholder sits under the plain key and is touched more recently than the
-  // real conversation; picking by recency alone would show the user an empty chat.
-  const conversationId = `dashboard-${agentId}-oldstamp-chat`
-  insertSession.run(`agent:${agentId}:explicit:${conversationId}`, conversationId, JSON.stringify({ sessionId: conversationId, updatedAt: 1000 }), 1000)
-  insertSession.run(sessionKey, `agent-${agentId}-dashboard-chat-sonnet.trajectory`, JSON.stringify({ sessionId: `agent-${agentId}-dashboard-chat-sonnet.trajectory`, updatedAt: 9000 }), 9000)
-  insertEvent.run(conversationId, 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'the real conversation' } }), 1000)
-  database.close()
-
-  const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, `dashboard-${agentId}-newstamp-chat`, home)
-  assert(resolved === conversationId, `Expected the conversation carrying messages rather than the newer empty placeholder, got ${resolved}`)
-})
-
-test('resolvePersistedAgentSessionId prefers the richer of two content-bearing sessions over the newer, thinner one', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-richest-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentId = 'richest-agent'
-  const sessionKey = `agent:${agentId}:dashboard-chat`
-  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  // Mirrors the live incident: a long-running conversation scoped to one model, then the BYOK
-  // endpoint's resolved default model changes (or the operator picks a different one) and a
-  // restart mints a second, newer, differently-model-scoped session id that already has a few
-  // real messages of its own — not an empty placeholder. Recency alone must not shadow the
-  // substantial conversation behind the sliver that happens to be newest.
-  const oldSessionId = scopeSessionIdToModel(sessionKey, 'deepseek-ai/DeepSeek-V4-Flash-0731')
-  const newSessionId = scopeSessionIdToModel(sessionKey, 'local-inference-lab/Qwen3.8-Flash-Next-NVFP4')
-  insertSession.run(`agent:${agentId}:explicit:${oldSessionId}`, oldSessionId, JSON.stringify({ sessionId: oldSessionId, updatedAt: 1000 }), 1000)
-  insertSession.run(`agent:${agentId}:explicit:${newSessionId}`, newSessionId, JSON.stringify({ sessionId: newSessionId, updatedAt: 9000 }), 9000)
-  for (let seq = 1; seq <= 20; seq++) {
-    insertEvent.run(oldSessionId, seq, JSON.stringify({ type: 'message', message: { role: seq % 2 ? 'user' : 'assistant', content: `old turn ${seq}` } }), 1000 + seq)
-  }
-  for (let seq = 1; seq <= 2; seq++) {
-    insertEvent.run(newSessionId, seq, JSON.stringify({ type: 'message', message: { role: seq % 2 ? 'user' : 'assistant', content: `new turn ${seq}` } }), 9000 + seq)
-  }
-  database.close()
-
-  const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, newSessionId, home)
-  assert(resolved === oldSessionId, `Expected the richer 20-message session over the newer 2-message one, got ${resolved}`)
-})
-
-test('resolvePersistedAgentSessionId compares sessions by real conversational turns, not raw transcript rows', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-real-turns-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentId = 'real-turns-agent'
-  const sessionKey = `agent:${agentId}:dashboard-chat`
-  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  // toolHeavySessionId has 2 real exchanges (4 messages) plus 11 toolResult rows — 15 raw rows.
-  // plainSessionId has 6 real exchanges (12 messages) and nothing else — 12 raw rows, fewer than
-  // the tool-heavy session's 15, but far more actual conversation. Raw-row counting would pick the
-  // wrong one; counting only user/assistant messages must pick plainSessionId.
-  const toolHeavySessionId = scopeSessionIdToModel(sessionKey, 'model-a')
-  const plainSessionId = scopeSessionIdToModel(sessionKey, 'model-b')
-  insertSession.run(`agent:${agentId}:explicit:${toolHeavySessionId}`, toolHeavySessionId, JSON.stringify({ sessionId: toolHeavySessionId, updatedAt: 1000 }), 1000)
-  insertSession.run(`agent:${agentId}:explicit:${plainSessionId}`, plainSessionId, JSON.stringify({ sessionId: plainSessionId, updatedAt: 2000 }), 2000)
-  let seq = 0
-  for (let turn = 0; turn < 2; turn++) {
-    insertEvent.run(toolHeavySessionId, ++seq, JSON.stringify({ type: 'message', message: { role: 'user', content: `question ${turn}` } }), seq)
-    for (let toolCall = 0; toolCall < 5; toolCall++) {
-      insertEvent.run(toolHeavySessionId, ++seq, JSON.stringify({ type: 'message', message: { role: 'toolResult', content: `tool output ${toolCall}` } }), seq)
-    }
-    insertEvent.run(toolHeavySessionId, ++seq, JSON.stringify({ type: 'message', message: { role: 'assistant', content: `answer ${turn}` } }), seq)
-  }
-  let plainSeq = 0
-  for (let turn = 0; turn < 6; turn++) {
-    insertEvent.run(plainSessionId, ++plainSeq, JSON.stringify({ type: 'message', message: { role: 'user', content: `question ${turn}` } }), plainSeq)
-    insertEvent.run(plainSessionId, ++plainSeq, JSON.stringify({ type: 'message', message: { role: 'assistant', content: `answer ${turn}` } }), plainSeq)
-  }
-  database.close()
-
-  const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, plainSessionId, home)
-  assert(resolved === plainSessionId, `Expected the session with more real conversation (6 exchanges) over the tool-heavy one (2 exchanges, more raw rows), got ${resolved}`)
-})
-
-test('resolvePersistedAgentSessionId falls back to the newest match when every own-dashboard session is equally empty', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-all-empty-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentId = 'all-empty-agent'
-  const sessionKey = `agent:${agentId}:dashboard-chat`
-  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  const olderId = scopeSessionIdToModel(sessionKey, 'older-model')
-  const newerId = scopeSessionIdToModel(sessionKey, 'newer-model')
-  insertSession.run(`agent:${agentId}:explicit:${olderId}`, olderId, JSON.stringify({ sessionId: olderId, updatedAt: 1000 }), 1000)
-  insertSession.run(`agent:${agentId}:explicit:${newerId}`, newerId, JSON.stringify({ sessionId: newerId, updatedAt: 9000 }), 9000)
-  database.close()
-
-  const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, newerId, home)
-  assert(resolved === newerId, `Expected the newest match as the fallback when nothing has content, got ${resolved}`)
-})
-
-test('resolvePersistedAgentSessionId keeps a just-cleared session current over a scoped sibling that already had content', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-clear-vs-sibling-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentId = 'clear-vs-sibling-agent'
-  const sessionKey = `agent:${agentId}:dashboard-chat`
-  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  // Two scoped-from-seed siblings, both with real content — the shape a restart-provoked model
-  // change leaves behind once the newer session has also picked up its own messages. The user is
-  // looking at the richer one (rich) and clears it; the thinner sibling (thin) has had nothing
-  // said in it since before that Clear. Clearing rich must show empty, not silently hand "current"
-  // to thin just because thin still has messages and rich now scores 0.
-  const richSessionId = scopeSessionIdToModel(sessionKey, 'model-rich')
-  const thinSessionId = scopeSessionIdToModel(sessionKey, 'model-thin')
-  insertSession.run(`agent:${agentId}:explicit:${richSessionId}`, richSessionId, JSON.stringify({ sessionId: richSessionId, updatedAt: 5000 }), 5000)
-  insertSession.run(`agent:${agentId}:explicit:${thinSessionId}`, thinSessionId, JSON.stringify({ sessionId: thinSessionId, updatedAt: 1000 }), 1000)
-  for (let seq = 1; seq <= 10; seq++) {
-    insertEvent.run(richSessionId, seq, JSON.stringify({ type: 'message', message: { role: seq % 2 ? 'user' : 'assistant', content: `rich turn ${seq}` } }), 4000 + seq)
-  }
-  insertEvent.run(thinSessionId, 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'thin turn, said well before rich was cleared' } }), 500)
-  database.close()
-
-  const before = resolvePersistedAgentSessionId(agentId, sessionKey, richSessionId, home)
-  assert(before === richSessionId, `Expected the richer session to be current before Clear, got ${before}`)
-
-  markNativeTranscriptCleared(agentId, richSessionId, home)
-
-  const after = resolvePersistedAgentSessionId(agentId, sessionKey, richSessionId, home)
-  assert(after === richSessionId, `Expected the just-cleared session to stay current (now empty) rather than falling back to the thinner, untouched-since sibling, got ${after}`)
-  assert(countVisibleNativeTranscriptMessages(agentId, after!, home) === 0, 'Expected the resolved current session to actually read as empty after Clear')
-})
-
-test('resolvePersistedAgentSessionId lets a sibling regain current once the user actually resumes talking there after a Clear', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-clear-then-resume-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentId = 'clear-then-resume-agent'
-  const sessionKey = `agent:${agentId}:dashboard-chat`
-  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  const clearedSessionId = scopeSessionIdToModel(sessionKey, 'model-cleared')
-  const resumedSessionId = scopeSessionIdToModel(sessionKey, 'model-resumed')
-  insertSession.run(`agent:${agentId}:explicit:${clearedSessionId}`, clearedSessionId, JSON.stringify({ sessionId: clearedSessionId, updatedAt: 1000 }), 1000)
-  insertSession.run(`agent:${agentId}:explicit:${resumedSessionId}`, resumedSessionId, JSON.stringify({ sessionId: resumedSessionId, updatedAt: 1000 }), 1000)
-  insertEvent.run(clearedSessionId, 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'old conversation' } }), 500)
-  database.close()
-
-  markNativeTranscriptCleared(agentId, clearedSessionId, home)
-
-  // The user then genuinely resumes chatting in the other scoped session — its own real activity
-  // lands strictly after the Clear.
-  const laterDatabase = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  const laterInsertSession = laterDatabase.prepare('INSERT OR REPLACE INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  const laterInsertEvent = laterDatabase.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  const resumedAt = Date.now() + 1000
-  laterInsertSession.run(`agent:${agentId}:explicit:${resumedSessionId}`, resumedSessionId, JSON.stringify({ sessionId: resumedSessionId, updatedAt: resumedAt }), resumedAt)
-  laterInsertEvent.run(resumedSessionId, 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'resumed conversation' } }), resumedAt)
-  laterDatabase.close()
-
-  const resolved = resolvePersistedAgentSessionId(agentId, sessionKey, clearedSessionId, home)
-  assert(resolved === resumedSessionId, `Expected the sibling the user actually resumed talking in after the Clear to become current, got ${resolved}`)
-})
-
-test('scopeSessionIdToModel is not idempotent on its own output — callers must never re-scope a resolved session id', () => {
-  // routes/agents.ts's POST /:id/chat/messages once did exactly this: computed
-  // `resolvePersistedAgentSessionId(...)` (already a real, resolved session id) and then ran it
-  // BACK through `scopeSessionIdToModel`, hashing an already-hashed string into a third, never-
-  // before-seen id — silently sending the turn to an empty session instead of the one the resolver
-  // (correctly) found. Any future caller that re-scopes a resolved id will hit this same bug; this
-  // test exists to make that mistake fail loudly rather than silently, the way it did in production.
-  const sessionKey = 'agent:some-agent:dashboard-chat'
-  const model = 'some-model'
-  const resolved = scopeSessionIdToModel(sessionKey, model)
-  const reScoped = scopeSessionIdToModel(resolved, model)
-  assert(reScoped !== resolved, 'Expected re-scoping an already-scoped id to change it — this is the exact defect a caller must avoid by using a resolved session id as-is')
-})
-
-test("Reset Session's legacy-file archiving does not disturb which native session resolvePersistedAgentSessionId then picks", () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-reset-session-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentId = 'reset-session-agent'
-  const sessionKey = `agent:${agentId}:dashboard-chat`
-  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
-  const sessionsDir = path.join(home, '.openclaw', 'agents', agentId, 'sessions')
-  fs.mkdirSync(agentDir, { recursive: true })
-  fs.mkdirSync(sessionsDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  const sessionId = scopeSessionIdToModel(sessionKey, 'some-model')
-  insertSession.run(`agent:${agentId}:explicit:${sessionId}`, sessionId, JSON.stringify({ sessionId, updatedAt: 1000 }), 1000)
-  for (let seq = 1; seq <= 6; seq++) {
-    insertEvent.run(sessionId, seq, JSON.stringify({ type: 'message', message: { role: seq % 2 ? 'user' : 'assistant', content: `turn ${seq}` } }), 1000 + seq)
-  }
-  database.close()
-  // A leftover legacy sessions.json from before this agent's runtime migrated, exactly what
-  // Reset Session's own archiving step (resetAgentSessionsForModelChange) exists to clear.
-  fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({ [sessionKey]: { sessionId: 'stale-legacy-pointer', updatedAt: 500 } }))
-
-  const before = resolvePersistedAgentSessionId(agentId, sessionKey, `dashboard-${agentId}-currentstamp-chat`, home)
-  assert(before === sessionId, `Expected the real native conversation to resolve before Reset Session, got ${before}`)
-
-  const reset = resetAgentSessionsForModelChange(home, agentId)
-  assert(reset.ok, `Expected Reset Session's archiving step to succeed, got ${JSON.stringify(reset)}`)
-  assert(!fs.existsSync(path.join(sessionsDir, 'sessions.json')), 'Expected the stale legacy index to be archived away')
-
-  // Reset Session never touches the native SQLite store (the runtime owns it), so the same real
-  // conversation is the only thing left to resolve to — this fix does not change that.
-  const after = resolvePersistedAgentSessionId(agentId, sessionKey, `dashboard-${agentId}-currentstamp-chat`, home)
-  assert(after === sessionId, `Expected the same native conversation to resolve after Reset Session, got ${after}`)
-})
-
-
-test('resolvePersistedAgentSessionId recovers a dashboard-chat session recorded only under its seed-prefixed session id, key-agnostic', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-seed-prefix-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentDir = path.join(home, '.openclaw', 'agents', 'seed-prefix-agent', 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-  // Recorded under an "explicit:" bookkeeping key the dashboard has no need to parse, so the
-  // session_key alone doesn't identify it as ours — but its session id still carries the seed
-  // prefix buildDashboardChatSeed always writes for this agent, which is what recovers it.
-  insertSession.run('agent:seed-prefix-agent:explicit:some-older-seed', 'dashboard-seed-prefix-agent-oldstamp-chat', JSON.stringify({ sessionId: 'dashboard-seed-prefix-agent-oldstamp-chat', updatedAt: 1000 }), 1000)
-  insertSession.run('unrelated-cli-run-key', 'newer-unrelated-session', JSON.stringify({ sessionId: 'newer-unrelated-session', updatedAt: 5000 }), 5000)
-  database.close()
-
-  const resolved = resolvePersistedAgentSessionId(
-    'seed-prefix-agent',
-    'agent:seed-prefix-agent:dashboard-chat',
-    'dashboard-seed-prefix-agent-newstamp-chat',
-    home
-  )
-
-  assert(resolved === 'dashboard-seed-prefix-agent-oldstamp-chat', `Expected the seed-prefixed session id to be recovered over the more recent unrelated one, got ${resolved}`)
-})
-
-test('resolvePersistedAgentSessionId recovers an earlier dashboard-chat session by session key for a long agent id (session-key matching was already correct; kept as coverage alongside the seed-prefix case below)', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-long-id-key-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  // 36 characters — past the ~28-character threshold where scopeSessionIdToModel's hash
-  // truncation lands inside "dashboard-<agentId>-" itself, not just the stamp after it. Agent
-  // names generated from a description routinely run this long or longer.
-  const agentId = 'release-captain-generated-agent-slug'
-  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-
-  const oldSessionId = scopeSessionIdToModel(`dashboard-${agentId}-oldstamp-chat`, 'openai/gpt-4o-mini')
-  const newSessionId = scopeSessionIdToModel(`dashboard-${agentId}-newstamp-chat`, 'openai/gpt-4o-mini')
-  assert(oldSessionId.length === 48 && oldSessionId !== newSessionId, 'test setup: expected this agent id to actually trigger scopeSessionIdToModel\'s hash truncation')
-
-  insertSession.run(`agent:${agentId}:dashboard-chat`, oldSessionId, JSON.stringify({ sessionId: oldSessionId, updatedAt: 1000 }), 1000)
-  insertSession.run('unrelated-cli-run-key', 'newer-unrelated-session', JSON.stringify({ sessionId: 'newer-unrelated-session', updatedAt: 5000 }), 5000)
-  database.close()
-
-  const resolved = resolvePersistedAgentSessionId(agentId, `agent:${agentId}:dashboard-chat`, newSessionId, home)
-
-  assert(resolved === oldSessionId, `Expected the earlier truncated session id (matched by session_key) to be recovered, got ${resolved}`)
-})
-
-test('resolvePersistedAgentSessionId recovers a dashboard-chat session by its truncated seed prefix, for an agent id long enough that scopeSessionIdToModel truncates its session ids', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-long-id-prefix-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentId = 'release-captain-generated-agent-slug'
-  const agentDir = path.join(home, '.openclaw', 'agents', agentId, 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, entry_json TEXT, updated_at INTEGER)')
-  const insertSession = database.prepare('INSERT INTO session_nodes (session_key, current_session_id, entry_json, updated_at) VALUES (?, ?, ?, ?)')
-
-  const oldSessionId = scopeSessionIdToModel(`dashboard-${agentId}-oldstamp-chat`, 'openai/gpt-4o-mini')
-  const newSessionId = scopeSessionIdToModel(`dashboard-${agentId}-newstamp-chat`, 'openai/gpt-4o-mini')
-  assert(oldSessionId.length === 48, 'test setup: expected this agent id to actually trigger scopeSessionIdToModel\'s hash truncation')
-  // This is the exact regression: the naive, untruncated "dashboard-<agentId>-" never appears in
-  // the real (truncated) session id, so a prefix check that didn't account for the truncation
-  // would fail to recover this session at all.
-  assert(!oldSessionId.startsWith(`dashboard-${agentId}-`), 'test setup: expected the untruncated prefix not to appear verbatim in the truncated session id')
-
-  // Recorded under an "explicit:" bookkeeping key, so only the seed-prefix match — not the
-  // session_key match — can recover it.
-  insertSession.run(`agent:${agentId}:explicit:some-older-seed`, oldSessionId, JSON.stringify({ sessionId: oldSessionId, updatedAt: 1000 }), 1000)
-  insertSession.run('unrelated-cli-run-key', 'newer-unrelated-session', JSON.stringify({ sessionId: 'newer-unrelated-session', updatedAt: 5000 }), 5000)
-  database.close()
-
-  const resolved = resolvePersistedAgentSessionId(agentId, `agent:${agentId}:dashboard-chat`, newSessionId, home)
-
-  assert(resolved === oldSessionId, `Expected the truncated seed-prefixed session id to be recovered over the more recent unrelated one, got ${resolved}`)
-})
-
-test('stableDashboardSeedPrefix agrees with the real scopeSessionIdToModel for every session id it could ever actually produce', () => {
-  // Every real session id for this agent's dashboard chat is scopeSessionIdToModel(seed, model)
-  // for SOME stamp (IDENTITY.md mtime, changes over the agent's life) and SOME model (changes over
-  // the agent's life too). stableDashboardSeedPrefix must be a prefix of every single one of them,
-  // for every agent id shape the routes actually accept (^[a-z][a-z0-9_-]*$) plus a couple of
-  // adversarial shapes past that, to prove the property rather than a handful of examples — this
-  // predicate has broken twice already (the truncation length, then hyphen-collapsing) on shapes
-  // no single example caught.
-  const agentIds = [
-    'a', // single character
-    'ab',
-    'my-agent',
-    'my--agent', // doubled hyphen
-    'my---agent', // tripled hyphen
-    'trailing-hyphen-agent-', // trailing hyphen (the exact shape that broke the previous fix)
-    '-leading-hyphen-agent', // leading hyphen — not a real routed agent id, but sanitizeSessionIdComponent must still handle it the same way for both sides
-    'agent_with_underscores_123', // underscores and digits
-    'x'.repeat(28), // just under the ~28-char threshold where truncation starts eating into "dashboard-<agentId>-" itself
-    'x'.repeat(29), // just over it
-    'x'.repeat(80), // far past it
-  ]
-  const stamps = ['1', 'zzzzz9', 'abc123']
-  const models = [undefined, 'openai/gpt-4o-mini', 'y'.repeat(40)]
-
-  let casesChecked = 0
-  let sawATruncatedCase = false
-  for (const agentId of agentIds) {
-    const prefix = stableDashboardSeedPrefix(agentId)
-    for (const stamp of stamps) {
-      for (const model of models) {
-        const realSessionId = scopeSessionIdToModel(`dashboard-${agentId}-${stamp}-chat`, model)
-        casesChecked++
-        if (realSessionId.length === 48) sawATruncatedCase = true
-        assert(
-          realSessionId.startsWith(prefix),
-          `Expected scopeSessionIdToModel('dashboard-${agentId}-${stamp}-chat', ${JSON.stringify(model)}) = ${JSON.stringify(realSessionId)} to start with stableDashboardSeedPrefix(${JSON.stringify(agentId)}) = ${JSON.stringify(prefix)}`
-        )
-      }
-    }
-  }
-
-  assert(casesChecked === agentIds.length * stamps.length * models.length, 'test setup: expected every combination to have actually run')
-  assert(sawATruncatedCase, 'test setup: expected at least one agent id/stamp/model combination to actually trigger scopeSessionIdToModel\'s hash truncation')
-})
-
-test('openclaw native transcript helpers degrade to empty results for a missing or unreadable database', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-missing-home-'))
-
-  assert(listNativeSessionIds('missing-agent', home).length === 0, 'Expected no sessions for an agent with no native database')
-  assert(readNativeTranscriptLines('missing-agent', 'whatever-session', home).length === 0, 'Expected no transcript lines for an agent with no native database')
-  assert(hasNativeTranscript('missing-agent', 'whatever-session', home) === false, 'Expected no transcript for an agent with no native database')
-
-  const agentDir = path.join(home, '.openclaw', 'agents', 'corrupt-agent', 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  fs.writeFileSync(path.join(agentDir, 'openclaw-agent.sqlite'), 'not a sqlite database', 'utf-8')
-
-  assert(listNativeSessionIds('corrupt-agent', home).length === 0, 'Expected no sessions for a corrupt native database file')
-  assert(readNativeTranscriptLines('corrupt-agent', 'whatever-session', home).length === 0, 'Expected no transcript lines for a corrupt native database file')
-  assert(hasNativeTranscript('corrupt-agent', 'whatever-session', home) === false, 'Expected no transcript for a corrupt native database file')
-
-  // Also verify a missing/unreadable database never throws through resolvePersistedAgentSessionId.
-  const resolved = resolvePersistedAgentSessionId('corrupt-agent', 'agent:corrupt-agent:dashboard-chat', 'preferred-id', home)
-  assert(resolved === 'preferred-id', `Expected preferred id passthrough when native store is unreadable, got ${resolved}`)
-})
-
-test('markNativeTranscriptCleared hides archived content from readNativeTranscriptLines/hasNativeTranscript for any caller, and a later turn reappears', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-watermark-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentDir = path.join(home, '.openclaw', 'agents', 'watermark-agent', 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const dbPath = path.join(agentDir, 'openclaw-agent.sqlite')
-  const database = new DatabaseSync(dbPath)
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  insertEvent.run('watermark-session', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'before clear' }] } }), Date.now())
-  insertEvent.run('watermark-session', 1, JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: 'before clear reply' }] } }), Date.now())
-  database.close()
-
-  assert(hasNativeTranscript('watermark-agent', 'watermark-session', home), 'Expected a transcript to exist before Clear')
-  assert(readNativeTranscriptLines('watermark-agent', 'watermark-session', home).length === 2, 'Expected both turns readable before Clear')
-
-  markNativeTranscriptCleared('watermark-agent', 'watermark-session', home)
-
-  // These are the exact calls ANY reader makes — the chat history route, or a history-list
-  // builder enumerating listNativeSessionIds and counting each one's messages. The watermark
-  // lives inside these two shared functions, not in one call site, so every caller gets it for
-  // free: a history list computing messageCount from readNativeTranscriptLines would get 0 here
-  // and correctly not resurrect this cleared conversation, with no filtering of its own.
-  assert(!hasNativeTranscript('watermark-agent', 'watermark-session', home), 'Expected the transcript to read as absent immediately after Clear')
-  assert(readNativeTranscriptLines('watermark-agent', 'watermark-session', home).length === 0, 'Expected no lines to be readable immediately after Clear')
-
-  // A later turn (the runtime appending a higher-seq row, exactly as it would on the next real
-  // chat message) must reappear — the watermark filters by position, not by hiding the session.
-  const liveDb = new DatabaseSync(dbPath)
-  liveDb.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)').run(
-    'watermark-session', 2, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'after clear' }] } }), Date.now()
-  )
-  liveDb.close()
-
-  assert(hasNativeTranscript('watermark-agent', 'watermark-session', home), 'Expected a later turn to make the transcript exist again')
-  const linesAfter = readNativeTranscriptLines('watermark-agent', 'watermark-session', home)
-  assert(linesAfter.length === 1, `Expected only the turn after Clear to be readable, got ${linesAfter.length}`)
-  assert(linesAfter[0].includes('after clear'), 'Expected the post-clear turn content')
-})
-
-test('markNativeTranscriptCleared writes the watermark sidecar atomically and recovers another session\'s mark from the backup copy when the primary is corrupted', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-watermark-corrupt-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentDir = path.join(home, '.openclaw', 'agents', 'corrupt-recovery-agent', 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const dbPath = path.join(agentDir, 'openclaw-agent.sqlite')
-  const database = new DatabaseSync(dbPath)
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  insertEvent.run('session-a', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'session a turn' }] } }), Date.now())
-  insertEvent.run('session-b', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'session b turn' }] } }), Date.now())
-  database.close()
-
-  // Clear session A. The sidecar (and its .bak recovery copy) must now exist and be plain,
-  // parseable JSON — proving the write went through the atomic temp-file-plus-rename path, not a
-  // partial write left behind mid-crash.
-  markNativeTranscriptCleared('corrupt-recovery-agent', 'session-a', home)
-  const watermarksPath = path.join(home, '.openclaw', 'agents', 'corrupt-recovery-agent', 'sessions', 'native-clear-watermarks.json')
-  assert(fs.existsSync(watermarksPath), 'Expected the watermark sidecar to be written after clearing session A')
-  assert(fs.existsSync(`${watermarksPath}.bak`), 'Expected a .bak recovery copy to be written alongside the primary sidecar')
-  const beforeCorruption = JSON.parse(fs.readFileSync(watermarksPath, 'utf-8'))
-  assert(typeof beforeCorruption['session-a']?.seq === 'number', 'Expected session A\'s watermark to be recorded')
-  const leftoverTempFiles = fs.readdirSync(path.dirname(watermarksPath)).filter((name) => name.includes('.tmp-'))
-  assert(leftoverTempFiles.length === 0, `Expected no leftover temp file after an atomic write, got ${leftoverTempFiles.length}`)
-
-  // Simulate external corruption of the primary sidecar only (e.g. a crash mid-write on an older
-  // version of this code, disk corruption, a bad manual edit) — the .bak copy is untouched.
-  fs.writeFileSync(watermarksPath, '{"session-a": { this is not valid json')
-
-  // Clear session B. Under the pre-fix behavior this would catch the parse failure, reset the
-  // in-memory map to {}, and overwrite the sidecar with only session B's mark — permanently
-  // discarding session A's watermark and making its archived content visible again.
-  markNativeTranscriptCleared('corrupt-recovery-agent', 'session-b', home)
-
-  assert(!hasNativeTranscript('corrupt-recovery-agent', 'session-a', home), 'Expected session A to still read as cleared — its watermark must survive the corrupted primary via the .bak recovery copy')
-  assert(!hasNativeTranscript('corrupt-recovery-agent', 'session-b', home), 'Expected session B to read as cleared too')
-
-  const afterRecovery = JSON.parse(fs.readFileSync(watermarksPath, 'utf-8'))
-  assert(typeof afterRecovery['session-a']?.seq === 'number', 'Expected session A\'s watermark to still be present in the rewritten sidecar')
-  assert(typeof afterRecovery['session-b']?.seq === 'number', 'Expected session B\'s new watermark to be present')
-})
-
-test('a clear watermark from before OpenClaw destructively rewrites a session\'s transcript is ignored once seq numbering restarts', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-watermark-stale-generation-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentDir = path.join(home, '.openclaw', 'agents', 'stale-generation-agent', 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const dbPath = path.join(agentDir, 'openclaw-agent.sqlite')
-  const database = new DatabaseSync(dbPath)
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  database.exec('CREATE TABLE transcript_rewrite_watermarks (session_id TEXT PRIMARY KEY, generation TEXT, updated_at INTEGER)')
-  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  insertEvent.run('reused-session', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'old conversation turn one' }] } }), Date.now())
-  insertEvent.run('reused-session', 1, JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: 'old conversation turn two' }] } }), Date.now())
-  database.prepare('INSERT INTO transcript_rewrite_watermarks (session_id, generation, updated_at) VALUES (?, ?, ?)').run('reused-session', 'generation-one', Date.now())
-  database.close()
-
-  // Clear the old conversation. The mark should capture both the seq and the generation token
-  // that was current at the time.
-  markNativeTranscriptCleared('stale-generation-agent', 'reused-session', home)
-  const watermarksPath = path.join(home, '.openclaw', 'agents', 'stale-generation-agent', 'sessions', 'native-clear-watermarks.json')
-  const watermarks = JSON.parse(fs.readFileSync(watermarksPath, 'utf-8'))
-  assert(watermarks['reused-session'].seq === 1, `Expected the mark to capture the highest seq before Clear, got ${watermarks['reused-session'].seq}`)
-  assert(watermarks['reused-session'].generation === 'generation-one', `Expected the mark to capture the transcript-rewrite generation token, got ${watermarks['reused-session'].generation}`)
-  assert(!hasNativeTranscript('stale-generation-agent', 'reused-session', home), 'Expected the old conversation to read as cleared')
-
-  // OpenClaw destructively replaces this session's transcript — e.g. buildDashboardChatSeed's
-  // seed is anchored to IDENTITY.md's mtime, which a workspace restore can revert to a value it
-  // held before, so the dashboard starts a --session-id OpenClaw has wiped and is renumbering
-  // from scratch for what is, in truth, a brand new conversation. Mirror exactly what
-  // replaceSqliteTranscriptEventsInTransaction does: delete the old rows, insert new ones
-  // starting at seq 0 again, and rotate the generation token.
-  const rewriteDb = new DatabaseSync(dbPath)
-  rewriteDb.prepare('DELETE FROM transcript_events WHERE session_id = ?').run('reused-session')
-  rewriteDb.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)').run(
-    'reused-session', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'brand new conversation turn one' }] } }), Date.now()
-  )
-  rewriteDb.prepare('UPDATE transcript_rewrite_watermarks SET generation = ? WHERE session_id = ?').run('generation-two', 'reused-session')
-  rewriteDb.close()
-
-  // The stale mark (seq 1, generation-one) must not hide seq 0 of this new, different-generation
-  // conversation.
-  assert(hasNativeTranscript('stale-generation-agent', 'reused-session', home), 'Expected the new conversation to be visible despite the stale seq-1 watermark from the previous generation')
-  const linesAfterRewrite = readNativeTranscriptLines('stale-generation-agent', 'reused-session', home)
-  assert(linesAfterRewrite.length === 1, `Expected exactly the one new turn to be readable, got ${linesAfterRewrite.length}`)
-  assert(linesAfterRewrite[0].includes('brand new conversation turn one'), 'Expected the new conversation\'s own content, not filtered out by the stale mark')
-})
-
-test('markNativeTranscriptCleared is a no-op for a session with nothing recorded, and never writes a watermark file for it', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-watermark-noop-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentDir = path.join(home, '.openclaw', 'agents', 'watermark-noop-agent', 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  database.close()
-
-  markNativeTranscriptCleared('watermark-noop-agent', 'never-existed-session', home)
-
-  const watermarksPath = path.join(home, '.openclaw', 'agents', 'watermark-noop-agent', 'sessions', 'native-clear-watermarks.json')
-  assert(!fs.existsSync(watermarksPath), 'Expected no watermark file to be written for a session with nothing to clear')
-})
-
-test('readLatestAssistantUsageFromPersistedSession falls back to the OpenClaw 2 native store when no legacy jsonl exists', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-usage-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentDir = path.join(home, '.openclaw', 'agents', 'native-usage-agent', 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  insertEvent.run('native-session-usage', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'status' }] } }), Date.now())
-  insertEvent.run('native-session-usage', 1, JSON.stringify({
-    type: 'message',
-    message: {
-      role: 'assistant',
-      provider: 'anthropic',
-      model: 'claude-sonnet-4-20250514',
-      usage: { input: 200, output: 80, cacheRead: 500, cost: { total: 0.002 } },
-    },
-  }), Date.now())
-  database.close()
-
-  const usage = readLatestAssistantUsageFromPersistedSession('native-usage-agent', 'agent:native-usage-agent:dashboard-chat', 'native-session-usage', home)
-  assert(usage?.sessionId === 'native-session-usage', `Expected resolved native session id, got ${usage?.sessionId}`)
-  assert(usage?.inputTokens === 200, `Expected input tokens from native store, got ${usage?.inputTokens}`)
-  assert(usage?.provider === 'anthropic', `Expected provider from native store, got ${usage?.provider}`)
-})
-
-test('readLatestAssistantTextFromPersistedSession falls back to the OpenClaw 2 native store when no legacy jsonl exists', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-text-home-'))
-  const { DatabaseSync } = require('node:sqlite')
-  const agentDir = path.join(home, '.openclaw', 'agents', 'native-text-agent', 'agent')
-  fs.mkdirSync(agentDir, { recursive: true })
-  const database = new DatabaseSync(path.join(agentDir, 'openclaw-agent.sqlite'))
-  database.exec('CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at INTEGER)')
-  const insertEvent = database.prepare('INSERT INTO transcript_events (session_id, seq, event_json, created_at) VALUES (?, ?, ?, ?)')
-  insertEvent.run('native-session-text', 0, JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'who are you?' }] } }), Date.now())
-  insertEvent.run('native-session-text', 1, JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: "I'm reading from SQLite now." }] } }), Date.now())
-  database.close()
-
-  const latest = readLatestAssistantTextFromPersistedSession('native-text-agent', 'agent:native-text-agent:dashboard-chat', 'native-session-text', home)
-  assert(latest?.sessionId === 'native-session-text', `Expected resolved native session id, got ${latest?.sessionId}`)
-  assert(latest?.content === "I'm reading from SQLite now.", `Expected assistant text from native store, got ${latest?.content}`)
-})
-
 test('readLatestAssistantUsageFromPersistedSession extracts latest assistant usage from resolved session file', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-home-'))
   const sessionsDir = path.join(home, '.openclaw', 'agents', 'ceo', 'sessions')
@@ -1387,6 +752,147 @@ test('readLatestAssistantTextFromPersistedSession extracts assistant text from r
   const latest = readLatestAssistantTextFromPersistedSession('ceo', 'agent:ceo:dashboard-chat', undefined, home)
   assert(latest?.sessionId === 'current-session', `Expected resolved session id, got ${latest?.sessionId}`)
   assert(latest?.content === "I'm the CEO agent.", `Expected assistant text from persisted session, got ${latest?.content}`)
+})
+
+test('readLatestAssistantTextFromPersistedSession recovers a compressed reply from the native agent store', () => {
+  // `openclaw agent --session-id X` records the turn under `agent:<id>:explicit:X` in the native
+  // SQLite store and writes no JSONL file, so a JSONL-only reader could never recover a reply.
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-native-session-'))
+  try {
+    const storeDir = path.join(home, '.openclaw', 'agents', 'nat', 'agent')
+    fs.mkdirSync(storeDir, { recursive: true })
+    const { DatabaseSync } = require('node:sqlite')
+    const db = new DatabaseSync(path.join(storeDir, 'openclaw-agent.sqlite'))
+    db.exec(`
+      CREATE TABLE session_nodes (session_key TEXT PRIMARY KEY, current_session_id TEXT);
+      CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, event_zstd BLOB);
+      INSERT INTO session_nodes VALUES ('agent:nat:explicit:nat-chat', 'nat-chat');
+    `)
+    const reply = JSON.stringify({ type: 'message', id: 'evt-reply', message: { role: 'assistant', content: [{ type: 'text', text: `Recovered reply ${'x'.repeat(2000)}` }], usage: { input: 3, output: 5 } } })
+    const zstd = (require('zlib') as { zstdCompressSync: (input: Buffer) => Buffer })
+    const insert = db.prepare('INSERT INTO transcript_events VALUES (?, ?, ?, ?)')
+    insert.run('nat-chat', 1, JSON.stringify({ type: 'message', message: { role: 'user', content: 'hi' } }), null)
+    insert.run('nat-chat', 2, null, zstd.zstdCompressSync(Buffer.from(reply)))
+    db.close()
+
+    const latest = readLatestAssistantTextFromPersistedSession('nat', 'agent:nat:dashboard-chat', 'nat-chat', home)
+    assert(latest?.sessionId === 'nat-chat', `Expected the explicit session id, got ${latest?.sessionId}`)
+    assert(latest?.messageId === 'evt-reply', `Expected the reply's event id for turn attribution, got ${latest?.messageId}`)
+    assert(latest?.content?.startsWith('Recovered reply ') === true, `Expected the compressed native reply, got ${latest?.content?.slice(0, 40)}`)
+    const usage = readLatestAssistantUsageFromPersistedSession('nat', 'agent:nat:dashboard-chat', 'nat-chat', home)
+    assert(usage?.outputTokens === 5, `Expected native usage, got ${JSON.stringify(usage)}`)
+
+    // A chat migrated from the legacy index keeps its dashboard-chat key pointing at the old session.
+    // After Clear, the turn runs a new session: recovery must read that one, not the key's.
+    const legacy = new DatabaseSync(path.join(storeDir, 'openclaw-agent.sqlite'))
+    legacy.exec("INSERT INTO session_nodes VALUES ('agent:nat:dashboard-chat', 'old-chat')")
+    legacy.prepare('INSERT INTO transcript_events VALUES (?, ?, ?, ?)').run('old-chat', 1, JSON.stringify({ type: 'message', id: 'evt-old', message: { role: 'assistant', content: 'Old reply' } }), null)
+    legacy.close()
+    assert(readLatestAssistantTextFromPersistedSession('nat', 'agent:nat:dashboard-chat', 'nat-chat', home)?.messageId === 'evt-reply', 'The session the turn ran wins over the legacy key')
+    assert(resolvePersistedAgentSessionId('nat', 'agent:nat:dashboard-chat', 'not-run-yet', home) === 'old-chat', 'Before its first turn, the legacy key still resolves')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('session resolution prefers existing files and recovers from invalid indexes', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-edges-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'writer', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  try {
+    assert(resolvePersistedAgentSessionId('', 'key', 'preferred', home) === 'preferred', 'Missing agent should keep caller alias')
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', '') === 'preferred', 'Missing home should keep caller alias')
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', home) === 'preferred', 'Empty store should keep alias')
+    fs.writeFileSync(path.join(sessionsDir, 'preferred.jsonl'), '')
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', home) === 'preferred', 'Existing preferred file should win')
+    fs.writeFileSync(path.join(sessionsDir, 'mapped.jsonl'), '')
+    fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({
+      'other-key': { sessionId: 'mapped' },
+      preferred: { sessionId: 'mapped' },
+    }))
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', home) === 'preferred', 'Direct preferred file must outrank index')
+    fs.unlinkSync(path.join(sessionsDir, 'preferred.jsonl'))
+    assert(resolvePersistedAgentSessionId('writer', 'key', 'preferred', home) === 'mapped', 'Preferred alias should resolve through the index')
+    fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), '{broken')
+    assert(resolvePersistedAgentSessionId('writer', 'key', undefined, home) === 'mapped', 'Corrupt index should fall back to an existing file')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('persisted assistant readers handle missing, non-assistant, and malformed records', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-read-edges-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'writer', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  const sessionFile = path.join(sessionsDir, 'read-edges.jsonl')
+  try {
+    assert(readLatestAssistantUsageFromPersistedSession('writer', 'key', undefined, home) === null, 'Missing session should have no usage')
+    assert(readLatestAssistantTextFromPersistedSession('writer', 'key', undefined, home) === null, 'Missing session should have no text')
+    fs.writeFileSync(sessionFile, JSON.stringify({ type: 'message', message: { role: 'user', content: 'hello' } }))
+    assert(readLatestAssistantUsageFromPersistedSession('writer', 'key', 'read-edges', home)?.sessionId === 'read-edges', 'User-only session should retain its ID')
+    assert(readLatestAssistantTextFromPersistedSession('writer', 'key', 'read-edges', home)?.content === undefined, 'User-only session should not invent assistant text')
+    fs.writeFileSync(sessionFile, '{broken')
+    assert(readLatestAssistantUsageFromPersistedSession('writer', 'key', 'read-edges', home)?.sessionId === 'read-edges', 'Invalid JSON should retain only the ID')
+    assert(readLatestAssistantTextFromPersistedSession('writer', 'key', 'read-edges', home)?.content === undefined, 'Invalid JSON should not become text')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('persisted assistant text combines supported content parts and skips empty turns', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-content-edges-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'writer', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  try {
+    fs.writeFileSync(path.join(sessionsDir, 'parts.jsonl'), [
+      JSON.stringify({ type: 'message', message: { role: 'assistant', content: ['plain', { type: 'text', text: 'typed' }, { text: 'generic' }, { content: 'nested' }, null, { type: 'image' }] } }),
+      JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'image', data: 'hidden' }] } }),
+    ].join('\n'))
+    const result = readLatestAssistantTextFromPersistedSession('writer', 'key', 'parts', home)
+    assert(result?.content === 'plain\ntyped\ngeneric\nnested', `Expected text-only content parts, got ${result?.content}`)
+    const usage = readLatestAssistantUsageFromPersistedSession('writer', 'key', 'parts', home)
+    assert(usage?.inputTokens === 0 && usage.outputTokens === 0, 'Missing usage should normalize to zero')
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('provider and backup retry classifiers distinguish supported failure signals', () => {
+  for (const [model, provider] of [
+    ['openai-compatible/vendor/model', 'openai-compatible'], ['lmstudio/model', 'openai-compatible'],
+    ['openrouter/model', 'openrouter'], ['xai/grok', 'xai'], ['openai/gpt-5', 'openai'],
+    ['gpt-5', 'openai'], ['o3-mini', 'openai'], ['anthropic/claude', 'anthropic'],
+    ['claude-sonnet', 'anthropic'], ['gemini/model', 'gemini'], ['gemini-2.5', 'gemini'],
+    ['google/model', 'gemini'], ['ollama/llama', 'ollama'], ['llama:latest', 'ollama'],
+    ['unknown-model', null], ['', null],
+  ] as const) {
+    assert(providerFromModel(model) === provider, `Unexpected provider for ${model}`)
+  }
+  for (const signal of [
+    'Unknown model: bad', 'No API key found for provider', 'Incorrect API key provided',
+    'has auth issue (skipping all models)', 'insufficient_quota', 'quota exceeded',
+    'rate limit', 'too many requests', 'HTTP 429', 'is in cooldown (suspending lanes)',
+    'request timeout', 'All models failed',
+  ]) {
+    assert(shouldRetryWithBackupModel(signal), `Expected backup retry for ${signal}`)
+  }
+  assert(!shouldRetryWithBackupModel('') && !shouldRetryWithBackupModel('Bad prompt'), 'Unrelated failures must not trigger a backup')
+  assert(!shouldUseExplicitBackupModelRetry({ backupModel: 'openai/gpt-5', backupProvider: 'openai', rawError: 'timeout', hadVisibleOutput: true }), 'Visible output must not be retried')
+  assert(shouldUseExplicitBackupModelRetry({ backupModel: 'openai/gpt-5', backupProvider: 'openai', rawError: 'timeout' }), 'Clean timeout should permit explicit backup')
+})
+
+test('model override and session scoping preserve safe provider-specific identities', () => {
+  assert(toExecutionModelOverride('openai-compatible/vendor/model', 'openai-compatible') === 'lmstudio/vendor/model', 'Compatible provider should use native alias')
+  assert(toExecutionModelOverride('gpt-4o-mini', 'openai') === 'openai/gpt-5.4-mini', 'Retired model should map to active fallback')
+  assert(toExecutionModelOverride(' openai/gpt-5 ', 'openai') === 'openai/gpt-5.4-mini', 'Model override should trim before remapping')
+  assert(toExecutionModelOverride('anthropic/claude', 'anthropic') === 'anthropic/claude', 'Other provider should preserve model')
+  assert(toExecutionModelOverride(' ', 'openai') === undefined, 'Blank model should be omitted')
+  assert(scopeSessionIdToModel('  ', undefined) === 'chat', 'Blank session key should use safe fallback')
+  assert(scopeSessionIdToModel('agent:writer/chat', 'openai/gpt-5').includes('openai-gpt-5'), 'Session key should be model-scoped')
+  assert(scopeSessionIdToModel('very-long-session-key-'.repeat(6), 'openai/gpt-5').length <= 48, 'Scoped session key must remain bounded')
+  assert(deriveWorkspaceRootFromAgentWorkspace('/tmp/workspace/AGENTS/writer') === '/tmp/workspace', 'Agent path should return owning workspace')
+  assert(deriveWorkspaceRootFromAgentWorkspace('/tmp/independent') === '/tmp/independent', 'Independent path should remain itself')
+  assert(deriveWorkspaceRootFromAgentWorkspace() === undefined, 'Missing workspace should remain missing')
 })
 
 test('isOpenClawSessionLockError matches lock timeout errors', () => {
@@ -2141,6 +1647,825 @@ test('withTemporaryAgentAuthProfiles authorizes the exact LM Studio execution mo
   assert(!!(loadCall && loadCall.body?.includes('"context_length":64000')), 'Expected LM Studio load request to target the larger execution context window')
 })
 
+test('withTemporaryAgentAuthProfiles sizes the LM Studio model entry from the context length the endpoint advertises', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-ctx-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-compatible')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-compatible', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/google/gemma-4-31b-qat\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    models: {
+      providers: {
+        lmstudio: {
+          baseUrl: 'http://127.0.0.1:1234/v1',
+          api: 'openai-completions',
+          apiKey: 'lmstudio-secret',
+          models: [{
+            id: 'google/gemma-4-31b-qat',
+            name: 'google/gemma-4-31b-qat',
+            contextWindow: 64000,
+            contextTokens: 64000,
+            maxTokens: 8192,
+          }],
+        },
+      },
+    },
+    agents: {
+      list: [
+        { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/google/gemma-4-31b-qat' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
+  resetWorkspaceManagerForTests()
+  const originalFetch = global.fetch
+  clearModelCache()
+  global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'google/gemma-4-31b-qat', max_model_len: 131072 }] }) }) as any) as any
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://127.0.0.1:1234/v1', apiKey: 'lmstudio-secret' })
+  const fetchCalls: Array<{ url: string; method: string; body?: string }> = []
+  global.fetch = (async (input: any, init?: any) => {
+    const url = String(input)
+    const method = String(init?.method || 'GET').toUpperCase()
+    const body = typeof init?.body === 'string' ? init.body : undefined
+    fetchCalls.push({ url, method, body })
+    if (url.endsWith('/api/v1/models') && method === 'GET') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          models: [{
+            key: 'google/gemma-4-31b-qat',
+            loaded_instances: [
+              { id: 'google/gemma-4-31b-qat', config: { context_length: 4096 } },
+              { id: 'google/gemma-4-31b-qat:2', config: { context_length: 200000 } },
+            ],
+          }],
+        }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/unload') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'unloaded' }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/load') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'loaded' }),
+      } as any
+    }
+    throw new Error(`Unexpected fetch call: ${method} ${url}`)
+  }) as any
+
+  try {
+    await withTemporaryAgentAuthProfiles(
+      'test-compatible',
+      { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'lmstudio-secret' },
+      'openai-compatible/google/gemma-4-31b-qat',
+      'openai-compatible',
+      async () => {
+        const currentConfig = readMaterializedConfig(configPath)
+        assert(currentConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
+        assert(currentConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected exact LM Studio execution ref to be authorized for OpenClaw overrides')
+        assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected stable LM Studio base URL persisted')
+        assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected stable LM Studio api marker persisted')
+        assert(currentConfig.models.providers.lmstudio.apiKey === 'lmstudio-secret', 'Expected stable LM Studio api key persisted')
+        assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected stable LM Studio provider models array persisted')
+        const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'google/gemma-4-31b-qat')
+        assert(activeEntry, 'Expected stable LM Studio catalog entry for the active model')
+        assert(activeEntry.contextWindow === 131072 && activeEntry.contextTokens === 131072, `Expected the advertised 131072-token context to replace the 64000 default, got ${activeEntry.contextWindow}/${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 8192, `Expected maxTokens to stay at 8192, got ${activeEntry.maxTokens}`)
+        assert(activeEntry.contextTokens === 131072, `Expected contextTokens to follow the advertised length, got ${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 8192, 'Expected stable LM Studio model entry to carry a bounded max token output limit')
+      }
+    )
+  } finally {
+    global.fetch = originalFetch
+  }
+
+  const persistedConfig = readMaterializedConfig(configPath)
+  assert(persistedConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', 'Expected saved dashboard model to stay unchanged after execution')
+  assert(persistedConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected LM Studio execution allowlist entry to remain stable after execution')
+  assert(persistedConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected LM Studio provider config to remain stable after execution')
+  const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
+  assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"google/gemma-4-31b-qat"')), 'Expected undersized LM Studio instance to be unloaded before execution')
+  const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
+  assert(!!(loadCall && loadCall.body?.includes('"context_length":131072')), 'Expected LM Studio load request to target the larger execution context window')
+})
+
+test('withTemporaryAgentAuthProfiles sizes a keyless endpoint model entry from the advertised context length despite the placeholder key', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-ctx-keyless-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-compatible')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-compatible', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/google/gemma-4-31b-qat\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    models: {
+      providers: {
+        lmstudio: {
+          baseUrl: 'http://127.0.0.1:1234/v1',
+          api: 'openai-completions',
+          apiKey: 'lmstudio-local',
+          models: [{
+            id: 'google/gemma-4-31b-qat',
+            name: 'google/gemma-4-31b-qat',
+            contextWindow: 64000,
+            contextTokens: 64000,
+            maxTokens: 8192,
+          }],
+        },
+      },
+    },
+    agents: {
+      list: [
+        { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/google/gemma-4-31b-qat' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
+  resetWorkspaceManagerForTests()
+  const originalFetch = global.fetch
+  clearModelCache()
+  global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'google/gemma-4-31b-qat', max_model_len: 131072 }] }) }) as any) as any
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://127.0.0.1:1234/v1' })
+  const fetchCalls: Array<{ url: string; method: string; body?: string }> = []
+  global.fetch = (async (input: any, init?: any) => {
+    const url = String(input)
+    const method = String(init?.method || 'GET').toUpperCase()
+    const body = typeof init?.body === 'string' ? init.body : undefined
+    fetchCalls.push({ url, method, body })
+    if (url.endsWith('/api/v1/models') && method === 'GET') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          models: [{
+            key: 'google/gemma-4-31b-qat',
+            loaded_instances: [
+              { id: 'google/gemma-4-31b-qat', config: { context_length: 4096 } },
+              { id: 'google/gemma-4-31b-qat:2', config: { context_length: 200000 } },
+            ],
+          }],
+        }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/unload') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'unloaded' }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/load') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'loaded' }),
+      } as any
+    }
+    throw new Error(`Unexpected fetch call: ${method} ${url}`)
+  }) as any
+
+  try {
+    await withTemporaryAgentAuthProfiles(
+      'test-compatible',
+      { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'openai-compatible' },
+      'openai-compatible/google/gemma-4-31b-qat',
+      'openai-compatible',
+      async () => {
+        const currentConfig = readMaterializedConfig(configPath)
+        assert(currentConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
+        assert(currentConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected exact LM Studio execution ref to be authorized for OpenClaw overrides')
+        assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected stable LM Studio base URL persisted')
+        assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected stable LM Studio api marker persisted')
+        assert(['openai-compatible', 'lmstudio-local'].includes(String(currentConfig.models.providers.lmstudio.apiKey)), `Expected a keyless placeholder api key to be persisted, got ${currentConfig.models.providers.lmstudio.apiKey}`)
+        assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected stable LM Studio provider models array persisted')
+        const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'google/gemma-4-31b-qat')
+        assert(activeEntry, 'Expected stable LM Studio catalog entry for the active model')
+        assert(activeEntry.contextWindow === 131072 && activeEntry.contextTokens === 131072, `Expected the advertised 131072-token context to replace the 64000 default, got ${activeEntry.contextWindow}/${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 8192, `Expected maxTokens to stay at 8192, got ${activeEntry.maxTokens}`)
+        assert(activeEntry.contextTokens === 131072, `Expected contextTokens to follow the advertised length, got ${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 8192, 'Expected stable LM Studio model entry to carry a bounded max token output limit')
+      }
+    )
+  } finally {
+    global.fetch = originalFetch
+  }
+
+  const persistedConfig = readMaterializedConfig(configPath)
+  assert(persistedConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', 'Expected saved dashboard model to stay unchanged after execution')
+  assert(persistedConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected LM Studio execution allowlist entry to remain stable after execution')
+  assert(persistedConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected LM Studio provider config to remain stable after execution')
+  const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
+  assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"google/gemma-4-31b-qat"')), 'Expected undersized LM Studio instance to be unloaded before execution')
+  const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
+  assert(!!(loadCall && loadCall.body?.includes('"context_length":131072')), 'Expected LM Studio load request to target the larger execution context window')
+})
+
+test('withTemporaryAgentAuthProfiles upgrades an already-authorized, already-matching entry from the default to the advertised context length', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-ctx-authorized-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-compatible')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-compatible', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/google/gemma-4-31b-qat\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    models: {
+      providers: {
+        lmstudio: {
+          baseUrl: 'http://127.0.0.1:1234/v1',
+          api: 'openai-completions',
+          apiKey: 'openai-compatible',
+          models: [{
+            id: 'google/gemma-4-31b-qat',
+            name: 'google/gemma-4-31b-qat',
+            contextWindow: 64000,
+            contextTokens: 64000,
+            maxTokens: 8192,
+          }],
+        },
+      },
+    },
+    agents: {
+      defaults: { models: { 'lmstudio/google/gemma-4-31b-qat': {} } },
+      list: [
+        { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/google/gemma-4-31b-qat' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
+  resetWorkspaceManagerForTests()
+  const originalFetch = global.fetch
+  clearModelCache()
+  global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'google/gemma-4-31b-qat', max_model_len: 131072 }] }) }) as any) as any
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://127.0.0.1:1234/v1' })
+  const fetchCalls: Array<{ url: string; method: string; body?: string }> = []
+  global.fetch = (async (input: any, init?: any) => {
+    const url = String(input)
+    const method = String(init?.method || 'GET').toUpperCase()
+    const body = typeof init?.body === 'string' ? init.body : undefined
+    fetchCalls.push({ url, method, body })
+    if (url.endsWith('/api/v1/models') && method === 'GET') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          models: [{
+            key: 'google/gemma-4-31b-qat',
+            loaded_instances: [
+              { id: 'google/gemma-4-31b-qat', config: { context_length: 4096 } },
+              { id: 'google/gemma-4-31b-qat:2', config: { context_length: 200000 } },
+            ],
+          }],
+        }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/unload') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'unloaded' }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/load') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'loaded' }),
+      } as any
+    }
+    throw new Error(`Unexpected fetch call: ${method} ${url}`)
+  }) as any
+
+  try {
+    await withTemporaryAgentAuthProfiles(
+      'test-compatible',
+      { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'openai-compatible' },
+      'openai-compatible/google/gemma-4-31b-qat',
+      'openai-compatible',
+      async () => {
+        const currentConfig = readMaterializedConfig(configPath)
+        assert(currentConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
+        assert(currentConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected exact LM Studio execution ref to be authorized for OpenClaw overrides')
+        assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected stable LM Studio base URL persisted')
+        assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected stable LM Studio api marker persisted')
+        assert(['openai-compatible', 'lmstudio-local'].includes(String(currentConfig.models.providers.lmstudio.apiKey)), `Expected a keyless placeholder api key to be persisted, got ${currentConfig.models.providers.lmstudio.apiKey}`)
+        assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected stable LM Studio provider models array persisted')
+        const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'google/gemma-4-31b-qat')
+        assert(activeEntry, 'Expected stable LM Studio catalog entry for the active model')
+        assert(activeEntry.contextWindow === 131072 && activeEntry.contextTokens === 131072, `Expected the advertised 131072-token context to replace the 64000 default, got ${activeEntry.contextWindow}/${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 8192, `Expected maxTokens to stay at 8192, got ${activeEntry.maxTokens}`)
+        assert(activeEntry.contextTokens === 131072, `Expected contextTokens to follow the advertised length, got ${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 8192, 'Expected stable LM Studio model entry to carry a bounded max token output limit')
+      }
+    )
+  } finally {
+    global.fetch = originalFetch
+  }
+
+  const persistedConfig = readMaterializedConfig(configPath)
+  assert(persistedConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', 'Expected saved dashboard model to stay unchanged after execution')
+  assert(persistedConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected LM Studio execution allowlist entry to remain stable after execution')
+  assert(persistedConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected LM Studio provider config to remain stable after execution')
+  const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
+  assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"google/gemma-4-31b-qat"')), 'Expected undersized LM Studio instance to be unloaded before execution')
+  const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
+  assert(!!(loadCall && loadCall.body?.includes('"context_length":131072')), 'Expected LM Studio load request to target the larger execution context window')
+})
+
+test('withTemporaryAgentAuthProfiles sizes the entry from the advertised context length on a cold cache with no prior warm-up, as channel and workflow runs arrive', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-ctx-cold-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-compatible')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-compatible', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/google/gemma-4-31b-qat\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    models: {
+      providers: {
+        lmstudio: {
+          baseUrl: 'http://127.0.0.1:1234/v1',
+          api: 'openai-completions',
+          apiKey: 'openai-compatible',
+          models: [{
+            id: 'google/gemma-4-31b-qat',
+            name: 'google/gemma-4-31b-qat',
+            contextWindow: 64000,
+            contextTokens: 64000,
+            maxTokens: 8192,
+          }],
+        },
+      },
+    },
+    agents: {
+      defaults: { models: { 'lmstudio/google/gemma-4-31b-qat': {} } },
+      list: [
+        { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/google/gemma-4-31b-qat' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
+  resetWorkspaceManagerForTests()
+  const originalFetch = global.fetch
+  clearModelCache()
+  const fetchCalls: Array<{ url: string; method: string; body?: string }> = []
+  global.fetch = (async (input: any, init?: any) => {
+    const url = String(input)
+    const method = String(init?.method || 'GET').toUpperCase()
+    const body = typeof init?.body === 'string' ? init.body : undefined
+    fetchCalls.push({ url, method, body })
+    if (url.endsWith('/v1/models') && !url.endsWith('/api/v1/models') && method === 'GET') {
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'google/gemma-4-31b-qat', max_model_len: 131072 }] }) } as any
+    }
+    if (url.endsWith('/api/v1/models') && method === 'GET') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          models: [{
+            key: 'google/gemma-4-31b-qat',
+            loaded_instances: [
+              { id: 'google/gemma-4-31b-qat', config: { context_length: 4096 } },
+              { id: 'google/gemma-4-31b-qat:2', config: { context_length: 200000 } },
+            ],
+          }],
+        }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/unload') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'unloaded' }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/load') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'loaded' }),
+      } as any
+    }
+    throw new Error(`Unexpected fetch call: ${method} ${url}`)
+  }) as any
+
+  try {
+    await withTemporaryAgentAuthProfiles(
+      'test-compatible',
+      { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'openai-compatible' },
+      'openai-compatible/google/gemma-4-31b-qat',
+      'openai-compatible',
+      async () => {
+        const currentConfig = readMaterializedConfig(configPath)
+        assert(currentConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
+        assert(currentConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected exact LM Studio execution ref to be authorized for OpenClaw overrides')
+        assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected stable LM Studio base URL persisted')
+        assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected stable LM Studio api marker persisted')
+        assert(['openai-compatible', 'lmstudio-local'].includes(String(currentConfig.models.providers.lmstudio.apiKey)), `Expected a keyless placeholder api key to be persisted, got ${currentConfig.models.providers.lmstudio.apiKey}`)
+        assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected stable LM Studio provider models array persisted')
+        const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'google/gemma-4-31b-qat')
+        assert(activeEntry, 'Expected stable LM Studio catalog entry for the active model')
+        assert(activeEntry.contextWindow === 131072 && activeEntry.contextTokens === 131072, `Expected the advertised 131072-token context to replace the 64000 default, got ${activeEntry.contextWindow}/${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 8192, `Expected maxTokens to stay at 8192, got ${activeEntry.maxTokens}`)
+        assert(activeEntry.contextTokens === 131072, `Expected contextTokens to follow the advertised length, got ${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 8192, 'Expected stable LM Studio model entry to carry a bounded max token output limit')
+      }
+    )
+  } finally {
+    global.fetch = originalFetch
+  }
+
+  const persistedConfig = readMaterializedConfig(configPath)
+  assert(persistedConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', 'Expected saved dashboard model to stay unchanged after execution')
+  assert(persistedConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected LM Studio execution allowlist entry to remain stable after execution')
+  assert(persistedConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected LM Studio provider config to remain stable after execution')
+  assert(fetchCalls.some((call) => call.url === 'http://127.0.0.1:1234/v1/models'), 'Expected execution itself to fetch the endpoint catalog on a cold cache')
+  const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
+  assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"google/gemma-4-31b-qat"')), 'Expected undersized LM Studio instance to be unloaded before execution')
+  const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
+  assert(!!(loadCall && loadCall.body?.includes('"context_length":131072')), 'Expected LM Studio load request to target the larger execution context window')
+})
+
+test('withTemporaryAgentAuthProfiles replaces a stored context length larger than the endpoint now advertises', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-ctx-larger-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-compatible')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-compatible', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/google/gemma-4-31b-qat\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    models: {
+      providers: {
+        lmstudio: {
+          baseUrl: 'http://127.0.0.1:1234/v1',
+          api: 'openai-completions',
+          apiKey: 'openai-compatible',
+          models: [{
+            id: 'google/gemma-4-31b-qat',
+            name: 'google/gemma-4-31b-qat',
+            contextWindow: 131072,
+            contextTokens: 131072,
+            maxTokens: 8192,
+          }],
+        },
+      },
+    },
+    agents: {
+      defaults: { models: { 'lmstudio/google/gemma-4-31b-qat': {} } },
+      list: [
+        { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/google/gemma-4-31b-qat' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
+  resetWorkspaceManagerForTests()
+  const originalFetch = global.fetch
+  clearModelCache()
+  global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'google/gemma-4-31b-qat', max_model_len: 32768 }] }) }) as any) as any
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://127.0.0.1:1234/v1' })
+  const fetchCalls: Array<{ url: string; method: string; body?: string }> = []
+  global.fetch = (async (input: any, init?: any) => {
+    const url = String(input)
+    const method = String(init?.method || 'GET').toUpperCase()
+    const body = typeof init?.body === 'string' ? init.body : undefined
+    fetchCalls.push({ url, method, body })
+    if (url.endsWith('/api/v1/models') && method === 'GET') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          models: [{
+            key: 'google/gemma-4-31b-qat',
+            loaded_instances: [
+              { id: 'google/gemma-4-31b-qat', config: { context_length: 4096 } },
+              { id: 'google/gemma-4-31b-qat:2', config: { context_length: 200000 } },
+            ],
+          }],
+        }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/unload') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'unloaded' }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/load') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'loaded' }),
+      } as any
+    }
+    throw new Error(`Unexpected fetch call: ${method} ${url}`)
+  }) as any
+
+  try {
+    await withTemporaryAgentAuthProfiles(
+      'test-compatible',
+      { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'openai-compatible' },
+      'openai-compatible/google/gemma-4-31b-qat',
+      'openai-compatible',
+      async () => {
+        const currentConfig = readMaterializedConfig(configPath)
+        assert(currentConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
+        assert(currentConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected exact LM Studio execution ref to be authorized for OpenClaw overrides')
+        assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected stable LM Studio base URL persisted')
+        assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected stable LM Studio api marker persisted')
+        assert(['openai-compatible', 'lmstudio-local'].includes(String(currentConfig.models.providers.lmstudio.apiKey)), `Expected a keyless placeholder api key to be persisted, got ${currentConfig.models.providers.lmstudio.apiKey}`)
+        assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected stable LM Studio provider models array persisted')
+        const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'google/gemma-4-31b-qat')
+        assert(activeEntry, 'Expected stable LM Studio catalog entry for the active model')
+        assert(activeEntry.contextWindow === 32768 && activeEntry.contextTokens === 32768, `Expected the advertised 32768-token context to replace the stored 131072, got ${activeEntry.contextWindow}/${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 8192, `Expected maxTokens to stay at 8192, got ${activeEntry.maxTokens}`)
+        assert(activeEntry.contextTokens === 32768, `Expected contextTokens to follow the advertised length, got ${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 8192, 'Expected stable LM Studio model entry to carry a bounded max token output limit')
+      }
+    )
+  } finally {
+    global.fetch = originalFetch
+  }
+
+  const persistedConfig = readMaterializedConfig(configPath)
+  assert(persistedConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', 'Expected saved dashboard model to stay unchanged after execution')
+  assert(persistedConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected LM Studio execution allowlist entry to remain stable after execution')
+  assert(persistedConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected LM Studio provider config to remain stable after execution')
+  const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
+  assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"google/gemma-4-31b-qat"')), 'Expected undersized LM Studio instance to be unloaded before execution')
+  const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
+  assert(!!(loadCall && loadCall.body?.includes('"context_length":32768')), 'Expected LM Studio load request to target the larger execution context window')
+})
+
+test('withTemporaryAgentAuthProfiles restores the max token limit when the window that once clamped it grows', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-ctx-restore-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-compatible')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-compatible', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/google/gemma-4-31b-qat\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    models: {
+      providers: {
+        lmstudio: {
+          baseUrl: 'http://127.0.0.1:1234/v1',
+          api: 'openai-completions',
+          apiKey: 'openai-compatible',
+          models: [{
+            id: 'google/gemma-4-31b-qat',
+            name: 'google/gemma-4-31b-qat',
+            contextWindow: 4096,
+            contextTokens: 4096,
+            maxTokens: 4096,
+          }],
+        },
+      },
+    },
+    agents: {
+      defaults: { models: { 'lmstudio/google/gemma-4-31b-qat': {} } },
+      list: [
+        { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/google/gemma-4-31b-qat' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
+  resetWorkspaceManagerForTests()
+  const originalFetch = global.fetch
+  clearModelCache()
+  global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'google/gemma-4-31b-qat', max_model_len: 131072 }] }) }) as any) as any
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://127.0.0.1:1234/v1' })
+  const fetchCalls: Array<{ url: string; method: string; body?: string }> = []
+  global.fetch = (async (input: any, init?: any) => {
+    const url = String(input)
+    const method = String(init?.method || 'GET').toUpperCase()
+    const body = typeof init?.body === 'string' ? init.body : undefined
+    fetchCalls.push({ url, method, body })
+    if (url.endsWith('/api/v1/models') && method === 'GET') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          models: [{
+            key: 'google/gemma-4-31b-qat',
+            loaded_instances: [
+              { id: 'google/gemma-4-31b-qat', config: { context_length: 4096 } },
+              { id: 'google/gemma-4-31b-qat:2', config: { context_length: 200000 } },
+            ],
+          }],
+        }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/unload') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'unloaded' }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/load') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'loaded' }),
+      } as any
+    }
+    throw new Error(`Unexpected fetch call: ${method} ${url}`)
+  }) as any
+
+  try {
+    await withTemporaryAgentAuthProfiles(
+      'test-compatible',
+      { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'openai-compatible' },
+      'openai-compatible/google/gemma-4-31b-qat',
+      'openai-compatible',
+      async () => {
+        const currentConfig = readMaterializedConfig(configPath)
+        assert(currentConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
+        assert(currentConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected exact LM Studio execution ref to be authorized for OpenClaw overrides')
+        assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected stable LM Studio base URL persisted')
+        assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected stable LM Studio api marker persisted')
+        assert(['openai-compatible', 'lmstudio-local'].includes(String(currentConfig.models.providers.lmstudio.apiKey)), `Expected a keyless placeholder api key to be persisted, got ${currentConfig.models.providers.lmstudio.apiKey}`)
+        assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected stable LM Studio provider models array persisted')
+        const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'google/gemma-4-31b-qat')
+        assert(activeEntry, 'Expected stable LM Studio catalog entry for the active model')
+        assert(activeEntry.contextWindow === 131072 && activeEntry.contextTokens === 131072, `Expected the advertised 131072-token context to replace the stored 4096, got ${activeEntry.contextWindow}/${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 8192, `Expected the max token limit clamped by the old 4096 window to return to 8192, got ${activeEntry.maxTokens}`)
+        assert(activeEntry.contextTokens === 131072, `Expected contextTokens to follow the advertised length, got ${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 8192, 'Expected stable LM Studio model entry to carry a bounded max token output limit')
+      }
+    )
+  } finally {
+    global.fetch = originalFetch
+  }
+
+  const persistedConfig = readMaterializedConfig(configPath)
+  assert(persistedConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', 'Expected saved dashboard model to stay unchanged after execution')
+  assert(persistedConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected LM Studio execution allowlist entry to remain stable after execution')
+  assert(persistedConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected LM Studio provider config to remain stable after execution')
+  const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
+  assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"google/gemma-4-31b-qat"')), 'Expected undersized LM Studio instance to be unloaded before execution')
+  const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
+  assert(!!(loadCall && loadCall.body?.includes('"context_length":131072')), 'Expected LM Studio load request to target the larger execution context window')
+})
+
+test('withTemporaryAgentAuthProfiles shrinks a default-sized entry to a smaller advertised context length and clamps its max tokens', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-ctx-shrink-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-compatible')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-compatible', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/google/gemma-4-31b-qat\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    models: {
+      providers: {
+        lmstudio: {
+          baseUrl: 'http://127.0.0.1:1234/v1',
+          api: 'openai-completions',
+          apiKey: 'openai-compatible',
+          models: [{
+            id: 'google/gemma-4-31b-qat',
+            name: 'google/gemma-4-31b-qat',
+            contextWindow: 64000,
+            contextTokens: 64000,
+            maxTokens: 8192,
+          }],
+        },
+      },
+    },
+    agents: {
+      defaults: { models: { 'lmstudio/google/gemma-4-31b-qat': {} } },
+      list: [
+        { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/google/gemma-4-31b-qat' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'local'
+  resetWorkspaceManagerForTests()
+  const originalFetch = global.fetch
+  clearModelCache()
+  global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({ data: [{ id: 'google/gemma-4-31b-qat', max_model_len: 4096 }] }) }) as any) as any
+  await resolveOpenAiCompatibleDefaultModel({ baseUrl: 'http://127.0.0.1:1234/v1' })
+  const fetchCalls: Array<{ url: string; method: string; body?: string }> = []
+  global.fetch = (async (input: any, init?: any) => {
+    const url = String(input)
+    const method = String(init?.method || 'GET').toUpperCase()
+    const body = typeof init?.body === 'string' ? init.body : undefined
+    fetchCalls.push({ url, method, body })
+    if (url.endsWith('/api/v1/models') && method === 'GET') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          models: [{
+            key: 'google/gemma-4-31b-qat',
+            loaded_instances: [
+              { id: 'google/gemma-4-31b-qat', config: { context_length: 4096 } },
+              { id: 'google/gemma-4-31b-qat:2', config: { context_length: 200000 } },
+            ],
+          }],
+        }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/unload') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'unloaded' }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/load') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'loaded' }),
+      } as any
+    }
+    throw new Error(`Unexpected fetch call: ${method} ${url}`)
+  }) as any
+
+  try {
+    await withTemporaryAgentAuthProfiles(
+      'test-compatible',
+      { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'openai-compatible' },
+      'openai-compatible/google/gemma-4-31b-qat',
+      'openai-compatible',
+      async () => {
+        const currentConfig = readMaterializedConfig(configPath)
+        assert(currentConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
+        assert(currentConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected exact LM Studio execution ref to be authorized for OpenClaw overrides')
+        assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected stable LM Studio base URL persisted')
+        assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected stable LM Studio api marker persisted')
+        assert(['openai-compatible', 'lmstudio-local'].includes(String(currentConfig.models.providers.lmstudio.apiKey)), `Expected a keyless placeholder api key to be persisted, got ${currentConfig.models.providers.lmstudio.apiKey}`)
+        assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected stable LM Studio provider models array persisted')
+        const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'google/gemma-4-31b-qat')
+        assert(activeEntry, 'Expected stable LM Studio catalog entry for the active model')
+        assert(activeEntry.contextWindow === 4096 && activeEntry.contextTokens === 4096, `Expected the advertised 4096-token context to replace the 64000 default, got ${activeEntry.contextWindow}/${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens === 4096, `Expected maxTokens to be clamped to the 4096-token window, got ${activeEntry.maxTokens}`)
+        assert(activeEntry.contextTokens === 4096, `Expected contextTokens to follow the advertised length, got ${activeEntry.contextTokens}`)
+        assert(activeEntry.maxTokens <= activeEntry.contextWindow, 'Expected the max token output limit never to exceed the context window')
+      }
+    )
+  } finally {
+    global.fetch = originalFetch
+  }
+
+  const persistedConfig = readMaterializedConfig(configPath)
+  assert(persistedConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', 'Expected saved dashboard model to stay unchanged after execution')
+  assert(persistedConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected LM Studio execution allowlist entry to remain stable after execution')
+  assert(persistedConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected LM Studio provider config to remain stable after execution')
+  const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
+  assert(!unloadCall, 'Expected no LM Studio instance to be unloaded: the loaded 4096-token instance already covers the window')
+  const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
+  assert(!loadCall, 'Expected no LM Studio load request when a loaded instance already covers the 4096-token window')
+})
+
 test('withTemporaryAgentAuthProfiles preserves existing Ollama provider config fields while applying a stable base URL', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'agent')
@@ -2409,6 +2734,33 @@ test('withTemporaryAgentAuthProfiles runs the normal openclaw auth-profile flow 
   assert(sawAuthProfile, 'Expected auth-profiles.json to be written for the openclaw runtime')
 })
 
+test('pinned auth bridge refuses missing or invalid package roots without global fallback', () => {
+  const previousBin = process.env.OPENCLAW_BIN
+  const previousRoot = process.env.OPENCLAW_PACKAGE_ROOT
+  try {
+    process.env.OPENCLAW_BIN = '/synthetic/pinned/openclaw'
+    delete process.env.OPENCLAW_PACKAGE_ROOT
+    let missingRefused = false
+    try { resolvePinnedOpenClawAuthBridge() } catch (error) {
+      missingRefused = String(error).includes('matching OPENCLAW_PACKAGE_ROOT')
+    }
+    assert(missingRefused, 'A selected CLI must not borrow global storage code')
+    process.env.OPENCLAW_PACKAGE_ROOT = path.join(legacyPackage, 'missing')
+    let invalidRefused = false
+    try { resolvePinnedOpenClawAuthBridge() } catch (error) {
+      invalidRefused = String(error).includes('refusing global')
+    }
+    assert(invalidRefused, 'An unavailable explicit root must fail closed')
+    process.env.OPENCLAW_PACKAGE_ROOT = legacyPackage
+    assert(resolvePinnedOpenClawAuthBridge()?.packageRoot === legacyPackage, 'Use only the selected package')
+  } finally {
+    if (previousBin === undefined) delete process.env.OPENCLAW_BIN
+    else process.env.OPENCLAW_BIN = previousBin
+    if (previousRoot === undefined) delete process.env.OPENCLAW_PACKAGE_ROOT
+    else process.env.OPENCLAW_PACKAGE_ROOT = previousRoot
+  }
+})
+
 test('migrateLegacyOpenClawAuthStore publishes credentials and archives the retired JSON source', () => {
   const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-auth-migration-'))
   const authProfilePath = path.join(agentDir, 'auth-profiles.json')
@@ -2619,6 +2971,8 @@ setTimeout(async () => {
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+  if (typeof originalDeploymentKind === 'undefined') delete process.env.DASHBOARD_DEPLOYMENT_KIND
+  else process.env.DASHBOARD_DEPLOYMENT_KIND = originalDeploymentKind
 
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)

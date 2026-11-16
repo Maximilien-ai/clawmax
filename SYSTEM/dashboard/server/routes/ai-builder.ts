@@ -11,10 +11,11 @@ import {
   generateBuilderStarterPromptsWithAI,
   inferBuilderGroupingWithAI,
   setRequestByokKeys,
+  warmOpenAiCompatibleGenerationModel,
 } from '../lib/ai-generator'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getWorkspacePath } from '../lib/workspace'
-import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
+import { captureConsentedActivity as appendActivityExportEventsForActiveConsents } from '../lib/activity-export-capture'
 import {
   isAiBuilderShareEnabled,
   shareAiBuilderFeedback,
@@ -25,11 +26,10 @@ const router = Router()
 const AI_BUILDER_LLM_FALLBACK_TIMEOUT_MS = 8000
 const AI_BUILDER_QUESTION_TIMEOUT_MS = 20000
 
-function captureBuilderActivity(req: any, content: string, subjectId: string): void {
+function captureBuilderActivity(req: any, content: string, subjectId: string, workspaceId: string, occurredAt: string): void {
   const session = getAuthenticatedSession(req)
   const userId = session?.userId || session?.login || 'dashboard-user'
-  const workspaceId = getWorkspacePath()
-  appendActivityExportEventsForActiveConsents({ source: 'builder', workspaceId, userId, subjectId, content })
+  appendActivityExportEventsForActiveConsents({ source: 'builder', workspaceId, userId, subjectId, content, occurredAt })
 }
 
 function withAiBuilderTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
@@ -56,6 +56,8 @@ function fallbackBuilderQuestionAnswer(question: string, recommendationSummary?:
 }
 
 router.post('/recommend', async (req, res) => {
+  const activityWorkspace = getWorkspacePath()
+  const activityStartedAt = new Date().toISOString()
   const prompt = `${req.body?.prompt || ''}`.trim()
   const byokKeys = req.body?.byokKeys && typeof req.body.byokKeys === 'object'
     ? req.body.byokKeys
@@ -65,6 +67,7 @@ router.post('/recommend', async (req, res) => {
   }
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys)
     setRequestByokKeys(byokKeys)
     const session = getAuthenticatedSession(req)
     let recommendation = buildAiBuilderRecommendation(prompt)
@@ -107,7 +110,7 @@ router.post('/recommend', async (req, res) => {
       actorEmail: session?.email || null,
       dashboardInstanceId: getRequestDashboardInstanceId(req),
     })
-    captureBuilderActivity(req, `Prompt:\n${prompt}\n\nRecommendation:\n${recommendation.summary}`, 'recommend')
+    captureBuilderActivity(req, `Prompt:\n${prompt}\n\nRecommendation:\n${recommendation.summary}`, 'recommend', activityWorkspace, activityStartedAt)
     res.json({ ok: true, recommendation })
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Failed to build recommendation' })
@@ -117,6 +120,8 @@ router.post('/recommend', async (req, res) => {
 })
 
 router.post('/question', async (req, res) => {
+  const activityWorkspace = getWorkspacePath()
+  const activityStartedAt = new Date().toISOString()
   const question = `${req.body?.question || ''}`.trim()
   const byokKeys = req.body?.byokKeys && typeof req.body.byokKeys === 'object'
     ? req.body.byokKeys
@@ -124,6 +129,7 @@ router.post('/question', async (req, res) => {
   if (!question) return res.status(400).json({ error: 'Question is required' })
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys)
     setRequestByokKeys(byokKeys)
     const recommendationSummary = typeof req.body?.recommendationSummary === 'string'
       ? req.body.recommendationSummary
@@ -156,7 +162,7 @@ router.post('/question', async (req, res) => {
       actorEmail: session?.email || null,
       dashboardInstanceId: getRequestDashboardInstanceId(req),
     })
-    captureBuilderActivity(req, `Question:\n${question}\n\nAnswer:\n${answer}`, 'question')
+    captureBuilderActivity(req, `Question:\n${question}\n\nAnswer:\n${answer}`, 'question', activityWorkspace, activityStartedAt)
     res.json({ ok: true, answer, fallback: usedDeterministicFallback })
   } catch (error: any) {
     const message = error?.message || 'Failed to answer Builder question'
@@ -196,6 +202,7 @@ router.post('/starter-prompts', async (req, res) => {
   }
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     const prompts = await generateBuilderStarterPromptsWithAI({
       workspaceName,

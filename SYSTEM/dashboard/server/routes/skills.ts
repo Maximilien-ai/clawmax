@@ -18,8 +18,10 @@ import {
 } from '../lib/skills'
 import { extractZipBufferToWorkspace, resolveWorkspacePath } from '../lib/workspace'
 import { getCuratedPartnerInstaller, listCuratedPartnerInstallers } from '../lib/partner-installs'
-import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
+import { decodeUploadFilename } from '../lib/upload-filename'
+import { generateSkillFromNL, setRequestByokKeys, warmOpenAiCompatibleGenerationModel } from '../lib/ai-generator'
 import { safeEnv } from '../lib/safe-env'
+import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import {
   buildSkillRegistryInstallCommands,
   buildSkillRegistrySearchCommands,
@@ -37,6 +39,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
+import { resolvePathWithin } from '../lib/path-segment'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { randomUUID } from 'crypto'
@@ -212,8 +215,10 @@ type SkillSetupSession = {
 
 async function getCuratedPartnerPluginStatuses() {
   const installers = listCuratedPartnerInstallers()
-  const result: any = await execFileAsync('openclaw', ['plugins', 'list', '--json'], {
-    timeout: 30000,
+  const cli = resolveOpenClawCliPath()
+  if (!cli) throw new Error('OpenClaw CLI unavailable')
+  const result: any = await execFileAsync(cli, ['plugins', 'list', '--json'], {
+    timeout: 10000,
     env: safeEnv(),
     maxBuffer: 1024 * 1024 * 8,
   })
@@ -481,6 +486,7 @@ router.post('/generate', async (req, res) => {
   }
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys)
     setRequestByokKeys(byokKeys)
     const skill = await generateSkillFromNL(description.trim(), currentDraft)
     const session = getAuthenticatedSession(req)
@@ -527,9 +533,11 @@ router.get('/partner-install/status', async (_req, res) => {
   try {
     res.json({ ok: true, statuses: await getCuratedPartnerPluginStatuses() })
   } catch (err: any) {
-    console.error('Curated partner plugin status error:', err.message)
-    res.status(500).json({
-      error: err.message || 'Failed to inspect curated partner plugin status',
+    // CLI failures can contain config paths or provider details. Keep both logs
+    // and the public response bounded, and never interpret failure as absence.
+    console.error('Curated partner plugin status unavailable')
+    res.status(503).json({
+      error: 'Partner plugin status is unavailable. Check the configured OpenClaw runtime and retry.',
       statuses: buildUnknownCuratedPartnerPluginStatuses(),
     })
   }
@@ -983,11 +991,11 @@ router.post('/import', (req, res) => {
 // POST /api/skills/import-upload - Upload a ZIP archive from the client and import it into workspace custom skills
 router.post('/import-upload', express.raw({ type: '*/*', limit: '200mb' }), (req, res) => {
   const fileNameHeader = req.header('x-file-name') || req.header('x-upload-file-name') || ''
-  const fileName = path.basename(fileNameHeader.trim())
+  const fileName = decodeUploadFilename(fileNameHeader, req.header('x-file-name-encoding') || undefined)
   const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || [])
 
   if (!fileName) {
-    return res.status(400).json({ error: 'x-file-name header required' })
+    return res.status(400).json({ error: 'Valid x-file-name header required' })
   }
   if (!fileName.toLowerCase().endsWith('.zip')) {
     return res.status(400).json({ error: 'Only .zip skill uploads are supported right now' })
@@ -1065,7 +1073,7 @@ router.post('/import-github', async (req, res) => {
 
     const os = require('os')
 
-    const tempDir = path.join(os.tmpdir(), `openclaw-skill-${Date.now()}`)
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-skill-'))
 
     try {
       // Clone the repository
@@ -1075,18 +1083,16 @@ router.post('/import-github', async (req, res) => {
       // Determine import root: subdir override, or auto-detect
       let importRoot = tempDir
       if (subdir) {
-        importRoot = path.resolve(tempDir, subdir)
-        if (importRoot !== tempDir && !importRoot.startsWith(`${tempDir}${path.sep}`)) {
-          throw new Error('Subdirectory must stay inside the cloned repository')
-        }
+        importRoot = resolvePathWithin(tempDir, subdir)
         if (!fs.existsSync(importRoot)) {
           throw new Error(`Subdirectory "${subdir}" not found in repository`)
         }
+        // The check above is by name; a symlinked subdirectory still points outside the clone.
       }
 
       // Check if this is a multi-skill repo (has skills/ directory with subdirs containing SKILL.md)
-      const skillsDir = path.join(importRoot, 'skills')
-      const hasSkillsDir = fs.existsSync(skillsDir) && fs.statSync(skillsDir).isDirectory()
+      const skillsDir = resolvePathWithin(importRoot, 'skills')
+      const hasSkillsDir = fs.existsSync(skillsDir) && fs.lstatSync(skillsDir).isDirectory()
 
       // Also check if importRoot itself is a single skill (has SKILL.md or skill.md)
       const isSingleSkill = fs.existsSync(path.join(importRoot, 'SKILL.md')) ||
@@ -1097,7 +1103,8 @@ router.post('/import-github', async (req, res) => {
         // Multi-skill repo: import each subdirectory under skills/
         const skillDirs = fs.readdirSync(skillsDir).filter((d: string) => {
           const skillPath = path.join(skillsDir, d)
-          if (!fs.statSync(skillPath).isDirectory()) return false
+          // lstat: a symlinked skill folder would import a directory from outside the clone.
+          if (!fs.lstatSync(skillPath).isDirectory()) return false
           // Must have SKILL.md or skill.md
           return fs.existsSync(path.join(skillPath, 'SKILL.md')) ||
                  fs.existsSync(path.join(skillPath, 'skill.md'))
@@ -1414,8 +1421,9 @@ router.post('/registry/install', async (req, res) => {
             }
           }
 
-          // Copy entire directory recursively
-          fs.cpSync(skillDir, targetDir, { recursive: true })
+          // Copy entire directory recursively, without symlinks: one in a downloaded package can point at any
+          // file of this machine, and cpSync would recreate it inside the workspace.
+          fs.cpSync(skillDir, targetDir, { recursive: true, filter: (source) => !fs.lstatSync(source).isSymbolicLink() })
 
           // Ensure SKILL.md exists (rename skill.md if needed)
           if (!fs.existsSync(path.join(targetDir, 'SKILL.md')) && fs.existsSync(path.join(targetDir, 'skill.md'))) {

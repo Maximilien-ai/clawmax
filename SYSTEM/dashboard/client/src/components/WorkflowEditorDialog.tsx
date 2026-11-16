@@ -1,7 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import { loadWorkflowAgents } from '../lib/workflowAgents'
+import { channelLabel } from '../lib/channelLabel'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import AIPromptEditorModal from './AIPromptEditorModal'
 import { formatAgentOptionLabel } from '../lib/agentLabels'
 import { expandPromptWithAI } from '../lib/aiPrompt'
+import { readStoredByokKeys } from '../lib/byok'
+import { workflowScheduleError } from '../lib/workflowSchedule'
+import { normalizeWorkflowContent } from '../../../server/lib/workflow-content'
 
 interface AgentTargeting {
   communities: string[]
@@ -14,7 +19,7 @@ interface AgentTargeting {
 interface WorkflowOutputDefinition {
   key: string
   label?: string
-  type?: 'markdown'
+  type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
   help?: string
 }
 
@@ -26,6 +31,7 @@ interface WorkflowInputRef {
 }
 
 interface WorkflowFormData {
+  id?: string
   name: string
   description: string
   schedule: string
@@ -47,10 +53,12 @@ interface Agent {
 
 interface Community {
   name: string
+  displayName?: string
 }
 
 interface Group {
   name: string
+  displayName?: string
 }
 
 interface Team {
@@ -106,6 +114,7 @@ function buildWorkflowFormData(initialData?: Partial<WorkflowFormData>): Workflo
   return {
     ...base,
     ...restInitialData,
+    content: normalizeWorkflowContent(restInitialData.content),
     timezone: initialTimezone || base.timezone,
     targeting: {
       ...base.targeting,
@@ -121,6 +130,8 @@ function buildWorkflowFormData(initialData?: Partial<WorkflowFormData>): Workflo
 }
 
 export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialData, mode }: WorkflowEditorDialogProps) {
+  const [loadingDetails, setLoadingDetails] = useState(false)
+  const [detailsError, setDetailsError] = useState('')
   const [formData, setFormData] = useState<WorkflowFormData>(() => buildWorkflowFormData(initialData))
   const [saving, setSaving] = useState(false)
   const [cronError, setCronError] = useState<string | null>(null)
@@ -169,7 +180,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   useEffect(() => {
     if (isOpen) {
       Promise.all([
-        fetch('/api/agents').then(r => r.json()),
+        loadWorkflowAgents().then(agents => ({ agents })),
         fetch('/api/communities').then(r => r.json()),
         fetch('/api/groups').then(r => r.json()),
         fetch('/api/teams').then(r => r.json()),
@@ -187,44 +198,33 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
           ;(agent.tags || []).forEach((tag: string) => tagSet.add(tag))
         })
         setAllTags(Array.from(tagSet).sort())
-      })
+      }).catch(error => setDetailsError(error.message || 'Unable to load workspace participants. Close and reopen to retry.'))
     }
   }, [isOpen])
 
   useEffect(() => {
     if (!isOpen) return
+    const controller = new AbortController()
     setFormData(buildWorkflowFormData(initialData))
     setProducesMarkdownOutput(Boolean(initialData?.outputDefinitions?.length))
-  }, [initialData, isOpen])
+    setDetailsError('')
+    if (mode !== 'edit' || !initialData?.id) { setLoadingDetails(false); return }
+    setLoadingDetails(true)
+    fetch(`/api/workflows/${encodeURIComponent(initialData.id)}`, { signal: controller.signal })
+      .then(response => { if (!response.ok) throw new Error('Unable to load workflow for editing'); return response.json() })
+      .then(workflow => {
+        if (controller.signal.aborted) return
+        setFormData(buildWorkflowFormData(workflow))
+        setProducesMarkdownOutput(Boolean(workflow.outputDefinitions?.length))
+      }).catch(() => { if (!controller.signal.aborted) setDetailsError('Unable to load workflow. Close and reopen to retry; nothing was changed.') })
+      .finally(() => { if (!controller.signal.aborted) setLoadingDetails(false) })
+    return () => controller.abort()
+  }, [initialData, isOpen, mode])
 
   // Validate cron expression - basic client-side validation
   useEffect(() => {
     const validateCron = () => {
-      if (!formData.schedule) {
-        setCronError(null)
-        setCronHuman('')
-        return
-      }
-
-      // Basic cron format check: 5 or 6 fields separated by spaces
-      const parts = formData.schedule.trim().split(/\s+/)
-      if (parts.length < 5 || parts.length > 6) {
-        setCronError('Cron expression must have 5 or 6 fields')
-        setCronHuman('')
-        return
-      }
-
-      // Check for valid characters (numbers, *, /, -, ,)
-      const validPattern = /^[0-9*,\-/]+$/
-      const allValid = parts.every(part => validPattern.test(part))
-
-      if (!allValid) {
-        setCronError('Invalid characters in cron expression')
-        setCronHuman('')
-        return
-      }
-
-      setCronError(null)
+      setCronError(formData.schedule ? workflowScheduleError(formData.schedule) : null)
       setCronHuman('') // Real validation will happen on server
     }
 
@@ -237,10 +237,23 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     setAiCronLoading(true)
     setAiCronResult(null)
     try {
+      const byok = readStoredByokKeys()
       const r = await fetch('/api/workflows/generate-cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: aiCronInput.trim(), tz: formData.timezone })
+        body: JSON.stringify({
+          text: aiCronInput.trim(),
+          tz: formData.timezone,
+          byokKeys: (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl)
+            ? {
+                openai: byok.openai,
+                anthropic: byok.anthropic,
+                openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
+                openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
+                openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
+              }
+            : undefined,
+        })
       })
       const data = await r.json()
       if (data.valid && data.cron) {
@@ -259,7 +272,12 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     }
   }
 
+  const fieldRefs = useRef<Record<string, HTMLElement | null>>({})
+  const [saveError, setSaveError] = useState('')
+  const validationMessages = Object.values(validationErrors).filter(Boolean)
   const handleSave = async () => {
+    setSaveError('')
+    if (loadingDetails || detailsError || saving) return
     // Validation
     const errors: typeof validationErrors = {}
 
@@ -300,6 +318,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     // If there are errors, show them and don't save
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors)
+      const first = Object.keys(errors)[0]
+      requestAnimationFrame(() => {
+        fieldRefs.current[first]?.scrollIntoView({ block: 'center', behavior: 'auto' })
+        fieldRefs.current[first]?.focus({ preventScroll: true })
+      })
       return
     }
 
@@ -321,13 +344,14 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     setSaving(true)
     try {
       const primaryOutput = formData.outputDefinitions?.[0]
-      const normalizedOutputDefinitions = producesMarkdownOutput && primaryOutput?.key?.trim()
+      const normalizedOutputDefinitions = producesMarkdownOutput && primaryOutput
         ? [{
+            ...primaryOutput,
             key: primaryOutput.key.trim(),
             label: primaryOutput.label?.trim() || primaryOutput.key.trim(),
-            type: 'markdown' as const,
+            type: primaryOutput.type || 'markdown' as const,
             help: primaryOutput.help?.trim() || undefined,
-          }]
+          }, ...(formData.outputDefinitions || []).slice(1)]
         : []
       const normalizedInputRefs = (formData.inputRefs || [])
         .map((inputRef) => ({
@@ -345,7 +369,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
       })
       onClose()
     } catch (err) {
-      // Error handling is done by parent
+      setSaveError(err instanceof Error ? err.message : 'Could not save workflow. Your draft is preserved; please retry.')
     } finally {
       setSaving(false)
     }
@@ -370,11 +394,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 z-50" />
 
       {/* Dialog */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-auto">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+        <div role="dialog" aria-modal="true" aria-label={mode === 'edit' ? 'Edit Workflow' : 'Create Workflow'} className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
           {/* Header */}
           <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 px-6 py-4 flex items-center justify-between dark:border-gray-700">
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
@@ -390,6 +414,9 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
           {/* Form */}
           <div className="p-6 space-y-6">
+            {loadingDetails && <p role="status">Loading saved workflow settings…</p>}
+            {detailsError && <p role="alert" className="text-red-600">{detailsError}</p>}
+            {initialData?.id?.startsWith('tr-') && <p className="text-sm text-gray-500">Schedules and instructions can be edited here. Template participants stay bound to their revision; changing participants requires a revised Template. Each successful dev run saves a brief automatically.</p>}
             {/* Name */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
@@ -397,6 +424,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               </label>
               <input
                 type="text"
+                ref={el => { fieldRefs.current.name = el }}
+                aria-invalid={!!validationErrors.name}
                 value={formData.name}
                 onChange={e => {
                   setFormData({ ...formData, name: e.target.value })
@@ -420,6 +449,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 Description *
               </label>
               <textarea
+                ref={el => { fieldRefs.current.description = el }}
+                aria-invalid={!!validationErrors.description}
                 value={formData.description}
                 onChange={e => {
                   setFormData({ ...formData, description: e.target.value })
@@ -540,7 +571,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                   type="button"
                   onClick={handleAiCron}
                   disabled={aiCronLoading || !aiCronInput.trim()}
-                  className="px-3 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap font-medium"
+                  className="px-3 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap font-medium"
                 >
                   {aiCronLoading ? '...' : 'AI Generate'}
                 </button>
@@ -630,6 +661,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               {/* Manual input */}
               <input
                 type="text"
+                ref={el => { fieldRefs.current.schedule = el }}
+                aria-invalid={!!validationErrors.schedule}
                 value={formData.schedule}
                 onChange={e => {
                   setFormData({ ...formData, schedule: e.target.value })
@@ -712,6 +745,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                   Owner Agent *
                 </label>
                 <select
+                  ref={el => { fieldRefs.current.owner = el }}
+                  aria-invalid={!!validationErrors.owner}
                   value={formData.owner || ''}
                   onChange={e => {
                     setFormData({ ...formData, owner: e.target.value })
@@ -738,7 +773,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
             {/* Agent Targeting */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
+              <label ref={el => { fieldRefs.current.targeting = el }} tabIndex={-1} className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
                 Target Agents (OR logic) *
               </label>
               <div className={`space-y-4 bg-gray-50 dark:bg-gray-900 border rounded-md p-4 ${
@@ -774,6 +809,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 {/* Specific Agents */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Specific Agents</label>
+                  <div className="flex gap-3 mb-2 text-xs"><button type="button" onClick={() => setFormData({ ...formData, targeting: { ...formData.targeting, agents: agents.map(a => a.id) } })}>Select all agents ({agents.length})</button><button type="button" onClick={() => setFormData({ ...formData, targeting: { ...formData.targeting, agents: [] } })}>Clear agents</button></div>
                   {/* Search */}
                   <div className="relative mb-2">
                     <input
@@ -842,10 +878,10 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                   <div className="space-y-1.5 max-h-40 overflow-auto border border-gray-200 rounded-md bg-white dark:bg-gray-800 p-2 dark:border-gray-700">
                     {groups.length === 0 ? (
                       <p className="text-xs text-gray-400 py-2 px-1">No groups available</p>
-                    ) : groups.filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase())).length === 0 ? (
+                    ) : groups.filter(g => `${g.displayName || ''} ${g.name}`.toLowerCase().includes(groupSearch.toLowerCase())).length === 0 ? (
                       <p className="text-xs text-gray-400 py-2 px-1">No groups match search</p>
                     ) : (
-                      groups.filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase())).map(group => (
+                      groups.filter(g => `${g.displayName || ''} ${g.name}`.toLowerCase().includes(groupSearch.toLowerCase())).map(group => (
                         <label key={group.name} className="flex items-center gap-2 px-1 py-1 hover:bg-gray-50 rounded cursor-pointer dark:bg-gray-900 dark:hover:bg-gray-700">
                           <input
                             type="checkbox"
@@ -858,7 +894,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                             }}
                             className="rounded"
                           />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{group.name}</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{group.displayName || group.name}</span>
                         </label>
                       ))
                     )}
@@ -894,7 +930,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                           }}
                           className="rounded"
                         />
-                        <span className="text-sm text-gray-700 dark:text-gray-300">{community.name}</span>
+                        <span className="text-sm text-gray-700 dark:text-gray-300">{channelLabel(community)}</span>
                       </label>
                     ))}
                   </div>
@@ -971,6 +1007,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 Workflow Content (Markdown) *
               </label>
               <textarea
+                ref={el => { fieldRefs.current.content = el }}
+                aria-invalid={!!validationErrors.content}
                 value={formData.content}
                 onChange={e => {
                   setFormData({ ...formData, content: e.target.value })
@@ -992,7 +1030,12 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               </p>
             </div>
 
-            <div className="space-y-4 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/70 dark:bg-sky-900/10 p-4">
+            {initialData?.id?.startsWith('tr-') ? (
+              <div className="rounded-lg border border-sky-200 p-4 text-sm dark:border-sky-800">
+                <h3 className="font-semibold">Automatic brief</h3>
+                <p>Each successful run saves a dated Markdown brief and updates the latest brief. Open the run output to read it. Failed runs do not replace the latest successful brief.</p>
+              </div>
+            ) : <div className="space-y-4 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/70 dark:bg-sky-900/10 p-4">
               <div>
                 <h3 className="text-sm font-semibold text-sky-900 dark:text-sky-100">Markdown Handoffs</h3>
                 <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/80">
@@ -1026,6 +1069,17 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 <span className="text-sm text-gray-700 dark:text-gray-300">This workflow publishes a reusable markdown handoff</span>
               </label>
 
+              {(formData.outputDefinitions?.length || 0) > 1 && (
+                <div className="text-sm text-gray-600 dark:text-gray-300">
+                  <p>Additional outputs are preserved when you save. Turning off this setting removes all {formData.outputDefinitions!.length} outputs.</p>
+                  <ul className="mt-1 list-disc pl-5">
+                    {formData.outputDefinitions!.slice(1).map((output, index) => (
+                      <li key={`${output.key}-${index}`} className="break-words">{output.label || output.key} ({output.key}, {output.type || 'markdown'})</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {producesMarkdownOutput && (
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
@@ -1035,7 +1089,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       value={formData.outputDefinitions?.[0]?.key || ''}
                       onChange={(e) => {
                         const next = [...(formData.outputDefinitions || [{ key: '', label: '', type: 'markdown' }])]
-                        next[0] = { ...next[0], key: e.target.value, type: 'markdown' }
+                        next[0] = { ...next[0], key: e.target.value }
                         setFormData({ ...formData, outputDefinitions: next })
                       }}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -1049,7 +1103,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                       value={formData.outputDefinitions?.[0]?.label || ''}
                       onChange={(e) => {
                         const next = [...(formData.outputDefinitions || [{ key: '', label: '', type: 'markdown' }])]
-                        next[0] = { ...next[0], label: e.target.value, type: 'markdown' }
+                        next[0] = { ...next[0], label: e.target.value }
                         setFormData({ ...formData, outputDefinitions: next })
                       }}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -1189,6 +1243,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               </div>
             </div>
 
+            }
             {/* Enabled + Run Limit */}
             <div className="space-y-3">
               <label className="flex items-center gap-2">
@@ -1229,7 +1284,12 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-3 dark:border-gray-700 dark:bg-gray-900">
+          <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex flex-wrap items-center justify-end gap-3 dark:border-gray-700 dark:bg-gray-900">
+            {(saveError || validationMessages.length > 0) && (
+              <div role="alert" className="w-full text-sm text-red-700 dark:text-red-300">
+                {saveError || `Cannot save yet: ${validationMessages.join('. ')}.`}
+              </div>
+            )}
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors dark:text-gray-100 dark:text-gray-300"
@@ -1240,9 +1300,9 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
             <button
               onClick={handleSave}
               className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={saving || !!cronError}
+              disabled={saving || loadingDetails || !!detailsError}
             >
-              {saving ? 'Saving...' : mode === 'create' ? 'Create Workflow' : 'Save Changes'}
+              {loadingDetails ? 'Loading workflow...' : saving ? 'Saving...' : mode === 'create' ? 'Create Workflow' : 'Save Changes'}
             </button>
           </div>
         </div>

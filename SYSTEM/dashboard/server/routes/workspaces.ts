@@ -1,4 +1,7 @@
 import express from 'express'
+import crypto from 'crypto'
+import { personalWorkspaceClear } from '../lib/workspace-clear-runtime'
+import { WorkspaceClearError } from '../lib/workspace-clear'
 import { getWorkspaceManager } from '../lib/workspace-manager'
 import path from 'path'
 import { streamZipExport } from '../lib/zip-export'
@@ -14,13 +17,27 @@ import { inferWorkspaceDashboardCompanies } from './workspace-dashboards'
 import { buildWorkspaceExportManifest, getWorkspaceExportFileName, getWorkspaceExportRootName, WORKSPACE_EXPORT_SECRET_GLOBS } from '../lib/workspace-export'
 import { importWorkspaceFromZipArchive } from '../lib/workspace-import'
 import { listTeams } from '../lib/teams'
-import { listWorkflows } from '../lib/workflows'
+import { listWorkflows, publicExecution, readStoredExecutions, WORKFLOW_EXECUTION_RECORD_GLOBS } from '../lib/workflows'
 import fs from 'fs'
 import os from 'os'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 
 const router = express.Router()
 const workspaceManager = getWorkspaceManager()
+
+// Parent mounting retains Dashboard authentication; confirmations bind to the
+// authenticated browser credential, not a caller-supplied actor or workspace.
+const clearActor = (req: express.Request) => crypto.createHash('sha256').update(String(req.headers.authorization || req.headers.cookie || 'local-auth-bypass')).digest('hex')
+router.post('/default/clear/preview', (req, res) => {
+  try { res.setHeader('Cache-Control', 'no-store'); res.json(personalWorkspaceClear.preview(clearActor(req))) }
+  catch (error) { res.status(error instanceof WorkspaceClearError ? error.status : 503).json({ error: error instanceof WorkspaceClearError ? error.message : 'Personal inventory is unavailable; nothing was cleared' }) }
+})
+router.post('/default/clear', async (req, res) => {
+  try {
+    if (!req.body || Object.keys(req.body).some(key => !['token', 'confirmation', 'acknowledged'].includes(key))) return res.status(400).json({ error: 'Invalid clear confirmation' })
+    res.json(await personalWorkspaceClear.clear(clearActor(req), req.body))
+  } catch (error) { res.status(error instanceof WorkspaceClearError ? error.status : 503).json({ error: error instanceof WorkspaceClearError ? error.message : 'Personal clearing is unavailable; review its status before retrying' }) }
+})
 
 // GET /api/workspaces - List all workspaces
 router.get('/', (req, res) => {
@@ -160,8 +177,12 @@ router.get('/:id/export', async (req, res) => {
       archive.glob('**/*', {
         cwd: workspace.path,
         dot: true,
-        ignore: [...WORKSPACE_EXPORT_SECRET_GLOBS],
+        ignore: [...WORKSPACE_EXPORT_SECRET_GLOBS, ...WORKFLOW_EXECUTION_RECORD_GLOBS],
       }, { prefix: rootName })
+      // Run records go through publicExecution: older ones can hold run secrets in their inputs.
+      for (const { relative, execution } of readStoredExecutions(workspace.path)) {
+        if (execution) archive.append(JSON.stringify(publicExecution(execution), null, 2), { name: `${rootName}/${relative.split(path.sep).join('/')}` })
+      }
       archive.append(JSON.stringify(manifest, null, 2), { name: `${rootName}/SYSTEM/export-manifest.json` })
     })
   } catch (err: any) {

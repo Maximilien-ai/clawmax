@@ -2,6 +2,7 @@ import assert from 'assert'
 import {
   GmailMailProvider,
   Microsoft365MailProvider,
+  createAuthenticatedMailProvider,
 } from './mail-provider-adapters'
 import {
   invokeMailCapability,
@@ -263,6 +264,69 @@ async function run() {
         return true
       },
     )
+  })
+
+  await test('network and malformed provider errors never echo credentials or unsafe codes', async () => {
+    const failures = [
+      async () => { throw new Error('sentinel-token network failure') },
+      async () => new Response('not-json sentinel-token', { status: 503 }),
+      async () => new Response(JSON.stringify({ error: { code: 'BAD CODE sentinel-token', message: 'sentinel-token' } }), { status: 429 }),
+    ]
+    for (const fetchFn of failures) {
+      const provider = new GmailMailProvider('sentinel-token', fetchFn as typeof fetch)
+      await assert.rejects(provider.invoke(request('gmail', 'mail.list')), (error: any) => {
+        assert(!error.message.includes('sentinel-token'), 'Provider diagnostics must redact token and response body')
+        assert(/Mail provider request failed|HTTP (429|503)/.test(error.message), 'Expected bounded provider failure')
+        return true
+      })
+    }
+    assert.throws(() => createAuthenticatedMailProvider('gmail', ''), /access token is required/)
+    assert.throws(() => createAuthenticatedMailProvider('unsupported' as any, 'token'), /Unsupported mail provider/)
+    assert.strictEqual(createAuthenticatedMailProvider('gmail', 'token').provider, 'gmail')
+    assert.strictEqual(createAuthenticatedMailProvider('microsoft365', 'token').provider, 'microsoft365')
+  })
+
+  await test('Gmail list drops empty IDs and returns empty results without extra requests', async () => {
+    const empty = fakeFetch([{ body: {} }])
+    assert.deepStrictEqual(await new GmailMailProvider('token', empty.fetchFn).invoke(request('gmail', 'mail.list')), [])
+    assert.strictEqual(empty.calls.length, 1)
+    const filtered = fakeFetch([{ body: { messages: [{}, { id: '' }, { id: 'valid/id' }] } }, { body: { id: 'valid/id' } }])
+    const results = await new GmailMailProvider('token', filtered.fetchFn).invoke(request('gmail', 'mail.list')) as any[]
+    assert.deepStrictEqual(results.map(item => item.id), ['valid/id'])
+    assert(filtered.calls[1].url.includes('valid%2Fid'), 'Message IDs must be URL encoded')
+  })
+
+  await test('Gmail normalizes fallback dates, nested plain text, recipients, and body limits', async () => {
+    const longBody = 'a'.repeat(100_010)
+    const message = {
+      id: 'nested', internalDate: '1784980800000', labelIds: [],
+      payload: {
+        headers: [{ name: 'from', value: 'sender@example.test' }, { name: 'TO', value: 'one@example.test, , two@example.test' }],
+        parts: [{ mimeType: 'multipart/alternative', parts: [{ mimeType: 'TEXT/PLAIN', body: { data: Buffer.from(longBody).toString('base64url') } }] }],
+      },
+    }
+    const http = fakeFetch([{ body: message }])
+    const result = await new GmailMailProvider('token', http.fetchFn).invoke(request('gmail', 'mail.read.body', { messageId: 'nested' })) as any
+    assert.strictEqual(result.receivedAt, new Date(1784980800000).toISOString())
+    assert.deepStrictEqual(result.to, ['one@example.test', 'two@example.test'])
+    assert.strictEqual(result.body.length, 100_000)
+    assert.strictEqual(result.unread, false)
+    const fallback = fakeFetch([{ body: { id: 'no-date', internalDate: 'invalid', payload: { body: { data: Buffer.from('fallback').toString('base64url') } } } }])
+    const fallbackResult = await new GmailMailProvider('token', fallback.fetchFn).invoke(request('gmail', 'mail.read.body')) as any
+    assert.strictEqual(fallbackResult.receivedAt, '')
+    assert.strictEqual(fallbackResult.body, 'fallback')
+  })
+
+  await test('Microsoft tolerates absent optional fields without exposing message bodies in metadata', async () => {
+    const http = fakeFetch([{ body: { value: [{ id: 'bare', toRecipients: [{}, { emailAddress: { address: 'recipient@test' } }], body: { content: 'private' } }] } }])
+    const rows = await new Microsoft365MailProvider('token', http.fetchFn).invoke(request('microsoft365', 'mail.list')) as any[]
+    assert.strictEqual(rows[0].from, '')
+    assert.deepStrictEqual(rows[0].to, ['recipient@test'])
+    assert.strictEqual(rows[0].subject, '')
+    assert.strictEqual(rows[0].unread, false)
+    assert(!('body' in rows[0]))
+    const empty = fakeFetch([{ body: {} }])
+    assert.deepStrictEqual(await new Microsoft365MailProvider('token', empty.fetchFn).invoke(request('microsoft365', 'mail.search')), [])
   })
 
   console.log(`\nTests passed: ${passed}`)

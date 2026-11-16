@@ -1,4 +1,39 @@
 import fs from 'fs'
+import type { RequestHandler } from 'express'
+
+/** Reject browser-forged mutations before routes run; CORS alone is not CSRF protection. */
+export function browserMutationGuard(allowedOrigins: string[]): RequestHandler {
+  return (req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase())) return next()
+    const origin = req.get('Origin')
+    const referer = req.get('Referer')
+    const hasCookies = Boolean(req.get('Cookie'))
+    const site = req.get('Sec-Fetch-Site')
+    // Host is caller-controlled, not an origin allowlist. Only literal loopback
+    // addresses may derive same-origin trust; external/proxy origins must be configured.
+    const sameOrigin = `${req.protocol}://${req.get('host')}`
+    let loopbackOrigin = ''
+    try {
+      const candidate = new URL(sameOrigin)
+      if (LOOPBACK_HOSTS.has(candidate.hostname) && !candidate.username && !candidate.password) loopbackOrigin = candidate.origin
+    } catch { /* Invalid Host cannot establish trust. */ }
+    const trusted = (value: string): boolean => {
+      try {
+        const url = new URL(value)
+        return !url.username && !url.password && ['http:', 'https:'].includes(url.protocol)
+          && (url.origin === loopbackOrigin || allowedOrigins.includes(url.origin))
+      } catch { return false }
+    }
+    const allowed = origin ? origin !== 'null' && trusted(origin)
+      : referer ? trusted(referer)
+        : !hasCookies && !['cross-site', 'same-site'].includes(site || '')
+    if (!allowed) {
+      res.status(403).json({ error: 'Cross-origin request denied', code: 'csrf_rejected' })
+      return
+    }
+    next()
+  }
+}
 
 export function parseCorsOrigins(value: string | undefined, fallbackOrigin: string): string[] {
   return (value || fallbackOrigin)
@@ -7,17 +42,26 @@ export function parseCorsOrigins(value: string | undefined, fallbackOrigin: stri
     .filter(Boolean)
 }
 
+/** Keep the browser mutation guard aligned with the configured dev frontend.
+ * An explicit CORS_ORIGIN remains authoritative for deployments. */
+export function dashboardCorsOrigins(env: NodeJS.ProcessEnv): string[] {
+  return parseCorsOrigins(env.CORS_ORIGIN, env.DASHBOARD_APP_URL || 'http://localhost:5173')
+}
+
 export function isCorsOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {
   if (!origin) return true
   return allowedOrigins.includes(origin.replace(/\/+$/, ''))
 }
 
 
-export function isDashboardAuthBypassAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
-  const bypassRequested = env.BYPASS_OAUTH === 'true'
+function isDashboardAuthBypassRequested(env: NodeJS.ProcessEnv): boolean {
+  return env.BYPASS_OAUTH === 'true'
     || env.DASHBOARD_AUTH_DISABLED === 'true'
     || String(env.DASHBOARD_AUTH_MODE || '').trim().toLowerCase() === 'bypass'
-  if (!bypassRequested) return false
+}
+
+export function isDashboardAuthBypassAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (!isDashboardAuthBypassRequested(env)) return false
 
   const deploymentKind = String(env.DASHBOARD_DEPLOYMENT_KIND || env.CLAWMAX_DEPLOYMENT_KIND || '')
     .trim()
@@ -104,6 +148,18 @@ export function resolveDashboardBindHost(
 
   warn(`[SECURITY] Refusing to bind ${requested} with dashboard authentication disabled; using 127.0.0.1. Enable authentication or set DASHBOARD_ALLOW_UNAUTHENTICATED_NETWORK_BIND=true to accept the risk.`)
   return '127.0.0.1'
+}
+
+/**
+ * Where the Vite dev server listens. It proxies /api to the API from every interface it listens on,
+ * so it stays on loopback whenever bypass is requested at all. Deployment kind is ignored on purpose:
+ * the API takes it from the inherited environment, the dev server from .env, and a disagreement must
+ * fail closed. `localhost` rather than 127.0.0.1 keeps the URL Vite prints equal to DASHBOARD_APP_URL.
+ */
+export function resolveDashboardClientHost(env: NodeJS.ProcessEnv): 'localhost' | true {
+  return isDashboardAuthBypassRequested(env) && env.DASHBOARD_ALLOW_UNAUTHENTICATED_NETWORK_BIND !== 'true'
+    ? 'localhost'
+    : true
 }
 
 interface HeaderResponse {

@@ -1,7 +1,11 @@
 import express, { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
+import { decodeUploadFilename } from '../lib/upload-filename'
+import { isWorkflowExecutionPath } from '../lib/workflows'
 import { deleteDocHubUploads, deleteWorkspaceAsset, extractZipBufferToWorkspace, listDocEntries, listMarkdownFiles, moveDocHubUploads, readWorkspaceBinaryFile, readWorkspaceFile, recordDocHubUploads, resolveWorkspacePath, writeWorkspaceFile, writeWorkspaceBinaryFile } from '../lib/workspace'
+
+import { documentContentHandler } from './docs-content'
 
 const router = Router()
 
@@ -24,6 +28,8 @@ router.get('/', (_req, res) => {
 router.get('/content', (req, res) => {
   const relPath = req.query.path as string
   if (!relPath) return res.status(400).json({ error: 'path query param required' })
+  // Run records can hold credentials written by older versions; the workflow history API serves them.
+  if (isWorkflowExecutionPath(relPath)) return res.status(404).json({ error: 'Not found or outside workspace' })
 
   const normalized = relPath.trim().toLowerCase()
   const codeExtensions = new Map<string, string>([
@@ -109,16 +115,9 @@ router.get('/content', (req, res) => {
   return res.status(415).json({ error: 'Preview not available for this file type' })
 })
 
-// POST /api/docs/content — create OR update a file
-router.post('/content', (req, res) => {
-  const { path: relPath, content } = req.body as { path: string; content: string }
-  if (!relPath || content === undefined) return res.status(400).json({ error: 'path and content required' })
-
-  const ok = writeWorkspaceFile(relPath, content)
-  if (!ok) return res.status(400).json({ error: 'Cannot write to that path' })
-
-  res.json({ ok: true })
-})
+// Create and Save share validation/history; only Create uses an exclusive write.
+router.post('/create', documentContentHandler(true))
+router.post('/content', documentContentHandler())
 
 // PUT /api/docs/content — write a file (legacy, use POST instead)
 router.put('/content', (req, res) => {
@@ -136,14 +135,14 @@ router.post('/upload', express.raw({ type: '*/*', limit: '200mb' }), (req, res) 
   const target = typeof req.query.target === 'string' ? req.query.target.trim() : ''
   const extractZip = req.query.extractZip === 'true'
   const fileNameHeader = req.header('x-file-name') || req.header('x-upload-file-name') || ''
-  const fileName = path.basename(fileNameHeader.trim())
+  const fileName = decodeUploadFilename(fileNameHeader, req.header('x-file-name-encoding') || undefined)
   const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || [])
 
   if (!target) {
     return res.status(400).json({ error: 'target query param required' })
   }
   if (!fileName) {
-    return res.status(400).json({ error: 'x-file-name header required' })
+    return res.status(400).json({ error: 'Valid x-file-name header required' })
   }
   if (!body.length) {
     return res.status(400).json({ error: 'File body required' })

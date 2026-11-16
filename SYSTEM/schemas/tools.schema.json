@@ -6,8 +6,7 @@
   "properties": {
     "content": {
       "type": "string",
-      "minLength": 1,
-      "description": "The markdown content of TOOLS.md"
+      "description": "Optional markdown guidance; empty content uses runtime-provided tools only"
     }
   },
   "required": ["content"]

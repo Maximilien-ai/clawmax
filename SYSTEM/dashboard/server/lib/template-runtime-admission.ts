@@ -1,5 +1,7 @@
 import { PortableTemplateError } from './portable-template-zip'
 
+export const isStagedTemplateAgentId = (id: string): boolean => /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(id)
+
 /** Reserved IDs emitted by the portable Template compiler. Until the gateway
  * transaction and authority adapter are implemented, these resources are
  * inspectable but cannot execute through the existing participant runtime.

@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 . "$SCRIPT_DIR/openclaw-version.sh"
+. "$SCRIPT_DIR/openclaw-cache-guard.sh"
 
 PREPARED_WORK_ROOT=""
 
@@ -19,25 +20,8 @@ EOF
 }
 
 ensure_supported_node() {
-  node <<'EOF'
-const [majorRaw = "0", minorRaw = "0", patchRaw = "0"] = process.versions.node.split(".");
-const major = Number(majorRaw);
-const minor = Number(minorRaw);
-const patch = Number(patchRaw);
-const atLeast = (wantedMinor, wantedPatch) =>
-  minor > wantedMinor || (minor === wantedMinor && patch >= wantedPatch);
-if (
-  (major === 24 && atLeast(16, 0)) ||
-  (major === 26 && atLeast(1, 0)) ||
-  major > 26
-) {
-  process.exit(0);
-}
-console.error(
-  `prepare-openclaw-target.sh requires Node.js 24.16.0+ (24.x) or 26.1.0+ (current: ${process.versions.node})`,
-);
-process.exit(1);
-EOF
+  . "$SCRIPT_DIR/openclaw-dev-runtime.sh"
+  ensure_supported_source_node
 }
 
 run_pnpm() {
@@ -74,12 +58,87 @@ EOF
     return 0
   fi
 
-  echo "pnpm or corepack is required to prepare OpenClaw ${CLAWMAX_OPENCLAW_TARGET}" >&2
-  exit 1
+  bootstrap_pnpm "$shim_dir"
+}
+
+bootstrap_pnpm() {
+  local shim_dir="$1" version manager_root staging actual
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "Preparing OpenClaw requires npm when pnpm and Corepack are unavailable. Install Node.js with npm and retry." >&2
+    return 1
+  fi
+  version="$(node -e '
+    const spec = require(process.cwd() + "/package.json").packageManager;
+    const match = typeof spec === "string" && /^pnpm@(\d+\.\d+\.\d+)(?:\+sha(?:224|512)\.[a-f0-9]+)?$/.exec(spec);
+    if (!match) { console.error("Pinned OpenClaw must declare an exact pnpm packageManager version."); process.exit(1); }
+    process.stdout.write(match[1]);
+  ')" || return 1
+  manager_root="${shim_dir}/../package-manager/pnpm-${version}"
+  if [ ! -x "$manager_root/node_modules/.bin/pnpm" ] || [ "$("$manager_root/node_modules/.bin/pnpm" --version 2>/dev/null || true)" != "$version" ]; then
+    mkdir -p "${shim_dir}/../package-manager"
+    staging="$(mktemp -d "${shim_dir}/../package-manager/install.XXXXXX")"
+    echo "Preparing cache-local pnpm ${version} with npm for OpenClaw ${CLAWMAX_OPENCLAW_TARGET}..." >&2
+    if ! npm install --prefix "$staging" --ignore-scripts --no-audit --no-fund --package-lock=false "pnpm@${version}" >&2; then
+      echo "Unable to prepare pinned pnpm ${version}. Check npm registry access and retry; incomplete files remain at $staging." >&2
+      return 1
+    fi
+    actual="$("$staging/node_modules/.bin/pnpm" --version 2>/dev/null || true)"
+    if [ "$actual" != "$version" ]; then
+      echo "Pinned pnpm verification failed: expected $version, got ${actual:-unavailable}." >&2
+      return 1
+    fi
+    if [ -e "$manager_root" ]; then
+      mv "$manager_root" "${staging}.previous"
+    fi
+    mv "$staging" "$manager_root"
+  fi
+  # Nested build scripts also invoke pnpm directly. Keep the selection scoped
+  # to this preparation process rather than changing global npm or shell state.
+  export PATH="${manager_root}/node_modules/.bin:${PATH}"
+}
+
+ensure_corepack_ready() {
+  local work_root="$1"
+  command -v corepack >/dev/null 2>&1 || return 0
+  if corepack pnpm --version >&2; then
+    return 0
+  fi
+  # A stale Corepack install marker can survive missing package files. Probe
+  # before dependency installation and retry once in a fresh task-owned cache.
+  # Preserve the old cache (including an explicitly configured shared cache).
+  export COREPACK_HOME="$(mktemp -d "${work_root}/corepack-recovery.XXXXXX")"
+  echo "pnpm startup failed; retrying with isolated Corepack cache $COREPACK_HOME" >&2
+  if ! corepack pnpm --version >&2; then
+    echo "Pinned pnpm is still unavailable; refusing to install or build OpenClaw." >&2
+    return 1
+  fi
 }
 
 sanitize_ref() {
   printf '%s' "$1" | tr '/:@' '---'
+}
+
+clone_target() {
+  local work_root="$1" src_dir="$2" attempt staging
+  for attempt in 1 2 3; do
+    staging="$(mktemp -d "${work_root}/clone.XXXXXX")"
+    echo "Cloning pinned OpenClaw ${CLAWMAX_OPENCLAW_TARGET} (attempt ${attempt}/3, HTTP/1.1)..." >&2
+    # Command-local transport selection avoids HTTP/2 stream cancellation without
+    # changing the user's global Git settings. Never clone into the usable cache.
+    if git -c http.version=HTTP/1.1 clone --depth 1 --single-branch --branch "$CLAWMAX_OPENCLAW_TARGET" https://github.com/openclaw/openclaw.git "$staging/src" >&2; then
+      if [ -e "$src_dir" ] || [ -L "$src_dir" ]; then
+        echo "OpenClaw source cache appeared during clone; refusing to overwrite it. Retry preparation." >&2
+        return 1
+      fi
+      mv "$staging/src" "$src_dir"
+      rmdir "$staging"
+      return 0
+    fi
+    # Keep failed transfer artifacts isolated for inspection; never mark ready.
+    echo "OpenClaw clone failed; incomplete transfer retained at $staging" >&2
+  done
+  echo "Unable to clone pinned OpenClaw after 3 attempts; no fallback runtime was selected." >&2
+  return 1
 }
 
 prepare_checkout() {
@@ -91,23 +150,29 @@ prepare_checkout() {
   prepared_stamp="${work_root}/.prepared-commit"
 
   mkdir -p "$work_root"
+  work_root="$(cd "$work_root" && pwd -P)"
+  src_dir="${work_root}/src"
+  prepared_stamp="${work_root}/.prepared-commit"
+  clawmax_cache_lock "$work_root"
 
   if [ -d "$src_dir" ] && [ ! -f "$src_dir/package.json" ]; then
+    clawmax_cache_assert_idle "$work_root"
     rm -rf "$src_dir"
   fi
 
   if [ ! -d "$src_dir/.git" ]; then
-    git clone --depth 1 --branch "$CLAWMAX_OPENCLAW_TARGET" https://github.com/openclaw/openclaw.git "$src_dir" >&2
+    clone_target "$work_root" "$src_dir"
   fi
 
-  (
-    cd "$src_dir"
-    current_tag="$(git describe --tags --exact-match HEAD 2>/dev/null || true)"
-    if [ "$current_tag" != "$CLAWMAX_OPENCLAW_TARGET" ]; then
+  current_tag="$(cd "$src_dir" && git describe --tags --exact-match HEAD 2>/dev/null || true)"
+  if [ "$current_tag" != "$CLAWMAX_OPENCLAW_TARGET" ]; then
+    clawmax_cache_assert_idle "$work_root"
+    (
+      cd "$src_dir"
       git fetch --depth 1 --tags --force origin "$CLAWMAX_OPENCLAW_TARGET" >&2
       git checkout --force "$CLAWMAX_OPENCLAW_TARGET" >&2
-    fi
-  )
+    )
+  fi
 
   ensure_supported_node
 
@@ -121,9 +186,11 @@ prepare_checkout() {
   current_commit="${current_commit}:$(cksum < "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs")"
   current_commit="${current_commit}:source-plugins-v1:$(cksum < "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs")"
   if [ ! -f "${src_dir}/dist/index.js" ] || [ ! -f "$prepared_stamp" ] || [ "$(cat "$prepared_stamp" 2>/dev/null || true)" != "$current_commit" ] || ! node "$SCRIPT_DIR/verify-openclaw-plugin-entries.mjs" "$src_dir" >&2; then
+    clawmax_cache_assert_idle "$work_root"
     (
       cd "$src_dir"
       export COREPACK_HOME="${COREPACK_HOME:-${work_root}/corepack}"
+      ensure_corepack_ready "$work_root"
       ensure_pnpm_on_path "${work_root}/bin"
       run_pnpm install --frozen-lockfile --ignore-scripts >&2
       node "$SCRIPT_DIR/patch-openclaw-roster-removal.mjs" "$src_dir" >&2
@@ -156,12 +223,19 @@ EOF
   cat >"${work_root}/bin/openclaw" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$src_dir"
+. "$SCRIPT_DIR/openclaw-cache-guard.sh"
+clawmax_cache_lock_wait "$work_root" 10
+clawmax_cache_register_runtime "$work_root"
+clawmax_cache_unlock
+# Never inherit a removable cache/workspace as the process working directory.
+cd /
+export OPENCLAW_NO_RESPAWN=1
 exec node "$src_dir/openclaw.mjs" "\$@"
 EOF
   chmod +x "${work_root}/bin/openclaw"
 
   PREPARED_WORK_ROOT="$work_root"
+  clawmax_cache_unlock
 }
 
 main() {
@@ -195,4 +269,6 @@ main() {
   esac
 }
 
-main "$@"
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  main "$@"
+fi

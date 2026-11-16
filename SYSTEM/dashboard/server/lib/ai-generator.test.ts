@@ -1,7 +1,10 @@
 import assert from 'assert'
 import fs from 'fs'
+import http from 'http'
 import os from 'os'
 import path from 'path'
+import { completeGeneratedWorkflowExecution, normalizeGeneratedWorkflowDraft, normalizeWorkflowContent } from './workflow-content'
+import { resetWorkspaceManagerForTests } from './workspace-manager'
 import {
   applyCompanyWorkflowExecutionDefaults,
   buildGeneratedExecutionSubteam,
@@ -11,12 +14,17 @@ import {
   buildFallbackPromptExpansion,
   TEMPLATE_GENERATION_TIMEOUT_MS,
   buildResolvedModelRequestOptions,
+  buildClientForSelection,
   createAiGenerationClient,
   createChatCompletionWithCompatibilityRetry,
   ensureGeneratedCompanyRoot,
   enforceVisibleCompanyWorkflowChain,
   explainOneTimeCronLimitation,
   extractJsonResponseText,
+  generateBuilderStarterPromptsWithAI,
+  generateCronFromText,
+  generateWorkflowFromNL,
+  normalizeChannelDraft,
   isOneTimeScheduleRequest,
   normalizeGeneratedSkillScaffold,
   normalizeGeneratedAgentMeta,
@@ -26,21 +34,36 @@ import {
   normalizeTemplateGenerationTarget,
   parseJsonResponse,
   resolveSystemGenerationModelForProvider,
+  resolveGenerationProvider,
   resolveOpenAiCompatibleGenerationDefaults,
   setRequestByokKeys,
+  getRequestByokKeys,
+  withRequestByokScope,
+  warmOpenAiCompatibleGenerationModel,
   shouldUseMaxCompletionTokens,
   shouldGenerateCompanyTemplate,
   validateAiGenerationProviderKeys,
 } from './ai-generator'
+import { clearModelCache } from './model-discovery'
+import { getWorkspacePath } from './workspace'
 
 let passed = 0
 let failed = 0
 const pendingTests: Array<() => Promise<void>> = []
+const originalModelOrigins = process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS
+process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS = [
+  'http://172.16.1.70:8000', 'http://workspace-endpoint:8000',
+  'http://browser-endpoint:9000', 'http://other-endpoint:9000',
+].join(',')
+process.on('exit', () => {
+  if (originalModelOrigins === undefined) delete process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS
+  else process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS = originalModelOrigins
+})
 
 function test(name: string, fn: () => void | Promise<void>) {
   const run = async () => {
     try {
-      await fn()
+      await withRequestByokScope(fn)
       console.log(`\x1b[32m✓\x1b[0m ${name}`)
       passed++
     } catch (err: any) {
@@ -54,9 +77,102 @@ function test(name: string, fn: () => void | Promise<void>) {
 
 console.log('\n\x1b[33m=== AI Generator Test Suite ===\x1b[0m\n')
 
+test('generated workflow content becomes Markdown while metadata stays intact', () => {
+  const draft = { name: 'Daily check', schedule: '0 9 * * *', timezone: 'America/Toronto',
+    targeting: { agents: ['analyst'] }, content: { objective: 'Check status', steps: ['Read the report', 'Publish findings'], waitSeconds: 60 } }
+  const result = normalizeGeneratedWorkflowDraft(draft)
+  assert.strictEqual(typeof result.content, 'string')
+  assert.match(result.content, /## objective\n\nCheck status/)
+  assert.match(result.content, /1\. Read the report/)
+  assert.match(result.content, /2\. Publish findings/)
+  assert.match(result.content, /wait Seconds\n\n60/)
+  assert(!result.content.includes('[object Object]'))
+  assert.strictEqual(result.schedule, draft.schedule)
+  assert.strictEqual(result.timezone, draft.timezone)
+  assert.deepStrictEqual(result.targeting, draft.targeting)
+})
+
+test('managed AI workflow drafts always have a real owner and complete save fields', () => {
+  const draft = { name: 'Weekly health', schedule: '0 9 * * 1', executionMode: 'managed', content: '# Check all agents', targeting: { tags: ['health'] } }
+  const options = { availableAgentIds: ['lead', 'analyst'], participantIds: ['analyst'], description: 'Check health weekly', timezone: 'America/Toronto' }
+  const ready = completeGeneratedWorkflowExecution(draft, options)
+  assert.equal(ready.owner, 'analyst')
+  assert.equal(ready.description, options.description)
+  assert.equal(ready.timezone, options.timezone)
+  assert.deepEqual(ready.targeting.agents, [], 'Preserve dynamic tag targeting')
+  assert.equal(completeGeneratedWorkflowExecution({ ...draft, owner: 'lead' }, options).owner, 'lead')
+  assert.equal(completeGeneratedWorkflowExecution({ ...draft, owner: 'invented' }, options).owner, 'analyst')
+  assert.equal(completeGeneratedWorkflowExecution({ ...draft, executionMode: 'automated' }, options).owner, undefined)
+  assert.throws(() => completeGeneratedWorkflowExecution(draft, { ...options, participantIds: [] }), /did not select any available agents/)
+  assert.throws(() => completeGeneratedWorkflowExecution({ ...draft, schedule: '' }, options), /did not return a schedule/)
+})
+
+test('workflow content preserves Markdown and unwraps structured Markdown responses', () => {
+  const markdown = '# Instructions\n\n```json\n{"status":"ok"}\n```\n'
+  assert.strictEqual(normalizeWorkflowContent(markdown), markdown)
+  assert.strictEqual(normalizeWorkflowContent({ markdown }), markdown)
+  assert.match(normalizeWorkflowContent([{ action: 'Check status' }, { action: 'Report status' }]), /Report status/)
+})
+
+test('invalid generated workflow instructions fail clearly instead of creating an unsavable form', () => {
+  for (const content of [undefined, null, '', '  ', '[object Object]', {}, [], 42, false]) {
+    assert.throws(() => normalizeGeneratedWorkflowDraft({ name: 'Empty draft', content }), /did not return workflow instructions/)
+  }
+  assert.throws(() => normalizeGeneratedWorkflowDraft(null as any), /did not return a workflow definition/)
+})
+
+test('workflow generation normalizes the actual provider response before returning a draft', async () => {
+  const server = http.createServer((_request, response) => {
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+      name: 'Daily status', schedule: '0 9 * * *', timezone: 'America/Toronto',
+      targeting: { agents: ['analyst'] }, content: { instructions: ['Check status', 'Publish a report'] },
+    }) } }] }))
+  })
+  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
+  const address = server.address() as { port: number }
+  try {
+    setRequestByokKeys({ openaiCompatibleBaseUrl: `http://127.0.0.1:${address.port}/v1`, openaiCompatibleDefaultModel: 'fixture-model' })
+    const draft = await generateWorkflowFromNL('Check status daily', ['analyst'], [])
+    assert.strictEqual(typeof draft.content, 'string')
+    assert.match(draft.content, /1\. Check status/)
+    assert.match(draft.content, /2\. Publish a report/)
+    assert.deepStrictEqual(draft.targeting.agents, ['analyst'])
+  } finally {
+    setRequestByokKeys(undefined)
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+    resetWorkspaceManagerForTests()
+  }
+})
+
+test('OpenAI-compatible base URL trims trailing slashes without changing its path', () => {
+  const selected = buildClientForSelection({ provider: 'openai-compatible', key: 'test-key', baseUrl: 'https://example.test/v1////', defaultModel: 'test-model' })
+  assert.strictEqual(selected.client.baseURL, 'https://example.test/v1')
+})
+
 test('extractJsonResponseText strips fenced json blocks', () => {
   const raw = '```json\n{ "name": "agent" }\n```'
   assert.strictEqual(extractJsonResponseText(raw), '{ "name": "agent" }')
+})
+
+test('workflow JSON retains nested Markdown sample input/output fences', async () => {
+  const content = '# Objective\nValidate test-agent input and output.\n\n```json\n{"input":"hello","actions_taken":["validate"],"result":"ok","errors":[]}\n```\n\n```text\nInvalid input must fail gracefully.\n```'
+  const payload = JSON.stringify({ name: 'Test Workflow', schedule: 'manual', targeting: { agents: ['test-agent'] }, content })
+  for (const raw of [payload, '```json\n' + payload + '\n```']) {
+    assert.deepStrictEqual(JSON.parse(extractJsonResponseText(raw)).content, content)
+  }
+  assert.throws(() => JSON.parse(extractJsonResponseText(payload.slice(0, -5))), 'Truncated output must not be accepted')
+  const server = http.createServer((_request, response) => {
+    response.setHeader('Content-Type', 'application/json')
+    response.end(JSON.stringify({ choices: [{ message: { content: payload } }] }))
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    setRequestByokKeys({ openaiCompatibleBaseUrl: `http://127.0.0.1:${(server.address() as any).port}/v1`, openaiCompatibleDefaultModel: 'fixture-model' })
+    const draft = await generateWorkflowFromNL('Create a simple realistic test workflow for @test-agent with 3–5 steps, sample JSON input/output, success and failure paths. No external systems.', ['test-agent'], [])
+    assert.equal(draft.content, content)
+    assert.equal(draft.schedule, 'manual')
+  } finally { setRequestByokKeys(undefined); await new Promise<void>(resolve => server.close(() => resolve())); resetWorkspaceManagerForTests() }
 })
 
 test('parseJsonResponse parses fenced json payloads', () => {
@@ -70,6 +186,38 @@ test('parseJsonResponse returns fallback on invalid json', () => {
   const fallback = { cron: '', explanation: '' }
   const parsed = parseJsonResponse('not json at all', fallback)
   assert.deepStrictEqual(parsed, fallback)
+})
+
+test('starter prompts handle truncated, empty and malformed BYOK responses without leaking parse errors', async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'starter-prompts-fixture-'))
+  const previousWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+  process.env.CLAWMAX_TEST_WORKSPACE = workspace
+  let content = ''
+  const server = http.createServer((req, res) => {
+    req.resume()
+    req.on('end', () => {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ choices: [{ message: { content } }] }))
+    })
+  })
+  try {
+    await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
+    const address = server.address() as { port: number }
+    setRequestByokKeys({ openaiCompatibleBaseUrl: `http://127.0.0.1:${address.port}/v1`, openaiCompatibleApiKey: 'synthetic-test-key', openaiCompatibleDefaultModel: 'fixture-model' })
+    for (const invalid of ['{"prompts":["unfinished', '', 'null', '{"prompts":{}}', '{"prompts":[null, {}, 42, " "]}']) {
+      content = invalid
+      await assert.rejects(() => generateBuilderStarterPromptsWithAI({ workspaceName: 'Fixture' }), { message: 'Failed to generate builder starter prompts' })
+    }
+    content = '```json\n{"prompts":[" One ",null,"Two","Three","Four","Five"]}\n```'
+    assert.deepEqual(await generateBuilderStarterPromptsWithAI({ workspaceName: 'Fixture' }), ['One', 'Two', 'Three', 'Four'])
+  } finally {
+    setRequestByokKeys(undefined)
+    server.closeAllConnections()
+    if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()))
+    if (previousWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+    else process.env.CLAWMAX_TEST_WORKSPACE = previousWorkspace
+    fs.rmSync(workspace, { recursive: true, force: true })
+  }
 })
 
 test('isOneTimeScheduleRequest detects one-time cron requests', () => {
@@ -86,6 +234,10 @@ test('explainOneTimeCronLimitation returns actionable guidance', () => {
 test('normalize template and prompt expansion helpers coerce unsupported values to safe defaults', () => {
   assert.strictEqual(normalizeTemplateGenerationTarget('company'), 'company')
   assert.strictEqual(normalizeTemplateGenerationTarget('weird'), 'team')
+  assert.strictEqual(normalizePromptExpansionTarget('group'), 'group')
+  assert.strictEqual(normalizePromptExpansionTarget('community'), 'community')
+  assert(buildPromptExpansionSystemPrompt('group').includes('agent group'))
+  assert(buildPromptExpansionSystemPrompt('community').includes('agent community'))
   assert.strictEqual(normalizePromptExpansionTarget('agent'), 'agent')
   assert.strictEqual(normalizePromptExpansionTarget('nonsense'), 'template')
   assert.strictEqual(normalizePromptExpansionFormat('text'), 'text')
@@ -184,6 +336,208 @@ test('resolveOpenAiCompatibleGenerationDefaults falls back to workspace integrat
   }
 })
 
+/**
+ * Writes the integrations.json the generator actually reads, whatever workspace this process
+ * resolved, and puts the previous contents back afterwards.
+ */
+async function withWorkspaceIntegrations(config: Record<string, unknown>, fn: () => Promise<void>) {
+  const filePath = path.join(getWorkspacePath(), 'SYSTEM', 'integrations.json')
+  const existed = fs.existsSync(filePath)
+  const original = existed ? fs.readFileSync(filePath, 'utf-8') : undefined
+  const originalFetch = global.fetch
+  try {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf-8')
+    clearModelCache()
+    await fn()
+  } finally {
+    setRequestByokKeys(undefined)
+    clearModelCache()
+    global.fetch = originalFetch
+    if (original !== undefined) fs.writeFileSync(filePath, original, 'utf-8')
+    else if (existed || fs.existsSync(filePath)) fs.rmSync(filePath, { force: true })
+  }
+}
+
+// Exactly what BYOK stores when the operator leaves the optional "Default model" box empty.
+const VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL = {
+  enabledRuntimes: [],
+  openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1',
+}
+
+test('A verified OpenAI-compatible endpoint generates without an explicitly typed default model', async () => {
+  await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
+    global.fetch = (async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'deepseek-ai/DeepSeek-V4-Flash-0731' }] }),
+    }) as any) as any
+
+    assert.strictEqual(resolveOpenAiCompatibleGenerationDefaults().defaultModel, undefined)
+    await warmOpenAiCompatibleGenerationModel({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any)
+    setRequestByokKeys({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any)
+
+    const resolved = resolveOpenAiCompatibleGenerationDefaults()
+    assert.strictEqual(resolved.baseUrl, 'http://172.16.1.70:8000/v1')
+    assert.strictEqual(resolved.defaultModel, 'deepseek-ai/DeepSeek-V4-Flash-0731')
+    const { model } = createAiGenerationClient({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any)
+    assert.strictEqual(model, 'deepseek-ai/DeepSeek-V4-Flash-0731')
+  })
+})
+
+test('A browser-supplied endpoint does not inherit the workspace endpoint\'s model', async () => {
+  await withWorkspaceIntegrations({
+    enabledRuntimes: [],
+    openaiCompatibleBaseUrl: 'http://workspace-endpoint:8000/v1',
+    openaiCompatibleDefaultModel: 'workspace-only-model',
+  }, async () => {
+    const requested: string[] = []
+    global.fetch = (async (url: string) => {
+      requested.push(String(url))
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'browser-endpoint-model' }] }) } as any
+    }) as any
+
+    const browserKeys = { openaiCompatibleBaseUrl: 'http://browser-endpoint:9000/v1' } as any
+    await warmOpenAiCompatibleGenerationModel(browserKeys)
+    setRequestByokKeys(browserKeys)
+
+    const resolved = resolveOpenAiCompatibleGenerationDefaults(browserKeys)
+    assert.strictEqual(resolved.baseUrl, 'http://browser-endpoint:9000/v1')
+    assert.strictEqual(resolved.defaultModel, 'browser-endpoint-model')
+    assert.ok(
+      requested.every((url) => url.startsWith('http://browser-endpoint:9000/v1')),
+      `Expected discovery to touch only the browser endpoint, got ${JSON.stringify(requested)}`,
+    )
+  })
+})
+
+test('A workspace endpoint with no key or default model uses the protected key configured for the same server', async () => {
+  await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
+    const protectedEnv = {
+      SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1/',
+      SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',
+    }
+    const authorizations: string[] = []
+    global.fetch = (async (_url: string, init?: any) => {
+      authorizations.push(String(init?.headers?.Authorization || ''))
+      if (init?.headers?.Authorization !== 'Bearer system-secret') return { ok: false, status: 401, json: async () => ({}) } as any
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'authenticated-model' }] }) } as any
+    }) as any
+    await warmOpenAiCompatibleGenerationModel(undefined, protectedEnv)
+    const resolved = resolveOpenAiCompatibleGenerationDefaults(undefined, protectedEnv)
+    assert.strictEqual(resolved.baseUrl, 'http://172.16.1.70:8000/v1')
+    assert.strictEqual(resolved.apiKey, 'system-secret')
+    assert.strictEqual(resolved.defaultModel, 'authenticated-model')
+    assert.deepStrictEqual(authorizations, ['Bearer system-secret'])
+  })
+})
+
+test('Generation sends the protected credential and the discovered model to the workspace endpoint', async () => {
+  await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
+    const protectedEnv = {
+      SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1',
+      SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',
+    }
+    const seen: Array<{ url: string; auth: string; model?: string }> = []
+    const readAuth = (init?: any) => {
+      const h = init?.headers
+      if (!h) return ''
+      if (typeof h.get === 'function') return h.get('authorization') || ''
+      return h.Authorization || h.authorization || ''
+    }
+    global.fetch = (async (input: any, init?: any) => {
+      const url = String(input)
+      const auth = readAuth(init)
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined
+      seen.push({ url, auth, model: body?.model })
+      if (auth !== 'Bearer system-secret') return new Response(JSON.stringify({ error: { message: 'unauthorized' } }), { status: 401, headers: { 'content-type': 'application/json' } })
+      if (url.endsWith('/v1/models')) return new Response(JSON.stringify({ data: [{ id: 'authenticated-model' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      if (url.endsWith('/v1/chat/completions')) {
+        return new Response(JSON.stringify({ id: 'cmpl-1', object: 'chat.completion', created: 0, model: body?.model, choices: [{ index: 0, message: { role: 'assistant', content: 'PONG' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response('not found', { status: 404 })
+    }) as any
+    await warmOpenAiCompatibleGenerationModel(undefined, protectedEnv)
+    const { client, model } = createAiGenerationClient(undefined, protectedEnv)
+    assert.strictEqual(model, 'authenticated-model')
+    const completion = await client.chat.completions.create({ model, messages: [{ role: 'user', content: 'ping' }] })
+    assert.strictEqual(completion.choices[0]?.message?.content, 'PONG')
+    const completionCall = seen.find((call) => call.url.endsWith('/v1/chat/completions'))
+    assert.ok(completionCall, `Expected a completion request, saw ${JSON.stringify(seen)}`)
+    assert.strictEqual(completionCall!.url, 'http://172.16.1.70:8000/v1/chat/completions')
+    assert.strictEqual(completionCall!.auth, 'Bearer system-secret')
+    assert.strictEqual(completionCall!.model, 'authenticated-model')
+  })
+})
+
+test('Concurrent requests keep their own BYOK keys', async () => {
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+  const seen: Record<string, string | undefined> = {}
+  await Promise.all([
+    withRequestByokScope(async () => {
+      setRequestByokKeys({ openaiCompatibleApiKey: 'first-secret' } as any)
+      await wait(30)
+      seen.first = getRequestByokKeys()?.openaiCompatibleApiKey
+      setRequestByokKeys(undefined)
+    }),
+    withRequestByokScope(async () => {
+      await wait(5)
+      setRequestByokKeys({ openaiCompatibleApiKey: 'second-secret' } as any)
+      await wait(10)
+      seen.second = getRequestByokKeys()?.openaiCompatibleApiKey
+      setRequestByokKeys(undefined)
+    }),
+  ])
+  assert.strictEqual(seen.first, 'first-secret')
+  assert.strictEqual(seen.second, 'second-secret')
+  assert.strictEqual(getRequestByokKeys(), undefined, 'nothing set inside a request scope leaks outside it')
+})
+
+test('A protected key configured for a different server is not sent to the workspace endpoint', async () => {
+  await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
+    const protectedEnv = {
+      SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://other-endpoint:8000/v1',
+      SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'other-secret',
+      SYSTEM_OPENAI_COMPATIBLE_DEFAULT_MODEL: 'other-model',
+    }
+    const authorizations: string[] = []
+    global.fetch = (async (_url: string, init?: any) => {
+      authorizations.push(String(init?.headers?.Authorization || ''))
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'open-model' }] }) } as any
+    }) as any
+    await warmOpenAiCompatibleGenerationModel(undefined, protectedEnv)
+    const resolved = resolveOpenAiCompatibleGenerationDefaults(undefined, protectedEnv)
+    assert.strictEqual(resolved.baseUrl, 'http://172.16.1.70:8000/v1')
+    assert.strictEqual(resolved.apiKey, undefined)
+    assert.strictEqual(resolved.defaultModel, 'open-model')
+    assert.deepStrictEqual(authorizations, [''])
+  })
+})
+
+test('An OpenAI-compatible endpoint that advertises no chat model still reports the missing default', async () => {
+  await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
+    global.fetch = (async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'text-embedding-nomic-embed-text-v1.5' }] }),
+    }) as any) as any
+
+    await warmOpenAiCompatibleGenerationModel({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' } as any)
+    const byok = { openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' }
+    const defaults = resolveOpenAiCompatibleGenerationDefaults(byok, {})
+    assert.equal(defaults.defaultModel, undefined, 'embedding models cannot become a chat default')
+    // The integration runner legitimately supplies a hosted key. This case models
+    // no alternate provider rather than depending on the caller's credentials.
+    assert.equal(resolveGenerationProvider(byok, {
+      skipCliRuntime: true, systemKeys: {}, compatibleDefaults: defaults,
+    }).provider, 'openai-compatible')
+    assert.throws(
+      () => buildClientForSelection({ provider: 'openai-compatible', key: 'openai-compatible', ...defaults }),
+      /requires a default model/i,
+    )
+  })
+})
+
 test('resolveSystemGenerationModelForProvider applies system preferred model when it matches the provider', () => {
   assert.strictEqual(
     resolveSystemGenerationModelForProvider('openai', 'openai/gpt-5', 'claude-sonnet-4-20250514'),
@@ -226,6 +580,7 @@ test('shouldUseMaxCompletionTokens enables GPT-5 token compatibility', () => {
   setRequestByokKeys({ openai: 'sk-test-openai-key' } as any)
   assert.strictEqual(shouldUseMaxCompletionTokens('gpt-5'), true)
   assert.strictEqual(shouldUseMaxCompletionTokens('openai/gpt-5'), true)
+  assert.strictEqual(shouldUseMaxCompletionTokens('gpt-5.5'), true)
   assert.strictEqual(shouldUseMaxCompletionTokens('gpt-4o'), false)
   setRequestByokKeys(undefined)
 })
@@ -241,6 +596,10 @@ test('buildResolvedModelRequestOptions uses max_completion_tokens for GPT-5 and 
   assert.strictEqual(gpt4o.model, 'gpt-4o')
   assert.strictEqual(gpt4o.max_tokens, 222)
   assert.strictEqual(gpt4o.max_completion_tokens, undefined)
+  const retired = buildResolvedModelRequestOptions('gpt-4', 250)
+  assert.strictEqual(retired.model, 'gpt-5.5')
+  assert.strictEqual(retired.max_completion_tokens, 250)
+  assert.strictEqual(retired.max_tokens, undefined)
   setRequestByokKeys(undefined)
 })
 
@@ -267,6 +626,124 @@ test('createAiGenerationClient targets the official Gemini OpenAI-compatible end
   } finally {
     setRequestByokKeys(undefined)
   }
+})
+
+test('generateCronFromText attempts generation with an OpenAI-compatible BYOK key instead of rejecting it outright', async () => {
+  // The gate used to check only a system-level OpenAI key, so a caller with nothing but a
+  // request-scoped BYOK key (an OpenAI-compatible endpoint here) was rejected before generation
+  // was ever attempted, with the exact message asserted against below. Pointing at a refusing
+  // local port proves the fix got past that gate and actually tried the endpoint: the failure
+  // is now a connection error, not the old blanket "not configured" message.
+  // CLAWMAX_TEST_WORKSPACE routes getWorkspacePath() straight to an isolated directory, bypassing
+  // the workspace-manager singleton entirely — touching HOME/OPENCLAW_WORKSPACE and resetting that
+  // singleton instead was found to leak into unrelated later tests in this same suite.
+  const tmpWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-ai-generator-cron-'))
+  const originalTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+  try {
+    process.env.CLAWMAX_TEST_WORKSPACE = tmpWorkspace
+    setRequestByokKeys({
+      openaiCompatibleBaseUrl: 'http://127.0.0.1:1/v1',
+      openaiCompatibleDefaultModel: 'test-model',
+    } as any)
+    const result = await generateCronFromText('every weekday at 9am')
+    assert.ok(result.error, 'expected a network-level failure once past the availability gate')
+    assert.notStrictEqual(result.error, 'No OpenAI API key or CLI runtime configured')
+  } finally {
+    setRequestByokKeys(undefined)
+    if (originalTestWorkspace === undefined) delete process.env.CLAWMAX_TEST_WORKSPACE
+    else process.env.CLAWMAX_TEST_WORKSPACE = originalTestWorkspace
+  }
+})
+
+test('generation provider reports a clear error when no execution path is configured', () => {
+  assert.throws(
+    () => resolveGenerationProvider(undefined, {
+      skipCliRuntime: true,
+      systemKeys: {},
+      compatibleDefaults: {},
+    }),
+    /No API key configured/,
+  )
+})
+
+test('an OpenAI-compatible URL without a default model does not outrank a usable provider', () => {
+  // The BYOK dialog saves its local default URL even when the compatible profile is never set up.
+  const options = { skipCliRuntime: true, systemKeys: {}, compatibleDefaults: {} }
+  const untouched = { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' }
+  assert.equal(resolveGenerationProvider({ ...untouched, openai: 'sk-test-openai-key-1234567890' }, options).provider, 'openai')
+  assert.equal(resolveGenerationProvider({ ...untouched, anthropic: 'sk-ant-test-key-1234567890' }, options).provider, 'anthropic')
+  assert.equal(resolveGenerationProvider(untouched, { ...options, systemKeys: { anthropic: 'sk-ant-system-key-1234567890' } }).provider, 'anthropic')
+  // A complete profile keeps its place ahead of Anthropic.
+  assert.equal(resolveGenerationProvider({ ...untouched, openaiCompatibleDefaultModel: 'local-model', anthropic: 'sk-ant-test-key-1234567890' }, options).provider, 'openai-compatible')
+  // An unrelated request URL must never be completed with the server's compatible key and model: that would
+  // send the server's key to a host the caller chose. Here the server profile is skipped, so the
+  // system Anthropic key runs.
+  const serverProfile = {
+    ...options,
+    systemKeys: { openaiCompatibleApiKey: 'server-compatible-secret', anthropic: 'sk-ant-system-key-1234567890' },
+    compatibleDefaults: { baseUrl: 'https://server-configured.example/v1', apiKey: 'server-compatible-secret', defaultModel: 'server-model' },
+  }
+  assert.equal(resolveGenerationProvider({ openaiCompatibleBaseUrl: 'https://caller-chosen.example/v1' }, serverProfile).provider, 'anthropic')
+  // Without a request URL the server's own compatible profile still applies.
+  assert.equal(resolveGenerationProvider({}, serverProfile).provider, 'openai-compatible')
+  // With nothing else configured the incomplete profile is still chosen, so its explicit error surfaces.
+  assert.equal(resolveGenerationProvider(untouched, options).provider, 'openai-compatible')
+  assert.throws(() => buildClientForSelection({ provider: 'openai-compatible', key: 'openai-compatible', baseUrl: untouched.openaiCompatibleBaseUrl }), /requires a default model/)
+})
+
+function withFakeOpenAiCompatibleServer(content: string, fn: (baseUrl: string) => Promise<void>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      let body = ''
+      req.on('data', (chunk) => { body += chunk })
+      req.on('end', () => {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ choices: [{ message: { content } }] }))
+      })
+    })
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      const port = typeof address === 'object' && address ? address.port : 0
+      fn(`http://127.0.0.1:${port}/v1`)
+        .then(() => server.close(() => resolve()))
+        .catch((err) => server.close(() => reject(err)))
+    })
+  })
+}
+
+test('generateBuilderStarterPromptsWithAI degrades to a clean error instead of an uncaught JSON parse crash on a truncated reply', async () => {
+  // The exact shape a real BYOK model produced live: the JSON array of prompts gets cut off
+  // mid-string before the completion finishes. Before the fix this threw a raw
+  // `SyntaxError: Unterminated string in JSON`, uncaught, straight out of this function.
+  const truncated = '{"prompts": ["Build an agent that checks AWS billing alerts daily and sends a plain'
+  await withFakeOpenAiCompatibleServer(truncated, async (baseUrl) => {
+    setRequestByokKeys({ openaiCompatibleBaseUrl: baseUrl, openaiCompatibleDefaultModel: 'test-model' } as any)
+    try {
+      await assert.rejects(
+        () => generateBuilderStarterPromptsWithAI({ workspaceName: 'Test' }),
+        (err: any) => {
+          assert.strictEqual(err.message, 'Failed to generate builder starter prompts')
+          assert.ok(!/Unterminated string|Unexpected token|JSON/i.test(err.message), 'must not leak a raw JSON.parse error')
+          return true
+        },
+      )
+    } finally {
+      setRequestByokKeys(undefined)
+    }
+  })
+})
+
+test('generateBuilderStarterPromptsWithAI returns real prompts from a well-formed BYOK reply', async () => {
+  const wellFormed = JSON.stringify({ prompts: ['First idea', 'Second idea', 'Third idea', 'Fourth idea'] })
+  await withFakeOpenAiCompatibleServer(wellFormed, async (baseUrl) => {
+    setRequestByokKeys({ openaiCompatibleBaseUrl: baseUrl, openaiCompatibleDefaultModel: 'test-model' } as any)
+    try {
+      const prompts = await generateBuilderStarterPromptsWithAI({ workspaceName: 'Test' })
+      assert.deepStrictEqual(prompts, ['First idea', 'Second idea', 'Third idea', 'Fourth idea'])
+    } finally {
+      setRequestByokKeys(undefined)
+    }
+  })
 })
 
 test('createChatCompletionWithCompatibilityRetry retries unsupported max_tokens errors with max_completion_tokens', async () => {
@@ -836,6 +1313,17 @@ test('buildPromptExpansionSystemPrompt reflects requested format', () => {
   assert.match(textPrompt, /AI agent generation wizard/i)
   assert.match(guidedPrompt, /Additional user direction/i)
   assert.match(guidedPrompt, /Make it shorter and emphasize testing\./i)
+})
+
+test('channel drafts preserve real members and reject invented membership before saving', () => {
+  const context = { kind: 'group' as const, agents: [{ id: 'one' }], communities: ['Engineering'] }
+  const draft = { name: ' Review ', description: ' Review changes ', members: ['one', 'one'], community: 'Engineering' }
+  assert.deepStrictEqual(normalizeChannelDraft(draft, context), { name: 'Review', description: 'Review changes', members: ['one'], community: 'Engineering' })
+  assert.throws(() => normalizeChannelDraft({ ...draft, members: ['invented'] }, context), /unavailable agents/)
+  assert.throws(() => normalizeChannelDraft({ ...draft, community: 'invented' }, context), /unavailable community/)
+  assert.throws(() => normalizeChannelDraft({ ...draft, name: '' }, context), /invalid name/)
+  assert.throws(() => normalizeChannelDraft({ ...draft, description: '' }, context), /no description/)
+  assert.deepStrictEqual(normalizeChannelDraft({ ...draft, members: [] }, { ...context, kind: 'community' }), { name: 'Review', description: 'Review changes', members: [], community: '' })
 })
 
 async function runTests() {

@@ -1,16 +1,21 @@
 import fs from 'fs'
+import { resolvePathWithin } from './path-segment'
 import path from 'path'
 import net from 'net'
+import { createAgentGatewayProbeCache } from './agent-gateway-probe-cache'
+import { parseIdentityTags } from './identity-tags'
 import os from 'os'
 import { createHash, randomUUID } from 'crypto'
 import { execFileSync } from 'child_process'
 import { extractZipSecurely } from './archive-security'
-import { getWorkspaceManager } from './workspace-manager'
+import { getWorkspaceManager, hasScopedWorkspace } from './workspace-manager'
 import { assertWorkspaceRecovered } from './workspace-recovery-admission'
 import { getPausedAgents } from './agent-state'
 import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
 import { REPO_ROOT } from './paths'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
+import { listTemplateHostCredentialRequirements } from './template-agent-auth'
+import { channelDisplayName } from './channel-display-name'
 
 // Legacy constant for backward compatibility
 export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
@@ -30,7 +35,8 @@ export function getWorkspacePath(): string {
     const manager = getWorkspaceManager()
     const activeWorkspace = manager.getActiveWorkspace()
     workspacePath = activeWorkspace.path
-  } catch {
+  } catch (error) {
+    if (hasScopedWorkspace()) throw error
     // Fallback to env var or default
     workspacePath = process.env.OPENCLAW_WORKSPACE || WORKSPACE
   }
@@ -143,6 +149,22 @@ interface StatusCache {
 }
 const statusCache = new Map<string, StatusCache>()
 const STATUS_CACHE_TTL = 5000 // 5 seconds cache
+const probeAgentGateway = createAgentGatewayProbeCache((probePort, hosts) => {
+  const { execSync } = require('child_process')
+  const portChecks: string[] = []
+  if (hosts.includes('127.0.0.1')) portChecks.push(`lsof -ti:${probePort}`)
+  for (const host of hosts) {
+    portChecks.push(`bash -lc 'exec 3<>/dev/tcp/${host}/${probePort}'`)
+    portChecks.push(`curl -fsS -o /dev/null --connect-timeout 1 http://${host}:${probePort}/healthz`)
+  }
+  for (const cmd of portChecks) {
+    try {
+      execSync(cmd, { encoding: 'utf-8', stdio: 'pipe', timeout: 2000 })
+      return true
+    } catch {}
+  }
+  return false
+})
 
 export interface AgentGatewayConfig {
   port: number
@@ -603,11 +625,21 @@ export function listDocEntries(): DocEntry[] {
   })
 }
 
+/**
+ * The workspace is a git repository the dashboard commits to on every document save, and git runs what
+ * `.git/config` names (filter drivers, `core.fsmonitor`, hooks). No upload, document or import may write
+ * there. Case-insensitive: `.GIT` is the same folder on macOS.
+ */
+export function hasGitDirSegment(relativePath: string): boolean {
+  return relativePath.split(/[\\/]/).some((segment) => segment.toLowerCase() === '.git')
+}
+
 /** Validate a workspace path is inside the workspace root. */
 function isWorkspacePathSafe(full: string, workspacePath: string): boolean {
   const resolvedWorkspace = path.resolve(workspacePath)
   const resolvedFull = path.resolve(full)
   if (resolvedFull !== resolvedWorkspace && !resolvedFull.startsWith(`${resolvedWorkspace}${path.sep}`)) return false
+  if (hasGitDirSegment(path.relative(resolvedWorkspace, resolvedFull))) return false
 
   try {
     const realWorkspace = fs.realpathSync(resolvedWorkspace)
@@ -621,6 +653,7 @@ function isWorkspacePathSafe(full: string, workspacePath: string): boolean {
     }
     const realAncestor = fs.realpathSync(existingAncestor)
     const realFull = path.join(realAncestor, ...missingSegments)
+    if (hasGitDirSegment(path.relative(realWorkspace, realFull))) return false // e.g. through a link `ORG/l -> ../.git`
     return realFull === realWorkspace || realFull.startsWith(`${realWorkspace}${path.sep}`)
   } catch {
     return false
@@ -662,11 +695,41 @@ export function readWorkspaceBinaryFile(relPath: string, workspacePath = getWork
   }
 }
 
+/** Create without replacing existing bytes, even when another creator wins a race. */
+export function createWorkspaceFile(relPath: string, content: string): 'created' | 'exists' | 'invalid' | 'failed' {
+  const workspacePath = getWorkspacePath()
+  if (!relPath.endsWith('.md') || hasGitDirSegment(relPath)) return 'invalid'
+  let full: string
+  try {
+    full = resolvePathWithin(workspacePath, relPath)
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code ? 'failed' : 'invalid'
+  }
+  if (!full.startsWith(`${path.resolve(workspacePath)}${path.sep}`)) return 'invalid'
+  try {
+    fs.mkdirSync(path.dirname(full), { recursive: true })
+  } catch {
+    return 'failed'
+  }
+  try {
+    fs.writeFileSync(full, content, { encoding: 'utf-8', flag: 'wx' })
+    return 'created'
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EEXIST' ? 'exists' : 'failed'
+  }
+}
+
 /** Write a workspace .md file. Returns false if path is unsafe */
 export function writeWorkspaceFile(relPath: string, content: string): boolean {
   const workspacePath = getWorkspacePath()
-  const full = path.resolve(workspacePath, relPath)
-  if (!isMarkdownPathSafe(full, workspacePath)) return false
+  if (!relPath.endsWith('.md') || hasGitDirSegment(relPath)) return false
+  let full: string
+  try {
+    full = resolvePathWithin(workspacePath, relPath)
+  } catch {
+    return false
+  }
+  if (!full.startsWith(`${path.resolve(workspacePath)}${path.sep}`)) return false
   try {
     fs.mkdirSync(path.dirname(full), { recursive: true })
     fs.writeFileSync(full, content, 'utf-8')
@@ -815,12 +878,28 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
       maxTotalBytes: 250 * 1024 * 1024,
     })
     const listing = extraction.files
+    if (listing.some(hasGitDirSegment)) {
+      return { ok: false, error: 'ZIP contains a .git folder, which cannot be added to the workspace' }
+    }
 
-    const conflicts = listing
-      .filter(Boolean)
-      .map((entry) => path.resolve(targetDir, entry))
-      .filter((destination) => fs.existsSync(destination))
-      .map((destination) => path.relative(workspacePath, destination))
+    const entries: Array<{ source: string; destination: string; directory: boolean }> = []
+    const collect = (sourceDir: string) => {
+      for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+        const source = path.join(sourceDir, entry.name)
+        const relative = path.relative(stagingDir, source)
+        const destination = resolveWorkspacePath(path.relative(workspacePath, path.join(targetDir, relative)), workspacePath)
+        if (!destination || (!entry.isDirectory() && !entry.isFile())) {
+          throw new Error(`ZIP contains an unsafe extraction destination: ${relative}`)
+        }
+        entries.push({ source, destination, directory: entry.isDirectory() })
+        if (entry.isDirectory()) collect(source)
+      }
+    }
+    collect(stagingDir)
+    const conflicts = entries.filter((entry) => {
+      const existing = fs.lstatSync(entry.destination, { throwIfNoEntry: false })
+      return existing && (!entry.directory || !existing.isDirectory())
+    }).map((entry) => path.relative(workspacePath, entry.destination))
 
     if (conflicts.length > 0) {
       return {
@@ -829,7 +908,16 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
       }
     }
 
-    fs.cpSync(stagingDir, targetDir, { recursive: true, errorOnExist: true, force: false })
+    // Node 24.22 rejects cp(errorOnExist) even for an existing destination directory.
+    // Merge validated directories explicitly; exclusive file creation still refuses
+    // collisions that appear after preflight, without replacing existing bytes.
+    for (const entry of entries) {
+      if (!resolveWorkspacePath(path.relative(workspacePath, entry.destination), workspacePath)) {
+        throw new Error('ZIP extraction destination changed outside the workspace')
+      }
+      if (entry.directory) fs.mkdirSync(entry.destination, { recursive: true })
+      else fs.copyFileSync(entry.source, entry.destination, fs.constants.COPYFILE_EXCL)
+    }
 
     const files = listing
       .filter((entry) => !entry.endsWith('/'))
@@ -847,10 +935,16 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
 
 export interface GroupEntry {
   name: string
+  displayName?: string
   description: string | null
   tags: string[]
   community: string | null  // For groups only - which community they belong to
   channels: string[]  // Communication channels: 'whatsapp', 'slack', 'discord', etc.
+}
+
+function withChannelDisplayName<T extends GroupEntry>(entry: T, type: 'group' | 'community'): T {
+  const displayName = channelDisplayName(getWorkspacePath(), type, entry.name, entry.description)
+  return displayName === entry.name ? entry : { ...entry, displayName }
 }
 
 /** Update tags for a community or group in its markdown file (verbose format only).
@@ -1012,6 +1106,16 @@ export function updateGroupMembers(type: 'community' | 'group', name: string, ne
 }
 
 /** Create a new community or group */
+function preserveChannelHistoryIdentity(type: 'group' | 'community', name: string): void {
+  // Lazy import: message storage itself resolves the current workspace here.
+  const { messageStorageIdentity, MessageHistoryRecoveryError } = require('./message-storage-identity')
+  try { messageStorageIdentity(type, name) }
+  catch (error) {
+    // A durable recovery record protects old bytes while catalog edits proceed.
+    if (!(error instanceof MessageHistoryRecoveryError)) throw error
+  }
+}
+
 export function createGroup(
   type: 'community' | 'group',
   name: string,
@@ -1045,6 +1149,16 @@ export function createGroup(
     if (existingEntries.some(e => e.name === name)) {
       console.error(`${type} "${name}" already exists`)
       return false
+    }
+
+    const legacyEntries = parseGroups(content)
+    const previousNames = new Set([
+      ...existingEntries.map(entry => entry.name),
+      ...(type === 'group' ? legacyEntries.groups : legacyEntries.communities).map(entry => entry.name),
+    ])
+    const legacyKey = (value: string) => value.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()
+    for (const previousName of previousNames) {
+      if (legacyKey(previousName) === legacyKey(name)) preserveChannelHistoryIdentity(type, previousName)
     }
 
     // Find insertion point (after the ## Communities or ## Groups header)
@@ -1106,6 +1220,7 @@ export function createGroup(
 /** Delete a community or group */
 export function deleteGroup(type: 'community' | 'group', name: string): boolean {
   try {
+    preserveChannelHistoryIdentity(type, name)
     const workspacePath = getWorkspacePath()
     const filePath = type === 'community'
       ? path.join(workspacePath, 'ORG', 'COMMUNITIES.md')
@@ -1238,6 +1353,7 @@ export interface AgentInfo {
   groups: GroupEntry[]
   tags: string[]
   skills?: string[] // Skills assigned from openclaw.json
+  hostCredentialRequirements?: string[]
   validationWarnings?: string[] // Warnings from schema validation
   archived?: boolean // Derived from tags (true if 'archived' tag present)
   archiveMetadata?: { reason?: string; timestamp?: string } // From IDENTITY.md Archive section
@@ -1373,7 +1489,7 @@ export function parseGroupsWithMembers(content: string): { communities: GroupWit
   }
 
   flushEntry()
-  return { communities, groups }
+  return { communities: communities.map(c => withChannelDisplayName(c, 'community')), groups: groups.map(g => withChannelDisplayName(g, 'group')) }
 }
 
 export function parseGroups(content: string): { communities: GroupEntry[]; groups: GroupEntry[] } {
@@ -1432,9 +1548,10 @@ export function parseGroups(content: string): { communities: GroupEntry[]; group
       continue
     }
     // Verbose format: ##/### Name
-    const entryHeaderMatch = trimmed.match(/^###\s+(.+)$/) || trimmed.match(/^##\s+(.+)$/)
-    if (entryHeaderMatch) {
-      const entryName = entryHeaderMatch[1].trim()
+    const headingLength = trimmed.startsWith('###') ? 3 : trimmed.startsWith('##') ? 2 : 0
+    const headingSuffix = headingLength ? trimmed.slice(headingLength) : ''
+    const entryName = /^\s/.test(headingSuffix) ? headingSuffix.trim() : ''
+    if (entryName && !/[\r\u2028\u2029]/.test(entryName)) {
       if (/^(groups|communities)$/i.test(entryName)) {
         flushEntry()
         section = /^groups$/i.test(entryName) ? 'groups' : 'communities'
@@ -1489,18 +1606,21 @@ export function parseGroups(content: string): { communities: GroupEntry[]; group
 
       // Extract community link (@CommunityName)
       let community: string | null = null
-      const communityMatch = raw.match(/@([^\[\]]+)$/)
-      if (communityMatch) {
-        community = communityMatch[1].trim()
-        raw = raw.slice(0, communityMatch.index).trim()
+      const lastBracket = Math.max(raw.lastIndexOf('['), raw.lastIndexOf(']'))
+      const communityStart = raw.indexOf('@', lastBracket + 1)
+      if (communityStart >= 0 && communityStart < raw.length - 1) {
+        community = raw.slice(communityStart + 1).trim()
+        raw = raw.slice(0, communityStart).trim()
       }
 
       // Extract tags [tag1, tag2]
       let tags: string[] = []
-      const tagsMatch = raw.match(/\[([^\]]+)\]\s*$/)
-      if (tagsMatch) {
-        tags = tagsMatch[1].split(',').map(t => t.trim()).filter(t => t.length > 0)
-        raw = raw.slice(0, tagsMatch.index).trim()
+      const tagEnd = raw.endsWith(']') ? raw.length - 1 : -1
+      const previousTagEnd = tagEnd >= 0 ? raw.lastIndexOf(']', tagEnd - 1) : -1
+      const tagStart = tagEnd >= 0 ? raw.indexOf('[', previousTagEnd + 1) : -1
+      if (tagStart >= 0 && tagStart < tagEnd - 1) {
+        tags = raw.slice(tagStart + 1, tagEnd).split(',').map(t => t.trim()).filter(t => t.length > 0)
+        raw = raw.slice(0, tagStart).trim()
       }
 
       // Extract name and description
@@ -1527,23 +1647,20 @@ export function parseGroups(content: string): { communities: GroupEntry[]; group
   }
 
   flushEntry() // Flush last entry
-  return { communities, groups }
+  return { communities: communities.map(c => withChannelDisplayName(c, 'community')), groups: groups.map(g => withChannelDisplayName(g, 'group')) }
 }
 
 /** Parse Tags from IDENTITY.md **Tags:** field.
  *  Format: `**Tags:** tag1, tag2, tag3` (comma-separated) */
 export function parseTags(content: string): string[] {
   const runtimeContent = getIdentityRuntimeSection(content)
-  const tagsMatch = runtimeContent.match(/\*\*Tags[:\*\s]*\*?\*?\s*\n?\s*([^\n]+)/mi)
+  const tagsMatch = runtimeContent.match(/\*\*Tags[:* \t]*([^\r\n]*)/mi)
   if (!tagsMatch) return []
 
   const tagsStr = tagsMatch[1].trim()
   if (!tagsStr) return []
 
-  return tagsStr
-    .split(',')
-    .map(t => t.trim())
-    .filter(t => t.length > 0)
+  return parseIdentityTags(tagsStr)
 }
 
 function getIdentityRuntimeSection(content: string): string {
@@ -1849,7 +1966,7 @@ export function getOrgName(): string | null {
   return null
 }
 
-/** Read the latest semver git tag from the maxclaw repository. Returns null if none. */
+/** Read the latest reachable semver git tag from the ClawMax repository. Returns null if none. */
 export function getLatestTag(): string | null {
   // Start from this file's location and walk up to find the git repo
   // This ensures we read from the dashboard/maxclaw repo, not the workspace repo
@@ -1869,34 +1986,21 @@ export function getLatestTag(): string | null {
 
   if (!gitPath) return null
 
-  const tags: string[] = []
+  return getLatestReachableTag(path.dirname(gitPath))
+}
 
-  // Loose refs
+/** Keep release identity on this checkout's history when multiple release lines share a clone. */
+export function getLatestReachableTag(repoRoot: string): string | null {
   try {
-    tags.push(...fs.readdirSync(path.join(gitPath, 'refs', 'tags')))
-  } catch {}
-
-  // Packed refs (git gc moves tags here)
-  try {
-    const packed = fs.readFileSync(path.join(gitPath, 'packed-refs'), 'utf-8')
-    for (const line of packed.split('\n')) {
-      const m = line.match(/^[0-9a-f]+ refs\/tags\/(.+)$/)
-      if (m && !m[1].endsWith('^{}')) tags.push(m[1])
-    }
-  } catch {}
-
-  if (tags.length === 0) return null
-
-  tags.sort((a, b) => {
-    const av = a.replace(/^v/, '').split('.').map(Number)
-    const bv = b.replace(/^v/, '').split('.').map(Number)
-    for (let i = 0; i < Math.max(av.length, bv.length); i++) {
-      const d = (av[i] ?? 0) - (bv[i] ?? 0)
-      if (d !== 0) return d
-    }
-    return 0
-  })
-  return tags[tags.length - 1]
+    const output = execFileSync('git', ['tag', '--merged', 'HEAD', '--sort=-version:refname'], {
+      cwd: repoRoot,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf-8',
+    })
+    return output.split('\n').map((tag) => tag.trim()).find((tag) => /^v?\d+\.\d+\.\d+(?:[-+].+)?$/.test(tag)) || null
+  } catch {
+    return null
+  }
 }
 
 function isUsableVersion(value: string | null | undefined): value is string {
@@ -2159,29 +2263,9 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
   } else {
     // Cache miss or expired, check actual status
     const gatewayConfig = getAgentGatewayConfig(id)
-    let gatewayRunning = false
-
     // Check agent-specific port, or fall back to shared gateway (port 18789)
     const probePort = (gatewayConfig && gatewayConfig.port) ? gatewayConfig.port : 18789
-    {
-      const { execSync } = require('child_process')
-      const hosts = getGatewayProbeHosts(gatewayConfig?.host)
-      const portChecks: string[] = []
-      if (hosts.includes('127.0.0.1')) {
-        portChecks.push(`lsof -ti:${probePort}`)
-      }
-      for (const host of hosts) {
-        portChecks.push(`bash -lc 'exec 3<>/dev/tcp/${host}/${probePort}'`)
-        portChecks.push(`curl -fsS -o /dev/null --connect-timeout 1 http://${host}:${probePort}/healthz`)
-      }
-      for (const cmd of portChecks) {
-        try {
-          execSync(cmd, { encoding: 'utf-8', stdio: 'pipe', timeout: 2000 })
-          gatewayRunning = true
-          break
-        } catch {}
-      }
-    }
+    const gatewayRunning = probeAgentGateway(probePort, getGatewayProbeHosts(gatewayConfig?.host))
 
     // Check file activity to determine if agent is active
     // Check BOTH workspace directory AND agent state directory
@@ -2238,6 +2322,20 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
 
     // Update cache with fresh status
     statusCache.set(id, { status, lastHeartbeat, timestamp: now })
+  }
+
+  // These dev Agents run on demand through the admitted host adapter, not a
+  // persistent Gateway. Revalidate availability outside the heartbeat cache.
+  if (process.env.CLAWMAX_DEV_HOST_SKILL_CHAT === '1' && /^tr-[a-f0-9]{16}-agent-[a-f0-9]{12}$/.test(id)) {
+    try {
+      const { devHostSkillAgentAvailable } = require('../routes/dev-host-skill-chat')
+      status = devHostSkillAgentAvailable(id) ? 'online' : 'offline'
+    } catch { status = 'offline' }
+  }
+  if (process.env.CLAWMAX_DEV_HOST_SKILL_CHAT === '1') {
+    try {
+      if (require('./dev-brief-delivery-worker').devBriefReporterAvailable(getWorkspacePath(), id)) status = 'online'
+    } catch { /* Preserve the normal runtime status when no reporting adapter is available. */ }
   }
 
   // Read whatsapp number from IDENTITY.md
@@ -2345,6 +2443,7 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     groups,
     tags,
     skills: skills || [],
+    hostCredentialRequirements: listTemplateHostCredentialRequirements(agentDir),
     validationWarnings: warnings.length > 0 ? warnings : undefined,
     archived: isArchived,
     archiveMetadata: isArchived ? archiveMetadata : undefined,
@@ -2484,8 +2583,12 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
 
   const agentsDir = getAgentsDir()
   const archiveDir = getArchiveDir()
-  const agentDir = archived ? path.join(archiveDir, id) : path.join(agentsDir, id)
-  const sharedHomeAgentDir = path.join(process.env.HOME || '', '.openclaw', 'agents', id)
+  let agentDir: string, sharedHomeAgentDir: string, stateDir: string
+  try {
+    agentDir = resolvePathWithin(archived ? archiveDir : agentsDir, id)
+    sharedHomeAgentDir = resolvePathWithin(path.join(os.homedir(), '.openclaw', 'agents'), id)
+    stateDir = resolvePathWithin(os.homedir(), `.openclaw-${id}`)
+  } catch (error) { return { steps, errors: [`Unsafe agent path: ${error}`] } }
   const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', id)
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   let hasRemainingWorkspaceCopies = false
@@ -2522,6 +2625,14 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
     errors.push(`Failed to remove workspace: ${e}`)
   }
 
+  // The dashboard chat record names this agent's conversations: a recreated agent with the same id
+  // must not inherit them (dashboard-chat-conversations.ts).
+  try {
+    fs.rmSync(path.join(getWorkspacePath(), 'SYSTEM', 'dashboard-chat', `${path.basename(id)}.json`), { force: true })
+  } catch (e) {
+    errors.push(`Failed to remove dashboard chat record: ${e}`)
+  }
+
   // Remove shared home agent dir (~/.openclaw/agents/<id>)
   try {
     if (hasRemainingWorkspaceCopies) {
@@ -2538,7 +2649,6 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
 
   // Optionally remove profile state dir (~/.openclaw-<id>)
   if (removeStateDir) {
-    const stateDir = path.join(process.env.HOME || '', `.openclaw-${id}`)
     if (hasRemainingWorkspaceCopies) {
       steps.push(`Preserved state dir ~/.openclaw-${id}/ because another workspace still references ${id}`)
     } else if (fs.existsSync(stateDir)) {
@@ -2554,7 +2664,11 @@ export function deleteAgent(id: string, removeStateDir: boolean, archived: boole
   }
 
   // Remove Desktop shortcut
-  const desktop = path.join(process.env.HOME || '', 'Desktop', id)
+  // Shortcuts are symlinks by design; confine their names and unlink the entry,
+  // without resolving or following its target.
+  const desktopRoot = path.resolve(os.homedir(), 'Desktop')
+  const desktop = path.resolve(desktopRoot, id)
+  if (!desktop.startsWith(`${desktopRoot}${path.sep}`)) throw new Error('Invalid shortcut path')
   try {
     if (fs.existsSync(desktop)) { fs.unlinkSync(desktop); steps.push(`Removed ~/Desktop/${id}`) }
   } catch {}

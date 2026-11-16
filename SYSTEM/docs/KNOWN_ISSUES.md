@@ -1,16 +1,116 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: September 22, 2026
+**Last Updated**: November 13, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
 ## Active Issues
+
+All 107 issues open at the November 13 audit start are initially classified by
+type, area and reported-impact priority; #273 is verified/closed, leaving 106 open
+with no unlabelled entries. This does not establish current reproducibility or
+complete closure evidence. [Triage table and limits](planning/ISSUE_TRIAGE_2026-11-13.md).
+
+### Agent chat #223/#227 merged; retained runtime limitations
+
+The [current chat checklist](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md) records
+**574/574** exact-source checks on `09249852`, including real native context
+reset/resumption, focused persistence/polling/runtime contracts and four responsive
+theme runs. Owner acceptance and final CI are complete; #227 merged as `9ad021b0` and #223 is closed.
+Legacy transcript-only archives cannot promise continuation; a runtime mismatch
+blocks Continue. Actual external Claude/Droid provider execution is not claimed.
+Strict frontend typing retains 290 baseline diagnostics. Same-query CodeQL adds no
+findings and removes 47; retained raw findings need Dashboard disposition before
+RC98 promotion. This is not a complete security audit or RC readiness claim.
+
+### Prompt-readiness #243/#242 complete
+
+Scoring weighting and both thin Builder dividers are owner-accepted. #242 merged
+as `420e35bc` after CI passed; #243 is closed. The scoring-only feedback report is
+closed and its thank-you/future-version email was verified sent. Broader #413
+panels/sidebar remain open. [Archived evidence](planning/RC98_ACCEPTANCE_2026-11-12.md).
+
+### Scheduler #287/#288 merged; retained release boundaries
+
+The [November 11 scheduler checkpoint](planning/RC98_ACCEPTANCE_2026-11-11.md)
+records a 571/571 full local pass, exact-source CI, native cleanup and UI evidence.
+Owner accepted the wording; #288 merged as `4d3d686a`, and #287 is closed.
+Two Dashboard writers sharing one workspace remain outside its single-process
+claim; manually renamed legacy jobs require owner review. Degraded legacy cleanup
+is an unresolved operational condition, not proof duplicates stopped. Same-query
+local CodeQL adds no findings, while the raw baseline still needs reconciliation
+with existing dispositions before RC98. Strict frontend typing retains 291 baseline
+diagnostics; no complete security audit or RC readiness is claimed.
+
+### #404 addressed; legacy recovery and rollback limitations retained
+
+The owner accepted #404, PR #417 merged as `0de68dae`, and its linked feedback is
+closed as addressed. Existing ambiguous history remains preserved and blocked for
+owner recovery, including after conflicting names are removed. New named-channel
+writes use `.v2`; older builds cannot read those writes and may show stale legacy
+history after rollback. Use full backups and the [recovery guide](guides/RECOVER_CHANNEL_HISTORY.md).
+Source completion does not establish an installed-instance upgrade.
+
+### RC95 source preview gates
+
+The [RC95 preview](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) is available for
+local acceptance. The candidate CodeQL aggregate gate reports existing High
+CSRF alert #705, also open on main; origin-admission tests pass, but the alert
+has not been dismissed. Dashboard owns its disposition before RC95 release.
+Client TypeScript retains 291 existing diagnostics with no new diagnostics in
+this preview. Four remaining Daniyar PRs require lifecycle evidence before
+inclusion; they are not part of the preview or reviewer queue.
+
+### RC91 installed chat compatibility on MBP14
+
+An MBP14 agent chat reported `ERR_PACKAGE_PATH_NOT_EXPORTED` while loading a
+captured Codex plugin path. Available evidence suggests a packaged OpenClaw
+core/plugin version mismatch, but the exact affected agent's model and a
+successful installed-instance repair have not been verified. Preserve volumes
+and rollback while CLI/on-prem ownership checks the installed image, core,
+plugin, and affected agent, then repeat direct chat, restart, and persistence
+acceptance. Local dev chat does not close this installed-instance issue. See
+the [active dual-instance gate](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md).
+
+### Template staging is not public Template execution
+
+PR #212 stages inert, owner-scoped Template topology and offers a localhost-only
+no-tool chat path for dev inspection. It does not yet admit the public
+server-owned plan/apply/resource lifecycle or a Collector-backed read-only
+Workflow run. Do not advertise execution, credential delivery, or production
+Template deployment until authority, digest, broker, restart/idempotency, and
+cleanup evidence passes. Test10 deployment and acceptance on the next candidate
+also remain unrecorded.
+
+### Internal RC development dependency advisory
+
+On October 3, 2026, `npm audit` reported five high severity dependency nodes,
+all tracing to one `braces@3.0.3` advisory
+([GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm))
+through the Tailwind 3 build toolchain. The production-only audit reported zero
+high/critical findings and five moderate findings. No patched npm release of
+`braces` was available. Internal RC CI temporarily accepts this exact advisory
+only when it remains outside the production dependency graph. On October 18,
+2026, npm still published `braces@3.0.3` as latest and offered only a Tailwind
+3-to-4 major upgrade as automated remediation. The narrowly scoped exception
+therefore expires November 1, 2026 UTC while that migration is evaluated. It
+fails on another high/critical finding or an affected production dependency.
+Dashboard owns dependency replacement or an upstream fix by that date. This
+dependency check is not a complete security audit or customer distribution
+approval.
 
 This document lists confirmed product limitations that remain relevant to the
 active release tracks. Historical snapshots are kept under
 [`archive/`](archive/).
 
 ## Runtime And Workflows
+
+### RC85 does not yet establish resolution of Mike's wrong-model report
+
+RC85 preparation addresses configuration validation and policy-denied model saves.
+The RC83 report of a different model executing still needs same-agent saved
+configuration and redacted runtime evidence. Duplicated chat errors/raw Markdown
+also remain unresolved. See the [RC85 gate](planning/RC85_RELEASE_GATE_2026-09-23.md).
 
 ### Installed-instance RC82 acceptance remains blocked
 

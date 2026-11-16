@@ -6,6 +6,7 @@ export interface OrganizationTeamAgent {
 
 export interface OrganizationTeamGroup {
   name: string
+  displayName?: string
   members: Array<{ id: string }>
 }
 
@@ -62,7 +63,7 @@ function buildDerivedOrganizationDisplayTeams(args: {
     .map((group) => {
       const memberIds = dedupe(group.members.map((member) => member.id))
       if (memberIds.length === 0) return null
-      const displayGroupName = stripNamespacePrefix(group.name, namespacePrefix)
+      const displayGroupName = stripNamespacePrefix(('displayName' in group && typeof group.displayName === 'string' && group.displayName.trim()) || group.name, namespacePrefix)
       const leaderAgentId = inferTeamLeader(group.name, workflows, memberIds)
       return {
         id: slugifyTeamId(group.name),

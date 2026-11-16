@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/validator.test.ts
  */
 
-import { validateWorkflow } from './validator'
+import { validateWorkflow, validateTools } from './validator'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -22,6 +22,13 @@ function test(name: string, fn: () => void) {
 function assert(condition: boolean, message: string) { if (!condition) throw new Error(message) }
 
 console.log(`\n${YELLOW}=== Validator Test Suite ===${RESET}\n`)
+
+test('validateTools accepts empty optional guidance consistently with the agent editor', () => {
+  for (const content of ['', '  \n', '# Tools\nUse the assigned runtime tools.']) {
+    assert(validateTools(content).valid, 'Optional TOOLS.md guidance should be valid')
+  }
+  assert(!validateTools(null as any).valid, 'Non-string tools content must remain invalid')
+})
 
 test('validateWorkflow accepts valid workflow', () => {
   const result = validateWorkflow({

@@ -1,7 +1,7 @@
 import { readStoredByokKeys } from './byok'
 import { readSharedSecrets } from './localSecrets'
 
-export type AIPromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
+export type AIPromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template' | 'group' | 'community'
 export type AIPromptExpansionFormat = 'markdown' | 'text'
 
 export async function expandPromptWithAI(

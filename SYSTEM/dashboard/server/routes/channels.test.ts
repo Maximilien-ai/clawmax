@@ -11,6 +11,7 @@ import assert from 'assert'
 import { EventEmitter } from 'events'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 import { callAgent } from './channels'
+import { createWorkflow, getWorkflow } from '../lib/workflows'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -123,6 +124,12 @@ function getRouteHandlerFromRouter(router: any, method: 'get' | 'post' | 'delete
 }
 
 async function run() {
+  const ai = require('../lib/ai-generator')
+  const originalTitle = ai.generateArchiveTitle
+  ai.generateArchiveTitle = async () => 'Synthetic archived chat'
+  const opik = require('../lib/opik')
+  const originalTrace = opik.traceAgentChat
+  opik.traceAgentChat = () => undefined
   console.log(`\n${YELLOW}=== Channels Routes Test Suite ===${RESET}\n`)
 
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-channels-routes-home-'))
@@ -132,6 +139,152 @@ async function run() {
   process.env.OPENCLAW_WORKSPACE = workspacePath
   process.env.CLAWMAX_TEST_WORKSPACE = workspacePath
   resetWorkspaceManagerForTests()
+
+  await test('ambiguous legacy history returns recovery responses without changing messages or archives', async () => {
+    for (const [kind, plural, file] of [['group', 'groups', 'GROUPS.md'], ['community', 'communities', 'COMMUNITIES.md']] as const) {
+      const catalog = path.join(workspacePath, 'ORG', file)
+      const before = fs.readFileSync(catalog, 'utf8')
+      const parent = path.join(workspacePath, 'SYSTEM', 'messages', plural)
+      const legacy = path.join(parent, 'recovery_team.json')
+      const archive = path.join(parent, 'archive', 'recovery_team_2026-11-10_1.json')
+      const bytes = JSON.stringify([{ id: 'old', from: 'User', content: 'Synthetic retained history', timestamp: 1, mentions: [] }])
+      fs.mkdirSync(path.dirname(archive), { recursive: true })
+      fs.writeFileSync(catalog, before + '\n### Recovery Team\n\n### Recovery_Team\n')
+      fs.writeFileSync(legacy, bytes)
+      fs.writeFileSync(archive, bytes)
+      try {
+        for (const [method, suffix] of [['get', 'messages'], ['post', 'messages'], ['delete', 'messages'], ['get', 'archives'], ['get', 'archives/:filename'], ['delete', 'archives/:filename']] as const) {
+          const handler = getRouteHandler(method, `/${plural}/:name/${suffix}`)
+          const response = makeRes()
+          await handler(makeReq({ params: { name: 'Recovery Team', filename: path.basename(archive) }, body: { content: 'must-not-write', mentions: [] } }), response, (error: Error) => { throw error })
+          assert.equal(response.statusCode, 409, `${kind} ${method} ${suffix}`)
+          assert.equal(response.jsonBody.code, 'message_history_recovery_required')
+          assert.match(response.jsonBody.error, /Existing messages are unchanged/)
+        }
+        const counts = makeRes()
+        await getRouteHandler('get', '/message-counts')(makeReq(), counts)
+        assert.equal(counts.statusCode, 200, 'one recovery channel must not disable all message counts')
+        assert(counts.jsonBody.recoveryRequired.includes(`${kind}:Recovery Team`))
+        assert.equal(counts.jsonBody.counts[`${kind}:Recovery Team`], undefined, 'blocked history has no false zero count')
+        assert.equal(fs.readFileSync(legacy, 'utf8'), bytes)
+        assert.equal(fs.readFileSync(archive, 'utf8'), bytes)
+      } finally {
+        fs.writeFileSync(catalog, before)
+        fs.unlinkSync(legacy)
+        fs.unlinkSync(archive)
+      }
+    }
+  })
+
+  await test('stale workspace history headers cannot read, write or clear the newly active workspace', async () => {
+    for (const [method, suffix] of [['get', 'messages'], ['post', 'messages'], ['delete', 'messages'], ['get', 'archives']] as const) {
+      const handler = getRouteHandler(method, `/groups/:name/${suffix}`)
+      const response = makeRes()
+      await handler(makeReq({ headers: { 'x-clawmax-workspace': 'not-the-active-workspace' }, params: { name: 'scope-check' }, body: { content: 'must-not-write', mentions: [] } }), response, (error: Error) => { throw error })
+      assert.equal(response.statusCode, 409)
+      assert.equal(response.jsonBody.code, 'workspace_changed')
+    }
+    assert.deepEqual(require('../lib/messages').getMessages('group', 'scope-check'), [])
+  })
+
+  await test('AI channel generation validates requests, returns drafts without persistence, and reports failure', async () => {
+    const ai = require('../lib/ai-generator')
+    const original = ai.generateChannelDraft
+    const before = fs.readFileSync(path.join(workspacePath, 'ORG', 'GROUPS.md'), 'utf8')
+    let calls = 0
+    try {
+      ai.generateChannelDraft = async (input: any, keys: any) => {
+        calls++
+        assert.strictEqual(keys?.openai, 'synthetic-key')
+        assert(['group', 'community'].includes(input.kind))
+        return { name: 'Draft only', description: 'Review', members: [], community: '' }
+      }
+      const handler = getRouteHandler('post', '/channel-draft')
+      for (const body of [{ kind: 'invalid', description: 'Review' }, { kind: 'group', description: '' }]) {
+        const res = makeRes(); await handler(makeReq({ body }), res); assert.strictEqual(res.statusCode, 400)
+      }
+      assert.strictEqual(calls, 0)
+      for (const kind of ['group', 'community']) {
+        const res = makeRes()
+        await handler(makeReq({ body: { kind, description: 'Review', byokKeys: { openai: 'synthetic-key' } } }), res)
+        assert.strictEqual(res.statusCode, 200); assert.strictEqual(res.jsonBody.draft.name, 'Draft only')
+        assert(!JSON.stringify(res.jsonBody).includes('synthetic-key'))
+      }
+      assert.strictEqual(fs.readFileSync(path.join(workspacePath, 'ORG', 'GROUPS.md'), 'utf8'), before)
+      ai.generateChannelDraft = async () => { throw new Error('No API key configured') }
+      const failed = makeRes(); await handler(makeReq({ body: { kind: 'group', description: 'Review' } }), failed)
+      assert.strictEqual(failed.statusCode, 400); assert.match(failed.jsonBody.error, /BYOK/)
+    } finally { ai.generateChannelDraft = original }
+  })
+
+  await test('template groups expose authored display names without changing resource IDs', async () => {
+    const groupId = 'tr-test-group-123'
+    const groupsFile = path.join(workspacePath, 'ORG', 'GROUPS.md')
+    const metadataDir = path.join(workspacePath, 'ORG', 'template-groups')
+    const metadataFile = path.join(metadataDir, `${groupId}.json`)
+    fs.mkdirSync(metadataDir, { recursive: true })
+    fs.writeFileSync(groupsFile, `# Groups\n\n## Groups\n\n### ${groupId}\n- **Description:** authored group\n`)
+    fs.writeFileSync(metadataFile, JSON.stringify({ id: groupId, name: 'Daily Site Health' }))
+    const list = getRouteHandler('get', '/groups')
+    const result = makeRes()
+    list(makeReq(), result)
+    assert.equal(result.jsonBody.groups[0].name, groupId)
+    assert.equal(result.jsonBody.groups[0].displayName, 'Daily Site Health')
+
+    fs.writeFileSync(metadataFile, JSON.stringify({ id: 'another-group', name: 'Wrong name' }))
+    const mismatch = makeRes()
+    list(makeReq(), mismatch)
+    assert.equal(mismatch.jsonBody.groups[0].displayName, undefined)
+
+    fs.unlinkSync(metadataFile)
+    fs.symlinkSync(groupsFile, metadataFile)
+    const linked = makeRes()
+    list(makeReq(), linked)
+    assert.equal(linked.jsonBody.groups[0].displayName, undefined)
+    fs.unlinkSync(metadataFile)
+    fs.writeFileSync(groupsFile, '# Groups\n\n## Groups\n\n')
+  })
+
+  await test('legacy names recover only matching authored names and purposes', async () => {
+    const { channelDisplayName, saveChannelDisplayName } = require('../lib/channel-display-name')
+    assert.equal(channelDisplayName(workspacePath, 'group', 'dev-team-DevOps', 'CI/CD pipeline, deployments, and infrastructure'), 'DevOps')
+    assert.equal(channelDisplayName(workspacePath, 'community', 'dev-team-Dev Team', 'All engineering team coordination and announcements'), 'Dev Team')
+    assert.equal(channelDisplayName(workspacePath, 'group', 'dev-team-DevOps', 'A different purpose'), 'dev-team-DevOps')
+    assert.equal(channelDisplayName(workspacePath, 'group', 'customer-success'), 'customer-success')
+    assert.equal(channelDisplayName(workspacePath, 'group', '../DevOps'), '../DevOps')
+    saveChannelDisplayName(workspacePath, 'group', 'company-A-Platform-suffix', 'Platform')
+    assert.equal(channelDisplayName(workspacePath, 'group', 'company-A-Platform-suffix'), 'Platform')
+    saveChannelDisplayName(workspacePath, 'group', 'company-A-Platform-suffix', 'Do not overwrite')
+    assert.equal(channelDisplayName(workspacePath, 'group', 'company-A-Platform-suffix'), 'Platform')
+  })
+
+  await test('temporary Template chat replies through admitted dev Agents without starting a Group', async () => {
+    const dev = require('./dev-host-skill-chat')
+    const originalReady = dev.isDevHostSkillChatReady
+    const originalRun = dev.runDevHostSkillChatTurn
+    const agentId = 'tr-1234567890abcdef-agent-123456789abc'
+    const channelName = `bulk-chat-${Date.now()}`
+    try {
+      dev.isDevHostSkillChatReady = () => true
+      dev.runDevHostSkillChatTurn = async (_req: any, id: string) => `Reply from ${id}`
+      const send = getRouteHandler('post', '/groups/:name/messages')
+      const result = makeRes()
+      await send(makeReq({ params: { name: channelName }, body: { content: 'status?', mentions: [agentId] } }), result)
+      assert.equal(result.jsonBody.ok, true)
+      await new Promise(resolve => setTimeout(resolve, 20))
+      const { getMessages } = require('../lib/messages')
+      const messages = getMessages('group', channelName)
+      assert.equal(messages.length, 2)
+      assert.equal(messages[1].content, `Reply from ${agentId}`)
+
+      const blocked = makeRes()
+      await send(makeReq({ params: { name: 'not-a-temporary-group' }, body: { content: 'status?', mentions: [agentId] } }), blocked)
+      assert.equal(blocked.statusCode, 409)
+    } finally {
+      dev.isDevHostSkillChatReady = originalReady
+      dev.runDevHostSkillChatTurn = originalRun
+    }
+  })
 
   await test('community and group creation reject missing names', async () => {
     const createCommunity = getRouteHandler('post', '/communities')
@@ -144,6 +297,42 @@ async function run() {
     const groupRes = makeRes()
     await createGroup(makeReq({ body: {} }), groupRes)
     assert.strictEqual(groupRes.statusCode, 400, 'Expected missing group name to return HTTP 400')
+  })
+
+  await test('channel metadata edits stay within the named section and preserve adjacent entries', async () => {
+    const { updateGroupTags, updateGroupMembers } = require('../lib/workspace')
+    for (const type of ['community', 'group'] as const) {
+      const filePath = path.join(workspacePath, 'ORG', type === 'community' ? 'COMMUNITIES.md' : 'GROUPS.md')
+      const original = fs.readFileSync(filePath, 'utf-8')
+      try {
+        const fixture = [
+          '# Channels', '## Active', '### Alpha', '- **Description:** First',
+          '### Beta', '- **Tags:** existing', '- **Members:** old',
+          '## Archive', '### Gamma', '- **Description:** Last', '',
+        ].join('\n')
+        fs.writeFileSync(filePath, fixture)
+        assert.strictEqual(updateGroupTags(type, 'Alpha', ['new']), true)
+        assert.strictEqual(updateGroupMembers(type, 'Alpha', ['alice']), true)
+        let current = fs.readFileSync(filePath, 'utf-8')
+        assert.match(current, /### Alpha[\s\S]*?- \*\*Tags:\*\* new[\s\S]*?- \*\*Members:\*\* alice[\s\S]*?### Beta/)
+        assert.match(current, /### Beta\n- \*\*Tags:\*\* existing\n- \*\*Members:\*\* old/)
+
+        assert.strictEqual(updateGroupTags(type, 'Beta', ['updated']), true)
+        assert.strictEqual(updateGroupMembers(type, 'Beta', []), true)
+        current = fs.readFileSync(filePath, 'utf-8')
+        assert.match(current, /### Beta\n- \*\*Tags:\*\* updated\n## Archive/)
+        assert.strictEqual(current.includes('**Members:** old'), false)
+
+        assert.strictEqual(updateGroupTags(type, 'Gamma', ['final']), true)
+        assert.strictEqual(updateGroupMembers(type, 'Gamma', ['zoe']), true)
+        current = fs.readFileSync(filePath, 'utf-8')
+        assert.match(current, /### Gamma[\s\S]*?- \*\*Tags:\*\* final[\s\S]*?- \*\*Members:\*\* zoe/)
+        assert.strictEqual(updateGroupTags(type, 'Missing', ['x']), false)
+        assert.strictEqual(updateGroupMembers(type, 'Missing', ['x']), false)
+      } finally {
+        fs.writeFileSync(filePath, original)
+      }
+    }
   })
 
   await test('community and group routes create, list, and delete channel structures', async () => {
@@ -517,6 +706,43 @@ async function run() {
     assert.strictEqual(res.statusCode, 404, 'Expected missing group member update to return HTTP 404')
   })
 
+  await test('community cascade removes its group and workflow while preserving unrelated channels', async () => {
+    const createCommunity = getRouteHandler('post', '/communities')
+    const createGroup = getRouteHandler('post', '/groups')
+    const deleteCommunity = getRouteHandler('delete', '/communities/:name')
+    let res = makeRes()
+    await createCommunity(makeReq({ body: { name: 'Cascade Community', description: 'Cascade target' } }), res)
+    assert.equal(res.statusCode, 200)
+    res = makeRes()
+    await createGroup(makeReq({ body: { name: 'Cascade Group', description: 'Child group', community: 'Cascade Community' } }), res)
+    assert.equal(res.statusCode, 200)
+    res = makeRes()
+    await createCommunity(makeReq({ body: { name: 'Preserved Community', description: 'Must remain' } }), res)
+    assert.equal(res.statusCode, 200)
+    const created = createWorkflow({
+      name: 'Cascade Workflow', description: 'Should follow its target', schedule: 'manual',
+      content: '# Work\nComplete task', executionMode: 'managed', owner: 'cascade-owner',
+      targeting: { agents: [], groups: ['Cascade Group'], communities: [], tags: [] },
+    })
+    assert(created.success && !!created.id, `Expected fixture workflow: ${created.error}`)
+
+    res = makeRes()
+    await deleteCommunity(makeReq({ params: { name: encodeURIComponent('Cascade Community') }, query: { cascade: 'true' } }), res)
+    assert.equal(res.statusCode, 200, `Expected verified cascade: ${JSON.stringify(res.jsonBody)}`)
+    assert.equal(res.jsonBody.ok, true)
+    assert(res.jsonBody.deleted.groups.includes('Cascade Group'), 'Expected child group to be removed')
+    assert(res.jsonBody.deleted.workflows.includes(created.id), 'Expected targeted workflow to be removed')
+    assert.equal(getWorkflow(created.id!), null, 'Expected workflow to be absent afterward')
+    const communities = makeRes()
+    await getRouteHandler('get', '/communities')(makeReq(), communities)
+    assert(communities.jsonBody.communities.some((entry: any) => entry.name === 'Preserved Community'), 'Unrelated community must remain')
+    assert(!communities.jsonBody.communities.some((entry: any) => entry.name === 'Cascade Community'), 'Target community must be absent')
+
+    const missing = makeRes()
+    await deleteCommunity(makeReq({ params: { name: encodeURIComponent('Cascade Community') }, query: { cascade: '1' } }), missing)
+    assert.equal(missing.statusCode, 404, 'Repeated cascade must report missing target')
+  })
+
   await test('group and community message routes validate missing content and expose empty reads', async () => {
     const sendCommunityMessage = getRouteHandler('post', '/communities/:name/messages')
     const sendGroupMessage = getRouteHandler('post', '/groups/:name/messages')
@@ -549,16 +775,24 @@ async function run() {
   })
 
   await test('group mentions surface runtime fs errors instead of generic no-response placeholders', async () => {
+    const originalPackageRoot = process.env.OPENCLAW_PACKAGE_ROOT
+    const fixturePackageRoot = path.join(tmpHome, 'synthetic-openclaw')
+    fs.mkdirSync(path.join(fixturePackageRoot, 'dist'), { recursive: true })
+    // This test mocks execution, so never borrow the host runtime's auth bridge.
+    process.env.OPENCLAW_PACKAGE_ROOT = fixturePackageRoot
     const childProcess = require('child_process')
     const originalSpawn = childProcess.spawn
     const originalFetch = global.fetch
+    const cliResolver = require('../lib/openclaw-cli')
+    const originalResolveCli = cliResolver.resolveOpenClawCliPath
+    cliResolver.resolveOpenClawCliPath = () => '/synthetic/pinned/openclaw'
 
     const openclawDir = path.join(tmpHome, '.openclaw')
     const agentWorkspace = path.join(workspacePath, 'AGENTS', 'double-agent')
     const agentDir = path.join(openclawDir, 'agents', 'double-agent', 'agent')
     fs.mkdirSync(agentWorkspace, { recursive: true })
     fs.mkdirSync(path.dirname(agentDir), { recursive: true })
-    fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/qwen/qwen3.6-27b\n', 'utf-8')
+    fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Name:** Double Agent\n- **Model:** openai-compatible/qwen/qwen3.6-27b\n', 'utf-8')
     fs.writeFileSync(path.join(openclawDir, 'openclaw.json'), JSON.stringify({
       agents: {
         list: [
@@ -567,6 +801,9 @@ async function run() {
       },
     }, null, 2))
 
+    const membershipFile = path.join(workspacePath, 'ORG', 'GROUPS.md')
+    const membershipBefore = fs.readFileSync(membershipFile, 'utf8')
+    fs.appendFileSync(membershipFile, '\n### Temp Group\n\n- **Members:** double-agent\n')
     const spawnCalls: string[][] = []
     global.fetch = (async (input: any, init?: any) => {
       const url = String(input)
@@ -593,6 +830,7 @@ async function run() {
     }) as any
 
     childProcess.spawn = (_cmd: string, args: string[]) => {
+      assert.strictEqual(_cmd, '/synthetic/pinned/openclaw', 'Group chat must use the selected runtime, never global PATH')
       spawnCalls.push(args)
       const proc = new EventEmitter() as any
       proc.stdout = new EventEmitter()
@@ -653,7 +891,14 @@ async function run() {
       const modelArgIndex = agentSpawn!.indexOf('--model')
       assert(modelArgIndex >= 0, `Expected group chat to pass --model, got: ${agentSpawn!.join(' ')}`)
       assert.strictEqual(agentSpawn![modelArgIndex + 1], 'lmstudio/qwen/qwen3.6-27b', 'Expected openai-compatible model to be passed as lmstudio execution model')
+      const saved = JSON.parse(fs.readFileSync(path.join(openclawDir, 'openclaw.json'), 'utf8'))
+      const entry = saved.agents?.entries?.['double-agent'] || saved.agents?.list?.find((entry: any) => entry.id === 'double-agent')
+      assert.strictEqual(entry.model, 'openai-compatible/qwen/qwen3.6-27b', 'Group chat must not temporarily rewrite the selected agent model')
     } finally {
+      if (originalPackageRoot === undefined) delete process.env.OPENCLAW_PACKAGE_ROOT
+      else process.env.OPENCLAW_PACKAGE_ROOT = originalPackageRoot
+      cliResolver.resolveOpenClawCliPath = originalResolveCli
+      fs.writeFileSync(membershipFile, membershipBefore)
       childProcess.spawn = originalSpawn
       global.fetch = originalFetch
     }
@@ -751,6 +996,8 @@ async function run() {
     })
   })
 
+  ai.generateArchiveTitle = originalTitle
+  opik.traceAgentChat = originalTrace
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE

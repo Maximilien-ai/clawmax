@@ -345,6 +345,57 @@ async function run() {
     assert.strictEqual(deleteRes.statusCode, 404, 'Expected missing dashboard delete to return HTTP 404')
   })
 
+  await test('workspace dashboard lifecycle persists focused settings and rotates its public token', async () => {
+    const workspaceResponse = makeRes()
+    await getRouteHandler('post', '/')(makeReq({ body: { name: 'Dash Lifecycle', path: path.join(tmpHome, 'dash-lifecycle') } }), workspaceResponse)
+    const workspaceId = workspaceResponse.jsonBody?.workspace?.id
+    assert(workspaceId, 'Expected isolated workspace')
+
+    const created = makeRes()
+    await getRouteHandler('post', '/:id/dashboards')(makeReq({
+      params: { id: workspaceId },
+      body: {
+        title: 'Focused Board', slug: 'focused-board', displayMode: 'compact',
+        companyFocusKind: 'prefix', companyFocusValue: 'north-', companyFocusLabel: 'North',
+        refreshEnabled: true, refreshIntervalSeconds: 45,
+        sections: { costs: false }, sectionOrder: ['agents', 'costs'], compactColumns: { agents: 'left' },
+        createdBy: 'tester',
+      },
+    }), created)
+    assert.strictEqual(created.statusCode, 200)
+    const dashboard = created.jsonBody?.dashboard
+    assert(dashboard?.id && dashboard?.token, 'Expected persisted dashboard with public token')
+    assert.strictEqual(dashboard.companyFocusValue, 'north-')
+    assert.strictEqual(dashboard.sections.costs, false)
+
+    const listed = makeRes()
+    await getRouteHandler('get', '/:id/dashboards')(makeReq({ params: { id: workspaceId } }), listed)
+    assert.strictEqual(listed.statusCode, 200)
+    assert(listed.jsonBody?.dashboards?.some((entry: any) => entry.id === dashboard.id), 'Expected dashboard in owning workspace')
+
+    const updated = makeRes()
+    await getRouteHandler('patch', '/:id/dashboards/:dashboardId')(makeReq({
+      params: { id: workspaceId, dashboardId: dashboard.id },
+      body: { title: 'Focused Board Updated', companyFocusLabel: null, displayMode: 'detail', refreshEnabled: false },
+    }), updated)
+    assert.strictEqual(updated.statusCode, 200)
+    assert.strictEqual(updated.jsonBody.dashboard.title, 'Focused Board Updated')
+    assert.strictEqual(updated.jsonBody.dashboard.companyFocusLabel, null)
+    assert.strictEqual(updated.jsonBody.dashboard.displayMode, 'detail')
+
+    const rotated = makeRes()
+    await getRouteHandler('post', '/:id/dashboards/:dashboardId/regenerate-token')(makeReq({ params: { id: workspaceId, dashboardId: dashboard.id } }), rotated)
+    assert.strictEqual(rotated.statusCode, 200)
+    assert.notStrictEqual(rotated.jsonBody.dashboard.token, dashboard.token, 'Old public token must be revoked')
+
+    const removed = makeRes()
+    await getRouteHandler('delete', '/:id/dashboards/:dashboardId')(makeReq({ params: { id: workspaceId, dashboardId: dashboard.id } }), removed)
+    assert.strictEqual(removed.statusCode, 200)
+    const after = makeRes()
+    await getRouteHandler('get', '/:id/dashboards')(makeReq({ params: { id: workspaceId } }), after)
+    assert(!after.jsonBody?.dashboards?.some((entry: any) => entry.id === dashboard.id), 'Deleted dashboard must not remain listed')
+  })
+
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE

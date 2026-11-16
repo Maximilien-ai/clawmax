@@ -1,3 +1,4 @@
+import { channelLabel } from '../lib/channelLabel'
 import React, { useEffect, useState, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -10,6 +11,9 @@ import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 import { normalizeAgentActivityPayload, type AgentActivity } from '../lib/agentActivity'
 import { type PluginRelationship } from '../lib/pluginRelationships'
 import { PluginRelationshipDetails } from './PluginRelationshipSummary'
+import { useAgentPanelPersistence } from '../lib/agentPanelPersistence'
+import { KeepAgentPanelOpenButton } from './KeepAgentPanelOpenButton'
+import AgentGroupMemberships from './AgentGroupMemberships'
 
 interface GroupEntry {
   name: string
@@ -105,10 +109,13 @@ export default function AgentDetailPanel({
   onClose,
   onChat,
   onClone,
+  onEditConfig,
   onDelete,
   onNavigateToSkills,
   onNavigateToDoc,
   initialEditCostLimit = false,
+  initialSection,
+  configRevision = 0,
   costTrackingEnabled = true,
   pluginRelationships = [],
 }: {
@@ -116,17 +123,36 @@ export default function AgentDetailPanel({
   onClose: () => void
   onChat: () => void
   onClone?: () => void
+  onEditConfig?: () => void
   onDelete?: (agentId: string) => void
   onNavigateToSkills?: (agentId: string, skillName?: string) => void
   onNavigateToDoc?: (file: string) => void
   initialEditCostLimit?: boolean
+  initialSection?: 'groups'
+  configRevision?: number
   costTrackingEnabled?: boolean
   pluginRelationships?: PluginRelationship[]
 }) {
   const { showError, showSuccess } = useToast()
+  const panelPersistence = useAgentPanelPersistence(onClose)
   const [activity, setActivity] = useState<AgentActivity | null>(null)
   const [docEntries, setDocEntries] = useState<WorkspaceDocEntryRef[]>([])
   const [loading, setLoading] = useState(true)
+  const detailsBodyRef = React.useRef<HTMLDivElement>(null)
+  const groupsSectionRef = React.useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (initialSection !== 'groups' || loading) return
+    const frame = window.requestAnimationFrame(() => {
+      const body = detailsBodyRef.current
+      const groups = groupsSectionRef.current
+      if (!body || !groups) return
+      // scrollIntoView also scrolls ancestor containers, which can move/clamp
+      // this fixed panel. Move only its existing body; keep header/footer fixed.
+      body.scrollTo({ top: body.scrollTop + groups.getBoundingClientRect().top - body.getBoundingClientRect().top - 16 })
+      groups.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [agent.id, initialSection, loading])
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
   const [cooling, setCooling] = useState(false)
@@ -140,30 +166,43 @@ export default function AgentDetailPanel({
 
   // Close on Escape
   const handleKey = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && !e.defaultPrevented) {
       if (showRenameDialog) {
         setShowRenameDialog(false)
+      } else if (editingCostLimit) {
+        setEditingCostLimit(false)
       } else {
         onClose()
       }
     }
-  }, [onClose, showRenameDialog])
+  }, [editingCostLimit, onClose, showRenameDialog])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [handleKey])
 
+  const activityRequest = React.useRef(0)
   const fetchActivity = useCallback(() => {
+    const request = ++activityRequest.current
     fetch(`/api/agents/${agent.id}/activity`)
       // The route answers errors with { error } (e.g. "Agent not found" right after a failed
       // provision, or when the workspace path moves). Storing that shape crashed the panel on
       // the first activity.recentFiles.map() below and white-screened the whole page.
       // normalizeAgentActivityPayload rejects the error shape and fills render-safe defaults.
       .then(async r => r.ok ? normalizeAgentActivityPayload(await r.json().catch(() => null)) : null)
-      .then(d => { setActivity(d); setLoading(false); setLastRefreshed(Date.now()) })
-      .catch(() => { setActivity(null); setLoading(false) })
+      .then(d => { if (request !== activityRequest.current) return; setActivity(d); setLoading(false); setLastRefreshed(Date.now()) })
+      .catch(() => { if (request !== activityRequest.current) return; setActivity(null); setLoading(false) })
   }, [agent.id])
+
+  // A saved config change refreshes the open panel in place. Keeping the current details on screen
+  // until the new ones arrive keeps the panel's scroll position and section state.
+  const shownConfigRevision = React.useRef(configRevision)
+  useEffect(() => {
+    if (shownConfigRevision.current === configRevision) return
+    shownConfigRevision.current = configRevision
+    fetchActivity()
+  }, [configRevision, fetchActivity])
 
   useEffect(() => {
     setLoading(true)
@@ -302,7 +341,7 @@ export default function AgentDetailPanel({
   }, [docEntries, onClose, onNavigateToDoc, relDir])
 
   return (
-    <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={onClose}>
+    <div ref={panelPersistence.panelRef} tabIndex={-1} className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={panelPersistence.onBackdropClick}>
       {/* Panel */}
       <aside className="fixed top-0 right-0 h-[100dvh] max-h-[100dvh] w-full max-w-full bg-white shadow-2xl dark:bg-gray-800 sm:w-[30rem] lg:w-[36rem] z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
@@ -354,6 +393,9 @@ export default function AgentDetailPanel({
             >
               <ProductIconCell iconName="communication" label="Chat with agent" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
+            {onEditConfig && <button onClick={onEditConfig} aria-label="Edit agent configuration" title="Edit agent configuration" className="h-9 w-9 inline-flex items-center justify-center rounded-full text-sky-600 hover:bg-sky-50">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/></svg>
+            </button>}
             {onClone && (
               <button
                 onClick={onClone}
@@ -362,6 +404,16 @@ export default function AgentDetailPanel({
                 title="Clone agent"
               >
                 <ProductIconCell iconName="clone" label="Clone agent" size="sm" className="border-transparent bg-transparent text-current" />
+              </button>
+            )}
+            {onEditConfig && (
+              <button
+                onClick={onEditConfig}
+                className="h-9 w-9 inline-flex items-center justify-center rounded-full text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/30 transition-colors"
+                aria-label="Edit agent config"
+                title="Edit agent config"
+              >
+                <ProductIconCell iconName="edit" label="Edit agent config" size="sm" className="border-transparent bg-transparent text-current" />
               </button>
             )}
             <button
@@ -374,11 +426,12 @@ export default function AgentDetailPanel({
             >
               <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
+            <KeepAgentPanelOpenButton keepOpen={panelPersistence.keepOpen} onToggle={panelPersistence.toggleKeepOpen} />
             <button
               onClick={onClose}
               className="h-9 w-9 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-lg leading-none"
-              aria-label="Close"
-              title="Close"
+              aria-label="Close details (Esc)"
+              title="Close details (Esc)"
             >
               <span aria-hidden="true">×</span>
             </button>
@@ -386,7 +439,7 @@ export default function AgentDetailPanel({
         </div>
 
         {/* Body */}
-        <div className="min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 space-y-6 sm:px-5">
+        <div ref={detailsBodyRef} className="min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 space-y-6 sm:px-5">
           {loading && (
             <p className="text-sm text-gray-400">Loading activity...</p>
           )}
@@ -620,49 +673,25 @@ export default function AgentDetailPanel({
                 </Section>
               )}
 
-              {/* Groups */}
-              {(agent.communities.length > 0 || agent.groups.length > 0) && (
-                <Section title="WhatsApp presence" source="GROUPS.md">
-                  <div className="space-y-3">
-                    {agent.communities.length > 0 && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1.5">Communities</p>
-                        <div className="space-y-1.5">
-                          {[...agent.communities].sort((a, b) => a.name.localeCompare(b.name)).map(c => (
-                            <div key={c.name}>
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">{c.name}</span>
-                              {c.description && (
-                                <p className="text-xs text-gray-400 mt-0.5 ml-1">{c.description}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {agent.groups.length > 0 && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1.5">Groups</p>
-                        <div className="space-y-1.5">
-                          {[...agent.groups].sort((a, b) => a.name.localeCompare(b.name)).map(g => (
-                            <div key={g.name}>
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium">{g.name}</span>
-                              {g.description && (
-                                <p className="text-xs text-gray-400 mt-0.5 ml-1">{g.description}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Section>
-              )}
             </>
+          )}
+          <div ref={groupsSectionRef} tabIndex={-1} data-testid="agent-groups-section" className="scroll-mt-4 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+            <Section title="Groups" source="GROUPS.md">
+              <AgentGroupMemberships agentId={agent.id} agentName={agent.name} groups={agent.groups} />
+            </Section>
+          </div>
+          {agent.communities.length > 0 && (
+            <Section title="Communities" source="COMMUNITIES.md">
+              <div className="flex flex-wrap gap-1.5">
+                {agent.communities.map(community => <span key={community.name} title={community.description || undefined} className="max-w-full break-words rounded-full bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">{channelLabel(community)}</span>)}
+              </div>
+            </Section>
           )}
         </div>
 
         {/* Footer path */}
         <div className="space-y-3 border-t border-gray-100 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shrink-0 dark:border-gray-700 dark:bg-gray-800 sm:px-5 sm:pb-3">
+          <span className="block text-xs text-gray-400 dark:text-gray-500">Press Esc to close details</span>
           <button
             type="button"
             onClick={onClose}
@@ -678,7 +707,7 @@ export default function AgentDetailPanel({
 
       {/* Rename Dialog */}
       {showRenameDialog && (
-        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onClick={() => setShowRenameDialog(false)}>
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Rename Agent</h3>
             <input
@@ -706,7 +735,7 @@ export default function AgentDetailPanel({
               <button
                 onClick={handleRename}
                 disabled={!newName.trim() || newName === agent.name}
-                className="px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-700 transition-colors disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-700 transition-colors disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed"
               >
                 Rename
               </button>

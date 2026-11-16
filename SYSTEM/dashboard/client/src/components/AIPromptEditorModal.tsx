@@ -67,6 +67,7 @@ export default function AIPromptEditorModal({
   const [expandFormat, setExpandFormat] = useState<PromptExpandFormat>('markdown')
   const [expandGuidance, setExpandGuidance] = useState('')
   const [expandError, setExpandError] = useState<string | null>(null)
+  const [showAnthropicHelp, setShowAnthropicHelp] = useState(false)
   const [expandedFlash, setExpandedFlash] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [previewWidth, setPreviewWidth] = useState(380)
@@ -82,6 +83,7 @@ export default function AIPromptEditorModal({
     setExpandFormat(defaultExpandFormat)
     setExpandGuidance('')
     setExpandError(null)
+    setShowAnthropicHelp(false)
     setExpandedFlash(false)
     setPreviewWidth(380)
     if (flashTimeoutRef.current !== null) {
@@ -135,10 +137,13 @@ export default function AIPromptEditorModal({
       className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4"
     >
       <div
-        className="relative flex h-[78vh] w-[75vw] min-h-[420px] min-w-[320px] max-h-[90vh] max-w-[90vw] resize flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-gray-800"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="relative flex h-[90dvh] w-full min-w-0 max-h-[90dvh] max-w-[90vw] resize flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-gray-800 sm:h-[78dvh] sm:w-[75vw]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
           <button
             type="button"
@@ -151,9 +156,9 @@ export default function AIPromptEditorModal({
             ✕
           </button>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
-          <div className="space-y-4 overflow-y-auto pr-1">
-          <div className="flex items-center justify-between">
+        <div className="flex min-h-0 flex-1 flex-col px-4 py-3 sm:px-5">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
               AI Editor
             </div>
@@ -205,7 +210,7 @@ export default function AIPromptEditorModal({
             </div>
           </div>
           {effectiveAttachments.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex shrink-0 flex-wrap gap-2">
               {effectiveAttachments.map((attachment) => (
                 <div key={attachment.id} className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
                   <span>{attachment.isImage ? 'Image' : 'File'}: {attachment.name}</span>
@@ -228,10 +233,10 @@ export default function AIPromptEditorModal({
           ) : null}
           <div
             ref={splitContainerRef}
-            className={`grid min-h-0 gap-4 ${showPreview ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_12px_minmax(280px,var(--ai-preview-width,380px))]' : 'grid-cols-1'}`}
+            className={`grid min-h-[96px] flex-1 gap-4 ${showPreview ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_12px_minmax(280px,var(--ai-preview-width,380px))]' : 'grid-cols-1'}`}
             style={showPreview ? ({ ['--ai-preview-width' as string]: `${previewWidth}px` }) : undefined}
           >
-            <div className="relative">
+            <div className="relative flex min-h-[96px]">
               {expandedFlash ? (
                 <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950 dark:text-emerald-200">
                   AI expanded
@@ -239,10 +244,11 @@ export default function AIPromptEditorModal({
               ) : null}
               <textarea
                 value={draft}
+                aria-label="Prompt"
                 onChange={(e) => setDraft(e.target.value)}
-                rows={rows}
+                rows={Math.min(rows, 6)}
                 placeholder={placeholder}
-                className={`min-h-[200px] max-h-[42vh] w-full resize-y rounded-lg border bg-white px-4 py-3 text-sm text-gray-900 transition-[border-color,box-shadow,background-color] duration-300 focus:ring-2 focus:ring-purple-500 dark:bg-gray-900 dark:text-gray-100 ${
+                className={`min-h-[96px] w-full flex-1 resize-none rounded-lg border bg-white px-4 py-3 text-sm text-gray-900 transition-[border-color,box-shadow,background-color] duration-300 focus:ring-2 focus:ring-purple-500 dark:bg-gray-900 dark:text-gray-100 ${
                   expandedFlash
                     ? 'border-emerald-300 bg-emerald-50/50 shadow-[0_0_0_3px_rgba(16,185,129,0.18)] dark:border-emerald-700 dark:bg-emerald-950/20'
                     : 'border-gray-200 dark:border-gray-700'
@@ -274,23 +280,26 @@ export default function AIPromptEditorModal({
               </div>
             ) : null}
           </div>
-          <PromptQualityPanel prompt={draft} domain={qualityDomain} />
+          <div className="shrink-0 pb-1"><PromptQualityPanel prompt={draft} domain={qualityDomain} /></div>
+          </div>
           {onExpandWithAi ? (
-            <div className="space-y-3">
+            <div className="shrink-0 space-y-2 border-t border-gray-200 pt-3 dark:border-gray-700">
               <div className="space-y-1">
                 <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   Improvement Direction
                 </label>
                 <input
                   type="text"
+                  aria-label="Improvement Direction"
                   value={expandGuidance}
                   onChange={(e) => setExpandGuidance(e.target.value)}
                   placeholder="Optional: make it shorter, bias toward workflows, keep the tone friendly..."
                   className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                 />
               </div>
-              <div className="flex items-center justify-start gap-3">
+              <div className="flex flex-wrap items-center justify-start gap-2">
                 <select
+                  aria-label="Expansion format"
                   value={expandFormat}
                   onChange={(e) => setExpandFormat(e.target.value as PromptExpandFormat)}
                   className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
@@ -334,16 +343,42 @@ export default function AIPromptEditorModal({
                 >
                   {expanding ? 'Expanding…' : expandLabel}
                 </button>
+                <button
+                  type="button"
+                  aria-expanded={showAnthropicHelp}
+                  aria-controls="ai-editor-anthropic-help"
+                  onClick={() => setShowAnthropicHelp((current) => !current)}
+                  className="text-sm font-medium text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100"
+                >
+                  Using Anthropic?
+                </button>
               </div>
+              {showAnthropicHelp && (
+                <div id="ai-editor-anthropic-help" className="space-y-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-gray-700 dark:border-sky-800 dark:bg-sky-950/30 dark:text-gray-200">
+                  <p>Create an Anthropic developer API key in the Claude Console, then add it under BYOK → Anthropic and choose Check Key. A Claude chat subscription alone does not provide API access.</p>
+                  <div className="flex flex-wrap gap-3">
+                    <a href="https://platform.claude.com/docs/en/get-api-key" target="_blank" rel="noopener noreferrer" className="font-medium text-sky-700 underline underline-offset-2 dark:text-sky-300">How to get an API key</a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('open-byok-wizard', { detail: { step: 'models', provider: 'anthropic', fromAiEditor: true } }))
+                      }}
+                      className="font-medium text-sky-700 underline underline-offset-2 dark:text-sky-300"
+                    >
+                      Open Anthropic BYOK
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">Keep your API key in BYOK. Never paste it into an agent prompt or chat.</p>
+                </div>
+              )}
               {expandError ? (
-                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                <div role="alert" className="max-h-20 overflow-y-auto break-words rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
                   {expandError}
                 </div>
               ) : null}
             </div>
           ) : null}
-          </div>
-          <div className="mt-4 flex shrink-0 justify-between gap-2 border-t border-gray-200 pt-4 dark:border-gray-700">
+          <div className="mt-3 flex shrink-0 flex-wrap justify-between gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
             <button
               type="button"
               onClick={() => {

@@ -9,6 +9,7 @@ import { listTemplates, slugify } from './templates'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { repairAgentConfigSections } from './agent-config-repair'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -66,6 +67,38 @@ const validTools = `# TOOLS.md - Local Notes
 `
 
 console.log(`\n${YELLOW}=== Agent Config Validation Test Suite ===${RESET}\n`)
+
+test('Doctor restores missing names without changing model, tools, or instructions', () => {
+  const original = { identity: '# Identity\n- **Model:** openai/gpt-5.5\n', soul: validSoul, tools: '' }
+  const repaired = repairAgentConfigSections(original, 'astro-guide', 'Astro Guide')
+  assert(repaired.valid, 'Expected safe name repair')
+  assert(repaired.config.identity.includes('**Name:** Astro Guide'), 'Use registered name')
+  assert(repaired.config.identity.includes('**Model:** openai/gpt-5.5'), 'Preserve model')
+  assert(repaired.config.soul === original.soul && repaired.config.tools === '', 'Do not invent tools or instructions')
+  assert(repairAgentConfigSections(repaired.config, 'astro-guide').changes.length === 0, 'Repair must be idempotent')
+  assert(!original.identity.includes('**Name:**'), 'Input draft must remain unchanged')
+})
+
+test('Doctor normalizes alternate and empty names and retains unresolved errors', () => {
+  for (const identity of ['Name: Astro Guide', '**Name**: Astro Guide', '- **Name:**']) {
+    const result = repairAgentConfigSections({ identity, soul: '', tools: 'Use only assigned tools.' }, 'astro-guide')
+    assert(result.config.identity.includes('**Name:**'), 'Canonical name needed')
+    assert(!result.valid && result.errors.some(error => error.includes('SOUL.md')), 'Missing instructions need user input')
+    assert(result.config.soul === '', 'Never invent agent purpose')
+    assert(result.config.tools.endsWith('Use only assigned tools.'), 'Preserve tool content')
+  }
+})
+
+test('legacy N/A identity tags do not block config repairs', () => {
+  const { parseTags } = require('./workspace')
+  for (const value of ['N/A', 'n/a', 'engineer, N/A']) {
+    const identity = validIdentity.replace('engineer, backend', value)
+    assert(validateAgentConfigSections({ identity, soul: validSoul, tools: '' }).valid, 'Legacy placeholder should not block saving')
+    assert(parseTags(identity).join(',') === (value.startsWith('engineer') ? 'engineer' : ''), 'Placeholder must not become an agent tag')
+  }
+  assert(parseTags('**Tags:**\n**Model:** openai/test').length === 0, 'Empty tags must not consume the next field')
+  assert(!validateAgentConfigSections({ identity: validIdentity.replace('engineer, backend', 'bad/tag'), soul: validSoul, tools: '' }).valid, 'Real invalid tags must remain invalid')
+})
 
 test('validateAgentConfigSections accepts valid config', () => {
   const result = validateAgentConfigSections({
@@ -197,16 +230,24 @@ test('validateProvisionInput does not warn for standard OpenAI models when OpenA
 test('validateProvisionInput warns for deprecated OpenAI snapshots with replacement guidance', () => {
   const result = validateProvisionInput({
     name: 'engineer4',
-    model: 'openai/gpt-5-2025-08-07',
+    model: 'openai/gpt-4.1',
     tags: ['engineer'],
   }, {
     existingAgentIds: ['engineer1'],
-    availableModels: ['openai/gpt-5', 'openai/gpt-5-2025-08-07'],
+    availableModels: ['openai/gpt-5.5', 'openai/gpt-4.1'],
   })
 
   assert(result.valid, 'Expected provisioning to remain valid')
   assertIncludes(result.warnings, 'deprecated by OpenAI')
-  assertIncludes(result.warnings, 'Prefer "gpt-5"')
+  assertIncludes(result.warnings, 'Prefer "gpt-5.5"')
+})
+
+test('validateProvisionInput refuses retired OpenAI models even if a stale catalog advertises them', () => {
+  const result = validateProvisionInput({ name: 'retirement-probe', model: 'openai/gpt-4' }, {
+    existingAgentIds: [], availableModels: ['openai/gpt-4', 'openai/gpt-5.5'],
+  })
+  assert(!result.valid, 'Retired model must not be admitted')
+  assertIncludes(result.errors, 'retired and cannot be used')
 })
 
 test('validateProvisionInput warns for deprecated Anthropic and Gemini models', () => {

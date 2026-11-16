@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useWorkspace, type Workspace } from '../contexts/WorkspaceContext'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
+import { WorkspaceClearDialog } from './WorkspaceClearDialog'
 import { WorkspaceEditDialog } from './WorkspaceEditDialog'
 import { useToast } from './Toast'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 import { WORKSPACE_DASHBOARD_PRESETS } from '../lib/workspaceDashboardPresets'
+import { filterWorkspaces } from '../lib/workspaceSearch'
 
 interface WorkspaceDashboard {
   id: string
@@ -82,6 +84,8 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   const { workspaces, activeWorkspace, switchWorkspace, deleteWorkspace, reorderWorkspaces, refreshWorkspaces } = useWorkspace()
   const { showSuccess, showError } = useToast()
   const [isOpen, setIsOpen] = useState(false)
+  const [clearPersonalOpen, setClearPersonalOpen] = useState(false)
+  const [workspaceQuery, setWorkspaceQuery] = useState('')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<{
     id: string
@@ -117,6 +121,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   const dropdownRef = useRef<HTMLDivElement>(null)
   const workspaceButtonRef = useRef<HTMLButtonElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
+  const visibleWorkspaces = filterWorkspaces(workspaces, workspaceQuery)
 
   const loadDashboards = async (workspaceId: string) => {
     const res = await fetch(`/api/workspaces/${workspaceId}/dashboards`)
@@ -396,6 +401,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     dashboardSectionOrder.filter((key) => dashboardCompactColumns[key] === column)
 
   const handleDeleteClick = async (workspace: { id: string; name: string; path: string }) => {
+    if (workspace.id === 'default') { setIsOpen(false); setClearPersonalOpen(true); return }
     const consequences: string[] = []
 
     try {
@@ -461,12 +467,12 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Current workspace button */}
+    <div className="relative min-w-0 max-w-[18rem]" ref={dropdownRef}>
+      {/* Current workspace button; min-w-0 above lets a long name truncate in a crowded header. */}
       <button
         ref={workspaceButtonRef}
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex min-w-0 max-w-[18rem] items-center gap-2 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-gray-200 dark:bg-gray-800"
+        onClick={() => { if (isOpen) setWorkspaceQuery(''); setIsOpen(!isOpen) }}
+        className="flex min-w-0 max-w-full items-center gap-2 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-gray-200 dark:bg-gray-800"
         title={activeWorkspace.name || 'Switch workspace'}
       >
         <div
@@ -492,12 +498,25 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
           className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 py-1 z-50 dark:border-gray-700"
           style={workspaceButtonRef.current ? getViewportSafeDropdownStyle(workspaceButtonRef.current.getBoundingClientRect(), 352) : undefined}
         >
-          <div className="px-4 pt-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
-            Drag to reorder
+          <div className="px-3 pt-2 pb-1">
+            <input
+              type="search"
+              aria-label="Search workspaces"
+              placeholder="Search workspaces…"
+              value={workspaceQuery}
+              onChange={event => setWorkspaceQuery(event.target.value)}
+              className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div className="px-4 pt-1 pb-1 text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
+            {workspaceQuery.trim() ? `${visibleWorkspaces.length} of ${workspaces.length} workspaces` : 'Drag to reorder'}
           </div>
           {/* Workspace list */}
           <div className="max-h-80 overflow-y-auto">
-            {workspaces.map((workspace, index) => (
+            {visibleWorkspaces.length === 0 && <div className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">No workspaces match “{workspaceQuery.trim()}”.</div>}
+            {visibleWorkspaces.map((workspace) => {
+              const index = workspaces.findIndex(item => item.id === workspace.id)
+              return (
               <div
                 key={workspace.id}
                 className={`group relative ${
@@ -509,7 +528,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                     workspace.id === activeWorkspace.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                   }`}
                 >
-                  <button
+                  {!workspaceQuery.trim() && <button
                     type="button"
                     draggable
                     onDragStart={() => handleDragStart(index)}
@@ -523,7 +542,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01" />
                     </svg>
-                  </button>
+                  </button>}
                   <button
                     type="button"
                     onClick={() => {
@@ -579,7 +598,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                           moveWorkspaceToTop(index)
                         }}
                         disabled={index === 0}
-                        className="inline-flex items-center justify-center rounded-md p-1 text-amber-700 transition-all hover:bg-amber-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent dark:text-amber-300"
+                        className="inline-flex items-center justify-center rounded-md p-1 text-amber-700 transition-all hover:bg-amber-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent dark:text-amber-300 dark:hover:bg-amber-900/30 dark:disabled:hover:bg-transparent"
                         title={index === 0 ? 'Already at top' : 'Move workspace to top'}
                         aria-label={index === 0 ? 'Already at top' : 'Move workspace to top'}
                       >
@@ -630,7 +649,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                           handleDeleteClick(workspace)
                         }}
                         className="rounded p-1 text-red-600 transition-all hover:bg-red-50"
-                        title="Delete workspace"
+                        title={workspace.id === 'default' ? 'Clear Personal workspace' : 'Delete workspace'}
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -640,7 +659,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
 
           {/* Divider */}
@@ -686,6 +705,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       )}
 
       {/* Delete Confirmation Dialog */}
+      {clearPersonalOpen && <WorkspaceClearDialog onClose={() => setClearPersonalOpen(false)} />}
       <ConfirmDeleteDialog
         isOpen={deleteDialog !== null}
         itemName={deleteDialog?.name || ''}
@@ -712,7 +732,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       )}
 
       {dashboardWorkspace && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDashboardWorkspace(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div
             className="flex max-h-[85vh] w-[92vw] max-w-2xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
             onClick={(e) => e.stopPropagation()}
@@ -738,9 +758,9 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                     <div className="rounded-md bg-sky-50 p-3 text-sm dark:bg-sky-950/30">
                       <div className="mb-2 font-medium text-sky-900 dark:text-sky-200">Suggested dashboards</div>
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => applyDashboardPreset('operations')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200">Operations Pulse</button>
-                        <button type="button" onClick={() => applyDashboardPreset('costs')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200">Cost & Reliability</button>
-                        <button type="button" onClick={() => applyDashboardPreset('communications')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200">Communication Desk</button>
+                        <button type="button" onClick={() => applyDashboardPreset('operations')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-900/40">Operations Pulse</button>
+                        <button type="button" onClick={() => applyDashboardPreset('costs')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-900/40">Cost & Reliability</button>
+                        <button type="button" onClick={() => applyDashboardPreset('communications')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-900/40">Communication Desk</button>
                       </div>
                     </div>
                   )}

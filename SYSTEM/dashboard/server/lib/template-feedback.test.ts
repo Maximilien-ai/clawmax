@@ -5,6 +5,8 @@ import {
   addTemplateFeedback,
   getAllTemplateFeedbackSummaries,
   getTemplateApplyCount,
+  getTemplateFeedbackSummary,
+  listTemplateFeedback,
   recordTemplateApply,
 } from './template-feedback'
 import { buildTemplateFeedbackMetadata, type AgentTemplate, type OrganizationTemplate } from './templates'
@@ -25,6 +27,15 @@ function assert(condition: boolean, message: string) {
 function assertEqual(actual: any, expected: any, message: string) {
   if (actual !== expected) {
     throw new Error(`${message}. Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`)
+  }
+}
+
+async function assertRejects(promise: Promise<unknown>, expected: string) {
+  try {
+    await promise
+    throw new Error(`Expected rejection containing ${expected}`)
+  } catch (error: any) {
+    assert(String(error?.message).includes(expected), `Unexpected rejection: ${error?.message}`)
   }
 }
 
@@ -203,6 +214,101 @@ async function run() {
       assertEqual(summaries['organization:revenue-engine']?.count, 1, 'Expected company feedback to remain visible under organization key')
     } finally {
       fs.rmSync(tempHome, { recursive: true, force: true })
+    }
+  })
+
+  await test('local feedback ignores malformed files and preserves type aliases and newest-first history', async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-feedback-history-'))
+    process.env.HOME = tempHome
+    process.env.OPENCLAW_WORKSPACE = path.join(tempHome, 'workspace')
+    delete process.env.TEMPLATE_FEEDBACK_REMOTE_URL
+    delete process.env.TEMPLATE_FEEDBACK_SUMMARY_URL
+    delete process.env.TEMPLATE_FEEDBACK_TOKEN
+    resetWorkspaceManagerForTests()
+    const filePath = path.join(process.env.OPENCLAW_WORKSPACE, 'SYSTEM', 'template-feedback.json')
+    try {
+      assertEqual((await getTemplateFeedbackSummary('agent', 'writer')).count, 0, 'Missing file should be empty')
+      fs.mkdirSync(path.dirname(filePath), { recursive: true })
+      fs.writeFileSync(filePath, '{broken')
+      assertEqual(listTemplateFeedback('agent', 'writer').length, 0, 'Corrupt file should be empty')
+      fs.writeFileSync(filePath, JSON.stringify({ entries: null }))
+      assertEqual(listTemplateFeedback('agent', 'writer').length, 0, 'Non-array entries should be empty')
+      fs.writeFileSync(filePath, JSON.stringify({ entries: [
+        { templateType: 'team', templateSlug: 'writer', rating: 2, createdAt: '2026-01-01' },
+        { templateType: 'organization', templateSlug: 'writer', rating: 4, createdAt: '2026-02-01' },
+        { templateType: 'company', templateSlug: 'writer', rating: 5, createdAt: '2026-03-01' },
+        { templateType: 'workflow', templateSlug: 'writer', rating: 3, createdAt: '2026-04-01' },
+        { templateType: 'agent', templateSlug: 'other', rating: 1, createdAt: '2026-05-01' },
+      ] }))
+      const org = await getTemplateFeedbackSummary('organization', 'writer')
+      assertEqual(org.count, 3, 'Organization should include team and company aliases')
+      assertEqual(org.entries[0].createdAt, '2026-03-01', 'History should be newest first')
+      assertEqual(org.avgRating, 3.67, 'Average should be rounded to two decimals')
+      assertEqual(listTemplateFeedback('team', 'writer').length, 2, 'Team should include legacy organization')
+      assertEqual(listTemplateFeedback('company', 'writer').length, 3, 'Company should include workflows and legacy organization')
+      assertEqual(listTemplateFeedback('workflow', 'writer').length, 2, 'Workflow should include company feedback')
+      assertEqual(listTemplateFeedback('agent', 'writer').length, 0, 'Agent must remain isolated')
+    } finally {
+      fs.rmSync(tempHome, { recursive: true, force: true })
+    }
+  })
+
+  await test('apply counters recover from malformed storage and reject empty identities', () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-feedback-counts-'))
+    process.env.HOME = tempHome
+    process.env.OPENCLAW_WORKSPACE = path.join(tempHome, 'workspace')
+    resetWorkspaceManagerForTests()
+    const filePath = path.join(process.env.OPENCLAW_WORKSPACE, 'SYSTEM', 'template-apply-stats.json')
+    const entry = { templateId: ' user:writer ', templateType: 'agent' as const, templateSlug: 'writer', templateSource: 'user' as const }
+    try {
+      assertEqual(recordTemplateApply({ ...entry, templateId: '  ' }), 0, 'Blank identity must not create a count')
+      assertEqual(getTemplateApplyCount(null), 0, 'Null identity must return zero')
+      fs.mkdirSync(path.dirname(filePath), { recursive: true })
+      fs.writeFileSync(filePath, '{broken')
+      assertEqual(getTemplateApplyCount('user:writer'), 0, 'Corrupt stats must read as empty')
+      fs.writeFileSync(filePath, JSON.stringify({ entries: null }))
+      assertEqual(recordTemplateApply(entry), 1, 'Invalid stats shape must start at one')
+      assertEqual(getTemplateApplyCount('user:writer'), 1, 'Identity must be trimmed for lookup')
+      assertEqual(recordTemplateApply(entry), 2, 'Count must survive a second write')
+    } finally {
+      fs.rmSync(tempHome, { recursive: true, force: true })
+    }
+  })
+
+  await test('remote feedback normalizes sparse replies and excludes failed summaries', async () => {
+    process.env.TEMPLATE_FEEDBACK_REMOTE_URL = 'https://example.test/api/feedback'
+    process.env.TEMPLATE_FEEDBACK_SUMMARY_URL = 'https://example.test/api/summary'
+    process.env.TEMPLATE_FEEDBACK_TOKEN = 'synthetic-token'
+    const requested: string[] = []
+    globalThis.fetch = (async (input: any) => {
+      const url = String(input)
+      requested.push(url)
+      if (url.includes('broken')) return { ok: false, status: 503, json: async () => ({ error: 'Synthetic unavailable' }) } as any
+      if (url.includes('fallback')) return { ok: false, status: 502, json: async () => { throw new Error('Synthetic JSON failure') } } as any
+      return { ok: true, json: async () => ({ summary: { count: '2', avgRating: '4.5', entries: [
+        { id: 5, templateType: null, templateSlug: 8, templateSource: 'invalid', applyCount: 'NaN', templateTags: ['ok', 3], rating: '5', createdAt: null },
+        { id: 'remote-2', templateType: 'team', templateSlug: 'writer', templateSource: 'system', applyCount: '3', templateInfo: { title: 'Writer' }, rating: 4, createdAt: '2026-01-01' },
+      ] } }) } as any
+    }) as any
+    try {
+      const summary = await getTemplateFeedbackSummary('company', 'writer')
+      assertEqual(summary.count, 2, 'Remote count should normalize numeric strings')
+      assertEqual(summary.avgRating, 4.5, 'Remote average should normalize numeric strings')
+      assertEqual(summary.entries[0].id, null, 'Invalid remote ID should be null')
+      assertEqual(summary.entries[0].templateType, 'organization', 'Missing type should use legacy default')
+      assertEqual(summary.entries[0].templateSource, undefined, 'Invalid source should be ignored')
+      assertEqual(summary.entries[0].templateTags?.join(','), 'ok', 'Tags should contain only strings')
+      assertEqual(summary.entries[1].applyCount, 3, 'Valid numeric count should normalize')
+      assert(requested[0].includes('templateType=company') && requested[0].includes('templateSlug=writer'), 'Summary request must identify the template')
+      const all = await getAllTemplateFeedbackSummaries([
+        { templateType: 'team', templateSlug: 'writer' },
+        { templateType: 'team', templateSlug: 'broken' },
+      ])
+      assertEqual(Object.keys(all).join(','), 'team:writer', 'Failed remote summary must be excluded')
+      await assertRejects(getTemplateFeedbackSummary('team', 'broken'), 'Synthetic unavailable')
+      await assertRejects(getTemplateFeedbackSummary('team', 'fallback'), 'Remote template feedback request failed (502)')
+    } finally {
+      globalThis.fetch = originalFetch
     }
   })
 

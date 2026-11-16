@@ -1,3 +1,4 @@
+import { ScrollableMarkdownTable } from './ScrollableMarkdownTable'
 import React, { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -6,6 +7,8 @@ import { buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, buildSharedIn
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import {
   buildCommunicationCacheKey,
+  cleanCommunicationMessage,
+  communicationTitle,
   mergeTypingAgents,
   removeRespondedAgentsFromPending,
   resolveCommunicationDocPath,
@@ -14,8 +17,11 @@ import {
 import { ProductIconCell } from '../lib/productIcons'
 import { createPromptAttachment } from '../lib/promptAttachments'
 import { useAuth } from '../contexts/AuthContext'
+import { useWorkspace } from '../contexts/WorkspaceContext'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
+import { shouldSendChatOnKeyDown } from '../lib/chatComposer'
+import { readChatComposerExpanded, saveChatComposerExpanded } from '../lib/chatComposerSize'
 
 interface Message {
   id: string
@@ -33,6 +39,7 @@ interface Agent {
 
 interface Channel {
   name: string
+  displayName?: string
   description: string | null
   tags: string[]
   type: 'community' | 'group'
@@ -78,63 +85,6 @@ const STATUS_DOT: Record<string, string> = {
   unknown: 'bg-gray-300',
 }
 
-// Strip OpenClaw internal data from message content (brace-depth tracking)
-function cleanContent(content: string): string {
-  if (!content) return content
-  const lines = content.split('\n')
-  const cleanedLines: string[] = []
-  let braceDepth = 0
-  let bracketDepth = 0
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-
-    // Inside a JSON block — track depth and skip
-    if (braceDepth > 0 || bracketDepth > 0) {
-      for (const ch of trimmed) {
-        if (ch === '{') braceDepth++
-        else if (ch === '}') braceDepth = Math.max(0, braceDepth - 1)
-        else if (ch === '[') bracketDepth++
-        else if (ch === ']') bracketDepth = Math.max(0, bracketDepth - 1)
-      }
-      continue
-    }
-
-    // Detect start of JSON block
-    if (trimmed === '{' || trimmed.startsWith('{"') || trimmed.startsWith('[{') || trimmed === '[') {
-      braceDepth += (trimmed.match(/\{/g) || []).length - (trimmed.match(/\}/g) || []).length
-      bracketDepth += (trimmed.match(/\[/g) || []).length - (trimmed.match(/\]/g) || []).length
-      if (braceDepth > 0 || bracketDepth > 0) continue
-      continue
-    }
-
-    if (trimmed.match(/\[[\d;]*m/) || trimmed.match(/\x1b\[/)) continue
-    if (trimmed.startsWith('🦞 OpenClaw') || trimmed.match(/^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/)) continue
-    if (trimmed.match(/\{"type"\s*:\s*"/)) continue
-    if (trimmed.match(/^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/)) continue
-    if (trimmed.match(/^[}\]],?\s*$/)) continue
-
-    cleanedLines.push(line)
-  }
-
-  const cleaned = cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim() || content
-
-  if (
-    /model fallback decision|FailoverError|FallbackSummaryError|Incorrect API key provided|Provider .* auth issue|network connection error|Connection error/i.test(cleaned)
-    && !/\n\n/.test(cleaned)
-  ) {
-    if (/Incorrect API key provided|auth issue|missing credentials|missing api key/i.test(cleaned)) {
-      return 'Runtime auth error while contacting the configured model provider. Check the provider key/configuration and retry.'
-    }
-    if (/network connection error|Connection error|timeout|timed out|cooldown/i.test(cleaned)) {
-      return 'Runtime connection error while contacting the configured model provider. Check provider/network availability and retry.'
-    }
-    return 'Runtime model execution error. Review workflow details or retry the run.'
-  }
-
-  return cleaned
-}
-
 function formatChatTime(timestamp: number | undefined, includeDate: boolean): string {
   if (!timestamp) return ''
   const date = new Date(timestamp)
@@ -143,15 +93,48 @@ function formatChatTime(timestamp: number | undefined, includeDate: boolean): st
   return `${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} ${timeLabel}`
 }
 
-function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent, onNavigateToDoc }: Props) {
+function GroupChatPanel(props: Props) {
+  const { activeWorkspace } = useWorkspace()
+  if (!activeWorkspace) return null
+  const cacheKey = buildCommunicationCacheKey(props.channel.type, props.channel.name, activeWorkspace.id)
+  return <GroupChatConversation key={cacheKey} {...props} cacheKey={cacheKey} workspaceId={activeWorkspace.id} />
+}
+
+function GroupChatConversation({ channel, onClose, mode = 'overlay', onExpand, onMessageSent, onNavigateToDoc, cacheKey, workspaceId }: Props & { cacheKey: string; workspaceId: string }) {
   const { config } = useAuth()
   const chatEnabled = hasChatExecutionAccess(config)
-  const cacheKey = buildCommunicationCacheKey(channel.type, channel.name)
   const [messages, setMessages] = useState<Message[]>(() => groupChatMessageCache.get(cacheKey) || [])
   const [input, setInput] = useState('')
+  const [composerExpanded, setComposerExpanded] = useState(readChatComposerExpanded)
   const [loading, setLoading] = useState(() => (groupChatMessageCache.get(cacheKey) || []).length === 0)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [historyBlocked, setHistoryBlocked] = useState(false)
+  const blockedHistory = useRef(false)
+  const live = useRef(true)
+  useEffect(() => { live.current = true; return () => { live.current = false } }, [])
+
+  function fetchChannel(endpoint: string, init: RequestInit = {}) {
+    const headers = new Headers(init.headers)
+    headers.set('X-Clawmax-Workspace', workspaceId)
+    return fetch(endpoint, { ...init, headers })
+  }
+  async function historyResponse(response: Response) {
+    const data = await response.json().catch(() => ({}))
+    if (!live.current) throw new Error('Chat changed')
+    if (!response.ok) {
+      if (data.code === 'message_history_recovery_required' || data.code === 'workspace_changed') {
+        blockedHistory.current = true
+        setHistoryBlocked(true)
+        groupChatMessageCache.delete(cacheKey)
+        groupChatArchiveCache.delete(cacheKey)
+        setMessages([])
+        setArchives([])
+      }
+      throw new Error(data.error || 'Unable to load channel history. Try again.')
+    }
+    return data
+  }
   const [showMentions, setShowMentions] = useState(false)
   const [mentionQuery, setMentionQuery] = useState('')
   const [mentionPosition, setMentionPosition] = useState(0)
@@ -174,7 +157,8 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   const [copyAttachmentsToMentionedAgents, setCopyAttachmentsToMentionedAgents] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [draggingAttachment, setDraggingAttachment] = useState(false)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<any>(null)
@@ -252,8 +236,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
     refreshDocEntries().catch(() => setDocEntries([]))
   }, [refreshDocEntries])
 
-  async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || [])
+  async function addAttachmentFiles(files: File[]) {
     if (!files.length) return
     try {
       const nextAttachments = await Promise.all(files.map(async (file) => {
@@ -266,11 +249,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       })
     } catch (err: any) {
       setError(err?.message || 'Failed to prepare attachments')
-    } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
     }
+  }
+
+  async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
+    await addAttachmentFiles(Array.from(event.target.files || []))
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   function removeAttachment(attachmentId: string) {
@@ -287,7 +271,8 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         method: 'POST',
         headers: {
           'Content-Type': attachment.type || 'application/octet-stream',
-          'x-file-name': attachment.name,
+          'x-file-name': encodeURIComponent(attachment.name),
+          'x-file-name-encoding': 'percent',
         },
         body: await attachment.file.arrayBuffer(),
       })
@@ -391,7 +376,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
 
   async function fetchMessages() {
     // Only show loading on initial fetch, not on polling
-    if (messages.length === 0) {
+    if (messages.length === 0 && !blockedHistory.current) {
       setLoading(true)
       setError(null)
     }
@@ -399,9 +384,14 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       const endpoint = channel.type === 'community'
         ? `/api/communities/${encodeURIComponent(channel.name)}/messages`
         : `/api/groups/${encodeURIComponent(channel.name)}/messages`
-      const r = await fetch(endpoint)
-      const data = await r.json()
+      const r = await fetchChannel(endpoint)
+      const data = await historyResponse(r)
       const newMessages = data.messages || []
+      if (blockedHistory.current) {
+        blockedHistory.current = false
+        setHistoryBlocked(false)
+        setError(null)
+      }
       groupChatMessageCache.set(cacheKey, newMessages)
 
       // Clear typing indicators for agents who have responded
@@ -422,7 +412,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         return prevMessages // Same reference — no re-render
       })
     } catch (e) {
-      setError(String(e))
+      if (live.current) setError(String(e))
     } finally {
       if (messages.length === 0) {
         setLoading(false)
@@ -431,7 +421,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   }
 
   async function sendMessage() {
-    if ((!input.trim() && attachments.length === 0) || sending) return
+    if ((!input.trim() && attachments.length === 0) || sending || historyBlocked) return
     if (!chatEnabled) {
       setError('Group chat is disabled because no AI execution path is configured. Open BYOK or Keys & Secrets first.')
       return
@@ -478,21 +468,24 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       const uploadedAttachments = currentAttachments.length > 0
         ? await ensureUploadedAttachments(currentAttachments)
         : []
+      if (!live.current) return
       const messageContent = buildAgentInboxDisplayMessage(userMessage, uploadedAttachments)
 
       if (copyAttachmentsToMentionedAgents && uploadedAttachments.length > 0 && mentionedAgents.length > 0) {
         for (const agent of mentionedAgents) {
+          if (!live.current) return
           await uploadAttachmentsToTarget(buildAgentInboxTargetPath(agent.id), currentAttachments)
         }
       }
 
+      if (!live.current) return
       setAttachments([])
 
       const endpoint = channel.type === 'community'
         ? `/api/communities/${encodeURIComponent(channel.name)}/messages`
         : `/api/groups/${encodeURIComponent(channel.name)}/messages`
 
-      const r = await fetch(endpoint, {
+      const r = await fetchChannel(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -502,6 +495,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         }),
       })
 
+      if (!live.current) return
       if (r.ok) {
         // Show typing indicators for mentioned agents
         if (mentionedAgents.length > 0) {
@@ -521,7 +515,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         // Notify parent about message sent (for status refresh and toasts)
         onMessageSent?.(mentionedAgents.map(a => a.id), !hasExplicitMentions || hasAll)
       } else {
-        const data = await r.json()
+        const data = await historyResponse(r)
         setError(data.error || 'Failed to send message')
         setInput(userMessage)
         if (uploadedAttachments.length > 0) {
@@ -529,7 +523,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         }
       }
     } catch (e) {
-      setError(String(e))
+      if (live.current) setError(String(e))
       setInput(userMessage)
       if (currentAttachments.length > 0) {
         setAttachments(currentAttachments)
@@ -654,7 +648,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (showMentions && filteredMentionAgents.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
@@ -676,7 +670,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
           setExpandedMentionGroup(null)
           setSelectedMentionIndex(0)
         }
-      } else if (e.key === 'Enter') {
+      } else if (shouldSendChatOnKeyDown(e)) {
         e.preventDefault()
         const selected = filteredMentionAgents[selectedMentionIndex]
         if (selected && 'isGroup' in selected && (selected as any).isGroup) {
@@ -696,10 +690,10 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
           setShowMentions(false)
         }
       }
-    } else if (e.key === 'Enter') {
+    } else if (shouldSendChatOnKeyDown(e)) {
       e.preventDefault()
       sendMessage()
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === 'ArrowUp' && !input.includes('\n') && e.currentTarget.selectionStart === 0) {
       e.preventDefault()
       if (inputHistory.length > 0) {
         const newIndex = historyIndex === -1
@@ -708,7 +702,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         setHistoryIndex(newIndex)
         setInput(inputHistory[newIndex])
       }
-    } else if (e.key === 'ArrowDown') {
+    } else if (e.key === 'ArrowDown' && !input.includes('\n') && e.currentTarget.selectionStart === input.length) {
       e.preventDefault()
       if (historyIndex !== -1) {
         const newIndex = historyIndex + 1
@@ -729,7 +723,8 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         ? `/api/communities/${encodeURIComponent(channel.name)}/messages`
         : `/api/groups/${encodeURIComponent(channel.name)}/messages`
 
-      const r = await fetch(endpoint, { method: 'DELETE' })
+      const r = await fetchChannel(endpoint, { method: 'DELETE' })
+      await historyResponse(r)
       if (r.ok) {
         setMessages([])
         groupChatMessageCache.set(cacheKey, [])
@@ -741,14 +736,14 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         const archivesEndpoint = channel.type === 'community'
           ? `/api/communities/${encodeURIComponent(channel.name)}/archives`
           : `/api/groups/${encodeURIComponent(channel.name)}/archives`
-        const archivesR = await fetch(archivesEndpoint)
-        const archivesData = await archivesR.json()
+        const archivesR = await fetchChannel(archivesEndpoint)
+        const archivesData = await historyResponse(archivesR)
         const nextArchives = archivesData.archives || []
         groupChatArchiveCache.set(cacheKey, nextArchives)
         setArchives(nextArchives)
       }
     } catch (err) {
-      console.error('Failed to clear messages:', err)
+      if (live.current) setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -758,14 +753,14 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         ? `/api/communities/${encodeURIComponent(channel.name)}/archives`
         : `/api/groups/${encodeURIComponent(channel.name)}/archives`
 
-      const r = await fetch(endpoint)
-      const data = await r.json()
+      const r = await fetchChannel(endpoint)
+      const data = await historyResponse(r)
       const nextArchives = data.archives || []
       groupChatArchiveCache.set(cacheKey, nextArchives)
       setArchives(nextArchives)
       setShowArchives(true)
     } catch (err) {
-      console.error('Failed to fetch archives:', err)
+      if (live.current) setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -775,13 +770,13 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         ? `/api/communities/${encodeURIComponent(channel.name)}/archives`
         : `/api/groups/${encodeURIComponent(channel.name)}/archives`
 
-      const r = await fetch(endpoint)
-      const data = await r.json()
+      const r = await fetchChannel(endpoint)
+      const data = await historyResponse(r)
       const nextArchives = data.archives || []
       groupChatArchiveCache.set(cacheKey, nextArchives)
       setArchives(nextArchives)
     } catch (err) {
-      console.error('Failed to fetch archives list:', err)
+      if (live.current) setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -791,7 +786,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         ? `/api/communities/${encodeURIComponent(channel.name)}/archives/${filename}`
         : `/api/groups/${encodeURIComponent(channel.name)}/archives/${filename}`
 
-      await fetch(endpoint, { method: 'DELETE' })
+      await historyResponse(await fetchChannel(endpoint, { method: 'DELETE' }))
       const nextArchives = archives.filter(a => a.filename !== filename)
       groupChatArchiveCache.set(cacheKey, nextArchives)
       setArchives(nextArchives)
@@ -800,7 +795,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         setViewingArchive(null)
       }
     } catch (err) {
-      console.error('Failed to delete archive:', err)
+      if (live.current) setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -810,12 +805,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         ? `/api/communities/${encodeURIComponent(channel.name)}/archives/${filename}`
         : `/api/groups/${encodeURIComponent(channel.name)}/archives/${filename}`
 
-      const r = await fetch(endpoint)
-      const data = await r.json()
+      const r = await fetchChannel(endpoint)
+      const data = await historyResponse(r)
       setViewingArchive({ filename, messages: data.messages || [] })
       setShowArchives(false)
     } catch (err) {
-      console.error('Failed to load archive:', err)
+      if (live.current) setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -827,6 +822,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       remarkPlugins={[remarkGfm]}
       urlTransform={transformWorkspaceMarkdownUrl}
       components={{
+        table: ScrollableMarkdownTable,
         a: ({ href, children }) => {
           if (href?.startsWith('workspace-file:') && onNavigateToDoc) {
             const file = href.replace('workspace-file:', '')
@@ -849,7 +845,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         },
       }}
     >
-      {linkifyWorkspaceFiles(clean ? cleanContent(content) : content)}
+      {linkifyWorkspaceFiles(clean ? cleanCommunicationMessage(content) : content)}
     </ReactMarkdown>
   )
 
@@ -872,7 +868,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                     className="shrink-0 border-transparent bg-transparent text-current"
                   />
                   <span className="truncate">
-                    {channel.tags?.includes('bulk-chat') && channel.description ? channel.description : channel.name}
+                    {communicationTitle(channel)}
                   </span>
                 </span>
               </h2>
@@ -899,7 +895,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
               </button>
               <button
                 onClick={fetchArchives}
-                disabled={archives.length === 0}
+                disabled={historyBlocked || archives.length === 0}
                 className={`text-xs px-2 py-1.5 rounded transition-colors hidden sm:inline-flex ${
                   archives.length === 0
                     ? 'text-gray-300 cursor-not-allowed'
@@ -916,7 +912,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                 onClick={() => setShowClearConfirm(true)}
                 className="text-xs px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 hidden sm:inline-flex"
                 title="Clear chat (archives first)"
-                disabled={messages.length === 0}
+                disabled={historyBlocked || messages.length === 0}
               >
                 <span className="inline-flex items-center gap-1">
                   <ProductIconCell iconName="delete" label="Clear" size="sm" className="border-transparent bg-transparent text-current" />
@@ -958,12 +954,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
           )}
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 dark:bg-red-900/30 dark:border-red-800 dark:text-red-200">
               {error}
             </div>
           )}
 
-          {!loading && messages.length === 0 && (
+          {!loading && !error && messages.length === 0 && (
             <p className="text-sm text-gray-400 text-center mt-8">
               No messages yet. Start a conversation below.
             </p>
@@ -988,17 +984,17 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
             return (
               <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5 dark:bg-gray-800">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{channel.members.find(agent => agent.id === msg.from)?.name || msg.from}</span>
                   <span className="text-xs text-gray-400">
                     {formatChatTime(msg.timestamp, row.showDate)}
                   </span>
                 </div>
                 {msg.from !== 'User' ? (
-                  <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                  <div className="min-w-0 text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                     {renderMarkdown(msg.content, true)}
                   </div>
                 ) : (
-                  <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                  <div className="min-w-0 text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                     {renderMarkdown(msg.content)}
                   </div>
                 )}
@@ -1044,7 +1040,17 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         </div>
 
         {/* Input */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 shrink-0">
+        <div
+          className={`px-4 sm:px-6 py-3 sm:py-4 border-t shrink-0 ${draggingAttachment ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30' : 'border-gray-100'}`}
+          onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setDraggingAttachment(true) } }}
+          onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDraggingAttachment(false) }}
+          onDrop={(event) => {
+            event.preventDefault()
+            setDraggingAttachment(false)
+            if (!sending) void addAttachmentFiles(Array.from(event.dataTransfer.files))
+          }}
+        >
+          {draggingAttachment && <p className="mb-2 text-xs font-medium text-sky-700 dark:text-sky-300">Drop files to attach</p>}
           {!chatEnabled && (
             <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
               <div className="font-medium">Group chat is disabled because no AI execution path is configured</div>
@@ -1153,7 +1159,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
               </div>
             )}
 
-            <div className="flex gap-2">
+            <div className="flex items-end gap-2">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -1192,21 +1198,35 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                   </svg>
                 )}
               </button>
-              <input
+              <div className="relative min-w-0 flex-1">
+              <textarea
                 ref={inputRef}
-                type="text"
+                rows={composerExpanded ? 4 : 1}
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder={isListening ? "Listening..." : "Type, speak, or attach files... posts to everyone by default, or use @name"}
-                className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                disabled={sending || isListening || !chatEnabled}
+                placeholder={isListening ? "Listening..." : "Message..."}
+                title="Enter to send; Shift+Enter for a new line. Use @name to address an agent."
+                aria-label="Message group"
+                className="block w-full min-h-10 max-h-40 resize-y px-4 pr-10 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                disabled={sending || isListening || historyBlocked || !chatEnabled}
               />
+              <button
+                type="button"
+                onClick={() => { if (inputRef.current) inputRef.current.style.height = ''; const next = !composerExpanded; saveChatComposerExpanded(next); setComposerExpanded(next) }}
+                className="absolute right-2 top-1.5 rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                aria-label={composerExpanded ? 'Collapse message box' : 'Expand message box'}
+                title={composerExpanded ? 'Collapse message box' : 'Expand message box'}
+                aria-expanded={composerExpanded}
+              >
+                <svg className={`h-4 w-4 transition-transform ${composerExpanded ? '' : 'rotate-180'}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 7 5 5 5-5" /></svg>
+              </button>
+              </div>
               <button
                 ref={sendButtonRef}
                 onClick={sendMessage}
-                disabled={(!input.trim() && attachments.length === 0) || sending || !chatEnabled}
-                className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                disabled={(!input.trim() && attachments.length === 0) || sending || historyBlocked || !chatEnabled}
+                className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
               >
                 {sending ? 'Sending...' : 'Send'}
               </button>
@@ -1331,7 +1351,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                     const url = URL.createObjectURL(blob)
                     const a = document.createElement('a')
                     a.href = url
-                    a.download = `${channel.name}_${new Date(parseInt(viewingArchive.filename.match(/_(\d+)\.json$/)?.[1] || '0')).toISOString().split('T')[0]}.txt`
+                    a.download = `${communicationTitle(channel).replace(/[^a-z0-9_-]+/gi, '-')}_${new Date(parseInt(viewingArchive.filename.match(/_(\d+)\.json$/)?.[1] || '0')).toISOString().split('T')[0]}.txt`
                     a.click()
                     URL.revokeObjectURL(url)
                   }}
@@ -1371,7 +1391,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                 return (
                   <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5 dark:bg-gray-800">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{channel.members.find(agent => agent.id === msg.from)?.name || msg.from}</span>
                       <span className="text-xs text-gray-400">
                         {formatChatTime(msg.timestamp, shouldShowCalendarDate(msg.timestamp))}
                       </span>

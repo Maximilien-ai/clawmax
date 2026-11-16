@@ -117,7 +117,7 @@ export function validateMailInvocation(grant: MailCapabilityGrant, request: Mail
     const recipients = Array.from(new Set((args.to || []).map((entry) => entry.trim()).filter(Boolean)))
     if (recipients.length === 0) throw new Error('At least one draft recipient is required')
     if (recipients.length > MAX_DRAFT_RECIPIENTS) throw new Error(`Draft recipients exceed the ${MAX_DRAFT_RECIPIENTS} recipient limit`)
-    if (recipients.some((recipient) => !EMAIL_PATTERN.test(recipient) || /[\r\n]/.test(recipient))) {
+    if (recipients.some((recipient) => recipient.length > 254 || !EMAIL_PATTERN.test(recipient) || /[\r\n]/.test(recipient))) {
       throw new Error('Draft recipients must be valid email addresses')
     }
     args.to = recipients

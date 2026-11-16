@@ -4,8 +4,10 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/byok.test.ts
  */
 
-import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, hasCogneeConfiguration, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
+import { buildByokVerificationFingerprint, byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, hasCogneeConfiguration, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
 import { cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
+import strictAssert from 'node:assert/strict'
+import { fetchModelsWithByok, getByokStorageKey, hasAnyLLMKeys, readStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -53,6 +55,90 @@ function installLocalStorageMock() {
 installLocalStorageMock()
 
 async function main() {
+  await test('browser provider paths are detected independently without enabling unsupported generation', () => {
+    for (const key of ['openai', 'anthropic', 'geminiApiKey', 'openrouter', 'xai', 'ollamaBaseUrl', 'ollamaDefaultModel', 'openaiCompatibleBaseUrl', 'openaiCompatibleDefaultModel']) {
+      localStorage.clear()
+      writeStoredByokKeys({ [key]: 'fixture' })
+      strictAssert.equal(hasAnyLLMKeys(), true, key)
+      strictAssert.equal(hasChatExecutionAccess(), true, key)
+      strictAssert.equal(hasAiGenerationAccess(), ['openai', 'anthropic', 'openaiCompatibleBaseUrl'].includes(key), key)
+    }
+    for (const provider of ['openai', 'anthropic'] as const) {
+      const keys = { [provider]: 'fixture' }
+      writeStoredByokKeys({ ...keys, verifiedProviders: { [provider]: buildByokVerificationFingerprint(provider, keys) } })
+      strictAssert.deepEqual(getAiGenerationReadiness(), { enabled: true })
+      writeStoredByokKeys({ ...keys, verifiedProviders: { [provider]: 'old-credential' } })
+      strictAssert.match(getAiGenerationReadiness().warning || '', /not been verified/)
+    }
+    localStorage.clear()
+  })
+
+  await test('each supported provider respects user defaults and explicit system execution permission', () => {
+    for (const provider of ['openai', 'anthropic', 'gemini', 'openrouter', 'xai', 'openaiCompatible']) {
+      localStorage.clear()
+      const defaults = { [provider]: true }
+      strictAssert.equal(hasAnyLLMKeys({ userKeyDefaults: defaults }), true, provider)
+      strictAssert.equal(hasAnyLLMKeys({ systemKeyDefaults: defaults }), true, provider)
+      strictAssert.equal(hasChatExecutionAccess({ userKeyDefaults: defaults }), true, provider)
+      strictAssert.equal(hasChatExecutionAccess({ systemKeyDefaults: defaults }), false, provider)
+      strictAssert.equal(hasChatExecutionAccess({ systemKeyDefaults: defaults, allowSystemKeysForUserExecution: true }), true, provider)
+      const supportsGeneration = ['openai', 'anthropic', 'openaiCompatible'].includes(provider)
+      strictAssert.equal(hasAiGenerationAccess({ userKeyDefaults: defaults }), supportsGeneration, provider)
+      strictAssert.equal(hasAiGenerationAccess({ systemKeyDefaults: defaults, allowSystemKeysForUserExecution: true }), supportsGeneration, provider)
+    }
+    strictAssert.equal(hasAnyLLMKeys(null), false)
+  })
+
+  await test('provider verification fingerprints include the relevant endpoint and model', () => {
+    const pairs = [['openai', 'openai'], ['anthropic', 'anthropic'], ['gemini', 'geminiApiKey'], ['openrouter', 'openrouter'], ['xai', 'xai']] as const
+    for (const [provider, key] of pairs) {
+      strictAssert.equal(buildByokVerificationFingerprint(provider, {}), '')
+      strictAssert.equal(buildByokVerificationFingerprint(provider, { [key]: ' fixture ' }), 'fixture')
+    }
+    strictAssert.equal(buildByokVerificationFingerprint('ollama', {}), '::')
+    strictAssert.equal(buildByokVerificationFingerprint('ollama', { ollamaBaseUrl: ' http://host ', ollamaDefaultModel: ' model ' }), 'http://host::model')
+    strictAssert.equal(buildByokVerificationFingerprint('openaiCompatible', {}), '::::')
+    strictAssert.equal(buildByokVerificationFingerprint('openaiCompatible', { openaiCompatibleBaseUrl: ' https://host ', openaiCompatibleApiKey: ' key ', openaiCompatibleDefaultModel: ' model ' }), 'https://host::key::model')
+  })
+
+  await test('malformed storage is recoverable and silent saves do not dispatch change events', () => {
+    for (const raw of ['{broken', 'null', '42', '"string"']) {
+      localStorage.setItem(getByokStorageKey(), raw)
+      strictAssert.equal(readStoredByokKeys().openai, undefined)
+    }
+    const originalDispatch = window.dispatchEvent
+    let events = 0
+    window.dispatchEvent = () => { events++; return true }
+    try {
+      writeStoredByokKeys({ openai: 'fixture' }, { silent: true })
+      strictAssert.equal(events, 0)
+      writeStoredByokKeys({ openai: 'updated' })
+      strictAssert.equal(events, 1)
+      strictAssert.equal(readStoredByokKeys().openai, 'updated')
+    } finally { window.dispatchEvent = originalDispatch }
+  })
+
+  await test('model discovery sends each browser credential in the request body, never in the URL, and propagates HTTP failures', async () => {
+    localStorage.clear()
+    writeStoredByokKeys({ openai: 'a&b', anthropic: 'anthropic', geminiApiKey: 'gemini', openrouter: 'router', xai: 'xai', ollamaBaseUrl: 'http://ollama', openaiCompatibleApiKey: 'compatible', openaiCompatibleBaseUrl: 'https://host/v1', openaiCompatibleDefaultModel: 'model' })
+    const originalFetch = globalThis.fetch
+    try {
+      globalThis.fetch = (async (url: any, init?: RequestInit) => {
+        // A URL is written to proxy, server and browser logs; the keys must only travel in the body.
+        strictAssert.equal(String(url), '/api/agents/models/discover')
+        strictAssert.equal(init?.method, 'POST')
+        strictAssert.deepEqual(JSON.parse(String(init?.body)), { openai: 'a&b', anthropic: 'anthropic', gemini: 'gemini', openrouter: 'router', xai: 'xai', ollamaBaseUrl: 'http://ollama', openaiCompatibleApiKey: 'compatible', openaiCompatibleBaseUrl: 'https://host/v1', openaiCompatibleDefaultModel: 'model', showAll: true })
+        return { ok: true, json: async () => ({ models: ['model'], modelsByProvider: {} }) }
+      }) as any
+      strictAssert.deepEqual(await fetchModelsWithByok({ showAll: true }), { models: ['model'], modelsByProvider: {} })
+      globalThis.fetch = (async () => ({ ok: false })) as any
+      await strictAssert.rejects(fetchModelsWithByok(), /Failed to load models/)
+      globalThis.fetch = (async () => ({ ok: false, json: async () => ({ error: 'This model-service origin is not enabled.' }) })) as any
+      await strictAssert.rejects(fetchModelsWithByok(), /model-service origin is not enabled/)
+      await strictAssert.rejects(refreshModelsWithByok(), /Failed to refresh models/)
+    } finally { globalThis.fetch = originalFetch; localStorage.clear() }
+  })
+
   console.log(`\n${YELLOW}=== BYOK Helper Test Suite ===${RESET}\n`)
 
   await test('browser-local BYOK key enables AI generation access', () => {
@@ -67,12 +153,12 @@ async function main() {
     assert(hasAiGenerationAccess(null) === true, 'Expected OpenAI-compatible endpoint to enable AI generation access')
   })
 
-  await test('OpenAI-compatible endpoint without default model warns for AI generation', () => {
+  await test('OpenAI-compatible endpoint without a default model is asked to be checked, not given a model', () => {
     localStorage.clear()
     writeStoredByokKeys({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' })
     const readiness = getAiGenerationReadiness(null)
     assert(readiness.enabled === true, 'Expected OpenAI-compatible path to stay visible')
-    assert(/default model/i.test(readiness.warning || ''), 'Expected default-model warning')
+    assert(/not been verified yet/i.test(readiness.warning || ''), `Expected the unverified warning, got: ${readiness.warning}`)
   })
 
   await test('user default keys enable AI generation access', () => {
@@ -153,6 +239,66 @@ async function main() {
     const readiness = getAiGenerationReadiness(null)
     assert(readiness.enabled === true, 'Expected verified hosted browser key to allow AI generation')
     assert(!readiness.warning, 'Expected no warning for verified browser key')
+  })
+
+  await test('a verified OpenAI-compatible endpoint needs no typed default model', () => {
+    localStorage.clear()
+    const keys = {
+      openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1',
+      openaiCompatibleApiKey: '',
+      openaiCompatibleDefaultModel: '',
+    }
+    writeStoredByokKeys({
+      ...keys,
+      verifiedProviders: { openaiCompatible: buildByokVerificationFingerprint('openaiCompatible', keys) },
+    })
+    const readiness = getAiGenerationReadiness(null)
+    assert(readiness.enabled === true, 'Expected a verified endpoint to allow AI generation')
+    assert(!readiness.warning, `Expected no warning for a verified endpoint, got: ${readiness.warning}`)
+  })
+
+  await test('an untouched OpenAI-compatible URL does not warn when a verified hosted key will run generation', () => {
+    // The BYOK dialog saves its local default URL with no model even when that profile is never used.
+    // Generation runs on the verified key, so warning about the compatible profile sent people to fix
+    // a setup the request would never touch.
+    for (const provider of ['openai', 'anthropic'] as const) {
+      localStorage.clear()
+      writeStoredByokKeys({ [provider]: 'sk-verified', verifiedProviders: { [provider]: 'sk-verified' }, openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', preferredModel: 'openai/gpt-5.4-mini' })
+      strictAssert.deepEqual(getAiGenerationReadiness({ deploymentKind: 'local' }), { enabled: true }, provider)
+    }
+    localStorage.clear()
+    writeStoredByokKeys({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' })
+    strictAssert.deepEqual(getAiGenerationReadiness({ deploymentKind: 'local', userKeyDefaults: { openai: true } }), { enabled: true })
+  })
+
+  await test('readiness checks verification of the provider that will run, not of any configured one', () => {
+    localStorage.clear()
+    // OpenAI outranks Anthropic, so a verified Anthropic key does not make an unverified OpenAI key safe.
+    writeStoredByokKeys({ openai: 'sk-unchecked', anthropic: 'sk-ant-verified', verifiedProviders: { anthropic: 'sk-ant-verified' } })
+    strictAssert.match(getAiGenerationReadiness(null).warning || '', /OpenAI key has not been verified/)
+    writeStoredByokKeys({ openai: 'sk-verified', anthropic: 'sk-ant-unchecked', verifiedProviders: { openai: 'sk-verified' } })
+    strictAssert.deepEqual(getAiGenerationReadiness(null), { enabled: true })
+    localStorage.clear()
+  })
+
+  await test('an untouched OpenAI-compatible URL does not warn when Gemini or a server key will run generation', () => {
+    localStorage.clear()
+    writeStoredByokKeys({ geminiApiKey: 'AIza-verified', verifiedProviders: { gemini: 'AIza-verified' }, openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' })
+    strictAssert.deepEqual(getAiGenerationReadiness({ deploymentKind: 'local' }), { enabled: true })
+    localStorage.clear()
+    // Generation runs on server keys even when agent turns may not use them.
+    writeStoredByokKeys({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' })
+    strictAssert.doesNotMatch(getAiGenerationReadiness({ deploymentKind: 'local', systemKeyDefaults: { anthropic: true }, allowSystemKeysForUserExecution: false }).warning || '', /needs a default model/)
+    localStorage.clear()
+  })
+
+  await test('an incomplete OpenAI-compatible profile still warns when it is the only execution path', () => {
+    localStorage.clear()
+    writeStoredByokKeys({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openai: '', anthropic: '' })
+    const readiness = getAiGenerationReadiness({ deploymentKind: 'local' })
+    strictAssert.equal(readiness.enabled, true)
+    strictAssert.match(readiness.warning || '', /OpenAI-compatible setup has not been verified/)
+    localStorage.clear()
   })
 
   await test('chat execution access supports gemini and ollama paths', () => {

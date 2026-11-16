@@ -1,16 +1,40 @@
 # ClawMax Documentation
 
-> Last updated: September 22, 2026
+> Last updated: November 14, 2026
 
-Active development: RC83 preparation / OpenClaw `2026.9.5`; stable remains
-`v1.9.9`. RC82 image checks passed, but installed-instance acceptance is still
-pending. Start with the [current release gate](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
+Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
+`v1.9.9`. Start with [November 14 dependency maintenance and RC98 gates](planning/DEPENDABOT_2026-11-14.md).
+RC98 has not been cut. Earlier RC preview/evidence files below describe their
+original source snapshots, not the current candidate or runtime state.
 
 ## Active Documents
 
 | Document | Description |
 |----------|-------------|
+| [planning/PR191_ACCEPTANCE_2026-11-14.md](planning/PR191_ACCEPTANCE_2026-11-14.md) | Compatible-provider optional model discovery, engineering evidence and one external-provider check |
+| [planning/DEPENDABOT_2026-11-14.md](planning/DEPENDABOT_2026-11-14.md) | #302/#384/#298 merge receipts, #296 merge receipt and retained release gates |
+| [planning/DEPENDABOT_2026-11-13.md](planning/DEPENDABOT_2026-11-13.md) | Prior dependency contracts/merges, issue triage and retained RC98 gates |
+| [CI_TEST_SCOPE.md](CI_TEST_SCOPE.md) | Required CI selects focused workflow/docs checks and full application/dependency/runtime validation; reproducible commands and fallback guards |
+| [planning/ISSUE_TRIAGE_2026-11-13.md](planning/ISSUE_TRIAGE_2026-11-13.md) | All 107 starting issues classified; #273 closed, 106 remain open; evidence and closure-verification queue |
+| [planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md](planning/RC98_CHAT_ACCEPTANCE_2026-11-12.md) | Archived, accepted and merged #227 chat evidence, 574-check result and retained limitations |
+| [planning/RC98_ACCEPTANCE_2026-11-12.md](planning/RC98_ACCEPTANCE_2026-11-12.md) | Archived, accepted and merged #242 scoring/resize evidence and feedback closure |
+| [planning/RC98_ACCEPTANCE_2026-11-11.md](planning/RC98_ACCEPTANCE_2026-11-11.md) | Accepted and merged scheduler batch: wording receipt, 571-check evidence and retained limitations |
+| [planning/RC98_ACCEPTANCE_2026-11-10.md](planning/RC98_ACCEPTANCE_2026-11-10.md) | Accepted #404 checks, full 570-check evidence, remediated CodeQL and current CI gate, exact dev identity and remaining RC98 gates |
+| [planning/MESSAGE_ISOLATION_404_2026-11-10.md](planning/MESSAGE_ISOLATION_404_2026-11-10.md) | #404 exact-source validation, legacy ownership and feedback status |
+| [guides/RECOVER_CHANNEL_HISTORY.md](guides/RECOVER_CHANNEL_HISTORY.md) | Owner recovery, backups and rollback for older channel histories |
+| [planning/RC98_ACCEPTANCE_2026-11-08.md](planning/RC98_ACCEPTANCE_2026-11-08.md) | Historical first-batch acceptance, prior test evidence and all-feedback/reply reconciliation |
+| [planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) | RC95 source preview: five included PRs, four holds, four human/provider acceptance checks and engineering evidence |
+| [FIRST_AGENT_TUTORIAL.md](FIRST_AGENT_TUTORIAL.md) | Low-code guide to define, create, test, and improve a first ClawMax agent |
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
+| [planning/RC94_REVIEW_HANDOFF_2026-10-26.md](planning/RC94_REVIEW_HANDOFF_2026-10-26.md) | Historical RC94 reviewer checklist; current PR disposition is in the RC95 preview |
+| [planning/RC94_IMAGE_HANDOFF_2026-10-26.md](planning/RC94_IMAGE_HANDOFF_2026-10-26.md) | RC94 test-image monitoring, fixed source identity, local validation evidence, and pending image gates |
+| [planning/RC94_SOURCE_SETUP_FIX_2026-10-26.md](planning/RC94_SOURCE_SETUP_FIX_2026-10-26.md) | Source setup/start/update fix, pinned pnpm bootstrap, command guidance, and Mike clean-machine acceptance |
+| [planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md](planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md) | Active PR #212, image, MBP14, test10, and Template execution gates |
+| [planning/PRE_RC89_MAINTENANCE_PARITY_2026-09-29.md](planning/PRE_RC89_MAINTENANCE_PARITY_2026-09-29.md) | 1.9.10 feature reconciliation into 2.0, focused evidence and pre-RC89 acceptance |
+| [LESSONS_LEARNED_2026-09-27.md](LESSONS_LEARNED_2026-09-27.md) | Hackathon recap, Cognee4 canary evidence, pending branches and next-day owners |
+| [recap/](recap/) | Historical repository recaps; current team recaps are in the shared `~/Desktop/Maximilien AI LLC/docs/recaps` directory |
+| [planning/WEEK_2026-09-28.md](planning/WEEK_2026-09-28.md) | Soft Dashboard priorities for 1.9.10 search, AI guide, Google sign-in, and PR triage |
+| [planning/RC85_RELEASE_GATE_2026-09-23.md](planning/RC85_RELEASE_GATE_2026-09-23.md) | Historical RC85 candidate scope, engineering gate and Mike acceptance |
 | [planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md](planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md) | RC83 branch coverage, isolated runtime validation, image and acceptance gates |
 | [planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md](planning/RC82_CLI_DEPLOYMENT_HANDOFF_2026-09-22.md) | Published RC82 evidence and unresolved installed-instance deployment blockers |
 | [BACKLOG.md](BACKLOG.md) | Prioritized backlog, sprint items, and roadmap |
@@ -31,6 +55,7 @@ pending. Start with the [current release gate](planning/RC83_COVERAGE_AND_RUNTIM
 | [planning/RC80_DOCUMENT_PDF_2026-09-17.md](planning/RC80_DOCUMENT_PDF_2026-09-17.md) | RC80 source-only document PDF feature, validation evidence, limits, and pending release gates |
 | [planning/RC80_STABILITY_AND_TEMPLATE_GATE_2026-09-18.md](planning/RC80_STABILITY_AND_TEMPLATE_GATE_2026-09-18.md) | Template-first repeatable stability gates, executed foundation tests, and Dashboard/CLI contract gaps |
 | [planning/RC80_DASHBOARD_CLI_TEMPLATE_HANDOFF_2026-09-18.md](planning/RC80_DASHBOARD_CLI_TEMPLATE_HANDOFF_2026-09-18.md) | Tested portable Template catalog contract, real CLI interoperability, and remaining Dashboard lifecycle gates |
+| [planning/RC85_TEMPLATE_CLI_HANDOFF_2026-09-23.md](planning/RC85_TEMPLATE_CLI_HANDOFF_2026-09-23.md) | RC85 source checkpoint: instance catalog import/export, conditional staged lifecycle, public paths, replay rules, and open acceptance gates |
 | [planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md](planning/RC81_CLI_RC6_CHAT_HANDOFF_2026-09-20.md) | Public RC6 chat submission fix, isolated strict-client evidence, and remaining Workflow/runtime acceptance gates |
 | [planning/RC70_TEST10_RUNTIME_HANDOFF_2026-09-11.md](planning/RC70_TEST10_RUNTIME_HANDOFF_2026-09-11.md) | RC69 test10 evidence and RC70 gateway, lifecycle, storage, identity, and Operations API gates |
 | [planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md](planning/MINI_SPRINT_AI_BUILDER_CHANNELS_COVERAGE_2026-08-31.md) | Active two-day target with separate AI Builder, Telegram, Discord, and Slack candidates plus 71.2% branch coverage |
@@ -77,3 +102,8 @@ pending. Start with the [current release gate](planning/RC83_COVERAGE_AND_RUNTIM
 | `videos/archive/` | Historical workflow and add-agent recordings; current 2.0 replacement videos are still planned |
 | `archive/` | Historical docs no longer actively maintained |
 | `planning/archive/` | Completed and superseded execution plans |
+
+## Development notes
+
+- [Agent runtimes](planning/AGENT_RUNTIMES.md) — in-progress implementation notes; not a supported-feature guarantee.
+- [RC96 local acceptance](planning/RC96_PREVIEW_ACCEPTANCE_2026-10-28.md) — candidate scope, exclusions and six independent acceptance checks.

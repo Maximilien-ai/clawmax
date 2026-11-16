@@ -57,6 +57,7 @@ export default function ModelFitRecommendationPanel({
   onUseSuggestion,
   autoApply = false,
   onAutoApplyChange,
+  collapsible = false,
 }: {
   recommendation: ModelFitRecommendation | null
   preference: ModelFitPreference
@@ -67,6 +68,7 @@ export default function ModelFitRecommendationPanel({
   onUseSuggestion?: (model: string) => void
   autoApply?: boolean
   onAutoApplyChange?: (enabled: boolean) => void
+  collapsible?: boolean
 }) {
   const [detailsExpanded, setDetailsExpanded] = React.useState(() => (
     readModelFitDetailsExpanded(typeof window === 'undefined' ? undefined : window.localStorage)
@@ -83,11 +85,19 @@ export default function ModelFitRecommendationPanel({
     )
   }
 
+  const Container = collapsible ? 'details' : 'section'
   return (
-    <section className="overflow-hidden rounded-lg border border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-900/20" aria-label="Model suggestion">
+    <Container className="overflow-hidden rounded-lg border border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-900/20" aria-label="Model suggestion">
+      {collapsible && (
+        <summary className="cursor-pointer p-3 text-sm font-semibold text-sky-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500 dark:text-sky-100">
+          Automatic model suggestion
+          {autoApply && <span className="ml-2 text-xs font-normal">Auto-select on</span>}
+          {error && <span role="alert" className="mt-1 block text-xs font-normal text-red-700 dark:text-red-300">{error}</span>}
+        </summary>
+      )}
       <div className="grid gap-3 border-b border-sky-200 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.55fr)] sm:items-end dark:border-sky-800">
         <div className="min-w-0">
-          <h4 className="text-sm font-semibold text-sky-950 dark:text-sky-100">Automatic model suggestion</h4>
+          {!collapsible && <h4 className="text-sm font-semibold text-sky-950 dark:text-sky-100">Automatic model suggestion</h4>}
           <p className="mt-1 text-xs text-sky-800 dark:text-sky-200">
             Compares this agent&apos;s description with models available to the current runtime.
           </p>
@@ -201,6 +211,6 @@ export default function ModelFitRecommendationPanel({
           </>
         )}
       </div>
-    </section>
+    </Container>
   )
 }

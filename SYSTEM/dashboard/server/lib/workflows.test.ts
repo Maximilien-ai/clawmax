@@ -4,6 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/workflows.test.ts
  */
 
+import nodeAssert from 'assert'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -44,6 +45,7 @@ import {
   persistWorkflowExecutionOutputArtifacts,
   resolveTargetTeamAgentIds,
   extractWorkflowAgentResultPayload,
+  parseWorkflowAgentResultPayload,
   isBenignOpenClawRuntimeWarning,
   stripBenignOpenClawRuntimeWarnings,
   summarizeAgentInputRequest,
@@ -93,6 +95,11 @@ test('validateCron accepts valid cron expressions', () => {
   assert(validateCron('30 9 * * 1-5').valid, 'weekdays should be valid')
 })
 
+test('validateCron accepts manual and provides useful invalid errors', () => {
+  assert(validateCron('manual').valid, 'manual should be valid')
+  assert(!!validateCron('nonsense').error, 'Invalid schedules must explain the failure')
+})
+
 test('validateCron rejects invalid expressions', () => {
   assert(!validateCron('invalid').valid, 'invalid should fail')
   assert(!validateCron('60 * * * *').valid, '60 minutes should fail')
@@ -103,6 +110,38 @@ test('validateCron returns human-readable description', () => {
   const result = validateCron('0 9 * * *')
   assert(result.humanReadable !== undefined, 'Should have humanReadable')
   assert(result.humanReadable!.toLowerCase().includes('9'), 'Should mention 9')
+})
+
+test('workflow agent payload parsing preserves raw text, nested metadata, and retry errors', () => {
+  const raw = parseWorkflowAgentResultPayload('plain response')
+  assert(raw.text === 'plain response', 'Plain runtime output should remain visible')
+  assert(raw.durationMs === 0, 'Plain output should have no invented duration')
+  const cases = [
+    { payloads: [{ text: 'top-level' }], meta: { durationMs: 14, agentMeta: { model: 'fast' } } },
+    { result: { payloads: [{ text: 'nested' }], meta: { durationMs: 22, agentMeta: { model: 'backup' } } } },
+    { result: { payloads: [{ text: '' }] } },
+    { payloads: [], result: { payloads: [{ text: 'fallback' }] }, meta: {} },
+  ]
+  const expected = [
+    { text: 'top-level', durationMs: 14, model: 'fast' },
+    { text: 'nested', durationMs: 22, model: 'backup' },
+    { text: '', durationMs: 0, model: undefined },
+    { text: 'fallback', durationMs: 0, model: undefined },
+  ]
+  for (const [index, payload] of cases.entries()) {
+    const result = parseWorkflowAgentResultPayload(JSON.stringify(payload))
+    assert(result.text === expected[index].text, `Payload ${index} text should be exact`)
+    assert(result.durationMs === expected[index].durationMs, `Payload ${index} duration should be exact`)
+    assert(result.meta.model === expected[index].model, `Payload ${index} model should be exact`)
+  }
+  for (const output of [
+    'session file locked by another process',
+    JSON.stringify({ payloads: [{ text: 'session file locked by another process' }] }),
+  ]) {
+    let threw = false
+    try { parseWorkflowAgentResultPayload(output) } catch { threw = true }
+    assert(threw, 'Lock failures should propagate for retry rather than becoming successful text')
+  }
 })
 
 test('extractWorkflowAgentResultPayload falls back to stderr json when stdout is empty', () => {
@@ -277,6 +316,34 @@ test('parseWorkflowMd returns null for invalid content', () => {
   assert(parseWorkflowMd('') === null, 'Empty should fail')
 })
 
+test('workflow markdown defaults sparse fields and preserves extended portable fields', () => {
+  const sparse = parseWorkflowMd('---\nname: Sparse\n---\n\n# Work')
+  assert(sparse?.name === 'Sparse', 'Sparse workflow should parse')
+  assert(sparse?.schedule === 'manual' && sparse.timezone === 'UTC', 'Sparse workflow should use safe scheduling defaults')
+  assert(sparse?.enabled === true && sparse.executionMode === 'automated', 'Sparse workflow should remain enabled with automated mode')
+  assert(sparse?.targeting.teamIds?.length === 0, 'Sparse targeting should default to empty teams')
+  assert(sparse?.maxRuns === 0 && sparse.runCount === 0, 'Sparse counters should default to zero')
+  const namedById = parseWorkflowMd('---\ndescription: No name\nenabled: false\n---\n', 'external-id')
+  assert(namedById?.name === 'external-id' && namedById.id === 'external-id', 'Explicit ID should allow unnamed legacy markdown')
+  assert(namedById?.enabled === false, 'Explicit disabled state should remain disabled')
+  assert(parseWorkflowMd('---\nname: [broken\n---\n') === null, 'Malformed YAML must fail closed')
+
+  const full = {
+    ...sparse!, id: 'full', name: 'Full', owner: 'lead', maxRuns: 3, runCount: 1,
+    secretRequirements: [{ key: 'API_KEY', required: true }],
+    outputDefinitions: [{ key: 'report', label: 'Report', type: 'markdown' }],
+    inputRefs: [{ key: 'source', value: 'workspace:notes' }],
+  } as any
+  const markdown = workflowToMarkdown(full)
+  assert(markdown.includes('owner: lead'), 'Owner should be exported')
+  assert(markdown.includes('maxRuns: 3'), 'Run limit should be exported')
+  assert(markdown.includes('secretRequirements:'), 'Secret requirements should be exported')
+  assert(markdown.includes('outputDefinitions:'), 'Output definitions should be exported')
+  assert(markdown.includes('inputRefs:'), 'Input references should be exported')
+  const parsed = parseWorkflowMd(markdown)
+  assert(parsed?.owner === 'lead' && parsed.maxRuns === 3, 'Extended fields should round-trip')
+})
+
 test('workflowToMarkdown round-trips', () => {
   const wf = getWorkflow(createdIds[0])!
   const md = workflowToMarkdown(wf)
@@ -286,6 +353,12 @@ test('workflowToMarkdown round-trips', () => {
   const parsed = parseWorkflowMd(md)
   assert(parsed?.name === wf.name, 'Round-trip name should match')
   assert(parsed?.timezone === (wf.timezone || 'UTC'), 'Round-trip timezone should match')
+  const conditional = { ...wf, dependsOn: ['upstream-a', 'unresolved-upstream'], type: 'conditional' as const }
+  const restored = parseWorkflowMd(workflowToMarkdown(conditional))
+  assert(JSON.stringify(restored?.dependsOn) === JSON.stringify(conditional.dependsOn), 'Export must retain every dependency ID, including unresolved references')
+  assert(restored?.type === 'conditional', 'Export must retain workflow classification')
+  const empty = parseWorkflowMd(workflowToMarkdown({ ...wf, dependsOn: [] }))
+  assert(Array.isArray(empty?.dependsOn) && empty.dependsOn.length === 0, 'Explicit empty dependencies must round-trip')
 })
 
 // ============================================================================
@@ -448,6 +521,13 @@ test('resolveParticipants includes team-targeted agents as direct execution targ
   assert(participants.some((p) => p.agentId === 'ceo' && p.reason.includes('team:leadership')), 'Expected leadership team lead to execute')
   assert(!participants.some((p) => p.agentId === 'eng-lead'), 'Expected non-leader team member to be excluded by default')
   assert(!participants.some((p) => p.agentId === 'analyst'), 'Expected unrelated group agent to be excluded when teamIds create direct targets')
+})
+
+test('workflow report headings do not turn successful responses into failures', () => {
+  assert(detectParticipantReportedFailure('Executive Summary\nAll agents healthy.\nFailed or Missing Responses\nNone.') === null, 'A requested report section is not a runtime failure')
+  assert(detectParticipantReportedFailure('Failed checks\n0 failures') === null, 'Descriptive headings are not failure markers')
+  assert(detectParticipantReportedFailure('FAILED: gateway unavailable') === 'FAILED: gateway unavailable', 'Explicit failed status must remain visible')
+  assert(detectParticipantReportedFailure('Failed to connect to gateway') !== null, 'Action failure must remain visible')
 })
 
 test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
@@ -714,69 +794,48 @@ test('resolveWorkflowOpenClawCliPath honors OPENCLAW_BIN override', () => {
   }
 })
 
-function withRuntimePinnedWorkspace<T>(agentRuntimes: Record<string, string | undefined>, fn: (workspaceRoot: string) => T): T {
-  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-cron-runtime-'))
-  const previousWorkspace = process.env.OPENCLAW_WORKSPACE
-  const previousHome = process.env.HOME
-  const previousEnabledRuntimes = process.env.WORKSPACES_INTEGRATIONS_RUNTIMES
-  const home = path.join(workspaceRoot, '.home')
+test('syncWorkflowToCron leaves scheduling to the in-process scheduler and only removes its own old Gateway jobs', () => {
+  // Earlier versions also registered a Gateway cron job per OpenClaw participant, so every tick ran those
+  // agents twice. A stub CLI answers `cron list` from jobs.json and records each call, so nothing reaches a
+  // real `openclaw` or Gateway.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-cron-'))
+  const calls = path.join(dir, 'calls.log')
+  const jobs = path.join(dir, 'jobs.json')
+  const fakeCli = path.join(dir, 'openclaw')
+  fs.writeFileSync(fakeCli, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${calls}'\ncase "$*" in *unreachable*) exit 1;; "cron list"*) cat '${jobs}';; esac\n`, 'utf-8')
+  fs.chmodSync(fakeCli, 0o755)
+  fs.writeFileSync(jobs, JSON.stringify({ jobs: [
+    { id: 'job-a', name: 'clawmax-wf-scheduled-agent-a', agentId: 'agent-a' },
+    { id: 'job-b', name: 'clawmax-wf-scheduled-agent-b', agentId: 'agent-b' },
+    { id: 'job-unreachable', name: 'clawmax-wf-scheduled-agent-c', agentId: 'agent-c' },
+    { id: 'user-job', name: 'nightly-backup' },
+  ] }))
+  const readCalls = () => fs.existsSync(calls) ? fs.readFileSync(calls, 'utf-8').split('\n').filter(Boolean) : []
+  const original = process.env.OPENCLAW_BIN
+  process.env.OPENCLAW_BIN = fakeCli
   try {
-    process.env.OPENCLAW_WORKSPACE = workspaceRoot
-    process.env.HOME = home
-    // A runtime pin is only honored when that CLI is enabled for the workspace. The temp
-    // workspace has no integration config, so enable both CLIs explicitly rather than
-    // inheriting a developer's local .env — otherwise this test only passes on machines
-    // that happen to set WORKSPACES_INTEGRATIONS_RUNTIMES.
-    process.env.WORKSPACES_INTEGRATIONS_RUNTIMES = 'claude,droid'
-    fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
-    fs.mkdirSync(path.join(workspaceRoot, 'SYSTEM'), { recursive: true })
-    for (const [agentId, runtime] of Object.entries(agentRuntimes)) {
-      const agentDir = path.join(workspaceRoot, 'AGENTS', agentId)
-      fs.mkdirSync(agentDir, { recursive: true })
-      const identityLines = ['# Identity', '', '- **Name:** Test Agent']
-      if (runtime) identityLines.push(`- **Runtime:** ${runtime}`)
-      fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), identityLines.join('\n'), 'utf-8')
-    }
-    return fn(workspaceRoot)
+    const scheduled = { id: 'wf-scheduled', enabled: true, schedule: '0 9 * * *', timezone: 'UTC', content: 'Say hi' } as any
+    nodeAssert.deepStrictEqual(syncWorkflowToCron(scheduled), { ok: true })
+    nodeAssert.deepStrictEqual(readCalls(), [], 'An enabled, scheduled workflow must not be registered with the Gateway')
+
+    // A workflow file can be imported, so its stored ids are trusted only for jobs the Gateway lists under the
+    // legacy name: the user's own job and an id that no longer exists are left alone.
+    nodeAssert.deepStrictEqual(syncWorkflowToCron({ ...scheduled, cronJobId: 'job-a, job-b, user-job, gone' }), { ok: true }, 'Removed jobs leave no stored id')
+    nodeAssert.deepStrictEqual(readCalls(), ['cron list --json --all', 'cron rm job-a', 'cron rm job-b'], 'Expected only the legacy jobs to be removed, with the pinned CLI')
+
+    const failed = syncWorkflowToCron({ ...scheduled, enabled: false, cronJobId: 'job-a,job-unreachable' })
+    nodeAssert.strictEqual(failed.ok, false, 'A job that could not be removed must be reported')
+    nodeAssert.strictEqual(failed.cronJobId, 'job-unreachable', 'Only the job that is still registered stays stored, to retry')
+    nodeAssert(failed.error?.includes('second time'), `Expected the warning to say what the old job does, got ${failed.error}`)
+
+    fs.writeFileSync(jobs, JSON.stringify({ jobs: [{ id: 'job-a', name: 'clawmax-wf-scheduled-agent-a' }], hasMore: true }))
+    const partial = syncWorkflowToCron({ ...scheduled, cronJobId: 'job-a' })
+    nodeAssert.deepStrictEqual([partial.ok, partial.cronJobId], [false, 'job-a'], 'A partial job list removes nothing and keeps the stored id')
   } finally {
-    if (typeof previousWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
-    else process.env.OPENCLAW_WORKSPACE = previousWorkspace
-    if (typeof previousHome === 'undefined') delete process.env.HOME
-    else process.env.HOME = previousHome
-    if (typeof previousEnabledRuntimes === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_RUNTIMES
-    else process.env.WORKSPACES_INTEGRATIONS_RUNTIMES = previousEnabledRuntimes
-    fs.rmSync(workspaceRoot, { recursive: true, force: true })
+    if (typeof original === 'undefined') delete process.env.OPENCLAW_BIN
+    else process.env.OPENCLAW_BIN = original
+    fs.rmSync(dir, { recursive: true, force: true })
   }
-}
-
-test('syncWorkflowToCron skips openclaw cron registration for a claude/droid-pinned participant', () => {
-  withRuntimePinnedWorkspace({ 'droid-runner': 'droid' }, () => {
-    const result = syncWorkflowToCron({
-      id: 'wf-runtime-skip',
-      enabled: true,
-      schedule: '0 9 * * *',
-      timezone: 'UTC',
-      content: 'Say hi',
-    } as any, ['droid-runner'])
-    assert(result.ok === true, `Expected ok:true when every participant is non-openclaw, got ${JSON.stringify(result)}`)
-    assert(result.cronJobId === undefined, `Expected no cron job id, got ${result.cronJobId}`)
-  })
-})
-
-test('syncWorkflowToCron does not mask a real openclaw registration failure behind runtime skips', () => {
-  withRuntimePinnedWorkspace({ 'droid-runner': 'droid', 'openclaw-runner': undefined }, () => {
-    // No real openclaw CLI is on PATH in this test environment, so the openclaw-runner
-    // registration attempt fails — that must still surface as ok:false, not be swallowed
-    // by the unrelated droid-runner skip.
-    const result = syncWorkflowToCron({
-      id: 'wf-runtime-mixed',
-      enabled: true,
-      schedule: '0 9 * * *',
-      timezone: 'UTC',
-      content: 'Say hi',
-    } as any, ['droid-runner', 'openclaw-runner'])
-    assert(result.ok === false, `Expected ok:false when an openclaw participant's registration genuinely fails, got ${JSON.stringify(result)}`)
-  })
 })
 
 test('buildWorkflowSessionId stays within provider cache key limits for long ids', () => {
@@ -1193,6 +1252,28 @@ test('triggerWorkflow mock mode completes immediately and persists output artifa
   assert(artifactContent.includes('Audience: Hack judges'), `Expected run inputs to appear in mock artifact, got ${artifactContent}`)
 })
 
+test('create and update refuse a time zone node-cron cannot schedule, before anything is saved', () => {
+  const base = {
+    name: 'Zone Check',
+    description: 'Testing time zones',
+    schedule: '0 9 * * *',
+    content: '# Test\nMorning.',
+    executionMode: 'automated' as const,
+    targeting: { agents: [], groups: [], tags: [], communities: [] },
+  }
+  const before = listWorkflows().length
+  const refused = createWorkflow({ ...base, timezone: 'America/New_Yrok' })
+  assert(!refused.success && /Invalid timezone "America\/New_Yrok"/.test(String(refused.error)), `Unexpected result: ${JSON.stringify(refused)}`)
+  assert(listWorkflows().length === before, 'A refused workflow must not be written')
+
+  const created = createWorkflow({ ...base, timezone: 'America/New_York' })
+  assert(created.success, `A valid zone must be accepted: ${created.error}`)
+  createdIds.push(created.id!)
+  const updated = updateWorkflow(created.id!, { timezone: 'Mars/Olympus' })
+  assert(!updated.success, 'An update to an unknown zone must be refused')
+  assert(getWorkflow(created.id!)?.timezone === 'America/New_York', 'The saved zone must stay unchanged')
+})
+
 // ============================================================================
 // Cleanup
 // ============================================================================
@@ -1213,6 +1294,41 @@ test('triggerWorkflow rejects a concurrent second run before it can increment st
   const second = triggerWorkflow(result.id!, { manual: true })
   assert(first.success, `First trigger should claim the run: ${first.error}`)
   assert(!second.success && /already running/i.test(second.error || ''), 'Second trigger must be rejected while the first claim is active')
+})
+
+test('workflow admission disables exhausted scheduled runs without creating an execution', () => {
+  const result = createWorkflow({
+    name: `Run Limit ${Date.now()}`,
+    description: 'Scheduled workflow with exhausted quota',
+    schedule: '0 9 * * *',
+    content: '# Limited run',
+    executionMode: 'automated',
+    targeting: { agents: [], groups: [], communities: [], tags: [] },
+  })
+  assert(result.success && !!result.id, `Workflow should be created: ${result.error}`)
+  createdIds.push(result.id!)
+  updateWorkflow(result.id!, { maxRuns: 1, runCount: 1 } as any)
+  const before = listExecutions(result.id!).length
+  const rejected = triggerWorkflow(result.id!, { manual: false })
+  assert(!rejected.success && /max runs limit/i.test(rejected.error || ''), 'Scheduled run must stop at its configured limit')
+  assert(getWorkflow(result.id!)?.enabled === false, 'Exhausted workflow should be disabled')
+  assert(listExecutions(result.id!).length === before, 'Rejected admission must not create execution history')
+})
+
+test('single-workflow admission rejects empty participant selection before claiming a run', () => {
+  const result = createWorkflow({
+    name: `No Participants ${Date.now()}`,
+    description: 'Single-workflow admission boundary',
+    schedule: 'manual',
+    content: '# Work',
+    executionMode: 'automated',
+    targeting: { agents: ['missing-agent'], groups: [], communities: [], tags: [] },
+  })
+  assert(result.success && !!result.id, `Workflow should be created: ${result.error}`)
+  createdIds.push(result.id!)
+  const rejected = triggerWorkflow(result.id!, { manual: true, executionScope: 'single-workflow' })
+  assert(!rejected.success && /no executable participants/i.test(rejected.error || ''), 'Empty resolved target must be refused')
+  assert(listExecutions(result.id!).length === 0, 'No execution should be persisted for empty target')
 })
 
 test('getWorkflow marks an execution owned by an earlier dashboard boot as interrupted', () => {

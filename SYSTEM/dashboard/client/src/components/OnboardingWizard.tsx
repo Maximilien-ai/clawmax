@@ -183,7 +183,7 @@ export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWor
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
           <div
             className="w-full max-w-5xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-6 max-h-[90vh] overflow-y-auto"
             onClick={(event) => event.stopPropagation()}

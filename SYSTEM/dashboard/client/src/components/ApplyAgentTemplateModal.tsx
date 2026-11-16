@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useToast } from './Toast'
 import { fetchModelsWithByok, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
-import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel, resolveNonDeprecatedOpenAiModel } from '../lib/openAiModelLifecycle'
+import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel, resolveOfferedDefaultModel } from '../lib/openAiModelLifecycle'
 import TemplateApplyProgress from './TemplateApplyProgress'
 
 interface AgentTemplate {
@@ -70,10 +70,9 @@ export default function ApplyAgentTemplateModal({
 
   const templateDefaultModel = template.agents[0]?.model?.trim() || ''
   const browserPreferredModel = readStoredByokKeys().preferredModel?.trim() || ''
-  const resolvedDefaultModel = resolveNonDeprecatedOpenAiModel(
-    availableModels,
-    model || templateDefaultModel || executionConfig?.preferredModel || browserPreferredModel || executionConfig?.recommendedModel || ''
-  )
+  const resolvedDefaultModel = resolveOfferedDefaultModel(availableModels, [
+    model, templateDefaultModel, executionConfig?.preferredModel, browserPreferredModel, executionConfig?.recommendedModel,
+  ])
   const hasExecutionPath = hasChatExecutionAccess(executionConfig)
   const hasResolvedDefaultModel = !!resolvedDefaultModel
   const selectedModelDeprecation = formatOpenAiDeprecationNotice(model || resolvedDefaultModel)
@@ -128,7 +127,7 @@ export default function ApplyAgentTemplateModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-4 sm:p-6 max-h-[92dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h2 className="text-xl font-bold text-gray-900 mb-1 dark:text-gray-100">Apply Agent Template</h2>
         <p className="text-sm text-gray-600 mb-4 dark:text-gray-300">
@@ -214,7 +213,7 @@ export default function ApplyAgentTemplateModal({
         <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
           <button
             onClick={onClose}
-            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300"
+            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-500 dark:text-gray-300 dark:disabled:text-gray-400"
             disabled={applying}
           >
             Cancel

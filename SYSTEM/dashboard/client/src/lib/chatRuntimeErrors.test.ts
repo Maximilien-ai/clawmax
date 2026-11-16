@@ -1,4 +1,4 @@
-import { formatAgentWorkStatus, summarizeAgentChatFailure } from './chatRuntimeErrors'
+import { formatAgentWorkStatus, isRuntimeDiagnosticText, summarizeAgentChatFailure } from './chatRuntimeErrors'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -26,10 +26,26 @@ function assert(condition: boolean, message: string) {
 
 console.log(`\n${YELLOW}=== Chat Runtime Errors Test Suite ===${RESET}\n`)
 
+test('model policy rejection survives gateway wrappers and repeated presentation', () => {
+  const message = summarizeAgentChatFailure('Gateway error: Model override "ollama/qwen2.5:latest" is not allowed by agents.defaults.modelPolicy.allow')
+  assert(/model is blocked/i.test(message), 'Expected model policy guidance')
+  assert(!/could not reach/i.test(message), 'Must not misreport connectivity')
+  assert(summarizeAgentChatFailure(message) === message, 'Formatting must be idempotent')
+  assert(/could not reach/i.test(summarizeAgentChatFailure('gateway connection refused')), 'Real gateway failures retain guidance')
+})
+
 test('summarizeAgentChatFailure normalizes missing provider credentials', () => {
   const message = summarizeAgentChatFailure('No API key found for provider "openai"')
   assert(/No model provider credentials are configured for this chat/i.test(message), `Unexpected message: ${message}`)
   assert(!/provider "openai"/i.test(message), 'Expected raw provider string to be hidden')
+})
+
+test('transport failures keep the running turn ambiguous and avoid an unsafe retry', () => {
+  const message = summarizeAgentChatFailure('TypeError: network error', { agentId: 'astro-guide', transportFailure: true })
+  assert(/connection to this chat was interrupted/i.test(message), `Unexpected message: ${message}`)
+  assert(/may still be working/i.test(message), 'Do not claim the backend turn stopped with the browser connection')
+  assert(/before retrying/i.test(message), 'Warn before repeating a possible tool action')
+  assert(summarizeAgentChatFailure('TypeError: network error') === 'TypeError: network error', 'A provider-reported network error needs its own diagnosis')
 })
 
 test('summarizeAgentChatFailure normalizes invalid provider credentials', () => {
@@ -107,7 +123,42 @@ test('formatAgentWorkStatus distinguishes long tool-enabled requests', () => {
   assert(formatAgentWorkStatus(5_000) === 'Agent is working...', 'Expected concise initial status')
   assert(/45s elapsed/.test(formatAgentWorkStatus(45_000)), 'Expected seconds elapsed')
   assert(/1m 15s elapsed/.test(formatAgentWorkStatus(75_000)), 'Expected minutes elapsed')
-  assert(/up to 3 minutes/.test(formatAgentWorkStatus(75_000)), 'Expected timeout expectation')
+  assert(/several minutes/.test(formatAgentWorkStatus(75_000)), 'Do not promise a runtime deadline that is not enforced')
+})
+
+test('isRuntimeDiagnosticText flags runtime diagnostics, never code or prose that mentions errors', () => {
+  const rows: Array<[string, boolean]> = [
+    ['[diagnostic] lane task error: lane=main', true],
+    ['Error: session file locked (timeout 10000ms)', true],
+    ['request failed error="model unavailable"', true],
+    ['Handle it:\n\n```python\ntry:\n    parse(x)\nexcept ValueError:\n    pass\n```', false],
+    ['Catch `TypeError:` explicitly.', false],
+    ['```\nError: raised by the example\n```', false],
+    ['The API returns an error when the token expires.', false],
+  ]
+  for (const [text, expected] of rows) {
+    assert(isRuntimeDiagnosticText(text) === expected, `${expected ? "Expected" : "Did not expect"} a diagnostic: ${text}`)
+  }
+})
+
+test('summarizeAgentChatFailure tells Gateway failures apart and keeps the server diagnosis', () => {
+  const unreachable = 'Gateway not reachable at ws://127.0.0.1:18789 (ECONNREFUSED).\nStart it with `openclaw gateway run` or check `openclaw gateway status`.\nConfig: /Users/someone/.openclaw/openclaw.json'
+  const cases: Array<[string, RegExp]> = [
+    ['OpenClaw Gateway is not running at 127.0.0.1:18789, so agent chat cannot start.\nConfig: /Users/private', /^OpenClaw Gateway is not running/],
+    [unreachable, /^OpenClaw Gateway is not running at 127\.0\.0\.1:18789, so agent chat cannot start\./],
+    ['gateway connect failed: AUTH_TOKEN_MISMATCH', /^OpenClaw Gateway rejected the Dashboard's connection \(AUTH_TOKEN_MISMATCH\)\./],
+    ['gateway closed (1006): ', /^OpenClaw Gateway closed the connection \(code 1006\)\./],
+    ['gateway remote mode misconfigured: gateway.remote.url missing', /^OpenClaw Gateway is set to remote mode/],
+    // The server's specific message must not be replaced by the generic gateway text.
+    ['OpenClaw Gateway is not running at 127.0.0.1:18789, so agent chat cannot start.', /^OpenClaw Gateway is not running at 127\.0\.0\.1:18789/],
+    ['gateway request failed: something new', /^Agent chat could not reach the gateway runtime\.$/],
+    ['The selected model is blocked by this instance or agent model policy.', /This is not a gateway connectivity failure\.$/],
+  ]
+  for (const [raw, expected] of cases) {
+    const message = summarizeAgentChatFailure(raw)
+    assert(expected.test(message), `Unexpected message for ${JSON.stringify(raw)}: ${message}`)
+    assert(!/Config:|\/Users\//.test(message), `Raw detail leaked: ${message}`)
+  }
 })
 
 console.log('\n========================================')

@@ -1,3 +1,5 @@
+import { sanitizeReviewLogLine } from '../../../server/lib/review-redaction'
+export { sanitizeReviewLogLine } from '../../../server/lib/review-redaction'
 import type { GenericPluginRecord } from './plugins'
 
 export interface ReviewExportReviewer {
@@ -22,6 +24,7 @@ export interface ReleaseReviewExport {
   exportedAt: string
   records: GenericPluginRecord[]
   recentErrors: string[]
+  includeRuntimeErrors?: boolean
 }
 
 function markdownCell(value: unknown): string {
@@ -39,14 +42,6 @@ function fieldString(record: GenericPluginRecord, key: string): string {
 function fieldList(record: GenericPluginRecord, key: string): string[] {
   const value = record.fields[key]
   return Array.isArray(value) ? value.map(String).filter(Boolean) : []
-}
-
-export function sanitizeReviewLogLine(line: string): string {
-  return line
-    .replace(/\b(Bearer)\s+[A-Za-z0-9._~+/-]+=*/gi, '$1 [REDACTED]')
-    .replace(/\b(api[_-]?key|token|password|secret)\b(\s*[:=]\s*)([^\s,;]+)/gi, '$1$2[REDACTED]')
-    .replace(/\b(sk|ghp|github_pat|xox[baprs])[-_A-Za-z0-9]{12,}\b/g, '[REDACTED]')
-    .slice(0, 1000)
 }
 
 export function isReviewErrorLine(line: string): boolean {
@@ -101,11 +96,13 @@ export function buildReleaseReviewMarkdown(input: ReleaseReviewExport): string {
       return `| ${markdownCell(outcome.toUpperCase())} | ${markdownCell(record.name)} | ${markdownCell(fieldString(record, 'area'))} | ${markdownCell(fieldString(record, 'notes'))} | ${markdownCell(fieldList(record, 'evidence').join(', '))} | ${markdownCell(record.updatedAt || record.createdAt || '')} |`
     }),
     '',
+    ...(input.includeRuntimeErrors === false ? [] : [
     '## Recent Runtime Errors',
     '',
     ...(input.recentErrors.length > 0
       ? input.recentErrors.map((line) => `- \`${markdownCell(sanitizeReviewLogLine(line))}\``)
       : ['No recent error lines were available when this review was exported.']),
+    ]),
     '',
   ]
 

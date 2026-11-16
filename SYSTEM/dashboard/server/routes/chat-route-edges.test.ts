@@ -47,6 +47,8 @@ function makeReq(overrides: Record<string, any> = {}) {
     query: {},
     body: {},
     headers: {},
+    socket: { remoteAddress: '127.0.0.1' },
+    get(name: string) { return (this.headers as Record<string, string>)[name.toLowerCase()] },
     ...overrides,
   } as any
 }

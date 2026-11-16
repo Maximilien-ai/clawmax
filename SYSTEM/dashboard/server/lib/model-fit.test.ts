@@ -1,6 +1,13 @@
 import assert from 'assert'
 import { recommendModelsForDescription } from './model-fit'
 
+const lifecycleRecommendation = recommendModelsForDescription({
+  description: 'Help with general questions',
+  availableModels: ['openai/gpt-4.1', 'openai/gpt-4', 'openai/gpt-5.5'],
+})
+assert.equal(lifecycleRecommendation.recommendedModel, 'openai/gpt-5.5')
+assert.deepEqual(lifecycleRecommendation.candidates.map(candidate => candidate.model), ['openai/gpt-5.5'])
+
 const tests: Array<{ name: string; run: () => void }> = []
 function test(name: string, run: () => void) {
   tests.push({ name, run })
@@ -20,9 +27,9 @@ test('ranks only compatible models reported as available', () => {
 test('prefers an explicit coding model for repository work', () => {
   const result = recommendModelsForDescription({
     description: 'Review a TypeScript repository, debug failures, and write code changes.',
-    availableModels: ['openai/gpt-5.4-mini', 'openai/gpt-5.3-codex', 'google/gemini-2.5-flash'],
+    availableModels: ['openai/gpt-5.4-mini', 'custom/coder-pro', 'google/gemini-2.5-flash'],
   })
-  assert.equal(result.recommendedModel, 'openai/gpt-5.3-codex')
+  assert.equal(result.recommendedModel, 'custom/coder-pro')
   assert(result.requirements.coding)
   assert(result.candidates[0].reasons.some(reason => /coding specialization/i.test(reason)))
 })
@@ -30,7 +37,7 @@ test('prefers an explicit coding model for repository work', () => {
 test('prefers a local model when privacy is explicit', () => {
   const result = recommendModelsForDescription({
     description: 'Summarize confidential HR documents using an offline private local model.',
-    availableModels: ['anthropic/claude-sonnet-4-20250514', 'ollama/qwen3:8b'],
+    availableModels: ['anthropic/claude-sonnet-4-6', 'ollama/qwen3:8b'],
   })
   assert.equal(result.recommendedModel, 'ollama/qwen3:8b')
   assert(result.requirements.privacy)
@@ -76,6 +83,42 @@ test('does not auto-select OpenAI reasoning aliases that reject the runtime web-
   assert.equal(result.recommendedModel, null)
   assert.deepEqual(result.excludedModels.map(entry => entry.model), ['openai/o1', 'openai/o3-mini'])
   assert.match(result.summary, /No known tool-compatible/)
+})
+
+test('quality preference explains local tool uncertainty and hosted privacy limits', () => {
+  const result = recommendModelsForDescription({
+    description: 'Privately reason through confidential code and return structured JSON using tools.',
+    availableModels: ['ollama/qwen3:8b', 'anthropic/claude-sonnet-4-6', 'custom/reasoning-pro'],
+    preference: 'quality', limit: 10,
+  })
+  assert(result.requirements.privacy && result.requirements.coding && result.requirements.reasoning)
+  assert(result.requirements.structuredOutput || result.requirements.toolUse)
+  assert(result.candidates.some(candidate => candidate.caveats.some(caveat => /local model/i.test(caveat))))
+  assert(result.candidates.some(candidate => candidate.caveats.some(caveat => /hosted model/i.test(caveat))))
+  assert(result.candidates.some(candidate => candidate.reasons.some(reason => /reasoning specialization/i.test(reason))))
+})
+
+test('balanced and cost choices retain unknown tiers and bounded result limits', () => {
+  const models = ['openrouter/auto', 'custom/mystery', 'openai/gpt-5.4-pro', 'openai/gpt-5.4-mini']
+  const balanced = recommendModelsForDescription({ description: 'Write a short note.', availableModels: models, preference: 'balanced', limit: 10 })
+  assert(balanced.candidates.some(candidate => candidate.model === 'custom/mystery' && candidate.caveats.some(caveat => /tier could not be determined/i.test(caveat))))
+  assert(balanced.candidates.some(candidate => candidate.model === 'openrouter/auto' && candidate.reasons.some(reason => /route across configured models/i.test(reason))))
+  const cost = recommendModelsForDescription({ description: 'Write a short note.', availableModels: models, preference: 'cost', limit: -100 })
+  assert.equal(cost.candidates.length, 1, 'Negative limits must never suppress every candidate')
+  assert.equal(cost.recommendedModel, 'openai/gpt-5.4-mini')
+})
+
+test('sparse model catalogs discard empty entries and use a safe default', () => {
+  const result = recommendModelsForDescription({
+    description: undefined as any,
+    availableModels: [null as any, undefined as any, '', '  ', 'custom/mystery', 'custom/mystery'],
+    preference: undefined,
+    limit: 0,
+  })
+  assert.deepEqual(result.candidates.map(candidate => candidate.model), ['custom/mystery'])
+  assert.equal(result.recommendedModel, 'custom/mystery')
+  const absent = recommendModelsForDescription({ description: '', availableModels: undefined as any })
+  assert.equal(absent.recommendedModel, null)
 })
 
 let passed = 0

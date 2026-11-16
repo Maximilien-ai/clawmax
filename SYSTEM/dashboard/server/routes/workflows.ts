@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { completeGeneratedWorkflowExecution } from '../lib/workflow-content'
 import {
   listWorkflows,
   getWorkflow,
@@ -8,27 +9,52 @@ import {
   resolveParticipants,
   listExecutions,
   getExecution,
+  publicExecution,
   validateCron,
+  invalidWorkflowTimezoneError,
   triggerWorkflow,
   cancelExecution,
   completeWorkflow,
   getDAGStatus,
   parseWorkflowMd,
   syncWorkflowToCron,
-  removeCronJob,
   getWorkflowPipelineState,
   setWorkflowPipelinePaused,
 } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
 import { getWorkspacePath, listAgents } from '../lib/workspace'
-import { explainOneTimeCronLimitation, generateCronFromText, generateWorkflowFromNL, isOneTimeScheduleRequest, setRequestByokKeys } from '../lib/ai-generator'
+import { explainOneTimeCronLimitation, generateCronFromText, generateWorkflowFromNL, isOneTimeScheduleRequest, setRequestByokKeys, warmOpenAiCompatibleGenerationModel } from '../lib/ai-generator'
 import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
+import { admitDevWorkflowReadRequest, devRunAsExecution, getDevTemplateWorkflowRun, isDevTemplateWorkflowId, listDevTemplateWorkflowRuns, startDevTemplateWorkflow } from './dev-template-workflow'
+import { devHostSkillChatEnabled } from './dev-host-skill-chat'
+import { getDevWorkflowConfiguration, updateDevWorkflowConfiguration } from './dev-template-workflow'
 import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 
 const router = Router()
+
+// Both ids end up in file paths (`<id>.md`, `executions/<id>/<executionId>.json`) and Express decodes
+// `%2F` inside a parameter, so every route checks them before any lookup, read, write or delete.
+router.param('id', (_req, res, next, id) => (/^[a-z0-9-]+$/.test(id) ? next() : res.status(400).json({ error: 'Invalid workflow ID' })))
+router.param('executionId', (_req, res, next, executionId) => (/^[a-zA-Z0-9_-]+$/.test(executionId) ? next() : res.status(400).json({ error: 'Invalid execution ID' })))
+
+function devManualWorkflowRequest(req: any, id: string): boolean {
+  if (!isDevTemplateWorkflowId(id)) return false
+  const admitted = admitDevWorkflowReadRequest(req)
+  return isDevTemplateWorkflowId(id)
+    && devHostSkillChatEnabled(process.env, admitted.get('Origin'), admitted.socket.remoteAddress)
+}
+
+export function devWorkflowSummary(req: any, id: string) {
+  if (!devManualWorkflowRequest(req, id)) return {}
+  try {
+    const runs = listDevTemplateWorkflowRuns(req, id, 20)
+    const latest = runs[0]
+    return latest ? { status: latest.status, lastRun: latest.createdAt, lastExecutionId: latest.runId } : {}
+  } catch { return { status: 'blocked' } }
+}
 
 function resolveSessionAuthor(req: any): string | undefined {
   const session = getAuthenticatedSession(req)
@@ -41,11 +67,9 @@ function synchronizeWorkflowScheduling(workflowId: string, syncScheduler = true)
   const workflow = getWorkflow(workflowId)
   if (!workflow) return warnings
 
-  const participants = resolveParticipants(workflow, listAgents()).map((participant) => participant.agentId)
-  const syncResult = syncWorkflowToCron(workflow, participants)
-  if (!syncResult.ok && workflow.enabled && workflow.schedule !== 'manual') {
-    warnings.push(syncResult.error || 'Failed to sync workflow with gateway cron')
-  } else if ((workflow.cronJobId || undefined) !== syncResult.cronJobId) {
+  const syncResult = syncWorkflowToCron(workflow)
+  if (!syncResult.ok) warnings.push(syncResult.error || 'Failed to sync workflow with gateway cron')
+  if ((workflow.cronJobId || undefined) !== syncResult.cronJobId) {
     const persistResult = updateWorkflow(workflow.id, { cronJobId: syncResult.cronJobId })
     if (!persistResult.success) {
       warnings.push(persistResult.error || 'Failed to persist workflow cron registration')
@@ -79,6 +103,16 @@ router.post('/import-md', (req, res) => {
 
     if (!parsed.author) parsed.author = 'imported'
 
+    const missingDependencies = Array.isArray(parsed.dependsOn)
+      ? parsed.dependsOn.filter(id => typeof id === 'string' && !getWorkflow(id))
+      : []
+    if (missingDependencies.length) {
+      return res.status(400).json({
+        error: `Upstream workflows not found: ${missingDependencies.join(', ')}. Import them first or update dependsOn before importing this workflow.`,
+        missingDependencies,
+      })
+    }
+
     const result = createWorkflow(parsed)
     if (!result.success) {
       return res.status(400).json({ error: result.error, errors: result.errors })
@@ -96,41 +130,47 @@ router.post('/import-md', (req, res) => {
  * POST /api/workflows/generate-cron
  * Convert natural language to cron expression using AI
  */
-router.post('/generate-cron', (req, res) => {
-  const { text, tz } = req.body
+router.post('/generate-cron', async (req, res) => {
+  const { text, tz, byokKeys } = req.body as {
+    text?: string
+    tz?: string
+    byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+  }
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'text is required' })
   }
 
-  generateCronFromText(text, typeof tz === 'string' ? tz : undefined)
-    .then(result => {
-      if (result.error) {
-        return res.status(500).json({ error: result.error })
-      }
+  try {
+    setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
+    const result = await generateCronFromText(text, typeof tz === 'string' ? tz : undefined)
+    if (result.error) {
+      return res.status(500).json({ error: result.error })
+    }
 
-      if (isOneTimeScheduleRequest(text)) {
-        return res.json({
-          cron: '',
-          explanation: result.explanation || explainOneTimeCronLimitation(),
-          valid: false,
-        })
-      }
+    if (isOneTimeScheduleRequest(text)) {
+      return res.json({
+        cron: '',
+        explanation: result.explanation || explainOneTimeCronLimitation(),
+        valid: false,
+      })
+    }
 
-      // Validate the generated cron
-      if (result.cron) {
-        const validation = validateCron(result.cron)
-        if (!validation.valid) {
-          return res.json({ cron: '', explanation: `Could not generate a valid cron: ${result.explanation}`, valid: false })
-        }
-        return res.json({ cron: result.cron, explanation: result.explanation, humanReadable: validation.humanReadable, valid: true })
+    // Validate the generated cron
+    if (result.cron) {
+      const validation = validateCron(result.cron)
+      if (!validation.valid) {
+        return res.json({ cron: '', explanation: `Could not generate a valid cron: ${result.explanation}`, valid: false })
       }
+      return res.json({ cron: result.cron, explanation: result.explanation, humanReadable: validation.humanReadable, valid: true })
+    }
 
-      res.json({ cron: '', explanation: result.explanation, valid: false })
-    })
-    .catch(err => {
-      console.error('Error generating cron:', err)
-      res.status(500).json({ error: 'Failed to generate cron expression' })
-    })
+    res.json({ cron: '', explanation: result.explanation, valid: false })
+  } catch (err) {
+    console.error('Error generating cron:', err)
+    res.status(500).json({ error: 'Failed to generate cron expression' })
+  } finally {
+    setRequestByokKeys(undefined)
+  }
 })
 
 /**
@@ -138,8 +178,10 @@ router.post('/generate-cron', (req, res) => {
  * Generate a complete workflow definition from natural language using AI
  */
 router.post('/generate', async (req, res) => {
-  const { description, byokKeys } = req.body as {
+  const { description, byokKeys, timezone, agentIds: selectedAgentIds } = req.body as {
     description?: string
+    agentIds?: string[]
+    timezone?: string
     byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
   if (!description || typeof description !== 'string') {
@@ -147,11 +189,27 @@ router.post('/generate', async (req, res) => {
   }
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     const agents = listAgents()
     const agentIds = agents.filter(a => !a.archived).map(a => a.id)
+    if (selectedAgentIds !== undefined && (!Array.isArray(selectedAgentIds) || selectedAgentIds.some(id => typeof id !== 'string' || !agentIds.includes(id)))) {
+      return res.status(400).json({ error: 'Selected agents are no longer available in this workspace. Refresh the agent list and try again.' })
+    }
     const allTags = [...new Set(agents.flatMap(a => a.tags))]
-    const workflow = await generateWorkflowFromNL(description, agentIds, allTags)
+    const generated = await generateWorkflowFromNL(description, selectedAgentIds?.length ? selectedAgentIds : agentIds, allTags)
+    if (selectedAgentIds?.length) generated.targeting = { agents: [...new Set(selectedAgentIds)], tags: [], groups: [], communities: [], teamIds: [] }
+    const activeAgents = agents.filter(agent => !agent.archived)
+    const workflow = completeGeneratedWorkflowExecution(generated, {
+      availableAgentIds: agentIds,
+      participantIds: resolveParticipants({ ...generated, targeting: { agents: [], tags: [], groups: [], communities: [], teamIds: [], ...(generated.targeting || {}) } }, activeAgents).map(participant => participant.agentId),
+      description,
+      timezone: timezone || 'UTC',
+    })
+    const scheduleCheck = validateCron(workflow.schedule)
+    if (!scheduleCheck.valid) throw new Error(`AI returned an invalid schedule: ${scheduleCheck.error}. Your prompt is preserved; generate again.`)
+    const timezoneError = invalidWorkflowTimezoneError(workflow.timezone)
+    if (timezoneError) throw new Error(timezoneError)
     const session = getAuthenticatedSession(req)
     const author = resolveSessionAuthor(req)
     if (author && (!workflow.author || workflow.author === 'dashboard' || workflow.author === 'ClawMax AI')) {
@@ -195,6 +253,9 @@ router.get('/', (req, res) => {
     const agents = listAgents()
     const pipelinePaused = getWorkflowPipelineState().paused
     const workflowsWithCounts = workflows.map(workflow => {
+      if (devManualWorkflowRequest(req, workflow.id)) {
+        workflow = { ...workflow, ...getDevWorkflowConfiguration(req, workflow.id) }
+      }
       const participants = resolveParticipants(workflow, agents)
       const cronInfo = validateCron(workflow.schedule)
       return {
@@ -220,6 +281,7 @@ router.get('/', (req, res) => {
         secretRequirements: workflow.secretRequirements,
         outputDefinitions: workflow.outputDefinitions,
         inputRefs: workflow.inputRefs,
+        ...devWorkflowSummary(req, workflow.id),
       }
     })
 
@@ -278,11 +340,13 @@ router.get('/:id', (req, res) => {
       return res.status(400).json({ error: 'Invalid workflow ID' })
     }
 
-    const workflow = getWorkflow(id)
+    let workflow = getWorkflow(id)
 
     if (!workflow) {
       return res.status(404).json({ error: 'Workflow not found', workflowId: id })
     }
+
+    if (devManualWorkflowRequest(req, id)) workflow = { ...workflow, ...getDevWorkflowConfiguration(req, id) }
 
     // Include cron human-readable description and resolved participants
     const cronValidation = validateCron(workflow.schedule)
@@ -290,6 +354,7 @@ router.get('/:id', (req, res) => {
     const participants = resolveParticipants(workflow, agents)
     const response = {
       ...workflow,
+      ...devWorkflowSummary(req, id),
       scheduleHuman: cronValidation.humanReadable || workflow.schedule,
       nextRunAt: workflow.enabled && !getWorkflowPipelineState().paused ? getNextCronRun(workflow.schedule, new Date(), workflow.timezone || 'UTC')?.toISOString() || null : null,
       participantCount: participants.length,
@@ -300,6 +365,26 @@ router.get('/:id', (req, res) => {
   } catch (error: any) {
     console.error('Error getting workflow:', error)
     res.status(500).json({ error: 'Failed to get workflow', message: error.message })
+  }
+})
+
+/** Explicit manual rehearsal. It never enables schedules or starts the
+ * imported Group runner; the Group is the durable Agent handoff channel. */
+router.post('/:id/dev-run', (req, res) => {
+  try {
+    const run = startDevTemplateWorkflow(req, req.params.id)
+    return res.status(202).json(run)
+  } catch {
+    return res.status(409).json({ error: 'Dev Workflow run unavailable or already running' })
+  }
+})
+
+router.get('/:id/dev-runs/:runId', (req, res) => {
+  try {
+    const run = getDevTemplateWorkflowRun(req, req.params.id, req.params.runId)
+    return run ? res.json(run) : res.status(404).json({ error: 'Dev Workflow run not found' })
+  } catch {
+    return res.status(409).json({ error: 'Dev Workflow authority unavailable' })
   }
 })
 
@@ -435,6 +520,14 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ error: 'Invalid workflow ID' })
     }
 
+    if (isDevTemplateWorkflowId(id)) {
+      if (!devManualWorkflowRequest(req, id)) return res.status(409).json({ error: 'Template editing requires an admitted runtime or a revised Template' })
+      try {
+        updateDevWorkflowConfiguration(req, id, req.body)
+        syncAllWorkflows({ syncCronRegistrations: false })
+        return res.json({ message: 'Workflow settings saved; original Template preserved' })
+      } catch (error: any) { return res.status(400).json({ error: 'Workflow settings not saved', details: error.message }) }
+    }
     const result = updateWorkflow(id, req.body)
 
     if (!result.success) {
@@ -465,6 +558,15 @@ router.delete('/:id', (req, res) => {
     }
 
     const existing = getWorkflow(id)
+    if (existing?.cronJobId) {
+      const cleanup = syncWorkflowToCron(existing)
+      if (!cleanup.ok) {
+        return res.status(503).json({
+          code: 'workflow_legacy_cleanup_failed',
+          error: 'The workflow was kept because its older scheduled jobs could not be stopped. Check Runtime status before trying again.',
+        })
+      }
+    }
     const result = deleteWorkflow(id)
 
     if (!result.success) {
@@ -474,9 +576,6 @@ router.delete('/:id', (req, res) => {
       return res.status(500).json({ error: 'Failed to delete workflow', details: result.error })
     }
 
-    if (existing?.cronJobId) {
-      removeCronJob(existing.cronJobId)
-    }
     syncAllWorkflows({ syncCronRegistrations: false })
     res.json({ message: 'Workflow deleted successfully' })
   } catch (error: any) {
@@ -535,7 +634,9 @@ router.get('/:id/executions', (req, res) => {
       return res.status(404).json({ error: 'Workflow not found', workflowId: id })
     }
 
-    const executions = listExecutions(id, limit)
+    const executions = devManualWorkflowRequest(req, id)
+      ? listDevTemplateWorkflowRuns(req, id, limit).map(devRunAsExecution)
+      : listExecutions(id, limit)
 
     // Simplify execution data for list view
     const simplifiedExecutions = executions.map(exec => ({
@@ -547,7 +648,7 @@ router.get('/:id/executions', (req, res) => {
       participantCount: exec.participants.length,
       successCount: exec.participants.filter(p => p.status === 'completed').length,
       failureCount: exec.participants.filter(p => p.status === 'failed').length,
-      inputs: exec.inputs,
+      inputs: publicExecution(exec).inputs,
     }))
 
     res.json({
@@ -608,10 +709,10 @@ router.get('/:id/executions/archived', (req, res) => {
           participantCount: execution.participants.length,
           successCount: execution.participants.filter((p: any) => p.status === 'completed').length,
           failureCount: execution.participants.filter((p: any) => p.status === 'failed').length,
-          inputs: execution.inputs,
+          inputs: publicExecution(execution).inputs,
         })
       } catch (error) {
-        console.error(`Error reading archived execution ${file}:`, error)
+        console.error(`Error reading archived execution ${file}:`, error instanceof SyntaxError ? 'invalid JSON' : error)
       }
     }
 
@@ -720,12 +821,16 @@ router.get('/:id/executions/:executionId', (req, res) => {
       return res.status(404).json({ error: 'Workflow not found', workflowId: id })
     }
 
-    const execution = getExecution(id, executionId)
+    const isDevManual = devManualWorkflowRequest(req, id)
+    const devRun = isDevManual ? getDevTemplateWorkflowRun(req, id, executionId) : null
+    const execution = isDevManual
+      ? devRun ? devRunAsExecution(devRun) : null
+      : getExecution(id, executionId)
     if (!execution) {
       return res.status(404).json({ error: 'Execution not found', executionId })
     }
 
-    res.json(execution)
+    res.json(publicExecution(execution))
   } catch (error: any) {
     console.error('Error getting execution:', error)
     res.status(500).json({ error: 'Failed to get execution', message: error.message })

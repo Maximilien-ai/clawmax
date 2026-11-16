@@ -1,13 +1,19 @@
+import { openClawStatePath } from '../lib/openclaw-profile-paths'
 import { Router, type Request, type Response } from 'express'
 import WebSocket from 'ws'
+import { parseChatJsonBody } from '../lib/chat-request-body'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { getActiveAgentLifecycleGeneration, getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
 import { configuredAutoStartGatewayOwnsState, isGatewayConfigured, isGatewayRunning, shouldTreatGatewayAsRunning, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
+import { getCachedOpenAiCompatibleDefaultModel, openAiCompatibleCandidateFromKeys, resolveOpenAiCompatibleDefaultModel, resolveOpenAiCompatibleEndpoint } from '../lib/model-discovery'
+import { resolveUserExecutionProviderKeys } from '../lib/dashboard-env'
+import { warmDefaultAgentModelEndpoint } from '../lib/agent-default-model'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
+import { defaultDashboardChatSeed, readDashboardChatConversations, rememberDashboardConversationSession, type DashboardChatConversations } from '../lib/dashboard-chat-conversations'
 import { recoverRejectedGatewayChat } from '../lib/gateway-chat-recovery'
 import { checkBudgetBlock } from '../lib/budget'
 import { createStreamingWarningFilter, normalizeChatMessage, stripBenignChatRuntimeWarnings } from '../lib/chat-normalization'
@@ -15,7 +21,6 @@ import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import { getAgentSkills, getAssignedSkillPromptNotes, getSkillById } from '../lib/skills'
 import { executeClawmaxResendSend } from '../lib/clawmax-resend-command'
 import {
-  buildDashboardChatSeed,
   deriveWorkspaceRootFromAgentWorkspace,
   hasReadyOpenClawNativeAgentStore,
   providerFromModel,
@@ -27,6 +32,7 @@ import {
   runExclusiveAgentExecution,
   shouldUseExplicitBackupModelRetry,
   scopeSessionIdToModel,
+  scopeStoredDashboardSessionId,
   toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
@@ -36,11 +42,13 @@ import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange } from '../lib/runtime-transcripts'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
-import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
+import { captureConsentedActivity as appendActivityExportEventsForActiveConsents } from '../lib/activity-export-capture'
 import { appendBoundedOutput } from '../lib/stream-bounds'
 import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '../lib/process-tree'
 import { isAgentDeletionInProgress } from '../lib/agent-lifecycle-state'
 import { assertTemplateRuntimeAdmitted } from '../lib/template-runtime-admission'
+import { executeDevHostSkillChat, isDevHostSkillChatReady } from './dev-host-skill-chat'
+import { checkOpenClawModelSupport } from '../lib/openclaw-model-catalog'
 
 const router = Router()
 const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
@@ -255,7 +263,10 @@ export function resolveByokChatFallbackModel(byok?: ChatByokPayload): string | u
   if (hasText(byok.openrouter)) return 'openrouter/auto'
   if (hasText(byok.xai)) return 'xai/grok-3'
   if (hasText(byok.openaiCompatibleBaseUrl)) {
+    // BYOK's "Default model" box is optional; when it is empty the endpoint's own advertised chat
+    // model stands in, the same model endpoint validation completes its test prompt on.
     const configuredModel = byok.openaiCompatibleDefaultModel?.trim().replace(/^openai-compatible\//, '')
+      || getCachedOpenAiCompatibleDefaultModel(byok.openaiCompatibleBaseUrl, byok.openaiCompatibleApiKey)
     return configuredModel ? `openai-compatible/${configuredModel}` : undefined
   }
   return undefined
@@ -367,13 +378,36 @@ function extractJson(text: string): string {
   return ''
 }
 
+function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: string): string {
+  let stamp = 'chat'
+  const identityPath = agentWorkspaceDir ? path.join(agentWorkspaceDir, 'IDENTITY.md') : ''
+  if (identityPath && fs.existsSync(identityPath)) {
+    try {
+      stamp = Math.floor(fs.statSync(identityPath).mtimeMs).toString(36)
+    } catch {}
+  }
+  return `dashboard-${agentId}-${stamp}-chat`
+}
+
+type PersistedAssistantText = { sessionId?: string; content?: string; messageId?: string }
+
+/**
+ * Wait briefly for this turn's reply to reach the transcript. The latest persisted reply belongs to
+ * this turn only if it was not already there when the turn started (`priorMessageId`): a turn that
+ * failed with no output must report its failure, not show the previous question's answer.
+ */
 export async function retryAssistantTextLookup(
-  reader: () => { sessionId?: string; content?: string } | null,
+  reader: () => PersistedAssistantText | null,
   attempts = 4,
-  delayMs = 250
-): Promise<{ sessionId?: string; content?: string } | null> {
-  for (let attempt = 0; attempt < attempts; attempt++) {
+  delayMs = 250,
+  priorMessageId?: string,
+): Promise<PersistedAssistantText | null> {
+  const read = () => {
     const latest = reader()
+    return latest?.messageId && latest.messageId === priorMessageId ? { sessionId: latest.sessionId } : latest
+  }
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const latest = read()
     if (latest?.content) {
       return latest
     }
@@ -381,20 +415,20 @@ export async function retryAssistantTextLookup(
       await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
   }
-  return reader()
+  return read()
 }
 
 async function readLatestAssistantTextWithRetry(
   agentId: string,
   sessionKey: string,
   preferredSessionId: string,
-  attempts = 4,
-  delayMs = 250
-): Promise<{ sessionId?: string; content?: string } | null> {
+  priorMessageId?: string,
+): Promise<PersistedAssistantText | null> {
   return retryAssistantTextLookup(
     () => readLatestAssistantTextFromPersistedSession(agentId, sessionKey, preferredSessionId),
-    attempts,
-    delayMs
+    4,
+    250,
+    priorMessageId,
   )
 }
 
@@ -415,7 +449,11 @@ function formatUnsupportedModelError(raw: string, context?: ChatErrorContext): s
   const modelDetail = model ? `: \`${model}\`` : '.'
   const runtimeName = context?.runtimeLabel ? `${context.runtimeLabel} CLI` : 'installed OpenClaw runtime'
   const cause = `The model identifier is not recognized by the ${runtimeName}. It may have been removed or renamed, or it may belong to a provider that is not available in this deployment.`
-  const action = 'Choose a model listed by a configured provider, save the agent, and retry.'
+  // Dated snapshots of an aliased model are the common case: offer the id the runtime does list.
+  const support = context?.runtimeLabel ? undefined : checkOpenClawModelSupport(model)
+  const action = support?.status === 'unsupported' && support.replacement
+    ? `Change the agent's model to \`${support.replacement}\`, a model listed by the installed OpenClaw runtime, save the agent, and retry.`
+    : 'Choose a model listed by a configured provider, save the agent, and retry.'
   const editLink = context?.agentId
     ? ` [Edit agent model](/agents?agent=${encodeURIComponent(context.agentId)}&action=edit)`
     : ''
@@ -433,6 +471,32 @@ const RUNTIME_CHAT_LABELS: Record<'claude' | 'droid', string> = {
 // resolveAgentRuntime()'s own default — never treat "unset" as "non-openclaw".
 function isNonOpenclawChatRuntime(runtime: unknown): runtime is 'claude' | 'droid' {
   return runtime === 'claude' || runtime === 'droid'
+}
+
+/** Distinct messages for the Gateway failures OpenClaw reports. Only the Gateway host, a close
+ * code or an auth code is taken from the raw text; nothing else is echoed. Mirrored in
+ * client/src/lib/chatRuntimeErrors.ts. */
+export function describeGatewayFailure(text: string): string | null {
+  const unreachable = text.match(/Gateway not reachable at (wss?:\/\/[^\s()]+?)\.?(?:\s|\(|$)/i)
+  if (unreachable) {
+    let host = ''
+    try { host = new URL(unreachable[1]).host } catch { /* keep the message generic */ }
+    return `OpenClaw Gateway is not running${host ? ` at ${host}` : ''}, so agent chat cannot start. Restart the Dashboard with SYSTEM/start.sh (it installs and starts a missing Gateway), or run \`openclaw gateway status\`, then retry.`
+  }
+  if (/gateway/i.test(text)) {
+    const authCode = text.match(/\b(?:DEVICE_)?AUTH_[A-Z_]{3,}\b/)?.[0]
+    if (authCode || /gateway token (?:mismatch|missing)|pairing required/i.test(text)) {
+      return `OpenClaw Gateway rejected the Dashboard's connection${authCode ? ` (${authCode})` : ''}. Check that the Dashboard and the Gateway use the same ~/.openclaw/openclaw.json (gateway.auth.token); restart the Gateway if its token changed, then retry.`
+    }
+  }
+  if (/gateway remote mode misconfigured/i.test(text)) {
+    return 'OpenClaw Gateway is set to remote mode without gateway.remote.url. Set gateway.remote.url, or set gateway.mode to local, then retry.'
+  }
+  const closeCode = text.match(/gateway closed \((\d{3,4})\)/i)?.[1]
+  if (closeCode) {
+    return `OpenClaw Gateway closed the connection (code ${closeCode}). It may be restarting; retry in a moment, and run \`openclaw gateway status\` if it continues.`
+  }
+  return null
 }
 
 export function deriveChatError(raw: string, provider?: ChatProvider, context?: ChatErrorContext): string {
@@ -513,6 +577,11 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
   if (/Gateway is running for this state directory/i.test(text) && /Run without --local/i.test(text)) {
     return 'OpenClaw refused local execution because the healthy Gateway owns this state directory. ClawMax could not complete its Gateway retry; verify Gateway readiness and retry.'
   }
+  if (/modelPolicy\.allow/i.test(text) && /not allowed|blocked/i.test(text)) {
+    return 'The selected model is blocked by this instance or agent model policy. Ask the instance owner to review the allowed models, or choose an allowed model. This is not a gateway connectivity failure.'
+  }
+  const gatewayFailure = describeGatewayFailure(text)
+  if (gatewayFailure) return gatewayFailure
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
   if (/timeout/i.test(text)) {
     const modelDetail = context?.model ? ` \`${context.model}\`` : 'The selected model'
@@ -528,15 +597,72 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
   return text
 }
 
-function evaluateChatExecutionReadiness(
+/**
+ * Fill the discovery cache for the chat BYOK endpoint before readiness reads it.
+ *
+ * resolveByokChatFallbackModel is synchronous and reads that cache, so without this an agent with
+ * no model of its own is told "no model configured" on a cold cache — even though the endpoint
+ * advertises one. Warm calls cost nothing; a failed lookup leaves the previous behaviour intact.
+ */
+export function resolveChatOpenAiCompatibleEndpoint(
+  byok?: ChatByokPayload,
+  rawEnv?: Record<string, string>,
+): { baseUrl?: string; apiKey?: string; defaultModel?: string } {
+  const integrationConfig = readWorkspaceIntegrationConfig()
+  // The workspace's default model belongs to the workspace's endpoint, and its credential may live
+  // in protected USER/SYSTEM configuration. Which protected keys chat may use is the user-execution
+  // policy's call (browser BYOK only when the browser supplied any; system keys only when allowed),
+  // so that resolver runs first and the endpoint is paired only with what it returns. A bare
+  // endpoint URL is not a credential: the browser stores the workspace URL it verified, and
+  // sending that back must not read as "the user brought their own keys".
+  const browserKeyless = !byok?.openaiCompatibleApiKey?.trim()
+  const policyKeys = resolveUserExecutionProviderKeys(rawEnv, browserKeyless
+    ? { ...byok, openaiCompatibleBaseUrl: undefined, openaiCompatibleDefaultModel: undefined }
+    : byok)
+  return resolveOpenAiCompatibleEndpoint([
+    openAiCompatibleCandidateFromKeys(byok),
+    { baseUrl: integrationConfig.openaiCompatibleBaseUrl, defaultModel: integrationConfig.openaiCompatibleDefaultModel },
+    openAiCompatibleCandidateFromKeys(policyKeys),
+  ]) || {}
+}
+
+async function warmChatOpenAiCompatibleModel(byok?: ChatByokPayload): Promise<void> {
+  // The workspace endpoint is warmed under the user policy as well: an agent whose saved model
+  // cannot run here is replaced by the workspace endpoint's model only if that model is known,
+  // and the browser's own endpoint may be a different server.
+  const workspaceWarm = warmDefaultAgentModelEndpoint(process.env as Record<string, string>, 'user').catch(() => undefined)
+  const { baseUrl, apiKey, defaultModel } = resolveChatOpenAiCompatibleEndpoint(byok)
+  const browserWarm = baseUrl && !defaultModel
+    // Readiness reports an unreachable endpoint in its own words; this lookup must not throw here.
+    ? resolveOpenAiCompatibleDefaultModel({ baseUrl, apiKey }).catch(() => undefined)
+    : Promise.resolve()
+  await Promise.all([workspaceWarm, browserWarm])
+}
+
+/**
+ * The part of a readiness result the browser may see. The execution environment readiness
+ * built carries the credential the chat will run with and never leaves the server.
+ */
+export function toChatReadinessResponse(readiness: { available: boolean; error?: string; resolvedAgent: unknown; executionEnv?: unknown }) {
+  const { executionEnv: _executionEnv, ...publicFields } = readiness
+  return publicFields
+}
+
+export function evaluateChatExecutionReadiness(
   agentId: string,
-  byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+  byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
+  rawEnv?: Record<string, string>,
 ) {
   const integrationConfig = readWorkspaceIntegrationConfig()
-  const baseResolvedAgent = resolveAgentExecutionConfig(agentId)
+  // Chat runs on behalf of a user: a default model discovered through the system credential may
+  // only be offered when user execution is allowed to use that credential.
+  const baseResolvedAgent = resolveAgentExecutionConfig(agentId, { executionPolicy: 'user' })
+  const chatCompatibleEndpoint = resolveChatOpenAiCompatibleEndpoint(byok, rawEnv)
   const fallbackModel = resolveByokChatFallbackModel({
     ...byok,
-    openaiCompatibleDefaultModel: byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel,
+    openaiCompatibleBaseUrl: chatCompatibleEndpoint.baseUrl,
+    openaiCompatibleApiKey: chatCompatibleEndpoint.apiKey,
+    openaiCompatibleDefaultModel: chatCompatibleEndpoint.defaultModel,
   })
   const resolvedAgent = !baseResolvedAgent.model && fallbackModel
     ? {
@@ -554,9 +680,11 @@ function evaluateChatExecutionReadiness(
     openrouter: byok?.openrouter,
     xai: byok?.xai,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
-    openaiCompatibleApiKey: useOpenAiCompatible ? byok?.openaiCompatibleApiKey : undefined,
-    openaiCompatibleBaseUrl: useOpenAiCompatible ? (byok?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
-    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
+    // The endpoint together with the credential and model that belong to it: the browser's own,
+    // or the workspace URL paired with the protected key the user-execution policy allows.
+    openaiCompatibleApiKey: useOpenAiCompatible ? chatCompatibleEndpoint.apiKey : undefined,
+    openaiCompatibleBaseUrl: useOpenAiCompatible ? chatCompatibleEndpoint.baseUrl : undefined,
+    openaiCompatibleDefaultModel: useOpenAiCompatible ? chatCompatibleEndpoint.defaultModel : undefined,
   })
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   if (isNonOpenclawChatRuntime(resolvedAgent.runtime)) {
@@ -659,18 +787,18 @@ function evaluateChatExecutionReadiness(
 
   return {
     available: true,
+    executionEnv,
     resolvedAgent,
   }
 }
 
 function persistDashboardChatSession(agentId: string, sessionId: string) {
   try {
-    const homeDir = process.env.HOME || ''
-    const nativeStorePath = path.join(homeDir, '.openclaw', 'agents', agentId, 'agent', 'openclaw-agent.sqlite')
+    const nativeStorePath = path.join(openClawStatePath(), 'agents', path.basename(agentId), 'agent', 'openclaw-agent.sqlite')
     if (hasReadyOpenClawNativeAgentStore(nativeStorePath)) return
     const sessionKey = `agent:${agentId}:dashboard-chat`
-    const resolvedSessionId = resolvePersistedAgentSessionId(agentId, sessionKey, sessionId, homeDir) || sessionId
-    const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
+    const resolvedSessionId = resolvePersistedAgentSessionId(agentId, sessionKey, sessionId) || sessionId
+    const sessionsDir = path.join(openClawStatePath(), 'agents', path.basename(agentId), 'sessions')
     const sessionsPath = path.join(sessionsDir, 'sessions.json')
     if (!fs.existsSync(sessionsDir)) {
       fs.mkdirSync(sessionsDir, { recursive: true })
@@ -753,8 +881,9 @@ router.get('/:id/gateway', (req, res) => {
   })
 })
 
-router.post('/:id/chat/readiness', (req, res) => {
+router.post('/:id/chat/readiness', async (req, res) => {
   const { id } = req.params
+  if (isDevHostSkillChatReady(req, id)) return res.json({ available: true, devHostSkill: true })
   const { byok } = req.body as {
     byok?: ChatByokPayload
   }
@@ -767,11 +896,9 @@ router.post('/:id/chat/readiness', (req, res) => {
   }
   if (rejectStaleChatAgent(req, res, id)) return
 
+  await warmChatOpenAiCompatibleModel(byok)
   const readiness = evaluateChatExecutionReadiness(id, byok)
-  if (!readiness.available) {
-    return res.status(200).json(readiness)
-  }
-  return res.json(readiness)
+  return res.status(200).json(toChatReadinessResponse(readiness))
 })
 
 /**
@@ -788,6 +915,8 @@ export interface AgentChatTransport {
   reject(status: number, message: string): void
   assertAuthorized(): void
 }
+
+class DashboardConversationChangedError extends Error {}
 
 export async function executeAgentChat(req: Request, res: Response, transport?: AgentChatTransport) {
   const { id } = req.params
@@ -824,13 +953,31 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   }
 
   const session = getAuthenticatedSession(req) || transport?.actor || null
+  await warmChatOpenAiCompatibleModel(byok)
   const readiness = evaluateChatExecutionReadiness(id, byok)
   if (!readiness.available) {
     return reject(400, readiness.error || 'Agent execution is unavailable')
   }
   const resolvedAgent = readiness.resolvedAgent
+  // The browser's seed names "the dashboard chat with this agent", not a session. Which conversation
+  // that is belongs to the server (dashboard-chat-conversations.ts), so a chat cleared in another
+  // tab, or before a reload, never receives another turn.
+  let dashboardConversation: DashboardChatConversations | undefined
+  try {
+    dashboardConversation = sessionId === defaultDashboardChatSeed(id) ? readDashboardChatConversations(id) : undefined
+  } catch (err) {
+    return reject(500, err instanceof Error ? err.message : String(err))
+  }
+  const assertCurrentDashboardConversation = () => {
+    if (!dashboardConversation) return
+    const current = readDashboardChatConversations(id)
+    if (current.activeSeed !== dashboardConversation.activeSeed || current.activeSessionId !== dashboardConversation.activeSessionId) {
+      throw new DashboardConversationChangedError('The conversation changed while this request was preparing. Send your message again in the current chat.')
+    }
+  }
   const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
   const integrationConfig = readWorkspaceIntegrationConfig()
+  const chatCompatibleEndpoint = resolveChatOpenAiCompatibleEndpoint(byok)
   const effectiveWorkspaceRoot = deriveWorkspaceRootFromAgentWorkspace(resolvedAgent.workspace) || getWorkspacePath()
   const executionEnv = userExecutionEnv({
     openai: useOpenAiCompatible ? undefined : byok?.openai,
@@ -839,9 +986,11 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     openrouter: byok?.openrouter,
     xai: byok?.xai,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
-    openaiCompatibleApiKey: useOpenAiCompatible ? byok?.openaiCompatibleApiKey : undefined,
-    openaiCompatibleBaseUrl: useOpenAiCompatible ? (byok?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
-    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
+    // The endpoint together with the credential and model that belong to it: the browser's own,
+    // or the workspace URL paired with the protected key the user-execution policy allows.
+    openaiCompatibleApiKey: useOpenAiCompatible ? chatCompatibleEndpoint.apiKey : undefined,
+    openaiCompatibleBaseUrl: useOpenAiCompatible ? chatCompatibleEndpoint.baseUrl : undefined,
+    openaiCompatibleDefaultModel: useOpenAiCompatible ? chatCompatibleEndpoint.defaultModel : undefined,
   })
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   executionEnv.CLAWMAX_AGENT_ID = id
@@ -852,7 +1001,13 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     executionEnv.CLAWMAX_MAIL_BROKER_TOKEN = brokerCapability
     executionEnv.CLAWMAX_MAIL_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/mail`
   }
-  const sessionSeed = sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace)
+  const sessionSeed = dashboardConversation?.activeSeed || sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace)
+  // A resumed conversation runs its exact session, even if the agent's model has changed since.
+  const resumedSessionId = dashboardConversation?.activeSessionId && (!dashboardConversation.activeSessionModel || dashboardConversation.activeSessionModel === resolvedAgent.model)
+    ? dashboardConversation.activeSessionId : undefined
+  // A seed the server chose (the conversation record's, or its own default) may name a chat stored
+  // under the older, shorter session-key digest; only those may continue such a session.
+  const serverOwnedSeed = Boolean(dashboardConversation) || !sessionId
 
   console.log(`[Chat Route] Starting CLI chat for agent ${id}`)
 
@@ -877,7 +1032,9 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   }, 2000)
   const chatStartedAt = Date.now()
   const dashboardSessionKey = `agent:${id}:dashboard-chat`
-  let currentSessionId = scopeSessionIdToModel(sessionSeed, resolvedAgent.model)
+  let currentSessionId = resumedSessionId || (serverOwnedSeed
+    ? scopeStoredDashboardSessionId(id, sessionSeed, resolvedAgent.model)
+    : scopeSessionIdToModel(sessionSeed, resolvedAgent.model))
   let chatSessionRetryAttempt = 0
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
@@ -954,6 +1111,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     // this branch used to, made it invisible to both.
     await withRegisteredTurn(id, async () => {
       try {
+        assertCurrentDashboardConversation()
         transport?.assertAuthorized()
         const result = await executeClawmaxResendSend({
           to: dispatch.to,
@@ -994,6 +1152,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   // the chance to forget it on whatever exit path gets added next.
   withRegisteredTurn(id, async (turn) => {
     turnId = turn.turnId
+    assertCurrentDashboardConversation()
 
     // No route-level deadline. Every previous bound measured silence, and silence is what a working
     // agent produces while it thinks and runs tools -- a measured research turn went quiet for 316s
@@ -1010,6 +1169,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
       const executionSessionId = currentSessionId
 
       await runExclusiveAgentExecution(id, async () => {
+        assertCurrentDashboardConversation()
         if (!isRequestedChatAgentCurrent(req, id)) {
           throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
         }
@@ -1069,6 +1229,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
             // matched on exact userId + workspaceId, so recording the active workspace here would
             // check consent against a workspace that did not run the turn.
             workspaceId: effectiveWorkspaceRoot,
+            occurredAt: new Date(chatStartedAt).toISOString(),
             userId: session?.userId || session?.login || 'dashboard-user',
             sessionId: executionSessionId,
             subjectId: id,
@@ -1106,11 +1267,16 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
         forceGateway = false,
       ) => {
         const attemptSessionSeed = buildDashboardChatRetrySeed(sessionSeed, chatSessionRetryAttempt)
-        const executionSessionId = scopeSessionIdToModel(
-          attemptSessionSeed,
-          attemptModel,
-        )
+        // Recovery and backup-model attempts keep their own sessions, as they always have.
+        const executionSessionId = resumedSessionId && chatSessionRetryAttempt === 0 && attemptModel === resolvedAgent.model
+          ? resumedSessionId
+          : serverOwnedSeed && chatSessionRetryAttempt === 0
+            ? scopeStoredDashboardSessionId(id, attemptSessionSeed, attemptModel)
+            : scopeSessionIdToModel(attemptSessionSeed, attemptModel)
         currentSessionId = executionSessionId
+        // The reply already persisted before this attempt, so recovery below never mistakes it for
+        // this attempt's answer.
+        const priorAssistantId = readLatestAssistantTextFromPersistedSession(id, dashboardSessionKey, executionSessionId)?.messageId
         const attemptUseOpenAiCompatible = attemptProvider === 'openai-compatible'
         const attemptExecutionModel = toExecutionModelOverride(attemptModel, attemptProvider)
         const args = [
@@ -1172,7 +1338,14 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
             proc = spawned
             procExited = false
 
-            send('start', { sessionId: executionSessionId, resumeSessionId: attemptSessionSeed, turnId: turn.turnId })
+            // The panel sends `resumeSessionId` with its next turn. A first attempt hands back what the
+            // panel sent, so a dashboard chat keeps asking for its current conversation; only a
+            // recovery seed (a locked session) is handed out for it to keep.
+            send('start', {
+              sessionId: executionSessionId,
+              resumeSessionId: dashboardConversation ? defaultDashboardChatSeed(id) : chatSessionRetryAttempt > 0 ? attemptSessionSeed : (sessionId || attemptSessionSeed),
+              turnId: turn.turnId,
+            })
             invalidateAgentStatusCache(id)
 
             /**
@@ -1309,7 +1482,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
 
               const normalizedText = normalizeChatMessage(fullOutput.trim())
               const persistedAssistant = !incompleteReason && shouldRecoverPersistedAssistant(normalizedText)
-                ? await readLatestAssistantTextWithRetry(id, dashboardSessionKey, executionSessionId)
+                ? await readLatestAssistantTextWithRetry(id, dashboardSessionKey, executionSessionId, priorAssistantId)
                 : null
               const completionText = normalizedText || normalizeChatMessage(persistedAssistant?.content || '') || ''
               const usage = completionText
@@ -1341,6 +1514,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
       }
 
       await runExclusiveAgentExecution(id, async () => {
+        assertCurrentDashboardConversation()
         if (!isRequestedChatAgentCurrent(req, id)) {
           throw new Error('Agent was deleted or replaced. Close this chat and refresh Agents.')
         }
@@ -1398,6 +1572,12 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
           console.warn(`[Chat Route] Recovering agent ${id} with a fresh chat session after an OpenClaw session conflict`)
         },
       }).then((attemptResult) => {
+        if (dashboardConversation && attemptResult.completionText && !attemptResult.incompleteReason && (chatSessionRetryAttempt > 0 || attemptResult.model !== resolvedAgent.model)) {
+          if (!attemptResult.sessionId) throw new Error('The recovered reply did not identify its conversation. Refresh chat before sending again.')
+          const conversationModel = resolvedAgent.model || attemptResult.model
+          if (!conversationModel) throw new Error('The recovered reply did not identify its model. Refresh chat before sending again.')
+          rememberDashboardConversationSession(id, dashboardConversation, attemptResult.sessionId, conversationModel)
+        }
         clearInterval(keepalive)
         if (attemptResult.incompleteReason) {
           send('error', attemptResult.incompleteReason)
@@ -1418,10 +1598,10 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
             dashboardInstanceId: getRequestDashboardInstanceId(req),
           })
           const activityUserId = session?.userId || session?.login || 'dashboard-user'
-          const activityWorkspaceId = getWorkspacePath()
           appendActivityExportEventsForActiveConsents({
             source: 'agent-chat',
-            workspaceId: activityWorkspaceId,
+            workspaceId: effectiveWorkspaceRoot,
+            occurredAt: new Date(chatStartedAt).toISOString(),
             userId: activityUserId,
             sessionId: attemptResult.sessionId,
             subjectId: id,
@@ -1452,7 +1632,7 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
     // withRegisteredTurn's `finally`, and this route would be back to leaking on an exit path.
     console.error(`[Chat Route] Unexpected error running chat turn for ${id}:`, err)
     clearInterval(keepalive)
-    send('error', 'Agent execution failed')
+    send('error', err instanceof DashboardConversationChangedError ? err.message : 'Agent execution failed')
     if (!res.writableEnded) res.end()
   })
 
@@ -1477,7 +1657,10 @@ export async function executeAgentChat(req: Request, res: Response, transport?: 
   })
 }
 
-router.post('/:id/chat', (req, res, next) => {
+// A send carries the last few messages as context and one reply may be up to 2 MB, far over the app's 100 KB
+// default (which skips this path, see server/index.ts). Parsed here, behind the router's authentication.
+router.post('/:id/chat', parseChatJsonBody, (req, res, next) => {
+  if (isDevHostSkillChatReady(req, req.params.id)) return executeDevHostSkillChat(req, res).catch(next)
   return executeAgentChat(req, res).catch(next)
 })
 

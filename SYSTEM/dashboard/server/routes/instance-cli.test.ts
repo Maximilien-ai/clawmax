@@ -5,6 +5,7 @@ import http from 'http'
 import os from 'os'
 import path from 'path'
 import express from 'express'
+import { execFileSync } from 'child_process'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -253,6 +254,32 @@ async function run() {
     assert.strictEqual(result.json.kind, 'Identity')
     assert.strictEqual(result.json.actorId, 'actor_local')
     assert.deepStrictEqual(result.json.memberships, [{ id: 'membership_local', tenantId: 'tenant_local', role: 'owner' }])
+  })
+
+  await test('runtime observation is authenticated, bounded and stable within the serving process', async () => {
+    const denied = await request('/api/cli/v1/runtime')
+    assert.strictEqual(denied.response.status, 401)
+    assert.strictEqual(denied.json.error.code, 'authentication_required')
+    const wrong = await request('/api/cli/v1/runtime', { headers: { authorization: 'Bearer wrong-token' } })
+    assert.strictEqual(wrong.response.status, 401)
+    const first = await request('/api/cli/v1/runtime', { headers: auth })
+    const second = await request('/composed/api/cli/v1/runtime', { headers: auth })
+    assert.strictEqual(first.response.status, 200)
+    assert.strictEqual(first.response.headers.get('cache-control'), 'no-store')
+    assert.deepStrictEqual(Object.keys(first.json).sort(), ['apiVersion', 'bootId', 'instanceId', 'kind', 'scope', 'startedAt'])
+    assert.strictEqual(first.json.apiVersion, 'clawmax.instance/v1')
+    assert.strictEqual(first.json.kind, 'RuntimeObservation')
+    assert.strictEqual(first.json.instanceId, 'inst_test')
+    assert.strictEqual(first.json.scope, 'dashboard-process')
+    assert.match(first.json.bootId, /^[a-f0-9-]{36}$/)
+    assert(Number.isFinite(Date.parse(first.json.startedAt)))
+    assert.deepStrictEqual(first.json, second.json)
+    const restarted = JSON.parse(execFileSync(process.execPath, [
+      '-r', require.resolve('ts-node/register/transpile-only'),
+      '-e', `process.stdout.write(JSON.stringify(require(${JSON.stringify(require.resolve('../lib/runtime-observation'))}).dashboardBootObservation))`,
+    ], { encoding: 'utf8', timeout: 10000, maxBuffer: 4096 }))
+    assert.notStrictEqual(first.json.bootId, restarted.bootId, 'A new process must have a new identity')
+    assert.strictEqual(restarted.scope, 'dashboard-process')
   })
 
   await test('workspace list returns only contract fields and never selects a workspace', async () => {

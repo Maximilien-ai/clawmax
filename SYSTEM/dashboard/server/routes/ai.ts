@@ -6,6 +6,7 @@ import {
   normalizePromptExpansionFormat,
   normalizePromptExpansionTarget,
   setRequestByokKeys,
+  warmOpenAiCompatibleGenerationModel,
 } from '../lib/ai-generator'
 
 const router = express.Router()
@@ -30,6 +31,7 @@ router.post('/expand-prompt', async (req, res) => {
   }
 
   try {
+    await warmOpenAiCompatibleGenerationModel(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     const normalizedTarget = normalizePromptExpansionTarget(target)
     const expandedPrompt = await expandPromptWithAI(

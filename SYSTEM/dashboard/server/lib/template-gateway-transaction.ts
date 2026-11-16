@@ -111,12 +111,13 @@ export class TemplateGatewayTransaction {
       return { hash: current.hash }
     })
   }
-  async register(planDigest: string, entries: Record<string, TemplateGatewayEntry>): Promise<void> {
+  async register(planDigest: string, entries: Record<string, TemplateGatewayEntry>, assertAuthorized: () => void = () => {}): Promise<void> {
     return this.exclusively(async () => {
       if (this.read()) blocked('Recover the previous Template gateway transaction first')
       const journal = this.validate(structuredClone({ version: 1, planDigest, entries }))
       if (this.read(this.receipt(planDigest))) blocked('Template gateway revision already exists')
       const before = await this.transport.snapshot()
+      assertAuthorized()
       if (Object.keys(journal.entries).some(id => Object.hasOwn(before.entries, id))) blocked('Template gateway resource already exists')
       writeAtomicJson(this.file(), journal)
       // Keep the journal on every failure, including response loss or gateway

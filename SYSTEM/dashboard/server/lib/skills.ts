@@ -1,8 +1,10 @@
 import fs from 'fs'
+import { isPlainPathSegment, resolvePathWithin } from './path-segment'
 import { openClawConfigPath } from './openclaw-profile-paths'
 import path from 'path'
 import os from 'os'
 import matter from 'gray-matter'
+import { parseFrontMatter } from './front-matter'
 import { execFileSync } from 'child_process'
 import { getGatewayClient } from './gateway-rpc'
 import { getWorkspacePath } from './workspace'
@@ -254,6 +256,16 @@ const DEFAULT_SKILL_INSTALL_OPTIONS: Record<string, SkillInstallOption[]> = {
       label: 'Install GitHub CLI (apt)',
     },
   ],
+  'gh-issues': [{ id: 'apt', kind: 'apt', package: 'gh', bins: ['gh'], label: 'Install GitHub CLI (apt)', os: ['linux'] }],
+  'session-logs': [
+    { id: 'apt-jq', kind: 'apt', package: 'jq', bins: ['jq'], label: 'Install jq (apt)', os: ['linux'] },
+    { id: 'apt-ripgrep', kind: 'apt', package: 'ripgrep', bins: ['rg'], label: 'Install ripgrep (apt)', os: ['linux'] },
+  ],
+  tmux: [{ id: 'apt', kind: 'apt', package: 'tmux', bins: ['tmux'], label: 'Install tmux (apt)', os: ['linux'] }],
+  trello: [{ id: 'apt', kind: 'apt', package: 'jq', bins: ['jq'], label: 'Install jq (apt)', os: ['linux'] }],
+  'video-frames': [{ id: 'apt', kind: 'apt', package: 'ffmpeg', bins: ['ffmpeg'], label: 'Install ffmpeg (apt)', os: ['linux'] }],
+  weather: [{ id: 'apt', kind: 'apt', package: 'curl', bins: ['curl'], label: 'Install curl (apt)', os: ['linux'] }],
+  'openai-whisper-api': [{ id: 'apt', kind: 'apt', package: 'curl', bins: ['curl'], label: 'Install curl (apt)', os: ['linux'] }],
   himalaya: [
     {
       id: 'brew',
@@ -418,12 +430,15 @@ function getPreferredDisplayInstallKinds(platform: NodeJS.Platform = process.pla
 export function getVisibleSkillInstallOptions(
   install: SkillInstallOption[] | undefined,
   platform: NodeJS.Platform = process.platform,
+  commandExistsFn: (command: string) => boolean = commandExists,
 ): SkillInstallOption[] | undefined {
   const options = Array.isArray(install) ? install : []
   if (options.length === 0) return undefined
   const compatible = options.filter((option) => {
     const supportedPlatforms = (option as any).os
-    return !Array.isArray(supportedPlatforms) || supportedPlatforms.length === 0 || supportedPlatforms.includes(platform)
+    if (Array.isArray(supportedPlatforms) && supportedPlatforms.length > 0 && !supportedPlatforms.includes(platform)) return false
+    if (platform === 'linux' && option.kind === 'brew' && !commandExistsFn('brew')) return false
+    return true
   })
   if (compatible.length === 0) return undefined
 
@@ -439,7 +454,9 @@ export function getVisibleSkillInstallOptions(
 export function isSkillSupportedOnPlatform(
   name: string,
   platform: NodeJS.Platform = process.platform,
+  declaredOs?: string[],
 ): boolean {
+  if (Array.isArray(declaredOs) && declaredOs.length > 0 && !declaredOs.includes(platform)) return false
   const supportedPlatforms = SKILL_PLATFORM_SUPPORT[name]
   if (!Array.isArray(supportedPlatforms) || supportedPlatforms.length === 0) {
     return true
@@ -1087,17 +1104,14 @@ function parseSkillFile(
 ): OpenClawSkill | null {
   try {
     const content = fs.readFileSync(filePath, 'utf-8')
-    const { data, content: markdownContent } = matter(content)
+    const { data, content: markdownContent } = parseFrontMatter(content)
 
     if (!data.name) {
       // Silently skip skills without names (common in OpenClaw dev skills)
       return null
     }
-    if (!isSkillSupportedOnPlatform(data.name)) {
-      return null
-    }
-
     const openclawMeta = data.metadata?.openclaw || {}
+    if (!isSkillSupportedOnPlatform(data.name, process.platform, openclawMeta.os)) return null
 
     const requires = openclawMeta.requires
     const normalizedInstall = normalizeSkillInstallOptions(
@@ -1160,7 +1174,7 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
     const content = fs.readFileSync(filePath, 'utf-8')
 
     // Try parsing as YAML frontmatter first
-    const { data, content: markdownContent } = matter(content)
+    const { data, content: markdownContent } = parseFrontMatter(content)
 
     // Extract name and description
     const lines = markdownContent.split('\n').filter(l => l.trim())
@@ -1232,6 +1246,8 @@ export function getSkillById(id: string): OpenClawSkill | null {
   const skills = listAvailableSkills()
   const direct = skills.find(s => s.name === id || s.id === id)
   if (direct) return direct
+  // An id from a URL names a folder that is read and copied: it must stay inside the skills folder.
+  if (!isPlainPathSegment(id)) return null
 
   const repoSkillDir = path.join(REPO_CUSTOM_SKILLS_DIR, id)
   const uppercaseSkillPath = path.join(repoSkillDir, 'SKILL.md')
@@ -1282,6 +1298,7 @@ export function getSkillRequirementInstallCommands(
 
   for (const option of sortedOptions) {
     if (!canRunInstallOption(option, platform, commandExistsFn)) continue
+    if (platform === 'linux' && skill.name === '1password' && option.kind !== 'apt') continue
     if (option.kind === 'brew' && option.formula) {
       const formula = option.formula.trim()
       const key = `brew:${formula}`
@@ -1300,6 +1317,15 @@ export function getSkillRequirementInstallCommands(
       const key = `apt:${pkg}`
       if (!pkg || seen.has(key)) continue
       seen.add(key)
+      if (platform === 'linux' && skill.name === '1password' && pkg === '1password-cli') {
+        commands.push({
+          kind: 'apt',
+          command: 'sh',
+          args: [path.join(REPO_ROOT, 'SYSTEM', 'install-1password-cli.sh')],
+          display: 'Install 1Password CLI from its signed Debian repository',
+        })
+        continue
+      }
       if (platform === 'linux' && skill.name === 'himalaya' && pkg === 'himalaya' && commandExistsFn('sh') && commandExistsFn('curl')) {
         commands.push({
           kind: 'apt',
@@ -1445,7 +1471,7 @@ export function updateSkillContent(
     throw new Error(`Skill "${skillId}" not found`)
   }
 
-  const parsed = matter(content)
+  const parsed = parseFrontMatter(content)
   const nextName = (overrides?.name ?? parsed.data?.name ?? skill.name ?? '').trim()
   const nextDescriptionRaw = overrides?.description ?? parsed.data?.description ?? skill.description ?? ''
   const nextDescription = String(nextDescriptionRaw).trim()
@@ -1550,7 +1576,7 @@ export function stampImportedRegistrySkillMetadata(
   if (!fs.existsSync(skillPath)) return
 
   const raw = fs.readFileSync(skillPath, 'utf-8')
-  const parsed = matter(raw)
+  const parsed = parseFrontMatter(raw)
   const nextTags = buildSkillTags({
     explicitTags: Array.isArray(parsed.data?.tags) ? parsed.data.tags : [],
     name: parsed.data?.name || metadata.registryName,
@@ -2011,7 +2037,7 @@ export function importWorkspaceSkill(sourcePath: string, tags?: string[]): { suc
 
       if (fs.existsSync(skillMdPath)) {
         const content = fs.readFileSync(skillMdPath, 'utf-8')
-        const { data, content: markdownContent} = matter(content)
+        const { data, content: markdownContent} = parseFrontMatter(content)
 
         // Add tags to frontmatter
         data.tags = tags
@@ -2035,13 +2061,16 @@ export function importWorkspaceSkill(sourcePath: string, tags?: string[]): { suc
 export function deleteWorkspaceSkill(skillIdOrName: string): { success: boolean; error?: string } {
   try {
     const workspaceSkillsDir = getWorkspaceSkillsDir()
-    let managedSkillPath = path.join(MANAGED_SKILLS_DIR, skillIdOrName)
+    // The value comes from a URL and may be a display name ("PDF Tools"); only a plain segment is joined to
+    // a folder that is removed recursively. Anything else is looked up by name below.
+    const direct = isPlainPathSegment(skillIdOrName)
+    let managedSkillPath = direct ? resolvePathWithin(MANAGED_SKILLS_DIR, skillIdOrName) : ''
 
     // First try direct directory match (skillId)
-    let skillPath = path.join(workspaceSkillsDir, skillIdOrName)
+    let skillPath = direct ? resolvePathWithin(workspaceSkillsDir, skillIdOrName) : ''
 
     // If not found, try to find by skill name
-    if (!fs.existsSync(skillPath)) {
+    if (!skillPath || !fs.existsSync(skillPath)) {
       const skills = listAvailableSkills().filter(s => s.source === 'workspace' || s.source === 'managed')
       const skill = skills.find(s => s.name === skillIdOrName || s.id === skillIdOrName)
 
@@ -2050,14 +2079,16 @@ export function deleteWorkspaceSkill(skillIdOrName: string): { success: boolean;
       }
 
       if (skill.source === 'managed') {
-        managedSkillPath = path.join(MANAGED_SKILLS_DIR, skill.name)
+        if (!isPlainPathSegment(skill.name)) return { success: false, error: 'Skill not found' }
+        managedSkillPath = resolvePathWithin(MANAGED_SKILLS_DIR, skill.name)
       } else if (skill.id) {
-        skillPath = path.join(workspaceSkillsDir, skill.id)
+        if (!isPlainPathSegment(skill.id)) return { success: false, error: 'Skill not found' }
+        skillPath = resolvePathWithin(workspaceSkillsDir, skill.id)
       }
     }
 
-    const existingWorkspacePath = fs.existsSync(skillPath) ? skillPath : null
-    const existingManagedPath = fs.existsSync(managedSkillPath) ? managedSkillPath : null
+    const existingWorkspacePath = skillPath && fs.existsSync(skillPath) ? skillPath : null
+    const existingManagedPath = managedSkillPath && fs.existsSync(managedSkillPath) ? managedSkillPath : null
 
     if (!existingWorkspacePath && !existingManagedPath) {
       return { success: false, error: 'Skill not found' }
@@ -2090,9 +2121,12 @@ function copyDirectorySync(src: string, dest: string): void {
     const srcPath = path.join(src, entry.name)
     const destPath = path.join(dest, entry.name)
 
+    // A skill arrives from a cloned repository, an upload or a registry; a symlink in it can point at any
+    // file of this machine (`key -> ~/.ssh/id_ed25519`), and copying would follow it. Skills never need one.
+    if (entry.isSymbolicLink()) continue
     if (entry.isDirectory()) {
       copyDirectorySync(srcPath, destPath)
-    } else {
+    } else if (entry.isFile()) {
       fs.copyFileSync(srcPath, destPath)
     }
   }

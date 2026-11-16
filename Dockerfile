@@ -1,16 +1,18 @@
 ARG CLAWMAX_VERSION=
 ARG CLAWMAX_ENABLED_PLUGINS=
-ARG OPENCLAW_GIT_REF=v2026.9.5
+ARG OPENCLAW_GIT_REF=v2026.9.7
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
-FROM --platform=$BUILDPLATFORM node:24.19.0-bookworm-slim AS openclaw-builder
+FROM --platform=$BUILDPLATFORM node:24.22.0-bookworm-slim AS openclaw-builder
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG OPENCLAW_GIT_REF
 
+# OpenClaw's metadata renderer uses procps ps to distinguish exited zombie
+# process groups from live descendants. Slim images omit it; cleanup then fails.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends git ca-certificates python3 make g++ \
+  && apt-get install -y --no-install-recommends git ca-certificates python3 make g++ procps \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/openclaw-src
@@ -20,6 +22,8 @@ RUN git clone https://github.com/openclaw/openclaw.git . \
 COPY SYSTEM/patch-openclaw-fs-safe.mjs /tmp/patch-openclaw-fs-safe.mjs
 COPY SYSTEM/patch-openclaw-roster-removal.mjs /tmp/patch-openclaw-roster-removal.mjs
 RUN node /tmp/patch-openclaw-roster-removal.mjs /opt/openclaw-src
+COPY SYSTEM/configure-openclaw-packaging.mjs /tmp/configure-openclaw-packaging.mjs
+RUN node /tmp/configure-openclaw-packaging.mjs /opt/openclaw-src
 
 RUN openclaw_pnpm_version="$(node -p "String(require('./package.json').packageManager || '').match(/^pnpm@([^+]+)/)?.[1] || ''")" \
   && test -n "${openclaw_pnpm_version}" \
@@ -51,6 +55,7 @@ RUN retry() { \
     else \
       retry 3 5 npm install --legacy-peer-deps --ignore-scripts; \
     fi
+RUN command -v ps && ps -eL -o pgid=,state= >/dev/null
 RUN npm run build:docker
 RUN node /tmp/patch-openclaw-fs-safe.mjs /opt/openclaw-src
 # Match the local/CI preparation path: install the bundled plugin payloads
@@ -62,7 +67,7 @@ RUN node scripts/postinstall-bundled-plugins.mjs \
 # npm pack preserves workspace:* and makes the runtime npm install fail.
 RUN pnpm --config.ignore-scripts=true pack
 
-FROM --platform=$BUILDPLATFORM node:24.19.0-bookworm-slim AS builder
+FROM --platform=$BUILDPLATFORM node:24.22.0-bookworm-slim AS builder
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG CLAWMAX_VERSION
@@ -92,7 +97,7 @@ RUN retry() { \
 COPY SYSTEM/dashboard ./
 RUN npm run build
 
-FROM --platform=$TARGETPLATFORM node:24.19.0-bookworm-slim AS runtime
+FROM --platform=$TARGETPLATFORM node:24.22.0-bookworm-slim AS runtime
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 WORKDIR /app/SYSTEM/dashboard
@@ -101,7 +106,7 @@ ARG CLAWMAX_VERSION
 ARG OPENCLAW_GIT_REF
 ARG CLAWMAX_ENABLED_PLUGINS
 ARG TARGETARCH
-ARG OPENCLAW_CODEX_APP_SERVER_VERSION=0.154.0
+ARG OPENCLAW_CODEX_APP_SERVER_VERSION=0.158.0
 ARG QBO_VERSION=0.6.1
 ARG QBO_LINUX_AMD64_SHA256=ce7774c7c641b1c6fe356e2e522465fbf16d80bce0a87fd2c8027774e2a46f31
 ARG QBO_LINUX_ARM64_SHA256=150cdb50c2dacc8c990c3594b358dcd84f2336de31cad73de266bbdf32b3d4e0
@@ -109,7 +114,9 @@ ARG QBO_LINUX_ARM64_SHA256=150cdb50c2dacc8c990c3594b358dcd84f2336de31cad73de266b
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates \
+    coreutils \
     curl \
+    gpg \
     gh \
     git \
     jq \
@@ -172,7 +179,7 @@ RUN chmod +x /tmp/ensure-openclaw-default-plugins.sh \
 # state on demand. That tree can survive an architecture change or predate
 # OpenClaw's platform-package verification, leaving the JavaScript launcher
 # present without @openai/codex-linux-{x64,arm64}. Ship the exact version pinned
-# by OpenClaw 2026.9.5 in the target image and select it explicitly so existing
+# by OpenClaw 2026.9.7 in the target image and select it explicitly so existing
 # volumes recover without reinstalling the plugin or changing capability consent.
 RUN npm install -g --include=optional "@openai/codex@${OPENCLAW_CODEX_APP_SERVER_VERSION}" \
   && test "$(node -p "require('/usr/local/lib/node_modules/@openai/codex/package.json').version")" = "${OPENCLAW_CODEX_APP_SERVER_VERSION}" \
@@ -243,6 +250,15 @@ RUN export HOME=/app \
 COPY --from=builder /app/SYSTEM/dashboard/dist ./dist
 COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas
 
+# Optional memory integration: immutable image-owned files, no install scripts
+# or peer OpenClaw runtime. Startup registers it disabled by default.
+COPY SYSTEM/cognee-bundle/package*.json /opt/clawmax-cognee/
+COPY SYSTEM/cognee-bundle/smoke.cjs /opt/clawmax-cognee/smoke.cjs
+COPY SYSTEM/cognee-bundle/harden.cjs /opt/clawmax-cognee/harden.cjs
+RUN npm ci --prefix /opt/clawmax-cognee --omit=dev --ignore-scripts --legacy-peer-deps
+RUN node /opt/clawmax-cognee/harden.cjs
+ENV CLAWMAX_BUNDLED_COGNEE_PATH=/opt/clawmax-cognee/node_modules/@cognee/cognee-openclaw
+
 WORKDIR /app
 
 COPY TEMPLATES ./TEMPLATES
@@ -256,10 +272,15 @@ COPY SKILLS/custom/workspace-ls ./SKILLS/custom/workspace-ls
 COPY SKILLS/custom/clawmax-secret-test ./SKILLS/custom/clawmax-secret-test
 COPY SKILLS/custom/clawmax-mail ./SKILLS/custom/clawmax-mail
 COPY SYSTEM/schemas ./SYSTEM/schemas
+COPY SYSTEM/install-1password-cli.sh ./SYSTEM/install-1password-cli.sh
+RUN command -v gpg >/dev/null && sh -n ./SYSTEM/install-1password-cli.sh
 COPY SYSTEM/dashboard/.env.example ./SYSTEM/dashboard/.env.example
 COPY SYSTEM/dashboard/docker-entrypoint.sh ./SYSTEM/dashboard/docker-entrypoint.sh
+COPY SYSTEM/dashboard/openclaw-schema-gate.cjs ./SYSTEM/dashboard/openclaw-schema-gate.cjs
+RUN node ./SYSTEM/dashboard/openclaw-schema-gate.cjs --verify-runtime /usr/local/lib/node_modules/openclaw
 COPY SYSTEM/dashboard/openclaw-auth-store.mjs ./SYSTEM/dashboard/openclaw-auth-store.mjs
 COPY SYSTEM/dashboard/openclaw-workspace-state.mjs ./SYSTEM/dashboard/openclaw-workspace-state.mjs
+COPY SYSTEM/dashboard/offline-backup.mjs ./SYSTEM/dashboard/offline-backup.mjs
 COPY SYSTEM/dashboard/clawmax-resend-send /usr/local/bin/clawmax-resend-send
 COPY SYSTEM/dashboard/clawmax-skill-run /usr/local/bin/clawmax-skill-run
 COPY SYSTEM/dashboard/clawmax-mail-run /usr/local/bin/clawmax-mail-run

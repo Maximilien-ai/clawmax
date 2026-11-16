@@ -2,7 +2,7 @@ import nodeAssert from 'assert'
 import fs from 'fs'
 import path from 'path'
 import { API_AUTHORIZATION_MATRIX } from './api-authorization-matrix'
-import { applyDashboardSecurityHeaders, isContainerRuntime, isHostNetworkContainer, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins, resolveDashboardBindHost } from './http-security'
+import { applyDashboardSecurityHeaders, isContainerRuntime, isHostNetworkContainer, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins, resolveDashboardBindHost, resolveDashboardClientHost } from './http-security'
 import { requireGitHubAuth } from './github-auth'
 
 // The passing count used to be a literal in the final console.log. It silently went stale as
@@ -23,6 +23,11 @@ const assert = Object.assign(
 )
 
 const indexSource = fs.readFileSync(path.resolve(__dirname, '..', 'index.ts'), 'utf8')
+const mutationGuardOffset = indexSource.indexOf("app.use('/api', browserMutationGuard(allowedCorsOrigins))")
+assert(mutationGuardOffset > 0, 'The browser mutation guard must cover the complete API')
+for (const route of ["app.post('/api/auth/verify'", "app.use('/api', protect, channelsRouter)", "app.use('/api/cli/v1'"]) {
+  assert(indexSource.indexOf(route) > mutationGuardOffset, 'Cookie-authenticated API routes must be registered after CSRF origin admission')
+}
 
 const protectedRouterMounts = [
   "app.use('/api/docs', protect, docsRouter)",
@@ -57,6 +62,9 @@ assert(!indexSource.includes("app.use('/api/workspace-dashboards', workspaceDash
 assert(!indexSource.includes('origin: true'), 'Credentialed CORS must never reflect arbitrary origins')
 assert(indexSource.includes("app.disable('x-powered-by')"), 'Express framework disclosure must be disabled')
 assert(!indexSource.includes("removeHeader('X-Content-Type-Options')"), 'Static responses must retain nosniff protection')
+assert(indexSource.indexOf("app.get('/assets/*'") < indexSource.indexOf("app.get('*'"), 'Missing hashed assets must not fall through to SPA HTML')
+assert(indexSource.includes("res.status(404).type('text/plain').send('Dashboard asset not found."), 'Missing hashed assets must return a non-HTML 404')
+assert(indexSource.includes("res.setHeader('Cache-Control', 'no-store')\n    res.sendFile(path.join(earlyClientDist, 'index.html'))"), 'SPA HTML must not be cached across image upgrades')
 
 const matrixKeys = API_AUTHORIZATION_MATRIX.map((entry) => `${entry.methods} ${entry.path}`)
 assert.equal(new Set(matrixKeys).size, matrixKeys.length, 'Authorization matrix entries must be unique')
@@ -140,6 +148,24 @@ assert(!isHostNetworkContainer(() => ['lo'], () => true), 'loopback alone is not
 assert(!isHostNetworkContainer(() => [], () => true), 'an unreadable /sys/class/net must not read as host networking')
 
 assert(indexSource.includes('const HOST = resolveDashboardBindHost(process.env)'), 'Server bind selection must account for authentication bypass')
+// The dev server proxies /api to that loopback-only API, so listening everywhere would re-expose it.
+// It fails closed on any bypass request: the API takes the deployment kind from the inherited
+// environment and Vite from .env, so a cloud kind here must not reopen every interface.
+const clientHostCases: Array<[Record<string, string>, 'localhost' | true]> = [
+  [{}, true],
+  [{ DASHBOARD_AUTH_MODE: 'github' }, true],
+  [{ BYPASS_OAUTH: 'true' }, 'localhost'],
+  [{ DASHBOARD_AUTH_DISABLED: 'true' }, 'localhost'],
+  [{ DASHBOARD_AUTH_MODE: ' Bypass ' }, 'localhost'],
+  [{ BYPASS_OAUTH: 'true', DASHBOARD_DEPLOYMENT_KIND: 'cloud' }, 'localhost'],
+  [{ BYPASS_OAUTH: 'true', CLAWMAX_DEPLOYMENT_KIND: 'cloud' }, 'localhost'],
+  [{ BYPASS_OAUTH: 'true', DASHBOARD_ALLOW_UNAUTHENTICATED_NETWORK_BIND: 'true' }, true],
+]
+for (const [env, host] of clientHostCases) {
+  assert.equal(resolveDashboardClientHost(env as NodeJS.ProcessEnv), host, `Dev client host for ${JSON.stringify(env)}`)
+}
+const viteConfigSource = fs.readFileSync(path.resolve(__dirname, '..', '..', 'vite.config.ts'), 'utf8')
+assert(viteConfigSource.includes('host: resolveDashboardClientHost(dashboardEnv)'), 'The dev server must take its host from the auth-aware rule')
 const composeSource = fs.readFileSync(path.resolve(__dirname, '..', '..', '..', '..', 'docker-compose.yml'), 'utf8')
 assert(composeSource.includes('${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_PORT:-3001}:3001'), 'Compose must publish the dashboard on host loopback by default')
 
@@ -176,4 +202,25 @@ try {
   Object.assign(process.env, originalEnv)
 }
 
+const { browserMutationGuard } = require('./http-security')
+for (const scenario of [
+  { method: 'POST', headers: { Origin: 'https://dashboard.example.com', Cookie: 'session=fixture' }, allowed: true },
+  { method: 'POST', headers: { Origin: 'http://localhost:5174', Cookie: 'session=fixture' }, allowed: true },
+  { method: 'POST', headers: { Origin: 'https://attacker.example', Cookie: 'session=fixture' }, allowed: false },
+  { method: 'DELETE', headers: { Origin: 'https://dashboard.example.com.attacker.example' }, allowed: false },
+  { method: 'POST', headers: { Origin: 'null' }, allowed: false },
+  { method: 'PATCH', headers: { Cookie: 'session=fixture' }, allowed: false },
+  { method: 'POST', headers: { Referer: 'https://dashboard.example.com/agents', Cookie: 'session=fixture' }, allowed: true },
+  { method: 'POST', headers: { 'Sec-Fetch-Site': 'cross-site' }, allowed: false },
+  { method: 'POST', headers: { 'Sec-Fetch-Site': 'same-site' }, allowed: false },
+  { method: 'POST', headers: { Authorization: 'Bearer fixture' }, allowed: true },
+  { method: 'GET', headers: { Cookie: 'session=fixture' }, allowed: true },
+]) {
+  let allowed = false, status = 0
+  browserMutationGuard(['http://localhost:5174', 'https://dashboard.example.com'])({ method: scenario.method, protocol: 'https',
+    get: (name: string) => name === 'host' ? 'dashboard.example.com' : (scenario.headers as Record<string, string | undefined>)[name],
+  }, { status: (value: number) => { status = value; return { json: () => {} } } }, () => { allowed = true })
+  assert(allowed === scenario.allowed, 'Browser mutation origin admission must match expected policy')
+  assert(allowed || status === 403, 'Rejected mutations must return 403 before execution')
+}
 console.log(`security-boundaries.test.ts: ${assertionsRun} tests passed`)

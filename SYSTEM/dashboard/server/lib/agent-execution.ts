@@ -1,6 +1,7 @@
 import fs from 'fs'
 import { openClawConfigPath, openClawStatePath } from './openclaw-profile-paths'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
+import { readPersistedChatTranscript, resolveNativeChatSession, hasNativeChatSession } from './native-chat-history'
 import path from 'path'
 import { createHash } from 'crypto'
 import { spawnSync } from 'child_process'
@@ -10,13 +11,12 @@ import { REPO_ROOT } from './paths'
 import { syncAssignedSkillGuidanceForAgent } from './skills'
 import { normalizeAgentModelInput, readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
 import { resetAgentSessionsForModelChange } from './agent-model'
-import { resolveDefaultAgentModel } from './agent-default-model'
-import { getAvailableModelsCached } from './model-discovery'
+import { resolveDefaultAgentModel, policyScopedEnv } from './agent-default-model'
+import { getAvailableModelsCached, getCachedOpenAiCompatibleContextWindow, resolveOpenAiCompatibleDefaultModel } from './model-discovery'
 import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getGatewayClient, isGatewayRunning } from './gateway-rpc'
-import { countVisibleNativeTranscriptMessages, getNativeClearWatermarkClearedAt, hasNativeTranscript, listNativeSessionIds, readNativeTranscriptLines } from './openclaw-native-transcripts'
-import type { NativeSessionSummary } from './openclaw-native-transcripts'
+import { readRuntimeTranscript } from './runtime-transcripts'
 
 interface OpenClawAgentRecord {
   id: string
@@ -62,6 +62,31 @@ interface AgentAuthProfileOptions {
   skipModelConfigMutation?: boolean
 }
 const LMSTUDIO_DEFAULT_CONTEXT_TOKENS = 64_000
+// Keys the execution environment substitutes for "no credential" on a keyless endpoint
+// (see providerKeysToEnv); discovery was warmed with no credential, so these must map back to it.
+const OPENAI_COMPATIBLE_PLACEHOLDER_KEYS = new Set(['openai-compatible', 'lmstudio-local'])
+/** The credential discovery was warmed with: a placeholder for a keyless endpoint means none. */
+function providerEntryFor(providerConfig: any, modelId: string | undefined): any {
+  if (!modelId || !Array.isArray(providerConfig?.models)) return undefined
+  return providerConfig.models.find((entry: any) => typeof entry === 'object' && entry !== null && String(entry.id || '').trim() === modelId)
+}
+
+function providerEntryContextWindow(providerConfig: any, modelId: string | undefined): number | undefined {
+  const value = providerEntryFor(providerConfig, modelId)?.contextWindow
+  return typeof value === 'number' && value > 0 ? value : undefined
+}
+
+// True when the provider entry for `modelId` would be resized by `contextFor`: the endpoint
+// advertises a context length and the entry carries a different one.
+function providerContextWindowIsStale(providerConfig: any, modelId: string | undefined, advertisedContextWindow: number | undefined): boolean {
+  if (!advertisedContextWindow || !providerEntryFor(providerConfig, modelId)) return false
+  return providerEntryContextWindow(providerConfig, modelId) !== advertisedContextWindow
+}
+
+function discoveryCredentialFor(apiKey?: string): string | undefined {
+  const trimmed = apiKey?.trim()
+  return trimmed && !OPENAI_COMPATIBLE_PLACEHOLDER_KEYS.has(trimmed) ? trimmed : undefined
+}
 const OPENCLAW_CONFIG_RELOAD_SETTLE_MS = 1500
 let openClawConfigMutationLock: Promise<void> = Promise.resolve()
 const agentExecutionLocks = new Map<string, Promise<void>>()
@@ -291,7 +316,7 @@ function isSupportedHostedModel(model: string | undefined): boolean {
   return availableModels.includes(model)
 }
 
-export function resolveAgentExecutionConfig(agentId: string): {
+export function resolveAgentExecutionConfig(agentId: string, options: { executionPolicy?: 'system' | 'user' } = {}): {
   model?: string
   backupModel?: string
   workspace?: string
@@ -332,14 +357,14 @@ export function resolveAgentExecutionConfig(agentId: string): {
   // If the active workspace contains this agent, trust its local identity first.
   // A stale global openclaw.json entry may point at a different workspace with the same agent id.
   const recordModel = normalizeMissingModel(record?.model)
+  const defaultModelOptions = { rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in'), executionPolicy: options.executionPolicy }
   let model = hasActiveWorkspaceAgent
-    ? (identityModel || recordModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in') }))
-    : (recordModel || identityModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in') }))
+    ? (identityModel || recordModel || resolveDefaultAgentModel(defaultModelOptions))
+    : (recordModel || identityModel || resolveDefaultAgentModel(defaultModelOptions))
   if (model && !isSupportedHostedModel(model)) {
     model = resolveDefaultAgentModel({
-      builtIn: identityTags.includes('built-in'),
-      rawEnv: process.env as Record<string, string>,
-      availableModels: getAvailableModelsCached(process.env as Record<string, string>),
+      ...defaultModelOptions,
+      availableModels: getAvailableModelsCached(policyScopedEnv(process.env as Record<string, string>, options.executionPolicy)),
     }) || model
   }
   const backupModel = (() => {
@@ -405,137 +430,62 @@ export function deriveWorkspaceRootFromAgentWorkspace(agentWorkspace?: string): 
   return normalized
 }
 
-/**
- * The seed the live dashboard chat route (routes/chat.ts POST /:id/chat) passes OpenClaw as
- * --session-id on the first turn of a conversation (a client-supplied `sessionId` from a later
- * turn in the same panel session overrides this). Anchored to the agent's IDENTITY.md mtime so a
- * page reload recomputes the exact same seed without the client having to persist anything — it
- * only changes when the identity file itself is rewritten (e.g. a model change).
- *
- * Any code that needs to resolve "the session this agent's dashboard chat is/was using" (history,
- * clear, archive-restore) must derive its preferred session id from this same seed — not from the
- * semantic session key (`agent:<id>:dashboard-chat`) alone — or it will look for the wrong session.
- */
-function buildDashboardChatSeedFromStamp(agentId: string, stamp: string): string {
-  return `dashboard-${agentId}-${stamp}-chat`
-}
-
-export function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: string): string {
-  let stamp = 'chat'
-  const identityPath = agentWorkspaceDir ? path.join(agentWorkspaceDir, 'IDENTITY.md') : ''
-  if (identityPath && fs.existsSync(identityPath)) {
-    try {
-      stamp = Math.floor(fs.statSync(identityPath).mtimeMs).toString(36)
-    } catch {}
-  }
-  return buildDashboardChatSeedFromStamp(agentId, stamp)
-}
-
-const SESSION_ID_MAX_LENGTH = 48
-const SESSION_ID_HASH_LENGTH = 8
-
-/**
- * The ONE place a session-id component (scopeSessionIdToModel's `sessionId` base, or its `model`
- * token) gets sanitized: replace anything outside [a-zA-Z0-9_-] with a hyphen, collapse repeated
- * hyphens into one, and trim leading/trailing hyphens. Nothing outside scopeSessionIdToModel
- * (directly, or via stableDashboardSeedPrefix calling it below on synthetic input) may re-derive
- * this pipeline — that duplication is exactly what let a hyphen-collapsing agent id desync the
- * prefix match in resolvePersistedAgentSessionId from what scopeSessionIdToModel actually produced.
- */
-function sanitizeSessionIdComponent(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-}
-
-/**
- * The longest prefix of a sanitized `scopeSessionIdToModel` base that function is guaranteed to
- * preserve verbatim in its output, regardless of what follows it — i.e. how much of the base
- * survives once it (plus a model token) is long enough to trigger scopeSessionIdToModel's
- * hash-truncation. The only other caller is stableDashboardSeedPrefix below, applying the exact
- * same length rule to its own derived prefix so it can never fall out of sync with this one.
- */
-function stableSessionIdBasePrefix(sanitizedBase: string): string {
-  return sanitizedBase.slice(0, Math.max(8, SESSION_ID_MAX_LENGTH - SESSION_ID_HASH_LENGTH - 1))
-}
-
-export function scopeSessionIdToModel(sessionId: string, model?: string): string {
-  const safeBase = sanitizeSessionIdComponent(sessionId)
-  const modelToken = sanitizeSessionIdComponent(model || '').slice(0, 24)
+function scopedSessionParts(sessionId: string, model?: string) {
+  const safeBase = sessionId.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+  const modelToken = (model || '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24)
   const base = safeBase || 'chat'
-  const combined = modelToken ? `${base}-${modelToken}` : base
+  return { base, combined: modelToken ? `${base}-${modelToken}` : base }
+}
 
-  if (combined.length <= SESSION_ID_MAX_LENGTH) {
+function scopedSessionIdWithDigest(sessionId: string, model: string | undefined, algorithm: 'sha1' | 'sha256', digestLength: number): string {
+  const MAX_SESSION_KEY_LENGTH = 48
+  const { base, combined } = scopedSessionParts(sessionId, model)
+
+  if (combined.length <= MAX_SESSION_KEY_LENGTH) {
     return combined
   }
 
-  const hash = createHash('sha1').update(combined).digest('hex').slice(0, SESSION_ID_HASH_LENGTH)
-  const trimmedBase = stableSessionIdBasePrefix(base)
-  return `${trimmedBase}-${hash}`.slice(0, SESSION_ID_MAX_LENGTH)
+  const hash = createHash(algorithm).update(combined).digest('hex').slice(0, digestLength)
+  const trimmedBase = base.slice(0, Math.max(8, MAX_SESSION_KEY_LENGTH - hash.length - 1))
+  return `${trimmedBase}-${hash}`.slice(0, MAX_SESSION_KEY_LENGTH)
 }
 
-/**
- * The stable, stamp-and-model-independent prefix that `scopeSessionIdToModel(buildDashboardChatSeed(
- * agentId, ...), model)` is guaranteed to start with, no matter which IDENTITY.md-mtime stamp or
- * model produced the exact id — used by resolvePersistedAgentSessionId to recognize a session
- * recorded under an earlier stamp, or under an unrelated session_key, as still this agent's own
- * dashboard conversation (never "whatever is newest for this agent").
- *
- * Derived by actually running two complete dashboard-chat seeds that are identical except for
- * their stamp through sanitizeSessionIdComponent — the exact same function scopeSessionIdToModel
- * calls on its `sessionId` argument — and keeping only what they still agree on, then applying
- * stableSessionIdBasePrefix, the exact same truncation-length rule scopeSessionIdToModel applies
- * in its own hash-truncated branch. Neither the sanitize regex nor the length math is
- * re-implemented here, so a future change to either is picked up automatically and this can never
- * silently diverge from what scopeSessionIdToModel actually produces — which is exactly how this
- * predicate broke twice before (once on the length cap, once on hyphen-collapsing).
- */
-/**
- * The stable prefix of a session id scoped from a fixed seed that carries no varying stamp — the
- * semantic session key itself, `agent:<id>:dashboard-chat`. OpenClaw records a dashboard chat this
- * way whenever the session was started from the key rather than from a stamped seed, which is how
- * every conversation predating buildDashboardChatSeed was recorded; those ids look like
- * `agent-<id>-dashboard-ch-<hash>` once scopeSessionIdToModel truncates them. Same two shared
- * helpers, so this cannot diverge from what that function produces either.
- */
-export function stableSessionKeyPrefix(sessionKey: string): string {
-  return stableSessionIdBasePrefix(sanitizeSessionIdComponent(sessionKey))
+export function scopeSessionIdToModel(sessionId: string, model?: string): string {
+  return scopedSessionIdWithDigest(sessionId, model, 'sha256', 16)
 }
 
-export function stableDashboardSeedPrefix(agentId: string): string {
-  const sanitizedA = sanitizeSessionIdComponent(buildDashboardChatSeedFromStamp(agentId, '0'))
-  const sanitizedB = sanitizeSessionIdComponent(buildDashboardChatSeedFromStamp(agentId, 'z'))
-  let agreementLength = 0
-  while (
-    agreementLength < sanitizedA.length
-    && agreementLength < sanitizedB.length
-    && sanitizedA[agreementLength] === sanitizedB[agreementLength]
-  ) {
-    agreementLength++
-  }
-  return stableSessionIdBasePrefix(sanitizedA.slice(0, agreementLength))
+/** Only continue an old hashed session when the caller supplies a server-generated seed. */
+export function scopeStoredDashboardSessionId(agentId: string, sessionSeed: string, model?: string, homeDir?: string): string {
+  const current = scopeSessionIdToModel(sessionSeed, model)
+  const legacy = scopedSessionIdWithDigest(sessionSeed, model, 'sha1', 8)
+  if (current === legacy || homeDir === '' || !/^[a-zA-Z0-9_-]+$/.test(agentId)) return current
+  if (hasNativeChatSession(agentId, legacy, homeDir)) return legacy
+  const legacyFile = path.join(openClawStatePath(homeDir), 'agents', agentId, 'sessions', `${legacy}.jsonl`)
+  if (fs.existsSync(legacyFile) || readRuntimeTranscript(agentId, legacy).length > 0) return legacy
+  return current
 }
 
 export function resolvePersistedAgentSessionId(
   agentId: string,
   sessionKey: string,
   preferredSessionId?: string,
-  homeDir: string = process.env.HOME || ''
+  homeDir?: string
 ): string | undefined {
-  if (!agentId || !homeDir) return preferredSessionId
+  if (!agentId || homeDir === '') return preferredSessionId
 
-  const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
+  // The session a turn ran, when the runtime has it. A key migrated from the legacy dashboard-chat
+  // index keeps pointing at the conversation it held then, which is no longer this one once the chat
+  // was cleared (or the model changed).
+  if (preferredSessionId && hasNativeChatSession(agentId, preferredSessionId, homeDir)) return preferredSessionId
+  const nativeSession = resolveNativeChatSession(agentId, sessionKey, homeDir)
+  if (nativeSession) return nativeSession
+
+  const sessionsDir = path.join(openClawStatePath(homeDir), 'agents', agentId, 'sessions')
   const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
 
   const hasSessionFile = (sessionId: string | undefined): sessionId is string =>
     !!sessionId && fs.existsSync(path.join(sessionsDir, `${sessionId}.jsonl`))
-  // OpenClaw 2 never writes the legacy .jsonl at all — its native SQLite store
-  // (openclaw-native-transcripts.ts) is the only place a fresh agent's transcript exists.
-  const isPersisted = (sessionId: string | undefined): sessionId is string =>
-    hasSessionFile(sessionId) || (!!sessionId && hasNativeTranscript(agentId, sessionId, homeDir))
 
-  // A legacy .jsonl match is trusted immediately: OpenClaw 1 never forks a second session id for
-  // the same dashboard chat the way a model change scopes a new native one, so there is no richer
-  // sibling to lose to here. A native match is NOT trusted immediately below — see why at the
-  // richness comparison this falls through to.
   if (hasSessionFile(preferredSessionId)) {
     return preferredSessionId
   }
@@ -546,7 +496,7 @@ export function resolvePersistedAgentSessionId(
       const mappedSessionId = typeof sessionsIndex?.[sessionKey]?.sessionId === 'string'
         ? sessionsIndex[sessionKey].sessionId
         : undefined
-      if (isPersisted(mappedSessionId)) {
+      if (hasSessionFile(mappedSessionId)) {
         return mappedSessionId
       }
 
@@ -555,114 +505,12 @@ export function resolvePersistedAgentSessionId(
         const entrySessionId = typeof (entry as any).sessionId === 'string'
           ? (entry as any).sessionId
           : undefined
-        if (preferredSessionId && key === preferredSessionId && isPersisted(entrySessionId)) {
+        if (preferredSessionId && key === preferredSessionId && hasSessionFile(entrySessionId)) {
           return entrySessionId
         }
       }
     }
   } catch {}
-
-  // OpenClaw 2's native store has no sessions.json index to consult. listNativeSessionIds is NOT
-  // watermark-aware (unlike isPersisted/hasNativeTranscript above), so a session recorded under
-  // preferredSessionId that Clear has merely watermarked to empty still shows up here — and that
-  // is fine: whether a cleared session stays "current" over a content-bearing sibling is decided
-  // below (mostRecentClear), not here. A preferredSessionId that DOES have content is deliberately
-  // NOT returned immediately either: the chat route always recomputes it from the resolved default
-  // model, so a restart that lands after that model changes (the BYOK endpoint now serves
-  // something else, or the operator picked a different one) mints a fresh, newest, model-scoped
-  // session id that starts collecting real messages the moment the user's very next turn lands —
-  // and would win an unconditional check like this outright, shadowing a long-running conversation
-  // behind that sliver. It still competes fairly as one of the candidates below, and wins ties.
-  const nativeSessions = listNativeSessionIds(agentId, homeDir)
-
-  // Nothing matched the exact seed — e.g. a changed IDENTITY.md shifted buildDashboardChatSeed's
-  // stamp, or this agent has never sent a dashboard-chat turn at all. Recover the user's own
-  // dashboard conversation by matching the *shape* the dashboard itself creates, never "whatever
-  // is newest for this agent": OpenClaw records a session started from an explicit --session-id
-  // (how the dashboard always starts one; see buildDashboardChatSeed) either under this exact
-  // session_key, under an "...:explicit:..." sub-key scopeSessionIdToModel's re-scoping creates
-  // beneath it (see the chat-archives route's own history-listing comment on this), or — when
-  // OpenClaw records neither cleanly — under a session id still carrying the seed prefix
-  // buildDashboardChatSeed always writes, independent of the per-identity-file stamp. Anything
-  // else — a scheduled workflow run, a CLI invocation, a session left behind by a runtime or model
-  // switch — is a stranger's conversation and must never be offered as the user's current chat,
-  // no matter how recently it was touched. If nothing matches, the right answer is empty, not
-  // "closest thing available" (the final legacy-jsonl fallback below still applies for OpenClaw 1).
-  //
-  // See stableDashboardSeedPrefix's own doc comment for why the prefix can't just be the literal
-  // "dashboard-<agentId>-" text: scopeSessionIdToModel's sanitization and hash-truncation can both
-  // change what a real session id actually starts with, and this must match that exactly.
-  const dashboardSeedPrefix = stableDashboardSeedPrefix(agentId)
-  const sessionKeyPrefix = stableSessionKeyPrefix(sessionKey)
-  // A session id that itself starts with one of these prefixes was PROVABLY produced by scoping
-  // this exact agentId/sessionKey through scopeSessionIdToModel — the only thing that could differ
-  // between two such ids is the stamp (an IDENTITY.md edit) or the model token (a resolved default
-  // model change). Two sessions in this set are the same conversation lineage forked by one of
-  // those, never two unrelated conversations, so it's safe to compare them by how much real
-  // content each has and trust the richer one.
-  const isScopedFromThisSeed = (session: { sessionId: string }) =>
-    session.sessionId.startsWith(dashboardSeedPrefix) || session.sessionId.startsWith(sessionKeyPrefix)
-  const isOwnDashboardSession = (session: { sessionKey: string; sessionId: string }) =>
-    session.sessionKey === sessionKey
-    || session.sessionKey.startsWith(`${sessionKey}:`)
-    || isScopedFromThisSeed(session)
-  // Among the sessions PROVABLY scoped from this seed, the one with the most real conversation in
-  // it wins — not the most recent. A restart that lands after the resolved default model changes
-  // (the BYOK endpoint now serves a different model, or the operator picked a different one)
-  // produces a fresh, newest-first, near-empty session under a different model-scoped id; picking
-  // "newest with any content" would shadow a long-running conversation behind that sliver the
-  // moment the user sends one more message after such a restart. Sessions with nothing since their
-  // last clear score 0 and are never picked over one with content; among ties, the newest (first
-  // in nativeSessions' order) wins, matching the old behavior when nothing distinguishes them.
-  //
-  // A session that matches only by session_key shape (an exact or ":explicit:"-prefixed key, with
-  // an id that does NOT provably derive from this seed) is a weaker signal — recorded there by
-  // some other bookkeeping convention, not proven to be a fork of this same conversation — so it
-  // is still recoverable when nothing scoped from the seed has content, but never allowed to
-  // out-rank a scoped session purely by having more messages; that would resurface an unrelated
-  // historical thread as "current" instead of leaving it in History where it belongs.
-  const ownDashboardSessions = nativeSessions.filter(isOwnDashboardSession)
-  const scopedOwnDashboardSessions = ownDashboardSessions.filter(isScopedFromThisSeed)
-  // A session someone just cleared stays "current" (now correctly empty) over any sibling that
-  // merely has content — richness alone would otherwise hand "current" right back to whichever
-  // scoped sibling already had messages the moment the just-cleared one dropped to a score of 0,
-  // undoing the Clear the instant a second model-scoped session exists for this agent. This is
-  // deliberately scoped tighter than "any cleared session wins": only when the most recent clear
-  // among these siblings happened after every sibling's own last real activity — i.e. nothing has
-  // actually been said in a sibling since — is the cleared slot still the right "current" answer;
-  // the moment the user genuinely resumes talking in a different scoped session, its own growing
-  // richness is allowed to compete for "current" again.
-  let mostRecentClear: { session: NativeSessionSummary; clearedAt: number } | undefined
-  for (const session of scopedOwnDashboardSessions) {
-    const clearedAt = getNativeClearWatermarkClearedAt(agentId, session.sessionId, homeDir)
-    if (clearedAt !== undefined && (!mostRecentClear || clearedAt > mostRecentClear.clearedAt)) {
-      mostRecentClear = { session, clearedAt }
-    }
-  }
-  const noSiblingActiveSinceThatClear = Boolean(
-    mostRecentClear
-    && scopedOwnDashboardSessions.every((session) => session === mostRecentClear!.session || session.updatedAt <= mostRecentClear!.clearedAt)
-  )
-  if (mostRecentClear && noSiblingActiveSinceThatClear) {
-    return mostRecentClear.session.sessionId
-  }
-
-  let richestScopedSession: NativeSessionSummary | undefined
-  let richestScopedSessionMessageCount = 0
-  for (const session of scopedOwnDashboardSessions) {
-    // Real conversational turns only — a tool-heavy session (many toolResult rows for a couple of
-    // real exchanges) must not out-rank one with fewer raw rows but more of the user actually
-    // talking to the agent.
-    const messageCount = countVisibleNativeTranscriptMessages(agentId, session.sessionId, homeDir)
-    if (messageCount > richestScopedSessionMessageCount) {
-      richestScopedSession = session
-      richestScopedSessionMessageCount = messageCount
-    }
-  }
-  const ownDashboardSession = richestScopedSession || ownDashboardSessions[0]
-  if (ownDashboardSession) {
-    return ownDashboardSession.sessionId
-  }
 
   try {
     if (!fs.existsSync(sessionsDir)) return preferredSessionId
@@ -683,28 +531,27 @@ export function resolvePersistedAgentSessionId(
 }
 
 /**
- * Transcript lines for one resolved session id, preferring the legacy `.jsonl` file when present
- * and falling back to OpenClaw 2's native store. Returns null when neither has anything for this
- * session — distinct from an empty array, which means a source existed but was empty.
+ * A session's persisted transcript lines: the native agent store when it holds the session (OpenClaw
+ * 2 records `--session-id` turns there and writes no JSONL), otherwise the legacy JSONL file.
  */
-function resolvePersistedTranscriptLines(agentId: string, sessionId: string, homeDir: string): string[] | null {
-  const sessionFile = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions', `${sessionId}.jsonl`)
-  if (fs.existsSync(sessionFile)) {
-    try {
-      return fs.readFileSync(sessionFile, 'utf-8').split('\n').filter((line) => line.trim())
-    } catch {
-      return null
-    }
+function readPersistedSessionLines(agentId: string, sessionId: string, homeDir?: string): string[] | null {
+  let transcript: string | undefined
+  try {
+    transcript = readPersistedChatTranscript(agentId, sessionId, homeDir)
+  } catch (err) {
+    // Best effort by design: this feeds reply recovery and usage metering, never the history view,
+    // which reports the same failure to the user (GET /chat/messages).
+    console.warn(`[Agent Execution] Could not read the transcript for ${agentId}/${sessionId}: ${err instanceof Error ? err.message : String(err)}`)
+    return null
   }
-  const nativeLines = readNativeTranscriptLines(agentId, sessionId, homeDir)
-  return nativeLines.length > 0 ? nativeLines : null
+  return transcript === undefined ? null : transcript.split('\n').filter((line) => line.trim())
 }
 
 export function readLatestAssistantUsageFromPersistedSession(
   agentId: string,
   sessionKey: string,
   preferredSessionId?: string,
-  homeDir: string = process.env.HOME || ''
+  homeDir?: string
 ): {
   sessionId?: string
   inputTokens?: number
@@ -715,9 +562,9 @@ export function readLatestAssistantUsageFromPersistedSession(
   provider?: string
 } | null {
   const sessionId = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
-  if (!sessionId || !homeDir) return null
+  if (!sessionId || homeDir === '') return null
 
-  const lines = resolvePersistedTranscriptLines(agentId, sessionId, homeDir)
+  const lines = readPersistedSessionLines(agentId, sessionId, homeDir)
   if (!lines) return null
 
   try {
@@ -745,15 +592,17 @@ export function readLatestAssistantTextFromPersistedSession(
   agentId: string,
   sessionKey: string,
   preferredSessionId?: string,
-  homeDir: string = process.env.HOME || ''
+  homeDir?: string
 ): {
   sessionId?: string
   content?: string
+  /** Transcript event id of the reply, so a caller can tell this turn's reply from an earlier one. */
+  messageId?: string
 } | null {
   const sessionId = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
-  if (!sessionId || !homeDir) return null
+  if (!sessionId || homeDir === '') return null
 
-  const lines = resolvePersistedTranscriptLines(agentId, sessionId, homeDir)
+  const lines = readPersistedSessionLines(agentId, sessionId, homeDir)
   if (!lines) return null
 
   try {
@@ -780,6 +629,7 @@ export function readLatestAssistantTextFromPersistedSession(
         return {
           sessionId,
           content,
+          ...(typeof entry?.id === 'string' && entry.id ? { messageId: entry.id } : {}),
         }
       }
     }
@@ -1140,13 +990,21 @@ export function shouldUpdateNativeAuthStore(
     !== authProfileStateFingerprint(JSON.stringify(nextStore))
 }
 
-function resolvePinnedOpenClawAuthBridge(): { helperPath: string; packageRoot: string } | null {
+export function resolvePinnedOpenClawAuthBridge(): { helperPath: string; packageRoot: string } | null {
   const helperPath = path.join(REPO_ROOT, 'SYSTEM', 'dashboard', 'openclaw-auth-store.mjs')
-  const packageRoot = [
-    process.env.OPENCLAW_PACKAGE_ROOT,
+  const explicitRoot = process.env.OPENCLAW_PACKAGE_ROOT?.trim()
+  // A selected CLI must never borrow native storage code from a different
+  // global installation. start.sh supplies the matching package root.
+  if (process.env.OPENCLAW_BIN?.trim() && !explicitRoot) {
+    throw new Error('Pinned OpenClaw requires its matching OPENCLAW_PACKAGE_ROOT for credential storage. Restart Dashboard through SYSTEM/start.sh.')
+  }
+  if (explicitRoot && !fs.existsSync(path.join(explicitRoot, 'dist'))) {
+    throw new Error('Selected OPENCLAW_PACKAGE_ROOT is unavailable; refusing global credential-store fallback.')
+  }
+  const packageRoot = (explicitRoot ? [explicitRoot] : [
     '/usr/local/lib/node_modules/openclaw',
     '/opt/homebrew/lib/node_modules/openclaw',
-  ].find((root) => root && fs.existsSync(path.join(root, 'dist')))
+  ]).find((root) => fs.existsSync(path.join(root, 'dist')))
   return fs.existsSync(helperPath) && packageRoot ? { helperPath, packageRoot } : null
 }
 
@@ -1365,6 +1223,13 @@ export async function withTemporaryAgentAuthProfiles<T>(
       ? cloneJsonValue(previousProviderConfig)
       : {}
     const normalizedModel = preferredModel?.trim().replace(/^lmstudio\//, '')
+    // The context length the endpoint advertises is what it can serve, so it outranks whatever the
+    // entry carries; without an advertised length the stored value, then the fixed default, stand.
+    const advertisedContext = getCachedOpenAiCompatibleContextWindow(normalizedBaseUrl, discoveryCredentialFor(apiKey), normalizedModel)
+    const contextFor = (existing: unknown) => {
+      const current = typeof existing === 'number' && existing > 0 ? existing : undefined
+      return advertisedContext || current || LMSTUDIO_DEFAULT_CONTEXT_TOKENS
+    }
     if (normalizedBaseUrl) {
       nextProviderConfig.baseUrl = normalizedBaseUrl
     }
@@ -1386,21 +1251,26 @@ export async function withTemporaryAgentAuthProfiles<T>(
             if (typeof entry !== 'object' || entry === null || String(entry.id || '').trim() !== normalizedModel) {
               return entry
             }
+            const previousWindow = typeof entry.contextWindow === 'number' && entry.contextWindow > 0 ? entry.contextWindow : undefined
+            const previousMaxTokens = typeof entry.maxTokens === 'number' && entry.maxTokens > 0 ? entry.maxTokens : undefined
+            const contextWindow = contextFor(entry.contextWindow)
             return {
               ...entry,
               id: normalizedModel,
               name: entry.name || normalizedModel,
-              contextWindow: typeof entry.contextWindow === 'number' && entry.contextWindow > 0 ? entry.contextWindow : LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-              contextTokens: typeof entry.contextTokens === 'number' && entry.contextTokens > 0 ? entry.contextTokens : LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-              maxTokens: typeof entry.maxTokens === 'number' && entry.maxTokens > 0 ? entry.maxTokens : Math.min(8_192, LMSTUDIO_DEFAULT_CONTEXT_TOKENS),
+              contextWindow,
+              contextTokens: contextFor(entry.contextTokens),
+              // A max-tokens value equal to the previous window was this code's own clamp, so it
+              // follows the window; any other value is kept, bounded by the window.
+              maxTokens: Math.min(previousMaxTokens && previousMaxTokens !== previousWindow ? previousMaxTokens : 8_192, contextWindow),
             }
           })
         : [...existingModels, {
             id: normalizedModel,
             name: normalizedModel,
-            contextWindow: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-            contextTokens: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-            maxTokens: 8_192,
+            contextWindow: contextFor(undefined),
+            contextTokens: contextFor(undefined),
+            maxTokens: Math.min(8_192, contextFor(undefined)),
           }]
       const executionModelRef = `lmstudio/${normalizedModel}`
       const mutableConfig = config as any
@@ -1550,9 +1420,22 @@ export async function withTemporaryAgentAuthProfiles<T>(
       executionModelOverride &&
       Object.prototype.hasOwnProperty.call(currentOpenClawConfig?.agents?.defaults?.models || {}, executionModelOverride)
     )
+    // Every execution surface passes here, so the endpoint's catalog is fetched (once per cache
+    // lifetime) before the provider entry is sized, even when no route warmed it first.
+    if (normalizedOpenAiCompatibleBaseUrl) {
+      try {
+        await resolveOpenAiCompatibleDefaultModel({ baseUrl: normalizedOpenAiCompatibleBaseUrl, apiKey: discoveryCredentialFor(providerKeys.openaiCompatibleApiKey) })
+      } catch {
+        // An unreachable endpoint fails the execution itself in its own words.
+      }
+    }
+    // An entry written before the endpoint's advertised context length was known (or with the
+    // fixed default) is stale once discovery knows better, even when everything else matches.
+    const advertisedContextWindow = getCachedOpenAiCompatibleContextWindow(normalizedOpenAiCompatibleBaseUrl, discoveryCredentialFor(providerKeys.openaiCompatibleApiKey), executionLmstudioModelId)
     const shouldInjectOpenAiCompatibleProvider = Boolean(
       hadConfig &&
       (
+        providerContextWindowIsStale(previousOpenAiCompatibleProvider.config, executionLmstudioModelId, advertisedContextWindow) ||
         (normalizedOpenAiCompatibleBaseUrl && !previousOpenAiCompatibleProvider.exists) ||
         (normalizedOpenAiCompatibleBaseUrl && previousOpenAiCompatibleProvider.config?.baseUrl !== normalizedOpenAiCompatibleBaseUrl) ||
         (previousOpenAiCompatibleProvider.exists && !previousOpenAiCompatibleProvider.config?.api) ||
@@ -1583,6 +1466,9 @@ export async function withTemporaryAgentAuthProfiles<T>(
           executionModelOverride &&
           Object.prototype.hasOwnProperty.call(latestOpenClawConfig.agents?.defaults?.models || {}, executionModelOverride)
         )
+        // Re-read under the lock, like the config itself, so the check and the write agree.
+        const latestAdvertisedContextWindow = getCachedOpenAiCompatibleContextWindow(normalizedOpenAiCompatibleBaseUrl, discoveryCredentialFor(providerKeys.openaiCompatibleApiKey), executionLmstudioModelId)
+        const latestContextWindowStale = providerContextWindowIsStale(latestOpenAiCompatibleProvider.config, executionLmstudioModelId, latestAdvertisedContextWindow)
         let changed = false
         if (
           (normalizedOpenAiCompatibleBaseUrl && !latestOpenAiCompatibleProvider.exists) ||
@@ -1590,7 +1476,8 @@ export async function withTemporaryAgentAuthProfiles<T>(
           (latestOpenAiCompatibleProvider.exists && !latestOpenAiCompatibleProvider.config?.api) ||
           (providerKeys.openaiCompatibleApiKey?.trim() && latestOpenAiCompatibleProvider.config?.apiKey !== providerKeys.openaiCompatibleApiKey.trim()) ||
           !latestHasExecutionModel ||
-          !latestHasExecutionModelAuthorization
+          !latestHasExecutionModelAuthorization ||
+          latestContextWindowStale
         ) {
           changed = applyOpenAiCompatibleProviderConfig(
             normalizedOpenAiCompatibleBaseUrl,
@@ -1604,11 +1491,13 @@ export async function withTemporaryAgentAuthProfiles<T>(
       })
     }
 
+    // The loaded instance targets the context length the provider entry now carries, so the
+    // persisted window and the running model never disagree.
     await normalizeLmstudioLoadedModelState({
       baseUrl: normalizedOpenAiCompatibleBaseUrl,
       apiKey: providerKeys.openaiCompatibleApiKey,
       modelId: executionLmstudioModelId,
-      requestedContextTokens: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
+      requestedContextTokens: providerEntryContextWindow(readCurrentOpenAiCompatibleProviderConfig().config, executionLmstudioModelId) || LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
     })
 
     return await fn()
@@ -1625,7 +1514,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
   let effectiveProvider = preferredProvider
   const prefersOpenAiFamily = preferredProvider === 'openai'
   if (preferredProvider === 'anthropic' && !providerKeys.anthropic && providerKeys.openai) {
-    effectiveModel = 'openai/gpt-4.1'
+    effectiveModel = normalizeAgentModelInput('openai/gpt-4.1')
     effectiveProvider = 'openai'
     console.log(`[Auth] Agent ${agentId}: no Anthropic key, falling back to ${effectiveModel}`)
   } else if (prefersOpenAiFamily && !providerKeys.openai && !providerKeys.openaiCompatibleBaseUrl && providerKeys.anthropic) {
@@ -1633,7 +1522,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
     effectiveProvider = 'anthropic'
     console.log(`[Auth] Agent ${agentId}: no OpenAI key, falling back to ${effectiveModel}`)
   } else if (preferredProvider === 'gemini' && !providerKeys.gemini && providerKeys.openai) {
-    effectiveModel = 'openai/gpt-4.1'
+    effectiveModel = normalizeAgentModelInput('openai/gpt-4.1')
     effectiveProvider = 'openai'
     console.log(`[Auth] Agent ${agentId}: no Gemini key, falling back to ${effectiveModel}`)
   } else if (preferredProvider === 'gemini' && !providerKeys.gemini && providerKeys.anthropic) {

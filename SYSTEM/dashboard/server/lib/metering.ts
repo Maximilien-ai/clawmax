@@ -370,43 +370,9 @@ function getWorkspaceTraceIds(workspaceId?: string): string[] {
     const ids = new Set<string>([workspace.id, path.basename(workspace.path)])
     return Array.from(ids).filter(Boolean)
   } catch {
+    if (workspaceId) return []
     const wsPath = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
     return [path.basename(wsPath) || 'default']
-  }
-}
-
-function getWorkspaceAgentAndWorkflowIds(workspaceId?: string): { agentIds: Set<string>; workflowIds: Set<string> } {
-  try {
-    const workspacePath = workspaceId
-      ? getWorkspaceManager().resolveWorkspacePath(workspaceId)
-      : getWorkspaceManager().getActiveWorkspace().path
-    const agentsDir = path.join(workspacePath, 'AGENTS')
-    const workflowDir = path.join(workspacePath, 'WORKFLOWS')
-    const agentIds = new Set<string>()
-    const workflowIds = new Set<string>()
-
-    for (const agentId of SYSTEM_AGENT_METADATA.keys()) {
-      agentIds.add(agentId)
-    }
-
-    try {
-      for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
-        if (!entry.isDirectory()) continue
-        if (entry.name.startsWith('.') || entry.name.startsWith('_') || entry.name === 'archive') continue
-        agentIds.add(entry.name)
-      }
-    } catch {}
-
-    try {
-      for (const entry of fs.readdirSync(workflowDir, { withFileTypes: true })) {
-        if (!entry.isFile() || !entry.name.endsWith('.md')) continue
-        workflowIds.add(entry.name.replace(/\.md$/, ''))
-      }
-    } catch {}
-
-    return { agentIds, workflowIds }
-  } catch {
-    return { agentIds: new Set<string>(), workflowIds: new Set<string>() }
   }
 }
 
@@ -656,16 +622,21 @@ export function getMeteringPeriodCacheSuffix(period: 'all' | 'month', now = new 
   return period === 'month' ? `month:${now.toISOString().slice(0, 7)}` : 'all'
 }
 
+export function traceMatchesWorkspace(trace: Pick<TraceData, 'metadata'>, workspaceIds: ReadonlySet<string>): boolean {
+  const id = trace.metadata?.workspace_id
+  return typeof id === 'string' && workspaceIds.has(id)
+}
+
 export async function getWorkspaceMetering(workspaceId?: string, viewer?: MeteringViewer, period: 'all' | 'month' = 'all'): Promise<WorkspaceMetering> {
+  const scopedWorkspaceId = workspaceId || getWorkspaceManager().getActiveWorkspace().id
   const requestTime = new Date()
-  const cacheKey = `${getMeteringCacheKey(workspaceId, viewer)}:${getMeteringPeriodCacheSuffix(period, requestTime)}`
+  const cacheKey = `${getMeteringCacheKey(scopedWorkspaceId, viewer)}:${getMeteringPeriodCacheSuffix(period, requestTime)}`
   const cached = meteringCache.get(cacheKey)
   const now = Date.now()
 
   const fetchFresh = async (): Promise<WorkspaceMetering> => {
     const config = getOpikConfig()
-    const workspaceIds = new Set(getWorkspaceTraceIds(workspaceId))
-    const { agentIds, workflowIds } = getWorkspaceAgentAndWorkflowIds(workspaceId)
+    const workspaceIds = new Set(getWorkspaceTraceIds(scopedWorkspaceId))
     const monthStart = new Date(requestTime)
     monthStart.setUTCDate(1)
     monthStart.setUTCHours(0, 0, 0, 0)
@@ -674,27 +645,15 @@ export async function getWorkspaceMetering(workspaceId?: string, viewer?: Meteri
       if (!traceMatchesViewer(trace, viewer)) {
         return false
       }
-      const traceWorkspaceId = trace.metadata?.workspace_id
-      if (traceWorkspaceId) {
-        return workspaceIds.has(String(traceWorkspaceId))
-      }
-
-      const meta = trace.metadata || {}
-      if (trace.name.startsWith('agent.chat.')) {
-        const agentId = String(meta.agent_id || trace.name.replace('agent.chat.', ''))
-        return agentIds.has(agentId)
-      }
-      if (trace.name.startsWith('workflow.')) {
-        const workflowId = String(meta.workflow_id || trace.name.replace('workflow.', ''))
-        return workflowIds.has(workflowId)
-      }
-      return false
+      // Agent and workflow IDs may be reused across workspaces. An unscoped
+      // legacy trace cannot safely be charged to any workspace budget.
+      return traceMatchesWorkspace(trace, workspaceIds)
     })
     const fresh = {
       ...aggregateWorkspaceMeteringFromTraces(traces),
       period,
     }
-    const enrichedFresh = enrichWorkspaceMeteringWithAgentMetadata(fresh, getWorkspaceAgentMetadata(workspaceId))
+    const enrichedFresh = enrichWorkspaceMeteringWithAgentMetadata(fresh, getWorkspaceAgentMetadata(scopedWorkspaceId))
     const previous = meteringCache.get(cacheKey)?.data
     const merged = previous ? mergeWorkspaceMetering(previous, enrichedFresh) : enrichedFresh
     meteringCache.set(cacheKey, {

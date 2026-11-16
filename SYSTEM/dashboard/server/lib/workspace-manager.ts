@@ -31,6 +31,11 @@ export interface WorkspacePathConflict {
 
 const workspaceContext = new AsyncLocalStorage<{ workspaceId: string }>()
 
+export function hasScopedWorkspace(): boolean { return !!workspaceContext.getStore() }
+export class WorkspaceContextUnavailableError extends Error {
+  constructor(id: string) { super(`Workspace not found: ${id}`) }
+}
+
 function extractIdentityField(content: string, field: string): string {
   const match = content.match(new RegExp(`\\*\\*${field}:\\*\\*[ \\t]*([^\\n]*)`, 'i'))
   return match?.[1]?.trim() || ''
@@ -177,10 +182,16 @@ export class WorkspaceManager {
 
   /** Get workspace by ID */
   getWorkspace(id: string): Workspace | null {
-    const registry = this.loadRegistry()
-    const workspace = registry.workspaces.find(w => w.id === id) || null
+    const workspace = this.getWorkspaceRegistration(id)
     if (workspace) assertWorkspaceRecovered(workspace.path)
     return workspace
+  }
+
+  /** Registry identity only. Internal authorization rechecks use this while a
+   * transaction journal temporarily quarantines workspace resources. Callers
+   * must never use it as admission to read or mutate those resources. */
+  getWorkspaceRegistration(id: string): Workspace | null {
+    return this.loadRegistry().workspaces.find(w => w.id === id) || null
   }
 
   getWorkspaceByPath(workspacePath: string): Workspace | null {
@@ -300,9 +311,8 @@ export class WorkspaceManager {
     const context = workspaceContext.getStore()
     if (context?.workspaceId) {
       const contextualWorkspace = registry.workspaces.find(w => w.id === context.workspaceId)
-      if (contextualWorkspace) {
-        return contextualWorkspace
-      }
+      if (!contextualWorkspace) throw new WorkspaceContextUnavailableError(context.workspaceId)
+      return contextualWorkspace
     }
     const workspace = registry.workspaces.find(w => w.id === registry.activeWorkspaceId)
 
@@ -364,7 +374,7 @@ export class WorkspaceManager {
     const registry = this.loadRegistry()
     const workspace = registry.workspaces.find(w => w.id === id)
     if (!workspace) {
-      throw new Error(`Workspace not found: ${id}`)
+      throw new WorkspaceContextUnavailableError(id)
     }
     assertWorkspaceRecovered(workspace.path)
     return await workspaceContext.run({ workspaceId: id }, fn)

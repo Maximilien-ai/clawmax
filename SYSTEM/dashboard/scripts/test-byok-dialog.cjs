@@ -14,9 +14,12 @@ async function main() {
     for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 600 }, { width: 390, height: 844 }, { width: 320, height: 568 }]) {
       const page = await browser.newPage({ viewport })
       page.setDefaultTimeout(10000)
-      page.on('pageerror', error => console.error('Synthetic page error:', error.message))
+      page.on('pageerror', error => console.error('Synthetic page error:', error.stack))
       let savedConfig = {}
       let saves = 0
+      let stallRuntimeDiscovery = false
+      let runtimeRequestsDuringSave = 0
+      let rejectNextSave = false
       let finishValidation
       let signalValidationStarted
       const validationStarted = new Promise(resolve => { signalValidationStarted = resolve })
@@ -29,15 +32,35 @@ async function main() {
         if (path === '/api/auth/me') data = { authenticated: true, user: { id: 'qa', login: 'qa', name: 'QA' } }
         if (path === '/api/workspaces') data = { workspaces: [workspace] }
         if (path === '/api/workspaces/active') data = { workspace }
+        if (path === '/api/activity-export/status') data = { agentforge: { configured: false, connected: false }, destinations: [], queuedEvents: 0 }
         if (path === '/api/agents') data = { agents: [{ id: 'qa-agent', name: 'QA Agent' }] }
+        if (path.startsWith('/api/agents/models')) {
+          const modelsByProvider = {
+            openai: { name: 'OpenAI', models: ['openai/gpt-5.5', 'openai/gpt-4.1', 'openai/gpt-4'] },
+            anthropic: { name: 'Anthropic', models: ['anthropic/claude-sonnet-4-6', 'anthropic/claude-sonnet-4-20250514'] },
+            gemini: { name: 'Gemini', models: ['google/gemma-4-31b-it', 'google/gemini-2.5-flash'] },
+            ...(deploymentKind === 'cloud' ? {} : { ollama: { name: 'Ollama', models: ['ollama/fixture-local'] } }),
+          }
+          return route.fulfill({ json: { modelsByProvider, models: Object.values(modelsByProvider).flatMap(provider => provider.models) } })
+        }
         if (path === '/api/integrations/config') {
+          if (request.method() === 'PUT' && rejectNextSave) {
+            rejectNextSave = false
+            return route.fulfill({ status: 503, json: { error: 'Synthetic save unavailable' } })
+          }
           if (request.method() === 'PUT') { savedConfig = request.postDataJSON(); saves++ }
           data = { config: savedConfig }
         }
         if (path === '/api/integrations/status') data = { validationAvailable: true, providers: [], visiblePartners: [], partnerDefinitions: [] }
         // Even a stale API response advertising an installed CLI must not make
         // the cloud BYOK panel expose local-runtime choices.
-        if (path === '/api/integrations/runtimes') data = { runtimes: [{ id: 'claude', label: 'Claude Code', installed: true }], enabledRuntimes: [] }
+        if (path === '/api/integrations/runtimes') {
+          if (stallRuntimeDiscovery) {
+            runtimeRequestsDuringSave++
+            return // Simulate an installed CLI which never finishes discovery.
+          }
+          data = { runtimes: [{ id: 'claude', label: 'Claude Code', installed: true }], enabledRuntimes: [] }
+        }
         if (path === '/api/integrations/validate') {
           await new Promise(resolve => { finishValidation = resolve; signalValidationStarted() })
           return route.fulfill({ status: 503, json: { error: 'Synthetic validation unavailable' } })
@@ -48,12 +71,12 @@ async function main() {
       await page.goto(process.env.BYOK_TEST_URL || 'http://127.0.0.1:5176/agents')
       // Use the same event as the visible BYOK entry point, including on mobile
       // where the app header may be collapsed. No application state is injected.
-      await page.getByRole('button', { name: 'BYOK', exact: true }).waitFor({ state: 'attached' })
+      await page.locator('[data-tour="byok"] button').first().waitFor({ state: 'attached' })
       const dismissTour = page.getByRole('button', { name: "Don't show again", exact: true })
       await dismissTour.waitFor()
       await dismissTour.click()
       await page.evaluate(() => window.dispatchEvent(new Event('open-byok-wizard')))
-      const dialog = page.getByRole('dialog', { name: 'Models & Partner Integrations', exact: true })
+      const dialog = page.getByRole('dialog', { name: 'Model Integration', exact: true })
       await dialog.waitFor()
       const snapshot = await dialog.ariaSnapshot()
       assert(snapshot.includes('Save & Close'))
@@ -62,7 +85,8 @@ async function main() {
         assert(!snapshot.includes('Run via CLI') && !snapshot.includes('Ollama') && !snapshot.includes('Claude Code'))
         assert(snapshot.includes('Cloud-reachable services'))
       } else {
-        assert(snapshot.includes('Run via CLI') && snapshot.includes('Ollama') && snapshot.includes('Claude Code'))
+        assert(!snapshot.includes('Run via CLI') && !snapshot.includes('Claude Code'))
+        assert(snapshot.includes('Ollama'))
       }
       const save = dialog.getByRole('button', { name: 'Save & Close', exact: true })
       async function checkBounds(label) {
@@ -72,7 +96,7 @@ async function main() {
         assert(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth), `${label}: no horizontal overflow`)
       }
       await checkBounds('initial')
-      const body = dialog.locator('.overflow-y-auto')
+      const body = dialog.locator('.flex-1.overflow-y-auto')
       const start = await save.boundingBox()
       await body.evaluate(el => { el.scrollTop = el.scrollHeight })
       await checkBounds('scrolled')
@@ -81,6 +105,16 @@ async function main() {
       const key = dialog.getByLabel('API key', { exact: true })
       // Fake value is deliberately not a provider credential.
       await key.fill('sk-layout-fixture-not-a-real-key')
+      const preferred = dialog.getByLabel('Default model for newly created agents', { exact: true })
+      await preferred.locator('option[value="openai/gpt-5.5"]').waitFor({ state: 'attached' })
+      for (const select of [preferred, dialog.getByLabel('Default model for built-in/system agents only', { exact: true })]) {
+        const labels = await select.locator('optgroup').evaluateAll(nodes => nodes.map(node => node.label))
+        assert.deepEqual(labels, deploymentKind === 'cloud' ? ['OpenAI', 'Anthropic', 'Gemini'] : ['OpenAI', 'Anthropic', 'Gemini', 'Local models'])
+        const options = await select.locator('option').evaluateAll(nodes => nodes.map(node => node.value))
+        assert(!options.includes('openai/gpt-4.1') && !options.includes('openai/gpt-4'), 'Unused deprecated and retired models must stay hidden')
+        assert(!options.includes('anthropic/claude-sonnet-4-20250514') && !options.includes('google/gemini-2.5-flash'))
+      }
+      await preferred.selectOption('openai/gpt-5.5')
       await dialog.getByRole('button', { name: 'Check Key', exact: true }).click()
       await dialog.getByRole('button', { name: 'Checking…', exact: true }).waitFor()
       assert(await save.isDisabled(), 'Save remains disabled during validation')
@@ -88,6 +122,7 @@ async function main() {
       finishValidation()
       await dialog.getByRole('button', { name: 'Check Key', exact: true }).waitFor()
       await checkBounds('validation-error')
+      stallRuntimeDiscovery = true
       if (deploymentKind === 'cloud') {
         const compatible = dialog.getByRole('button', { name: 'OpenAI-Compatible', exact: false })
         assert.equal(await compatible.count(), 1)
@@ -110,16 +145,25 @@ async function main() {
         await page.screenshot({ path: `${process.env.BYOK_SCREENSHOT_DIR}/byok-${deploymentKind}-dark-${viewport.width}.png` })
         await page.evaluate(() => document.documentElement.classList.remove('dark'))
       }
+      rejectNextSave = true
+      await save.click()
+      await page.getByText('Workspace integration settings could not be saved. Your edits remain open; retry when the server is available.', { exact: true }).waitFor()
+      assert(await dialog.isVisible(), 'Failed server save keeps edits open')
+      assert.equal(saves, 0, 'Failed server save must not claim persistence')
       await save.click()
       await dialog.waitFor({ state: 'hidden' })
       assert.equal(saves, 1, 'Save should use the existing persistence handler once')
+      assert.equal(savedConfig.preferredModel, 'openai/gpt-5.5')
+      assert.equal(runtimeRequestsDuringSave, 0, 'Save must not wait for runtime discovery')
+      if (deploymentKind !== 'cloud') assert(!Object.hasOwn(savedConfig, 'enabledRuntimes'), 'Untouched runtime selection must be preserved server-side')
+      stallRuntimeDiscovery = false
       if (deploymentKind === 'cloud') {
         assert.equal(savedConfig.openaiCompatibleBaseUrl, 'https://models.example.com/v1')
         assert.equal(savedConfig.agentRuntime, 'openclaw')
         assert.deepEqual(savedConfig.enabledRuntimes, [])
       }
       await page.reload()
-      await page.getByRole('button', { name: 'BYOK', exact: true }).waitFor({ state: 'attached' })
+      await page.locator('[data-tour="byok"] button').first().waitFor({ state: 'attached' })
       await page.evaluate(() => window.dispatchEvent(new Event('open-byok-wizard')))
       await dialog.waitFor()
       assert.equal(await key.inputValue(), 'sk-layout-fixture-not-a-real-key', 'synthetic browser key should survive save/reload')
@@ -141,7 +185,7 @@ async function main() {
       await page.getByRole('button', { name: 'Create ▾', exact: true }).click()
       assert((await page.locator('main').ariaSnapshot()).includes('Create with Wizard'))
       await page.getByRole('button', { name: 'Create with Wizard Create with Wizard', exact: true }).click()
-      const executionCopy = deploymentKind === 'cloud' ? 'Cloud agents use model-provider API keys. Local models and CLI tools on your computer are unavailable.' : 'Enable a CLI runtime in BYOK → “Run via CLI” to run agents without provider keys.'
+      const executionCopy = deploymentKind === 'cloud' ? 'Cloud agents use model-provider API keys. Local models and CLI tools on your computer are unavailable.' : 'Enable a CLI using the Runtime pill at the top to run agents without provider keys.'
       await page.getByText(executionCopy, { exact: true }).waitFor()
       if (process.env.BYOK_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.BYOK_SCREENSHOT_DIR}/agent-wizard-${deploymentKind}-${viewport.width}.png` })
       await page.getByRole('button', { name: '×', exact: true }).click()
@@ -151,7 +195,7 @@ async function main() {
       const actionSnapshot = await page.locator('body').ariaSnapshot()
       assert(actionSnapshot.includes('button "Edit Edit"'))
       await page.getByRole('button', { name: 'Edit Edit', exact: true }).click()
-      const editorCopy = deploymentKind === 'cloud' ? 'Local CLI runtimes are unavailable on cloud. Choose OpenClaw with model-provider keys.' : 'Enable a CLI runtime first in BYOK → “Run via CLI” to make it selectable here.'
+      const editorCopy = deploymentKind === 'cloud' ? 'Local CLI runtimes are unavailable on cloud. Choose OpenClaw with model-provider keys.' : 'Enable a CLI using the Runtime pill at the top to make it selectable here.'
       await page.getByText(editorCopy, { exact: true }).waitFor()
       await page.getByText(editorCopy, { exact: true }).scrollIntoViewIfNeeded()
       if (process.env.BYOK_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.BYOK_SCREENSHOT_DIR}/agent-editor-${deploymentKind}-${viewport.width}.png` })

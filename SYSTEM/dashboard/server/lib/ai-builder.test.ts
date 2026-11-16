@@ -80,6 +80,35 @@ test('template catalogs support sparse metadata and organization context without
   })
 })
 
+test('builder routes competing agent, skill, and template requests by explicit user intent', () => {
+  withCatalogs({
+    agents: [{ id: 'atlas', name: 'Atlas', description: 'Research and operations assistant', tags: ['research'] }],
+    skills: [{ name: 'catalog', description: 'Research catalog integration', source: 'workspace', tags: ['research'] }],
+    templates: [
+      { type: 'agent', name: 'Atlas Research Agent', description: 'Research assistant', agents: [{ id: 'researcher', role: 'Research' }] },
+      { type: 'organization', name: 'Research Operations Team', description: 'Research and operations', agents: [{ id: 'lead' }], teams: [{ name: 'Research' }] },
+    ],
+  }, () => {
+    const scenarios: Array<[string, string]> = [
+      ['My existing Atlas agent needs the catalog skill', 'skill_or_integration'],
+      ['Give all agents the catalog skill', 'skill_or_integration'],
+      ['Refine my existing catalog skill', 'skill_or_integration'],
+      ['Create a new catalog skill', 'skill_or_integration'],
+      ['Chat with Atlas about research', 'existing_agent'],
+      ['Improve my existing Atlas agent', 'existing_agent'],
+      ['Create an entirely new agent without using existing agents or templates', 'ai_generate'],
+      ['Use the Atlas Research Agent template', 'agent_template'],
+      ['Refine the Research Operations Team template', 'team_template'],
+      ['Create a team of teams for research operations', 'team_template'],
+    ]
+    for (const [prompt, expectedIntent] of scenarios) {
+      const result = buildAiBuilderRecommendation(prompt)
+      assert.strictEqual(result.intent, expectedIntent, prompt)
+      assert(result.recommendedPath.primaryAction, `Expected an actionable path for ${prompt}`)
+    }
+  })
+})
+
 test('fallback decisions distinguish confidence, template availability and family knowledge', () => {
   withCatalogs({}, () => {
     const base = buildAiBuilderRecommendation('Create a company template for permits')

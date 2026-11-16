@@ -309,6 +309,15 @@ test('deriveChatError hides raw missing-provider credential strings', () => {
   assert(!/provider "openai"/i.test(message), 'Expected raw provider string to be hidden')
 })
 
+test('deriveChatError reports model policy rejection instead of gateway failure', () => {
+  for (const provider of ['ollama', 'openai-compatible'] as const) {
+    const message = deriveChatError(`Gateway error: Model override "${provider}/local-model" is not allowed by agents.defaults.modelPolicy.allow`, provider)
+    assert(/model is blocked/i.test(message), 'Expected actionable policy rejection')
+    assert(!/could not reach/i.test(message), 'Must not misreport gateway connectivity')
+    assert(!message.includes('local-model'), 'Must not echo raw runtime details')
+  }
+})
+
 test('deriveChatError surfaces provider quota and rate limits clearly', () => {
   const message = deriveChatError(
     'Error: 429 insufficient_quota: You exceeded your current quota. Too many requests.',
@@ -579,6 +588,17 @@ test('retryAssistantTextLookup waits briefly for persisted assistant text to app
 
   assert(result?.content === 'Hello from the persisted session.', 'Expected retry helper to return the first non-empty assistant text')
   assert(reads === 3, `Expected retry helper to poll until content appeared, got ${reads} reads`)
+})
+
+test('retryAssistantTextLookup never recovers the reply that existed before the turn', async () => {
+  // A turn that fails with empty stdout must report its failure, not show the previous answer: the
+  // latest persisted reply is only this turn's if it was not already there when the turn started.
+  const previous = { sessionId: 'chat-session', content: 'Answer to the previous question.', messageId: 'evt-prev' }
+  const stale = await retryAssistantTextLookup(() => previous, 2, 1, 'evt-prev')
+  assert(!stale?.content, `Expected no recovered text, got ${stale?.content}`)
+  let reads = 0
+  const fresh = await retryAssistantTextLookup(() => (++reads < 2 ? previous : { ...previous, content: 'This turn.', messageId: 'evt-new' }), 3, 1, 'evt-prev')
+  assert(fresh?.content === 'This turn.', `Expected this turn's reply once it is persisted, got ${fresh?.content}`)
 })
 
 testChain.then(() => {

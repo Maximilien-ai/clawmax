@@ -13,6 +13,7 @@ import {
   getBudgetStatus,
   checkBudgetBlock,
   validateAgentCostLimit,
+  updatedBudgetConfig,
 } from './budget'
 import { initOpikTracing, shutdownOpik } from './opik'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
@@ -92,6 +93,19 @@ async function run() {
     assert(budgetB.enforced === false, 'Expected workspace-b enforced=false')
   })
 
+  await test('raising or disabling one workspace budget clears only its own pause', () => {
+    const exceeded = { limitUsd: 10, warningPct: 80, enforced: true, paused: true }
+    const raised = updatedBudgetConfig(exceeded, { limitUsd: 20 }, 15)
+    const disabled = updatedBudgetConfig(exceeded, { enforced: false }, 15)
+    const stillExceeded = updatedBudgetConfig(exceeded, { warningPct: 90 }, 15)
+    assert(!raised.paused && raised.limitUsd === 20, 'Raising the limit must unpause')
+    assert(!disabled.paused, 'Disabling enforcement must unpause')
+    assert(stillExceeded.paused, 'An unrelated edit must not unblock an exceeded budget')
+    saveBudgetConfig(raised, 'workspace-a')
+    saveBudgetConfig(exceeded, 'workspace-b')
+    assert(!loadBudgetConfig('workspace-a').paused && loadBudgetConfig('workspace-b').paused, 'Workspace pauses must remain independent')
+  })
+
   await test('getBudgetStatus reads the requested workspace config', async () => {
     saveBudgetConfig({ limitUsd: 33, warningPct: 75, enforced: true, paused: false }, 'workspace-b')
 
@@ -128,6 +142,12 @@ async function run() {
     saveBudgetConfig({ limitUsd: 20, warningPct: 80, enforced: true, paused: false }, 'workspace-b')
     assert(validateAgentCostLimit(null, 'workspace-b') === null, 'Expected null limit to be allowed')
     assert(validateAgentCostLimit(10, 'workspace-b') === null, 'Expected in-range agent limit to be allowed')
+  })
+
+  await test('validateAgentCostLimit rejects non-finite and negative values', () => {
+    for (const value of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1]) {
+      assert(validateAgentCostLimit(value, 'workspace-b') !== null, `Expected ${String(value)} to be invalid`)
+    }
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

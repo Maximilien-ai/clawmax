@@ -53,7 +53,7 @@ export function RegistryResultRow({
             type="button"
             onClick={onInstall}
             disabled={installDisabled}
-            className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-300 disabled:cursor-not-allowed"
           >
             {isInstalling ? 'Installing...' : 'Install'}
           </button>

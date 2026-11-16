@@ -7,7 +7,8 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { deleteAgent, parseGroups } from './workspace'
+import { execFileSync } from 'child_process'
+import { deleteAgent, parseGroups, parseGroupsWithMembers, parseIdentity, parseTags } from './workspace'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -68,6 +69,9 @@ fs.mkdirSync(workspaceAgentDir, { recursive: true })
 fs.writeFileSync(path.join(workspaceAgentDir, 'IDENTITY.md'), '# Test Agent\n', 'utf-8')
 fs.mkdirSync(sharedAgentDir, { recursive: true })
 fs.writeFileSync(path.join(sharedAgentDir, 'session.json'), '{}', 'utf-8')
+const dashboardChatRecord = path.join(workspacePath, 'SYSTEM', 'dashboard-chat', `${agentId}.json`)
+fs.mkdirSync(path.dirname(dashboardChatRecord), { recursive: true })
+fs.writeFileSync(dashboardChatRecord, JSON.stringify({ activeSeed: `agent:${agentId}:dashboard-chat:x`, activeSessionId: 'old-session', ended: [] }), 'utf-8')
 fs.mkdirSync(path.dirname(openclawConfigPath), { recursive: true })
 fs.writeFileSync(openclawConfigPath, JSON.stringify({
   gateway: { port: 18889, auth: { token: 'test-token' } },
@@ -87,11 +91,23 @@ process.env.OPENCLAW_WORKSPACE = workspacePath
 resetWorkspaceManagerForTests()
 
 async function run() {
+  await test('deleteAgent rejects a symlinked agent directory before changing config or external data', () => {
+    const outside = path.join(tmpHome, 'outside-agent')
+    fs.mkdirSync(outside)
+    fs.writeFileSync(path.join(outside, 'keep.txt'), 'keep')
+    fs.symlinkSync(outside, path.join(workspacePath, 'AGENTS', 'linked-agent'), 'dir')
+    const before = fs.readFileSync(openclawConfigPath, 'utf8')
+    const result = deleteAgent('linked-agent', true)
+    assert(result.errors.some(error => error.includes('Unsafe agent path')), 'Expected actionable unsafe-path error')
+    assert(fs.readFileSync(openclawConfigPath, 'utf8') === before, 'Config must remain unchanged')
+    assert(fs.readFileSync(path.join(outside, 'keep.txt'), 'utf8') === 'keep', 'External content must remain intact')
+  })
   await test('deleteAgent removes workspace dir, shared home dir, and config entry', () => {
     const result = deleteAgent(agentId, false)
     assert(result.errors.length === 0, `Expected no errors, got: ${result.errors.join('; ')}`)
     assert(!fs.existsSync(workspaceAgentDir), 'Expected workspace agent dir to be removed')
     assert(!fs.existsSync(path.join(tmpHome, '.openclaw', 'agents', agentId)), 'Expected shared ~/.openclaw agent dir to be removed')
+    assert(!fs.existsSync(dashboardChatRecord), 'A recreated agent with the same id must not inherit the deleted one\'s chats')
 
     const config = JSON.parse(fs.readFileSync(openclawConfigPath, 'utf-8'))
     const stillPresent = Boolean(config.agents?.entries?.[agentId])
@@ -170,6 +186,113 @@ Group focused on writing and editing posts.
     assert(parsedGroups.groups.length === 1, `Expected 1 group, got ${parsedGroups.groups.length}`)
     assert(parsedGroups.groups[0].name === 'Content Creation', 'Expected Content Creation group to parse')
     assert(parsedGroups.groups[0].community === 'CW Team', 'Expected group community link to parse')
+  })
+
+  await test('verbose group parsers retain metadata and do not cross section boundaries', () => {
+    const content = [
+      '# Communities',
+      '### Research',
+      '- **Description:** Shared research',
+      '- **Tags:** science, , analysis',
+      '- **Channels:** slack, , email',
+      '- **Members:** analyst, , editor',
+      '# Groups',
+      '### Writers',
+      '- **Description:** Daily output',
+      '- **Community:** Research',
+      '- **Tags:** writing, editing',
+      '- **Channels:** whatsapp',
+      '- **Members:** editor, analyst',
+      '## Unrelated',
+      '### Ignored',
+      '- **Members:** outsider',
+    ].join('\n')
+    const withMembers = parseGroupsWithMembers(content)
+    assert(withMembers.communities.length === 1 && withMembers.groups.length === 1, 'Expected entries only in recognized sections')
+    assert(withMembers.communities[0].description === 'Shared research', 'Expected community description')
+    assert(withMembers.communities[0].tags.join(',') === 'science,analysis', 'Expected empty tags removed')
+    assert(withMembers.communities[0].channels.join(',') === 'slack,email', 'Expected empty channels removed')
+    assert(withMembers.communities[0].members.join(',') === 'analyst,editor', 'Expected members parsed')
+    assert(withMembers.groups[0].community === 'Research', 'Expected group community retained')
+    assert(withMembers.groups[0].members.join(',') === 'editor,analyst', 'Expected group members parsed')
+    const simple = parseGroups(content)
+    assert(simple.communities.length === 1 && simple.groups.some(group => group.name === 'Writers'), 'Simple parser should retain recognized entries')
+    assert(simple.groups.find(group => group.name === 'Writers')?.channels.join(',') === 'whatsapp', 'Simple parser should retain channel metadata')
+  })
+
+  await test('compact group parser separates descriptions, tags, community links, and channels', () => {
+    const parsed = parseGroups([
+      '# Communities',
+      '- Research: Findings [science, analysis] 📧',
+      '- General',
+      '# Groups',
+      '- Writers: Daily output [writing, editing] @Research 📱 💬',
+      '- Assistants: No channel @Research',
+      '- Standalone',
+    ].join('\n'))
+    assert(parsed.communities.length === 2 && parsed.groups.length === 3, 'Expected both compact sections')
+    assert(parsed.communities[0].name === 'Research' && parsed.communities[0].description === 'Findings', 'Expected compact description')
+    assert(parsed.communities[0].tags.join(',') === 'science,analysis', 'Expected compact tags')
+    assert(parsed.communities[0].channels.join(',') === 'email', 'Expected email channel')
+    assert(parsed.communities[1].description === null, 'Expected absent description to stay null')
+    assert(parsed.groups[0].community === 'Research', 'Expected group community link')
+    assert(parsed.groups[0].channels.join(',') === 'whatsapp,slack', 'Expected multiple channels')
+    assert(parsed.groups[1].community === 'Research', 'Expected community without tags')
+    assert(parsed.groups[2].community === null, 'Expected absent community to stay null')
+  })
+
+  await test('identity parser excludes creation metadata and normalizes optional runtime fields', () => {
+    const parsed = parseIdentity([
+      '# Identity',
+      '- **Name:** Analyst',
+      '- **Creature:** Assistant',
+      '- **Vibe:** Careful',
+      '- **Emoji:** 🔎',
+      '- **Model:** openai/gpt-5.4-mini',
+      '- **Backup Model:** openai/gpt-4o-mini',
+      '- **Model Selection:** AUTO',
+      '- **Model Priority:** COST',
+      '- **Runtime:** default',
+      '- **WhatsApp:** +15551234567',
+      '- **Tags:** analyst, investigator',
+      '## Creation Metadata',
+      '- **Model:** stale/local-model',
+      '- **Tags:** leaked',
+    ].join('\n'))
+    assert(parsed.name === 'Analyst' && parsed.creature === 'Assistant' && parsed.vibe === 'Careful', 'Expected identity fields')
+    assert(parsed.emoji === '🔎' && parsed.runtime === 'default', 'Expected display and runtime fields')
+    assert(parsed.model === 'openai/gpt-5.4-mini' && parsed.backupModel === 'openai/gpt-4o-mini', 'Expected live models only')
+    assert(parsed.modelSelection === 'auto' && parsed.modelPreference === 'cost', 'Expected normalized model preferences')
+    assert(parsed.whatsapp === '+15551234567', 'Expected WhatsApp number')
+    assert(parsed.tags.join(',') === 'analyst,investigator', 'Expected creation tags excluded')
+    assert(parseTags('**Tags:**\n**Model:** openai/test').length === 0, 'Empty tags must not consume the next line')
+    const invalid = parseIdentity('**Model Selection:** unknown\n**Model Priority:** fast\n**WhatsApp:**\n')
+    assert(invalid.modelSelection === undefined && invalid.modelPreference === undefined, 'Unknown model preferences must be ignored')
+    assert(invalid.whatsapp === null, 'Empty WhatsApp value must stay null')
+  })
+
+  await test('group markdown keeps nested tags, repeated mentions and heading formats', () => {
+    const compact = parseGroups('# Groups\n- Team: Work [one,[two] @Community@Other\n').groups[0]
+    assert(compact.name === 'Team' && compact.description === 'Work', 'Expected compact entry')
+    assert(compact.tags.join(',') === 'one,[two', 'Expected existing nested-bracket semantics')
+    assert(compact.community === 'Community@Other', 'Expected first valid community marker')
+    const verbose = parseGroups('# Groups\n###   Team\n**Description:** Work\n').groups[0]
+    assert(verbose.name === 'Team' && verbose.description === 'Work', 'Expected verbose heading compatibility')
+  })
+
+  await test('adversarial group headings and metadata complete within a bounded subprocess', () => {
+    execFileSync(process.execPath, ['-r', 'ts-node/register/transpile-only', '-e', `
+      const { parseGroups } = require('./server/lib/workspace')
+      const cases = [
+        '# Groups\\n### ' + ' '.repeat(60000) + '\\u2028x',
+        '# Groups\\n- Team: ' + '@Z'.repeat(60000) + '[',
+        '# Groups\\n- Team: ' + '[\\\\'.repeat(60000),
+      ]
+      for (const content of cases) {
+        const result = parseGroups(content)
+        if (!Array.isArray(result.groups)) throw new Error('Expected parsed groups')
+      }
+    `], { timeout: 5000, stdio: 'pipe' })
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

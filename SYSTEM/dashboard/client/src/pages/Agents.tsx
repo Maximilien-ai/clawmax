@@ -1,5 +1,11 @@
+import { SearchableModelSelect } from '../components/SearchableModelSelect'
+import { channelLabel } from '../lib/channelLabel'
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import AgentDetailPanel from '../components/AgentDetailPanel'
+import AgentGroupMemberships from '../components/AgentGroupMemberships'
+import { KeepAgentPanelOpenButton } from '../components/KeepAgentPanelOpenButton'
+import { useAgentPanelPersistence } from '../lib/agentPanelPersistence'
 import { AgentAttention } from '../components/AgentAttention'
 import AddAgentWizard from '../components/AddAgentWizard'
 import { fetchModelsWithByok, refreshModelsWithByok, hasAiGenerationAccess } from '../lib/byok'
@@ -32,12 +38,13 @@ import { formatAgentGroupCount, getAgentBudgetPresentation, getVisibleAgentTags,
 import { getAgentWorkspaceLoadKey, shouldFetchAgentsForWorkspace } from '../lib/agentLoading'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
-import { getSmartDropdownPlacement, getViewportSafeDropdownStyle, type DropdownPlacement } from '../lib/dropdownPosition'
+import { getViewportSafeDropdownStyle, useViewportBoundedMenu } from '../lib/dropdownPosition'
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
 import { getAttachmentFilename } from '../lib/downloadFilename'
 import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelationship } from '../lib/pluginRelationships'
 import { PluginRelationshipPills } from '../components/PluginRelationshipSummary'
 import ModelFitRecommendationPanel from '../components/ModelFitRecommendationPanel'
+import HostCredentialPill from '../components/HostCredentialPill'
 import { enabledRuntimeIds, modelAfterRuntimeChange, modelFitCandidates, parseRuntimeCatalog, runtimeAcceptsModel, runtimeLabelFor, runtimeModelsFor, stripModelProvider, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
 import {
   buildAgentModelFitDescription,
@@ -82,6 +89,7 @@ interface Agent {
   groups: GroupEntry[]
   tags: string[]
   skills?: string[]
+  hostCredentialRequirements?: string[]
   validationWarnings?: string[]
   archived?: boolean
   archiveMetadata?: { reason?: string; timestamp?: string }
@@ -158,7 +166,7 @@ function normalizeAgentLookup(value: string): string {
 type ViewMode = 'grid' | 'list' | 'table'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, initialAiDescription, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import' | 'chat' | 'edit'; initialAiDescription?: string; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, initialAiDescription, onInitialAgentHandled, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import' | 'chat' | 'edit'; initialAiDescription?: string; onInitialAgentHandled?: () => void; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const { config } = useAuth()
   const { activeWorkspace } = useWorkspace()
@@ -169,7 +177,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [doctorResults, setDoctorResults] = useState<any>(null)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [selectedAgent, setSelectedAgent] = useState<(Agent & { initialSection?: 'groups' }) | null>(null)
+  const [agentConfigRevision, setAgentConfigRevision] = useState(0)
   const [budgetEditorAgentId, setBudgetEditorAgentId] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
@@ -296,6 +305,11 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         } else {
           setAgents(prev => [...prev, ...normalized])
         }
+        setSelectedAgent(current => {
+          if (!current) return current
+          const refreshed = normalized.find((agent: Agent) => agent.id === current.id)
+          return refreshed ? { ...refreshed, initialSection: current.initialSection } : current
+        })
         setHasMore(d.hasMore || false)
         setNextCursor(d.nextCursor || null)
         setTotal(d.total || 0)
@@ -404,12 +418,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     localStorage.setItem('agents-view-mode', viewMode)
   }, [viewMode])
 
-  // Select initial agent if provided and scroll to it
+  // Keep the list at its current scroll position when leaving Agents, but close
+  // the detail panel so a later tab visit starts with a usable list.
   useEffect(() => {
-    if (initialAgentId && agents.length > 0) {
+    if (isActive === false) {
+      setSelectedAgent(null)
+      setBudgetEditorAgentId(null)
+    }
+  }, [isActive])
+
+  // An explicit agent link opens detail once; ordinary tab visits do not.
+  useEffect(() => {
+    if (isActive && initialAgentId && agents.length > 0) {
       const agent = agents.find(a => a.id === initialAgentId)
       if (agent) {
         setSelectedAgent(agent)
+        onInitialAgentHandled?.()
         // Scroll to agent card after a brief delay to ensure DOM is updated
         setTimeout(() => {
           const element = document.getElementById(`agent-card-${initialAgentId}`)
@@ -419,7 +443,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         }, 100)
       }
     }
-  }, [initialAgentId, agents])
+  }, [initialAgentId, agents, isActive, onInitialAgentHandled])
 
   useEffect(() => {
     if (!isActive || !initialAction) return
@@ -1701,13 +1725,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       </button>
                     )}
                   </div>
-                  <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                  <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                     {primaryAgents.map(agent => (
                       <AgentGridCard
                         key={`${tag}-${agent.id}`}
                         agent={agent}
                         selected={selectedAgent?.id === agent.id}
                         onClick={() => setSelectedAgent(agent)}
+                        onOpenGroups={() => setSelectedAgent({ ...agent, initialSection: 'groups' })}
                         onChat={() => setChatTarget(agent)}
                         onStatus={() => setStatusTarget(agent)}
                         onDelete={() => setDeleteTarget(agent.id)}
@@ -1753,13 +1778,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         {isExpanded ? '▼' : '▶'} Additional agents ({secondaryAgentsNotShown.length})
                       </button>
                       {isExpanded && (
-                        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 mt-2">
+                        <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 mt-2">
                           {secondaryAgentsNotShown.map(agent => (
                             <AgentGridCard
                               key={`${tag}-secondary-${agent.id}`}
                               agent={agent}
                               selected={selectedAgent?.id === agent.id}
                               onClick={() => setSelectedAgent(agent)}
+                              onOpenGroups={() => setSelectedAgent({ ...agent, initialSection: 'groups' })}
                               onChat={() => setChatTarget(agent)}
                               onStatus={() => setStatusTarget(agent)}
                               onDelete={() => setDeleteTarget(agent.id)}
@@ -1857,13 +1883,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         )}
                       </div>
                     )}
-                    <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                    <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                       {userAgents.map(agent => (
             <AgentGridCard
               key={agent.id}
               agent={agent}
               selected={selectedAgent?.id === agent.id}
               onClick={() => setSelectedAgent(agent)}
+              onOpenGroups={() => setSelectedAgent({ ...agent, initialSection: 'groups' })}
               onChat={() => setChatTarget(agent)}
               onStatus={() => setStatusTarget(agent)}
               onDelete={() => setDeleteTarget(agent.id)}
@@ -1911,13 +1938,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         </button>
                       )}
                     </div>
-                    <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                    <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                       {builtInAgents.map(agent => (
                         <AgentGridCard
                           key={agent.id}
                           agent={agent}
                           selected={selectedAgent?.id === agent.id}
                           onClick={() => setSelectedAgent(agent)}
+                          onOpenGroups={() => setSelectedAgent({ ...agent, initialSection: 'groups' })}
                           onChat={() => setChatTarget(agent)}
                           onStatus={() => setStatusTarget(agent)}
                           onDelete={() => setDeleteTarget(agent.id)}
@@ -2068,11 +2096,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {selectedAgent && (
         <AgentDetailPanel
           agent={selectedAgent}
+          configRevision={agentConfigRevision}
           pluginRelationships={pluginRelationships.agents[selectedAgent.id] || []}
           initialEditCostLimit={budgetEditorAgentId === selectedAgent.id}
+          initialSection={selectedAgent.initialSection}
           costTrackingEnabled={costTrackingEnabled}
           onClose={() => { setSelectedAgent(null); setBudgetEditorAgentId(null) }}
           onChat={() => setChatTarget(selectedAgent)}
+          onEditConfig={() => setEditTarget(selectedAgent)}
           onClone={() => {
             setCloneFromAgent(selectedAgent.id)
             setShowAddWizard(true)
@@ -2266,7 +2297,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       )}
 
       {tagToRemove && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={() => setTagToRemove(null)}>
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 dark:text-gray-100">Remove Primary Tag</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -2404,13 +2435,13 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 body: JSON.stringify({ agentIds, model }),
               })
               const data = await resp.json()
-              if (resp.ok) {
+              if (resp.ok && data.ok) {
                 showSuccess(`Updated model to ${model} for ${data.updated} agent${data.updated !== 1 ? 's' : ''}`)
                 fetchAgents()
                 setSelectionMode(false)
                 setSelectedAgentIds(new Set())
               } else {
-                showError(data.error || 'Failed to change model')
+                showError(data.results?.find((result: { ok: boolean; error?: string }) => !result.ok)?.error || data.error || 'Failed to change model')
               }
             }}
             onBulkSkills={async (agentIds, addSkills, removeSkills) => {
@@ -2447,7 +2478,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         <EditAgentConfigModal
           agent={editTarget}
           onClose={() => setEditTarget(null)}
-          onSaved={() => { fetchAgents(); setEditTarget(null) }}
+          onSaved={() => { fetchAgents(true, true); setAgentConfigRevision(value => value + 1); setEditTarget(null) }}
         />
       )}
     </div>
@@ -2747,6 +2778,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [soul, setSoul] = React.useState('')
   const [tools, setTools] = React.useState('')
   const [model, setModel] = React.useState('')
+  const [modelWarning, setModelWarning] = React.useState<{ model: string; message: string } | null>(null)
   const [runtime, setRuntime] = React.useState('default')
   // Driven off the server's runtime registry (id + label + models) rather than hardcoded ids, so
   // adding a CLI runtime needs no change here.
@@ -2783,11 +2815,16 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
+  const panelPersistence = useAgentPanelPersistence(onClose, !saving, true)
   const [error, setError] = React.useState<string | null>(null)
   const [warnings, setWarnings] = React.useState<string[]>([])
   const [validationErrors, setValidationErrors] = React.useState<string[]>([])
   const [validating, setValidating] = React.useState(false)
   const [validationRequestError, setValidationRequestError] = React.useState<string | null>(null)
+  const [repairing, setRepairing] = React.useState(false)
+  const [repairResult, setRepairResult] = React.useState<string | null>(null)
+  const repairDraftRef = React.useRef({ identity, soul, tools })
+  repairDraftRef.current = { identity, soul, tools }
   const [modelPreference, setModelPreference] = React.useState<ModelFitPreference>('balanced')
   const [modelRecommendation, setModelRecommendation] = React.useState<ModelFitRecommendation | null>(null)
   const [modelRecommendationLoading, setModelRecommendationLoading] = React.useState(false)
@@ -2886,6 +2923,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         const loadedModel = identityData?.liveConfig?.model || identityData?.metadata?.model || ''
         manualModelRef.current = loadedModel
         setModel(loadedModel)
+        setModelWarning(identityData?.modelWarning || null)
         setRuntime(identityData?.metadata?.runtime || 'default')
         setBackupModel(identityData?.liveConfig?.backupModel || identityData?.metadata?.backupModel || '')
         setModelPreference(persistedModelFit.preference)
@@ -3068,20 +3106,25 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4" onClick={onClose}>
+    <div ref={panelPersistence.panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-agent-config-title" tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4" onClick={panelPersistence.onBackdropClick} onKeyDown={panelPersistence.onEscape}>
       <div
         className="flex max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-800"
-        onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-6 dark:border-gray-700">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Agent Config</h3>
+            <h3 id="edit-agent-config-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Agent Config</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{agent.name} <span className="font-mono text-xs">({agent.id})</span></p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none p-1">
-            &times;
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <KeepAgentPanelOpenButton keepOpen={panelPersistence.keepOpen} onToggle={panelPersistence.toggleKeepOpen} />
+            <button onClick={onClose} aria-label="Close config" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-xl leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300">
+              &times;
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -3106,6 +3149,35 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-3 text-sm text-amber-800 dark:text-amber-300 whitespace-pre-line">
               <div className="font-medium mb-1">Validation service warning</div>
               {validationRequestError}
+            </div>
+          )}
+
+          {!loading && (validationErrors.length > 0 || warnings.length > 0 || repairResult) && (
+            <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950 dark:text-cyan-100">
+              <button type="button" disabled={repairing || saving} className="font-medium underline disabled:opacity-50" onClick={async () => {
+                setRepairing(true)
+                setRepairResult(null)
+                const submittedDraft = JSON.stringify({ identity, soul, tools })
+                try {
+                  const response = await fetch(`/api/agents/${agent.id}/config/repair`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: submittedDraft,
+                  })
+                  const result = await response.json()
+                  if (!response.ok) throw new Error(result.error || 'Doctor could not repair this draft')
+                  if (JSON.stringify(repairDraftRef.current) !== submittedDraft) throw new Error('Your draft changed during repair. Nothing was replaced; run Doctor again.')
+                  setIdentity(result.config.identity)
+                  setSoul(result.config.soul)
+                  setTools(result.config.tools)
+                  setValidationErrors(result.errors)
+                  setWarnings(result.warnings)
+                  setRepairResult(result.changes.length ? `${result.changes.join('; ')}. Review and Save to apply.` : 'No safe automatic changes found. Review the remaining guidance below; optional fields do not block saving.')
+                } catch (err: any) {
+                  setRepairResult(err.message || 'Doctor request failed. Your draft is unchanged.')
+                } finally { setRepairing(false) }
+              }}>{repairing ? 'Doctor is checking…' : 'Doctor — fix draft'}</button>
+              <p className="mt-1">Repairs missing names and document headings without changing tools, credentials, or permissions. Your edits are not saved until you choose Save.</p>
+              {repairResult && <p role="status" className="mt-2 break-words">{repairResult}</p>}
             </div>
           )}
 
@@ -3151,7 +3223,14 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     Refresh models
                   </button>
                 </div>
-                <select
+                {modelWarning?.model === model && (runtime === 'default' || runtime === 'openclaw') && (
+                  <div role="alert" className="mb-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+                    <strong>This model is not supported by the current runtime.</strong>
+                    <p className="mt-1 break-words">{modelWarning.message}</p>
+                    <p className="mt-1">Choose a supported model below and Save before retrying chat. Your model will not change automatically.</p>
+                  </div>
+                )}
+                <SearchableModelSelect searchLabel="Search models"
                   value={model}
                   disabled={autoModelSelection}
                   onChange={e => useManualModel(e.target.value)}
@@ -3180,19 +3259,26 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                       </optgroup>
                     </>
                   ) : Object.keys(modelsByProvider).length > 0 ? (
-                    Object.entries(modelsByProvider).map(([providerId, provider]) => (
-                      <optgroup key={providerId} label={provider.name || providerId}>
-                        {provider.models.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
-                          <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
-                        ))}
-                      </optgroup>
-                    ))
+                    <>
+                      {/* A stored model the runtime cannot run is not in the list; show it as the
+                          current value instead of letting the select display another model. */}
+                      {model && !availableModels.includes(model) && (
+                        <option value={model}>{model} — current; not offered for this runtime</option>
+                      )}
+                      {Object.entries(modelsByProvider).map(([providerId, provider]) => (
+                        <optgroup key={providerId} label={provider.name || providerId}>
+                          {provider.models.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
+                            <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </>
                   ) : (
                     availableModels.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
-                      <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                      <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                     ))
                   )}
-                </select>
+                </SearchableModelSelect>
                 {autoModelSelection && runtimeModelOptions.length > 0 && (
                   <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
                     Automatic suggestions come from the model providers, so they are only applied
@@ -3213,6 +3299,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 )}
               </div>
               <ModelFitRecommendationPanel
+                collapsible
                 recommendation={modelRecommendation}
                 preference={modelPreference}
                 onPreferenceChange={setModelPreference}
@@ -3243,31 +3330,34 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
                   {config?.deploymentKind === 'cloud' ? 'Local CLI runtimes are unavailable on cloud. Choose OpenClaw with model-provider keys.' : enabledRuntimes.length > 0
                     ? <>Run this agent on {runtimeCatalog.filter((rt) => enabledRuntimes.includes(rt.id)).map((rt) => rt.label).join(' or ')} using the CLI’s own login. Default keeps it on the model-provider keys.</>
-                    : <>Enable a CLI runtime first in BYOK &rarr; “Run via CLI” to make it selectable here.</>}
+                    : <>Enable a CLI using the Runtime pill at the top to make it selectable here.</>}
                 </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Backup model</label>
-                <select
+                <SearchableModelSelect searchLabel="Search backup models"
                   value={backupModel}
                   onChange={e => setBackupModel(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                 >
                   <option value="">No backup model</option>
+                  {backupModel && availableModels.length > 0 && !availableModels.includes(backupModel) && (
+                    <option value={backupModel}>{backupModel} — current; not offered for this runtime</option>
+                  )}
                   {Object.keys(modelsByProvider).length > 0 ? (
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>
                         {provider.models.filter((option) => isSelectableLifecycleModel(option, backupModel || model)).map(option => (
-                          <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                          <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                         ))}
                       </optgroup>
                     ))
                   ) : (
                     availableModels.filter((option) => isSelectableLifecycleModel(option, backupModel || model)).map(option => (
-                      <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                      <option key={option} value={option} disabled={!isSelectableLifecycleModel(option)}>{formatOpenAiModelLabel(option)}</option>
                     ))
                   )}
-                </select>
+                </SearchableModelSelect>
                 <p className="mt-1 text-xs text-gray-400">Automatically retried when the primary model fails or times out before producing a usable reply.</p>
               </div>
               <div>
@@ -3365,7 +3455,7 @@ function TagManageModal({ agent, onClose, onSave }: { agent: Agent; onClose: () 
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 dark:text-gray-100">Manage Tags</h3>
         <p className="text-xs text-gray-500 mb-4">Drag to reorder • First tag is primary</p>
@@ -3463,7 +3553,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 dark:text-gray-100">Rename Agent</h3>
         <p className="text-xs text-gray-500 mb-4">
@@ -3549,31 +3639,14 @@ const AgentCard = React.memo(function AgentCard({
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [actionsMenuView, setActionsMenuView] = React.useState<AgentActionsMenuView>('main')
-  const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
-  const menuWidth = 224
+  const closeActionsMenu = React.useCallback(() => { setShowActionsMenu(false); setActionsMenuView('main') }, [])
+  const { menuRef, menuStyle } = useViewportBoundedMenu(showActionsMenu, actionsButtonRef, 224, closeActionsMenu)
   const { usedPct: budgetUsedPct, barColor: budgetBarColor } = getAgentBudgetPresentation({
     costTrackingEnabled,
     costLimit,
     meteringCost: metering?.cost,
   })
-
-  React.useEffect(() => {
-    if (!showActionsMenu || !actionsButtonRef.current) return
-
-    const updatePlacement = () => {
-      if (!actionsButtonRef.current) return
-      setMenuPlacement(getSmartDropdownPlacement(actionsButtonRef.current.getBoundingClientRect()))
-    }
-
-    updatePlacement()
-    window.addEventListener('resize', updatePlacement)
-    window.addEventListener('scroll', updatePlacement, true)
-    return () => {
-      window.removeEventListener('resize', updatePlacement)
-      window.removeEventListener('scroll', updatePlacement, true)
-    }
-  }, [showActionsMenu])
 
   return (
     <div
@@ -3666,12 +3739,13 @@ const AgentCard = React.memo(function AgentCard({
             >
               ⋮
             </button>
-            {showActionsMenu && (
+            {showActionsMenu && createPortal(
               <>
-                <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setShowActionsMenu(false); setActionsMenuView('main') }} />
+                <div className="fixed inset-0 z-40" onClick={e => { e.stopPropagation(); setShowActionsMenu(false); setActionsMenuView('main') }} />
                 <div
-                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto"
-                  style={actionsButtonRef.current ? getViewportSafeDropdownStyle(actionsButtonRef.current.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
+                  ref={menuRef}
+                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1 dark:border-gray-700"
+                  style={menuStyle}
                 >
                   <div className="px-3 py-2 space-y-3">
                     <div>
@@ -3726,7 +3800,7 @@ const AgentCard = React.memo(function AgentCard({
                       <div className="grid grid-cols-2 gap-1.5">
                         {onEdit && (
                           <button
-                            onClick={e => { e.stopPropagation(); onEdit(); setShowActionsMenu(false) }}
+                            onClick={e => { e.stopPropagation(); actionsButtonRef.current?.focus(); onEdit(); setShowActionsMenu(false) }}
                             className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
                           >
                             <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
@@ -3807,22 +3881,26 @@ const AgentCard = React.memo(function AgentCard({
                                 const resp = await fetch('/api/agents/doctor', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ fix: true }),
+                                  body: JSON.stringify({ fix: true, agentId: agent.id }),
                                 })
                                 const data = await resp.json()
+                                if (!resp.ok) throw new Error(data.error || 'Doctor request failed')
                                 const agentResult = data.results?.find((r: any) => r.id === agent.id)
+                                if (!agentResult) throw new Error('Doctor returned no result for this agent')
                                 if (agentResult) {
-                                  const fails = agentResult.checks.filter((c: any) => c.status === 'fail')
+                                  const fails = agentResult.checks.filter((c: any) => c.status === 'fail' || c.status === 'warn')
                                   const fixed = agentResult.checks.filter((c: any) => c.status === 'fixed')
                                   const pass = agentResult.checks.filter((c: any) => c.status === 'pass')
                                   const statusEl = document.getElementById(`doctor-status-${agent.id}`)
                                   if (statusEl) {
                                     statusEl.textContent = fails.length ? `✗ ${fails.map((f: any) => f.message).join('; ')}` : `✓ ${pass.length} passed${fixed.length ? `, ${fixed.length} fixed` : ''}`
                                     statusEl.className = `text-xs mt-1 ${fails.length ? 'text-red-500' : 'text-green-500'}`
-                                    setTimeout(() => { statusEl.textContent = ''; statusEl.className = '' }, 5000)
                                   }
                                 }
-                              } catch {}
+                              } catch (err: any) {
+                                const el = document.getElementById(`doctor-status-${agent.id}`)
+                                if (el) { el.textContent = err.message || 'Doctor failed. Try again.'; el.className = 'text-xs mt-1 text-red-500' }
+                              }
                             }}
                             className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors"
                           >
@@ -3885,7 +3963,8 @@ const AgentCard = React.memo(function AgentCard({
                     </div>
                   </div>
                 </div>
-              </>
+              </>,
+              document.body
             )}
           </div>
           <button
@@ -3905,6 +3984,7 @@ const AgentCard = React.memo(function AgentCard({
             {agent.name}
           </div>
           <div className="text-xs text-gray-400 font-mono mb-3">{agent.id}</div>
+          {agent.hostCredentialRequirements?.map(name => <div key={name} onClick={event => event.stopPropagation()}><HostCredentialPill credentialName={name} /></div>)}
           <div id={`doctor-status-${agent.id}`} />
 
           <div className="space-y-1.5 text-sm text-gray-600 dark:text-gray-400">
@@ -3979,10 +4059,10 @@ const AgentCard = React.memo(function AgentCard({
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={e => { e.stopPropagation(); onManageCommunities(); }}
-                  className="text-xs px-1.5 py-0.5 rounded text-purple-600 hover:text-purple-700 hover:bg-purple-50 transition-colors font-medium"
+                  className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-purple-600 hover:text-purple-700 hover:bg-purple-50 transition-colors font-medium"
                   title="Manage communities & groups"
                 >
-                  🏘 Manage
+                  <ProductIconCell iconName="community" label="Communities and groups" size="sm" className="!h-4 !w-4 border-0 bg-transparent text-current dark:bg-transparent dark:text-current" /> Manage
                 </button>
                 {agent.whatsapp && (
                   <button
@@ -3995,7 +4075,6 @@ const AgentCard = React.memo(function AgentCard({
                 )}
               </div>
             </div>
-            {((agent.communities || []).length > 0 || (agent.groups || []).length > 0) ? (
               <div className="flex flex-wrap gap-1">
                 {(agent.communities || []).map(c => (
                   <button
@@ -4004,23 +4083,11 @@ const AgentCard = React.memo(function AgentCard({
                     onClick={e => { e.stopPropagation(); if (onNavigateToGroup) onNavigateToGroup(c.name); }}
                     className="text-xs px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-medium hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors cursor-pointer"
                   >
-                    {c.name}
+                    {channelLabel(c)}
                   </button>
                 ))}
-                {agent.groups.map(g => (
-                  <button
-                    key={g.name}
-                    title={g.description ?? undefined}
-                    onClick={e => { e.stopPropagation(); if (onNavigateToGroup) onNavigateToGroup(g.name); }}
-                    className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors cursor-pointer"
-                  >
-                    {g.name}
-                  </button>
-                ))}
+                <AgentGroupMemberships agentId={agent.id} agentName={agent.name} groups={agent.groups} onNavigateToGroup={onNavigateToGroup} />
               </div>
-            ) : (
-              <p className="text-xs text-gray-300">No groups configured</p>
-            )}
           </div>
 
           {/* Skills & Tools */}
@@ -4062,7 +4129,7 @@ const AgentCard = React.memo(function AgentCard({
               onNavigateToSkills ? (
                 <button
                   onClick={e => { e.stopPropagation(); onNavigateToSkills(agent.id); }}
-                  className="text-xs px-2 py-1 rounded bg-gray-50 dark:bg-gray-900 text-gray-500 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:bg-gray-800 hover:text-gray-700 dark:text-gray-300 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="text-xs px-2 py-1 rounded bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 hover:text-gray-700 transition-colors dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   + Add Skills
                 </button>
@@ -4171,12 +4238,12 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true, relationships = [] }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onNavigateToSkills?: (agentId: string) => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean; relationships?: PluginRelationship[] }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onOpenGroups, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true, relationships = [] }: { agent: Agent; selected: boolean; onClick: () => void; onOpenGroups: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onNavigateToSkills?: (agentId: string) => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean; relationships?: PluginRelationship[] }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [actionsMenuView, setActionsMenuView] = React.useState<AgentActionsMenuView>('main')
-  const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
-  const menuWidth = 224
+  const closeActionsMenu = React.useCallback(() => { setShowActionsMenu(false); setActionsMenuView('main') }, [])
+  const { menuRef, menuStyle } = useViewportBoundedMenu(showActionsMenu, actionsButtonRef, 224, closeActionsMenu)
   const totalGroups = (agent.communities || []).length + (agent.groups || []).length
   const groupCountLabel = formatAgentGroupCount(totalGroups)
   const tagPreview = getVisibleAgentTags(agent.tags, 3)
@@ -4185,23 +4252,6 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
     costLimit,
     meteringCost: metering?.cost,
   })
-
-  React.useEffect(() => {
-    if (!showActionsMenu || !actionsButtonRef.current) return
-
-    const updatePlacement = () => {
-      if (!actionsButtonRef.current) return
-      setMenuPlacement(getSmartDropdownPlacement(actionsButtonRef.current.getBoundingClientRect()))
-    }
-
-    updatePlacement()
-    window.addEventListener('resize', updatePlacement)
-    window.addEventListener('scroll', updatePlacement, true)
-    return () => {
-      window.removeEventListener('resize', updatePlacement)
-      window.removeEventListener('scroll', updatePlacement, true)
-    }
-  }, [showActionsMenu])
 
   // Format token count for display
   const formatTokens = (count: number): string => {
@@ -4249,6 +4299,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
         text={agent.id}
         className="mb-1 block text-[10px] font-mono text-gray-400 truncate"
       />
+      {agent.hostCredentialRequirements?.map(name => <div key={name} onClick={event => event.stopPropagation()}><HostCredentialPill credentialName={name} /></div>)}
       {/* Line 3: quick actions + cost */}
       <div className="flex items-center gap-2 mb-1">
         <div className="flex items-center gap-2 shrink-0">
@@ -4330,7 +4381,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           )}
         </div>
         {groupCountLabel && (
-          <div className="text-xs text-gray-400 shrink-0">{groupCountLabel}</div>
+          <button type="button" onClick={event => { event.stopPropagation(); onOpenGroups() }} aria-label={`View groups for ${agent.name}`} title="View groups" className="shrink-0 rounded text-xs text-gray-400 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:hover:text-sky-300">{groupCountLabel}</button>
         )}
         {usage && usage.totalTokens > 0 && (
           <div className="text-xs text-indigo-600 shrink-0 font-medium" title={`${(usage.totalTokens || 0).toLocaleString()} tokens (${(usage.inputTokens || 0).toLocaleString()} in / ${(usage.outputTokens || 0).toLocaleString()} out)${usage.totalCost > 0 ? ` • $${(usage.totalCost || 0).toFixed(2)}` : ''}`}>
@@ -4347,12 +4398,13 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           >
             ⋮
           </button>
-          {showActionsMenu && (
+          {showActionsMenu && createPortal(
             <>
-              <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); setActionsMenuView('main'); }} />
+              <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); setActionsMenuView('main'); }} />
               <div
-                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto"
-                style={actionsButtonRef.current ? getViewportSafeDropdownStyle(actionsButtonRef.current.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
+                ref={menuRef}
+                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1 dark:border-gray-700"
+                style={menuStyle}
               >
                 <div className="px-3 py-2 space-y-3">
                   <div>
@@ -4405,7 +4457,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                     <div className="grid grid-cols-2 gap-1.5">
                       {onEdit && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); onEdit(); setShowActionsMenu(false); }}
+                          onClick={(e) => { e.stopPropagation(); actionsButtonRef.current?.focus(); onEdit(); setShowActionsMenu(false); }}
                           className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
                         >
                           <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
@@ -4483,26 +4535,26 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                           setShowActionsMenu(false)
                           setActionsMenuView('main')
                           try {
-                            const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: true }) })
+                            const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: true, agentId: agent.id }) })
                             const data = await resp.json()
+                            if (!resp.ok) throw new Error(data.error || 'Doctor request failed')
                             const r = (data.results || []).find((r: any) => r.id === agent.id)
+                            if (!r) throw new Error('Doctor returned no result for this agent')
                             if (r) {
-                              const fails = (r.checks || []).filter((c: any) => c.status === 'fail')
+                              const fails = (r.checks || []).filter((c: any) => c.status === 'fail' || c.status === 'warn')
                               const fixed = (r.checks || []).filter((c: any) => c.status === 'fixed')
                               const pass = (r.checks || []).filter((c: any) => c.status === 'pass')
-                              // Restart agent after doctor to revive it
-                              if (fixed.length > 0 || fails.length === 0) {
-                                try { await fetch(`/api/agents/${agent.id}/restart`, { method: 'POST' }) } catch {}
-                              }
                               const el = document.getElementById(`doctor-msg-${agent.id}`)
                               if (el) {
-                                const msg = fails.length ? `✗ ${fails.map((f: any) => f.message).join('; ')}` : `✓ ${pass.length} ok${fixed.length ? `, ${fixed.length} fixed, restarted` : ''}`
+                                const msg = fails.length ? `Needs attention: ${fails.map((f: any) => f.message).join('; ')}` : `✓ ${pass.length} ok${fixed.length ? `, ${fixed.length} fixed` : ''}`
                                 el.textContent = msg
                                 el.className = `text-[10px] mt-1 px-2 py-1 rounded block ${fails.length ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'}`
-                                setTimeout(() => { el.textContent = ''; el.className = '' }, 8000)
                               }
                             }
-                          } catch {}
+                          } catch (err: any) {
+                            const el = document.getElementById(`doctor-msg-${agent.id}`)
+                            if (el) { el.textContent = err.message || 'Doctor failed. Try again.'; el.className = 'text-xs mt-1 text-red-500' }
+                          }
                         }}
                         className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
                       >
@@ -4565,7 +4617,8 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                   </div>
                 </div>
               </div>
-            </>
+            </>,
+            document.body
           )}
         </div>
       </div>
@@ -4622,9 +4675,9 @@ const AgentTableView = React.memo(function AgentTableView({
   pluginRelationships: Record<string, PluginRelationship[]>
 }) {
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
-  const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('bottom')
-  const actionsButtonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({})
-  const menuWidth = 224
+  const openDropdownTriggerRef = React.useRef<HTMLButtonElement | null>(null)
+  const closeDropdown = React.useCallback(() => setOpenDropdown(null), [])
+  const { menuRef, menuStyle } = useViewportBoundedMenu(openDropdown, openDropdownTriggerRef, 224, closeDropdown)
 
   // Close dropdown when clicking outside
   React.useEffect(() => {
@@ -4632,24 +4685,6 @@ const AgentTableView = React.memo(function AgentTableView({
     document.addEventListener('click', handleClick)
     return () => document.removeEventListener('click', handleClick)
   }, [])
-
-  React.useEffect(() => {
-    if (!openDropdown) return
-
-    const updatePlacement = () => {
-      const button = actionsButtonRefs.current[openDropdown]
-      if (!button) return
-      setMenuPlacement(getSmartDropdownPlacement(button.getBoundingClientRect()))
-    }
-
-    updatePlacement()
-    window.addEventListener('resize', updatePlacement)
-    window.addEventListener('scroll', updatePlacement, true)
-    return () => {
-      window.removeEventListener('resize', updatePlacement)
-      window.removeEventListener('scroll', updatePlacement, true)
-    }
-  }, [openDropdown])
 
   // Sort agents
   const sortedAgents = React.useMemo(() => {
@@ -4825,8 +4860,8 @@ const AgentTableView = React.memo(function AgentTableView({
               <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                 <div className="flex flex-wrap gap-1 max-w-xs">
                   {agent.groups.slice(0, 3).map(g => (
-                    <span key={g.name} className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded truncate max-w-[100px] dark:bg-gray-800 dark:text-gray-300" title={g.name}>
-                      {g.name}
+                    <span key={g.name} className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded truncate max-w-[100px] dark:bg-gray-800 dark:text-gray-300" title={channelLabel(g)}>
+                      {channelLabel(g)}
                     </span>
                   ))}
                   {agent.groups.length > 3 && (
@@ -4882,9 +4917,9 @@ const AgentTableView = React.memo(function AgentTableView({
                     <ProductIconCell iconName="details" label="View Details & Files" size="sm" className="border-transparent bg-transparent text-current" />
                   </button>
                   <button
-                    ref={(el) => { actionsButtonRefs.current[agent.id] = el }}
                     onClick={(e) => {
                       e.stopPropagation()
+                      openDropdownTriggerRef.current = e.currentTarget
                       setOpenDropdown(openDropdown === agent.id ? null : agent.id)
                     }}
                     className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:bg-gray-800 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
@@ -4893,10 +4928,11 @@ const AgentTableView = React.memo(function AgentTableView({
                     ⋮
                   </button>
 
-                  {openDropdown === agent.id && (
+                  {openDropdown === agent.id && createPortal(
                     <div
-                      className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20 max-h-[70vh] overflow-y-auto"
-                      style={actionsButtonRefs.current[agent.id] ? getViewportSafeDropdownStyle(actionsButtonRefs.current[agent.id]!.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
+                      ref={menuRef}
+                      className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50"
+                      style={menuStyle}
                     >
                       <button
                         onClick={(e) => {
@@ -4926,7 +4962,7 @@ const AgentTableView = React.memo(function AgentTableView({
                           setOpenDropdown(null)
                           onStatus(agent)
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 transition-colors flex items-center gap-2 dark:text-gray-300"
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                       >
                         <ProductIconCell iconName="status" label="Status & Logs" size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
                         Status & Logs
@@ -4935,6 +4971,7 @@ const AgentTableView = React.memo(function AgentTableView({
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
+                            openDropdownTriggerRef.current?.focus()
                             setOpenDropdown(null)
                             onEdit(agent)
                           }}
@@ -5022,7 +5059,8 @@ const AgentTableView = React.memo(function AgentTableView({
                         <ProductIconCell iconName="delete" label="Delete" size="sm" className="border-red-200 bg-red-50 text-red-600 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300" />
                         Delete
                       </button>
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </div>
               </td>

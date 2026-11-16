@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { assertAgentModelPolicy, authorizeDashboardModelSelection } from './agent-model-policy'
 import { materializeDashboardAgentList, writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { getModelLifecycleEntry } from './openAiModelLifecycle'
 
@@ -13,6 +14,20 @@ export interface AgentModelConfigUpdateResult {
 
 export type AgentModelSelectionMode = 'auto' | 'manual'
 export type AgentModelPreference = 'quality' | 'balanced' | 'cost'
+
+export function validateAgentModelPolicyInConfigFile(configPath: string, agentId: string, models: Array<string | undefined>, workspacePath: string, authorizePolicy = false): AgentModelConfigUpdateResult {
+  try {
+    const config = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf-8')) : {}
+    const agents = materializeDashboardAgentList(config)
+    const agent = agents.find(item => item.id === agentId && item.workspace === workspacePath) || agents.find(item => item.id === agentId)
+    const normalized = models.map(model => model ? normalizeAgentModelInput(model) : undefined)
+    if (authorizePolicy) authorizeDashboardModelSelection(config, agent, normalized)
+    else assertAgentModelPolicy(config, agent, normalized)
+    return { ok: true }
+  } catch (error: any) {
+    return { ok: false, error: error.message || 'Model policy could not be verified' }
+  }
+}
 
 export function normalizeAgentModelInput(model: string): string {
   const trimmed = model.trim()
@@ -99,7 +114,7 @@ export function updateAgentModelInConfigFile(
   configPath: string,
   agentId: string,
   model: string,
-  options?: { workspacePath?: string }
+  options?: { workspacePath?: string; authorizePolicy?: boolean }
 ): AgentModelConfigUpdateResult {
   try {
     const nextModel = normalizeAgentModelInput(model)
@@ -121,9 +136,12 @@ export function updateAgentModelInConfigFile(
       return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
     }
 
+    const policyChanged = options?.authorizePolicy
+      ? authorizeDashboardModelSelection(config, agentList[agentIndex], [nextModel])
+      : (assertAgentModelPolicy(config, agentList[agentIndex], [nextModel]), false)
     const previousModel = agentList[agentIndex]?.model
     const allowlistChanged = ensureAgentModelAllowed(config, nextModel)
-    const changed = previousModel !== nextModel || allowlistChanged
+    const changed = previousModel !== nextModel || allowlistChanged || policyChanged
     if (!changed) {
       return { ok: true, changed: false, model: nextModel }
     }
@@ -145,7 +163,7 @@ export function updateAgentBackupModelInConfigFile(
   configPath: string,
   agentId: string,
   backupModel: string | undefined,
-  options?: { workspacePath?: string }
+  options?: { workspacePath?: string; authorizePolicy?: boolean }
 ): AgentModelConfigUpdateResult {
   try {
     const nextBackupModel = normalizeOptionalAgentModelInput(backupModel)
@@ -164,8 +182,14 @@ export function updateAgentBackupModelInConfigFile(
       return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
     }
 
+    const policyChanged = options?.authorizePolicy
+      ? authorizeDashboardModelSelection(config, agentList[agentIndex], [nextBackupModel])
+      : (assertAgentModelPolicy(config, agentList[agentIndex], [nextBackupModel]), false)
+    const catalogChanged = options?.authorizePolicy && nextBackupModel
+      ? ensureAgentModelAllowed(config, nextBackupModel)
+      : false
     const hadLegacyBackupModel = Object.prototype.hasOwnProperty.call(agentList[agentIndex] || {}, 'backupModel')
-    if (!hadLegacyBackupModel) {
+    if (!hadLegacyBackupModel && !policyChanged && !catalogChanged) {
       return { ok: true, changed: false, backupModel: nextBackupModel }
     }
 
@@ -185,7 +209,7 @@ export function upsertAgentModelInConfigFile(
   configPath: string,
   agentId: string,
   model: string,
-  options?: { workspacePath?: string; agentDir?: string; name?: string }
+  options?: { workspacePath?: string; agentDir?: string; name?: string; authorizePolicy?: boolean }
 ): AgentModelConfigUpdateResult {
   try {
     const nextModel = normalizeAgentModelInput(model)
@@ -211,7 +235,10 @@ export function upsertAgentModelInConfigFile(
       agentIndex = agentList.findIndex((agent: any) => agent.id === agentId)
     }
 
-    let changed = ensureAgentModelAllowed(config, nextModel)
+    const policyChanged = options?.authorizePolicy
+      ? authorizeDashboardModelSelection(config, agentList[agentIndex], [nextModel])
+      : (assertAgentModelPolicy(config, agentList[agentIndex], [nextModel]), false)
+    let changed = ensureAgentModelAllowed(config, nextModel) || policyChanged
     if (agentIndex === -1) {
       agentList.push({
         id: agentId,

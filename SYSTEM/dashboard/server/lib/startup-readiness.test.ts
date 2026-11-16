@@ -43,6 +43,24 @@ async function checkRuntimeHealth() {
   running = true
   assert.strictEqual(await check(), true, 'Recovery is observable without restarting Dashboard')
 
+  let finishStalledProbe: (value: { running: boolean }) => void = () => {}
+  let stalledCalls = 0
+  let stalledClock = 0
+  const boundedCheck = createGatewayReadinessCheck(() => {
+    stalledCalls++
+    return stalledCalls === 1
+      ? new Promise(resolve => { finishStalledProbe = resolve })
+      : Promise.resolve({ running: false })
+  }, () => stalledClock, 10)
+  assert.deepStrictEqual(await Promise.all([boundedCheck(), boundedCheck()]), [false, false], 'A hung probe fails closed for all waiters')
+  assert.equal(stalledCalls, 1, 'Hung readiness remains single-flight')
+  finishStalledProbe({ running: true })
+  await Promise.resolve()
+  assert.equal(await boundedCheck(), false, 'Late success cannot overwrite timed-out readiness')
+  stalledClock = 1000
+  assert.equal(await boundedCheck(), false)
+  assert.equal(stalledCalls, 2, 'Timeout releases single-flight for a fresh probe')
+
   for (const scenario of [
     { startup: null, required: true, ready: true, status: 503, probes: 0 },
     { startup: result, required: true, ready: true, status: 200, probes: 1 },
@@ -75,7 +93,7 @@ async function checkRuntimeHealth() {
       })
     }
   }
-  console.log('startup-readiness.test.ts: 15 tests passed')
+  console.log('startup-readiness.test.ts: 20 tests passed')
 }
 
 checkRuntimeHealth().catch(error => { console.error(error); process.exitCode = 1 })

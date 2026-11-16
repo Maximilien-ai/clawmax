@@ -88,7 +88,13 @@ async function main() {
     }
     console.log(`Dedicated test gateway ready on 127.0.0.1:${port}; isolated workspace and registry.`)
     if (process.argv.includes('--gateway-smoke-only')) return
-    runner = spawn('bash', [path.join(system, 'test-with-server.sh'), ...process.argv.slice(2)], { env, detached: true, stdio: 'inherit' })
+    if (process.argv.includes('--scheduler-smoke-only')) {
+      runner = spawn(process.execPath, [path.join(system, 'dashboard/node_modules/ts-node/dist/bin.js'), '--transpileOnly', 'scripts/test-scheduler-isolated-gateway.ts'], {
+        env, cwd: path.join(system, 'dashboard'), detached: true, stdio: 'inherit',
+      })
+    } else {
+      runner = spawn('bash', [path.join(system, 'test-with-server.sh'), ...process.argv.slice(2)], { env, detached: true, stdio: 'inherit' })
+    }
     process.exitCode = await new Promise((resolve, reject) => { runner.once('error', reject); runner.once('exit', code => resolve(code ?? 1)) })
   } finally {
     await stop(runner); await stop(gateway)

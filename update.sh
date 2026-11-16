@@ -26,16 +26,28 @@ if [ -n "$TARGET_REF" ] && [ -f "./install.sh" ]; then
   exec ./install.sh "$TARGET_REF"
 fi
 
-if [ -d ".git" ] && command -v git >/dev/null 2>&1; then
+if [ -e ".git" ] && command -v git >/dev/null 2>&1; then
   if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
     warn "Git worktree is dirty. Skipping automatic git pull."
   else
-    info "Pulling latest changes from origin/main"
-    git pull --ff-only origin main
-    ok "Git checkout updated"
+    current_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+    upstream_ref="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+    if [ -z "$current_branch" ]; then
+      warn "Detached release checkout. Skipping automatic git pull."
+    elif [ -z "$upstream_ref" ]; then
+      warn "Branch $current_branch has no configured upstream. Skipping automatic git pull."
+    else
+      info "Pulling latest changes for $current_branch from $upstream_ref"
+      git pull --ff-only
+      ok "Git checkout updated"
+    fi
   fi
 fi
 
 info "Re-running setup in non-interactive mode"
 ./setup.sh --non-interactive
-ok "Update complete"
+ok "Update prepared. Restart the dashboard to use the updated source."
+echo "From the ClawMax repository root:"
+echo "  Stop before restarting: ./SYSTEM/stop.sh"
+echo "  Start the dashboard:    ./SYSTEM/start.sh"
+echo "  Follow startup logs:    ./SYSTEM/start.sh --follow"

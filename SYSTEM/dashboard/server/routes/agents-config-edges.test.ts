@@ -2,6 +2,10 @@ import assert from 'assert'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { setOpenClawModelCatalogForTests } from '../lib/openclaw-model-catalog'
+
+// Fixture models are arbitrary; an OpenClaw installed on the machine must not judge them.
+setOpenClawModelCatalogForTests(null)
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -15,6 +19,7 @@ const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
 
 const agentModelModulePath = require.resolve('../lib/agent-model')
+const workspaceModulePath = require.resolve('../lib/workspace')
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -100,12 +105,25 @@ function makeRes() {
   }
 }
 
-function getRouteHandler(method: 'get' | 'post' | 'put' | 'patch', routePath: string) {
+function getRouteHandler(method: 'get' | 'post' | 'put' | 'patch' | 'delete', routePath: string) {
   delete require.cache[require.resolve('./agents')]
   const router = require('./agents').default
   const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
   if (!layer) throw new Error(`Route ${method.toUpperCase()} ${routePath} not found`)
   return layer.route.stack[layer.route.stack.length - 1].handle as Function
+}
+
+async function withWorkspaceOverrides<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
+  const mod = require(workspaceModulePath)
+  const originals = Object.fromEntries(Object.keys(overrides).map(key => [key, mod[key]]))
+  Object.assign(mod, overrides)
+  delete require.cache[require.resolve('./agents')]
+  try {
+    return await fn()
+  } finally {
+    Object.assign(mod, originals)
+    delete require.cache[require.resolve('./agents')]
+  }
 }
 
 async function withAgentModelOverrides<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
@@ -147,6 +165,143 @@ async function run() {
 
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
+
+  await test('Doctor repairs the supplied draft without writing files and rejects invalid requests', async () => {
+    const target = path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md')
+    const before = fs.readFileSync(target, 'utf-8')
+    const handler = getRouteHandler('post', '/:id/config/repair')
+    const res = makeRes()
+    await handler(makeReq({ params: { id: 'plain-agent' }, body: { identity: '# My unsaved draft', soul: '# Soul\nKeep this text.', tools: '' } }), res)
+    assert.equal(res.statusCode, 200)
+    assert(res.jsonBody.config.identity.includes('# My unsaved draft'))
+    assert(res.jsonBody.config.identity.includes('**Name:** plain-agent'))
+    assert.equal(fs.readFileSync(target, 'utf-8'), before)
+    for (const [id, body, expected] of [['../escape', {}, 400], ['absent-agent', {}, 404], ['plain-agent', { identity: 1 }, 400]] as const) {
+      const failure = makeRes()
+      await handler(makeReq({ params: { id }, body }), failure)
+      assert.equal(failure.statusCode, expected)
+    }
+  })
+
+  await test('model policy rejection prevents partial primary or backup saves', async () => {
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    const original = fs.readFileSync(configPath, 'utf-8')
+    const config = JSON.parse(original)
+    config.agents.defaults = { modelPolicy: { allow: ['openai/gpt-5.4'] } }
+    const restricted = JSON.stringify(config)
+    fs.writeFileSync(configPath, restricted)
+    const identityPath = path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md')
+    const identity = fs.readFileSync(identityPath, 'utf-8')
+    try {
+      for (const [method, route, body] of [
+        ['patch', '/:id/model', { model: 'openai/gpt-5.4', backupModel: 'anthropic/blocked' }],
+        ['patch', '/:id/model', { model: 'anthropic/blocked' }],
+        ['put', '/:id/config', { identity: identity.replace('openai/gpt-4o-mini', 'openai/gpt-5.4'), soul: 'Updated soul', tools: '' }],
+      ] as const) {
+        const res = makeRes()
+        await getRouteHandler(method, route)(makeReq({ params: { id: 'plain-agent' }, body }), res)
+        assert.equal(res.statusCode, 409)
+        assert.equal(res.jsonBody.code, 'model_policy_conflict')
+        assert.equal(fs.readFileSync(configPath, 'utf-8'), restricted)
+        assert.equal(fs.readFileSync(identityPath, 'utf-8'), identity)
+      }
+    } finally { fs.writeFileSync(configPath, original) }
+  })
+
+  await test('OpenClaw-unrunnable models are rejected when newly chosen; an unchanged legacy model still saves', async () => {
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    const identityPath = path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md')
+    const originalConfig = fs.readFileSync(configPath, 'utf-8')
+    const originalIdentity = fs.readFileSync(identityPath, 'utf-8')
+    const soulPath = path.join(workspacePath, 'AGENTS', 'plain-agent', 'SOUL.md')
+    const toolsPath = path.join(workspacePath, 'AGENTS', 'plain-agent', 'TOOLS.md')
+    const originalSoul = fs.readFileSync(soulPath, 'utf-8')
+    const originalTools = fs.readFileSync(toolsPath, 'utf-8')
+    const savedModel = () => require('../lib/agent-model').readAgentModelFromConfigFile(configPath, 'plain-agent').model
+    // OpenClaw 2026.9.7's OpenAI catalog: it lists `gpt-5.4-mini` but not its dated snapshot.
+    setOpenClawModelCatalogForTests({ version: '2026.9.7', providers: new Map([['openai', new Set(['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'])]]) })
+    try {
+      for (const [slot, body] of [
+        ['primary model', { model: 'openai/gpt-5.4-mini-2026-03-17' }],
+        ['backup model', { model: 'openai/gpt-5.4', backupModel: 'openai/gpt-5.4-mini-2026-03-17' }],
+      ] as const) {
+        const res = makeRes()
+        await getRouteHandler('patch', '/:id/model')(makeReq({ params: { id: 'plain-agent' }, body }), res)
+        assert.equal(res.statusCode, 400, `${slot}: expected a rejection before saving`)
+        assert.equal(res.jsonBody.code, 'model_runtime_unsupported')
+        assert(res.jsonBody.error.startsWith(`The ${slot} \`openai/gpt-5.4-mini-2026-03-17\``), res.jsonBody.error)
+        assert(res.jsonBody.error.includes('Use `openai/gpt-5.4-mini`'), res.jsonBody.error)
+        assert.equal(fs.readFileSync(configPath, 'utf-8'), originalConfig, `${slot}: nothing may be saved`)
+        assert.equal(fs.readFileSync(identityPath, 'utf-8'), originalIdentity, `${slot}: nothing may be saved`)
+      }
+
+      // An existing agent already on the snapshot (created before this check) stays editable:
+      // saving other settings never forces a change to its model.
+      const legacy = 'openai/o3-2025-04-16'
+      const legacyIdentity = originalIdentity.split('openai/gpt-4o-mini').join(legacy)
+      fs.writeFileSync(configPath, originalConfig.split('openai/gpt-4o-mini').join(legacy))
+      fs.writeFileSync(identityPath, legacyIdentity)
+      const warning = makeRes()
+      await getRouteHandler('get', '/:id/identity')(makeReq({ params: { id: 'plain-agent' } }), warning)
+      assert.equal(warning.jsonBody.modelWarning.model, legacy)
+      assert.match(warning.jsonBody.modelWarning.message, /gpt-5.4-mini/)
+      const unchanged = makeRes()
+      await getRouteHandler('put', '/:id/config')(makeReq({ params: { id: 'plain-agent' }, body: { identity: legacyIdentity, soul: '# SOUL\n\nEdited soul\n', tools: originalTools } }), unchanged)
+      assert.equal(unchanged.statusCode, 200, `An unchanged legacy model must not block other edits: ${JSON.stringify(unchanged.jsonBody)}`)
+      assert.equal(savedModel(), legacy, 'The legacy model must not be silently replaced')
+
+      // Replacing it is an explicit choice, and the runtime-listed id is accepted.
+      const replaced = makeRes()
+      await getRouteHandler('patch', '/:id/model')(makeReq({ params: { id: 'plain-agent' }, body: { model: 'openai/gpt-5.4-mini' } }), replaced)
+      assert.equal(replaced.statusCode, 200, JSON.stringify(replaced.jsonBody))
+      assert.equal(savedModel(), 'openai/gpt-5.4-mini')
+      const repaired = makeRes()
+      await getRouteHandler('get', '/:id/identity')(makeReq({ params: { id: 'plain-agent' } }), repaired)
+      assert.equal(repaired.jsonBody.modelWarning, null)
+
+      // A new agent is rejected before anything is provisioned.
+      const agentsBefore = fs.readdirSync(path.join(workspacePath, 'AGENTS')).sort()
+      for (const body of [
+        { name: 'runtime-probe', model: 'openai/o3-2025-04-16' },
+        { name: 'runtime-probe', model: 'openai/gpt-5.4-mini-2026-03-17' },
+        { name: 'runtime-probe', model: 'openai/gpt-5.4-mini', backupModel: 'openai/gpt-5.4-mini-2026-03-17' },
+      ]) {
+        const provision = makeRes()
+        await getRouteHandler('post', '/provision')(makeReq({ body }), provision)
+        assert.equal(provision.statusCode, 400, JSON.stringify(provision.jsonBody))
+        assert(/not in the openai model catalog of the installed OpenClaw 2026\.9\.7 runtime/.test(provision.jsonBody.error), provision.jsonBody.error)
+        assert.deepEqual(fs.readdirSync(path.join(workspacePath, 'AGENTS')).sort(), agentsBefore, 'Nothing may be provisioned')
+      }
+    } finally {
+      setOpenClawModelCatalogForTests(null)
+      fs.writeFileSync(configPath, originalConfig)
+      fs.writeFileSync(identityPath, originalIdentity)
+      fs.writeFileSync(soulPath, originalSoul)
+      fs.writeFileSync(toolsPath, originalTools)
+    }
+  })
+
+  await test('explicit model save authorizes exact models in a migrated default policy', async () => {
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    const original = fs.readFileSync(configPath, 'utf-8')
+    const config = JSON.parse(original)
+    config.meta = { migrations: { modelPolicyAllowlist: true } }
+    config.agents.defaults = { modelPolicy: { allow: ['openai/gpt-4o-mini'] } }
+    fs.writeFileSync(configPath, JSON.stringify(config))
+    try {
+      const res = makeRes()
+      await getRouteHandler('patch', '/:id/model')(makeReq({
+        params: { id: 'plain-agent' },
+        body: { model: 'openai/gpt-5.4', backupModel: 'openai/gpt-5.4-mini' },
+      }), res)
+      assert.equal(res.statusCode, 200)
+      const saved = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      assert.deepEqual(saved.agents.defaults.modelPolicy.allow, [
+        'openai/gpt-4o-mini', 'openai/gpt-5.4', 'openai/gpt-5.4-mini',
+      ])
+      assert.equal(res.jsonBody?.model, 'openai/gpt-5.4')
+    } finally { fs.writeFileSync(configPath, original) }
+  })
 
   await test('cost-limit routes accept valid updates and return persisted values', async () => {
     const putHandler = getRouteHandler('put', '/:id/cost-limit')
@@ -274,6 +429,180 @@ async function run() {
     })
   })
 
+  await test('bulk model update reports each config outcome without hiding partial failures', async () => {
+    const handler = getRouteHandler('post', '/bulk-model')
+    for (const body of [{}, { agentIds: ['plain-agent'] }, { agentIds: 'plain-agent', model: 'openai/gpt-5' }, { agentIds: [], model: '   ' }]) {
+      const invalid = makeRes()
+      await handler(makeReq({ body }), invalid)
+      assert.equal(invalid.statusCode, 400)
+    }
+    // Both ids name real agents: an id without an IDENTITY.md is now refused before any write, so the
+    // config failure this test reports needs an existing agent to reach the config update.
+    writeAgentFiles(workspacePath, 'other-agent')
+    await withAgentModelOverrides({
+      upsertAgentModelInConfigFile: (_configPath: string, id: string) => id === 'plain-agent'
+        ? { ok: true, changed: false, model: 'openai/gpt-4o-mini' }
+        : { ok: false, error: 'Synthetic policy failure' },
+    }, async () => {
+      const res = makeRes()
+      await getRouteHandler('post', '/bulk-model')(makeReq({ body: { agentIds: ['plain-agent', 'other-agent'], model: 'gpt-4o-mini' } }), res)
+      assert.equal(res.statusCode, 200)
+      assert.equal(res.jsonBody.updated, 1)
+      assert.equal(res.jsonBody.total, 2)
+      assert.equal(res.jsonBody.ok, false)
+      assert.match(res.jsonBody.results[1].error, /Synthetic policy failure/)
+    })
+  })
+
+  await test('bulk model update cannot mutate revision-owned Template Agents', async () => {
+    const stagedId = 'tr-2415d9f02f469b2a-agent-032ea6e8176b'
+    const res = makeRes()
+    await getRouteHandler('post', '/bulk-model')(makeReq({ body: { agentIds: [stagedId], model: 'openai/gpt-5.4-mini' } }), res)
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.jsonBody.updated, 0)
+    assert.equal(res.jsonBody.ok, false)
+    assert.match(res.jsonBody.results[0].error, /revision-owned/)
+  })
+
+  await test('cost limits reject invalid values and permit explicit removal', async () => {
+    const handler = getRouteHandler('put', '/:id/cost-limit')
+    for (const limitUsd of ['5', -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const res = makeRes()
+      await handler(makeReq({ params: { id: 'plain-agent' }, body: { limitUsd } }), res)
+      assert.equal(res.statusCode, 400, `Expected ${String(limitUsd)} to be rejected`)
+    }
+    const res = makeRes()
+    await handler(makeReq({ params: { id: 'plain-agent' }, body: { limitUsd: null } }), res)
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.jsonBody.limitUsd, null)
+    const fetched = makeRes()
+    await getRouteHandler('get', '/:id/cost-limit')(makeReq({ params: { id: 'plain-agent' } }), fetched)
+    assert.equal(fetched.jsonBody.limitUsd, null)
+  })
+
+  await test('tag updates reject malformed requests and preserve the existing identity file', async () => {
+    const handler = getRouteHandler('patch', '/:id/tags')
+    const identityPath = path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md')
+    const original = fs.readFileSync(identityPath, 'utf-8')
+    const originalError = console.error
+    console.error = () => {}
+    try {
+      for (const [id, tags, expected] of [
+        ['../plain-agent', ['valid'], 400],
+        ['plain-agent', 'valid', 400],
+        ['missing', ['valid'], 500],
+      ] as const) {
+        const res = makeRes()
+        await handler(makeReq({ params: { id }, body: { tags } }), res)
+        assert.equal(res.statusCode, expected)
+        assert.equal(fs.readFileSync(identityPath, 'utf-8'), original)
+      }
+    } finally {
+      console.error = originalError
+    }
+  })
+
+  await test('runtime updates reject invalid identities, runtimes, and missing agents', async () => {
+    const handler = getRouteHandler('patch', '/:id/runtime')
+    for (const [id, runtime, expected] of [
+      ['../plain-agent', 'default', 400],
+      ['plain-agent', 3, 400],
+      ['plain-agent', 'unknown-runtime', 400],
+      ['missing', 'default', 404],
+    ] as const) {
+      const res = makeRes()
+      await handler(makeReq({ params: { id }, body: { runtime } }), res)
+      assert.equal(res.statusCode, expected)
+    }
+    const res = makeRes()
+    await handler(makeReq({ params: { id: 'plain-agent' }, body: { runtime: 'default' } }), res)
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.jsonBody.runtime, 'default')
+  })
+
+  await test('agent rename rejects invalid and conflicting identities before touching files', async () => {
+    const handler = getRouteHandler('patch', '/:id/rename')
+    const existingPath = path.join(workspacePath, 'AGENTS', 'plain-agent')
+    fs.mkdirSync(path.join(workspacePath, 'AGENTS', 'occupied'), { recursive: true })
+    for (const [id, newId, expected] of [
+      ['../plain-agent', 'new-agent', 400],
+      ['plain-agent', undefined, 400],
+      ['plain-agent', 'Bad ID', 400],
+      ['plain-agent', 'plain-agent', 400],
+      ['missing', 'new-agent', 404],
+      ['plain-agent', 'occupied', 409],
+    ] as const) {
+      const res = makeRes()
+      await handler(makeReq({ params: { id }, body: { newId } }), res)
+      assert.equal(res.statusCode, expected)
+      assert(fs.existsSync(existingPath), 'Rejected rename must preserve the original agent')
+    }
+  })
+
+  await test('bulk impact validates IDs and summarizes only matching live and archived agents', async () => {
+    await withWorkspaceOverrides({
+      listAgents: () => [
+        { id: 'live', archived: false, workspacePath: '/synthetic/live' },
+        { id: 'old', archived: true, workspacePath: '/synthetic/old' },
+      ],
+      getAgentImpact: (id: string) => id === 'live'
+        ? { todoCount: 2, communityCount: 1, groupCount: 3 }
+        : { todoCount: 4, communityCount: 2, groupCount: 1 },
+    }, async () => {
+      const handler = getRouteHandler('post', '/bulk-impact')
+      for (const agents of [undefined, [], [null], [{}], [{ id: 3 }], [{ id: 'Bad ID' }]]) {
+        const invalid = makeRes()
+        await handler(makeReq({ body: { agents } }), invalid)
+        assert.equal(invalid.statusCode, 400)
+      }
+      const res = makeRes()
+      await handler(makeReq({ body: { agents: [
+        { id: 'live' }, { id: 'old', archived: true }, { id: 'old' }, { id: 'missing' },
+      ] } }), res)
+      assert.equal(res.statusCode, 200)
+      assert.equal(res.jsonBody.summary.agentCount, 2)
+      assert.equal(res.jsonBody.summary.totalTodos, 6)
+      assert.equal(res.jsonBody.summary.totalCommunities, 3)
+      assert.equal(res.jsonBody.summary.totalGroups, 4)
+      assert.deepEqual(res.jsonBody.notFound, ['old', 'missing'])
+    })
+  })
+
+  await test('bulk delete reports per-agent failures and forwards state removal only when requested', async () => {
+    const calls: Array<[string, boolean, boolean]> = []
+    // Bulk delete runs the single-delete safeguards: with state removal it first clears the pinned
+    // OpenClaw workspace state for each agent (and fails closed when that cannot be verified).
+    const workspaceState = require('../lib/openclaw-workspace-state')
+    const originalClear = workspaceState.clearPinnedOpenClawWorkspaceState
+    const cleared: string[] = []
+    workspaceState.clearPinnedOpenClawWorkspaceState = async (dir: string) => { cleared.push(path.basename(dir)) }
+    try {
+    await withWorkspaceOverrides({
+      deleteAgent: (id: string, removeStateDir: boolean, archived: boolean) => {
+        calls.push([id, removeStateDir, archived])
+        return id === 'failed' ? { steps: [], errors: ['Synthetic failure'] } : { steps: ['Deleted'], errors: [] }
+      },
+    }, async () => {
+      const handler = getRouteHandler('delete', '/bulk')
+      for (const agents of [undefined, [], [null], [{}], [{ id: 3 }], [{ id: '../escape' }]]) {
+        const invalid = makeRes()
+        await handler(makeReq({ body: { agents } }), invalid)
+        assert.equal(invalid.statusCode, 400)
+      }
+      const res = makeRes()
+      await handler(makeReq({ body: { agents: [{ id: 'plain-agent' }, { id: 'failed', archived: true }], removeStateDir: true } }), res)
+      assert.equal(res.statusCode, 200)
+      assert.equal(res.jsonBody.ok, false)
+      assert.deepEqual(res.jsonBody.summary, { total: 2, success: 1, failure: 1 })
+      assert.deepEqual(calls, [['plain-agent', true, false], ['failed', true, true]])
+      assert.deepEqual(cleared, ['plain-agent', 'failed'], 'State removal must clear each agent\'s pinned workspace state first')
+      assert.match(res.jsonBody.results.failed.errors[0], /Synthetic failure/)
+    })
+    } finally {
+      workspaceState.clearPinnedOpenClawWorkspaceState = originalClear
+    }
+  })
+
   console.log(`\nTests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)
 
@@ -294,3 +623,4 @@ run().catch((err) => {
   console.error(err)
   process.exit(1)
 })
+import '../lib/agent-directory.test'

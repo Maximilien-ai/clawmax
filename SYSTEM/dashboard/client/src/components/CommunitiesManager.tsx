@@ -1,3 +1,4 @@
+import { channelLabel } from '../lib/channelLabel'
 import React, { useState, useEffect } from 'react'
 
 interface Community {
@@ -108,7 +109,7 @@ const CommunitiesManager = React.memo(function CommunitiesManager({
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(c =>
-        c.name.toLowerCase().includes(query) ||
+        (channelLabel(c).toLowerCase().includes(query) || c.name.toLowerCase().includes(query)) ||
         (c.description && c.description.toLowerCase().includes(query))
       )
     }
@@ -131,7 +132,7 @@ const CommunitiesManager = React.memo(function CommunitiesManager({
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(g =>
-        g.name.toLowerCase().includes(query) ||
+        (channelLabel(g).toLowerCase().includes(query) || g.name.toLowerCase().includes(query)) ||
         (g.description && g.description.toLowerCase().includes(query))
       )
     }
@@ -140,7 +141,7 @@ const CommunitiesManager = React.memo(function CommunitiesManager({
   }, [allGroups, groups, groupFilter, searchQuery])
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Manage Communities & Groups</h3>
@@ -222,7 +223,7 @@ const CommunitiesManager = React.memo(function CommunitiesManager({
                       className="mt-0.5 h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 dark:border-gray-600"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{community.name}</div>
+                      <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{channelLabel(community)}</div>
                       {community.description && (
                         <div className="text-xs text-gray-500 mt-0.5">{community.description}</div>
                       )}
@@ -294,7 +295,7 @@ const CommunitiesManager = React.memo(function CommunitiesManager({
                       className="mt-0.5 h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 dark:border-gray-600"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{group.name}</div>
+                      <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{channelLabel(group)}</div>
                       {group.description && (
                         <div className="text-xs text-gray-500 mt-0.5">{group.description}</div>
                       )}

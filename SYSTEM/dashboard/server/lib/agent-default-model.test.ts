@@ -2,7 +2,8 @@ import assert from 'assert'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { resolveDefaultAgentModel } from './agent-default-model'
+import { policyScopedEnv, resolveDefaultAgentModel, warmDefaultAgentModelEndpoint } from './agent-default-model'
+import { clearModelCache, getAvailableModelsCached } from './model-discovery'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -30,10 +31,23 @@ async function main() {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-default-model-'))
   const originalHome = process.env.HOME
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalOrigins = process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS
+  process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS = 'http://172.16.1.70:8000'
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = path.join(tmpHome, '.openclaw', 'workspace')
 
   try {
+    await test('new and built-in agents replace retired explicit or preferred models', () => {
+      for (const builtIn of [false, true]) {
+        assert.equal(resolveDefaultAgentModel({ explicitModel: 'openai/gpt-4', builtIn }), 'openai/gpt-5.5')
+        assert.equal(resolveDefaultAgentModel({ preferredModel: 'openai/gpt-4', builtIn,
+          systemPreferredModel: builtIn ? 'openai/gpt-4' : undefined,
+          availableModels: ['openai/gpt-4', 'openai/gpt-5.5'], rawEnv: { SYSTEM_OPENAI_API_KEY: 'fixture' },
+        }), 'openai/gpt-5.5')
+      }
+      assert.equal(resolveDefaultAgentModel({ explicitModel: 'openai/gpt-4.1' }), 'openai/gpt-4.1')
+      assert.equal(resolveDefaultAgentModel({ explicitModel: 'openai-compatible/gpt-4' }), 'openai-compatible/gpt-4')
+    })
     await test('workspace preferred model wins when available', () => {
       const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
       fs.mkdirSync(systemDir, { recursive: true })
@@ -87,6 +101,64 @@ async function main() {
       assert.equal(resolved, 'openai-compatible/lmstudio-community')
     })
 
+    await test('workspace endpoint with its credential in protected configuration falls back to the model it advertises', async () => {
+      const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
+      fs.mkdirSync(systemDir, { recursive: true })
+      fs.writeFileSync(path.join(systemDir, 'integrations.json'), JSON.stringify({
+        openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1',
+      }, null, 2))
+      const originalFetch = global.fetch
+      clearModelCache()
+      try {
+        global.fetch = (async (_url: string, init?: any) => {
+          if (init?.headers?.Authorization !== 'Bearer system-secret') return { ok: false, status: 401, json: async () => ({}) } as any
+          return { ok: true, status: 200, json: async () => ({ data: [{ id: 'authenticated-model' }] }) } as any
+        }) as any
+        const protectedEnv = {
+          SYSTEM_OPENAI_COMPATIBLE_BASE_URL: 'http://172.16.1.70:8000/v1/',
+          SYSTEM_OPENAI_COMPATIBLE_API_KEY: 'system-secret',
+        }
+        const cold = resolveDefaultAgentModel({ rawEnv: protectedEnv })
+        assert.notEqual(cold, 'openai-compatible/authenticated-model', 'a cold cache cannot know the endpoint model yet')
+        // What the provision route does at its request boundary before resolving.
+        await warmDefaultAgentModelEndpoint(protectedEnv)
+        const resolved = resolveDefaultAgentModel({ rawEnv: protectedEnv })
+        assert.equal(resolved, 'openai-compatible/authenticated-model')
+        const withoutCredential = resolveDefaultAgentModel({ rawEnv: { DASHBOARD_PORT: '3001' } })
+        assert.notEqual(withoutCredential, 'openai-compatible/authenticated-model', 'a credential-less read must not see the credentialed catalog')
+        // User execution may pair the system credential only when the policy flag allows it.
+        const userDenied = resolveDefaultAgentModel({ rawEnv: { ...protectedEnv, ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }, executionPolicy: 'user' })
+        assert.notEqual(userDenied, 'openai-compatible/authenticated-model', 'user execution must not select a model discovered through a system key it may not use')
+        const userAllowed = resolveDefaultAgentModel({ rawEnv: { ...protectedEnv, ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true' }, executionPolicy: 'user' })
+        assert.equal(userAllowed, 'openai-compatible/authenticated-model')
+        // Nor may a preferred model be matched against a list that only the system credential
+        // could produce: the available-model list itself follows the policy.
+        const deniedEnv = { ...protectedEnv, ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }
+        assert.ok(getAvailableModelsCached(protectedEnv).includes('openai-compatible/authenticated-model'), 'the system policy sees the discovered model')
+        assert.ok(!getAvailableModelsCached(policyScopedEnv(deniedEnv, 'user')).includes('openai-compatible/authenticated-model'), 'the denied user policy does not')
+        const preferredDenied = resolveDefaultAgentModel({
+          rawEnv: deniedEnv,
+          executionPolicy: 'user',
+          preferredModel: 'openai-compatible/authenticated-model',
+          availableModels: getAvailableModelsCached(policyScopedEnv(deniedEnv, 'user')),
+        })
+        assert.notEqual(preferredDenied, 'openai-compatible/authenticated-model', 'a preferred model must not be matched through a system-only catalog under a denied user policy')
+        // The same rule covers the hosted-provider fallback: a SYSTEM OpenAI key the user may not
+        // use must not name a default model, while the user's own key still does.
+        fs.writeFileSync(path.join(systemDir, 'integrations.json'), JSON.stringify({}, null, 2))
+        const hostedDenied = resolveDefaultAgentModel({ rawEnv: { SYSTEM_OPENAI_API_KEY: 'system-openai', ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }, executionPolicy: 'user' })
+        assert.equal(hostedDenied, undefined, `a denied user policy must not surface a SYSTEM-only hosted model, got ${hostedDenied}`)
+        const hostedSystem = resolveDefaultAgentModel({ rawEnv: { SYSTEM_OPENAI_API_KEY: 'system-openai', ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }, executionPolicy: 'system' })
+        assert.ok(typeof hostedSystem === 'string' && hostedSystem.startsWith('openai/'), `the system policy still names the hosted default, got ${hostedSystem}`)
+        const hostedUserOwn = resolveDefaultAgentModel({ rawEnv: { SYSTEM_OPENAI_API_KEY: 'system-openai', USER_ANTHROPIC_API_KEY: 'user-anthropic', ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }, executionPolicy: 'user' })
+        assert.ok(typeof hostedUserOwn === 'string' && hostedUserOwn.startsWith('anthropic/'), `the user's own key names the default under the user policy, got ${hostedUserOwn}`)
+      } finally {
+    if (originalOrigins === undefined) delete process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS
+    else process.env.CLAWMAX_MODEL_ENDPOINT_ORIGINS = originalOrigins
+        global.fetch = originalFetch
+        clearModelCache()
+      }
+    })
     await test('workspace ollama default resolves even without cached hosted models', () => {
       const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
       fs.mkdirSync(systemDir, { recursive: true })
@@ -120,6 +192,40 @@ async function main() {
         rawEnv: { SYSTEM_OPENAI_API_KEY: 'key' },
       })
       assert.equal(resolved, 'openai/gpt-5')
+    })
+
+    // Discovery lists OpenAI models sorted by id, so deprecated gpt-4.1 comes first.
+    const openAiSorted = ['openai/gpt-4.1', 'openai/gpt-4.1-mini', 'openai/gpt-4o', 'openai/gpt-5', 'openai/gpt-5.4-mini', 'openai/gpt-5.5']
+    const withoutMini = openAiSorted.filter(model => model !== 'openai/gpt-5.4-mini')
+    const useIntegrations = (config: Record<string, string>) => {
+      const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
+      fs.mkdirSync(systemDir, { recursive: true })
+      fs.writeFileSync(path.join(systemDir, 'integrations.json'), JSON.stringify(config, null, 2))
+    }
+
+    await test('Auto never falls back to a deprecated model when the recommended one is not listed', () => {
+      useIntegrations({})
+      const rawEnv = { SYSTEM_OPENAI_API_KEY: 'key' }
+      assert.equal(resolveDefaultAgentModel({ availableModels: openAiSorted, rawEnv }), 'openai/gpt-5.4-mini')
+      assert.equal(resolveDefaultAgentModel({ availableModels: withoutMini, rawEnv }), 'openai/gpt-5')
+      assert.equal(resolveDefaultAgentModel({ availableModels: ['openai/gpt-4.1', 'openai/gpt-4o'], rawEnv }), undefined)
+    })
+
+    await test('Auto across providers skips deprecated models from every provider', () => {
+      useIntegrations({})
+      const rawEnv = { SYSTEM_ANTHROPIC_API_KEY: 'key', SYSTEM_GEMINI_API_KEY: 'key' }
+      // Neither provider's recommended model is listed, so the first current model is used.
+      assert.equal(resolveDefaultAgentModel({ availableModels: ['anthropic/claude-sonnet-4-20250514', 'google/gemini-2.5-pro', 'anthropic/claude-sonnet-4-6'], rawEnv }), 'anthropic/claude-sonnet-4-6')
+    })
+
+    await test('saved deprecated defaults stay explicit, and new-agent and system defaults stay separate', () => {
+      useIntegrations({ preferredModel: 'openai/gpt-4.1', systemPreferredModel: 'openai/gpt-4.1-mini' })
+      const rawEnv = { SYSTEM_OPENAI_API_KEY: 'key' }
+      assert.equal(resolveDefaultAgentModel({ availableModels: openAiSorted, rawEnv }), 'openai/gpt-4.1')
+      assert.equal(resolveDefaultAgentModel({ builtIn: true, availableModels: openAiSorted, rawEnv }), 'openai/gpt-4.1-mini')
+      useIntegrations({ systemPreferredModel: 'openai/gpt-4.1-mini' })
+      assert.equal(resolveDefaultAgentModel({ availableModels: openAiSorted, rawEnv }), 'openai/gpt-5.4-mini', 'A system default must not become the new-agent default')
+      assert.equal(resolveDefaultAgentModel({ explicitModel: 'openai/gpt-4.1', availableModels: openAiSorted, rawEnv }), 'openai/gpt-4.1')
     })
   } finally {
     if (originalHome === undefined) delete process.env.HOME

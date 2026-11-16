@@ -856,6 +856,7 @@ function chooseIntent(args: {
   const scope = detectScope(prompt)
   const operation = detectOperation(prompt)
   const hasTeamLanguage = scope === 'team' || scope === 'team_of_teams'
+  const isSingleAgentScope = scope === 'single_agent'
   const hasSkillLanguage = includesAny(prompt, SKILL_KEYWORDS)
   const hasReuseLanguage = includesAny(prompt, REUSE_KEYWORDS)
   const hasTemplateLanguage = includesAny(prompt, TEMPLATE_KEYWORDS)
@@ -871,7 +872,7 @@ function chooseIntent(args: {
     includesAny(prompt, ['have an agent', 'my agent', 'current agent', 'existing agent', 'already have an agent', 'already have a'])
     && includesAny(prompt, ['needs', 'need', 'just needs', 'it needs'])
     && hasSkillLanguage
-    && scope === 'single_agent'
+    && isSingleAgentScope
   )
   const hasExplicitMultiAgentToolNeed = (
     hasExplicitMultiAgentConstraint(prompt)
@@ -896,7 +897,7 @@ function chooseIntent(args: {
   const hasExplicitCreateAgentToolNeed = (
     hasExplicitAgentCreation
     && hasSkillLanguage
-    && scope === 'single_agent'
+    && isSingleAgentScope
     && operation === 'create_new'
   )
   const agentScore = topScore(matchedAgents)
@@ -906,7 +907,7 @@ function chooseIntent(args: {
   const strongestTemplateScore = Math.max(agentTemplateScore, orgTemplateScore)
   const topAgentTemplate = matchedAgentTemplates[0]
   const forceFreshSingleAgent = (
-    scope === 'single_agent'
+    isSingleAgentScope
     && hasExplicitAgentCreation
     && (hasExplicitNoExistingAgents || hasExplicitNoTemplate)
   )
@@ -966,7 +967,7 @@ function chooseIntent(args: {
     return { intent: 'skill_or_integration', scope, operation, confidence: matchedSkills[0].score >= 8 ? 'high' : 'medium' }
   }
 
-  if (scope === 'single_agent' && (operation === 'reuse_existing' || operation === 'improve_existing')) {
+  if (isSingleAgentScope && (operation === 'reuse_existing' || operation === 'improve_existing')) {
     const confidence: AiBuilderConfidence = hasAmbiguityLanguage
       ? 'low'
       : matchedAgents.length > 0
@@ -988,16 +989,16 @@ function chooseIntent(args: {
     return { intent: 'team_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (orgTemplateScore >= 8 ? 'high' : 'medium') }
   }
 
-  if (operation === 'refine_template' && scope !== 'single_agent' && matchedOrganizationTemplates.length > 0) {
+  if (operation === 'refine_template' && !isSingleAgentScope && matchedOrganizationTemplates.length > 0) {
     return { intent: 'team_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (orgTemplateScore >= 6 ? 'high' : 'medium') }
   }
 
-  if (operation === 'refine_template' && matchedAgentTemplates.length > 0) {
+  if (operation === 'refine_template' && !hasTeamLanguage && matchedAgentTemplates.length > 0) {
     return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 6 ? 'high' : 'medium') }
   }
 
   if (
-    scope === 'single_agent'
+    isSingleAgentScope
     && operation !== 'reuse_existing'
     && operation !== 'improve_existing'
     && matchedAgentTemplates.length > 0
@@ -1015,11 +1016,11 @@ function chooseIntent(args: {
     return { intent: 'agent_template', scope, operation, confidence }
   }
 
-  if (hasTemplateLanguage && matchedOrganizationTemplates.length > 0 && (hasTeamLanguage || orgTemplateScore >= agentTemplateScore)) {
+  if (hasTemplateLanguage && matchedOrganizationTemplates.length > 0 && !isSingleAgentScope && (hasTeamLanguage || orgTemplateScore >= agentTemplateScore)) {
     return { intent: 'team_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (orgTemplateScore >= 7 ? 'high' : 'medium') }
   }
 
-  if ((hasTemplateLanguage || hasAgentTemplateLanguage) && matchedAgentTemplates.length > 0 && !hasExplicitNoTemplate) {
+  if (((hasTemplateLanguage && !hasTeamLanguage) || hasAgentTemplateLanguage) && matchedAgentTemplates.length > 0 && !hasExplicitNoTemplate) {
     return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 7 ? 'high' : 'medium') }
   }
 
@@ -1029,7 +1030,7 @@ function chooseIntent(args: {
   }
 
   if (
-    scope === 'single_agent'
+    isSingleAgentScope
     && operation === 'create_new'
     && !hasTemplateLanguage
     && !hasAgentTemplateLanguage
@@ -1042,12 +1043,12 @@ function chooseIntent(args: {
     return { intent: 'ai_generate', scope, operation, confidence: 'medium' }
   }
 
-  if (matchedOrganizationTemplates.length > 0 && (hasTeamLanguage || orgTemplateScore >= Math.max(agentScore + 2, 7))) {
+  if (matchedOrganizationTemplates.length > 0 && !isSingleAgentScope && (hasTeamLanguage || orgTemplateScore >= Math.max(agentScore + 2, 7))) {
     const confidence: AiBuilderConfidence = hasAmbiguityLanguage ? 'low' : (agentScore >= orgTemplateScore - 1 ? 'low' : 'high')
     return { intent: 'team_template', scope, operation, confidence }
   }
 
-  if (matchedAgentTemplates.length > 0 && (agentTemplateScore >= Math.max(agentScore + 2, 7) || (hasRefineLanguage && !hasReuseLanguage))) {
+  if (matchedAgentTemplates.length > 0 && !hasTeamLanguage && (agentTemplateScore >= Math.max(agentScore + 2, 7) || (hasRefineLanguage && !hasReuseLanguage))) {
     const confidence: AiBuilderConfidence = hasAmbiguityLanguage ? 'low' : (agentScore >= agentTemplateScore - 1 ? 'low' : 'high')
     return { intent: 'agent_template', scope, operation, confidence }
   }

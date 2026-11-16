@@ -95,6 +95,19 @@ async function run() {
   delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   resetWorkspaceManagerForTests()
 
+  await test('Review submission routes require explicit consent and remain scoped to Review', async () => {
+    const post = getRouteHandler('post', '/:pluginId/review-submissions')
+    const denied = makeRes(); post(makeReq({ params: { pluginId: 'plugin-review-notes' }, body: { consent: false } }), denied)
+    assert.strictEqual(denied.statusCode, 400); assert.match(denied.jsonBody.error, /Confirm/)
+    const other = makeRes(); post(makeReq({ params: { pluginId: 'plugin-evals' }, body: {} }), other)
+    assert.strictEqual(other.statusCode, 404)
+    const list = getRouteHandler('get', '/:pluginId/review-submissions')
+    const response = makeRes(); list(makeReq({ params: { pluginId: 'plugin-review-notes' } }), response)
+    assert.deepStrictEqual(response.jsonBody.submissions, [])
+    assert.strictEqual(typeof response.jsonBody.emailConfigured, 'boolean')
+    assert(!('apiKey' in response.jsonBody))
+  })
+
   await test('plugin settings routes list and persist the enabled selection', async () => {
     const getHandler = getRouteHandler('get', '/settings')
     const getRes = makeRes()

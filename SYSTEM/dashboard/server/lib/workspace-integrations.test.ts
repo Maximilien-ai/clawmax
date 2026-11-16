@@ -87,6 +87,26 @@ test('readWorkspaceIntegrationConfig returns empty object when no config exists'
   assert(Object.keys(config).length === 0, 'Expected empty config')
 })
 
+test('deployment OpenAI defaults are selected without persisting secrets or replacing workspace choices', () => {
+  const names = ['OPENAI_API_KEY', 'USER_OPENAI_API_KEY']
+  const previous = Object.fromEntries(names.map(name => [name, process.env[name]]))
+  try {
+    process.env.OPENAI_API_KEY = 'synthetic-web-key'
+    process.env.USER_OPENAI_API_KEY = 'synthetic-web-key'
+    const resolved = getResolvedWorkspaceIntegrationConfig()
+    assert(resolved.preferredModel === 'openai/gpt-5.4-mini', 'Expected fresh deployment new-agent default')
+    assert(resolved.systemPreferredModel === 'openai/gpt-5.4-mini', 'Expected fresh deployment system default')
+    assert(!JSON.stringify(resolved).includes('synthetic-web-key'), 'Resolved config must never expose deployment secrets')
+    assert(Object.keys(readWorkspaceIntegrationConfig()).length === 0, 'Reading effective defaults must not persist keys or modify workspace')
+    writeWorkspaceIntegrationConfig({ preferredModel: 'openai/gpt-5.4', systemPreferredModel: 'openai/gpt-5.4' })
+    const saved = getResolvedWorkspaceIntegrationConfig()
+    assert(saved.preferredModel === 'openai/gpt-5.4' && saved.systemPreferredModel === 'openai/gpt-5.4', 'Saved defaults must win over deployment fallback')
+  } finally {
+    for (const name of names) { if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name] }
+  }
+})
+
+
 test('writeWorkspaceIntegrationConfig persists trimmed workspace defaults', () => {
   const config = writeWorkspaceIntegrationConfig({
     preferredModel: ' openai/gpt-4.1 ',

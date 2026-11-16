@@ -22,13 +22,22 @@ const manifestSchema = object({
   secretRequirements: array(object({ name: { type: 'string', pattern: '^[A-Z][A-Z0-9_]{1,127}$' }, label: text(128, 1), kind: choices('api-key', 'token', 'url', 'text'), required: { type: 'boolean' }, sensitive: { type: 'boolean' }, help: text(1024) }, ['help']), 128),
   artifacts: array(object({ id: key, kind: choices('agent', 'group', 'workflow'), path: text(255, 1), sizeBytes: integer(1, 64 * 1024 * 1024), sha256: hash }), 128, 1),
 }, ['source'])
+const manifestSchemaV2 = {
+  ...manifestSchema,
+  properties: {
+    ...manifestSchema.properties,
+    apiVersion: choices('clawmax.portable-template/v1alpha2'),
+    artifacts: array(object({ id: key, kind: choices('agent', 'community', 'group', 'workflow'), path: text(255, 1), sizeBytes: integer(1, 64 * 1024 * 1024), sha256: hash }), 128, 1),
+  },
+}
 const agentManifestSchema = object({ apiVersion: choices('clawmax.portable-agent/v1alpha2'), kind: choices('PortableAgent'), agent: object({ id, name: text(128, 1), description: text(4096), tags }, ['tags']), createdAt: date, files: array(file, 2047, 1) })
 const agentSchema = object({ apiVersion: choices('clawmax.portable-agent-definition/v1alpha2'), kind: choices('Agent'), name: text(128, 1), description: text(4096), instructions: text(1024 * 1024, 1), model: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$' }, skills: array({ type: 'string', pattern: '^[a-z0-9][a-z0-9._-]{0,62}$' }, 128), tags }, ['model', 'tags'])
 const groupSchema = object({ apiVersion: choices('clawmax.portable-group/v1alpha2'), kind: choices('PortableGroup'), key, name: text(128, 1), description: text(4096), objective: text(16384, 1), source: source('groupId'), entryMemberIds: array(key, 32, 1), members: array(object({ id: key, agentDigest: digest, role: text(256, 1), sendTo: array(key, 32) }), 32, 2), limits: object({ maxTurns: integer(1, 100), maxMessages: integer(1, 1000), maxMessageBytes: integer(256, 65536), retentionSeconds: integer(60, 604800) }) }, ['source'])
+const communitySchema = object({ apiVersion: choices('clawmax.portable-community/v1alpha1'), kind: choices('PortableCommunity'), key, name: text(128, 1), description: text(4096), tags, memberAgentDigests: array(digest, 128, 1), groupDigests: array(digest, 128, 1), channels: array(text(128, 1), 0) })
 const workflowSchema = object({ apiVersion: choices('clawmax.portable-workflow/v1alpha2'), kind: choices('PortableWorkflow'), key, name: text(128, 1), description: text(4096), objective: text(16384, 1), source: source('workflowId'), template: object({ templateId: id, version, digest }), schedule: object({ type: choices('manual', 'once', 'interval', 'cron'), intervalSeconds: integer(60, 2592000), cron: text(256, 1), timeZone: text(128, 1) }, ['intervalSeconds', 'cron', 'timeZone']), execution: object({ mode: choices('automated', 'managed'), ownerStepId: key }, ['ownerStepId']), runPolicy: object({ type: choices('once', 'recurring', 'conditional'), maxRuns: integer(0, 100000), dependsOn: array(digest, 64) }), steps: array(object({ id: key, targetKind: choices('agent', 'group'), targetDigest: digest, objective: text(16384, 1) }), 64, 1), edges: array(object({ from: key, to: key, condition: choices('success', 'failure'), handoff: choices('structured-output', 'evidence-reference') }), 4096), limits: object({ maxParallel: integer(1, 8), maxRunSeconds: integer(1, 86400), maxOutputBytes: integer(256, 16777216), retentionSeconds: integer(60, 604800) }) }, ['source', 'template'])
 
 const ajv = new Ajv({ allErrors: false })
-const schemas = { manifest: manifestSchema, agentManifest: agentManifestSchema, agent: agentSchema, group: groupSchema, workflow: workflowSchema }
+const schemas = { manifest: manifestSchema, manifestV2: manifestSchemaV2, agentManifest: agentManifestSchema, agent: agentSchema, community: communitySchema, group: groupSchema, workflow: workflowSchema }
 const validators = Object.fromEntries(Object.entries(schemas).map(([name, schema]) => [name, ajv.compile(schema)]))
 export const sha256 = (bytes: Buffer | string) => crypto.createHash('sha256').update(bytes).digest('hex')
 
@@ -80,12 +89,15 @@ function acyclic(nodes: string[], edges: Array<[string, string]>) {
   }
   nodes.forEach(visit)
 }
-export interface PortableArtifact { id: string; kind: 'agent' | 'group' | 'workflow'; digest: string; definition: any; files?: Map<string, Buffer> }
+export interface PortableArtifact { id: string; kind: 'agent' | 'community' | 'group' | 'workflow'; digest: string; definition: any; files?: Map<string, Buffer> }
 export interface PortableTemplate { manifest: any; bundleSha256: string; artifacts: PortableArtifact[] }
 
 export async function validatePortableTemplate(bytes: Buffer): Promise<PortableTemplate> {
   const files = await readPortableZip(bytes)
-  const manifest = parse(files.get('manifest.json'), 'manifest')
+  const manifestBytes = files.get('manifest.json')
+  let declaredVersion: unknown
+  try { declaredVersion = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(manifestBytes)).apiVersion } catch { requirePortable(false, 'Invalid Template manifest') }
+  const manifest = parse(manifestBytes, declaredVersion === 'clawmax.portable-template/v1alpha2' ? 'manifestV2' : 'manifest')
   requirePortable(Number.isFinite(Date.parse(manifest.createdAt)), 'Invalid creation time')
   ordered(manifest.secretRequirements.map((item: any) => item.name))
   requirePortable(manifest.secretRequirements.every((item: any) => item.label.trim()), 'Secret requirement labels must not be blank')
@@ -94,7 +106,8 @@ export async function validatePortableTemplate(bytes: Buffer): Promise<PortableT
   const artifacts: PortableArtifact[] = []
   let expandedBytes = [...files.values()].reduce((total, file) => total + file.length, 0)
   for (const entry of manifest.artifacts) {
-    requirePortable(entry.path === `${entry.kind}s/${entry.id}.${entry.kind === 'agent' ? 'zip' : 'json'}`, 'Artifact path does not match identity')
+    const artifactDirectory = entry.kind === 'community' ? 'communities' : `${entry.kind}s`
+    requirePortable(entry.path === `${artifactDirectory}/${entry.id}.${entry.kind === 'agent' ? 'zip' : 'json'}`, 'Artifact path does not match identity')
     const content = verified(files, entry)
     if (entry.kind === 'agent') {
       const agentFiles = await readPortableZip(content, true)
@@ -121,7 +134,7 @@ export async function validatePortableTemplate(bytes: Buffer): Promise<PortableT
         requirePortable(definition.entryMemberIds.every((member: string) => ids.has(member)), 'Unknown Group entry member')
         for (const member of definition.members) { ordered(member.sendTo); requirePortable(member.sendTo.every((target: string) => target !== member.id && ids.has(target)), 'Unknown Group recipient') }
         requirePortable(definition.members.every((member: any) => member.role.trim()), 'Group member roles must not be blank')
-      } else {
+      } else if (entry.kind === 'workflow') {
         ordered(definition.steps.map((step: any) => step.id)); ordered(definition.runPolicy.dependsOn)
         requirePortable(definition.steps.every((step: any) => step.objective.trim()), 'Workflow step objectives must not be blank')
         ordered(definition.edges.map((edge: any) => `${edge.from}\0${edge.to}\0${edge.condition}`))
@@ -136,14 +149,37 @@ export async function validatePortableTemplate(bytes: Buffer): Promise<PortableT
           requirePortable(schedule.cron.trim().split(/\s+/).length === 5 && cron.validate(schedule.cron), 'Invalid cron schedule')
           try { new Intl.DateTimeFormat('en', { timeZone: schedule.timeZone }) } catch { requirePortable(false, 'Invalid schedule timezone') }
         }
+      } else {
+        ordered(definition.tags); ordered(definition.memberAgentDigests); ordered(definition.groupDigests)
+        requirePortable(definition.key === entry.id && definition.name.trim() && definition.channels.length === 0, 'Community identity must match its artifact and remain inert')
       }
-      artifacts.push({ id: entry.id, kind: entry.kind, definition, digest: contentDigest(definition, entry.kind === 'group' ? groupSchema : workflowSchema) })
+      artifacts.push({ id: entry.id, kind: entry.kind, definition, digest: contentDigest(definition, entry.kind === 'group' ? groupSchema : entry.kind === 'community' ? communitySchema : workflowSchema) })
     }
   }
-  const known = new Set(artifacts.map(item => `${item.kind}:${item.digest}`))
+  const digestCounts = new Map<string, number>()
+  const communityNames = new Set<string>()
   for (const artifact of artifacts) {
-    if (artifact.kind === 'group') for (const member of artifact.definition.members) requirePortable(known.has(`agent:${member.agentDigest}`), 'Group refers outside the Template')
-    if (artifact.kind === 'workflow') for (const step of artifact.definition.steps) requirePortable(known.has(`${step.targetKind}:${step.targetDigest}`), 'Workflow refers outside the Template')
+    const identity = `${artifact.kind}:${artifact.digest}`
+    digestCounts.set(identity, (digestCounts.get(identity) || 0) + 1)
+  }
+  const linkedGroups = new Set<string>()
+  for (const artifact of artifacts) {
+    if (artifact.kind === 'group') for (const member of artifact.definition.members) requirePortable(digestCounts.get(`agent:${member.agentDigest}`) === 1, 'Group Agent digest must resolve to exactly one Agent')
+    if (artifact.kind === 'workflow') for (const step of artifact.definition.steps) requirePortable(digestCounts.get(`${step.targetKind}:${step.targetDigest}`) === 1, 'Workflow target digest must resolve to exactly one artifact')
+    if (artifact.kind === 'community') {
+      const name = artifact.definition.name
+      requirePortable(name === name.trim() && !/[\r\n#*]/.test(name) && !communityNames.has(name.toLowerCase()), 'Community name must be unique and safe for the workspace registry')
+      communityNames.add(name.toLowerCase())
+      for (const member of artifact.definition.memberAgentDigests) requirePortable(digestCounts.get(`agent:${member}`) === 1, 'Community member digest must resolve to exactly one Agent')
+      for (const group of artifact.definition.groupDigests) {
+        requirePortable(digestCounts.get(`group:${group}`) === 1, 'Community Group digest must resolve to exactly one Group')
+        requirePortable(!linkedGroups.has(group), 'A Group cannot belong to multiple Communities')
+        linkedGroups.add(group)
+        const linked = artifacts.find(item => item.kind === 'group' && item.digest === group)
+        requirePortable(linked, 'Community Group refers outside the Template')
+        for (const member of linked!.definition.members) requirePortable(artifact.definition.memberAgentDigests.includes(member.agentDigest), 'Community Group has a member outside the Community')
+      }
+    }
   }
   const workflows = artifacts.filter(item => item.kind === 'workflow')
   acyclic(workflows.map(item => item.digest), workflows.flatMap(item => item.definition.runPolicy.dependsOn.map((target: string) => [item.digest, target] as [string, string])))

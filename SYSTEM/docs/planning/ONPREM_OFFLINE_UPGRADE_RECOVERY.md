@@ -1,0 +1,168 @@
+# On-prem offline upgrade recovery (RC86 planning)
+
+Status: `backup`, `verify`, and candidate-only `restore` implemented in source;
+**the M4 RC57→RC85 rehearsal and end-to-end promotion/rollback are not yet
+approved**. Do not use the source commands as a complete upgrade procedure.
+Focused synthetic tests include a candidate migration using pinned OpenClaw
+2026.9.5; they do not establish compatibility with the M4's private RC57 state.
+Owner: Dashboard for backup/restore/verify; local app and agent for writer shutdown,
+volume selection, free-space checks, promotion, and rollback.
+
+## Goal and safety boundary
+
+An older Dashboard and Gateway do not need to start. The new image runs an
+offline command against a stopped source volume, writes a private backup, and
+restores into a distinct, empty candidate volume. The source volume is never
+the restore target and is not mounted in the candidate container. The local
+agent promotes the candidate only after offline migration, integrity checks,
+Dashboard health, and populated-data checks pass. On failure, it keeps the
+original volume unchanged and reports the phase and actionable reason.
+
+The initial source layout is the on-prem data root:
+`CLAWMAX_DATA_ROOT=/app/DATA`, `HOME=/app/DATA/.home`, and OpenClaw state at
+`/app/DATA/.home/.openclaw`. The M4 has a distinct nested mount at that
+OpenClaw state path; both mounts must be present during backup, and the
+candidate must have the same two-mount topology before restore. A legacy installation with separate
+`/app/WORKSPACES` or `/app/.openclaw` mounts must be inventoried and handled
+explicitly; silently omitting either mount is not a successful backup.
+Configured OpenClaw `$include`, `agentDir`, or workspace paths outside the
+selected persisted roots must be reported as `external_path_unmapped` until
+the local agent supplies an explicit mount mapping. The image's packaged
+templates, skills, plugins, and dashboard code are not user-data sources.
+
+## Versioned offline contract (`clawmax.offline-backup/v1`)
+
+The new image should expose `backup`, `verify`, and `restore` through a
+standalone executable that bypasses the normal entrypoint, so neither the
+Dashboard server nor Gateway starts. Each operation emits exactly one JSON
+result on stdout and exits nonzero for a blocked/failed result. Diagnostics
+  must avoid credential values, raw paths outside the mounted roots,
+session text, or config contents.
+
+- `backup` (source implementation available): requires stopped writers and a private output directory outside
+  all source mounts. It creates an immutable, versioned bundle through a
+  private temporary directory and publishes it only after verification.
+  Existing output is never overwritten. The manifest records bundle/schema
+  version, source Dashboard/OpenClaw versions, source layout, required mounts,
+  logical assets, byte lengths, SHA-256 digests, and creation time. Schema 2
+  records safe relative in-mount links as link text without following or copying
+  their targets; absolute, escaping, dangling, or ambiguous links block with
+  `external_symlink` or `unsafe_symlink`. Source Dashboard and OpenClaw versions
+  are distinct from the running backup tool version. The caller may provide
+  source versions attested from the original pinned image; otherwise each is
+  `unknown` with `not-provided` provenance. It never
+  contains resolved credentials or transcript text.
+- `verify` (source implementation available): independently validates the manifest, exact asset inventory,
+  digests, OpenClaw archive, and supported schema version without changing the
+  bundle or source. A manifest alone is not proof of SQLite consistency.
+- `restore` (source implementation available): verifies before writing, refuses a nonempty candidate, and never
+  writes into the source. It restores Dashboard-owned files and the OpenClaw
+  archive into the canonical paths of the isolated candidate mount, runs the
+  required OpenClaw offline migration there, then verifies the migrated state.
+  A durable receipt records the source bundle ID, target version, migration
+  version, integrity outcome, and counts—not secrets. A failed/interrupted
+  candidate is not reused; retry starts with another empty candidate.
+
+The current source-only invocations are
+`node /app/SYSTEM/dashboard/offline-backup.mjs backup --data-root /app/DATA --output /private-backups/<new-name> --writers-stopped --source-dashboard-version 2.0.0-test-rc57 --source-openclaw-version 2026.8.2`,
+`verify --bundle /private-backups/<name>`, and
+`restore --bundle /private-backups/<name> --candidate-root /app/DATA --writers-stopped`.
+Run the image with its entrypoint overridden; **do not** start the normal
+entrypoint. `--writers-stopped` is an operator assertion, not a process-lock
+proof. A future release gate must prove the local agent stopped every writer.
+The CLI team must verify both supplied source versions against the original
+pinned image before passing them; this offline executable cannot inspect that
+image from inside the new container and does not infer source versions from its
+own binaries. Omit unverified values so the manifest records `unknown`.
+The candidate must appear at the same canonical data-root path as the source
+did when backed up, but it must be a distinct empty volume; the source volume
+must not be mounted in the restore container.
+
+Example successful verify response (shape is tested; the private M4 fixture
+must still be confirmed with the CLI team):
+
+```json
+{
+  "apiVersion": "clawmax.offline-backup/v1",
+  "operation": "verify",
+  "status": "verified",
+  "bundleId": "uuid",
+  "dashboardVersion": "2.0.0-test-rc57",
+  "openclawVersion": "2026.8.2",
+  "versions": {
+    "dashboard": { "value": "2.0.0-test-rc57", "provenance": "operator-attested-from-source-image" },
+    "openclaw": { "value": "2026.8.2", "provenance": "operator-attested-from-source-image" },
+    "backupTool": { "value": "2.0.0-test-rc87", "provenance": "running-backup-image" }
+  },
+  "assets": { "files": 0, "symlinks": 0, "bytes": 0 },
+  "checks": { "manifest": "passed", "hashes": "passed", "openclaw": "passed" }
+}
+```
+
+Failure responses use `status: "blocked"` and a stable `code`, e.g.
+`writers_not_confirmed`, `sqlite_busy`, `insufficient_space`, `external_path_unmapped`,
+`unsupported_bundle_version`, `integrity_failed`, `candidate_not_empty`,
+`external_symlink`, `unsafe_symlink`, `migration_failed`, or `verification_failed`. They identify a safe next action
+without including credentials, transcript data, or raw config content.
+
+## OpenClaw-owned state
+
+Use the pinned OpenClaw image's native `openclaw backup create --verify --json`
+and `openclaw backup verify --json` for its config, `$include` dependencies,
+credentials, sessions, SQLite snapshots, and configured workspaces. Do not
+copy live `.sqlite`, `-wal`, or `-shm` files as the portable recovery artifact.
+Native restore extracts to a fresh staging location; its manifest supplies
+asset ownership and source paths. Map those assets into the isolated candidate
+only after checking every path against the declared mounts. OpenClaw's
+`doctor --fix` runs with the candidate mounted at its canonical paths and no
+source mount, while the Gateway remains stopped. Its exit status and subsequent
+SQLite/session checks gate promotion. The Dashboard bundle additionally
+captures Dashboard-owned files outside OpenClaw's archive, including custom
+templates and other data below `CLAWMAX_DATA_ROOT`.
+
+OpenClaw archive verification can be complete without proving Dashboard data
+completeness. Conversely, a Dashboard file hash cannot prove OpenClaw SQLite
+consistency. Both checks are mandatory.
+
+## Local agent sequence
+
+1. Inventory mounts and versions; stop Dashboard, Gateway, local agent state
+   writers, and remaining child processes; confirm they stay stopped.
+2. Check free space for a raw safety snapshot, a verified backup bundle, a
+   candidate restore, and migration overhead. Take the independent raw safety
+   snapshot for rollback; do not treat it as the portable backup.
+3. Run offline `backup` and `verify` from the new image with source data mounted
+   read-only and bundle output in a private local path.
+4. Create a new empty candidate volume. Run offline `restore` with the bundle
+   mounted read-only and **without** mounting the source volume.
+5. Start the new Dashboard/Gateway only against the candidate. Check the
+   authenticated readiness result, `/api/system` version, workspace/agent/
+   workflow counts, and representative session/auth continuity. Promote the
+   candidate only after these checks pass; otherwise stop it and keep the
+   original selected. Never auto-restart the original on a new image that
+   would migrate it in place.
+
+All bundles contain credentials and private sessions. Keep them owner-only on
+the Mac, encrypted at rest where available, and out of support bundles,
+telemetry, CI artifacts, cloud storage, and routine logs. Retention/rotation
+can follow after the first recovery contract; it must not delete the last
+known-good checkpoint automatically.
+
+## Release gate and missing fixture
+
+The first acceptance fixture is the failed M4 installation's RC57 data
+restored into an RC85-equivalent candidate, without exposing credentials or
+session content to this repository. The CLI team should provide a redacted
+mount/version inventory and execute the private fixture locally. Test:
+
+- stopped-writer enforcement; a busy/locked SQLite database; source changes
+  during backup; and an interrupted backup with no published partial bundle;
+- insufficient space; corrupt/missing assets; traversal, external path, and
+  symlink rejection; unsupported manifest versions; and exact retry behavior;
+- empty-candidate enforcement; interrupted restore; preserved Dashboard
+  workspaces/templates and OpenClaw sessions/auth; offline schema migration;
+  candidate-only startup; failed health/data verification; and rollback to the
+  untouched original.
+
+Do not advertise these operations to the CLI or label RC86 upgrade-safe until
+the executable, fixtures, on-prem image packaging, and this release gate pass.

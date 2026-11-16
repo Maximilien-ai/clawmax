@@ -28,10 +28,15 @@ let execFileMock: ExecFileMock = (_file, _args, _options, callback) => callback(
   return execFileMock(file, args, opts, cb)
 }) as typeof childProcess.execFile
 
+const cliResolver = require('../lib/openclaw-cli')
+const originalResolver = cliResolver.resolveOpenClawCliPath
+let selectedCli: string | null = '/synthetic/pinned/openclaw'
+cliResolver.resolveOpenClawCliPath = () => selectedCli
 const router = require('./skills').default
 
 function restoreExecFile() {
   ;(childProcess as any).execFile = originalExecFile
+  cliResolver.resolveOpenClawCliPath = originalResolver
 }
 
 function test(name: string, fn: () => void | Promise<void>) {
@@ -99,7 +104,8 @@ async function run() {
     ]
     const calls: Array<{ file: string; args: string[] }> = []
 
-    execFileMock = (file, args, _options, callback) => {
+    execFileMock = (file, args, options, callback) => {
+      assert.equal(options.timeout, 10000, 'Status discovery must have a bounded wait')
       calls.push({ file, args })
       const next = pluginSnapshots.shift()
       callback(null, JSON.stringify(next || { plugins: [] }), '')
@@ -123,23 +129,34 @@ async function run() {
     assert.strictEqual(afterReinstall.version, '2026.5.22', 'Expected refreshed plugin version after reinstall')
 
     assert.strictEqual(calls.length, 3, 'Expected one OpenClaw plugin list call per status refresh')
-    assert(calls.every((call) => call.file === 'openclaw'), 'Expected status checks to use OpenClaw CLI')
+    assert(calls.every((call) => call.file === selectedCli), 'Expected status checks to use the pinned runtime, not PATH')
     assert(calls.every((call) => JSON.stringify(call.args) === JSON.stringify(['plugins', 'list', '--json'])), 'Expected status checks to request JSON plugin list')
   })
 
   await test('Cognee plugin status falls back to unknown when inspection fails', async () => {
     execFileMock = (_file, _args, _options, callback) => {
-      callback(new Error('openclaw unavailable') as NodeJS.ErrnoException, '', '')
+      callback(new Error('private-path and synthetic-secret must not escape') as NodeJS.ErrnoException, '', '')
     }
 
     const handler = getRouteHandler('get', '/partner-install/status')
     const res = makeRes()
     await handler({} as any, res)
 
-    assert.strictEqual(res.statusCode, 500, 'Expected failed inspection to return HTTP 500')
+    assert.strictEqual(res.statusCode, 503, 'Expected failed inspection to return HTTP 503')
+    assert(!JSON.stringify(res.jsonBody).includes('synthetic-secret'))
+    assert(!JSON.stringify(res.jsonBody).includes('private-path'))
     assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.installed, false, 'Expected unknown fallback to disable installed state')
     assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.enabled, false, 'Expected unknown fallback to disable enabled state')
     assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.status, 'unknown', 'Expected unknown fallback status')
+  })
+
+  await test('Missing selected runtime refuses PATH execution', async () => {
+    selectedCli = null
+    execFileMock = () => { throw new Error('Must not spawn an unselected CLI') }
+    const res = makeRes()
+    await getRouteHandler('get', '/partner-install/status')({}, res)
+    assert.equal(res.statusCode, 503)
+    assert.equal(res.jsonBody.statuses['cognee-openclaw'].status, 'unknown')
   })
 
   restoreExecFile()

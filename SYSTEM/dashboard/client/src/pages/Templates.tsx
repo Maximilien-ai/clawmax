@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { hasAiGenerationAccess } from '../lib/byok'
 import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import { ProductIconCell, resolveTemplateVisual, resolveCategoryVisual } from '../lib/productIcons'
-import { matchesAgentTemplateSearch, matchesOrganizationTemplateSearch } from '../lib/templateSearch'
+import { matchesAgentTemplateSearch, matchesOrganizationTemplateSearch, matchesTemplateCategory } from '../lib/templateSearch'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 import {
   TEMPLATE_FILTER_ROW_CLASSNAME,
@@ -227,7 +227,7 @@ function ImportTemplateModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
@@ -410,7 +410,7 @@ function TemplateRegistryModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
       <div className="w-full max-w-6xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
           <div>
@@ -674,7 +674,7 @@ function toTemplateSlug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-export default function Templates() {
+export default function Templates({ searchSelection }: { searchSelection?: { key: string } } = {}) {
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
   const templateRegistryWriteEnabled = Boolean(config?.templateRegistryWriteEnabled)
@@ -685,6 +685,17 @@ export default function Templates() {
   const [feedbackSummaries, setFeedbackSummaries] = useState<FeedbackSummaryMap>({})
   const [loading, setLoading] = useState(true)
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+  useEffect(() => {
+    if (!searchSelection) return
+    const [type, source, ...idParts] = searchSelection.key.split(':')
+    const id = idParts.join(':')
+    const candidates = type === 'agent' ? agentTemplates : type === 'organization' ? orgTemplates : workflowTemplates
+    const match = candidates.find((template) => {
+      const templateId = template.type === 'workflow' ? template.id : template.slug
+      return templateId === id && (!source || template.source === source)
+    })
+    if (match) setSelectedTemplate(match)
+  }, [searchSelection, agentTemplates, orgTemplates, workflowTemplates])
   const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
   const [applyingAgentTemplate, setApplyingAgentTemplate] = useState<AgentTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -817,15 +828,6 @@ export default function Templates() {
     } catch {
       sessionStorage.removeItem('clawmax-builder-template-draft')
     }
-  }, [])
-
-  const matchesOrgCategory = React.useCallback((template: OrganizationTemplate, filter: string) => {
-    if (filter === 'all') return true
-    if ((template as any).category === filter) return true
-    const tags = template.tags || []
-    if (tags.includes(filter)) return true
-    if (filter === 'events' && (tags.includes('event') || tags.includes('events'))) return true
-    return false
   }, [])
 
   const matchesOrgSearch = React.useCallback((template: OrganizationTemplate, query: string) => {
@@ -1102,20 +1104,16 @@ export default function Templates() {
 
   // Filter templates by search query
   const filteredAgentTemplates = React.useMemo(() => {
-    const filteredAgents = agentTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template))
+    const filteredAgents = agentTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template) && matchesTemplateCategory(template, categoryFilter))
     if (!searchQuery.trim()) return filteredAgents
     return filteredAgents.filter((template) => matchesAgentTemplateSearch(template, searchQuery))
-  }, [agentTemplates, searchQuery, matchesRatingFilter, matchesSourceFilter])
+  }, [agentTemplates, searchQuery, categoryFilter, matchesRatingFilter, matchesSourceFilter])
 
   const filteredOrgTemplates = React.useMemo(() => {
-    let filtered = orgTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template))
-    // Category filter
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(t => matchesOrgCategory(t, categoryFilter))
-    }
+    const filtered = orgTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template) && matchesTemplateCategory(template, categoryFilter))
     if (!searchQuery.trim()) return filtered
     return filtered.filter(t => matchesOrgSearch(t, searchQuery))
-  }, [orgTemplates, searchQuery, categoryFilter, matchesOrgCategory, matchesRatingFilter, matchesOrgSearch, matchesSourceFilter])
+  }, [orgTemplates, searchQuery, categoryFilter, matchesRatingFilter, matchesOrgSearch, matchesSourceFilter])
 
   const filteredTeamTemplates = React.useMemo(
     () => filteredOrgTemplates.filter((template) => getOrganizationTemplateKind(template) === 'team'),
@@ -1380,13 +1378,10 @@ export default function Templates() {
   }, [registryRating, registryRatingSuggestions, registryRatingTarget, showError, showSuccess])
   const templateSuggestionRows = React.useMemo(() => {
     if (!searchQuery.trim()) return []
-    const visibleOrgTemplates = (categoryFilter === 'all'
-      ? orgTemplates
-      : orgTemplates.filter(t => matchesOrgCategory(t, categoryFilter)))
-      .filter(matchesSourceFilter)
+    const inCategory = (template: AgentTemplate | OrganizationTemplate) => matchesSourceFilter(template) && matchesTemplateCategory(template, categoryFilter)
     const candidateRows = [
-      ...agentTemplates.filter(matchesSourceFilter).map(getTemplateRow),
-      ...visibleOrgTemplates.map(getTemplateRow),
+      ...agentTemplates.filter(inCategory).map(getTemplateRow),
+      ...orgTemplates.filter(inCategory).map(getTemplateRow),
       ...workflowTemplates.filter(matchesSourceFilter).map(getTemplateRow),
     ]
     const suggestions = getDiscoverySuggestions(
@@ -1416,18 +1411,21 @@ export default function Templates() {
         reasons: suggestion.reasons,
       }))
       .filter((entry): entry is { row: TemplateRow; reasons: string[] } => !!entry.row)
-  }, [agentTemplates, orgTemplates, workflowTemplates, searchQuery, categoryFilter, matchesOrgCategory, matchesSourceFilter])
+  }, [agentTemplates, orgTemplates, workflowTemplates, searchQuery, categoryFilter, matchesSourceFilter])
   const shouldShowTemplateSuggestions = !!searchQuery.trim() && templateSuggestionRows.length > 0 && totalFiltered < 4
-  const matchingOrgTemplatesIgnoringCategory = React.useMemo(() => {
+  const matchingTemplatesIgnoringCategory = React.useMemo(() => {
     if (!searchQuery.trim()) return []
-    return orgTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template) && matchesOrgSearch(template, searchQuery))
-  }, [searchQuery, orgTemplates, matchesRatingFilter, matchesOrgSearch, matchesSourceFilter])
+    return [
+      ...agentTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template) && matchesAgentTemplateSearch(template, searchQuery)),
+      ...orgTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template) && matchesOrgSearch(template, searchQuery)),
+    ]
+  }, [searchQuery, agentTemplates, orgTemplates, matchesRatingFilter, matchesOrgSearch, matchesSourceFilter])
   const suggestedCategoriesForSearch = React.useMemo(() => {
     if (!searchQuery.trim()) return []
     const matchingCategories = new Set<string>()
-    matchingOrgTemplatesIgnoringCategory
+    matchingTemplatesIgnoringCategory
       .forEach((template) => {
-        const match = TEMPLATE_CATEGORY_OPTIONS.find((option) => option.key !== 'all' && matchesOrgCategory(template, option.key))
+        const match = TEMPLATE_CATEGORY_OPTIONS.find((option) => option.key !== 'all' && matchesTemplateCategory(template, option.key))
         if (match) matchingCategories.add(match.key)
       })
     return TEMPLATE_CATEGORY_OPTIONS.filter(
@@ -1436,8 +1434,8 @@ export default function Templates() {
         option.key !== categoryFilter &&
         matchingCategories.has(option.key)
     )
-  }, [searchQuery, matchingOrgTemplatesIgnoringCategory, matchesOrgCategory, categoryFilter])
-  const hasHiddenCategoryMatches = totalFiltered === 0 && categoryFilter !== 'all' && matchingOrgTemplatesIgnoringCategory.length > 0
+  }, [searchQuery, matchingTemplatesIgnoringCategory, categoryFilter])
+  const hasHiddenCategoryMatches = totalFiltered === 0 && categoryFilter !== 'all' && matchingTemplatesIgnoringCategory.length > 0
   const suggestedCategoryLabels = suggestedCategoriesForSearch.map((category) => category.label)
   const exportSelectedTemplate = React.useCallback(() => {
     if (!selectedTemplate || selectedTemplate.type === 'workflow' || !selectedTemplate.slug) {
@@ -1718,7 +1716,7 @@ export default function Templates() {
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {TEMPLATE_TYPE_OPTIONS.map((option) => {
           const count = option.key === 'all'
-            ? totalTemplates
+            ? totalFiltered
             : filteredTypeCounts[option.key]
           const totalCount = option.key === 'all'
             ? totalTemplates
@@ -2406,6 +2404,7 @@ export default function Templates() {
             window.dispatchEvent(new CustomEvent('agents-updated'))
             window.dispatchEvent(new CustomEvent('workflows-updated'))
             window.dispatchEvent(new CustomEvent('channels-updated'))
+            window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'agents' } }))
           }}
         />
       )}
@@ -2419,6 +2418,7 @@ export default function Templates() {
             setApplyingAgentTemplate(null)
             markTemplateLiteracy()
             window.dispatchEvent(new CustomEvent('agents-updated'))
+            window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'agents' } }))
           }}
         />
       )}
@@ -2563,7 +2563,7 @@ export default function Templates() {
       )}
 
       {shareTemplateOpen && (
-        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" onClick={() => setShareTemplateOpen(false)}>
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
           <div className="w-full max-w-2xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
@@ -2625,7 +2625,7 @@ export default function Templates() {
       )}
 
       {registryRatingTarget && (
-        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" onClick={() => setRegistryRatingTarget(null)}>
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
@@ -2873,26 +2873,29 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, ratingSu
           {isSelected ? '✓' : '□'}
         </button>
       )}
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="flex items-start gap-2 flex-1 min-w-0">
-          <ProductIconCell iconName={templateVisual.iconName} emoji={templateVisual.emoji} label={template.name} size="sm" className="mt-0.5 flex-shrink-0" />
+      {/* Icon, title and actions share one centerline whether the title takes one line or two. */}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <ProductIconCell iconName={templateVisual.iconName} emoji={templateVisual.emoji} label={template.name} size="sm" className="flex-shrink-0" />
           <h3 className="min-w-0 flex-1 break-words text-sm font-semibold leading-tight text-gray-900 line-clamp-2 dark:text-gray-100">
             {template.name}
           </h3>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-1 pr-6">
+        <div className={`flex flex-shrink-0 items-center gap-1 ${selectionMode && onToggleSelect ? 'pr-6' : ''}`}>
           <button
             onClick={(e) => { e.stopPropagation(); onApply(); }}
-            className="text-gray-300 hover:text-emerald-500 transition-colors text-xs p-1"
+            className="inline-flex items-center justify-center p-1 text-xs leading-none text-gray-300 hover:text-emerald-500 transition-colors"
             title="Apply template"
+            aria-label="Apply template"
           >
             ⚡
           </button>
           {canDelete && (
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
-              className="text-gray-300 hover:text-red-500 transition-colors text-xs p-1"
+              className="inline-flex items-center justify-center p-1 text-xs leading-none text-gray-300 hover:text-red-500 transition-colors"
               title="Delete template"
+              aria-label="Delete template"
             >
               🗑
             </button>
@@ -3050,7 +3053,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onApplyNow,
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between dark:border-gray-700">
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
@@ -3458,7 +3461,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onApplyNow,
       </div>
 
       {!isWorkflow && template.slug && showFeedbackDialog && (
-        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => setShowFeedbackDialog(false)}>
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
           <div className="w-full max-w-xl rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>

@@ -166,12 +166,40 @@ test('1password defaults prefer apt on linux runtimes', () => {
   assert(visible && visible.length > 0, 'Expected visible linux install options')
   assertEqual(visible![0].kind, 'apt', 'Expected apt to be the visible linux installer for 1password')
   assertEqual(visible![0].package, '1password-cli', 'Expected linux 1password apt package')
+  const commands = getSkillRequirementInstallCommands({ name: '1password', description: '', filePath: '', bundled: true, source: 'bundled', install: options }, {
+    platform: 'linux',
+    commandExists: (command: string) => command === 'apt-get',
+  })
+  assertEqual(commands.length, 1, 'Expected a single Linux installer')
+  assertEqual(commands[0].command, 'sh', 'Expected the signed repository setup script')
+  assert(commands[0].args[0].endsWith('/SYSTEM/install-1password-cli.sh'), 'Expected the packaged 1Password installer')
+  const withBrew = getSkillRequirementInstallCommands({ name: '1password', description: '', filePath: '', bundled: true, source: 'bundled', install: options }, {
+    platform: 'linux',
+    commandExists: (command: string) => command === 'apt-get' || command === 'brew',
+  })
+  assertEqual(withBrew.length, 1, 'Expected one install method even when both apt and brew exist')
 })
 
 test('mac-only built-in skills are hidden on linux runtimes', () => {
   assertEqual(isSkillSupportedOnPlatform('apple-notes', 'linux'), false, 'Expected apple-notes to be unsupported on linux')
   assertEqual(isSkillSupportedOnPlatform('apple-reminders', 'linux'), false, 'Expected apple-reminders to be unsupported on linux')
   assertEqual(isSkillSupportedOnPlatform('apple-notes', 'darwin'), true, 'Expected apple-notes to remain supported on macOS')
+  assertEqual(isSkillSupportedOnPlatform('peekaboo', 'linux', ['darwin']), false, 'Expected skill metadata to restrict a macOS-only skill')
+  assertEqual(isSkillSupportedOnPlatform('model-usage', 'linux', ['darwin', 'linux']), true, 'Expected declared Linux support to remain visible')
+})
+
+test('common Debian skill requirements offer native packages without Homebrew', () => {
+  const packages: Record<string, string[]> = {
+    'gh-issues': ['gh'], 'session-logs': ['jq', 'ripgrep'], tmux: ['tmux'],
+    trello: ['jq'], 'video-frames': ['ffmpeg'], weather: ['curl'], 'openai-whisper-api': ['curl'],
+  }
+  for (const [name, expected] of Object.entries(packages)) {
+    const options = normalizeSkillInstallOptions(name, undefined)
+    const visible = getVisibleSkillInstallOptions(options, 'linux', () => false)
+    assertEqual(JSON.stringify((visible || []).map((option: SkillInstallOption) => option.package)), JSON.stringify(expected), `Expected Debian packages for ${name}`)
+  }
+  const brewOnly = getVisibleSkillInstallOptions([{ id: 'brew', kind: 'brew', formula: 'example', label: 'brew example' }], 'linux', () => false)
+  assertEqual(brewOnly, undefined, 'Expected Homebrew-only installers to be hidden when Linux has no Homebrew')
 })
 
 test('getSkillRequirementStatus() marks requirements installed when all bins are present', () => {
@@ -555,6 +583,56 @@ install:
   }
 
   deleteWorkspaceSkill('test-registry-linux-install-skill')
+})
+
+test('registry metadata stamping preserves upstream fields and omits absent optional claims', () => {
+  const workspaceSkillsDir = getWorkspaceSkillsDir()
+  const absentDir = path.join(workspaceSkillsDir, 'test-registry-absent-markdown')
+  fs.mkdirSync(absentDir, { recursive: true })
+  stampImportedRegistrySkillMetadata(absentDir, { provider: 'clawhub', registryName: 'fixture/absent' })
+  assertEqual(fs.readdirSync(absentDir).length, 0, 'Missing skill markdown must stay untouched')
+
+  const cases = [
+    {
+      id: 'test-registry-minimal-metadata',
+      content: '---\nname: minimal\ndescription: Minimal registry skill\n---\n\n# Minimal\n',
+      metadata: { provider: 'clawhub', registryName: 'fixture/minimal' },
+      expectedEmoji: undefined,
+      expectedHomepage: undefined,
+      expectedVersion: undefined,
+    },
+    {
+      id: 'test-registry-full-metadata',
+      content: '---\nname: full\ndescription: Full registry skill\nemoji: 🧰\nhomepage: https://upstream.example\ntags:\n  - existing\nmetadata:\n  openclaw:\n    customFlag: retained\n---\n\n# Full\n',
+      metadata: {
+        provider: 'tessl', registryName: 'fixture/full', installName: 'fixture/install',
+        emoji: '🔧', homepage: 'https://registry.example', version: '2.0.0',
+        downloadsWeekly: 0, categories: ['developer-tools'],
+      },
+      expectedEmoji: '🧰',
+      expectedHomepage: 'https://upstream.example',
+      expectedVersion: '2.0.0',
+    },
+  ]
+  for (const fixture of cases) {
+    const skillDir = path.join(workspaceSkillsDir, fixture.id)
+    fs.mkdirSync(skillDir, { recursive: true })
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'), fixture.content)
+    stampImportedRegistrySkillMetadata(skillDir, fixture.metadata)
+    const content = getSkillContent(fixture.id)
+    assert(content, `Expected ${fixture.id} to remain readable`)
+    assertEqual(content!.skill.emoji, fixture.expectedEmoji, 'Existing emoji must win over registry suggestion')
+    assertEqual(content!.skill.homepage, fixture.expectedHomepage, 'Existing homepage must win over registry suggestion')
+    assertEqual(content!.skill.registryVersion, fixture.expectedVersion, 'Optional version must be exact')
+    assertEqual(content!.skill.registryName, fixture.metadata.registryName, 'Registry name must be stamped')
+    if (fixture.id === 'test-registry-full-metadata') {
+      assertEqual(content!.skill.registryDownloadsWeekly, 0, 'Zero downloads is a valid count')
+      assert(content!.skill.tags?.includes('existing'), 'Explicit upstream tags must remain')
+      assert(fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8').includes('customFlag: retained'), 'Unrelated metadata must remain')
+    }
+    deleteWorkspaceSkill(fixture.id)
+  }
+  fs.rmdirSync(absentDir)
 })
 
 test('workspace skills expose setup requirement metadata when present', () => {
@@ -1287,6 +1365,40 @@ test('bundled plugin skill roots are discovered without allowing manifest traver
   const discovered = findBundledPluginSkillFiles(skillsRoot)
   assertEqual(JSON.stringify(discovered), JSON.stringify([fs.realpathSync(pluginSkill)]), 'Expected only the in-plugin declared skill root')
   fs.rmSync(packageRoot, { recursive: true, force: true })
+})
+
+test('bundled plugin discovery skips malformed, missing, and symlink-escaped skill roots', () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-plugin-skill-boundary-'))
+  const skillsRoot = path.join(packageRoot, 'skills')
+  const extensionsRoot = path.join(packageRoot, 'extensions')
+  const externalRoot = path.join(packageRoot, 'outside')
+  try {
+    fs.mkdirSync(skillsRoot, { recursive: true })
+    fs.mkdirSync(externalRoot, { recursive: true })
+    fs.writeFileSync(path.join(externalRoot, 'SKILL.md'), '# outside')
+    const scenarios = [
+      { id: 'broken', manifest: '{bad json' },
+      { id: 'none', manifest: JSON.stringify({ id: 'none' }) },
+      { id: 'invalid', manifest: JSON.stringify({ id: 'invalid', skills: [null, '', 1, '../outside', './missing'] }) },
+      { id: 'valid', manifest: JSON.stringify({ id: 'valid', skills: ['skills', 'skills'] }) },
+    ]
+    for (const scenario of scenarios) {
+      const pluginDir = path.join(extensionsRoot, scenario.id)
+      fs.mkdirSync(pluginDir, { recursive: true })
+      fs.writeFileSync(path.join(pluginDir, 'openclaw.plugin.json'), scenario.manifest)
+    }
+    const validRoot = path.join(extensionsRoot, 'valid', 'skills')
+    fs.mkdirSync(path.join(validRoot, 'nested'), { recursive: true })
+    fs.writeFileSync(path.join(validRoot, 'nested', 'SKILL.md'), '# valid')
+    fs.mkdirSync(path.join(validRoot, 'no-markdown'), { recursive: true })
+    const linkedDir = path.join(extensionsRoot, 'invalid', 'linked')
+    fs.symlinkSync(externalRoot, linkedDir)
+    fs.writeFileSync(path.join(extensionsRoot, 'invalid', 'openclaw.plugin.json'), JSON.stringify({ id: 'invalid', skills: ['linked', '../outside', './missing', ''] }))
+    const discovered = findBundledPluginSkillFiles(skillsRoot)
+    assertEqual(JSON.stringify(discovered), JSON.stringify([fs.realpathSync(path.join(validRoot, 'nested', 'SKILL.md'))]), 'Only the valid in-plugin skill may be discovered')
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true })
+  }
 })
 
 // Test 14: Bundled skills resolve to packaged skill roots

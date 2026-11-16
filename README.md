@@ -12,9 +12,31 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 Latest Stable Release: v1.9.9
 
-Development is preparing RC83 on OpenClaw `2026.9.5` and Node `24.19.0`.
-RC82 image checks passed; installed-instance acceptance and broad tester approval
-remain pending. See the [current release gate](SYSTEM/docs/planning/RC83_COVERAGE_AND_RUNTIME_2026-09-22.md).
+### Choose the correct OSS image
+
+For a stable open-source installation, use the public image:
+
+```text
+ghcr.io/maximilien-ai/clawmax-dashboard:v1.9.9
+```
+
+See the [verified 1.9.9 release](https://github.com/Maximilien-ai/clawmax/releases/tag/v1.9.9)
+for its multi-architecture promotion and registry smoke-test evidence.
+The public Dashboard image does not require access to the private combined-plugin
+image repository. Private combined images are not the OSS installation path.
+
+As verified on September 29, 2026, stable `v1.9.10` has not been published.
+`1.9.10-test-cognee*` and `2.0.0-test-rc*` are test candidates, not stable release
+recommendations. GitHub currently labels `v1.9.10-test-cognee4` as “Latest”; do not
+use that label as the stable-release selector. Use the explicit stable tag above
+and the pinned installer links below until a validated stable promotion is published.
+
+The latest tagged 2.0 test candidate in this checkout is RC91, using OpenClaw
+`2026.9.7`; it is not a stable release. Dashboard is working toward the
+[current dual-instance gate](SYSTEM/docs/planning/DASHBOARD_2_0_DUAL_INSTANCE_GATE_2026-10-12.md):
+close owner-scoped Template staging PR #212, validate matching public/private
+images, and prove the same next candidate on MBP14 and test10. Installed-instance
+acceptance and public Template Workflow execution are still open.
 
 - `1.9.9` adds native OpenRouter and xAI/Grok providers, brokered agent-skill secret grants, scoped Keys & Secrets navigation, mobile-safe workflow runs, pinned OpenAI model compatibility, and clearer long-running tool feedback.
 - Browser-local secrets remain unavailable to agent chat by design. Runtime use requires an explicitly assigned skill, an exact secret grant, and a registered broker action; normal Google account passwords are not supported.
@@ -22,7 +44,7 @@ remain pending. See the [current release gate](SYSTEM/docs/planning/RC83_COVERAG
 
 ## 🛠 Current Development Line: 2.0.0
 
-- RC83 preparation strengthens isolated runtime validation and targets at least 75% branch coverage. RC82 public and matching combined image checks passed, but installed-instance acceptance remains open; stable installers and images remain at `v1.9.9` until the remaining external-environment and human-review gates in the [2.0 launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) are complete.
+- Stable installers and images remain at `v1.9.9` until the remaining external-environment and human-review gates in the [2.0 launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) are complete. PR #212 provides inert Template staging and a dev-only no-tool chat path, not a public production lifecycle.
 - `main` now carries the public `clawmax.ai/v2` plugin platform. A plugin can contribute pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points through one domain-neutral host contract.
 - Lifecycle and Review are the public product plugins in the current 2.0 phase. Lifecycle provides a read-only deep view of agents, workflows, groups, and communities; Review keeps release validation organized and exportable. Other deployment-managed plugins remain outside this public repository and image. `PLUGINS/test/plugin-*` directories are synthetic host-contract fixtures and are never shown in the plugin manager.
 - Public 2.0 products include AI scoring, the Lifecycle and Review plugins, curated Gmail and Microsoft 365/Outlook integrations, and a consent-gated Activity Export contract for partner event integrations such as Digo. Activity export is off by default, visibly names its destination, and never blocks agent execution on remote delivery.
@@ -158,12 +180,13 @@ ClawMax templates and workflows are open source and community-driven:
 
 ### Prerequisites
 
-- **Node.js** 22.19+ and npm
+- **Node.js** 24.16+ (24.x) or 26.1+, and npm, for the current 2.0 source checkout
 - **Git** for cloning the repository
 
 You do **not** need to pre-install OpenClaw or add model API keys before setup.
 
-- `./setup.sh` installs OpenClaw if it is missing
+- `./setup.sh` prepares the branch-pinned OpenClaw runtime in a local cache
+- if pnpm and Corepack are missing, setup uses npm to bootstrap the exact pnpm version declared by that runtime; no global pnpm install is required
 - model/provider keys can be added later in `BYOK` or `Keys & Secrets` after the dashboard is running
 
 ### Automated Installation (Recommended)
@@ -172,16 +195,16 @@ You do **not** need to pre-install OpenClaw or add model API keys before setup.
 
 If you do not want to clone the repository first, you can install from public release assets instead.
 
-Latest release:
+Stable release (pinned explicitly; not GitHub's latest test-release assets):
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/download/v1.9.9/install.sh | bash -s -- v1.9.9
 ```
 
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.9.9
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/download/v1.9.9/install.sh | bash -s -- v1.9.9
 ```
 
 What it does:
@@ -211,7 +234,7 @@ You can also bootstrap directly with the checked-in wrapper:
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.9.9 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/download/v1.9.9/install.sh | bash -s -- v1.9.9 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.
@@ -227,7 +250,7 @@ cd clawmax
 
 The setup script will:
 - ✅ Check prerequisites (Node.js, Git)
-- ✅ Install OpenClaw if needed
+- ✅ Prepare and verify the branch-pinned OpenClaw runtime and its package manager
 - ✅ Install dashboard dependencies
 - ✅ Configure workspace structure
 - ✅ Offer auth setup choices for local dev and production
@@ -239,7 +262,117 @@ After setup:
 - add provider/model keys in `BYOK` or `Keys & Secrets`
 - optionally add shared runtime keys in `SYSTEM/dashboard/.env`
 
+Start and stop from the ClawMax repository root:
+
+```bash
+./SYSTEM/start.sh          # Start Dashboard
+./SYSTEM/stop.sh           # Stop Dashboard
+./SYSTEM/start.sh --follow # Start with live logs
+```
+
+First preparation downloads/builds the pinned runtime; later starts reuse the
+verified cache. Setup prints these commands whether you launch immediately or
+choose to start later. For custom ports, use the same `DASHBOARD_PORT` and
+`DASHBOARD_CLIENT_PORT` values for both start and stop.
+
+For a working source installation, `./update.sh` fast-forwards the current
+branch's configured upstream, reruns setup, and prints restart instructions.
+It skips automatic pulls for dirty, detached, or untracked branches and never
+forces a branch change. A failed initial setup should be retried with
+`./setup.sh` after pulling the fix. See the
+[source setup fix and clean-machine acceptance](SYSTEM/docs/planning/RC94_SOURCE_SETUP_FIX_2026-10-26.md).
+
+If an older OpenClaw installation owns your config/Gateway and blocks setup,
+use `./SYSTEM/local-dev.sh` for a separate development environment. It snapshots
+the current committed source into a temporary directory, uses separate config
+and workspace data, and serves the UI at http://localhost:5178. It waits for
+the API, UI and frontend API connection before printing **ClawMax is ready**
+and opening your browser. Keep the terminal running while using ClawMax;
+`--no-open` disables automatic browser opening. Add keys through
+Model Integration. Ctrl-C stops its Dashboard and foreground Gateway; use the
+printed `--root` command to restart with the same data. This mode does not
+import existing agents, credentials or private plugins. A reused snapshot stays
+on its recorded commit; pull the branch and launch without `--root` for a fresh
+snapshot of updated source. Temporary data may be removed by OS cleanup.
+
+Lifecycle and Review are included under **Extensions**. To attach additional
+plugins you already have locally, explicitly opt in when launching:
+
+```sh
+CLAWMAX_PLUGIN_PATHS=/absolute/path/to/plugin CLAWMAX_ENABLED_PLUGINS=plugin-id,clawmax-lifecycle,plugin-review-notes ./SYSTEM/local-dev.sh --with-plugins
+```
+
+The selected paths and instance selection persist for that dev root. Use
+Extensions to change the selection afterward; restarting with `--root` retains
+it. Add `--with-plugins` again only when deliberately replacing the configured
+paths or selection. Plugin source stays in its original directory and is not
+copied into the public checkout. No provider keys or other host settings are
+imported by this option.
+
+The RC95 source preview and its focused reviewer checks are documented in
+[RC95 preview acceptance](SYSTEM/docs/planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md).
+
+Custom model discovery endpoints require a server-trusted origin. Standard
+local Ollama (11434) and LM Studio (1234) origins are enabled for local/on-prem
+use. For another service, configure its base URL on the server or set
+`CLAWMAX_MODEL_ENDPOINT_ORIGINS` to comma-separated HTTP(S) origins, such as
+`https://models.example.com,http://192.168.1.20:11434`, and restart Dashboard.
+Requests cannot enable an origin themselves; discovery rejects redirects and
+URLs with embedded credentials, queries or fragments. Cloud deployment retains
+its restriction on machine-local endpoints.
+
+Workspace imports use the default workspace directory or a destination within
+the server user's home. To allow another destination root, set
+`CLAWMAX_WORKSPACE_IMPORT_ROOTS` to operator-approved directories separated by
+the platform path delimiter (`:` on macOS/Linux). Imported/deleted paths reject
+traversal and symlinks within the selected root.
+
+### Clean source install in a dedicated Podman VM
+
+Use this to test a fresh GitHub clone and the real installer with separate HOME,
+workspace, caches and OpenClaw state:
+
+```sh
+./SYSTEM/test-clean-install.sh
+./SYSTEM/test-clean-install.sh status
+./SYSTEM/test-clean-install.sh logs
+./SYSTEM/test-clean-install.sh stop
+./SYSTEM/test-clean-install.sh remove
+```
+
+The helper creates a VM named `clawmax-test`. A plain Node/tools container inside
+that VM clones the latest GitHub `main` and runs `setup.sh --non-interactive`.
+ClawMax release images and the host checkout are not used. The source SHA is
+printed. The installer prepares the OpenClaw version declared by that checkout;
+`update.sh` advances an existing checkout along its configured upstream.
+
+Wait for `READY`, then open http://127.0.0.1:5181. The container continues running
+after the command returns. Both published ports (API 3008, UI 5181) bind to host
+loopback. Add model keys through Model Integration to test agent chat.
+
+`stop` shuts down the test VM and releases its RAM. `remove` deletes that VM and
+all test data. Starting an existing test resumes its recorded checkout/data;
+remove it and start again for another fresh clone of latest sources. To test a
+specific source branch, use `CLAWMAX_TEST_REF=branch-name ./SYSTEM/test-clean-install.sh`
+when creating the fresh test.
+
+Podman supports one active managed VM at a time. The helper refuses to stop an
+existing VM. Pause its workloads and any Desktop/host-agent auto-start management
+before switching, then restore that VM after stopping `clawmax-test`. The helper
+uses an explicit connection and preserves the host's default connection.
+
+Defaults are 2 CPUs, 24 GiB VM RAM, a 30 GiB disk and a 20 GiB container memory
+cap for the pinned OpenClaw source compiler. Use a host with spare capacity for
+that allocation. The verified Linux arm64/Node 26 cold build peaked at 15.3 GiB;
+smaller 4/8 GiB limits failed. First preparation can take 20–30 minutes, including downloads.
+The helper retains failed test state and logs for diagnosis. This exercises the
+Linux source installer with a foreground Gateway; installed macOS/Homebrew
+service migration requires separate acceptance.
+
+### Setup authentication choices
+
 For local development, `./setup.sh` now offers:
+
 - `Email OTP` dev mode, which asks what login email you want in `SYSTEM/dashboard/.env`
 - `bypass` mode, if you explicitly do not want auth
 
@@ -633,6 +766,7 @@ Detailed setup and troubleshooting:
 ## 📖 Documentation
 
 ### User Guides
+- **[First Agent Tutorial](SYSTEM/docs/FIRST_AGENT_TUTORIAL.md)** - Define, create, test, and improve a first ClawMax agent
 - **[Release Status](SYSTEM/docs/STATUS.md)** - Stable version, current 2.0 candidate, and remaining release gates
 - **[Testing Guide](SYSTEM/docs/TESTING_GUIDE.md)** - Unit, API, integration, and manual testing
 - **[Release Checklist](SYSTEM/docs/RELEASE_CHECKLIST.md)** - Final pre-release validation

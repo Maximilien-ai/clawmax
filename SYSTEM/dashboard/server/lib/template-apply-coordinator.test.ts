@@ -13,7 +13,7 @@ import { TemplateGatewayTransaction, TemplateGatewayTransport } from './template
 import { TemplateApplyCoordinator } from './template-apply-coordinator'
 import { recoverTemplatesBeforeStartup } from './template-startup-recovery'
 import { assertTemplateRuntimeAdmitted } from './template-runtime-admission'
-import { noToolsTemplatePolicy, verifyTemplateExecutionPolicies } from './template-execution-policy'
+import { noToolsTemplatePolicy, verifyTemplateExecutionPolicies, verifyTemplateNoToolsAgentPolicy } from './template-execution-policy'
 import { createConfiguredTemplateResolver } from './template-service'
 
 function components(root: string, options: { checkpoint?: (phase: string) => void; afterPatch?: () => void; beforeSnapshot?: () => void } = {}) {
@@ -88,6 +88,25 @@ async function main() {
     const resolver = createConfiguredTemplateResolver(resolverOptions)
     const context = { workspaceId: 'workspace', workspacePath: configuredRoot, actorId: 'actor' }
     const service = resolver(context)
+    service.assertStagingAvailable!()
+    assert.throws(() => resolver({ ...context, actorId: 'unrelated' }).assertStagingAvailable!(), /authority/)
+    const supportedRegistry: any = readTemplateAuthorityRegistry(registryFile)
+    for (const mutation of ['policy', 'skills', 'credentials', 'runtime', 'disabled']) {
+      const unsupported = structuredClone(supportedRegistry)
+      for (const binding of unsupported.bindings) {
+        if (mutation === 'policy') binding.policy.sha256 = '0'.repeat(64)
+        if (mutation === 'skills') binding.skills = [{ name: 'unsupported', sha256: '0'.repeat(64), platform: 'linux/amd64' }]
+        if (mutation === 'credentials') binding.credentials = [{ name: 'API_KEY', reference: 'broker-only', revision: 'v1' }]
+        if (mutation === 'runtime') binding.runtime.revision = 'other-runtime'
+        if (mutation === 'disabled') binding.disabled = true
+      }
+      writeAtomicJson(registryFile, unsupported)
+      if (mutation === 'skills' || mutation === 'credentials') service.assertStagingAvailable!()
+      else assert.throws(() => service.assertStagingAvailable!(), /authority/, mutation)
+      await assert.rejects(service.store.plan('actor', configured.request), mutation)
+    }
+    writeAtomicJson(registryFile, supportedRegistry)
+    service.assertStagingAvailable!()
     const configuredPlan = await service.store.plan('actor', configured.request)
     const applied = await service.coordinator.apply('actor', configured.request, configuredPlan.planDigest)
     const configuredGroup = { groupId: Object.values(applied.revision.resources.groups)[0], message: 'Configured group', idempotencyKey: 'configured-group' }
@@ -176,9 +195,14 @@ async function main() {
     const addedCredential = structuredClone(stagedRevision.authority!)
     addedCredential.bindings[0].credentials = [{ name: 'API_KEY', reference: 'collector', revision: 'v1' }]
     assert.throws(() => verifyTemplateExecutionPolicies(addedCredential, policies), /policy is unavailable/)
+    const noToolsSibling = addedCredential.bindings[1].artifactId
+    assert.doesNotThrow(() => verifyTemplateNoToolsAgentPolicy(addedCredential, noToolsSibling, policies), 'A credentialed Collector must not block an unrelated no-tools Agent')
+    assert.throws(() => verifyTemplateNoToolsAgentPolicy(addedCredential, addedCredential.bindings[0].artifactId, policies), /policy is unavailable/)
+    assert.throws(() => verifyTemplateNoToolsAgentPolicy(addedCredential, 'missing', policies), /policy is unavailable/)
     const addedSkill = structuredClone(stagedRevision.authority!)
     addedSkill.bindings[0].skills = [{ name: 'collector', sha256: 'c'.repeat(64), platform: 'linux/amd64' }]
     assert.throws(() => verifyTemplateExecutionPolicies(addedSkill, policies), /policy is unavailable/)
+    assert.throws(() => verifyTemplateNoToolsAgentPolicy(addedSkill, addedSkill.bindings[0].artifactId, policies), /policy is unavailable/)
     assert.throws(() => verifyTemplateExecutionPolicies(stagedRevision.authority!, { read: () => { throw new Error('private path') } }), error => error instanceof Error && !error.message.includes('private path'))
     duringSnapshot = () => { policy = null }
     await assert.rejects(check(), /policy is unavailable/)
