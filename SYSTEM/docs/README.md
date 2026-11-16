@@ -11,7 +11,8 @@ original source snapshots, not the current candidate or runtime state.
 
 | Document | Description |
 |----------|-------------|
-| [planning/DEPENDABOT_2026-11-14.md](planning/DEPENDABOT_2026-11-14.md) | #302/#384/#298 merge receipts, optional-memory #296 validation and retained release gates |
+| [planning/PR191_ACCEPTANCE_2026-11-14.md](planning/PR191_ACCEPTANCE_2026-11-14.md) | Compatible-provider optional model discovery, engineering evidence and one external-provider check |
+| [planning/DEPENDABOT_2026-11-14.md](planning/DEPENDABOT_2026-11-14.md) | #302/#384/#298 merge receipts, #296 merge receipt and retained release gates |
 | [planning/DEPENDABOT_2026-11-13.md](planning/DEPENDABOT_2026-11-13.md) | Prior dependency contracts/merges, issue triage and retained RC98 gates |
 | [CI_TEST_SCOPE.md](CI_TEST_SCOPE.md) | Required CI selects focused workflow/docs checks and full application/dependency/runtime validation; reproducible commands and fallback guards |
 | [planning/ISSUE_TRIAGE_2026-11-13.md](planning/ISSUE_TRIAGE_2026-11-13.md) | All 107 starting issues classified; #273 closed, 106 remain open; evidence and closure-verification queue |

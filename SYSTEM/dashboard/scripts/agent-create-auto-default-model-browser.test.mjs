@@ -12,22 +12,27 @@ fs.mkdirSync(artifactDir, { recursive: true })
 const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true })
 
 const SORTED = ['openai/gpt-4.1', 'openai/gpt-4.1-mini', 'openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/gpt-5', 'openai/gpt-5.4-mini', 'openai/gpt-5.5']
-const fixture = { models: SORTED }
+const fixture = { models: SORTED, compatibleWorkspace: false }
 const agent = { id: 'existing-agent', name: 'Existing Agent', status: 'offline', workspacePath: '/tmp/auto-default/AGENTS/existing-agent', tags: [], communities: [], groups: [], skills: [], model: 'openai/gpt-5.5', runtime: 'openclaw' }
 const workspace = { id: 'auto-default', name: 'Auto default fixture', path: '/tmp/auto-default', agentCount: 1, isActive: true, tags: [] }
 
 async function newPage(width) {
   const page = await browser.newPage({ viewport: { width, height: 860 } })
   page.setDefaultTimeout(10000)
+  await page.addInitScript(theme => localStorage.setItem('dark-mode', String(theme === 'dark')), process.env.TEST_THEME || 'light')
   page.errors = []
   page.on('pageerror', (error) => page.errors.push(error.stack))
   await page.route('**/api/**', async (route) => {
     const p = new URL(route.request().url()).pathname
     let body = {}
     // No server keys and Auto: no preferredModel and no recommendedModel.
-    if (p === '/api/auth/config') body = { authDisabled: true, githubEnabled: false, deploymentKind: 'local', preferredModel: null, enabledRuntimes: [], userKeyDefaults: { openai: false }, systemKeyDefaults: { openai: false } }
+    if (p === '/api/auth/config') body = { authDisabled: true, githubEnabled: false, deploymentKind: 'local', preferredModel: fixture.compatibleWorkspace ? 'openai/gpt-5.4-mini' : null, workspaceOpenAiCompatibleBaseUrl: fixture.compatibleWorkspace ? 'http://127.0.0.1:1234/v1' : undefined, workspaceOpenAiCompatibleDefaultModel: fixture.compatibleWorkspace ? 'qwen/qwen3.6-27b' : undefined, enabledRuntimes: [], userKeyDefaults: { openai: false }, systemKeyDefaults: { openai: false } }
     else if (p === '/api/integrations/config') body = { config: {} }
-    else if (p === '/api/agents/models/discover') body = { models: fixture.models, modelsByProvider: { openai: { name: 'OpenAI', models: fixture.models } } }
+    else if (p === '/api/agents/models/discover') {
+      const keys = route.request().postDataJSON() || {}
+      const models = fixture.compatibleWorkspace ? [...(keys.openai ? ['openai/gpt-5.4-mini'] : []), 'openai-compatible/google/gemma-4-e4b', 'openai-compatible/qwen/qwen3.6-27b'] : fixture.models
+      body = { models, modelsByProvider: { openai: { name: 'OpenAI', models: models.filter(model => model.startsWith('openai/')) }, 'openai-compatible': { name: 'OpenAI-Compatible', models: models.filter(model => model.startsWith('openai-compatible/')) } } }
+    }
     else if (p === '/api/integrations/runtimes') body = { runtimes: [{ id: 'openclaw', label: 'OpenClaw', models: [] }], enabledRuntimes: [] }
     else if (p === '/api/health/live') body = { alive: true }
     else if (p === '/api/auth/me') body = { authenticated: true, user: { id: 'fixture', login: 'fixture', name: 'Fixture', role: 'admin' } }
@@ -66,6 +71,7 @@ async function openWizard(page, preferredModel) {
     localStorage.setItem('clawmax-byok-preview', JSON.stringify({ openai: 'sk-fixture-not-a-real-key', ...(preferred ? { preferredModel: preferred } : {}) }))
   }, preferredModel)
   await page.reload()
+  assert.equal(await page.locator('html').evaluate(el => el.classList.contains('dark')), process.env.TEST_THEME === 'dark', 'Requested color theme must actually render')
   await page.getByRole('button').filter({ hasText: /^Create\s*▾$/ }).click()
   await page.getByRole('button').filter({ hasText: /^\s*Create with Wizard\s*$/ }).click()
   await page.getByRole('heading', { name: 'Add Agent', level: 2 }).waitFor()
@@ -90,6 +96,34 @@ try {
       await waitForModel(page, 'openai/gpt-5.4-mini')
     })
     await page.close()
+  }
+
+  for (const width of [1280, 390]) {
+    fixture.compatibleWorkspace = true
+    const switching = await newPage(width)
+    await check(switching, `${width}px: removing and restoring OpenAI updates an already-open wizard without losing LM Studio`, async () => {
+      await openWizard(switching, 'openai/gpt-5.4-mini')
+      await waitForModel(switching, 'openai/gpt-5.4-mini')
+      await switching.screenshot({ path: path.join(artifactDir, `${width}-${process.env.TEST_THEME || 'light'}-openai.png`) })
+      await switching.evaluate(async () => {
+        const byok = await import('/src/lib/byok.ts')
+        byok.writeStoredByokKeys({ ...byok.readStoredByokKeys(), openai: '' })
+      })
+      await waitForModel(switching, 'openai-compatible/qwen/qwen3.6-27b')
+      await switching.evaluate(async () => {
+        const byok = await import('/src/lib/byok.ts')
+        byok.writeStoredByokKeys({ ...byok.readStoredByokKeys(), openai: 'sk-fixture-not-a-real-key' })
+      })
+      await waitForModel(switching, 'openai/gpt-5.4-mini')
+      await switching.evaluate(async () => {
+        const byok = await import('/src/lib/byok.ts')
+        byok.writeStoredByokKeys({ preferredModel: 'openai/gpt-5.4-mini' })
+      })
+      await waitForModel(switching, 'openai-compatible/qwen/qwen3.6-27b')
+      await switching.screenshot({ path: path.join(artifactDir, `${width}-${process.env.TEST_THEME || 'light'}-workspace-compatible.png`) })
+    })
+    await switching.close()
+    fixture.compatibleWorkspace = false
   }
 
   const page = await newPage(1280)

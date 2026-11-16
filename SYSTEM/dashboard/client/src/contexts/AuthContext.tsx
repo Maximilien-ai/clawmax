@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { loadAuthBootstrap } from '../lib/authBootstrap'
+import { getByokStorageKey } from '../lib/byok'
 import { getDashboardAuthReturnTo } from '../lib/dashboardAuth'
 
 export interface AuthUser {
@@ -30,6 +31,8 @@ interface AuthConfig {
   ollamaEnabled?: boolean
   defaultOllamaBaseUrl?: string
   defaultOpenAiCompatibleBaseUrl?: string
+  workspaceOpenAiCompatibleBaseUrl?: string
+  workspaceOpenAiCompatibleDefaultModel?: string
   allowSystemKeysForUserExecution?: boolean
   opikRuntimeConfigured?: boolean
   resendRuntimeConfigured?: boolean
@@ -138,6 +141,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true
       controller.abort()
+    }
+  }, [])
+
+  useEffect(() => {
+    let pending: AbortController | undefined
+    const refresh = () => {
+      // Local removal must rerender readiness even if the config request fails.
+      setConfig(current => current ? { ...current } : current)
+      pending?.abort()
+      const controller = new AbortController()
+      pending = controller
+      fetch('/api/auth/config', { signal: controller.signal })
+        .then(response => response.ok ? response.json() : Promise.reject(new Error('Config refresh failed')))
+        .then(next => { if (!controller.signal.aborted) setConfig(next) })
+        .catch(() => { /* Existing bootstrap/session handling owns availability errors. */ })
+    }
+    const onStorage = (event: StorageEvent) => { if (!event.key || event.key === getByokStorageKey()) refresh() }
+    window.addEventListener('integrations-saved', refresh)
+    window.addEventListener('clawmax-browser-vault-updated', refresh)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      pending?.abort()
+      window.removeEventListener('integrations-saved', refresh)
+      window.removeEventListener('clawmax-browser-vault-updated', refresh)
+      window.removeEventListener('storage', onStorage)
     }
   }, [])
 

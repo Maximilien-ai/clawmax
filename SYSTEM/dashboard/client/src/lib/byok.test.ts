@@ -4,10 +4,10 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/byok.test.ts
  */
 
-import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, hasCogneeConfiguration, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
+import { buildByokVerificationFingerprint, byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, hasCogneeConfiguration, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
 import { cloudModelEndpointError } from '../../../server/lib/cloud-execution-policy'
 import strictAssert from 'node:assert/strict'
-import { buildByokVerificationFingerprint, fetchModelsWithByok, getByokStorageKey, hasAnyLLMKeys, readStoredByokKeys } from './byok'
+import { fetchModelsWithByok, getByokStorageKey, hasAnyLLMKeys, readStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -153,12 +153,12 @@ async function main() {
     assert(hasAiGenerationAccess(null) === true, 'Expected OpenAI-compatible endpoint to enable AI generation access')
   })
 
-  await test('OpenAI-compatible endpoint without default model warns for AI generation', () => {
+  await test('OpenAI-compatible endpoint without a default model is asked to be checked, not given a model', () => {
     localStorage.clear()
     writeStoredByokKeys({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' })
     const readiness = getAiGenerationReadiness(null)
     assert(readiness.enabled === true, 'Expected OpenAI-compatible path to stay visible')
-    assert(/default model/i.test(readiness.warning || ''), 'Expected default-model warning')
+    assert(/not been verified yet/i.test(readiness.warning || ''), `Expected the unverified warning, got: ${readiness.warning}`)
   })
 
   await test('user default keys enable AI generation access', () => {
@@ -241,6 +241,22 @@ async function main() {
     assert(!readiness.warning, 'Expected no warning for verified browser key')
   })
 
+  await test('a verified OpenAI-compatible endpoint needs no typed default model', () => {
+    localStorage.clear()
+    const keys = {
+      openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1',
+      openaiCompatibleApiKey: '',
+      openaiCompatibleDefaultModel: '',
+    }
+    writeStoredByokKeys({
+      ...keys,
+      verifiedProviders: { openaiCompatible: buildByokVerificationFingerprint('openaiCompatible', keys) },
+    })
+    const readiness = getAiGenerationReadiness(null)
+    assert(readiness.enabled === true, 'Expected a verified endpoint to allow AI generation')
+    assert(!readiness.warning, `Expected no warning for a verified endpoint, got: ${readiness.warning}`)
+  })
+
   await test('an untouched OpenAI-compatible URL does not warn when a verified hosted key will run generation', () => {
     // The BYOK dialog saves its local default URL with no model even when that profile is never used.
     // Generation runs on the verified key, so warning about the compatible profile sent people to fix
@@ -281,7 +297,7 @@ async function main() {
     writeStoredByokKeys({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openai: '', anthropic: '' })
     const readiness = getAiGenerationReadiness({ deploymentKind: 'local' })
     strictAssert.equal(readiness.enabled, true)
-    strictAssert.match(readiness.warning || '', /OpenAI-compatible AI generation needs a default model/)
+    strictAssert.match(readiness.warning || '', /OpenAI-compatible setup has not been verified/)
     localStorage.clear()
   })
 
@@ -506,6 +522,20 @@ async function main() {
 
   await test('save does not auto-validate every configured provider', () => {
     assert(shouldAutoValidateByokOnSave() === false, 'Expected BYOK save to persist settings without global provider validation')
+  })
+
+  await test('keyless workspace compatible configuration enables generation and chat without a browser key', () => {
+    localStorage.clear()
+    const config = { deploymentKind: 'local' as const, workspaceOpenAiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', workspaceOpenAiCompatibleDefaultModel: 'qwen/qwen3.6-27b' }
+    assert(hasAiGenerationAccess(config), 'Workspace LM Studio should enable generation')
+    assert(hasChatExecutionAccess(config), 'Workspace LM Studio should enable chat')
+    assert(hasAnyLLMKeys(config), 'A keyless endpoint is a configured execution path')
+    const fingerprint = buildByokVerificationFingerprint('openaiCompatible', { openaiCompatibleBaseUrl: config.workspaceOpenAiCompatibleBaseUrl, openaiCompatibleDefaultModel: config.workspaceOpenAiCompatibleDefaultModel })
+    writeStoredByokKeys({ verifiedProviders: { openaiCompatible: fingerprint } })
+    assert(!getAiGenerationReadiness(config).warning, 'The matching checked keyless endpoint should not warn about a missing OpenAI key')
+    localStorage.clear()
+    assert(!hasChatExecutionAccess({}), 'An untouched default URL must not imply a configured path')
+    assert(!hasChatExecutionAccess({ ...config, deploymentKind: 'cloud' }), 'Cloud must still reject workspace loopback')
   })
 
   console.log('\n========================================')
