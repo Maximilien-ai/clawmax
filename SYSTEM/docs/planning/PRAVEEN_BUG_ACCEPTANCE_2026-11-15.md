@@ -9,8 +9,14 @@ this preview and acceptance. No deployment or image readiness is claimed.
 
 - [#191](https://github.com/Maximilien-ai/clawmax/pull/191): a checked compatible
   provider can supply its own chat model when the optional Default model is empty.
-  Tested head `66a71e15` passed **582/582** local integration/validation/coverage
-  checks and [required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43665197656).
+  Earlier head `66a71e15` passed **582/582** local integration/validation/coverage
+  checks and required CI; that evidence does not qualify the November 16 correction.
+  Owner testing exposed stale OpenAI defaults after key removal. Updated source
+  `7ed501db` refreshes defaults/readiness when keys change, uses the configured
+  workspace-only compatible model, and restores automatic GPT-5.4-mini precedence
+  when an OpenAI key is added. Explicit model selections remain explicit.
+  Runtime policy references now use the equivalent `lmstudio/` name; exact/prefix
+  scopes are preserved without adding model grants or weakening an explicit deny.
   Endpoint/credential pairing, user/system policy, redirect refusal, bounded
   salted cache identities and request isolation remain enforced.
 - [#194](https://github.com/Maximilien-ai/clawmax/pull/194): reconcile Praveen’s
@@ -30,6 +36,12 @@ PR #194 includes #191 as a dependency. Review/merge in **#191 → #194** order a
 acceptance and each PR’s current-head CI/security evidence. No replacement PR,
 force push or security-policy exception is needed.
 
+## November 16 retry status
+
+The previous preview failed owner acceptance. New source is under engineering
+validation; do not accept or merge from the older preview. The next preview must
+retain its existing private workspace/settings and show the final source version.
+
 ## Owner / Praveen checklist
 
 **reviewReason: external-environment** — one real compatible-provider workflow.
@@ -40,6 +52,12 @@ origins need the operator’s `CLAWMAX_MODEL_ENDPOINT_ORIGINS` configuration.
 - [ ] **#191 provider:** in Model Integration, choose OpenAI-Compatible, enter the
   endpoint/key, leave **Default model empty**, click **Check Connection**, then
   **Save & Close**. Reopening should keep the endpoint and empty model field.
+- [ ] **#191 key removal:** keep LM Studio configured, remove the OpenAI key, then
+  reopen Add Agent. Auto should offer your configured compatible model (Qwen in
+  the reported setup), with no missing-OpenAI warning on compatible generation.
+- [ ] **#191 key restoration:** add the OpenAI key back while keeping LM Studio.
+  An automatic new-agent model should return to **openai/gpt-5.4-mini**. Try one
+  AI-generation action. A manually selected agent model should remain unchanged.
 - [ ] **#191 execution:** create an agent with its offered model, send a short
   message, and try one Builder AI-generation action. Both should use that provider
   without demanding a typed default or silently substituting OpenAI.
@@ -58,10 +76,12 @@ email or outreach is sent by preparing this file.
 ## Engineering evidence and limits
 
 - [x] Current #194 reconciliation: native-history fixtures, seven durable-conversation
-  tests, **75/75** execution cases, **92/92** agent-route cases and server TypeScript pass in a private unit
+  tests, **77** execution cases (including two new policy cases; final combined run pending), **92/92** agent-route cases and server TypeScript pass in a private unit
   environment. The added cases extend the existing suites; they do not add two
   top-level test groups.
-- [x] #191 browser checks: 1440px/390px, light/dark, empty-model verification,
+- [x] #191 browser checks: 1280px/390px, asserted light/dark themes, live key
+  removal/restoration in an already-open wizard, workspace-only compatible metadata,
+  and preserved manually chosen models. Earlier checks also cover empty-model verification,
   visible discovered models, save/reload, readiness, changed-key invalidation,
   no page errors/overflow. #194 changes no production UI; its chat response/error
   behavior is also checked through the production panel with synthetic API fixtures.
@@ -92,8 +112,8 @@ and current-source/owner confirmation. They are not closed by this partial overl
 
 ## Preview and local test command
 
-The combined bug preview will use **http://localhost:5182** (API **3009**),
-from the final committed bug-only source. Exact source/root/readiness receipts go
+The combined bug preview uses **http://localhost:5182** (API **3009**),
+but must be refreshed to the final committed bug-only source before retry. Exact source/root/readiness receipts go
 on #194. Private HOME/workspace/registry/gateway; no copied provider credentials.
 Older previews 5180/5181 are separate and do not contain the new legacy recovery.
 The primary checkout stays on clean main until acceptance/merge.
