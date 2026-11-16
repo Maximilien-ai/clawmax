@@ -1,3 +1,4 @@
+import { resolveUserExecutionProviderKeys } from './dashboard-env'
 import { isKnownImageOnlyModel } from './text-agent-model'
 /**
  * Dynamic model discovery for configured hosted and local model providers.
@@ -659,8 +660,18 @@ export async function discoverModels(
   const openrouterKey = byokKeys?.openrouter || resolveApiKey('openrouter')
   const xaiKey = byokKeys?.xai || resolveApiKey('xai')
   const ollamaBaseUrl = byokKeys?.ollamaBaseUrl?.trim()
-  const openaiCompatibleApiKey = byokKeys?.openaiCompatibleApiKey?.trim()
-  const openaiCompatibleBaseUrl = byokKeys?.openaiCompatibleBaseUrl?.trim()
+  const integrations = readWorkspaceIntegrationConfig()
+  // Keyless workspace endpoints are real execution paths. Pair any protected
+  // credential only with its own endpoint and the user-execution policy.
+  const policyKeys = resolveUserExecutionProviderKeys(undefined, byokKeys?.openaiCompatibleApiKey?.trim()
+    ? byokKeys : { ...byokKeys, openaiCompatibleBaseUrl: undefined, openaiCompatibleDefaultModel: undefined })
+  const compatible = resolveOpenAiCompatibleEndpoint([
+    openAiCompatibleCandidateFromKeys(byokKeys),
+    { baseUrl: integrations.openaiCompatibleBaseUrl, defaultModel: integrations.openaiCompatibleDefaultModel },
+    openAiCompatibleCandidateFromKeys(policyKeys),
+  ])
+  const openaiCompatibleApiKey = compatible?.apiKey
+  const openaiCompatibleBaseUrl = compatible?.baseUrl
   const showAll = options?.showAll === true
 
   const fetches: Promise<{ provider: string; name: string; models: string[] }>[] = []

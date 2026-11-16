@@ -493,6 +493,18 @@ test('Concurrent requests keep their own BYOK keys', async () => {
   assert.strictEqual(getRequestByokKeys(), undefined, 'nothing set inside a request scope leaks outside it')
 })
 
+test('key removal uses workspace LM Studio and restoring OpenAI restores GPT-5.4-mini generation priority', async () => {
+  await withWorkspaceIntegrations({ ...VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, openaiCompatibleDefaultModel: 'qwen/qwen3.6-27b', preferredModel: 'openai/gpt-5.4-mini', systemPreferredModel: 'openai/gpt-5.4-mini' }, async () => {
+    const local = createAiGenerationClient(undefined, {})
+    assert.strictEqual(local.model, 'qwen/qwen3.6-27b')
+    assert(local.client.baseURL.includes('172.16.1.70:8000'))
+    const restored = createAiGenerationClient({ openai: 'sk-proj-synthetic-restored-key-1234567890' }, {})
+    assert.strictEqual(restored.model, 'gpt-5.4-mini')
+    assert.strictEqual(restored.client.apiKey, 'sk-proj-synthetic-restored-key-1234567890')
+    assert(restored.client.baseURL.includes('api.openai.com'))
+  })
+})
+
 test('A protected key configured for a different server is not sent to the workspace endpoint', async () => {
   await withWorkspaceIntegrations(VERIFIED_ENDPOINT_WITHOUT_DEFAULT_MODEL, async () => {
     const protectedEnv = {
