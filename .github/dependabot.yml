@@ -21,6 +21,15 @@ updates:
     open-pull-requests-limit: 5
     groups:
       dashboard-minor-and-patch:
+        exclude-patterns:
+          - "@opentelemetry/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # The tracing SDK/exporter/API must migrate as one compatible family (#418).
+      dashboard-tracing:
+        patterns:
+          - "@opentelemetry/*"
         update-types:
           - "minor"
           - "patch"
