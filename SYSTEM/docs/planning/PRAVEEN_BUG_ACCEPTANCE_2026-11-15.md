@@ -11,7 +11,7 @@ this preview and acceptance. No deployment or image readiness is claimed.
   provider can supply its own chat model when the optional Default model is empty.
   Earlier head `66a71e15` passed **582/582** local integration/validation/coverage
   checks and required CI; that evidence does not qualify the November 16 correction.
-  Owner testing exposed stale OpenAI defaults after key removal. Updated source
+  Owner testing exposed stale OpenAI defaults after key removal. Implementation checkpoint
   `7ed501db` refreshes defaults/readiness when keys change, uses the configured
   workspace-only compatible model, and restores automatic GPT-5.4-mini precedence
   when an OpenAI key is added. Explicit model selections remain explicit.
@@ -38,7 +38,13 @@ force push or security-policy exception is needed.
 
 ## November 16 retry status
 
-The previous preview failed owner acceptance. New source is under engineering
+The previous preview failed owner acceptance. A real keyless Qwen chat and
+subsequent history read pass on combined source `5faac9e5` (9.5 seconds).
+The first full run finished 581/582: two assertions inside the discovery group
+counted unrelated hosted-provider requests. They were corrected to inspect the
+compatible endpoint, with 43/43 discovery cases passing when a synthetic hosted
+key is present. The URL assertions also use exact parsed origins after CodeQL
+flagged the substring form in the new test. New source is under engineering
 validation; do not accept or merge from the older preview. The next preview must
 retain its existing private workspace/settings and show the final source version.
 
@@ -76,7 +82,7 @@ email or outreach is sent by preparing this file.
 ## Engineering evidence and limits
 
 - [x] Current #194 reconciliation: native-history fixtures, seven durable-conversation
-  tests, **77** execution cases (including two new policy cases; final combined run pending), **92/92** agent-route cases and server TypeScript pass in a private unit
+  tests, **77/77** execution cases (including two new policy cases), **92/92** agent-route cases and server TypeScript pass in a private unit
   environment. The added cases extend the existing suites; they do not add two
   top-level test groups.
 - [x] #191 browser checks: 1280px/390px, asserted light/dark themes, live key
