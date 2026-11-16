@@ -1,6 +1,6 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: November 13, 2026
+**Last Updated**: November 16, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
@@ -10,6 +10,17 @@ All 107 issues open at the November 13 audit start are initially classified by
 type, area and reported-impact priority; #273 is verified/closed, leaving 106 open
 with no unlabelled entries. This does not establish current reproducibility or
 complete closure evidence. [Triage table and limits](planning/ISSUE_TRIAGE_2026-11-13.md).
+
+### PDF task-list export layout (#426)
+
+In 2.0 development, exported PDF task lists can repeat checkbox markers and put
+labels on separate lines with excessive spacing. Reproduced on main `5fbce719`
+and during #421 dependency validation; the pre-render document definitions are
+identical, so the update does not introduce this defect. Generated PDFs were
+rendered and inspected with network access disabled. Dashboard owns the fix in
+[#426](https://github.com/Maximilien-ai/clawmax/issues/426). This limitation is
+retained after dependency merges; see the
+[November 16 checkpoint](planning/DEPENDABOT_2026-11-16.md).
 
 ### Agent chat #223/#227 merged; retained runtime limitations
 

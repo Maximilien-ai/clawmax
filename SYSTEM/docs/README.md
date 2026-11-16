@@ -3,7 +3,7 @@
 > Last updated: November 14, 2026
 
 Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
-`v1.9.9`. Start with [November 14 dependency maintenance and RC98 gates](planning/DEPENDABOT_2026-11-14.md).
+`v1.9.9`. Start with [November 16 dependency maintenance](planning/DEPENDABOT_2026-11-16.md) and the [retained RC98 gates](planning/DEPENDABOT_2026-11-14.md).
 RC98 has not been cut. Earlier RC preview/evidence files below describe their
 original source snapshots, not the current candidate or runtime state.
 
@@ -12,6 +12,7 @@ original source snapshots, not the current candidate or runtime state.
 | Document | Description |
 |----------|-------------|
 | [planning/PR191_ACCEPTANCE_2026-11-14.md](planning/PR191_ACCEPTANCE_2026-11-14.md) | Compatible-provider optional model discovery, engineering evidence and one external-provider check |
+| [planning/DEPENDABOT_2026-11-16.md](planning/DEPENDABOT_2026-11-16.md) | Accepted #191/#194 merges, compatible dependency batches and held major migrations |
 | [planning/DEPENDABOT_2026-11-14.md](planning/DEPENDABOT_2026-11-14.md) | #302/#384/#298 merge receipts, #296 merge receipt and retained release gates |
 | [planning/DEPENDABOT_2026-11-13.md](planning/DEPENDABOT_2026-11-13.md) | Prior dependency contracts/merges, issue triage and retained RC98 gates |
 | [CI_TEST_SCOPE.md](CI_TEST_SCOPE.md) | Required CI selects focused workflow/docs checks and full application/dependency/runtime validation; reproducible commands and fallback guards |
