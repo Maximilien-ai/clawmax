@@ -25,6 +25,7 @@ original source snapshots, not the current candidate or runtime state.
 | [planning/RC98_ACCEPTANCE_2026-11-08.md](planning/RC98_ACCEPTANCE_2026-11-08.md) | Historical first-batch acceptance, prior test evidence and all-feedback/reply reconciliation |
 | [planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md](planning/RC95_PREVIEW_ACCEPTANCE_2026-10-27.md) | RC95 source preview: five included PRs, four holds, four human/provider acceptance checks and engineering evidence |
 | [FIRST_AGENT_TUTORIAL.md](FIRST_AGENT_TUTORIAL.md) | Low-code guide to define, create, test, and improve a first ClawMax agent |
+| [planning/PRAVEEN_BUG_ACCEPTANCE_2026-11-15.md](planning/PRAVEEN_BUG_ACCEPTANCE_2026-11-15.md) | #191/#194 bug-only acceptance, merge order and engineering gates; OpenCode #292 deferred |
 | [STATUS.md](STATUS.md) | Current version, state, and recent releases |
 | [planning/RC94_REVIEW_HANDOFF_2026-10-26.md](planning/RC94_REVIEW_HANDOFF_2026-10-26.md) | Historical RC94 reviewer checklist; current PR disposition is in the RC95 preview |
 | [planning/RC94_IMAGE_HANDOFF_2026-10-26.md](planning/RC94_IMAGE_HANDOFF_2026-10-26.md) | RC94 test-image monitoring, fixed source identity, local validation evidence, and pending image gates |
