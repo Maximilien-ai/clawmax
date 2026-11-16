@@ -3020,6 +3020,132 @@ async function run() {
     assert.strictEqual(detail.jsonBody.messages[0].content, 'Old exported context')
   }))
 
+  for (const [id, legacy] of [['native--history-', false], ['native-history-' + 'very-long-agent-'.repeat(5), false], ['older-native', true], ['older-native--' + 'long-agent-'.repeat(5), true]] as const) {
+    await test(`native chat lifecycle preserves compressed replies and exact context for ${id}`, async () => {
+      const { DatabaseSync } = require('node:sqlite')
+      const { zstdCompressSync } = require('zlib')
+      const { scopeSessionIdToModel, resolveAgentExecutionConfig } = require('../lib/agent-execution')
+      const conversations = require('../lib/dashboard-chat-conversations')
+      writeAgent(workspacePath, id, '**Name:** Native acceptance\n**Model:** openai/gpt-5.4-mini\n')
+      const identityPath = path.join(workspacePath, 'AGENTS', id, 'IDENTITY.md')
+      if (legacy) fs.utimesSync(identityPath, 1782864000, 1782864000)
+      const model = resolveAgentExecutionConfig(id).model
+      const stamp = Math.floor(fs.statSync(path.join(workspacePath, 'AGENTS', id, 'IDENTITY.md')).mtimeMs).toString(36)
+      const seed = legacy ? `dashboard-${id}-${stamp}-chat` : `agent:${id}:dashboard-chat`
+      const sanitize = (value: string) => value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+      const base = sanitize(seed), combined = `${base}-${sanitize(model || '').slice(0, 24)}`
+      // Historical fixture: pre-receipt builds used a timestamp and an 8-character SHA-1 suffix.
+      const sid = !legacy ? scopeSessionIdToModel(seed, model) : combined.length <= 48 ? combined
+        : `${base.slice(0, 39)}-${require('crypto').createHash('sha1').update(combined).digest('hex').slice(0, 8)}`
+      const directory = path.join(tmpHome, '.openclaw', 'agents', id, 'agent')
+      fs.mkdirSync(directory, { recursive: true })
+      const filename = path.join(directory, 'openclaw-agent.sqlite')
+      const db = new DatabaseSync(filename)
+      db.exec(`
+        CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT);
+        CREATE TABLE session_windows (session_id TEXT);
+        CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, event_zstd BLOB);
+        CREATE TABLE session_transcript_index_state (session_id TEXT, needs_rebuild INTEGER);
+        CREATE TABLE session_transcript_active_events (session_id TEXT, event_seq INTEGER, active_position INTEGER);
+      `)
+      db.prepare('INSERT INTO session_nodes VALUES (?, ?)').run(`agent:${id}:explicit:${sid}`, sid)
+      db.prepare('INSERT INTO session_nodes VALUES (?, ?)').run(`agent:${id}:cron:newest`, 'unrelated-newest')
+      for (const session of [sid, 'unrelated-newest']) {
+        db.prepare('INSERT INTO session_windows VALUES (?)').run(session)
+        db.prepare('INSERT INTO session_transcript_index_state VALUES (?, 0)').run(session)
+      }
+      const event = (role: string, text: string) => JSON.stringify({ type: 'message', message: { role, content: text, timestamp: 1 } })
+      const reply = 'A compressed answer. '.repeat(100).trim()
+      db.prepare('INSERT INTO transcript_events VALUES (?, 1, ?, NULL)').run(sid, event('user', 'Remember this conversation'))
+      db.prepare('INSERT INTO transcript_events VALUES (?, 2, NULL, ?)').run(sid, zstdCompressSync(Buffer.from(event('assistant', reply))))
+      db.prepare('INSERT INTO transcript_events VALUES (?, 1, ?, NULL)').run('unrelated-newest', event('assistant', 'Unrelated scheduled conversation'))
+      db.prepare('INSERT INTO session_transcript_active_events VALUES (?, 1, 0)').run(sid)
+      db.prepare('INSERT INTO session_transcript_active_events VALUES (?, 2, 1)').run(sid)
+      db.prepare('INSERT INTO session_transcript_active_events VALUES (?, 1, 0)').run('unrelated-newest')
+      db.close()
+      if (legacy) {
+        const rebuilding = new DatabaseSync(filename)
+        rebuilding.prepare('UPDATE session_transcript_index_state SET needs_rebuild = 1 WHERE session_id = ?').run(sid)
+        rebuilding.close()
+        const unavailable = makeRes()
+        await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), unavailable)
+        assert.strictEqual(unavailable.statusCode, 500, 'A stale legacy index must be reported, not silently treated as empty')
+        assert(!conversations.readDashboardChatConversations(id).activeSessionId, 'Failed recovery cannot pin an unusable session')
+        const ready = new DatabaseSync(filename)
+        ready.prepare('UPDATE session_transcript_index_state SET needs_rebuild = 0 WHERE session_id = ?').run(sid)
+        ready.close()
+        for (const pointer of ['../../outside-agent', 'other/session', 'other\n']) {
+          const invalid = new DatabaseSync(filename)
+          invalid.prepare('INSERT INTO session_nodes VALUES (?, ?)').run(`agent:${id}:dashboard-chat`, pointer)
+          invalid.close()
+          const unsafePointer = makeRes()
+          await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), unsafePointer)
+          assert.strictEqual(unsafePointer.statusCode, 500)
+          assert.match(unsafePointer.jsonBody.error, /Invalid stored session id/)
+          assert(!conversations.readDashboardChatConversations(id).activeSessionId)
+          const remove = new DatabaseSync(filename)
+          remove.prepare('DELETE FROM session_nodes WHERE session_key = ?').run(`agent:${id}:dashboard-chat`)
+          remove.close()
+        }
+        const cleanPointer = new DatabaseSync(filename)
+        cleanPointer.prepare('DELETE FROM session_nodes WHERE session_key = ?').run(`agent:${id}:dashboard-chat`)
+        cleanPointer.close()
+        const matches = new DatabaseSync(filename)
+        const alternate = scopeSessionIdToModel(seed, model)
+        assert.notStrictEqual(alternate, sid)
+        matches.prepare('INSERT INTO session_windows VALUES (?)').run(alternate)
+        matches.prepare('INSERT INTO session_transcript_index_state VALUES (?, 0)').run(alternate)
+        matches.prepare('INSERT INTO transcript_events VALUES (?, 1, ?, NULL)').run(alternate, event('assistant', 'Another exact legacy match'))
+        matches.prepare('INSERT INTO session_transcript_active_events VALUES (?, 1, 0)').run(alternate)
+        matches.close()
+        const ambiguous = makeRes()
+        await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), ambiguous)
+        assert.strictEqual(ambiguous.statusCode, 500)
+        assert.match(ambiguous.jsonBody.error, /multiple matching sessions/)
+        assert(!conversations.readDashboardChatConversations(id).activeSessionId)
+        const removeAlternate = new DatabaseSync(filename)
+        for (const table of ['session_windows', 'session_transcript_index_state', 'transcript_events', 'session_transcript_active_events']) {
+          removeAlternate.prepare(`DELETE FROM ${table} WHERE session_id = ?`).run(alternate)
+        }
+        removeAlternate.close()
+        fs.utimesSync(identityPath, 1782864001, 1782864001)
+        const changedIdentity = makeRes()
+        await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), changedIdentity)
+        assert.deepStrictEqual(changedIdentity.jsonBody.messages, [], 'Unverifiable old seeds cannot select an unrelated or guessed conversation')
+        assert(!conversations.readDashboardChatConversations(id).activeSessionId)
+        fs.utimesSync(identityPath, 1782864000, 1782864000)
+      }
+      const before = fs.readFileSync(filename)
+      for (let reopen = 0; reopen < 2; reopen++) {
+        const read = makeRes()
+        await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), read)
+        assert.strictEqual(read.statusCode, 200)
+        assert.deepStrictEqual(read.jsonBody.messages.map((m: any) => m.content), ['Remember this conversation', reply])
+      }
+      if (legacy) assert.strictEqual(conversations.readDashboardChatConversations(id).activeSessionId, sid, 'Sending must continue exactly the conversation recovered on reopen')
+      const clear = makeRes()
+      await getRouteHandler('delete', '/:id/chat/messages')(makeReq({ params: { id } }), clear)
+      assert.strictEqual(clear.statusCode, 200, JSON.stringify(clear.jsonBody))
+      const empty = makeRes()
+      await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), empty)
+      assert.deepStrictEqual(empty.jsonBody.messages, [], 'Clear cannot rediscover the ended or scheduled conversation')
+      conversations.setEndedDashboardConversationTitle(id, sid, 'Native acceptance thread')
+      const history = makeRes()
+      await getRouteHandler('get', '/:id/chat/archives')(makeReq({ params: { id } }), history)
+      const ended = history.jsonBody.archives.find((entry: any) => !entry.active)
+      assert(ended?.resumable, JSON.stringify(history.jsonBody))
+      const continued = makeRes()
+      await getRouteHandler('post', '/:id/chat/archives/:filename/restore')(makeReq({ params: { id, filename: ended.filename } }), continued)
+      assert.strictEqual(continued.statusCode, 200)
+      assert.strictEqual(conversations.readDashboardChatConversations(id).activeSessionId, sid)
+      const restored = makeRes()
+      await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), restored)
+      assert.deepStrictEqual(restored.jsonBody.messages.map((m: any) => m.content), ['Remember this conversation', reply])
+      assert.deepStrictEqual(fs.readFileSync(filename), before, 'Read/Clear/History/Continue cannot modify native SQLite bytes')
+      assert(!fs.existsSync(path.join(directory, '..', 'sessions', 'sessions.json')), 'Native history cannot create a legacy index')
+    })
+  }
+
   await test('Reset Session starts a new conversation like Clear and keeps the old one in History, for SQLite and claude/droid agents', async () => withConversationRuntimes(async () => {
     const { scopeSessionIdToModel } = require('../lib/agent-execution')
     const conversations = require('../lib/dashboard-chat-conversations')

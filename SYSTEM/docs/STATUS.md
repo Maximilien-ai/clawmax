@@ -4,7 +4,7 @@
 
 **Development Line**: 2.0.0
 
-**Last Updated**: November 14, 2026
+**Last Updated**: November 15, 2026
 
 **Status**: `v1.9.9` remains stable. #227 is accepted and merged on main as
 `9ad021b0`, after final CI and 574/574 local chat-source checks. RC98 has not been
@@ -21,9 +21,9 @@ checks and green CI/CodeQL; main dependencies are synchronized. Strict frontend
 typing retains 290 baseline diagnostics with none added. The final Dependabot
 PR, #296, merged as `703d65eb` after cross-platform bundle tests and green CI/CodeQL.
 Its new offline capture replay remains disabled. The dependency PR queue is cleared;
-current work is [#191 compatible-provider defaults](planning/PR191_ACCEPTANCE_2026-11-14.md). Consent-bound replay
+current work is the [#191/#194 bug-only acceptance](planning/PRAVEEN_BUG_ACCEPTANCE_2026-11-15.md); optional OpenCode #292 is deferred. #191 has passed 582/582 local checks and required CI; owner acceptance and #194 combined-source validation remain pending. Consent-bound replay
 remains tracked in #419; tracing migration remains in #418. [Impact-based CI](CI_TEST_SCOPE.md) preserves required checks
-while limiting workflow/docs-only changes to focused validation. Current work is the [November 14 dependency queue](planning/DEPENDABOT_2026-11-14.md),
+while limiting workflow/docs-only changes to focused validation. The [November 14 dependency queue](planning/DEPENDABOT_2026-11-14.md) records completed dependency work,
 with initial classification of all 107 starting issues complete (#273 closed,
 106 remain open, none unlabelled). Current-source closure and feedback-topic
 verification remain. Installed/provider, security and final
