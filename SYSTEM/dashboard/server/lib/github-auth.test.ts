@@ -131,6 +131,48 @@ function readDevCode(): string {
 console.log(`\n${YELLOW}=== GitHub/Auth OTP Test Suite ===${RESET}\n`)
 
 async function run() {
+  for (const outcome of ['accepted', 'rejected', 'unavailable'] as const) {
+    await test(`OTP uses the installed Resend SDK and handles ${outcome} delivery`, async () => {
+      resetFiles()
+      configureOtpEnv()
+      delete process.env.OTP_DEV_MODE
+      process.env.RESEND_API_KEY = 're_synthetic_sdk_contract'
+      process.env.OTP_FROM_EMAIL = 'ClawMax <login@example.invalid>'
+      process.env.NODE_ENV = 'production'
+      const previousFetch = global.fetch
+      const calls: Array<{ url: string; headers: Headers; payload: any }> = []
+      global.fetch = (async (url: any, init: any) => {
+        if (String(url) !== 'https://api.resend.com/emails') throw new Error('Unexpected SDK destination')
+        calls.push({ url: String(url), headers: new Headers(init.headers), payload: JSON.parse(init.body) })
+        if (outcome === 'unavailable') throw new Error('Synthetic transport unavailable')
+        return new Response(JSON.stringify(outcome === 'accepted'
+          ? { id: 'synthetic-message-id' }
+          : { name: 'validation_error', message: 'Synthetic sender rejected', statusCode: 403 }),
+        { status: outcome === 'accepted' ? 200 : 403, headers: { 'Content-Type': 'application/json' } })
+      }) as any
+      try {
+        const res = makeRes()
+        await getRouteHandler('post', '/otp/request')(makeReq({ email: 'owner@example.com' }), res)
+        assert(calls.length === 1, 'Expected exactly one SDK request, with no hidden retry')
+        assert(calls[0].headers.get('authorization') === 'Bearer re_synthetic_sdk_contract', 'Expected SDK request authentication')
+        assert(calls[0].payload.from === 'ClawMax <login@example.invalid>', 'Expected configured sender')
+        assert(JSON.stringify(calls[0].payload.to) === '["owner@example.com"]', 'Expected only the requested recipient')
+        assert(typeof calls[0].payload.html === 'string' && typeof calls[0].payload.text === 'string', 'Expected HTML and plain text OTP bodies')
+        assert(!JSON.stringify(calls[0].payload).includes('re_synthetic_sdk_contract'), 'Credential must not enter email content')
+        assert(res.statusCode === (outcome === 'accepted' ? 200 : 500), 'Expected delivery result propagated by production OTP route')
+        assert(outcome === 'accepted' ? res.jsonBody.ok === true : typeof res.jsonBody.error === 'string', 'Expected explicit success or error response')
+        assert(!JSON.stringify(res.jsonBody).includes('re_synthetic_sdk_contract'), 'Credential must not enter the response')
+        if (outcome === 'accepted') {
+          const record = JSON.parse(fs.readFileSync(otpStorePath, 'utf8')).records[0]
+          assert(typeof record.codeHash === 'string' && !record.code, 'Expected hashed OTP persistence')
+        }
+      } finally {
+        global.fetch = previousFetch
+        resetEnv()
+        resetFiles()
+      }
+    })
+  }
   await test('OTP auth config enables in dev log mode with allowlisted email', () => {
     resetFiles()
     configureOtpEnv()
