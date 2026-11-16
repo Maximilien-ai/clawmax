@@ -466,6 +466,22 @@ export function scopeStoredDashboardSessionId(agentId: string, sessionSeed: stri
   return current
 }
 
+/** Recover only an exact pre-receipt dashboard seed owned by this identity/model. */
+export function resolveLegacyDashboardChatSessionId(agentId: string, agentWorkspace: string | undefined, model: string | undefined, homeDir?: string): string | undefined {
+  if (!agentWorkspace || !model || !/^[a-zA-Z0-9_-]+$/.test(agentId)) return undefined
+  const identity = path.join(agentWorkspace, 'IDENTITY.md')
+  if (!fs.existsSync(identity)) return undefined
+  const stamp = Math.floor(fs.statSync(identity).mtimeMs).toString(36)
+  const seed = `dashboard-${agentId}-${stamp}-chat`
+  const candidates = [...new Set([
+    scopedSessionIdWithDigest(seed, model, 'sha1', 8),
+    scopeSessionIdToModel(seed, model),
+  ])].filter(sessionId => hasNativeChatSession(agentId, sessionId, homeDir)
+    && !!readPersistedChatTranscript(agentId, sessionId, homeDir)?.trim())
+  if (candidates.length > 1) throw new Error('Older chat history has multiple matching sessions; workspace owner recovery is required')
+  return candidates[0]
+}
+
 export function resolvePersistedAgentSessionId(
   agentId: string,
   sessionKey: string,
@@ -478,8 +494,6 @@ export function resolvePersistedAgentSessionId(
   // index keeps pointing at the conversation it held then, which is no longer this one once the chat
   // was cleared (or the model changed).
   if (preferredSessionId && hasNativeChatSession(agentId, preferredSessionId, homeDir)) return preferredSessionId
-  const nativeSession = resolveNativeChatSession(agentId, sessionKey, homeDir)
-  if (nativeSession) return nativeSession
 
   const sessionsDir = path.join(openClawStatePath(homeDir), 'agents', agentId, 'sessions')
   const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
@@ -512,6 +526,11 @@ export function resolvePersistedAgentSessionId(
       }
     }
   } catch {}
+
+  // Exact contexts and the dashboard's current legacy index outrank a semantic
+  // native pointer that may have survived an older conversation/runtime.
+  const nativeSession = resolveNativeChatSession(agentId, sessionKey, homeDir)
+  if (nativeSession) return nativeSession
 
   try {
     if (!fs.existsSync(sessionsDir)) return preferredSessionId
