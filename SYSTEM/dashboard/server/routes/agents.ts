@@ -514,7 +514,7 @@ function resolveAgentChatSessionId(agentId: string, homeDir?: string): string | 
   // unrelated conversation. A durable pin makes the next turn use what we show.
   if (!conversations.activeSessionId && conversations.ended.length === 0
     && hasNativeChatStore(agentId, homeDir)
-    && (!persisted || !fs.existsSync(path.join(getAgentSessionsDir(agentId, homeDir), `${persisted}.jsonl`)))
+    && (!persisted || !fs.existsSync(path.join(getAgentSessionsDir(agentId, homeDir), `${path.basename(persisted)}.jsonl`)))
     && (!persisted || !hasNativeChatSession(agentId, persisted, homeDir))) {
     const legacy = resolveLegacyDashboardChatSessionId(agentId, resolvedAgent.workspace, resolvedAgent.model, homeDir)
     if (legacy && resolvedAgent.model) {
