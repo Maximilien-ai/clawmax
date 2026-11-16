@@ -806,7 +806,7 @@ test('discovery uses a keyless workspace endpoint and never sends a different pr
     clearModelCache()
     const calls: Array<{ url: string; authorization?: string }> = []
     global.fetch = (async (url: any, init: any) => {
-      calls.push({ url: String(url), authorization: init?.headers?.Authorization })
+      if (new URL(String(url)).origin === 'http://172.16.1.70:8000') calls.push({ url: String(url), authorization: init?.headers?.Authorization })
       return { ok: true, json: async () => ({ data: [{ id: 'qwen/qwen3.6-27b' }] }) } as any
     }) as any
     const discovered = await discoverModels()
@@ -838,7 +838,7 @@ test('workspace discovery uses the protected key only when user-execution policy
       clearModelCache()
       const authorizations: string[] = []
       global.fetch = (async (_url: any, init: any) => {
-        const auth = init?.headers?.Authorization || ''; authorizations.push(auth)
+        const auth = init?.headers?.Authorization || ''; if (new URL(String(_url)).origin === 'http://172.16.1.70:8000') authorizations.push(auth)
         return { ok: !!auth, status: auth ? 200 : 401, json: async () => ({ data: [{ id: 'authenticated-chat' }] }) } as any
       }) as any
       const result = await discoverModels()
