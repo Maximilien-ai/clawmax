@@ -161,7 +161,7 @@ ws 8.23.0, TypeScript ESLint parser 8.72.0, React Vite plugin 6.3.0,
 autoprefixer 10.6.2, ESLint 10.13.0, PostCSS 8.5.33 and Vite 8.3.5.
 Focused logs: `/private/tmp/clawmax-298-{lock,install,tree,lint,build,focused}.*`.
 
-## Active: #296, optional-memory package compatibility
+## Completed: #296, optional-memory package compatibility
 
 [Existing PR #296](https://github.com/Maximilien-ai/clawmax/pull/296) is refreshed
 onto merged main `a9626631`, without force pushes. Dependency checkpoint
@@ -206,17 +206,21 @@ Engineering checklist; **no Dashboard UI acceptance is required**:
   Dashboard source and dependency files are byte-identical to merged #298, so
   its **582/582** full local result is reused. No repeat local Dashboard suite or
   browser audit is needed for this package-only change.
-- [ ] Focused Linux arm64/amd64 bundle builds and transport/hardening checks.
-  Expected **2–3 minutes** with cached Node bases; no provider/user data enters
-  these containers. These are local package probes, not release images.
-- [ ] Required current-head CI/CodeQL green; observed CI range **27–43 minutes**.
-- [ ] Fresh-main review/merge and primary checkout synchronization. Final receipts
-  will be recorded on the PR without restarting CI for evidence-only edits.
+- [x] Focused Linux arm64/amd64 package builds and all eight transport/hardening
+  cases pass on Node 24.22.0. Local image IDs: arm64 `ca2b3f85e783`, amd64
+  `8ffd18210132`. These are package probes, not published release images.
+- [x] Final-head (`7d92f73e`) [required CI](https://github.com/Maximilien-ai/clawmax/actions/runs/43622293018)
+  and [CodeQL](https://github.com/Maximilien-ai/clawmax/actions/runs/43622289552)
+  passed; CI took **35 minutes 45 seconds**.
+- [x] Merged as `703d65eba3cbe8f49df9c1905e9353e6056a99c7`. Main and the local
+  optional bundle are synchronized, hardened and clean; all eight primary-checkout
+  bundle cases pass. The Dependabot PR queue is cleared; #418/#419 remain open.
 
 ## Remaining queue and release boundary
 
-After #296, the six older product PRs remain for source/evidence review:
-#292, #229, #228, #194, #192 and #191. They are not automatically resolved by these
+The six older product PRs remain for source/evidence review:
+#292, #229, #228, #194, #192 and #191. Current work is
+[#191 acceptance and validation](PR191_ACCEPTANCE_2026-11-14.md). They are not automatically resolved by these
 dependency merges. Tracing migration #418 and consent-bound offline replay #419
 remain active, labelled follow-ups. Use existing PRs and keep each merge fresh.
 

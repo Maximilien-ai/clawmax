@@ -241,7 +241,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     void Promise.allSettled([discovery, authConfig]).then(([discovered, auth]) => {
       if (cancelled) return
       const d = discovered.status === 'fulfilled' ? discovered.value : null
-      const cfg = auth.status === 'fulfilled' ? auth.value : null
+      const cfg = auth.status === 'fulfilled' ? { ...config, ...auth.value } : null
       const models = visibleModels(d)
       const byok = readStoredByokKeys()
       // Without the config answer the server-saved default is unknown, and falling back to the first
@@ -252,6 +252,11 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
           config: cfg && {
             preferredModel: cfg.preferredModel,
             recommendedModel: cfg.recommendedModel,
+            workspaceOpenAiCompatibleBaseUrl: cfg.workspaceOpenAiCompatibleBaseUrl,
+            workspaceOpenAiCompatibleDefaultModel: cfg.workspaceOpenAiCompatibleDefaultModel,
+            userKeyDefaults: cfg.userKeyDefaults,
+            systemKeyDefaults: cfg.systemKeyDefaults,
+            allowSystemKeysForUserExecution: cfg.allowSystemKeysForUserExecution,
             ollamaEnabled,
             defaultOllamaBaseUrl: cfg.defaultOllamaBaseUrl,
             defaultOpenAiCompatibleBaseUrl: cfg.defaultOpenAiCompatibleBaseUrl,
@@ -275,7 +280,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       setModelsLoaded(true)
     })
     return () => { cancelled = true }
-  }, [ollamaEnabled, showAllModels, modelsReload])
+  }, [config, ollamaEnabled, showAllModels, modelsReload])
 
   // Suggested ID + port, existing agents and templates, once on mount. These used to share the model
   // effect, so toggling "Show all models" reset an agent name the user had already typed.

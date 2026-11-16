@@ -3,6 +3,23 @@ import http from 'http'
 import express from 'express'
 import { aiGenerationRequestContext, getRequestByokKeys, setRequestByokKeys, withRequestByokKeys } from './ai-generation-context'
 async function run() {
+  await withRequestByokKeys(undefined, async () => {
+    assert.equal(getRequestByokKeys(), undefined)
+    const original = { openai: 'synthetic-snapshot' }
+    await withRequestByokKeys(undefined, async () => {
+      setRequestByokKeys(original)
+      original.openai = 'mutated-input'
+      await Promise.resolve()
+      assert.equal(getRequestByokKeys()?.openai, 'synthetic-snapshot', 'Setter snapshots caller-owned key objects')
+    })
+    assert.equal(getRequestByokKeys(), undefined, 'Nested empty scopes restore their empty parent')
+    await assert.rejects(withRequestByokKeys(undefined, async () => {
+      setRequestByokKeys({ openai: 'synthetic-failed-child' })
+      throw new Error('empty child failed')
+    }), /empty child failed/)
+    assert.equal(getRequestByokKeys(), undefined, 'Rejected empty children cannot alter their parent')
+  })
+  assert.equal(getRequestByokKeys(), undefined, 'An initially empty scope never leaks into its caller')
   const app = express()
   app.use(aiGenerationRequestContext)
   app.get('/', async (req, res) => {
