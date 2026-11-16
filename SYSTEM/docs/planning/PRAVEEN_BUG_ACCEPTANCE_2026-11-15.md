@@ -15,12 +15,16 @@ this preview and acceptance. No deployment or image readiness is claimed.
   salted cache identities and request isolation remain enforced.
 - [#194](https://github.com/Maximilien-ai/clawmax/pull/194): reconcile Praveen’s
   original native-history report with the newer history fixes already on main.
-  This refreshed PR preserves the current read-only SQLite reader, compressed
-  events, active-branch/error handling and durable Clear/Continue receipts. Its
-  remaining delta over #191 is regression coverage and this documentation; it
-  does not claim a newly shipped history implementation. Two route cases add
-  long/collapsed-hyphen agent IDs, compressed replies, reopening, unrelated-session
-  exclusion, Clear/History/Continue, byte-identical SQLite and no legacy index.
+  The current reader already handles native SQLite/compressed events. The remaining
+  bug reproduced on `6fc8eaa3`: old timestamp-seeded conversations were missed.
+  Product checkpoint `fa07f60c` recovers only an exact identity/model match and pins
+  its session durably so the next turn continues the displayed conversation. It
+  refuses ambiguous matches, reports stale indexes, and preserves Clear/Continue.
+  A current legacy index also outranks a stale semantic native pointer (#196),
+  while exact server-owned native sessions keep priority. Four route cases cover
+  long/hyphenated IDs, both seed formats, compressed replies, reopen, errors,
+  ambiguity, unrelated-session exclusion, Clear/History/Continue, byte-identical
+  SQLite and no legacy index. An additional execution case covers mixed stores.
 
 PR #194 includes #191 as a dependency. Review/merge in **#191 → #194** order after
 acceptance and each PR’s current-head CI/security evidence. No replacement PR,
@@ -54,12 +58,13 @@ email or outreach is sent by preparing this file.
 ## Engineering evidence and limits
 
 - [x] Current #194 reconciliation: native-history fixtures, seven durable-conversation
-  tests, **90/90** agent-route cases and server TypeScript pass in a private unit
-  environment. The two new cases extend the existing suite; they do not add two
+  tests, **75/75** execution cases, **92/92** agent-route cases and server TypeScript pass in a private unit
+  environment. The added cases extend the existing suites; they do not add two
   top-level test groups.
 - [x] #191 browser checks: 1440px/390px, light/dark, empty-model verification,
   visible discovered models, save/reload, readiness, changed-key invalidation,
-  no page errors/overflow. #194 changes no production UI.
+  no page errors/overflow. #194 changes no production UI; its chat response/error
+  behavior is also checked through the production panel with synthetic API fixtures.
 - [x] #191 strict frontend typing adds zero to main’s 290-diagnostic baseline.
   This is not a clean frontend type-check claim.
 - [ ] Combined committed-source full integration/validation/coverage, with isolated
@@ -79,13 +84,19 @@ alert has additional source traces through the unchanged fingerprint helper.
 Dashboard owns baseline disposition before RC98 promotion; none is silently waived.
 Security follow-ups #418/#419 and the other RC98 gates remain open.
 
+**Retained history boundary:** [#420](https://github.com/Maximilien-ai/clawmax/issues/420)
+tracks owner-assisted recovery when an older identity timestamp/model no longer
+reconstructs a verifiable seed. Records are unchanged; the fix does not guess a
+newest or prefix-only session. #196/#216 remain open for their complete criteria
+and current-source/owner confirmation. They are not closed by this partial overlap.
+
 ## Preview and local test command
 
-The existing isolated preview **http://localhost:5181** (API **3008**) already
-contains both production behaviors: its source snapshot `37429a3e` has the same
-production code as the refreshed bug batch; later differences are tests/docs only.
-Private HOME/workspace/registry/gateway; no copied provider credentials. Preview
-5180 is separate. The primary checkout stays on clean main until acceptance/merge.
+The combined bug preview will use **http://localhost:5182** (API **3009**),
+from the final committed bug-only source. Exact source/root/readiness receipts go
+on #194. Private HOME/workspace/registry/gateway; no copied provider credentials.
+Older previews 5180/5181 are separate and do not contain the new legacy recovery.
+The primary checkout stays on clean main until acceptance/merge.
 
 Run from the combined checkout `/private/tmp/clawmax-history-194`, using Node
 24.22.0 on PATH and your configured integration provider:

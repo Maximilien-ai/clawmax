@@ -1,5 +1,20 @@
 # Backlog
 
+## Praveen bug-only batch — November 15
+
+[#191/#194 acceptance](planning/PRAVEEN_BUG_ACCEPTANCE_2026-11-15.md) keeps
+optional OpenCode #292 separate. #194 now recovers exact older timestamp-seeded
+native sessions with durable continuation and preserves current legacy-index
+precedence over stale native semantic pointers. Final combined validation/CI and
+owner acceptance are pending; no source merge or deployment is claimed.
+
+[#420](https://github.com/Maximilien-ai/clawmax/issues/420) retains the reproduced
+changed-identity/model legacy recovery boundary: require owner-assisted provenance
+and selection; never infer a current conversation from a broad prefix or newest
+nonempty session. Dashboard owns this high-priority review before RC98 promotion.
+Existing #196/#216 retain their complete open criteria; source overlap alone does
+not close them.
+
 ## November 14 dependency maintenance checkpoint
 
 #227 is accepted and merged as `9ad021b0`; #223 is closed. Final CI passed and
