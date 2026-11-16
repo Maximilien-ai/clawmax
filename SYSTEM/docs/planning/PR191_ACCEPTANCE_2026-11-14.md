@@ -1,5 +1,7 @@
 # PR #191 — compatible-provider model selection
 
+The active owner queue is now the [combined #191/#194 bug checklist](PRAVEEN_BUG_ACCEPTANCE_2026-11-15.md). OpenCode #292 is separate. This file preserves the original engineering checkpoint; current receipts are on the PR.
+
 Stable remains **v1.9.9**; development is **2.0.0** on OpenClaw **2026.9.7**
 and Node **24.22.0**. RC98 has not been cut. Dashboard owns this public-source
 work; no provider deployment or RC image readiness is claimed.
@@ -27,7 +29,7 @@ local or remote compatible endpoint you normally use; no credentials are include
 in this file or copied into the preview.
 
 - [ ] In the isolated dev instance's **Model Integration / BYOK**, select your
-  OpenAI-compatible endpoint. Leave **Default model** empty, run **Check Key**,
+  OpenAI-compatible endpoint. Leave **Default model** empty, run **Check Connection**,
   and save. It should verify without asking you to type an OpenAI model name.
 - [ ] Create an agent with the endpoint's offered chat model and send a short
   message. It should reply through that service. Reopen Builder and use an AI
