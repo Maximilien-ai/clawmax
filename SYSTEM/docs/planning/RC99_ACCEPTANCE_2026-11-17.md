@@ -51,3 +51,15 @@ Corrected image build: https://github.com/Maximilien-ai/clawmax/actions/runs/441
 - [x] Public image build, both architectures, registry and lifecycle validation passed: https://github.com/Maximilien-ai/clawmax/actions/runs/44135914412 . Frozen source `0c4272c76a7662102024683f727d38c826176361`, tag `v2.0.0-test-rc99`.
 - [ ] Matching private image build and validation running: https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/44152086056 . Private source `300685002d5e8d370d5b6395ac7ac28f6ab7f51e`; base and image tags both `2.0.0-test-rc99`. Normal build, not smoke-only; accepted public extensions enabled by default. Expected about 13 minutes.
 - [ ] Verify exact image digests and both GCP mirror regions before image handoff. No deployment or local RC98 replacement performed.
+
+## Packaged local acceptance
+
+Public RC99 run 44135914412 and combined RC99 run 44152086056 passed. Private GCP mirror 44154321603 passed in both regions; West receipt confirms amd64/arm64 pull verification and index `sha256:50d42e26703fcf3e2aa4172b6d5d1ba9a526f9b2f5dbeb5e856164a6a4c3da1f`.
+
+Local target: http://localhost:3202, container `clawmax-rc99-dev-acceptance`, reusing `clawmax-rc98-dev-acceptance-data`. Verified API version RC99, five agents/five workflows preserved, gateway ready, and only Lifecycle/Review enabled. Older source dev launchers/frontends were stopped. The installed RC97 agent supervisor was unloaded to prevent automatic restart; no volume was deleted. Restart RC99 with `podman restart --time 30 clawmax-rc99-dev-acceptance`.
+
+Owner checks remain the five RC99 changes above plus one short agent chat. RC98 model selection and Builder resize remain accepted. The packaged Review catalog still identifies RC98; use this RC99 checklist for the new fixes rather than interpreting the old catalog as RC99 evidence.
+
+### Train stopping checkpoint
+
+Local RC99 initially passed readiness/version and preserved five agents/five workflows. Unloading the installed RC97 supervisor subsequently stopped the shared Podman VM. A direct `podman machine start podman-clawmax` reported success, but both its SSH and API socket were unavailable afterward. **localhost:3202 is not currently confirmed available.** Do not advertise it as ready until the VM connection is restored and RC99 health is checked again. Container `clawmax-rc99-dev-acceptance` and acceptance volume remain preserved; no data deletion occurred. Resume with VM/supervisor diagnosis, then start only RC99 and verify version/health/plugins. Owner requested a stopping checkpoint before leaving the train.
