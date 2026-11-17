@@ -12,6 +12,7 @@ original source snapshots, not the current candidate or runtime state.
 | Document | Description |
 |----------|-------------|
 | [planning/PR191_ACCEPTANCE_2026-11-14.md](planning/PR191_ACCEPTANCE_2026-11-14.md) | Compatible-provider optional model discovery, engineering evidence and one external-provider check |
+| [planning/OPEN_PR_CLOSEOUT_2026-11-16.md](planning/OPEN_PR_CLOSEOUT_2026-11-16.md) | All remaining PRs, quieter automation and merge/closure criteria |
 | [planning/DEPENDABOT_2026-11-16.md](planning/DEPENDABOT_2026-11-16.md) | Accepted #191/#194 merges, compatible dependency batches and held major migrations |
 | [planning/DEPENDABOT_2026-11-14.md](planning/DEPENDABOT_2026-11-14.md) | #302/#384/#298 merge receipts, #296 merge receipt and retained release gates |
 | [planning/DEPENDABOT_2026-11-13.md](planning/DEPENDABOT_2026-11-13.md) | Prior dependency contracts/merges, issue triage and retained RC98 gates |

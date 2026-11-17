@@ -25,7 +25,7 @@ jobs:
       CLAWMAX_OPENCLAW_TARGET: v2026.9.7
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -34,6 +34,9 @@ jobs:
           node-version: 24.22.0
           cache: npm
           cache-dependency-path: SYSTEM/dashboard/package-lock.json
+
+      - name: Validate dependency maintenance policy
+        run: node --test .github/scripts/dependabot-policy.test.cjs
 
       - name: Validate test selection
         run: node --test .github/scripts/dashboard-test-scope.test.cjs

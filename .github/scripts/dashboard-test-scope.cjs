@@ -3,6 +3,10 @@ const { execFileSync } = require('node:child_process')
 
 const AUTOMATION_FILES = new Set([
   '.github/workflows/ci.yml',
+  '.github/workflows/release-assets.yml',
+  '.github/workflows/container-image-lifecycle-acceptance.yml',
+  '.github/dependabot.yml',
+  '.github/scripts/dependabot-policy.test.cjs',
   '.github/workflows/container-image.yml',
   '.github/workflows/test-container-image.yml',
   '.github/workflows/mirror-gcp-image.yml',

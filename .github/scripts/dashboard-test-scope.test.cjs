@@ -10,7 +10,9 @@ test('only reviewed automation and documentation paths select focused checks', (
   for (const file of ['README.md', 'CHANGELOG.md', 'SYSTEM/docs/STATUS.md', 'SYSTEM/docs/planning/ACCEPTANCE.md',
     '.github/workflows/ci.yml', '.github/workflows/image-action-contracts.yml', '.github/workflows/container-image.yml',
     '.github/workflows/test-container-image.yml', '.github/workflows/mirror-gcp-image.yml',
-    '.github/scripts/dashboard-test-scope.cjs', '.github/scripts/dashboard-test-scope.test.cjs']) {
+    '.github/scripts/dashboard-test-scope.cjs', '.github/scripts/dashboard-test-scope.test.cjs',
+    '.github/dependabot.yml', '.github/scripts/dependabot-policy.test.cjs',
+    '.github/workflows/release-assets.yml', '.github/workflows/container-image-lifecycle-acceptance.yml']) {
     assert.equal(classifyPaths([file]).dashboard, false, file)
   }
 })

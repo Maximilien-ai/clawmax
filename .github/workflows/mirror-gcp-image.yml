@@ -25,7 +25,7 @@ jobs:
   contract:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - run: node --test SYSTEM/mirror-gcp-image.test.mjs SYSTEM/mirror-gcp-target.test.mjs
   prepare:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
@@ -37,7 +37,7 @@ jobs:
       image_tag: ${{ steps.target.outputs.image_tag }}
       image_digest: ${{ steps.target.outputs.image_digest }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Download successful image workflow evidence
         if: github.event_name == 'workflow_run'
         uses: actions/download-artifact@v8
@@ -75,7 +75,7 @@ jobs:
       IMAGE_DIGEST: ${{ needs.prepare.outputs.image_digest }}
       REGISTRY_AUTH_FILE: /tmp/clawmax-mirror-auth.json
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Validate inputs before requesting credentials
         run: node --input-type=module -e "import {configuration} from './SYSTEM/mirror-gcp-image.mjs'; configuration(process.env)"
       - name: Install OCI copy tool
