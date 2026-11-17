@@ -12,7 +12,8 @@ test('only reviewed automation and documentation paths select focused checks', (
     '.github/workflows/test-container-image.yml', '.github/workflows/mirror-gcp-image.yml',
     '.github/scripts/dashboard-test-scope.cjs', '.github/scripts/dashboard-test-scope.test.cjs',
     '.github/dependabot.yml', '.github/scripts/dependabot-policy.test.cjs',
-    '.github/workflows/release-assets.yml', '.github/workflows/container-image-lifecycle-acceptance.yml']) {
+    '.github/workflows/release-assets.yml', '.github/workflows/container-image-lifecycle-acceptance.yml',
+    '.github/workflows/promote-tested-image.yml']) {
     assert.equal(classifyPaths([file]).dashboard, false, file)
   }
 })
