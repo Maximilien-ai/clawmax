@@ -3,7 +3,8 @@
 ## RC98 closeout — November 16
 
 Owner accepted #191/#194; both are merged. #434 Node 24.22.3 and coordinated
-#435 React remain gated on hosted CI; combined source passes 582/582 locally.
+#435 React are merged through `6bf0dbf9` after green hosted checks; combined
+source and the final release catalog checkpoint each pass 582/582 locally.
 [Current progress](planning/RC98_PROGRESS_2026-11-16.md) records the dependency,
 issue/feedback and image gates. Do not treat the older maintenance snapshots below
 as a current PR inventory.

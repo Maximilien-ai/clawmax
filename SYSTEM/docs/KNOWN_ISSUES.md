@@ -11,6 +11,13 @@ The November 16 audit closed eleven verified completed defects: #196, #197,
 open issues, all labeled and triaged. This does not establish that every remaining
 report is reproduced or fixed. [Progress and evidence](planning/RC98_PROGRESS_2026-11-16.md).
 
+### Dependency audit residuals
+
+Current candidate audit reports 574 dependencies with **10 Moderate**, **zero
+High/Critical** and zero Low advisories. Dashboard owns Moderate remediation
+before stable 2.0 promotion; dependency categories overlap. The raw audit exits 1,
+so this is not a claim of an entirely clean or complete security audit.
+
 ### RC98 retained UI and validation gaps
 
 #370 Workflows List select-all and #371 Agents Detail Status still contain

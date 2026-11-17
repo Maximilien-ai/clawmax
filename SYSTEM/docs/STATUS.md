@@ -9,7 +9,9 @@
 **Status**: Stable remains `v1.9.9`. RC98 is being prepared, not published or
 installed. Owner-accepted #191/#194 and dependency batches #424/#421 are merged;
 #430 quieter automation and #428 QEMU v4 are merged. #434 aligns Node 24.22.3 and
-#435 coordinates React/DOM/types; both await required hosted CI before merge.
+#435 coordinates React/DOM/types; both are merged through `6bf0dbf9` after
+green required CI, CodeQL and architecture checks. No Dependabot PR remained
+open in the post-merge inventory.
 Combined pushed source `575b348d` passes **582/582** local integration, validation
 and coverage checks with the caller registry unchanged, plus 30 browser cases.
 Strict frontend typing retains 289 diagnostics (290 baseline), with none added.

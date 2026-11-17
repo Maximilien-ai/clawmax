@@ -8,7 +8,7 @@ All notable changes to ClawMax are documented here.
 - Merge accepted provider-default fixes: use available OpenAI-compatible models without an OpenAI key and restore automatic OpenAI precedence when the key returns; retain explicit model choices and model-policy boundaries.
 - Recover verifiable older native chat sessions with durable exact continuation and preserve mixed-store precedence without rewriting runtime transcripts.
 - Update compatible dependencies, retain incompatible tracing pins, and reduce routine Dependabot proposals through monthly grouped maintenance while preserving security alerts/fixes.
-- Validate Node 24.22.3 security alignment and coordinated React/DOM/type updates in #434/#435; their hosted merge checks remain pending at this checkpoint.
+- Merge Node 24.22.3 security alignment and coordinated React/DOM/type updates in #434/#435 after green CI/security checks. Add two focused independent event checks for RC98 in Review.
 - Close eleven completed issue reports with evidence. Public/private RC98 images and installed acceptance remain pending; see the [progress checklist](SYSTEM/docs/planning/RC98_PROGRESS_2026-11-16.md).
 
 ### RC95 source preview (October 27, 2026)

@@ -27,8 +27,10 @@ accepted; they are not copied into a new unfinished reviewer queue.
   validation and coverage checks on verified Node 24.22.3. Caller registry unchanged.
 - [x] Lint, server TypeScript, production build, 30 responsive/theme browser checks,
   macOS native runtime tests and Linux amd64/arm64 native checks pass.
-- [ ] Merge #434 then #435 after current-head required CI; freeze source.
-- [ ] Validate the focused RC98 Review catalog and final release checkpoint.
+- [x] Both #434/#435 merged after green current-head CI through #435 `6bf0dbf9`.
+- [x] Focused RC98 Review catalog passes 32 host cases, source contracts and
+  four responsive/theme browser cases. Final product checkpoint `33287ab3`
+  passes **582/582**, caller registry unchanged.
 - [ ] Align ignored local version to `2.0.0-test-rc98`, restart and verify visible
   and `/api/system` identity while preserving the preview's private state.
 - [ ] Publish public Test Container Image from the candidate ref; validate both
