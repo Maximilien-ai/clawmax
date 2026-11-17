@@ -57,4 +57,31 @@ if grep -Fq 'for arch in amd64 arm64' "$image_workflow"; then
 fi
 assertions=$((assertions + 1))
 
+# Execute the real scheduler assertions against missing/duplicate/legacy fixtures.
+python3 - "$smoke" <<'PYTEST'
+import pathlib, subprocess, sys
+source = pathlib.Path(sys.argv[1]).read_text()
+start = source.index('  # Dashboard owns scheduling;')
+end = source.index('\n  "$container_cli" exec "$container_name" test -s', start)
+checks = source[start:end]
+morning = '[Scheduler] Scheduled rc65-morning: 30 9 * * * (UTC)'
+two_hour = '[Scheduler] Scheduled rc65-two-hour: 0 */2 * * * (UTC)'
+cases = [
+    ('local schedules', [morning, two_hour], '[]', True),
+    ('missing morning', [two_hour], '[]', False),
+    ('duplicate morning', [morning, morning, two_hour], '[]', False),
+    ('missing two-hour', [morning], '[]', False),
+    ('duplicate two-hour', [morning, two_hour, two_hour], '[]', False),
+    ('legacy gateway job', [morning, two_hour], '[{"name":"clawmax-rc65-morning-rc-image-reuse-probe"}]', False),
+    ('invalid canary', [morning, two_hour, '[Scheduler] Scheduled rc65-invalid-canary: invalid'], '[]', False),
+]
+import os
+for name, logs, jobs, expected in cases:
+    env = dict(os.environ, FIXTURE_LOGS='\n'.join(logs), FIXTURE_JOBS='{"jobs":' + jobs + '}')
+    harness = 'set -euo pipefail\nfail() { exit 1; }\nfixture_cli() { printf "%s\\n" "$FIXTURE_LOGS"; }\ncontainer_cli=fixture_cli\ncontainer_name=fixture\ncron_jobs="$FIXTURE_JOBS"\n'
+    result = subprocess.run(['bash', '-c', harness + checks], env=env, capture_output=True)
+    assert (result.returncode == 0) == expected, (name, result.stderr.decode())
+print('Scheduler lifecycle assertions: 7 behavior cases passed')
+PYTEST
+
 echo "container-agent-lifecycle-smoke.test.sh: ${assertions} assertions passed"

@@ -331,12 +331,21 @@ assert_populated_fixture() {
 
   cron_jobs="$("$container_cli" exec "$container_name" openclaw cron list --json --all)" \
     || fail 'OpenClaw cron list failed after populated restart'
+  # Dashboard owns scheduling; legacy Gateway jobs would execute workflows twice.
   printf '%s' "$cron_jobs" | jq -e \
-    '[(.jobs // .)[] | select(.name == "clawmax-rc65-morning-rc-image-reuse-probe")] | length == 1' >/dev/null \
-    || fail 'morning cron registration missing or duplicated'
-  printf '%s' "$cron_jobs" | jq -e \
-    '[(.jobs // .)[] | select(.name == "clawmax-rc65-two-hour-rc-image-reuse-probe")] | length == 1' >/dev/null \
-    || fail 'two-hour cron registration missing or duplicated'
+    '[(.jobs // .)[] | select(.name == "clawmax-rc65-morning-rc-image-reuse-probe" or .name == "clawmax-rc65-two-hour-rc-image-reuse-probe")] | length == 0' >/dev/null \
+    || fail 'legacy Gateway workflow cron registrations survived cleanup'
+  scheduler_logs="$("$container_cli" logs "$container_name" 2>&1)" \
+    || fail 'could not inspect local scheduler startup evidence'
+  for registration in \
+    '[Scheduler] Scheduled rc65-morning: 30 9 * * * (UTC)' \
+    '[Scheduler] Scheduled rc65-two-hour: 0 */2 * * * (UTC)'; do
+    [ "$(printf '%s\n' "$scheduler_logs" | grep -Fc "$registration")" = 1 ] \
+      || fail "local cron registration missing or duplicated: $registration"
+  done
+  if printf '%s\n' "$scheduler_logs" | grep -Fq '[Scheduler] Scheduled rc65-invalid-canary:'; then
+    fail 'invalid schedule canary was registered locally'
+  fi
 
   "$container_cli" exec "$container_name" test -s /app/DATA/.home/.openclaw/openclaw.json \
     || fail 'OpenClaw state did not survive restart'
