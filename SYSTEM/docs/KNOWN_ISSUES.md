@@ -6,10 +6,20 @@
 
 ## Active Issues
 
-All 107 issues open at the November 13 audit start are initially classified by
-type, area and reported-impact priority; #273 is verified/closed, leaving 106 open
-with no unlabelled entries. This does not establish current reproducibility or
-complete closure evidence. [Triage table and limits](planning/ISSUE_TRIAGE_2026-11-13.md).
+The November 16 audit closed eleven verified completed defects: #196, #197,
+#220, #222, #275, #277, #279, #283, #289, #308 and #337. The snapshot has **100**
+open issues, all labeled and triaged. This does not establish that every remaining
+report is reproduced or fixed. [Progress and evidence](planning/RC98_PROGRESS_2026-11-16.md).
+
+### RC98 retained UI and validation gaps
+
+#370 Workflows List select-all and #371 Agents Detail Status still contain
+undefined references; retain them as open defects. The candidate's strict frontend
+check has 289 diagnostics versus 290 on baseline, with no additional identities.
+Green aggregate tests are not proof that these paths work. #216 needs full legacy
+POST session-identity route evidence; #331 retains complete wizard criteria.
+Historical security scan disposition, installed/provider acceptance and matching
+public/private image validation remain separate release gates.
 
 ### PDF task-list export layout (#426)
 

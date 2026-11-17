@@ -12,6 +12,10 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 Latest Stable Release: v1.9.9
 
+Development remains **2.0.0**. RC98 is in preparation; it is not yet a published
+or accepted image. Follow the [RC98 progress checklist](SYSTEM/docs/planning/RC98_PROGRESS_2026-11-16.md)
+and [focused owner acceptance](SYSTEM/docs/planning/RC98_ACCEPTANCE_2026-11-16.md).
+
 ### Choose the correct OSS image
 
 For a stable open-source installation, use the public image:

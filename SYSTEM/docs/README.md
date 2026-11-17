@@ -12,6 +12,7 @@ original source snapshots, not the current candidate or runtime state.
 | Document | Description |
 |----------|-------------|
 | [planning/PR191_ACCEPTANCE_2026-11-14.md](planning/PR191_ACCEPTANCE_2026-11-14.md) | Compatible-provider optional model discovery, engineering evidence and one external-provider check |
+| [planning/RC98_ACCEPTANCE_2026-11-16.md](planning/RC98_ACCEPTANCE_2026-11-16.md) | Two independent RC98 owner checks and engineering image gates |
 | [planning/RC98_PROGRESS_2026-11-16.md](planning/RC98_PROGRESS_2026-11-16.md) | Current RC98 progress, remaining gates and owner acceptance status |
 | [planning/OPEN_PR_CLOSEOUT_2026-11-16.md](planning/OPEN_PR_CLOSEOUT_2026-11-16.md) | All remaining PRs, quieter automation and merge/closure criteria |
 | [planning/DEPENDABOT_2026-11-16.md](planning/DEPENDABOT_2026-11-16.md) | Accepted #191/#194 merges, compatible dependency batches and held major migrations |

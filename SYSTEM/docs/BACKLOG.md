@@ -1,19 +1,23 @@
 # Backlog
 
-## Praveen bug-only batch — November 15
+## RC98 closeout — November 16
 
-[#191/#194 acceptance](planning/PRAVEEN_BUG_ACCEPTANCE_2026-11-15.md) keeps
-optional OpenCode #292 separate. #194 now recovers exact older timestamp-seeded
-native sessions with durable continuation and preserves current legacy-index
-precedence over stale native semantic pointers. Final combined validation/CI and
-owner acceptance are pending; no source merge or deployment is claimed.
+Owner accepted #191/#194; both are merged. #434 Node 24.22.3 and coordinated
+#435 React remain gated on hosted CI; combined source passes 582/582 locally.
+[Current progress](planning/RC98_PROGRESS_2026-11-16.md) records the dependency,
+issue/feedback and image gates. Do not treat the older maintenance snapshots below
+as a current PR inventory.
 
-[#420](https://github.com/Maximilien-ai/clawmax/issues/420) retains the reproduced
-changed-identity/model legacy recovery boundary: require owner-assisted provenance
-and selection; never infer a current conversation from a broad prefix or newest
-nonempty session. Dashboard owns this high-priority review before RC98 promotion.
-Existing #196/#216 retain their complete open criteria; source overlap alone does
-not close them.
+Eleven completed defects are closed, including #196. #216 remains open for its
+complete route evidence; #331 retains complete wizard criteria. #420 requires
+owner-assisted provenance for unverifiable older sessions. #418 tracing, #419
+consent-bound offline replay, #426 PDF task lists and #433 supported major
+migrations remain active. Confirmed #370/#371 UI gaps remain open. Optional or
+broader contributor work #192/#228/#229/#292 requires separate validation.
+
+All 52 open feedback reports have issues and saved replies. Close a report only
+when every topic is addressed or traced to a canonical duplicate; reporter email
+receipts remain separate from GitHub comments and queued notifications.
 
 ## November 14 dependency maintenance checkpoint
 

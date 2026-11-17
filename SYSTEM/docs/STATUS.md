@@ -4,6 +4,29 @@
 
 **Development Line**: 2.0.0
 
+**Last Updated**: November 16, 2026
+
+**Status**: Stable remains `v1.9.9`. RC98 is being prepared, not published or
+installed. Owner-accepted #191/#194 and dependency batches #424/#421 are merged;
+#430 quieter automation and #428 QEMU v4 are merged. #434 aligns Node 24.22.3 and
+#435 coordinates React/DOM/types; both await required hosted CI before merge.
+Combined pushed source `575b348d` passes **582/582** local integration, validation
+and coverage checks with the caller registry unchanged, plus 30 browser cases.
+Strict frontend typing retains 289 diagnostics (290 baseline), with none added.
+
+Eleven completed issues were closed with evidence; the snapshot has **100 open**,
+all labeled/triaged. Feedback is **73 total, 21 closed/52 open**, all linked and
+none flagged as needing a reply. Full feedback resolution is not claimed.
+[Current progress](planning/RC98_PROGRESS_2026-11-16.md) and the
+[focused acceptance plan](planning/RC98_ACCEPTANCE_2026-11-16.md) separate
+engineering tests from two independent owner checks. Public/private image
+validation, final source identity and installed acceptance remain open.
+
+## Historical November 15 checkpoint
+
+The following records the earlier source state; the current checkpoint above
+supersedes its pending merge/acceptance statements.
+
 **Last Updated**: November 15, 2026
 
 **Status**: `v1.9.9` remains stable. #227 is accepted and merged on main as
