@@ -1,16 +1,23 @@
 # RC98 acceptance — November 16
 
-**Local source preview ready; image acceptance is pending.** Stable remains v1.9.9.
-Frozen source: `v2.0.0-test-rc98` at
-`d51aa681ebbfe6dcf14758914486b492ac91ade9`. Open **http://localhost:5182** for the
-preserved local preview, version **2.0.0-test-rc98**. Its API and visible desktop
-version, phone rendering and Builder interactions have been verified.
+**RC98 public and combined private image validation passed. Both GCP mirror workflows passed.** Stable remains v1.9.9; no fleet deployment implied.
 
-[Public image build](https://github.com/Maximilien-ai/clawmax/actions/runs/44016642306)
-is running from the exact candidate tag. The matching private image follows only
-if public validation succeeds. Do not treat either image as ready yet. The local
-source preview can be used for task-quality acceptance; installed image acceptance
-waits for the exact public/private validation and digests below.
+Local packaged dev acceptance is ready at **http://localhost:3202**, in a dedicated Podman container `clawmax-rc98-dev-acceptance` and persistent volume `clawmax-rc98-dev-acceptance-data`. Existing instances remain untouched. Set provider credentials through this dev instance's Keys & Secrets; LM Studio on the Mac is reachable from the container using `host.containers.internal`, not container localhost.
+
+## Quick RC97 → RC98 spot checks requested by owner
+
+These are optional repeat spot checks of accepted changes, not a new mandatory Review queue.
+
+- [ ] **Provider switching:** with only LM Studio/OpenAI-compatible configured, Add Agent and AI generation use an available compatible model. Add an OpenAI key: GPT-5.4-mini becomes available/default again; generate successfully.
+- [ ] **Chat history:** exchange a memorable fact, Clear and start fresh (no old context), then History → Continue the old conversation (old context returns). Older history is readable when present.
+- [ ] **Builder:** resize both prompt and answer vertically using thin handles; edit a prompt and confirm readiness changes without blocking generation.
+- [ ] **Dialogs:** in dark mode, selected Manage Members rows remain readable; Escape closes the dialog and keyboard focus stays inside while open.
+- [ ] **Saved edits:** edit an agent from its details panel, a document, workflow settings, and a workspace budget; reload and confirm each change remains.
+- [ ] **Channels:** send distinct messages in two groups/communities; confirm histories stay separate. Legacy mixed history must show recovery guidance, not combined messages.
+- [ ] **Rendering and extensions:** read Markdown/code/table content and open the enabled plugin pages; check readability and useful controls on your usual screen.
+- [ ] **Event task and restart:** complete one realistic task, judge its output, restart the dev container, and confirm saved results remain.
+
+Restart this isolated instance with `podman restart --time 30 clawmax-rc98-dev-acceptance`.
 
 ## Owner checks (when ready)
 
@@ -41,12 +48,10 @@ accepted; they are not copied into a new unfinished reviewer queue.
 - [x] Ignored local version is `2.0.0-test-rc98`; preserved preview restarted on
   verified Node 24.22.3. Visible desktop/API identity, mobile rendering and four
   theme/width Builder resize cases pass; no agent turns were started.
-- [ ] Publish public Test Container Image from the candidate ref; validate both
-  architectures and immutable identity. Last three runs took 66–69 minutes.
-- [ ] Publish matching Private ClawMax Plugins Image with the same exact tag;
-  validate package privacy, discovery, restart persistence and both architectures.
-  Last combined run took about 13 minutes. Record failures or reruns explicitly.
-- [ ] Add exact image digests, CI links and any remaining limitations here.
+- [x] Public and combined private images pass both-architecture validation; corrected lifecycle runs and historical failures are recorded in the progress checklist.
+- [x] Public GCP mirror 44096998734 and private GCP mirror 44095101350 passed.
+- [x] Local isolated packaged dev at localhost:3202 reports `2.0.0-test-rc98`, persistent stores ready and authenticated gateway ready. Fresh workspace has no agents; configure your provider before task acceptance.
+- [x] Exact image digests and CI links are recorded in [the progress checklist](RC98_PROGRESS_2026-11-16.md).
 
 ## Retained limits
 
