@@ -7,6 +7,13 @@ Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
 RC98 has not been cut. Earlier RC preview/evidence files below describe their
 original source snapshots, not the current candidate or runtime state.
 
+## Repository working instructions
+
+Start with [AGENTS.md](../../AGENTS.md); its task-specific procedures cover
+[product contracts](agent-guides/PRODUCT_CONTRACTS.md),
+[testing and release](agent-guides/RELEASE_VALIDATION.md), and
+[team operations](agent-guides/TEAM_OPERATIONS.md).
+
 ## Active Documents
 
 | Document | Description |
