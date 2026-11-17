@@ -45,3 +45,9 @@ node SYSTEM/dispatch-test-image.mjs v2.0.0-test-rc99 0c4272c76a7662102024683f727
 Eight regression cases cover raw SHAs, branches, malformed inputs, missing/mismatched tags, dry-run, full-ref dispatch and annotated tags/cycles. Live RC99 preflight passed without dispatching another build. This tooling follow-up does not move the frozen RC99 tag or change its image source.
 
 Corrected image build: https://github.com/Maximilien-ai/clawmax/actions/runs/44135914412 . Previous run 44135766090 stopped before checkout because an unsupported raw SHA was supplied.
+
+## RC99 image status
+
+- [x] Public image build, both architectures, registry and lifecycle validation passed: https://github.com/Maximilien-ai/clawmax/actions/runs/44135914412 . Frozen source `0c4272c76a7662102024683f727d38c826176361`, tag `v2.0.0-test-rc99`.
+- [ ] Matching private image build and validation running: https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/44152086056 . Private source `300685002d5e8d370d5b6395ac7ac28f6ab7f51e`; base and image tags both `2.0.0-test-rc99`. Normal build, not smoke-only; accepted public extensions enabled by default. Expected about 13 minutes.
+- [ ] Verify exact image digests and both GCP mirror regions before image handoff. No deployment or local RC98 replacement performed.
