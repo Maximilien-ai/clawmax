@@ -4050,6 +4050,12 @@ else
   fail "Dev host Skill chat presentation tests"
 fi
 
+if npx ts-node client/src/lib/citationPresentation.test.ts && npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/PresentedMarkdown.test.tsx && npx ts-node client/src/components/WorkflowAcceptanceLayout.test.ts; then
+  pass "RC99 citation presentation and workflow layout regressions"
+else
+  fail "RC99 citation presentation and workflow layout regressions"
+fi
+
 echo -e "${YELLOW}→ Running Markdown rendering compatibility tests...${NC}"
 if npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/lib/markdownRendering.test.tsx > /tmp/clawmax-markdown-rendering.out 2>&1; then
   pass "Markdown rendering compatibility tests (8 tests)"

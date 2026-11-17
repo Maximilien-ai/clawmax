@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from './PresentedMarkdown'
 import remarkGfm from 'remark-gfm'
 import { appendPromptAttachmentContext, createPromptAttachment, type PromptAttachment } from '../lib/promptAttachments'
 import type { PromptQualityDomain } from '../lib/promptQuality'

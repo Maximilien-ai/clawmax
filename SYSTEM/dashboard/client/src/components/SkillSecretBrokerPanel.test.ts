@@ -22,3 +22,7 @@ assert(source.includes("detail: { page: 'skills' }"), 'test setup should link di
 assert(source.includes('!selectedSkillAssigned'), 'authorization should be blocked until the selected skill is assigned')
 
 console.log('SkillSecretBrokerPanel.test.ts: 16 assertions passed')
+
+assert(!source.includes("useState('CLAWMAX_TEST_SECRET')"), 'Example key must not prefill a user secret')
+assert(!source.includes("useState('clawmax-secret-test')"), 'Example skill must not preselect a grant')
+assert(source.includes('<details') && source.includes('No secret is created until you save a value.'), 'Optional example guidance must explain no secret was created')

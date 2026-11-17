@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from './PresentedMarkdown'
 import remarkGfm from 'remark-gfm'
 import { readChatComposerExpanded, saveChatComposerExpanded } from '../lib/chatComposerSize'
 import {

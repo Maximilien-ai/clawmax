@@ -1,6 +1,6 @@
 import { channelLabel } from '../lib/channelLabel'
 import React, { useEffect, useState, useCallback } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from './PresentedMarkdown'
 import remarkGfm from 'remark-gfm'
 import { useToast } from './Toast'
 import { getSkillSetupHint } from '../lib/skillSetup'

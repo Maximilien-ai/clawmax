@@ -1,6 +1,6 @@
 import { ProductIconCell } from '../lib/productIcons'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from '../components/PresentedMarkdown'
 import remarkGfm from 'remark-gfm'
 import { buildDocHubTree, getDocHubChildDirectories, type FileTree } from '../lib/docHubTree'
 import { buildAgentInboxTargetPath } from '../lib/agentInbox'

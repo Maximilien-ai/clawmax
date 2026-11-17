@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from '../components/PresentedMarkdown'
 import remarkGfm from 'remark-gfm'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import PromptQualityPanel from '../components/PromptQualityPanel'

@@ -28,11 +28,11 @@ interface AgentSummary {
 export function SkillSecretBrokerPanel() {
   const [status, setStatus] = useState<BrokerStatus | null>(null)
   const [agents, setAgents] = useState<AgentSummary[]>([])
-  const [secretKey, setSecretKey] = useState('CLAWMAX_TEST_SECRET')
+  const [secretKey, setSecretKey] = useState('')
   const [secretValue, setSecretValue] = useState('')
   const [agentId, setAgentId] = useState('')
-  const [skillId, setSkillId] = useState('clawmax-secret-test')
-  const [grantKeys, setGrantKeys] = useState('CLAWMAX_TEST_SECRET')
+  const [skillId, setSkillId] = useState('')
+  const [grantKeys, setGrantKeys] = useState('')
   const [busy, setBusy] = useState(false)
   const [setupCopied, setSetupCopied] = useState(false)
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
@@ -173,8 +173,9 @@ export function SkillSecretBrokerPanel() {
         </div>
       )}
 
-      <div className="rounded-md border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
-        <div className="font-semibold">Secret access test setup</div>
+      <details className="rounded-md border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
+        <summary className="cursor-pointer font-semibold">Optional: test secret access</summary>
+        <p className="mt-2 text-xs">These are example names only. No secret is created until you save a value.</p>
         <p className="mt-1 text-xs text-sky-800 dark:text-sky-200">
           <code>clawmax-secret-test</code> is the packaged test skill. <code>CLAWMAX_TEST_SECRET</code> is the encrypted key that skill is allowed to use.
         </p>
@@ -191,7 +192,7 @@ export function SkillSecretBrokerPanel() {
         >
           Open Skills
         </button>
-      </div>
+      </details>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="space-y-3">

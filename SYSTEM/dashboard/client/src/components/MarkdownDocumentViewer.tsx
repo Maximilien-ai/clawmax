@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from './PresentedMarkdown'
 import remarkGfm from 'remark-gfm'
 import { createDocumentPdfSession, type PdfArtifact } from '../lib/documentPdfSession'
 import { isStalePdfAssetError } from '../lib/pdfLoadError'

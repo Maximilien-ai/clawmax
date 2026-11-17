@@ -1,3 +1,4 @@
+import { presentCitationMarkers } from './citationPresentation'
 import { lexer, type Token, type Tokens } from 'marked'
 
 type PdfNode = Record<string, unknown>
@@ -42,7 +43,7 @@ export async function buildMarkdownPdf(source: string, path: string, loadImage?:
         case 'br': return [{ text: '\n' }]
         case 'html': warnings.add('Raw HTML is omitted from PDF output.'); return []
         case 'image': warnings.add('Inline images are represented by their description.'); return [{ text: `[Image: ${token.text || 'image'}]` }]
-        default: return [{ text: ('text' in token && token.text) || token.raw || '' }]
+        default: return [{ text: presentCitationMarkers(('text' in token && token.text) || token.raw || '') }]
       }
     })
   }

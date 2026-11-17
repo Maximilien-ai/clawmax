@@ -1,7 +1,7 @@
 import { ScrollableMarkdownTable } from './ScrollableMarkdownTable'
 import { channelLabel } from '../lib/channelLabel'
 import { useEffect, useLayoutEffect, useState, useRef, useCallback, type ChangeEvent, type KeyboardEvent } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from './PresentedMarkdown'
 import remarkGfm from 'remark-gfm'
 import { nextChatFollowState } from '../lib/agentChatScroll'
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'

@@ -1,5 +1,4 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react'
-import TruncatedText from './TruncatedText'
 import { getWorkflowDisplayName } from '../lib/workflowDisplay'
 import { getWorkflowDagScaledCanvasStyle } from '../lib/workflowDagZoom'
 import { type PluginRelationship } from '../lib/pluginRelationships'
@@ -571,16 +570,16 @@ export default function WorkflowDAG({
                           >
                             <div className="flex items-center gap-2 mb-1">
                               <span className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
-                              <TruncatedText
-                                text={getWorkflowDisplayName(wf.name, group.title)}
-                                titleText={wf.name}
-                                className={`text-sm font-medium truncate ${colors.text}`}
-                              />
+                              <span title={wf.name} className={`min-w-0 whitespace-normal break-words text-sm font-medium ${colors.text}`}>
+                                {getWorkflowDisplayName(wf.name, group.title)}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 mb-1" aria-label="Workflow actions">
                               {!selectionMode && onTrigger && status !== 'running' && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); onTrigger(wf.id) }}
                                   disabled={isManualRunning}
-                                  className={`ml-auto inline-flex items-center justify-center rounded-full w-9 h-9 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                                  className={`inline-flex items-center justify-center rounded-full w-9 h-9 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                                     status === 'completed'
                                       ? 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50'
                                       : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50'

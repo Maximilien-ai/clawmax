@@ -2,7 +2,7 @@ import { updateMentionSelection } from '../lib/agentMentions'
 import { deleteWorkflowBatch, requireWorkflowDeletion } from '../lib/workflowDeletion'
 import { loadWorkflowAgents } from '../lib/workflowAgents'
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from '../components/PresentedMarkdown'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import PromptQualityPanel from '../components/PromptQualityPanel'
 import { useToast } from '../components/Toast'
@@ -1974,6 +1974,15 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   Create a workflow to coordinate agents, schedules, and repeatable automations.
                 </div>
                 <div className="mt-6 flex flex-wrap justify-center gap-3">
+                  <button
+                    onClick={() => { setAiPromptText(''); setAiAgentIds([]); setAiAgentSearch(''); setShowAiPrompt(true) }}
+                    disabled={!aiEnabled}
+                    title={aiEnabled ? 'Generate workflow with AI' : 'Configure browser keys or a shared execution path first'}
+                    className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ProductIconCell iconName="ai" label="AI" size="sm" />
+                    Create Workflow with AI
+                  </button>
                   <button
                     onClick={() => setShowEditorDialog(true)}
                     className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700"

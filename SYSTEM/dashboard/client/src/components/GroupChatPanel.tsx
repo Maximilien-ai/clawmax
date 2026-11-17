@@ -1,6 +1,6 @@
 import { ScrollableMarkdownTable } from './ScrollableMarkdownTable'
 import React, { useEffect, useState, useRef } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from './PresentedMarkdown'
 import remarkGfm from 'remark-gfm'
 import { buildAgentChatTimelineRows, shouldShowCalendarDate } from '../lib/agentChatTimeline'
 import { buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, buildSharedInboxTargetPath, type AgentInboxAttachmentRef } from '../lib/agentInbox'

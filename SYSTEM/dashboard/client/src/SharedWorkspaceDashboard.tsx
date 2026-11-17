@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from './components/PresentedMarkdown'
 import remarkGfm from 'remark-gfm'
 import { transformWorkspaceMarkdownUrl } from './lib/markdownLinks'
 import { buildWorkflowHandoffDisplay } from './lib/workflowDisplay'
