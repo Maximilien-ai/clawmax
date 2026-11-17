@@ -4285,7 +4285,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
         <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : agent.paused ? 'bg-gray-400 dark:bg-gray-50 dark:bg-gray-9000' : STATUS_COLORS[agent.status]}`} />
         <TruncatedText
           text={agent.name}
-          className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100"
+          className="font-semibold text-gray-900 dark:text-gray-100 text-sm min-w-0 flex-1 line-clamp-2 break-words"
         />
         {agent.tags.includes('built-in') && (
           <ProductIconCell iconName="ai" label="Built-in system agent" size="sm" className="border-transparent bg-transparent text-gray-500 dark:text-gray-300" />
