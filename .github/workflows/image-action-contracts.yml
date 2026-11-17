@@ -75,10 +75,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 24.22.3
+      - name: Set up emulation with the candidate QEMU action
+        uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v3
+      - name: Exercise native primitives on both target architectures
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime_version="$(node -p "require('./SYSTEM/node-runtime-pin.cjs').repositoryPins().version")"
+          for architecture in amd64 arm64; do
+            expected_arch=x64
+            if [ "$architecture" = arm64 ]; then expected_arch=arm64; fi
+            docker run --rm --platform "linux/$architecture" \
+              -e CLAWMAX_EXPECT_NODE_VERSION="$runtime_version" \
+              -e CLAWMAX_EXPECT_NODE_PLATFORM=linux \
+              -e CLAWMAX_EXPECT_NODE_ARCH="$expected_arch" \
+              -v "$PWD/SYSTEM/node-runtime-smoke.test.cjs:/tmp/runtime-smoke.cjs:ro" \
+              "node:$runtime_version-bookworm-slim" \
+              node -e 'require("node:assert/strict").equal(process.arch, process.env.CLAWMAX_EXPECT_NODE_ARCH); require("/tmp/runtime-smoke.cjs")'
+          done
       - name: Create synthetic scratch build context
         env:
           CONTRACT_ROOT: ${{ runner.temp }}/image-build-action-contract
