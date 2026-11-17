@@ -533,7 +533,7 @@ function GroupChatConversation({ channel, onClose, mode = 'overlay', onExpand, o
     }
   }
 
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const text = e.target.value
     setInput(text)
 

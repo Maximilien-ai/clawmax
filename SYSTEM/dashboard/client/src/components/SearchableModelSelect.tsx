@@ -1,5 +1,7 @@
 import React, { forwardRef, useEffect, useRef, useState } from 'react'
 
+type ModelOptionProps = { value?: unknown; children?: React.ReactNode; label?: unknown }
+
 /** Search and selection share one dropdown; typing never changes the saved selection. */
 export const SearchableModelSelect = forwardRef<HTMLButtonElement, React.SelectHTMLAttributes<HTMLSelectElement> & { searchLabel?: string }>(function SearchableModelSelect({ children, searchLabel = 'Search models', ...props }, ref) {
   const [open, setOpen] = useState(false)
@@ -12,7 +14,7 @@ export const SearchableModelSelect = forwardRef<HTMLButtonElement, React.SelectH
   let selectedVisible = false
   function filter(nodes: React.ReactNode, group = ''): React.ReactNode[] {
     return React.Children.toArray(nodes).flatMap(child => {
-      if (!React.isValidElement<any>(child)) return []
+      if (!React.isValidElement<ModelOptionProps>(child)) return []
       if (child.type === 'option') {
         const value = String(child.props.value ?? '')
         const text = React.Children.toArray(child.props.children).join(' ')
