@@ -2,8 +2,9 @@
 # runs the normal CI and needs a maintainer's review. Security updates are configured in the
 # repository settings; they use these ecosystems and stay one advisory per pull request.
 #
-# Minor and patch updates are grouped into one pull request per ecosystem; each major update gets
-# its own. Commit prefixes follow AGENTS.md (lowercase, no scope). Labels are ones the repository
+# Routine version updates run monthly, with at most five open PRs across these ecosystems.
+# Security updates retain their independent schedule and limit; cooldown applies only to versions.
+# React runtime/types travel together; other major updates get their own review. Commit prefixes follow AGENTS.md (lowercase, no scope). Labels are ones the repository
 # already has.
 version: 2
 updates:
@@ -11,18 +12,28 @@ updates:
   - package-ecosystem: "npm"
     directory: "/SYSTEM/dashboard"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "06:00"
       timezone: "America/Los_Angeles"
-    # Skip releases newer than a week: a compromised or broken release is usually pulled by then.
+    # Let routine releases settle; security updates bypass cooldown.
     cooldown:
-      default-days: 7
-    open-pull-requests-limit: 5
+      default-days: 14
+      semver-major-days: 90
+    open-pull-requests-limit: 2
     groups:
+      dashboard-react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
       dashboard-minor-and-patch:
         exclude-patterns:
           - "@opentelemetry/*"
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
         update-types:
           - "minor"
           - "patch"
@@ -46,7 +57,8 @@ updates:
       interval: "monthly"
       timezone: "America/Los_Angeles"
     cooldown:
-      default-days: 7
+      default-days: 14
+      semver-major-days: 90
     open-pull-requests-limit: 1
     commit-message:
       prefix: "build"
@@ -60,8 +72,8 @@ updates:
       interval: "monthly"
       timezone: "America/Los_Angeles"
     cooldown:
-      default-days: 7
-    open-pull-requests-limit: 3
+      default-days: 14
+    open-pull-requests-limit: 1
     groups:
       actions-minor-and-patch:
         update-types:
@@ -80,8 +92,8 @@ updates:
       interval: "monthly"
       timezone: "America/Los_Angeles"
     cooldown:
-      default-days: 7
-    open-pull-requests-limit: 2
+      default-days: 14
+    open-pull-requests-limit: 1
     ignore:
       # Stay on the Node 24 LTS line (odd majors are never LTS); a move to the next LTS is a
       # deliberate change, not a routine update.

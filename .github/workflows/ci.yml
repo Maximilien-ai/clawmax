@@ -35,6 +35,9 @@ jobs:
           cache: npm
           cache-dependency-path: SYSTEM/dashboard/package-lock.json
 
+      - name: Validate dependency maintenance policy
+        run: node --test .github/scripts/dependabot-policy.test.cjs
+
       - name: Validate test selection
         run: node --test .github/scripts/dashboard-test-scope.test.cjs
 
