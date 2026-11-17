@@ -8,14 +8,15 @@
 
 The November 16 audit closed eleven verified completed defects: #196, #197,
 #220, #222, #275, #277, #279, #283, #289, #308 and #337. The snapshot has **100**
-open issues, all labeled and triaged. This does not establish that every remaining
+open issues at that checkpoint, all labeled and triaged. The new labeled
+Moderate-advisory follow-up #436 brings the post-audit snapshot to 101. This does not establish that every remaining
 report is reproduced or fixed. [Progress and evidence](planning/RC98_PROGRESS_2026-11-16.md).
 
 ### Dependency audit residuals
 
 Current candidate audit reports 574 dependencies with **10 Moderate**, **zero
 High/Critical** and zero Low advisories. Dashboard owns Moderate remediation
-before stable 2.0 promotion; dependency categories overlap. The raw audit exits 1,
+before stable 2.0 promotion in [#436](https://github.com/Maximilien-ai/clawmax/issues/436); dependency categories overlap. The raw audit exits 1,
 so this is not a claim of an entirely clean or complete security audit.
 
 ### RC98 retained UI and validation gaps

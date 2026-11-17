@@ -16,6 +16,10 @@ consent-bound offline replay, #426 PDF task lists and #433 supported major
 migrations remain active. Confirmed #370/#371 UI gaps remain open. Optional or
 broader contributor work #192/#228/#229/#292 requires separate validation.
 
+[#436](https://github.com/Maximilien-ai/clawmax/issues/436) tracks the remaining
+10 Moderate dependency advisories before stable 2.0; no High/Critical advisories
+were found in this candidate audit.
+
 All 52 open feedback reports have issues and saved replies. Close a report only
 when every topic is addressed or traced to a canonical duplicate; reporter email
 receipts remain separate from GitHub comments and queued notifications.

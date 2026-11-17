@@ -1,9 +1,16 @@
 # RC98 acceptance — November 16
 
-**Status: preparation; do not test or install RC98 yet.** Stable remains v1.9.9.
-Dashboard will add the final immutable source, public/private image digests, CI
-links and preview address after validation. The old localhost:5182 preview is
-`2.0.0-dev.e2cd7796` and is not RC98.
+**Local source preview ready; image acceptance is pending.** Stable remains v1.9.9.
+Frozen source: `v2.0.0-test-rc98` at
+`d51aa681ebbfe6dcf14758914486b492ac91ade9`. Open **http://localhost:5182** for the
+preserved local preview, version **2.0.0-test-rc98**. Its API and visible desktop
+version, phone rendering and Builder interactions have been verified.
+
+[Public image build](https://github.com/Maximilien-ai/clawmax/actions/runs/44016642306)
+is running from the exact candidate tag. The matching private image follows only
+if public validation succeeds. Do not treat either image as ready yet. The local
+source preview can be used for task-quality acceptance; installed image acceptance
+waits for the exact public/private validation and digests below.
 
 ## Owner checks (when ready)
 
@@ -31,8 +38,9 @@ accepted; they are not copied into a new unfinished reviewer queue.
 - [x] Focused RC98 Review catalog passes 32 host cases, source contracts and
   four responsive/theme browser cases. Final product checkpoint `33287ab3`
   passes **582/582**, caller registry unchanged.
-- [ ] Align ignored local version to `2.0.0-test-rc98`, restart and verify visible
-  and `/api/system` identity while preserving the preview's private state.
+- [x] Ignored local version is `2.0.0-test-rc98`; preserved preview restarted on
+  verified Node 24.22.3. Visible desktop/API identity, mobile rendering and four
+  theme/width Builder resize cases pass; no agent turns were started.
 - [ ] Publish public Test Container Image from the candidate ref; validate both
   architectures and immutable identity. Last three runs took 66–69 minutes.
 - [ ] Publish matching Private ClawMax Plugins Image with the same exact tag;
@@ -49,3 +57,7 @@ consent, #420 legacy recovery and #426 PDF task lists remain tracked. Known UI
 reports #370/#371 remain open. Contributor features #192/#228/#229/#292 are not
 claimed included. No fleet deployment or stable promotion is authorized by an
 image build. See [progress and issue closeout](RC98_PROGRESS_2026-11-16.md).
+
+Dependency audit follow-up [#436](https://github.com/Maximilien-ai/clawmax/issues/436)
+tracks the 10 Moderate advisories (zero High/Critical) with Dashboard ownership and
+a before-stable-2.0 deadline. Source-security baseline disposition is independent.

@@ -6,8 +6,10 @@
 
 **Last Updated**: November 16, 2026
 
-**Status**: Stable remains `v1.9.9`. RC98 is being prepared, not published or
-installed. Owner-accepted #191/#194 and dependency batches #424/#421 are merged;
+**Status**: Stable remains `v1.9.9`. RC98 is tagged at `d51aa681`; the
+[public image build](https://github.com/Maximilien-ai/clawmax/actions/runs/44016642306)
+is running. Matching private-image validation and installed acceptance remain
+pending. Local source preview http://localhost:5182 shows `2.0.0-test-rc98`. Owner-accepted #191/#194 and dependency batches #424/#421 are merged;
 #430 quieter automation and #428 QEMU v4 are merged. #434 aligns Node 24.22.3 and
 #435 coordinates React/DOM/types; both are merged through `6bf0dbf9` after
 green required CI, CodeQL and architecture checks. No Dependabot PR remained
@@ -17,7 +19,8 @@ and coverage checks with the caller registry unchanged, plus 30 browser cases.
 Strict frontend typing retains 289 diagnostics (290 baseline), with none added.
 
 Eleven completed issues were closed with evidence; the snapshot has **100 open**,
-all labeled/triaged. Feedback is **73 total, 21 closed/52 open**, all linked and
+all labeled/triaged at that checkpoint; the new advisory follow-up #436 brings
+the subsequent snapshot to 101. Feedback is **73 total, 21 closed/52 open**, all linked and
 none flagged as needing a reply. Full feedback resolution is not claimed.
 [Current progress](planning/RC98_PROGRESS_2026-11-16.md) and the
 [focused acceptance plan](planning/RC98_ACCEPTANCE_2026-11-16.md) separate
