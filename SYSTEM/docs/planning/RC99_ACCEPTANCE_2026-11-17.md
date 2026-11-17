@@ -63,3 +63,7 @@ Owner checks remain the five RC99 changes above plus one short agent chat. RC98 
 ### Train stopping checkpoint
 
 Local RC99 initially passed readiness/version and preserved five agents/five workflows. Unloading the installed RC97 supervisor subsequently stopped the shared Podman VM. A direct `podman machine start podman-clawmax` reported success, but both its SSH and API socket were unavailable afterward. **localhost:3202 is not currently confirmed available.** Do not advertise it as ready until the VM connection is restored and RC99 health is checked again. Container `clawmax-rc99-dev-acceptance` and acceptance volume remain preserved; no data deletion occurred. Resume with VM/supervisor diagnosis, then start only RC99 and verify version/health/plugins. Owner requested a stopping checkpoint before leaving the train.
+
+### Local recovery completed
+
+RC99 is now ready at http://localhost:3202. Final checks: API version `2.0.0-test-rc99`, five agents retained, persistent stores and authenticated gateway ready, only Lifecycle/Review enabled. `podman ps` shows only `clawmax-rc99-dev-acceptance`; old Dashboard dev launchers/frontends are stopped. The separate host OpenClaw service was preserved. Podman startup is held in a persistent local session (60614) so its VM helper processes remain alive. If the machine/session is shut down, start `podman-clawmax` and then `clawmax-rc99-dev-acceptance` again. Prior unavailable-localhost checkpoint above is superseded by this verified recovery.
