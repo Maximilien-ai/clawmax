@@ -5,7 +5,6 @@
     "enabled": true,
     "tags": [
       "release",
-      "current",
       "2.0.0-test-rc95"
     ],
     "fields": {

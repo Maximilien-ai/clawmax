@@ -16,7 +16,7 @@ access, and disabling it preserves its saved workspace state.
 ## Run and return a release review
 
 Open **Extensions → Review → Suggested**, then **Start [release] checklist**.
-The RC95 catalog includes P1–P12. Each workspace starts with its own pending
+The current RC98 catalog has two event checks: task quality and the actual event environment. RC95/RC96 criteria remain historical. Each workspace starts with its own pending
 results; earlier releases remain historical. In Active, select the release,
 record outcomes and notes, and preserve other reviewers' evidence.
 

@@ -12,7 +12,8 @@ const stableChecklist = checklistByRelease.get('1.9.9 regression')
 const previousChecklist = checklistByRelease.get('2.0.0 previous RCs')
 const rc46Checklist = checklistByRelease.get('2.0.0-test-rc46')
 const rc95Checklist = checklistByRelease.get('2.0.0-test-rc95')
-const currentChecklist = checklistByRelease.get('2.0.0-test-rc96')
+const rc96Checklist = checklistByRelease.get('2.0.0-test-rc96')
+const currentChecklist = checklistByRelease.get('2.0.0-test-rc98')
 const allItems = checklists.flatMap((checklist) => checklist.items)
 
 function assert(condition: boolean, message: string) {
@@ -27,9 +28,9 @@ assert(manifest.ui.list.groupBy === 'release', 'Review records must be compartme
 assert(manifest.ui.list.checkField === 'completed', 'Review records must declare their completion checkbox')
 assert(manifest.recordSchema.properties.verifiedBy?.type === 'array', 'Review records must support aggregated prior tester confirmation')
 assert(JSON.stringify(manifest.recordSchema.properties.reviewReason?.enum) === JSON.stringify(['human-judgment', 'external-environment']), 'Review records must name the reason independent review is needed')
-assert(checklistFiles.length === 5, 'Review must expose stable, cumulative, and current release sets')
-assert(JSON.stringify(Array.from(checklistByRelease.keys()).sort()) === JSON.stringify(['1.9.9 regression', '2.0.0 previous RCs', '2.0.0-test-rc46', '2.0.0-test-rc95', '2.0.0-test-rc96']), 'Review set names must be stable and unambiguous')
-assert(currentChecklist?.items.length === 6, 'Current RC96 must contain only the six checks requiring independent review')
+assert(checklistFiles.length === 6, 'Review must expose stable, cumulative, and current release sets')
+assert(JSON.stringify(Array.from(checklistByRelease.keys()).sort()) === JSON.stringify(['1.9.9 regression', '2.0.0 previous RCs', '2.0.0-test-rc46', '2.0.0-test-rc95', '2.0.0-test-rc96', '2.0.0-test-rc98']), 'Review set names must be stable and unambiguous')
+assert(currentChecklist?.items.length === 2, 'Current RC98 must contain only the two independent event checks')
 assert(currentChecklist?.items.length <= 12, 'A focused release review must not become a substitute for the automated test suite')
 assert(previousChecklist?.recommended === false, 'Previous RC criteria must remain historical instead of entering the reviewer queue')
 assert(stableChecklist?.recommended === false, 'Stable-line criteria must remain historical instead of entering the reviewer queue')
@@ -132,7 +133,13 @@ assert(pageSource.includes('[overflow-wrap:anywhere]'), 'Review instructions and
 assert(pageSource.includes('Previously verified by {verifiedBy.join'), 'Review rows must identify aggregated prior confirmations')
 assert(pageSource.includes("return ['1.9.9', '2.0.0', '2.0.0-test-rc46'].filter"), 'Review filters must stay limited to the three release families')
 
-console.log('PluginReviewChecklist.test.ts: 96 tests passed')
 
 assert(rc95Checklist?.recommended === false, 'RC95 must remain available as historical evidence')
-assert(checklists.filter((entry) => entry.recommended).length === 1 && currentChecklist.recommended === true, 'Only RC96 should be recommended for current review')
+assert(checklists.filter((entry) => entry.recommended).length === 1 && currentChecklist.recommended === true, 'Only RC98 should be recommended for current review')
+
+assert(rc96Checklist?.recommended === false && rc96Checklist?.items.length === 6, 'RC96 criteria must remain intact as historical evidence')
+assert(currentChecklist?.items.some((item: any) => item.fields.reviewReason === 'human-judgment') && currentChecklist?.items.some((item: any) => item.fields.reviewReason === 'external-environment'), 'RC98 must distinguish task judgment from event-device validation')
+
+assert(JSON.stringify(checklists.filter(entry => entry.tags?.includes('current')).map(entry => entry.release)) === JSON.stringify(['2.0.0-test-rc98']), 'Only RC98 may own the current release marker; historical ordering must not select an old RC')
+
+console.log('PluginReviewChecklist.test.ts: passed')

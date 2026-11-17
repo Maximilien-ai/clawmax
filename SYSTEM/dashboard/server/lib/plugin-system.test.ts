@@ -788,6 +788,11 @@ async function run() {
     assert(documentContent.includes('**Release:** 2.0.0-test-rc4'), 'Expected release boundary in generated document')
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
+    const currentChecks = listPluginTemplates(plugin!).filter(template => template.tags.includes('current'))
+    assert.strictEqual(currentChecks.length, 2, 'RC98 current marker must resolve only the two event checks')
+    assert(currentChecks.every(template => 'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc98' && template.payload.fields?.outcome === 'pending'), 'Current catalog must initialize RC98 without inherited outcomes')
+    assert.deepStrictEqual(currentChecks.map(template => 'fields' in template.payload && template.payload.fields?.reviewReason).sort(), ['external-environment', 'human-judgment'], 'RC98 separates device evidence and human task quality')
+    assert.strictEqual(listPluginTemplates(plugin!).filter(template => 'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc96').length, 6, 'RC96 historical criteria must remain discoverable')
     const rc95 = listPluginTemplates(plugin!).filter(template => 'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc95')
     assert.strictEqual(rc95.length, 12, 'Fresh installations need all RC95 acceptance checks')
     assert(rc95.every(template => 'fields' in template.payload && template.payload.fields?.outcome === 'pending' && ['human-judgment', 'external-environment'].includes(String(template.payload.fields?.reviewReason))), 'RC95 must not copy another reviewer outcomes')

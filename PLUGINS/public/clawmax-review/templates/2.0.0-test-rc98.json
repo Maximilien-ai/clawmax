@@ -1,0 +1,55 @@
+{
+  "release": "2.0.0-test-rc98",
+  "description": "Two independent event acceptance checks. Engineering validation is recorded in the release evidence, not assigned to reviewers.",
+  "recommended": true,
+  "defaults": {
+    "enabled": true,
+    "tags": [
+      "release",
+      "current",
+      "2.0.0-test-rc98"
+    ],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "rc98-event-task-quality",
+      "name": "RC98 \u2014 Event task quality",
+      "description": "Test: In a disposable workspace, run one representative event task with the intended model/provider. Read the actual agent work and final artifact. Pass: The result and division of work are useful for the demonstration; record unclear or incorrect behavior in notes.",
+      "tags": [
+        "rc98",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "regression",
+        "reviewReason": "human-judgment",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc98-event-environment",
+      "name": "RC98 \u2014 Event device and provider",
+      "description": "Test: On the actual event device or installed test instance, complete one short task using its intended network/provider. Restart through the supported launcher and reopen the saved result. Coordinate installed upgrades with the deployment owner. Pass: The task works and the saved result survives; record device, version and any installation/provider error.",
+      "tags": [
+        "rc98",
+        "acceptance"
+      ],
+      "fields": {
+        "area": "persistence",
+        "reviewReason": "external-environment",
+        "notes": ""
+      }
+    }
+  ],
+  "tags": [
+    "release",
+    "current",
+    "2.0.0-test-rc98"
+  ]
+}
