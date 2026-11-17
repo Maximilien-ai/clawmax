@@ -17,7 +17,7 @@ Owner reported “All looked good” with five follow-up items. Agent chat, Buil
 - [x] Shared Markdown presentation and PDF rendering replace opaque provider citation tokens with “Source reference unavailable.” Actual Unicode, real links, code and original saved Markdown are preserved. URLs cannot be recovered without their source map.
 - [x] Local dev persisted selection is Lifecycle and Review only. Private image defaults likewise disable Evals, Guardrails and Optimize; explicit operator choices and empty selection remain supported. Existing installations with explicit selections need their settings changed, not silently overwritten.
 - [x] TypeScript/server build and focused regressions passed. Four desktop/mobile/theme visual cases passed.
-- [ ] Complete integration/validation/coverage suite.
+- [x] Complete integration/validation/coverage suite: 583/583 passed; caller workspace registry unchanged. Statements/lines 59.71%, branches 76.93%, functions 66.07%.
 - [ ] RC99 source CI and image builds; no RC99 image is published yet.
 
 RC98 on localhost:3202 is unchanged except the requested persisted extension selection. UI changes are on public branch `release/rc99-acceptance-fixes`; private defaults are on `ci/rc98-image-revalidation` at `3006850`. Neither branch is claimed merged.
@@ -29,3 +29,5 @@ RC98 on localhost:3202 is unchanged except the requested persisted extension sel
 - [ ] Keys & Secrets starts blank with optional example instructions.
 - [ ] The reported document shows readable missing-source notices, with ordinary Unicode and real links intact.
 - [ ] Only Lifecycle and Review appear in Extensions by default.
+
+Source CI: https://github.com/Maximilien-ai/clawmax/actions/runs/44120191763 (running). The inherited lifecycle acceptance correction is also carried forward and its seven behavior/eight contract checks pass.
