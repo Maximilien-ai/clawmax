@@ -504,7 +504,7 @@ export default function WorkflowDAG({
                     </div>
                   )}
                   {forest.lanes.map((lane, laneIdx) => (
-                    <div key={laneIdx} className="flex flex-col gap-3 min-w-[180px] justify-center">
+                    <div key={laneIdx} className="flex flex-col gap-3 w-[240px] min-w-[240px] justify-center">
                       <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 text-center">
                         {laneIdx === 0 && forest.lanes.length > 1 ? 'Start' : laneIdx === forest.lanes.length - 1 && forest.lanes.length > 1 ? 'End' : `Step ${laneIdx + 1}`}
                         {lane.length > 1 && <span className="ml-1 text-purple-400">(parallel)</span>}
