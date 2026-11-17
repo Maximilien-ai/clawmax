@@ -9,3 +9,8 @@ const empty = page.slice(page.indexOf('No workflows in this workspace yet'))
 assert(empty.indexOf('Create Workflow with AI') < empty.indexOf('label="Create Workflow"'), 'AI creation comes first')
 assert(empty.slice(0, empty.indexOf('Create Workflow with AI')).includes('disabled={!aiEnabled}'), 'Provider gate remains')
 console.log('Workflow acceptance layout contracts passed')
+
+const buttons = empty.slice(0, empty.indexOf('Import Workflow')).match(/<button[\s\S]*?<\/button>/g) || []
+assert.equal(buttons.length, 2)
+assert(buttons[0].includes('bg-purple-600'), 'AI creation retains primary emphasis')
+assert(!buttons[1].includes('purple') && buttons[1].includes('dark:bg-gray-800'), 'Manual creation uses neutral light/dark styling')
