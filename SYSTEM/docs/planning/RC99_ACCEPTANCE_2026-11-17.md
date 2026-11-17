@@ -31,3 +31,17 @@ RC98 on localhost:3202 is unchanged except the requested persisted extension sel
 - [ ] Only Lifecycle and Review appear in Extensions by default.
 
 Source CI: https://github.com/Maximilien-ai/clawmax/actions/runs/44120191763 (running). The inherited lifecycle acceptance correction is also carried forward and its seven behavior/eight contract checks pass.
+
+## Required image dispatch preflight
+
+Use `node SYSTEM/dispatch-test-image.mjs <candidate-tag> <expected-full-SHA> --dry-run`, then the same command without `--dry-run`. The helper verifies the existing remote tag resolves to the exact expected commit, including annotated tags, before sending full tag references to the image workflow. Never dispatch the image workflow with a raw SHA; its source input deliberately rejects that form. The expected SHA belongs in the helper's verification argument, not `source_ref`. The helper never creates or moves tags.
+
+RC99 example:
+
+```sh
+node SYSTEM/dispatch-test-image.mjs v2.0.0-test-rc99 0c4272c76a7662102024683f727d38c826176361 --dry-run
+```
+
+Eight regression cases cover raw SHAs, branches, malformed inputs, missing/mismatched tags, dry-run, full-ref dispatch and annotated tags/cycles. Live RC99 preflight passed without dispatching another build. This tooling follow-up does not move the frozen RC99 tag or change its image source.
+
+Corrected image build: https://github.com/Maximilien-ai/clawmax/actions/runs/44135914412 . Previous run 44135766090 stopped before checkout because an unsupported raw SHA was supplied.

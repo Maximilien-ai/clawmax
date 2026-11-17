@@ -36,6 +36,9 @@ jobs:
           cache: npm
           cache-dependency-path: SYSTEM/dashboard/package-lock.json
 
+      - name: Validate release dispatch preflight
+        run: node --test SYSTEM/dispatch-test-image.test.mjs
+
       - name: Validate dependency maintenance policy
         run: node --test .github/scripts/dependabot-policy.test.cjs
 
