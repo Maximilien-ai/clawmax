@@ -53,6 +53,7 @@ import { getInstanceDocumentTitle } from './lib/instanceBranding'
 type Page = DashboardPage
 
 interface SystemInfo {
+  workspace: string
   hostname: string
   instanceKey?: string | null
   machineId?: string | null
@@ -1304,6 +1305,7 @@ function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onO
   const { user, logout, config } = useAuth()
   const { activeWorkspace, loading: workspaceLoading } = useWorkspace()
   const activeWorkspaceKey = activeWorkspace?.path || activeWorkspace?.id || null
+  const workspaceAgentCount = system?.workspace === activeWorkspace?.path ? system?.agentCount : undefined
   const [workspaceTourVisible, setWorkspaceTourVisible] = useState(false)
   const [firstRunStateVersion, setFirstRunStateVersion] = useState(0)
   const [activitySharing, setActivitySharing] = useState<{ destinationId: string; queuedEvents: number; destinations: Array<{ destinationId: string; scopes: string[] }> } | null>(null)
@@ -1331,7 +1333,7 @@ function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onO
   const onboardingVisible = shouldShowOnboarding({
     workspaceKey: activeWorkspaceKey,
     workspaceLoading,
-    workspaceAgentCount: activeWorkspace?.agentCount,
+    workspaceAgentCount,
     skipped: activeWorkspaceKey ? readOnboardingSkipped(activeWorkspaceKey) : false,
     tourState: workspaceTourStoredState,
   })
@@ -1346,12 +1348,12 @@ function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onO
     }
     setWorkspaceTourVisible(shouldShowWorkspaceTour({
       workspaceKey,
-      workspaceAgentCount: activeWorkspace?.agentCount,
+      workspaceAgentCount,
       onboardingVisible,
       storedState: workspaceTourStoredState,
       globallyDisabled: workspaceTourGloballyDisabled,
     }))
-  }, [activeWorkspace?.agentCount, activeWorkspaceKey, onboardingVisible, workspaceTourGloballyDisabled, firstRunStateVersion, workspaceTourStoredState])
+  }, [workspaceAgentCount, activeWorkspaceKey, onboardingVisible, workspaceTourGloballyDisabled, firstRunStateVersion, workspaceTourStoredState])
 
   const effectiveActiveAgentCount = system
     ? (typeof system.activeAgentCount === 'number'
@@ -1500,7 +1502,7 @@ function TopBar({ system, searchPages, onSearchNavigate, onMobileMenuToggle, onO
         <OnboardingWizard
           visible={onboardingVisible}
           suppressAutoOpen={workspaceTourVisible}
-          canShowWorkspaceTour={Boolean(activeWorkspaceKey && (activeWorkspace?.agentCount ?? 0) === 0)}
+          canShowWorkspaceTour={workspaceAgentCount === 0}
           workspaceTourDismissed={workspaceTourDismissed}
           onDismiss={() => {
             if (!activeWorkspaceKey) return

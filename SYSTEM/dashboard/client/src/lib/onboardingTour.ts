@@ -159,7 +159,7 @@ export function shouldShowOnboarding({
   skipped: boolean
   tourState: WorkspaceTourState | null
 }) {
-  return Boolean(workspaceKey) && !workspaceLoading && (workspaceAgentCount ?? 0) === 0 && !skipped && !tourState
+  return Boolean(workspaceKey) && !workspaceLoading && workspaceAgentCount === 0 && !skipped && !tourState
 }
 
 export function shouldCloseFirstRunOverlay({

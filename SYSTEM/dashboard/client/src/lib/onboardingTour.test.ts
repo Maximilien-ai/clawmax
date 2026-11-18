@@ -146,6 +146,7 @@ test('onboarding is offered only for a loaded, empty workspace with first-run se
   assert.equal(shouldShowOnboarding(empty), true)
   assert.equal(shouldShowOnboarding({ ...empty, workspaceLoading: true }), false)
   assert.equal(shouldShowOnboarding({ ...empty, workspaceKey: null }), false)
+  assert.equal(shouldShowOnboarding({ ...empty, workspaceAgentCount: undefined }), false)
   assert.equal(shouldShowOnboarding({ ...empty, workspaceAgentCount: 1 }), false)
   assert.equal(shouldShowOnboarding({ ...empty, tourState: 'completed' }), false)
   assert.equal(shouldShowOnboarding({ ...empty, tourState: 'dismissed' }), false)
