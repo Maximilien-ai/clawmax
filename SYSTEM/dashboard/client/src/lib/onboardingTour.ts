@@ -136,6 +136,32 @@ export function readGlobalWorkspaceTourDisabled() {
   return window.localStorage.getItem(GLOBAL_WORKSPACE_TOUR_DISABLE_KEY) === 'dismissed'
 }
 
+const onboardingSkipKey = (workspaceKey: string) => `clawmax-onboarding-skipped:${workspaceKey}`
+
+export function readOnboardingSkipped(workspaceKey: string) {
+  return typeof window !== 'undefined' && window.localStorage.getItem(onboardingSkipKey(workspaceKey)) === 'true'
+}
+
+export function writeOnboardingSkipped(workspaceKey: string) {
+  if (typeof window !== 'undefined') window.localStorage.setItem(onboardingSkipKey(workspaceKey), 'true')
+}
+
+export function shouldShowOnboarding({
+  workspaceKey,
+  workspaceLoading,
+  workspaceAgentCount,
+  skipped,
+  tourState,
+}: {
+  workspaceKey: string | null
+  workspaceLoading: boolean
+  workspaceAgentCount?: number
+  skipped: boolean
+  tourState: WorkspaceTourState | null
+}) {
+  return Boolean(workspaceKey) && !workspaceLoading && (workspaceAgentCount ?? 0) === 0 && !skipped && !tourState
+}
+
 export function shouldCloseFirstRunOverlay({
   onboardingVisible,
   workspaceTourVisible,

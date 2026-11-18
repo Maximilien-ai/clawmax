@@ -18,6 +18,7 @@ interface OnboardingWizardProps {
   suppressAutoOpen?: boolean
   canShowWorkspaceTour?: boolean
   workspaceTourDismissed?: boolean
+  onDismiss: () => void
   onOpenByok: () => void
   onOpenPartners: () => void
   onImportAgents: () => void
@@ -30,7 +31,7 @@ interface OnboardingWizardProps {
   workspaceId?: string | null
 }
 
-export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWorkspaceTour = false, workspaceTourDismissed = false, onOpenByok, onOpenPartners, onImportAgents, onOpenBuilder, onOpenWorkspaceTour, onResetWorkspaceTour, onCreateAgent, onCreateAgentAI, onOpenTemplates, workspaceId }: OnboardingWizardProps) {
+export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWorkspaceTour = false, workspaceTourDismissed = false, onDismiss, onOpenByok, onOpenPartners, onImportAgents, onOpenBuilder, onOpenWorkspaceTour, onResetWorkspaceTour, onCreateAgent, onCreateAgentAI, onOpenTemplates, workspaceId }: OnboardingWizardProps) {
   const { config } = useAuth()
   const aiEnabled = hasAnyLLMKeys(config)
   const [open, setOpen] = useState(false)
@@ -193,10 +194,10 @@ export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWor
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">First Run</div>
                 <h2 className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">Get this workspace running</h2>
                 <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  Start with BYOK, then use AI Builder as the default way to design what this workspace should contain. You can reopen this until the workspace has agents.
+                  Start with BYOK, then use AI Builder as the default way to design what this workspace should contain. You can skip setup and return to BYOK or Builder from the dashboard.
                 </p>
               </div>
-              <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+              <button onClick={onDismiss} aria-label="Close onboarding" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2 text-xs">
@@ -259,7 +260,7 @@ export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWor
                       </button>
                     </>
                   )}
-                  <button onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Skip for now</button>
+                  <button onClick={onDismiss} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Skip for now</button>
                   <button onClick={() => setStep('byok')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Continue</button>
                 </div>
               </div>
@@ -476,7 +477,7 @@ export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWor
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  <button onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Close</button>
+                  <button onClick={onDismiss} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Close</button>
                   <button
                     onClick={() => { onOpenTemplates(); setOpen(false) }}
                     className="px-4 py-2 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700"

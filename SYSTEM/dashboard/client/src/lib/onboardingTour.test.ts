@@ -6,6 +6,9 @@ import {
   GLOBAL_WORKSPACE_TOUR_DISABLE_KEY,
   getWorkspaceTourStorageKey,
   readGlobalWorkspaceTourDisabled,
+  readOnboardingSkipped,
+  shouldShowOnboarding,
+  writeOnboardingSkipped,
   resetWorkspaceTourState,
   shouldShowWorkspaceTour,
   WORKSPACE_TOUR_STEPS,
@@ -136,6 +139,38 @@ test('workspace tour exposes the expected ten guided steps', () => {
   )
   const systemStep = WORKSPACE_TOUR_STEPS.find((step) => step.id === 'system')
   assert.equal(systemStep?.target, '[data-tour="nav-docs"]')
+})
+
+test('onboarding is offered only for a loaded, empty workspace with first-run setup pending', () => {
+  const empty = { workspaceKey: 'personal', workspaceLoading: false, workspaceAgentCount: 0, skipped: false, tourState: null }
+  assert.equal(shouldShowOnboarding(empty), true)
+  assert.equal(shouldShowOnboarding({ ...empty, workspaceLoading: true }), false)
+  assert.equal(shouldShowOnboarding({ ...empty, workspaceKey: null }), false)
+  assert.equal(shouldShowOnboarding({ ...empty, workspaceAgentCount: 1 }), false)
+  assert.equal(shouldShowOnboarding({ ...empty, tourState: 'completed' }), false)
+  assert.equal(shouldShowOnboarding({ ...empty, tourState: 'dismissed' }), false)
+})
+
+test('skipping onboarding persists across reloads without affecting other workspaces', () => {
+  const store = new Map<string, string>()
+  const load = () => ({ localStorage: {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => { store.set(key, value) },
+  } })
+  const browser = globalThis as any
+  browser.window = load()
+  try {
+    writeOnboardingSkipped('personal')
+    browser.window = load()
+    const skipped = readOnboardingSkipped('personal')
+    assert.equal(shouldShowOnboarding({
+      workspaceKey: 'personal', workspaceLoading: false, workspaceAgentCount: 0, skipped, tourState: null,
+    }), false)
+    assert.equal(readOnboardingSkipped('team'), false)
+    assert.equal(readGlobalWorkspaceTourDisabled(), false)
+  } finally {
+    delete browser.window
+  }
 })
 
 console.log('onboardingTour.test.ts: ok')
