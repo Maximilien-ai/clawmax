@@ -174,11 +174,32 @@ test('userExecutionEnv blanks non-selected providers during BYOK execution', () 
 })
 
 test('userExecutionEnv forwards Ollama base URL for local-model execution', () => {
-  const env = userExecutionEnv({ ollamaBaseUrl: 'http://127.0.0.1:11434' })
+  const before = process.env.USER_OPENAI_API_KEY
+  process.env.USER_OPENAI_API_KEY = 'synthetic-hosted-default'
+  try {
+    const env = userExecutionEnv({ ollamaBaseUrl: 'http://127.0.0.1:11434' })
 
-  assert(env.OLLAMA_BASE_URL === 'http://127.0.0.1:11434', 'Expected Ollama base URL in child env')
-  assert(env.OPENAI_API_KEY === '', 'Expected hosted OpenAI key slot blanked for Ollama execution')
-  assert(env.ANTHROPIC_API_KEY === '', 'Expected hosted Anthropic key slot blanked for Ollama execution')
+    assert(env.OLLAMA_BASE_URL === 'http://127.0.0.1:11434', 'Expected Ollama base URL in child env')
+    assert(env.OPENAI_API_KEY === '', 'Expected hosted OpenAI key slot blanked for Ollama execution')
+    assert(env.ANTHROPIC_API_KEY === '', 'Expected hosted Anthropic key slot blanked for Ollama execution')
+  } finally {
+    if (before === undefined) delete process.env.USER_OPENAI_API_KEY
+    else process.env.USER_OPENAI_API_KEY = before
+  }
+})
+
+test('explicit Ollama execution does not fall back to user or system hosted credentials', () => {
+  const environments: Record<string, string>[] = [
+    { USER_OPENAI_API_KEY: 'synthetic-user-key', SYSTEM_OPENAI_API_KEY: 'synthetic-system-key' },
+    { SYSTEM_OPENAI_API_KEY: 'synthetic-system-key', ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true' },
+  ]
+  for (const rawEnv of environments) {
+    for (const resolve of [resolveUserExecutionProviderKeys, resolveWorkflowExecutionProviderKeys]) {
+      const keys = resolve(rawEnv, { ollamaBaseUrl: ' http://127.0.0.1:11434 ' })
+      assert(keys.ollamaBaseUrl === 'http://127.0.0.1:11434', 'Expected explicit local endpoint')
+      assert(!keys.openai && !keys.anthropic && !keys.openaiCompatibleApiKey, 'Expected no hosted fallback for explicit local execution')
+    }
+  }
 })
 
 test('workflowExecutionEnv preserves OpenAI-compatible runtime settings without leaking hosted OpenAI system keys', () => {
