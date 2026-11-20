@@ -18,6 +18,25 @@ Required for cross-team coordination, recurring recaps, documentation maintenanc
   identity, evidence, requested action, and acceptance criteria. Read newer
   replies first. Keep secrets and raw participant data out of handoffs.
 
+## GitHub issue triage
+
+- Use the existing `high-priority` (Now), `medium-priority` (Next), and
+  `low-priority` (Future) labels; each open issue has exactly one.
+- Keep triage state separate: use `needs-triage` for unclassified scope,
+  ownership or remaining work, then replace it with `triaged` after assessment.
+  New issues default to `needs-triage` unless classification is complete at filing.
+  Any priority on a needs-triage issue is provisional. Triaged does not mean
+  reproduced, fixed, deployed or accepted.
+- Rank repeated feedback within each tier using distinct reports/reporters;
+  security, destructive behavior, lost state and false success can take priority
+  with one report. Keep larger new features and migrations in Future.
+- Preserve unrelated labels, complete acceptance criteria, canonical issue
+  links and ownership. Record a reason when changing a priority; verify current
+  behavior before reimplementing or closing a historical issue.
+- Keep the dated priority inventory in `SYSTEM/docs/planning/` and the active
+  queue linked from `SYSTEM/docs/BACKLOG.md`. Do not create extra priority
+  levels or a second project board for this workflow.
+
 ## Documentation Maintenance
 
 - Every Sunday PM or Monday AM, write a concise weekly recap in

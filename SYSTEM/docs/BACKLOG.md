@@ -1,5 +1,21 @@
 # Backlog
 
+## November 20 priorities: Now, Next and Future
+
+[The complete priority queue](planning/ISSUE_PRIORITIES_2026-11-20.md) applies
+exactly one priority and one triage state to every open ticket. Dashboard:
+35 High / 58 Medium / 21 Low. Web: 3 High / 11 Medium / 4 Low. Four Web issues
+retain `needs-triage` and provisional priorities until their app/owner or
+remaining historical scope is clear; the other 128 issues are `triaged`.
+Classification does not mean reproduced, implemented or released.
+
+Repeated feedback leads within each tier. Safety, state loss and false success
+can interrupt that order; larger new capabilities stay Future. Tomorrow's soft
+starting batch is truthful workflow results #438, model admission #437 and child
+runtime readiness #439, connected to the six-report delegation/progress issue
+#395. Then prioritize first-use #396 (six reports) and artifact discovery #381
+(four). Keep changes focused and validate actual workflows before expanding scope.
+
 ## November 20 SF feedback intake
 
 [The completed new-report triage](planning/FEEDBACK_TRIAGE_2026-11-20.md)
