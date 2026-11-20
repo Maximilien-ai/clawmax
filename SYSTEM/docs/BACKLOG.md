@@ -1,5 +1,22 @@
 # Backlog
 
+## November 20 SF feedback intake
+
+[The completed new-report triage](planning/FEEDBACK_TRIAGE_2026-11-20.md)
+reviewed all 31 new SF-window reports in the 104-report inventory. Seventeen
+reports produced 15 issues: Dashboard #437–449 and Web #56/#57. Nine reports
+reuse existing work; three positives, one supported request and four exact
+duplicates were closed after replies. One screenshot-only report awaits
+clarification. All reporters were thanked before issue creation; all complete
+issue-link sets are saved. Notification requests remain separate from delivery.
+
+Dashboard now has 114 open issues (283 total), up from 101 (270 total).
+Runtime/model readiness and empty-success workflow results lead the new queue.
+HTML previews and shared collaboration are scoped decision work after stability,
+not implemented or promised release scope. Web restored the bounded feedback
+read path; Dashboard verified it and closed Web #55. Current feature work and
+release readiness retain their independent evidence requirements.
+
 ## Praveen bug-only batch — November 15
 
 [#191/#194 acceptance](planning/PRAVEEN_BUG_ACCEPTANCE_2026-11-15.md) keeps
