@@ -130,8 +130,18 @@ async function withKeylessWorkspaceEndpoint(fn: () => void | Promise<void>) {
   fs.writeFileSync(path.join(workspaceRoot, 'SYSTEM', 'integrations.json'), JSON.stringify({ openaiCompatibleBaseUrl: 'http://172.16.1.70:8000/v1' }))
   const originalHome = process.env.HOME
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const isolatedKeys = new Set([
+    'CLAWMAX_TEST_WORKSPACE', 'CLAWMAX_WORKSPACE_REGISTRY_PATH',
+    'OPENCLAW_CONFIG_PATH', 'OPENCLAW_STATE_DIR',
+    ...Object.keys(process.env).filter(key => /^(?:(?:SYSTEM_|USER_)?(?:OPENAI|ANTHROPIC|GEMINI|OPENROUTER|XAI)_|OLLAMA_|ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION$)/.test(key)),
+  ])
+  const previous = new Map([...isolatedKeys].map(key => [key, process.env[key]]))
+  for (const key of isolatedKeys) delete process.env[key]
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspaceRoot
+  process.env.CLAWMAX_TEST_WORKSPACE = workspaceRoot
+  process.env.OPENCLAW_STATE_DIR = path.join(tmpHome, '.openclaw')
+  process.env.OPENCLAW_CONFIG_PATH = path.join(tmpHome, '.openclaw', 'openclaw.json')
   resetWorkspaceManagerForTests()
   try {
     await fn()
@@ -140,6 +150,10 @@ async function withKeylessWorkspaceEndpoint(fn: () => void | Promise<void>) {
     else process.env.HOME = originalHome
     if (originalWorkspace === undefined) delete process.env.OPENCLAW_WORKSPACE
     else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
     resetWorkspaceManagerForTests()
     fs.rmSync(tmpHome, { recursive: true, force: true })
   }
