@@ -142,6 +142,55 @@ async function run() {
     groups: [{ name: 'Support Desk' }],
   }
 
+  const identityDir = path.join(workspacePath, 'AGENTS', baseAgent.id)
+  fs.mkdirSync(identityDir, { recursive: true })
+  const identity = [
+    '# Runtime agent', '## Creation Metadata',
+    '- **Model:** openai/gpt-5.4-mini', '- **Backup Model:** N/A',
+    '- **Tags:** marketing, testing', '- **Cloned From:** N/A',
+  ].join('\n')
+  fs.writeFileSync(path.join(identityDir, 'IDENTITY.md'), identity)
+  const executionModulePath = require.resolve('../lib/agent-execution')
+  async function readIdentity(id: string) {
+    const res = makeRes()
+    await getRouteHandler('get', '/:id/identity')(makeReq({ params: { id } }), res)
+    return res
+  }
+
+  await test('persisted agent identity remains readable while live configuration is unavailable', async () => {
+    await withModuleOverrides(executionModulePath, {
+      resolveAgentExecutionConfig: () => { throw new Error('configuration unavailable') },
+    }, async () => {
+      const res = await readIdentity(baseAgent.id)
+      assert.strictEqual(res.statusCode, 200)
+      assert.strictEqual(res.jsonBody.content, identity)
+      assert.strictEqual(res.jsonBody.metadata.model, 'openai/gpt-5.4-mini')
+      assert.strictEqual(res.jsonBody.metadata.backupModel, null)
+      assert.deepStrictEqual(res.jsonBody.metadata.tags, ['marketing', 'testing'])
+      assert.deepStrictEqual(res.jsonBody.liveConfig, {})
+    })
+  })
+
+  await test('reloading identity prefers the current runtime model and preserves the saved document', async () => {
+    const live = { model: 'local/current', backupModel: 'local/backup', workspace: identityDir, agentDir: identityDir }
+    await withModuleOverrides(executionModulePath, {
+      resolveAgentExecutionConfig: () => live,
+    }, async () => {
+      const res = await readIdentity(baseAgent.id)
+      assert.strictEqual(res.statusCode, 200)
+      assert.deepStrictEqual(res.jsonBody.liveConfig, live)
+      assert.strictEqual(res.jsonBody.metadata.model, live.model)
+      assert.strictEqual(res.jsonBody.metadata.backupModel, live.backupModel)
+      assert.strictEqual(fs.readFileSync(path.join(identityDir, 'IDENTITY.md'), 'utf8'), identity)
+    })
+  })
+
+  await test('missing identity reports the missing document', async () => {
+    const res = await readIdentity('missing-agent')
+    assert.strictEqual(res.statusCode, 404)
+    assert.strictEqual(res.jsonBody.error, 'IDENTITY.md not found')
+  })
+
   await test('health uses profile mode when a profile state directory exists', async () => {
     fs.mkdirSync(path.join(tmpHome, '.openclaw-runtime-agent'), { recursive: true })
 
