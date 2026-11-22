@@ -1,9 +1,20 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { readWorkflowCosts, workflowCostLabel } from './workflowCosts'
 import assert from 'node:assert/strict'
 import { resumeWorkflows, scheduleGuidance } from './workflowReadiness'
 
 async function main() {
+  const costs = readWorkflowCosts({ byAgent: [{ estimatedCostUsd: 99 }], byWorkflow: [
+    { workflowId: 'first', estimatedCostUsd: 0.6136 }, { workflowId: 'second', estimatedCostUsd: 0.0569 },
+    { workflowId: 'free', estimatedCostUsd: 0 },
+  ] })
+  assert.equal(workflowCostLabel(costs, 'first'), '$0.61 est. · All time')
+  assert.equal(workflowCostLabel(costs, 'second'), '$0.06 est. · All time')
+  assert.equal(workflowCostLabel(costs, 'free'), '$0.00 est. · All time')
+  assert.equal(workflowCostLabel(costs, 'unrun'), 'No recorded cost')
+  assert.equal(readWorkflowCosts({ enabled: false }), 'Metering off')
+  assert.equal(readWorkflowCosts({}), 'Metering unavailable')
   const page = readFileSync(join(__dirname, '../pages/Workflows.tsx'), 'utf8')
   const table = page.slice(page.indexOf('function WorkflowsTable('), page.indexOf('function WorkflowCard('))
   assert.match(table, /if \(allVisibleSelected\) onDeselectVisible\(\)\s+else onSelectVisible\(\)/)

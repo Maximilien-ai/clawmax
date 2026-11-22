@@ -1,3 +1,4 @@
+import { readWorkflowCosts, workflowCostLabel, type WorkflowCosts } from '../lib/workflowCosts'
 import { updateMentionSelection } from '../lib/agentMentions'
 import { resumeWorkflows, scheduleGuidance } from '../lib/workflowReadiness'
 import { deleteWorkflowBatch, requireWorkflowDeletion } from '../lib/workflowDeletion'
@@ -417,8 +418,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [executions, setExecutions] = useState<WorkflowExecution[]>([])
   const [executionHistoryError, setExecutionHistoryError] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [agentCosts, setAgentCosts] = useState<Record<string, number>>({})
-  const [costTrackingEnabled, setCostTrackingEnabled] = useState(true)
+  const [workflowCosts, setWorkflowCosts] = useState<WorkflowCosts>('Loading cost…')
   const [pluginRelationships, setPluginRelationships] = useState(emptyPluginRelationships)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
@@ -641,23 +641,16 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   useEffect(() => {
     if (!isActive) return
     const controller = new AbortController()
-    setAgentCosts({})
-    setCostTrackingEnabled(true)
+    setWorkflowCosts('Loading cost…')
     fetch(buildWorkspaceScopedPath('/api/metering', activeWorkspace?.id), { signal: controller.signal }).then(r => {
       if (!r.ok) throw new Error('Metering unavailable')
       return r.json()
     }).then(d => {
       if (controller.signal.aborted) return
-      if (d && d.enabled === false) {
-        setCostTrackingEnabled(false)
-        setAgentCosts({})
-        return
-      }
-      const costs: Record<string, number> = {}
-      for (const a of Array.isArray(d?.byAgent) ? d.byAgent : []) costs[a.agentId] = a.estimatedCostUsd
-      setCostTrackingEnabled(true)
-      setAgentCosts(costs)
-    }).catch(() => {})
+      setWorkflowCosts(readWorkflowCosts(d))
+    }).catch(() => {
+      if (!controller.signal.aborted) setWorkflowCosts('Metering unavailable')
+    })
     return () => controller.abort()
   }, [activeWorkspace?.id, isActive])
 
@@ -2101,7 +2094,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   onToggleSelect={selectionMode ? () => toggleWorkflowSelection(workflow.id) : undefined}
                   isRunning={runningWorkflows.has(workflow.id)}
                   healthState={getWorkflowHealthState(workflow, runningWorkflows.has(workflow.id), latestExecutionStatuses[workflow.id])}
-                  totalCost={costTrackingEnabled ? Object.values(agentCosts).reduce((s, c) => s + c, 0) : undefined}
+                  costLabel={workflowCostLabel(workflowCosts, workflow.id)}
                   relationships={pluginRelationships.workflows[workflow.id] || []}
                 />
               ))}
@@ -2149,7 +2142,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               onOpenFile={(workflowId) => onNavigateToDoc?.(`WORKFLOWS/${workflowId}.md`)}
               runningWorkflows={runningWorkflows}
               latestExecutionStatuses={latestExecutionStatuses}
-              totalCost={costTrackingEnabled ? Object.values(agentCosts).reduce((s, c) => s + c, 0) : undefined}
+              workflowCosts={workflowCosts}
               allVisibleSelected={allVisibleSelected}
               onSelectVisible={selectVisibleWorkflows}
               onDeselectVisible={deselectVisibleWorkflows}
@@ -3520,7 +3513,7 @@ function WorkflowsTable({
   onOpenFile,
   runningWorkflows,
   latestExecutionStatuses,
-  totalCost,
+  workflowCosts,
   allVisibleSelected,
   onSelectVisible,
   onDeselectVisible,
@@ -3540,7 +3533,7 @@ function WorkflowsTable({
   onOpenFile: (workflowId: string) => void
   runningWorkflows: Set<string>
   latestExecutionStatuses: Record<string, WorkflowExecution['status'] | undefined>
-  totalCost: number
+  workflowCosts: WorkflowCosts
   allVisibleSelected: boolean
   onSelectVisible: () => void
   onDeselectVisible: () => void
@@ -3696,11 +3689,9 @@ function WorkflowsTable({
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{new Date(workflow.modified).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
-                      {totalCost > 0 && (
-                        <span className="px-2 py-1 text-xs rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
-                          ${(totalCost || 0).toFixed(2)}
-                        </span>
-                      )}
+                      <span className="self-center whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">
+                        {workflowCostLabel(workflowCosts, workflow.id)}
+                      </span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -3742,7 +3733,7 @@ function WorkflowsTable({
   )
 }
 
-function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSelected, onToggleSelect, isRunning, healthState, totalCost, relationships = [] }: {
+function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSelected, onToggleSelect, isRunning, healthState, costLabel, relationships = [] }: {
   workflow: Workflow
   onClick: () => void
   onToggle: (currentEnabled: boolean) => void
@@ -3752,7 +3743,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
   onToggleSelect?: () => void
   isRunning?: boolean
   healthState?: WorkflowHealthState
-  totalCost?: number
+  costLabel: string
   relationships?: PluginRelationship[]
 }) {
   const [showMenu, setShowMenu] = React.useState(false)
@@ -3823,12 +3814,8 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
               <span className="text-amber-600 dark:text-amber-400">{workflow.runCount || 0}/{workflow.maxRuns} runs</span>
             </>
           ) : null}
-          {totalCost != null && totalCost > 0 && (
-            <>
-              <span>·</span>
-              <span className="text-emerald-600 dark:text-emerald-400">${totalCost.toFixed(2)}</span>
-            </>
-          )}
+          <span>·</span>
+          <span>{costLabel}</span>
         </div>
 
         <div className="flex items-center gap-2">
