@@ -209,7 +209,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const selectedEntry = useMemo(() => entries.find((entry) => entry.path === selected) || null, [entries, selected])
   const selectedIsAgentAsset = !!selectedEntry && selectedEntry.section === 'AGENTS' && !selectedEntry.isAgentWorkspace
   const selectedAgentAssetSource = selectedIsAgentAsset ? (selectedEntry?.assetSource || 'uploaded') : null
-  const selectedIsMarkdown = !!selected && selected.endsWith('.md')
+  const selectedIsMarkdown = !!selected && selected.toLowerCase().endsWith('.md')
   const selectedIsTextPreview = previewKind === 'text'
   const selectedIsCodePreview = previewKind === 'code'
   const selectedIsImagePreview = previewKind === 'image'
@@ -579,7 +579,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       setCreateError('Path is required')
       return
     }
-    if (!trimmedPath.endsWith('.md')) {
+    if (!trimmedPath.toLowerCase().endsWith('.md')) {
       setCreateError('Path must end with .md')
       return
     }
@@ -756,7 +756,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
       await refreshEntries()
       setUploadSuccess(`Uploaded ${uploadFiles.length} file${uploadFiles.length === 1 ? '' : 's'} to ${target}`)
-      const firstMarkdown = uploadedPaths.find((entry) => entry.endsWith('.md'))
+      const firstMarkdown = uploadedPaths.find((entry) => entry.toLowerCase().endsWith('.md'))
       if (firstMarkdown) {
         openEntry({ path: firstMarkdown, section: 'AGENTS', kind: 'markdown' })
       }
@@ -1077,7 +1077,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   <button
                     key={result.path}
                     onClick={() => {
-                      openEntry({ path: result.path, section: (result.path.split('/')[0] as DocSection) || 'SYSTEM', kind: result.path.endsWith('.md') ? 'markdown' : 'asset' })
+                      openEntry({ path: result.path, section: (result.path.split('/')[0] as DocSection) || 'SYSTEM', kind: result.path.toLowerCase().endsWith('.md') ? 'markdown' : 'asset' })
                       clearSearch()
                     }}
                     className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded border border-sky-200 hover:border-sky-400 hover:bg-sky-50 transition-colors"

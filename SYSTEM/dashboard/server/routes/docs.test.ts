@@ -272,6 +272,29 @@ async function run() {
     assert((searchRes.jsonBody?.results || []).some((entry: any) => entry.path === 'SYSTEM/brief.md'), 'Expected search results to include written brief')
   })
 
+  await test('uploaded markdown retains its case through list, preview and save', async () => {
+    const upload = getRouteHandler('post', '/upload')
+    const list = getRouteHandler('get', '/')
+    const read = getRouteHandler('get', '/content')
+    const save = getRouteHandler('post', '/content')
+    for (const name of ['lower.md', 'upper.MD', 'mixed.Md']) {
+      const file = `SYSTEM/${name}`
+      const uploaded = makeRes()
+      await upload(makeReq({ query: { target: 'SYSTEM' }, headers: { 'x-file-name': name }, body: Buffer.from('# Original') }), uploaded)
+      assert.strictEqual(uploaded.statusCode, 200)
+      const listing = makeRes()
+      await list(makeReq(), listing)
+      assert.strictEqual(listing.jsonBody.entries.filter((e: any) => e.path === file).length, 1)
+      const preview = makeRes()
+      await read(makeReq({ query: { path: file } }), preview)
+      assert.strictEqual(preview.jsonBody.content, '# Original')
+      const saved = makeRes()
+      await save(makeReq({ body: { path: file, content: '# Updated' } }), saved)
+      assert.strictEqual(saved.statusCode, 200)
+      assert.strictEqual(fs.readFileSync(path.join(workspacePath, file), 'utf8'), '# Updated')
+    }
+  })
+
   await test('upload route rejects missing target or file header', async () => {
     const handler = getRouteHandler('post', '/upload')
 

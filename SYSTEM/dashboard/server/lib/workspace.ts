@@ -319,7 +319,7 @@ export function listMarkdownFiles(): DocEntry[] {
         if (SKIP_DIRS.has(entry.name)) continue
         if (shouldSkipDocHubEntryName(entry.name)) continue
         walk(full)
-      } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
         if (shouldSkipDocHubEntryName(entry.name)) continue
         const rel = path.relative(workspacePath, full)
         results.push({ path: rel, section: sectionFor(rel) })
@@ -340,7 +340,7 @@ export function listMarkdownFiles(): DocEntry[] {
         if (shouldSkipDocHubEntryName(entry.name)) continue
         if (['node_modules', '.git', 'dist'].includes(entry.name)) continue
         walkAgents(full)
-      } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
         if (shouldSkipDocHubEntryName(entry.name)) continue
         results.push({ path: path.relative(workspacePath, full), section: 'AGENTS' })
       }
@@ -570,7 +570,7 @@ export function listDocEntries(): DocEntry[] {
         continue
       }
       if (!entry.isFile()) continue
-      if (entry.name.endsWith('.md')) continue
+      if (entry.name.toLowerCase().endsWith('.md')) continue
       const timestamps = readTimestamps(full)
       results.push({
         path: rel,
@@ -596,7 +596,7 @@ export function listDocEntries(): DocEntry[] {
         continue
       }
       if (!entry.isFile()) continue
-      if (entry.name.endsWith('.md')) continue
+      if (entry.name.toLowerCase().endsWith('.md')) continue
       const relPath = path.relative(workspacePath, full).replace(/\\/g, '/')
       const timestamps = readTimestamps(full)
       results.push({
@@ -662,7 +662,7 @@ function isWorkspacePathSafe(full: string, workspacePath: string): boolean {
 
 /** Validate a markdown workspace path is inside the workspace and ends with .md */
 function isMarkdownPathSafe(full: string, workspacePath: string): boolean {
-  if (!full.endsWith('.md')) return false
+  if (!full.toLowerCase().endsWith('.md')) return false
   return isWorkspacePathSafe(full, workspacePath)
 }
 
@@ -698,7 +698,7 @@ export function readWorkspaceBinaryFile(relPath: string, workspacePath = getWork
 /** Create without replacing existing bytes, even when another creator wins a race. */
 export function createWorkspaceFile(relPath: string, content: string): 'created' | 'exists' | 'invalid' | 'failed' {
   const workspacePath = getWorkspacePath()
-  if (!relPath.endsWith('.md') || hasGitDirSegment(relPath)) return 'invalid'
+  if (!relPath.toLowerCase().endsWith('.md') || hasGitDirSegment(relPath)) return 'invalid'
   let full: string
   try {
     full = resolvePathWithin(workspacePath, relPath)
@@ -722,7 +722,7 @@ export function createWorkspaceFile(relPath: string, content: string): 'created'
 /** Write a workspace .md file. Returns false if path is unsafe */
 export function writeWorkspaceFile(relPath: string, content: string): boolean {
   const workspacePath = getWorkspacePath()
-  if (!relPath.endsWith('.md') || hasGitDirSegment(relPath)) return false
+  if (!relPath.toLowerCase().endsWith('.md') || hasGitDirSegment(relPath)) return false
   let full: string
   try {
     full = resolvePathWithin(workspacePath, relPath)

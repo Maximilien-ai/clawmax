@@ -13,9 +13,9 @@ export function documentContentHandler(createOnly = false): RequestHandler {
     }
 
     // Validate content before saving if it's a schema-backed file
-    const fileName = relPath.split('/').pop()
+    const fileName = relPath.split(/[\\/]/).pop()?.toLowerCase()
 
-    if (fileName === 'COMMUNITIES.md') {
+    if (fileName === 'communities.md') {
       const { communities } = parseGroups(content)
       const validation = validateCommunities(communities)
       if (!validation.valid) {
@@ -53,7 +53,7 @@ export function documentContentHandler(createOnly = false): RequestHandler {
         })
         return
       }
-    } else if (fileName === 'GROUPS.md') {
+    } else if (fileName === 'groups.md') {
       const { groups } = parseGroups(content)
       const validation = validateGroups(groups)
       if (!validation.valid) {
@@ -91,7 +91,7 @@ export function documentContentHandler(createOnly = false): RequestHandler {
         })
         return
       }
-    } else if (fileName === 'IDENTITY.md') {
+    } else if (fileName === 'identity.md') {
       const identity = parseIdentity(content)
       const validation = validateIdentity(identity)
       if (!validation.valid) {
