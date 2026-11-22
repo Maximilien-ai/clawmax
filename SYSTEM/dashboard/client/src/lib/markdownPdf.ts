@@ -1,3 +1,4 @@
+import { decodeString } from 'micromark-util-decode-string'
 import { presentCitationMarkers } from './citationPresentation'
 import { lexer, type Token, type Tokens } from 'marked'
 
@@ -39,6 +40,8 @@ export async function buildMarkdownPdf(source: string, path: string, loadImage?:
         case 'em': return [{ text: inline(token.tokens || []), italics: true }]
         case 'del': return [{ text: inline(token.tokens || []), decoration: 'lineThrough' }]
         case 'link': return [{ text: inline(token.tokens || []), link: safeLink(token.href), color: '#0369a1' }]
+        case 'checkbox': return [{ text: token.checked ? '[x] ' : '[ ] ' }]
+        case 'text': return [{ text: presentCitationMarkers(decodeString(token.text)) }]
         case 'codespan': return [{ text: token.text, background: '#f1f5f9' }]
         case 'br': return [{ text: '\n' }]
         case 'html': warnings.add('Raw HTML is omitted from PDF output.'); return []
@@ -72,10 +75,18 @@ export async function buildMarkdownPdf(source: string, path: string, loadImage?:
         case 'hr': result.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: 499, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e1' }], margin: [0, 10, 0, 10] }); break
         case 'list': {
           const list = token as Tokens.List
-          const children = await Promise.all(list.items.map(async item => ({ stack: [
-            ...(item.task ? [{ text: item.checked ? '[x]' : '[ ]' }] : []),
-            ...await blocks(item.tokens),
-          ] })))
+          const children = await Promise.all(list.items.map(async item => {
+            const [first, ...rest] = item.tokens
+            // Loose lists already include the checkbox inside the paragraph.
+            if (first?.type === 'checkbox') {
+              const stack = await blocks(rest)
+              const marker = inline([first])
+              if (stack[0]?.text !== undefined) stack[0].text = marker.concat(stack[0].text)
+              else stack.unshift({ text: marker })
+              return { stack }
+            }
+            return { stack: await blocks(item.tokens) }
+          }))
           result.push({ [list.ordered ? 'ol' : 'ul']: children, ...(list.ordered ? { start: list.start || 1 } : {}), margin: [0, 4, 0, 8] }); break
         }
         case 'table': {

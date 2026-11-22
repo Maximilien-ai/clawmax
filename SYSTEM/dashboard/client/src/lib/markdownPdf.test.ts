@@ -9,6 +9,16 @@ async function main() {
   for (const href of ['https://example.com/a.png', '//example.com/a.png', '/api/private.png', 'javascript:a.png', '../../../a.png', 'a.png?key=x', 'a.svg', 'a\\b.png']) {
     assert.equal(workspaceImagePath('AGENTS/demo/a.md', href), null)
   }
+  for (const separator of ['\n', '\n\n']) {
+    const tasks = await buildMarkdownPdf(['- [x] first', '- [ ] second', '  - nested'].join(separator), 'tasks.md')
+    const output = JSON.stringify(tasks.definition.content)
+    for (const marker of ['[x] ', '[ ] ']) assert.equal(output.split(marker).length, 2)
+    assert.ok(output.indexOf('first') < output.indexOf('second') && output.indexOf('second') < output.indexOf('nested'))
+  }
+  const entities = await buildMarkdownPdf('# A &amp; B\n\n**&#169;** [&#x41;](https://example.com) `&amp;`\n\n| x |\n|---|\n| &quot; |\n\n```\n&amp;\n```', 'entities.md')
+  const prose = JSON.stringify(entities.definition.content)
+  for (const expected of ['A & B', '©', '"A"']) assert.ok(prose.includes(expected))
+  assert.equal(prose.split('&amp;').length, 3)
   const paths: string[] = []
   const built = await buildMarkdownPdf('---\nprivate: OMIT_ME\n---\n# Heading\n\nA **bold** and *italic* [safe](https://example.com) [bad](javascript:alert).\n\n> quote\n\n3. three\n4. four\n\n- [x] task\n\n```js\nconst x = 1\n```\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n![missing](image.png)\n\n![remote](https://example.com/image.png)\n\n<script>alert(1)</script>', 'AGENTS/demo/readme.md', async path => { paths.push(path); return null })
   const serialized = JSON.stringify(built.definition)
