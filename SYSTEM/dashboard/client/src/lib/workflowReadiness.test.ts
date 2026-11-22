@@ -1,7 +1,13 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import assert from 'node:assert/strict'
 import { resumeWorkflows, scheduleGuidance } from './workflowReadiness'
 
 async function main() {
+  const page = readFileSync(join(__dirname, '../pages/Workflows.tsx'), 'utf8')
+  const table = page.slice(page.indexOf('function WorkflowsTable('), page.indexOf('function WorkflowCard('))
+  assert.match(table, /if \(allVisibleSelected\) onDeselectVisible\(\)\s+else onSelectVisible\(\)/)
+  assert.doesNotMatch(table, /setSelectedWorkflowIds|sortedWorkflows/)
   assert.match(scheduleGuidance('manual', true, false), /on demand/)
   assert.match(scheduleGuidance('manual', false, false), /Resume.*on demand/)
   assert.match(scheduleGuidance('@daily', false, false), /Enable/)

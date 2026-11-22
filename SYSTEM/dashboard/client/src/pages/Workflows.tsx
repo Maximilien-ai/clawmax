@@ -3569,8 +3569,8 @@ function WorkflowsTable({
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (allVisibleSelected) setSelectedWorkflowIds(new Set())
-                      else setSelectedWorkflowIds(new Set(sortedWorkflows.map(w => w.id)))
+                      if (allVisibleSelected) onDeselectVisible()
+                      else onSelectVisible()
                     }}
                     title={allVisibleSelected ? 'Deselect all visible workflows' : 'Select all visible workflows'}
                     className={`flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors ${
