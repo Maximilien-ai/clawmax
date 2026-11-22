@@ -11,6 +11,8 @@ Open Workflows and choose List on the local source preview. If the workspace tou
 
 ## Engineering evidence
 
+Full isolated integration, validation and coverage passed 584/584 on the product source. Coverage reached 84.16% for lines and statements, 82.05% for branches and 92.48% for functions. The local source preview reports `2.0.0-dev.24fdb353`.
+
 The focused tests cover manual and scheduled workflows, disabled workflows, pipeline pause, HTTP errors, and transport failures. Against the isolated API, successful, failed and mixed batches produced the expected persisted enabled flags. The two sample workflows were reset for owner acceptance. Chrome verified the list at 1440px and 390px.
 
 The RC100 Picomatch advisory was withdrawn November 18 because its maintainers determined it was not a security issue. The withdrawal also covers the previously identified bundled copies for this advisory. The RC101 audit passed without an exception. npm reported 574 dependencies, 10 moderate findings across the full tree and three moderate in production, with zero high or critical in either audit. [GitHub advisory](https://github.com/advisories/GHSA-fc5q-39xc-vjpf).
