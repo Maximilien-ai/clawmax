@@ -1,4 +1,5 @@
 import { updateMentionSelection } from '../lib/agentMentions'
+import { resumeWorkflows, scheduleGuidance } from '../lib/workflowReadiness'
 import { deleteWorkflowBatch, requireWorkflowDeletion } from '../lib/workflowDeletion'
 import { loadWorkflowAgents } from '../lib/workflowAgents'
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
@@ -288,7 +289,7 @@ function getWorkflowStatusLabel(state: WorkflowHealthState): string {
   }
 }
 
-function getWorkflowStatusHelp(state: WorkflowHealthState, nextRunAt?: string | null): string {
+function getWorkflowStatusHelp(state: WorkflowHealthState, scheduleHelp: string, nextRunAt?: string | null): string {
   switch (state) {
     case 'running':
       return 'Workflow is actively executing now.'
@@ -302,7 +303,7 @@ function getWorkflowStatusHelp(state: WorkflowHealthState, nextRunAt?: string | 
     default:
       return nextRunAt
         ? `Workflow is enabled. Next run ${formatNextRun(nextRunAt)}.`
-        : 'Workflow is enabled and waiting for the next valid scheduled run.'
+        : scheduleHelp
   }
 }
 
@@ -1432,23 +1433,16 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       return
     }
 
-    try {
-      await Promise.all(
-        workflowsToEnable.map(w =>
-          fetch(`/api/workflows/${w.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enabled: true })
-          })
-        )
-      )
-      showSuccess(`Resumed ${workflowsToEnable.length} workflow${workflowsToEnable.length !== 1 ? 's' : ''}`)
-      fetchWorkflows()
-      setSelectedWorkflowIds(new Set())
+    const failed = await resumeWorkflows(workflowsToEnable.map(w => w.id))
+    const resumed = workflowsToEnable.length - failed.length
+    if (failed.length) {
+      showError(`Resumed ${resumed} of ${workflowsToEnable.length}. ${failed.length} failed and remain selected for retry.`)
+    } else {
+      showSuccess(`Resumed ${resumed} workflow${resumed === 1 ? '' : 's'}`)
       setSelectionMode(false)
-    } catch (err) {
-      showError('Failed to resume workflows')
     }
+    setSelectedWorkflowIds(new Set(failed))
+    fetchWorkflows()
   }
 
   const handleBulkDisable = async () => {
@@ -2141,6 +2135,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               </div>
             )}
             <WorkflowsTable
+              pipelinePaused={pipelineState.paused}
               workflows={sortedWorkflows}
               selectionMode={selectionMode}
               selectedWorkflowIds={selectedWorkflowIds}
@@ -3511,6 +3506,7 @@ function getWorkflowDeleteConsequences(workflows: Workflow[], allWorkflows: Work
 }
 
 function WorkflowsTable({
+  pipelinePaused,
   workflows,
   selectionMode,
   selectedWorkflowIds,
@@ -3530,6 +3526,7 @@ function WorkflowsTable({
   onDeselectVisible,
   pluginRelationships,
 }: {
+  pipelinePaused: boolean
   workflows: Workflow[]
   selectionMode: boolean
   selectedWorkflowIds: Set<string>
@@ -3602,7 +3599,9 @@ function WorkflowsTable({
               const healthState = getWorkflowHealthState(workflow, isRunning, latestExecutionStatuses[workflow.id])
               const statusDotClass = getWorkflowHealthDotClass(healthState)
               const statusLabel = getWorkflowStatusLabel(healthState)
-              const statusHelp = getWorkflowStatusHelp(healthState, workflow.nextRunAt)
+              const scheduleHelp = scheduleGuidance(workflow.schedule, workflow.enabled, pipelinePaused)
+              const nextRun = workflow.enabled && !pipelinePaused && workflow.schedule !== 'manual' ? workflow.nextRunAt : null
+              const statusHelp = getWorkflowStatusHelp(healthState, pipelinePaused ? 'Pipeline paused.' : 'Ready to run.', nextRun)
 
               return (
                 <tr
@@ -3673,11 +3672,8 @@ function WorkflowsTable({
                     <div className="leading-snug truncate" title={workflow.scheduleHuman || workflow.schedule || 'Manual'}>
                       {workflow.scheduleHuman || workflow.schedule || 'Manual'}
                     </div>
-                    <div className="mt-1 text-xs text-sky-600 dark:text-sky-400 truncate" title={`Next run ${formatNextRun(workflow.nextRunAt)}`}>
-                      {workflow.nextRunAt ? `Next ${formatNextRunRelative(workflow.nextRunAt)}` : 'No upcoming run'}
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400 truncate">
-                      {workflow.nextRunAt ? formatNextRun(workflow.nextRunAt) : 'Enable this workflow to schedule runs'}
+                    <div className="mt-1 text-xs text-sky-600 dark:text-sky-400" title={nextRun ? formatNextRun(nextRun) : undefined}>
+                      {nextRun ? `Next ${formatNextRunRelative(nextRun)}` : scheduleHelp}
                     </div>
                   </td>
                   <td className="px-4 py-3 capitalize text-gray-600 dark:text-gray-300">{workflow.executionMode}</td>

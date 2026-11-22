@@ -888,6 +888,11 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Workflow deletion recovery tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/workflowReadiness.test.ts; then
+  pass "Workflow schedule guidance and bulk resume tests"
+else
+  fail "Workflow schedule guidance and bulk resume tests"
+fi
 if npx ts-node --transpileOnly client/src/lib/workflowDeletion.test.ts; then
   pass "Workflow deletion recovery tests"
 else
