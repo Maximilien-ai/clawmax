@@ -453,7 +453,7 @@ function countHaystackMatches(tokens: string[], values: Array<string | undefined
   return matches
 }
 
-async function buildClientFallbackRecommendation(prompt: string): Promise<BuilderRecommendation> {
+export async function buildClientFallbackRecommendation(prompt: string): Promise<BuilderRecommendation> {
   const [agentsResp, skillsResp, templatesResp, workflowsResp] = await Promise.all([
     fetch('/api/agents').then(async (response) => response.ok ? response.json() : { agents: [] }).catch(() => ({ agents: [] })),
     fetch('/api/skills').then(async (response) => response.ok ? response.json() : { skills: [] }).catch(() => ({ skills: [] })),
@@ -563,7 +563,8 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
     .slice(0, 5)
 
-  const matchedOrganizationTemplates: BuilderMatchedAsset[] = ((templatesResp.organizations || []) as ApiTemplate[])
+  const organizationTemplates: ApiTemplate[] = Array.isArray(templatesResp.organizations) ? templatesResp.organizations : []
+  const matchedOrganizationTemplates: BuilderMatchedAsset[] = organizationTemplates
     .map((template) => ({
       id: template.slug || template.name,
       name: template.name,
@@ -619,6 +620,7 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
     .slice(0, 5)
 
+  const topWorkflow = matchedWorkflows[0]
   const topAgent = matchedAgents[0]
   const topSkill = matchedSkills[0]
   const topAgentTemplate = matchedAgentTemplates[0]
@@ -628,7 +630,7 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
     scope,
     operation,
     matchedOrganizationTemplates,
-    organizationTemplates: orgTemplates,
+    organizationTemplates,
   })
 
   let intent: BuilderRecommendation['intent'] = 'ai_generate'
@@ -1148,7 +1150,7 @@ function buildTemplateSelection(action: BuilderAction): string | null {
 }
 
 function getSpecificPromptTokens(prompt: string): string[] {
-  return tokenize(prompt).filter((token) => (
+  return tokenizePrompt(prompt).filter((token) => (
     token.length > 3
     && !NON_SCORING_TOKENS.has(token)
     && !TEAM_KEYWORDS.includes(token)
@@ -1160,7 +1162,7 @@ function getSpecificPromptTokens(prompt: string): string[] {
 }
 
 function countTokenOverlapInText(tokens: string[], text: string): number {
-  const normalized = normalizePrompt(text)
+  const normalized = text.toLowerCase().trim()
   if (!normalized) return 0
   return tokens.filter((token) => normalized.includes(token)).length
 }
