@@ -4,12 +4,14 @@ Sunday’s candidate source is `11c09f66` on `release/rc101`. It includes RC100,
 
 ## Owner acceptance
 
+Owner accepted all four fixes after rechecking #357 on November 22. The accepted tag is `v2.0.0-test-rc101`. [Public image build](https://github.com/Maximilien-ai/clawmax/actions/runs/45051799506).
+
 Open [the local Workflows preview](http://localhost:5188/workflows) and choose List. If the workspace tour appears, dismiss it. On a phone, scroll the table horizontally to Schedule.
 
-- [ ] **#357** Compare **RC101 Manual Review** and **RC101 Scheduled Review**. The enabled manual workflow should tell you to use Run. The disabled Monday workflow should explain how to enable scheduling. Is the distinction clear?
-- [ ] **#370 / #374** Search for **RC101 Resume**, choose Select, click the table header checkbox to select both visible rows, and click Resume. Expect two successes, selection mode to close, and both workflows to remain Ready after refresh.
+- [x] **#357** Compare **RC101 Manual Review** and **RC101 Scheduled Review**. The enabled manual workflow should tell you to use Run. The disabled Monday workflow should explain how to enable scheduling. Is the distinction clear?
+- [x] **#370 / #374** Search for **RC101 Resume**, choose Select, click the table header checkbox to select both visible rows, and click Resume. Expect two successes, selection mode to close, and both workflows to remain Ready after refresh.
 
-- [ ] **#354** Switch between Grid and List. This isolated preview should show **Metering off** in both. In a metered workspace each workflow shows its own all-time estimate or **No recorded cost**.
+- [x] **#354** Switch between Grid and List. This isolated preview should show **Metering off** in both. In a metered workspace each workflow shows its own all-time estimate or **No recorded cost**.
 
 ## Repeating the local tests
 
@@ -31,7 +33,7 @@ The RC100 Picomatch advisory was withdrawn November 18 because its maintainers d
 
 ## Feedback closeout
 
-After owner acceptance, close #354, #357, #370 and #374 individually with the verified fix and candidate source. Update each linked feedback report and thank its reporter, naming the fix and its planned inclusion in a future ClawMax version. Track notification delivery separately. For FB-07af8e63, record #357 as addressed while tracking #388 and #396 independently. Resolve a whole report when all its issues are addressed.
+Closed #354, #357, #370 and #374. Five linked reports received replies and notification requests. Four reports were closed as addressed. FB-07af8e63 remains open for #388 and #396. Email delivery is unverified.
 
 ## Daily release cadence
 
