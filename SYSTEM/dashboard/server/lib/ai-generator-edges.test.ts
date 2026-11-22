@@ -26,23 +26,29 @@ async function test(name: string, fn: () => Promise<void> | void) {
 
 async function withSystemProviderKeysCleared<T>(fn: () => Promise<T> | T): Promise<T> {
   const dashboardEnv = require('./dashboard-env')
+  const integrations = require('./workspace-integrations')
   const original = {
     SYSTEM_OPENAI_API_KEY: process.env.SYSTEM_OPENAI_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     SYSTEM_ANTHROPIC_API_KEY: process.env.SYSTEM_ANTHROPIC_API_KEY,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     resolveSystemExecutionProviderKeys: dashboardEnv.resolveSystemExecutionProviderKeys,
+    readWorkspaceIntegrationConfig: integrations.readWorkspaceIntegrationConfig,
   }
   delete process.env.SYSTEM_OPENAI_API_KEY
   delete process.env.OPENAI_API_KEY
   delete process.env.SYSTEM_ANTHROPIC_API_KEY
   delete process.env.ANTHROPIC_API_KEY
   dashboardEnv.resolveSystemExecutionProviderKeys = () => ({})
+  // A configured local endpoint is an execution path too. The missing-provider
+  // fixture must not inherit it (or enabled CLI runtimes) from the operator workspace.
+  integrations.readWorkspaceIntegrationConfig = () => ({})
 
   try {
     return await fn()
   } finally {
     dashboardEnv.resolveSystemExecutionProviderKeys = original.resolveSystemExecutionProviderKeys
+    integrations.readWorkspaceIntegrationConfig = original.readWorkspaceIntegrationConfig
     if (typeof original.SYSTEM_OPENAI_API_KEY === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
     else process.env.SYSTEM_OPENAI_API_KEY = original.SYSTEM_OPENAI_API_KEY
     if (typeof original.OPENAI_API_KEY === 'undefined') delete process.env.OPENAI_API_KEY

@@ -7,10 +7,19 @@ Active development: Dashboard 2.0 on OpenClaw `2026.9.7`; stable remains
 RC98 has not been cut. Earlier RC preview/evidence files below describe their
 original source snapshots, not the current candidate or runtime state.
 
+## Repository working instructions
+
+Start with [AGENTS.md](../../AGENTS.md); its task-specific procedures cover
+[product contracts](agent-guides/PRODUCT_CONTRACTS.md),
+[testing and release](agent-guides/RELEASE_VALIDATION.md), and
+[team operations](agent-guides/TEAM_OPERATIONS.md).
+
 ## Active Documents
 
 | Document | Description |
 |----------|-------------|
+| [planning/ISSUE_PRIORITIES_2026-11-20.md](planning/ISSUE_PRIORITIES_2026-11-20.md) | Three-level queue for all 132 open Dashboard/Web issues, repeated-feedback ordering, triage state and a soft November 21 starting batch |
+| [planning/FEEDBACK_TRIAGE_2026-11-20.md](planning/FEEDBACK_TRIAGE_2026-11-20.md) | SF intake: 31 new reports reviewed, 15 issues from 17 reports, full reply/link ledger and verified before/after counts |
 | [planning/PR191_ACCEPTANCE_2026-11-14.md](planning/PR191_ACCEPTANCE_2026-11-14.md) | Compatible-provider optional model discovery, engineering evidence and one external-provider check |
 | [planning/RC98_ACCEPTANCE_2026-11-16.md](planning/RC98_ACCEPTANCE_2026-11-16.md) | Two independent RC98 owner checks and engineering image gates |
 | [planning/RC98_PROGRESS_2026-11-16.md](planning/RC98_PROGRESS_2026-11-16.md) | Current RC98 progress, remaining gates and owner acceptance status |

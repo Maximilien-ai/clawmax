@@ -1,212 +1,57 @@
 # Repository Instructions
 
-## Governing Goal: A Stable, Simple, Consistent 2.0
+## Priorities and ownership
 
-Our overriding product goal is a 2.0 release people can reliably use. Apply
-these priorities, in order, to every implementation and release decision:
+Act as the **Dashboard team**: own this repository's public code, tests, release
+evidence, and documentation. CLI and Web own their implementations and deployments.
+Do not infer fleet state or claim another team's work is complete from a handoff.
 
-1. **Stability first.** Without a stable system, features are not useful.
-   Prioritize reliable end-to-end behavior, persistence, recovery, and clear
-   failure states. Fix regressions and validate real workflows before adding
-   scope; green health checks alone do not establish release readiness.
-2. **Simplification second.** Reduce unnecessary controls, steps, duplicated
-   surfaces, and concepts. Keep primary actions obvious; group secondary
-   actions in clearly separated menus. Simplification must not hide errors,
-   remove needed capabilities without an explicit decision, or weaken safety,
-   authorization, observability, or testing.
-3. **Consistency everywhere.** Once someone learns one part of ClawMax, that
-   knowledge should transfer to the rest. Reuse established components,
-   wording, layout, filters, Actions menus, and desktop/mobile interaction
-   patterns instead of introducing one-off alternatives.
+For 2.0, apply these priorities in order:
 
-Prefer focused stability and usability improvements over new features on the
-path to 2.0. Explain any necessary exception and its release impact before
-expanding scope.
+1. **Stability:** reliable end-to-end behavior, persistence, recovery, and clear
+   failures. Green health checks alone do not establish readiness.
+2. **Simplicity:** obvious primary actions and fewer duplicated controls or steps,
+   without hiding errors or weakening capabilities, safety, or observability.
+3. **Consistency:** reuse established components, language, layout, filters,
+   Actions menus, and desktop/mobile patterns.
 
-## Team Identity And Handoffs
+Prefer focused stability/usability improvements. Explain the release impact before
+expanding scope. Never copy private plugin source or implementation details into
+this repository or its public image.
 
-- In this repository, act as the **Dashboard team**. Own public Dashboard code,
-  tests, release evidence, and documentation here. Treat CLI and Web as separate
-  teams with their own implementation and deployment authority; do not report
-  their handoffs as Dashboard-completed work or infer a live fleet change from a
-  shared file.
-- Coordinate cross-team work through
-  `/Users/maximilien/Desktop/Maximilien AI LLC/docs/handoffs`. Follow the shared
-  `HANDOFF_CONVENTION.md` and `HANDOFF_TEMPLATE.md` there, using dated
-  `YYYYMMDDTHHMMSSZ_From-to-To_issue-id.md` files. State sender, recipient,
-  time, priority, topic, status, exact source/image identity where relevant,
-  evidence, requested action, and acceptance criteria. Read newer replies before
-  acting. Keep secrets and raw participant data out of handoffs.
+## Working rules
 
-## Commit Messages
+- Use concise lowercase Conventional Commit subjects: `feat:`, `fix:`, `docs:`,
+  `test:`, `refactor:`, `build:`, `ci:`, `chore:`, `release:`, or `merge:`.
+- Keep concerns independently reviewable. Commit and push each coherent, directly
+  tested concern before starting the full suite, image build, or release CI.
+  Fix later validation defects in separate commits.
+- Add focused tests for behavior changes; run TypeScript and affected suites.
+  Check changed UI at desktop/mobile widths. Full integration, validation, and
+  coverage are required before an RC.
+- Preserve authorization, privacy, persisted state, and explicit user choices.
+  Sensitive exports require the consent contract linked below.
+- Before handoff, commit/push every owning repository, record SHAs and CI links,
+  and verify no task-created changes remain uncommitted.
+- Distinguish source completion, automated validation, image publication, GCP
+  mirroring, deployment, and user acceptance. Each claim needs its own evidence.
+- Keep output concise and reads bounded; poll healthy long jobs sparsely. Never
+  reduce required implementation or testing to save tokens.
+- At 5,000 session-visible tokens per local calendar day, notify the user once
+  and continue only as directed. Do not include unrelated threads or tools that
+  do not expose token accounting.
 
-- Every commit subject must start with a lowercase Conventional Commit-style
-  prefix followed by a colon and a space.
-- Use the narrowest applicable prefix: `feat:`, `fix:`, `docs:`, `test:`,
-  `refactor:`, `build:`, `ci:`, `chore:`, `release:`, or `merge:`.
-- Keep the subject concise and describe the user-visible or engineering outcome.
-- Do not publish an unprefixed commit subject. Check the proposed subject before
-  committing, especially for release-candidate work pushed directly to `main`.
-- Keep commits focused by concern: separate dependency/security remediation,
-  product behavior, tests, documentation, and release metadata when they can
-  be reviewed or reverted independently. Push each focused commit so CI
-  identifies the exact change that introduced or fixed a failure.
-- Commit and push as soon as one coherent, directly tested concern is complete.
-  Do not accumulate multiple independently reviewable concerns in the working
-  tree, and do not start the full suite, an image build, or release CI with
-  completed implementation work still uncommitted. If later validation finds a
-  defect, fix it in a new focused commit and push that checkpoint separately.
+## Required task-specific procedures
 
-## Repository Ownership
+Read the relevant linked procedure before working in its area. These documents
+are repository instructions, not optional background; avoid rereading unchanged
+procedures already loaded in the session.
 
-- Keep public host contracts, generic dashboard components, public plugins, and
-  public scoring logic in this repository.
-- Keep first-party proprietary plugin manifests, suggested items,
-  implementation details, and plugin-specific tests in the private
-  `clawmax-plugins` monorepo. Partner-owned or customer-specific plugins may
-  remain separate when they require different access controls. Never copy
-  private source into this repository or the public image.
-- Lifecycle and Review are the public product plugins in the current 2.0
-  phase. Evals, Guardrails, and Optimize are private enterprise plugins. Treat
-  `PLUGINS/test/plugin-*` as synthetic contract fixtures only;
-  they must not contain or become copies of private product implementations.
-- Keep every other plugin private unless its ownership is explicitly changed.
-- Plugin enablement must be manageable from the PLUGINS sidebar as well as
-  deployment configuration. Persist an explicit instance selection, including
-  the valid empty selection, and never expose synthetic contract fixtures in
-  the manager.
-  Public documentation may describe the generic host boundary, but must not
-  enumerate private plugin items, rules, prompts, schemas, or implementation
-  details.
-- A plugin can represent any ClawMax extension domain. Do not design generic
-  plugin APIs or UI around assumptions that all plugins are guardrails or evals.
+| Work | Required instructions |
+| --- | --- |
+| Product behavior, UI, plugins, scoring, exports, Review | [Product contracts](SYSTEM/docs/agent-guides/PRODUCT_CONTRACTS.md) |
+| Tests, CI, RCs, images, security/release evidence | [Testing and release](SYSTEM/docs/agent-guides/RELEASE_VALIDATION.md) |
+| Cross-team handoffs, weekly/monthly recaps, documentation upkeep | [Team operations](SYSTEM/docs/agent-guides/TEAM_OPERATIONS.md) |
 
-## Product Language And State
-
-- Treat prompt-readiness scores and generated-artifact quality scores as
-  separate claims. Prompt scoring must explain the rubric, update as the user
-  edits, remain advisory rather than blocking generation, and never imply that
-  an untested generated artifact is correct or safe.
-- Keep baseline prompt scoring local and token-free. Do not persist or export
-  raw prompt text as scoring feedback; collect only the minimum disclosed
-  metadata unless the user explicitly opts into a separate data-use contract.
-- Reserve `template` for ClawMax agent, organization, and workflow templates.
-  Plugin starter content should be presented as `Suggested`, `Use`, or another
-  domain-specific action rather than `Use Template`.
-- Distinguish suggested plugin items from selected workspace items. Selected
-  items must be editable and their active, running, completed, failed, or
-  blocked state must remain visible.
-- User-visible operations must persist lifecycle evidence appropriate to the
-  domain, such as run history, activation history, scores, progress, targets,
-  notifications, notes, or evidence. Do not expose an action without a way to
-  see what happened afterward.
-- Treat the Agents page as the dashboard layout contract for plugin tabs:
-  preserve its header hierarchy, view-control placement, action menus, filters,
-  responsive stacking, and distinct grid, detail, list, and relationship
-  presentations. View controls must affect every visible collection they imply,
-  including suggested items, and each item must expose inspectable details.
-- Keep release review files separated by release, but put only checks requiring
-  independent human judgment or an external environment in the active reviewer
-  queue. Unit, integration, browser, source-contract, CI, version, health,
-  architecture, and catalog checks are engineering-owned release evidence, not
-  reviewer tasks. Every current Review item must state `reviewReason` as either
-  `human-judgment` or `external-environment`. Preserve superseded criteria,
-  results, notes, evidence, and verifier history in Archived; do not carry
-  unfinished old-RC checklists forward as tester work.
-
-## Tests And Release Validation
-
-- Treat 5,000 tokens per local calendar day as the user-notification threshold
-  for repository work. When session-visible usage reaches that threshold, tell
-  the user once and continue only as directed. This cannot include usage from
-  unrelated threads or tools that do not expose token accounting.
-- Minimize token overhead by using focused file reads, bounded command output,
-  sparse CI polling, long waits for known-duration jobs, and concise progress
-  summaries. Do not trade away required implementation or test coverage merely
-  to reduce reported usage.
-
-- Treat transcript, prompt, conversation, and user-activity export as sensitive
-  data egress. It must be disabled by default, explicitly consented per affected
-  user, scoped to a named destination and purpose, visibly indicated while
-  active, redacted before durable storage, revocable immediately, and delivered
-  asynchronously so partner failure cannot block normal product behavior.
-- Configuring a partner is not user consent. Never silently reuse consent when
-  the destination, purpose, scopes, identity fields, or disclosure version
-  changes, and never expose a general transcript-reading capability to plugins.
-- Add or update focused tests for every behavior change, including error,
-  persistence, and responsive presentation paths where applicable. Improve
-  coverage with each change rather than relying only on existing tests.
-- Run TypeScript and the directly affected unit/contract suites while
-  iterating. Before an RC, run the complete integration, validation, and
-  coverage suite.
-- When cutting an RC, align `CLAWMAX_VERSION` in the ignored local
-  `SYSTEM/dashboard/.env` to the exact candidate being built, restart the local
-  dashboard, and verify both the visible version and `/api/system`. For example:
-  `perl -0pi -e 's/^CLAWMAX_VERSION=.*/CLAWMAX_VERSION=2.0.0-test-rcN/m' SYSTEM/dashboard/.env`.
-  Never carry an older RC value into a new RC or stable release. The test-image
-  workflow supplies this value for containers, but local source checkouts
-  otherwise fall back to the latest Git tag plus the current short SHA.
-- Visually audit changed pages, dialogs, pop-ups, cards, lists, and graphical
-  views at desktop and mobile widths. Check long text, scrolling, sticky
-  actions, progress states, and empty/error states.
-- For public/private combined RCs, verify amd64 and arm64 image builds, registry
-  smoke tests, packaged version identity, plugin discovery, restart persistence,
-  and the public/private source boundary before reporting the release ready.
-- When creating an RC image, dispatch the public `Test Container Image`
-  workflow from the candidate ref first, then dispatch `Private ClawMax Plugins
-  Image` in `clawmax-plugins` with the exact same public `base_tag` and private
-  `image_tag`. Record both CI links and do not call the public image complete
-  until the matching combined image has passed its validation and smoke jobs.
-- If a combined-image smoke job fails after the image build and plugin contract
-  checks pass, inspect the failed step and distinguish a dashboard readiness
-  probe/connection-reset flake from a packaging or plugin failure. The image
-  may be usable, but report the smoke result as unresolved and do not silently
-  mark the combined RC fully green; rerun the failed smoke jobs once before
-  deferring readiness-test hardening.
-- Record the observed or documented duration before starting a long-running CI,
-  image, deployment, or test job. Do not continuously poll it.
-- Check once near half the expected duration to catch an early failure. If the
-  job is still healthy, check next at the expected completion time plus one
-  minute. Only use additional sparse checks when the job exceeds that window or
-  a known failure needs investigation.
-- When waiting on local test processes, use long yielded waits and small output
-  budgets. Report the failure or final summary instead of repeatedly relaying
-  routine progress output.
-- Before handoff, commit and push every owning repository with an approved
-  lowercase prefix, record the relevant SHAs and CI links, and verify that no
-  task-created changes remain uncommitted.
-- Security claims require reproducible evidence. Record dependency counts,
-  command results, residual severity, owner, and deadline; do not describe an
-  initial dependency/configuration baseline as the complete security audit.
-
-## Documentation Maintenance
-
-- Every Sunday PM or Monday AM, write a concise weekly recap in
-  `/Users/maximilien/Desktop/Maximilien AI LLC/docs/recaps/YYYY-MM-DD_DASHBOARD_WEEKLY_RECAP.md`,
-  using the Monday that starts the reviewed week. Keep it to two or three
-  readable pages. Summarize verified
-  outcomes, what went well (WWR), what went wrong (WWW), lessons, open evidence,
-  and a short, explicitly soft plan for the coming week. Link separate event or
-  hackathon recaps instead of repeating them. Check commits, release evidence,
-  active backlog, and known issues; distinguish source completion, CI/image
-  validation, deployment, and user acceptance. Do not infer current runtime
-  state from an old handoff.
-- At each month end, add
-  `/Users/maximilien/Desktop/Maximilien AI LLC/docs/recaps/YYYY-MM_DASHBOARD_MONTHLY_RECAP.md`
-  to synthesize that month's weekly recaps, trend in outcomes and WWR/WWW, unresolved
-  patterns, and a few process changes for the next month. Keep any shared recap
-  index ordered by date, newest first. Treat plans as suggestions that can change
-  with meetings, testing, and new priorities.
-
-- Audit active documentation when a stable release is promoted, a major release
-  changes phase, or release feedback materially changes the roadmap.
-- Keep `README.md`, `CHANGELOG.md`, `SYSTEM/docs/STATUS.md`,
-  `SYSTEM/docs/KNOWN_ISSUES.md`, `SYSTEM/docs/BACKLOG.md`, and the documentation
-  index aligned on the stable version, active development line, and release
-  boundary.
-- Move completed or superseded release plans and validation checklists into the
-  appropriate archive. Preserve useful history, but do not leave shipped work
-  presented as an active plan or backlog item.
-- Update archive indexes and links as part of the same change. Do not close or
-  archive a partially completed issue solely because one implementation phase
-  shipped; retain the remaining concrete work in the active backlog.
+Keep candidate versions, temporary exceptions, pending checks, and dated results
+in release evidence under `SYSTEM/docs/planning/`, not in this entry point.

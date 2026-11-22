@@ -438,8 +438,9 @@ export function resolveUserExecutionProviderKeys(
   byokOverrides?: ProviderKeys
 ): ProviderKeys {
   if (byokOverrides) byokOverrides = usableProviderKeys(byokOverrides, rawEnv)
-  if (hasAnyProviderKey(byokOverrides || {})) {
+  if (hasAnyProviderKey(byokOverrides || {}) || byokOverrides?.ollamaBaseUrl?.trim()) {
     return {
+      ollamaBaseUrl: byokOverrides?.ollamaBaseUrl?.trim() || undefined,
       openai: byokOverrides?.openai?.trim() || undefined,
       anthropic: byokOverrides?.anthropic?.trim() || undefined,
       gemini: byokOverrides?.gemini?.trim() || undefined,
@@ -464,7 +465,7 @@ export function resolveWorkflowExecutionProviderKeys(
   byokOverrides?: ProviderKeys
 ): ProviderKeys {
   const userKeys = resolveUserExecutionProviderKeys(rawEnv, byokOverrides)
-  if (hasAnyProviderKey(userKeys)) return userKeys
+  if (hasAnyProviderKey(userKeys) || userKeys.ollamaBaseUrl) return userKeys
   return resolveSystemExecutionProviderKeys(rawEnv)
 }
 

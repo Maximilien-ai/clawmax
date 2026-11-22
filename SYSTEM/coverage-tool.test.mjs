@@ -11,7 +11,7 @@ const packageRoot = path.join(dashboard, 'node_modules/c8')
 const metadata = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'))
 const cli = path.join(packageRoot, typeof metadata.bin === 'string' ? metadata.bin : metadata.bin.c8)
 
-function fixture(run) {
+function fixture(run, parentCoverage = process.env.NODE_V8_COVERAGE) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-coverage-tool-')))
   const write = (name, text) => fs.writeFileSync(path.join(root, name), text)
   write('.c8rc.json', '{}')
@@ -19,10 +19,10 @@ function fixture(run) {
   write('unused.cjs', 'exports.unused = function unused() { return 42; };\n')
   const coverage = (command, options = []) => spawnSync(process.execPath, [cli,
     '--reporter=text-summary', '--reporter=json-summary', '--reporter=html',
-    '--report-dir', path.join(root, 'coverage'), '--config', path.join(root, '.c8rc.json'),
+    '--report-dir', path.join(root, 'coverage'), '--temp-directory', path.join(root, 'samples'), '--config', path.join(root, '.c8rc.json'),
     ...options, ...command,
   ], { cwd: root, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024,
-    env: { ...process.env, COVERAGE_FIXTURE_ROOT: root, COVERAGE_FIXTURE_NODE: process.execPath } })
+    env: { ...process.env, NODE_V8_COVERAGE: parentCoverage, COVERAGE_FIXTURE_ROOT: root, COVERAGE_FIXTURE_NODE: process.execPath } })
   const report = result => {
     assert.equal(result.error, undefined, result.error?.message)
     assert.match(result.stdout, /Coverage summary/)
@@ -95,4 +95,20 @@ test('ts-node coverage is remapped to the original TypeScript file', () => {
     assert(source.lines.covered > 0)
     assert(source.functions.covered > 0)
   })
+})
+
+test('nested c8 runs preserve samples already collected by the outer suite', () => {
+  const outer = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-outer-coverage-'))
+  const sample = path.join(outer, 'previous-sample.json')
+  try {
+    fs.writeFileSync(sample, '{"result":[]}')
+    fixture(({ coverage, report }) => {
+      const result = coverage([process.execPath, '-e', "require('./math.cjs').choose(true)"])
+      assert.equal(result.status, 0, result.stderr)
+      report(result)
+      assert.equal(fs.readFileSync(sample, 'utf8'), '{"result":[]}')
+    }, outer)
+  } finally {
+    fs.rmSync(outer, { recursive: true, force: true })
+  }
 })

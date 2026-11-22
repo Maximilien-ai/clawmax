@@ -1,5 +1,38 @@
 # Backlog
 
+## November 20 priorities: Now, Next and Future
+
+[The complete priority queue](planning/ISSUE_PRIORITIES_2026-11-20.md) applies
+exactly one priority and one triage state to every open ticket. Dashboard:
+35 High / 58 Medium / 21 Low. Web: 3 High / 11 Medium / 4 Low. Four Web issues
+retain `needs-triage` and provisional priorities until their app/owner or
+remaining historical scope is clear; the other 128 issues are `triaged`.
+Classification does not mean reproduced, implemented or released.
+
+Repeated feedback leads within each tier. Safety, state loss and false success
+can interrupt that order; larger new capabilities stay Future. Tomorrow's soft
+starting batch is truthful workflow results #438, model admission #437 and child
+runtime readiness #439, connected to the six-report delegation/progress issue
+#395. Then prioritize first-use #396 (six reports) and artifact discovery #381
+(four). Keep changes focused and validate actual workflows before expanding scope.
+
+## November 20 SF feedback intake
+
+[The completed new-report triage](planning/FEEDBACK_TRIAGE_2026-11-20.md)
+reviewed all 31 new SF-window reports in the 104-report inventory. Seventeen
+reports produced 15 issues: Dashboard #437–449 and Web #56/#57. Nine reports
+reuse existing work; three positives, one supported request and four exact
+duplicates were closed after replies. One screenshot-only report awaits
+clarification. All reporters were thanked before issue creation; all complete
+issue-link sets are saved. Notification requests remain separate from delivery.
+
+Dashboard now has 114 open issues (283 total), up from 101 (270 total).
+Runtime/model readiness and empty-success workflow results lead the new queue.
+HTML previews and shared collaboration are scoped decision work after stability,
+not implemented or promised release scope. Web restored the bounded feedback
+read path; Dashboard verified it and closed Web #55. Current feature work and
+release readiness retain their independent evidence requirements.
+
 ## RC98 closeout — November 16
 
 Owner accepted #191/#194; both are merged. #434 Node 24.22.3 and coordinated
