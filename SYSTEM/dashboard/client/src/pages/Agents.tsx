@@ -1553,6 +1553,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       onLinkWa={() => setChannelTarget(agent)}
                       onSyncGroups={() => setSyncGroupsTarget(agent)}
                       onChat={() => setChatTarget(agent)}
+                      onStatus={() => setStatusTarget(agent)}
                       onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true) }}
                       onEdit={() => setEditTarget(agent)}
                       onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
@@ -3600,7 +3601,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
 }
 
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSetBudget, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect, metering, costLimit, costTrackingEnabled = true, relationships = [],
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onStatus, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSetBudget, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect, metering, costLimit, costTrackingEnabled = true, relationships = [],
 }: {
   agent: Agent
   selected: boolean
@@ -3613,6 +3614,7 @@ const AgentCard = React.memo(function AgentCard({
   onLinkWa: () => void
   onSyncGroups: () => void
   onUnlinkWa: () => void
+  onStatus: () => void
   onChat: () => void
   onClone: () => void
   onEdit?: () => void
