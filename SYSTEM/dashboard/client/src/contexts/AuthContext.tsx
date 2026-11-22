@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { loadAuthBootstrap } from '../lib/authBootstrap'
+import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react'
+import { loadAuthBootstrap, shouldTriggerSessionExpired } from '../lib/authBootstrap'
 import { getByokStorageKey } from '../lib/byok'
 import { getDashboardAuthReturnTo } from '../lib/dashboardAuth'
 
@@ -82,32 +82,25 @@ export function notifySessionExpired() {
   window.dispatchEvent(new CustomEvent('clawmax-session-expired'))
 }
 
-function shouldTriggerSessionExpired(input: RequestInfo | URL, response: Response): boolean {
-  if (response.status !== 401) return false
-
-  let urlString = ''
-  if (typeof input === 'string') urlString = input
-  else if (input instanceof URL) urlString = input.toString()
-  else if (typeof Request !== 'undefined' && input instanceof Request) urlString = input.url
-
-  const resolved = urlString
-    ? new URL(urlString, window.location.origin)
-    : null
-
-  if (!resolved) return false
-  if (resolved.origin !== window.location.origin) return false
-  if (!resolved.pathname.startsWith('/api/')) return false
-  if (resolved.pathname.startsWith('/api/auth/')) return false
-
-  return true
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [config, setConfig] = useState<AuthConfig | null>(null)
   const [sessionExpired, setSessionExpired] = useState(false)
   const [bootstrapError, setBootstrapError] = useState<string | null>(null)
+
+  const activeSession = useRef<AuthUser | null>(null)
+  const updateSession = useCallback((next: AuthUser | null) => {
+    activeSession.current = next
+    setUser(next)
+  }, [])
+
+  const handleUnauthorized = useCallback(() => {
+    if (!activeSession.current) return
+    updateSession(null)
+    setSessionExpired(true)
+    setLoading(false)
+  }, [updateSession])
 
   // Check auth config and current session on mount
   useEffect(() => {
@@ -123,16 +116,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         setConfig(cfg ?? { githubEnabled: false, authDisabled: false })
         if (me?.authenticated) {
-          setUser(me.user)
+          updateSession(me.user)
           setSessionExpired(false)
         } else {
-          setUser(null)
+          updateSession(null)
         }
         setLoading(false)
       } catch {
         if (cancelled) return
         setBootstrapError("Cannot reach the session service. Check that the Dashboard API is running, then retry.")
-        setUser(null)
+        updateSession(null)
         setLoading(false)
       }
     }
@@ -170,20 +163,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const onSessionExpired = () => {
-      setUser(null)
-      setSessionExpired(true)
-      setLoading(false)
-    }
-    window.addEventListener('clawmax-session-expired', onSessionExpired as EventListener)
-    return () => window.removeEventListener('clawmax-session-expired', onSessionExpired as EventListener)
-  }, [])
+    window.addEventListener('clawmax-session-expired', handleUnauthorized)
+    return () => window.removeEventListener('clawmax-session-expired', handleUnauthorized)
+  }, [handleUnauthorized])
 
   useEffect(() => {
     const originalFetch = window.fetch.bind(window)
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const session = activeSession.current
       const response = await originalFetch(input, init)
-      if (shouldTriggerSessionExpired(input, response)) {
+      if (shouldTriggerSessionExpired(input, response, window.location.origin, session, activeSession.current)) {
         notifySessionExpired()
       }
       return response
@@ -226,7 +215,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
     const data = await resp.json().catch(() => ({}))
     if (resp.ok && data.user) {
-      setUser(data.user)
+      updateSession(data.user)
       setSessionExpired(false)
     }
     return { ok: resp.ok, error: data.error }
@@ -234,16 +223,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     setLoading(true)
-    setUser(null)
+    updateSession(null)
     setSessionExpired(false)
     const returnTo = encodeURIComponent(window.location.origin)
     window.location.replace(`/api/auth/logout?return_to=${returnTo}`)
-  }, [])
-
-  const handleUnauthorized = useCallback(() => {
-    setUser(null)
-    setSessionExpired(true)
-    setLoading(false)
   }, [])
 
   // Check URL for auth errors

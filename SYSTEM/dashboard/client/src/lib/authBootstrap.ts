@@ -32,3 +32,23 @@ export async function loadAuthBootstrap(signal: AbortSignal, request: typeof fet
   }
   throw new Error('Session service unavailable after retrying')
 }
+
+export function shouldTriggerSessionExpired(input: RequestInfo | URL, response: Response, origin: string, requestSession: object | null, currentSession: object | null): boolean {
+  if (!requestSession || requestSession !== currentSession || response.status !== 401) return false
+
+  let urlString = ''
+  if (typeof input === 'string') urlString = input
+  else if (input instanceof URL) urlString = input.toString()
+  else if (typeof Request !== 'undefined' && input instanceof Request) urlString = input.url
+
+  const resolved = urlString
+    ? new URL(urlString, origin)
+    : null
+
+  if (!resolved) return false
+  if (resolved.origin !== origin) return false
+  if (!resolved.pathname.startsWith('/api/')) return false
+  if (resolved.pathname.startsWith('/api/auth/')) return false
+
+  return true
+}

@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict'
-import { loadAuthBootstrap, waitForAuthRetry } from './authBootstrap'
+import { loadAuthBootstrap, shouldTriggerSessionExpired, waitForAuthRetry } from './authBootstrap'
 
 async function main() {
+  const user = {}
+  const denied = new Response(null, { status: 401 })
+  const expired = (path: string, before: object | null, after: object | null) =>
+    shouldTriggerSessionExpired(path, denied, 'http://localhost', before, after)
+  assert.equal(expired('/api/agents', null, null), false)
+  assert.equal(expired('/api/agents', user, user), true)
+  assert.equal(expired('/api/agents', user, {}), false)
+  assert.equal(expired('/api/auth/me', user, user), false)
+  assert.equal(expired('https://example.com/api/agents', user, user), false)
   for (const status of [429, 502, 503, 504]) {
     let calls = 0
     const waits: number[] = []
