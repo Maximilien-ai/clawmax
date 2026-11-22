@@ -295,6 +295,23 @@ async function run() {
     }
   })
 
+  await test('unsupported binary and missing document cannot produce a successful empty preview', async () => {
+    const bytes = Buffer.from([0, 255, 13, 10, 128])
+    const upload = makeRes()
+    await getRouteHandler('post', '/upload')(makeReq({
+      query: { target: 'SYSTEM' }, headers: { 'x-file-name': 'sample.bin' }, body: bytes,
+    }), upload)
+    assert.strictEqual(upload.statusCode, 200)
+    const preview = getRouteHandler('get', '/content')
+    for (const [file, status] of [['sample.bin', 415], ['missing.md', 404]] as const) {
+      const res = makeRes()
+      await preview(makeReq({ query: { path: 'SYSTEM/' + file } }), res)
+      assert.strictEqual(res.statusCode, status)
+      assert.strictEqual(res.jsonBody.content, undefined)
+    }
+    assert.deepStrictEqual(fs.readFileSync(path.join(workspacePath, 'SYSTEM/sample.bin')), bytes)
+  })
+
   await test('upload route rejects missing target or file header', async () => {
     const handler = getRouteHandler('post', '/upload')
 

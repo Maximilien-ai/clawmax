@@ -351,6 +351,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     const sequence = ++loadSequence.current
     selectedPathRef.current = path
     setSelected(path)
+    setContent('')
+    setDraft('')
     setMobileTreeOpen(false) // Close mobile sidebar when selecting a file
     setLoading(true)
     setError(null)
@@ -380,6 +382,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
     fetch(`/api/docs/content?path=${encodeURIComponent(path)}`)
       .then(r => {
+        if (r.status === 415) throw new Error('Preview and download are unavailable for this file type.')
+        if (r.status === 404) throw new Error('File not found in this workspace.')
         if (!r.ok) throw new Error('Failed to load file')
         return r.json()
       })
@@ -412,9 +416,9 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
         }
         setLoading(false)
       })
-      .catch(() => {
+      .catch((err: Error) => {
         if (sequence !== loadSequence.current) return
-        setError('Failed to load file')
+        setError(err.message || 'Failed to load file')
         setLoading(false)
       })
   }
@@ -424,6 +428,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   }
 
   function startEdit() {
+    if (loading || error || !selectedIsMarkdown) return
     setDraft(content)
     setEditMode(true)
     setSaveError(null)
@@ -439,7 +444,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   }
 
   function saveFile() {
-    if (!selected || saving) return
+    if (!selected || loading || error || !editMode || !selectedIsMarkdown || saving) return
     const savePath = selected
     const savedDraft = draft
     setSaving(true)
@@ -1295,14 +1300,14 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                       {saving ? 'Saving…' : 'Save'}
                     </button>
                   </>
-                ) : (
+                ) : selectedIsMarkdown ? (
                   <button
                     onClick={startEdit}
                     className="text-xs px-3 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                   >
                     Edit
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
 
