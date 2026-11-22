@@ -6,7 +6,7 @@ import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { PageLoading } from '../components/LoadingSpinner'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { headerSecondaryButtonClass, headerSecondaryButtonIdleClass } from '../lib/headerControls'
-import { buildOrganizationDeletePlan, buildOrganizationDisplayTeams } from '../lib/organizationTeams'
+import { buildOrganizationDeletePlan, buildOrganizationDisplayTeams, groupVisibleTeams } from '../lib/organizationTeams'
 import { ProductIconCell } from '../lib/productIcons'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 import { parseWorkspaceDocEntriesResponse, WorkspaceDocEntryRef } from '../lib/workspaceFiles'
@@ -363,7 +363,7 @@ function TeamTreeNode({
                       <div className="mt-2 flex flex-wrap gap-2">
                         {latestOutput.artifactPath && onNavigateToDoc && (
                           <button
-                            onClick={() => openOrganizationDoc(latestOutput.artifactPath!)}
+                            onClick={() => onNavigateToDoc(latestOutput.artifactPath!)}
                             className="rounded border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30"
                           >
                             Open Output File
@@ -398,7 +398,7 @@ function TeamTreeNode({
               agentNameById={agentNameById}
               onNavigateToAgent={onNavigateToAgent}
               onNavigateToWorkflow={onNavigateToWorkflow}
-              onNavigateToDoc={openOrganizationDoc}
+              onNavigateToDoc={onNavigateToDoc}
               onDeleteTeam={onDeleteTeam}
               onDeleteCompany={onDeleteCompany}
               collapsedCompanyIds={collapsedCompanyIds}
@@ -872,19 +872,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     )
   }, [displayTeams, searchQuery])
 
-  const teamChildren = useMemo(() => {
-    const map = new Map<string, Team[]>()
-    filteredTeams.forEach((team) => {
-      const key = team.parentTeamId || '__root__'
-      const list = map.get(key) || []
-      list.push(team)
-      map.set(key, list)
-    })
-    for (const list of map.values()) {
-      list.sort((a, b) => a.name.localeCompare(b.name))
-    }
-    return map
-  }, [filteredTeams])
+  const teamChildren = useMemo(() => groupVisibleTeams(filteredTeams), [filteredTeams])
 
   const rootTeamCount = filteredTeams.filter((team) => !team.parentTeamId).length
   const nestedTeamCount = filteredTeams.filter((team) => !!team.parentTeamId).length

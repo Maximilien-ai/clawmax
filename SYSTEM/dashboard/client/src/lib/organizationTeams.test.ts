@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/organizationTeams.test.ts
  */
 
-import { buildOrganizationDeletePlan, buildOrganizationDisplayTeams, sanitizeOrganizationDisplayTeams } from './organizationTeams'
+import { groupVisibleTeams, buildOrganizationDeletePlan, buildOrganizationDisplayTeams, sanitizeOrganizationDisplayTeams } from './organizationTeams'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -513,6 +513,17 @@ test('buildOrganizationDeletePlan expands through workflow owners and matching g
   assert(plan.workflowIds.includes('b2b-kickoff'), 'Expected matching workflow in delete plan')
   assert(plan.groupNames.includes('b2b-Leadership'), 'Expected matching prefixed group in delete plan')
   assert(plan.communityNames.includes('Conversion Optimizers'), 'Expected matching community in delete plan')
+})
+
+test('filtered descendants are reachable without changing their team identity', () => {
+  const hierarchy = [
+    { id: 'root', name: 'Company', tags: ['company-root'], memberAgentIds: [] },
+    { id: 'parent', name: 'Group', parentTeamId: 'root', tags: [], memberAgentIds: [] },
+    { id: 'child', name: 'Team', parentTeamId: 'parent', tags: [], memberAgentIds: [] },
+  ]
+  assert(groupVisibleTeams(hierarchy.slice(2)).get('__root__')?.[0] === hierarchy[2], 'Child-only match must render')
+  assert(groupVisibleTeams(hierarchy).get('parent')?.[0] === hierarchy[2], 'Clearing search restores nested child')
+  assert(groupVisibleTeams(hierarchy.slice(1)).get('__root__')?.[0] === hierarchy[1], 'Matching subtree keeps its parent')
 })
 
 console.log('\n========================================')

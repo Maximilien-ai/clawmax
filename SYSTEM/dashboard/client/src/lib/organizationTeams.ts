@@ -591,3 +591,17 @@ export function buildOrganizationDisplayTeams(args: {
       : mergedDerivedExtras.filter((team) => team.id !== 'organization')),
   ])
 }
+
+/** Render a search match as a root when its parent was filtered out. */
+export function groupVisibleTeams<T extends OrganizationTeam>(teams: T[]): Map<string, T[]> {
+  const visibleIds = new Set(teams.map(team => team.id))
+  const children = new Map<string, T[]>()
+  for (const team of teams) {
+    const parent = team.parentTeamId && visibleIds.has(team.parentTeamId) ? team.parentTeamId : '__root__'
+    const siblings = children.get(parent) || []
+    siblings.push(team)
+    children.set(parent, siblings)
+  }
+  for (const siblings of children.values()) siblings.sort((a, b) => a.name.localeCompare(b.name))
+  return children
+}
