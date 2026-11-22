@@ -35,6 +35,21 @@ The RC100 Picomatch advisory was withdrawn November 18 because its maintainers d
 
 Closed #354, #357, #370 and #374. Five linked reports received replies and notification requests. Four reports were closed as addressed. FB-07af8e63 remains open for #388 and #396. Email delivery is unverified.
 
+## Accepted fixes and reopening evidence
+
+The accepted product commit is `11c09f669bba8836a2b3ff0fa6f38ae53ce05fd2`, tagged `v2.0.0-test-rc101`. The first main commit containing all four accepted fixes and their acceptance record is `c36dfc963c666b4ab634b68b86fb5d4252b0add5`. Its fast-forward used a direct push. GitHub reported a bypass of the PR and required-check rules. Exact product-source CI passed before acceptance. Use a PR with required checks for subsequent batches. [Main CI](https://github.com/Maximilien-ai/clawmax/actions/runs/45056493570).
+
+| Closed issue | Fix commit | Feedback reference | Reopen if reproduced |
+| --- | --- | --- | --- |
+| [#354](https://github.com/Maximilien-ai/clawmax/issues/354) | `11c09f66` | FB-224d7f2f | Grid or List assigns another workflow’s estimate, or shows a dollar amount when metering is unavailable. Compare two workflows against their own metering entries. |
+| [#357](https://github.com/Maximilien-ai/clawmax/issues/357) | `24fdb353` | FB-d7ffdd5c and FB-07af8e63 | In List, an enabled manual workflow says to wait for a scheduled run, or the disabled Monday workflow gives incorrect enablement guidance. |
+| [#370](https://github.com/Maximilien-ai/clawmax/issues/370) | `5b5cc8a5` | FB-3640cced | In List, search for two workflows, select one, then click the header checkbox. Reopen if both visible rows fail to select or if toggling again fails to deselect them. |
+| [#374](https://github.com/Maximilien-ai/clawmax/issues/374) | `24fdb353` | FB-b6974caf | Resume two disabled workflows with one failed update. Reopen if the success count disagrees with persisted state after refresh or the failed row loses retry selection. |
+
+For a regression, reopen the original issue and link the matching feedback conversation. Record dev, on-prem or cloud, the displayed version and image digest or source SHA, initial workspace state, steps, expected and observed results, and sanitized evidence. Update the reporter when the disposition changes. Keep previously accepted results as history. Local acceptance is complete for these four fixes. Cloud and on-prem retest results are pending.
+
+The RC101 series target is 19 accepted high/medium fixes from the original 93. This revision accounts for four. A follow-up revision with additional fixes needs its own immutable tag and acceptance evidence.
+
 ## Daily release cadence
 
 Target at most one accepted candidate per day through Wednesday. Two or three candidates may suffice. The number follows the urgent and must-have fixes ready for review. Dashboard finishes the batch and automated validation, then provides one local preview and a short checklist for owner acceptance. After acceptance, tag the accepted source, build the public and combined images, verify both architectures and GCP mirror digests, and share pinned image references with on-prem, cloud, and tester teams. Capture deployment and tester results separately.
