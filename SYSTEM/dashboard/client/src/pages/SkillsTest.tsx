@@ -19,7 +19,7 @@ import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { buildAgentSkillsScope, buildAssignedSkillBadges } from '../lib/agentSkillsScope'
 import { getRegistrySkillCompatibility, normalizeRuntimePlatform, type RuntimePlatform } from '../lib/skillPlatform'
 import { getDashboardInstallRequirementCommands, getPendingSkillRequirementInstall } from '../lib/skillInstall'
-import { buildSkillExportFilename, getSelectedSkillForExport } from '../lib/skillExport'
+import { buildSkillExportFilename, getSelectedSkillForExport, readSkillExport } from '../lib/skillExport'
 import { combineRegistrySearchResponses, normalizeRegistrySearchResponse, type SkillRegistryProvider } from '../lib/registrySearch'
 import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel, partitionSkillsBySection } from '../lib/skillsPageFlow'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
@@ -1419,12 +1419,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   async function exportSkill(skill: OpenClawSkill) {
     try {
       const res = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skill.name)}/content`)
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to export skill')
-      }
-
-      const blob = new Blob([data.content || ''], { type: 'text/markdown;charset=utf-8' })
+      const content = await readSkillExport(res)
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
       const url = window.URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
@@ -1435,7 +1431,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       window.URL.revokeObjectURL(url)
       showSuccess(`Exported ${skill.name}`)
     } catch (err: any) {
-      showError(err.message || 'Failed to export skill')
+      showToastError(`Failed to export ${skill.name}: ${err.message || 'Please try again.'}`)
     }
   }
 

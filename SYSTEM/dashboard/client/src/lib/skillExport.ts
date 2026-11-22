@@ -8,3 +8,11 @@ export function getSelectedSkillForExport(skills: OpenClawSkill[], selectedSkill
 export function buildSkillExportFilename(skillName: string): string {
   return `${skillName}.skill.md`
 }
+
+export async function readSkillExport(response: Response): Promise<string> {
+  const data = await response.json().catch(() => null)
+  if (!response.ok || typeof data?.content !== 'string') {
+    throw new Error(typeof data?.error === 'string' ? data.error : 'Could not read the skill. Please try exporting again.')
+  }
+  return data.content
+}
