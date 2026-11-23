@@ -1,6 +1,6 @@
 # RC101 follow-up acceptance
 
-The original release accounts for four accepted and closed issues out of the 93 high and medium issues at triage. This revision has 13 implementation changes counted by issue and four confirmations of existing fixes. Owner acceptance is pending for all 17. The published RC101 image predates this revision.
+The original release accounts for four accepted and closed issues out of the 93 high and medium issues at triage. This revision has 13 implementation changes counted by issue and seven confirmations of existing fixes. Owner acceptance is pending for all 20. The published RC101 image predates this revision.
 
 | Checkpoint | Issues added | Cumulative if accepted |
 | --- | --- | --- |
@@ -8,6 +8,7 @@ The original release accounts for four accepted and closed issues out of the 93 
 | Organization, Builder, Workflows | #363, #364, #372, #358 | 14/93 (15.1%) |
 | PDF, session expiry, pricing and menu | #369, #426, #356, #253, #310 | 19/93 (20.4%) |
 | Builder scrolling and result-panel toggle | #259, #261 | 21/93 (22.6%) |
+| Scheduler isolation, workflow editor persistence and agent chat model selection | #247, #255, #336 | 24/93 (25.8%) |
 
 ## One owner walkthrough
 
@@ -22,3 +23,5 @@ Use the [local revision preview](http://localhost:5190). Product source is `b9dd
 After sign-off, record accepted issue IDs, the merged SHA and reporter dispositions. For a regression, reopen the original issue with the source or image digest, workspace state, failing step and observed result. Preserve the original acceptance record. Track source CI, image publication and mirror digests separately.
 
 On November 23, Chrome exercised Suggested requests with wheel input, focus and Space, then clicked the single result-panel toggle in both states and checked transcript height. Viewports were 390×844, 820×1180, 1024×560/640, 1280×720 and 1440×760/900. Both added issues concern behavior already present in the tested product source.
+
+For the 25% milestone, open **RC101 Quarter Manual Review** in the Workflows editor. Expect a manual schedule, a run limit of four, a Report output and a test-kickoff input. Engineering verified persistence via local HTTP, rejection of invalid cron and time zones, scheduler isolation and disabled ticks. Model discovery and default-model suites passed for the existing chat-model filtering behavior. No provider key change is needed.
