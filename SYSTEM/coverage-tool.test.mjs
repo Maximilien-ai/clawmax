@@ -54,6 +54,38 @@ test('wrapper reporters retain coverage across Bash and nested Node children', {
   })
 })
 
+test('post-shutdown report counts requests handled by a separately started HTTP server', () => {
+  fixture(({ root, write, report, entry }) => {
+    write('server.cjs', `
+      const server = require('node:http').createServer(function handleRequest(_req, res) {
+        res.end('workflow-ready')
+        server.close()
+      })
+      server.listen(0, '127.0.0.1', function ready() { console.log(server.address().port) })
+    `)
+    write('exercise.cjs', `
+      const assert = require('node:assert/strict')
+      const child = require('node:child_process').spawn(process.execPath, ['server.cjs'])
+      const exited = require('node:events').once(child, 'exit')
+      child.stdout.once('data', async port => {
+        const response = await fetch('http://127.0.0.1:' + port.toString().trim())
+        assert.equal(await response.text(), 'workflow-ready')
+        assert.equal((await exited)[0], 0)
+      })
+    `)
+    const samples = path.join(root, 'samples')
+    const exercise = spawnSync(process.execPath, ['exercise.cjs'], {
+      cwd: root, env: { ...process.env, NODE_V8_COVERAGE: samples }, timeout: 15000, encoding: 'utf8',
+    })
+    assert.equal(exercise.status, 0, exercise.stderr)
+    const result = spawnSync(process.execPath, [cli, 'report', '--temp-directory', samples,
+      '--report-dir', 'coverage', '--reporter=text-summary', '--reporter=json-summary', '--reporter=html',
+      '--include=**/server.cjs'], { cwd: root, encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(entry(report(result), 'server.cjs').functions.pct, 100)
+  })
+})
+
 test('all-source mode includes files that were never executed', () => {
   fixture(({ root, write, coverage, report, entry }) => {
     write('main.cjs', "require('./math.cjs').choose(true);\n")

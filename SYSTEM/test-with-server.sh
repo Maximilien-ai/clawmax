@@ -322,6 +322,15 @@ echo "API: $API_BASE"
 echo "Frontend: $FRONTEND_URL"
 echo ""
 
+# Start sampling before the HTTP server starts. Integration requests exercise code
+# in that process as well as in the test clients. Report after its graceful stop.
+if [ "$RUN_COVERAGE" = true ]; then
+  COVERAGE_ROOT="$ROOT_DIR/SYSTEM/dashboard/coverage"
+  rm -rf "$COVERAGE_ROOT"
+  mkdir -p "$COVERAGE_ROOT/tmp" || exit 1
+  export NODE_V8_COVERAGE="$COVERAGE_ROOT/tmp"
+fi
+
 if ! health_ready; then
   echo "Dashboard health check is not ready; starting dashboard..."
   configure_default_test_plugins
@@ -358,43 +367,30 @@ else
 fi
 
 TEST_STATUS=0
-if [ "$RUN_COVERAGE" = true ]; then
-  COVERAGE_MINIMUM=(--check-coverage --statements=80 --branches=80 --functions=80 --lines=80)
+(
+  cd "$ROOT_DIR/SYSTEM/dashboard" || exit 1
   if [ "${#FORWARDED_ARGS[@]}" -gt 0 ]; then
-    (
-      cd "$ROOT_DIR/SYSTEM/dashboard" || exit 1
-      rm -rf coverage
-      npx c8 "${COVERAGE_MINIMUM[@]}" \
-        --reporter=text-summary \
-        --reporter=json-summary \
-        --reporter=html \
-        --report-dir coverage \
-        bash ../test.sh "${FORWARDED_ARGS[@]}"
-    ) || TEST_STATUS=$?
+    "$SCRIPT_DIR/test.sh" "${FORWARDED_ARGS[@]}"
   else
-    (
-      cd "$ROOT_DIR/SYSTEM/dashboard" || exit 1
-      rm -rf coverage
-      npx c8 "${COVERAGE_MINIMUM[@]}" \
-        --reporter=text-summary \
-        --reporter=json-summary \
-        --reporter=html \
-        --report-dir coverage \
-        bash ../test.sh
-    ) || TEST_STATUS=$?
+    "$SCRIPT_DIR/test.sh"
   fi
-  print_coverage_summary || TEST_STATUS=1
-  print_perf_summary || true
-else
-  if [ "${#FORWARDED_ARGS[@]}" -gt 0 ]; then
-    "$SCRIPT_DIR/test.sh" "${FORWARDED_ARGS[@]}" || TEST_STATUS=$?
-  else
-    "$SCRIPT_DIR/test.sh" || TEST_STATUS=$?
-  fi
-fi
+) || TEST_STATUS=$?
 
 if [ "$STARTED_SERVER" = true ]; then
   cleanup_started_processes
+fi
+
+if [ "$RUN_COVERAGE" = true ]; then
+  COVERAGE_MINIMUM=(--check-coverage --statements=80 --branches=80 --functions=80 --lines=80)
+  unset NODE_V8_COVERAGE
+  (
+    cd "$ROOT_DIR/SYSTEM/dashboard" || exit 1
+    ./node_modules/.bin/c8 report "${COVERAGE_MINIMUM[@]}" \
+      --temp-directory "$COVERAGE_ROOT/tmp" --report-dir "$COVERAGE_ROOT" \
+      --reporter=text-summary --reporter=json-summary --reporter=html
+  ) || TEST_STATUS=1
+  print_coverage_summary || TEST_STATUS=1
+  print_perf_summary || true
 fi
 
 exit "$TEST_STATUS"
