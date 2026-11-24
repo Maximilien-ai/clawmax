@@ -42,6 +42,7 @@ import {
   resolveWorkflowRunInputPath,
   resolveWorkflowInputRefs,
   deriveWorkflowExecutionOutputs,
+  missingRequiredWorkflowOutputs,
   persistWorkflowExecutionOutputArtifacts,
   resolveTargetTeamAgentIds,
   extractWorkflowAgentResultPayload,
@@ -1031,6 +1032,24 @@ test('resolveWorkflowInputRefs resolves latest upstream output by workflow id an
   assert(refs[0].summary === 'Kickoff brief ready', 'Expected summary to resolve')
   assert(refs[0].artifactPath === 'deliverables/brief.md', 'Expected artifact path to resolve')
   assert((refs[0].value as any)?.ownerTeam === 'product', 'Expected structured value to resolve')
+})
+
+test('required outputs need actual values or existing workspace artifacts', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'workflow-required-'))
+  try {
+    const workflow = { outputDefinitions: [
+      { key: 'report', required: true, type: 'artifact' as const },
+      { key: 'count', required: true, type: 'json' as const },
+      { key: 'optional' },
+    ] }
+    const outputs = { count: { type: 'json' as const, value: 0 }, report: { type: 'artifact' as const, artifactPath: 'report.md' } }
+    nodeAssert.deepEqual(missingRequiredWorkflowOutputs(workflow, outputs, root), ['report'])
+    fs.writeFileSync(path.join(root, 'report.md'), 'ready')
+    nodeAssert.deepEqual(missingRequiredWorkflowOutputs(workflow, outputs, root), [])
+    nodeAssert.deepEqual(missingRequiredWorkflowOutputs(workflow, {}, root), ['report', 'count'])
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
 })
 
 test('deriveWorkflowExecutionOutputs uses owner response for declared output', () => {

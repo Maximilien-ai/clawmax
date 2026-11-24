@@ -143,6 +143,7 @@ export interface Workflow {
     sensitive?: boolean
   }>
   outputDefinitions?: Array<{
+    required?: boolean
     key: string
     label?: string
     type?: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
@@ -598,6 +599,23 @@ export function deriveWorkflowExecutionOutputs(
       value: chosenResponse.trim(),
     },
   }
+}
+
+export function missingRequiredWorkflowOutputs(
+  workflow: Pick<Workflow, 'outputDefinitions'>,
+  outputs: WorkflowExecution['outputs'],
+  workspaceRoot: string,
+): string[] {
+  return (workflow.outputDefinitions || []).filter(definition => {
+    if (definition.required !== true) return false
+    const output = outputs?.[definition.key]
+    if (!output) return true
+    if (definition.type === 'artifact' || output.artifactPath) {
+      const file = output.artifactPath && resolveWorkspacePath(output.artifactPath, workspaceRoot)
+      return !file || !fs.statSync(file, { throwIfNoEntry: false })?.isFile()
+    }
+    return output.value == null || (typeof output.value === 'string' && !output.value.trim())
+  }).map(definition => definition.key)
 }
 
 // Ids and output keys become file and directory names below WORKFLOWS/; they come from request bodies,
@@ -2320,6 +2338,16 @@ export function triggerWorkflow(workflowId: string, options?: {
         updateWorkflow(workflowId, { progress } as any)
       }
 
+      const finalizeOutputs = () => {
+        const outputs = deriveWorkflowExecutionOutputs(workflow, execution.participants, execution.outputs)
+        execution.outputs = persistWorkflowExecutionOutputArtifacts(workflowId, outputs, workspaceRoot)
+        const missing = missingRequiredWorkflowOutputs(workflow, execution.outputs, workspaceRoot)
+        if (missing.length) {
+          execution.error = `Missing required workflow outputs: ${missing.join(', ')}`
+          execution.logs.push(execution.error)
+        }
+      }
+
       if (options?.mock) {
         for (const participant of executionParticipants) {
           participant.status = 'running'
@@ -2337,23 +2365,16 @@ export function triggerWorkflow(workflowId: string, options?: {
           persistExecution()
         }
 
-        execution.outputs = deriveWorkflowExecutionOutputs(
-          workflow,
-          execution.participants.map((participant) => ({
-            agentId: participant.agentId,
-            response: (participant as any).response,
-          })),
-          execution.outputs
-        )
-        execution.outputs = persistWorkflowExecutionOutputArtifacts(workflowId, execution.outputs)
-        execution.status = 'completed'
+        finalizeOutputs()
+        execution.status = execution.error ? 'failed' : 'completed'
         execution.completedAt = new Date().toISOString()
-        execution.logs.push(`Workflow completed at ${execution.completedAt} (mock mode)`)
+        execution.logs.push(`Workflow ${execution.status} at ${execution.completedAt} (mock mode)`)
         persistExecution()
         updateWorkflow(workflowId, {
-          status: 'completed',
+          status: execution.error ? 'blocked' : 'completed',
           progress: 100,
         } as any)
+        if (execution.error) return
 
         const { readyToRun } = options?.executionScope === 'single-workflow'
           ? { readyToRun: [] } : completeWorkflow(workflowId)
@@ -2816,20 +2837,12 @@ export function triggerWorkflow(workflowId: string, options?: {
         return
       }
 
-      execution.outputs = deriveWorkflowExecutionOutputs(
-        workflow,
-        execution.participants.map((participant) => ({
-          agentId: participant.agentId,
-          response: (participant as any).response,
-        })),
-        execution.outputs
-      )
-      execution.outputs = persistWorkflowExecutionOutputArtifacts(workflowId, execution.outputs)
+      finalizeOutputs()
 
       // Mark execution complete
-      execution.status = execution.participants.some(p => p.status === 'failed') ? 'failed' : 'completed'
+      execution.status = execution.error || execution.participants.some(p => p.status === 'failed') ? 'failed' : 'completed'
       execution.completedAt = new Date().toISOString()
-      execution.logs.push(`Workflow completed at ${execution.completedAt}`)
+      execution.logs.push(execution.error || `Workflow ${execution.status} at ${execution.completedAt}`)
       persistExecution()
       updateWorkflow(workflowId, {
         status: execution.status === 'completed' ? 'completed' : 'blocked',
