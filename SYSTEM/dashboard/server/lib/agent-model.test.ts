@@ -874,6 +874,28 @@ test('resetAgentSessionsForModelChange archives runtime session state', () => {
   assert(archived.some(name => name.endsWith('session-a.jsonl')), 'Expected archived session transcript')
 })
 
+test('archive collision preserves live sessions and previous history', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-collision-'))
+  const clock = Date.now
+  try {
+    Date.now = () => 123456
+    const sessions = path.join(home, '.openclaw', 'agents', 'ceo', 'sessions')
+    const archive = path.join(sessions, 'archive')
+    fs.mkdirSync(archive, { recursive: true })
+    fs.writeFileSync(path.join(sessions, 'a.jsonl'), 'current transcript')
+    fs.writeFileSync(path.join(sessions, 'sessions.json'), 'current index')
+    fs.writeFileSync(path.join(archive, '123456-sessions.json'), 'prior index')
+    assert(!resetAgentSessionsForModelChange(home, 'ceo').ok, 'Collision must fail')
+    assert(fs.readFileSync(path.join(sessions, 'a.jsonl'), 'utf8') === 'current transcript', 'Live transcript preserved')
+    assert(fs.readFileSync(path.join(sessions, 'sessions.json'), 'utf8') === 'current index', 'Live index preserved')
+    assert(fs.readFileSync(path.join(archive, '123456-sessions.json'), 'utf8') === 'prior index', 'Previous history preserved')
+    assert(fs.readdirSync(archive).length === 1, 'Partial archive cleaned up')
+  } finally {
+    Date.now = clock
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})
+
 test('session reset ignores absent state and unrelated files', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-reset-'))
   try {

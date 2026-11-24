@@ -585,6 +585,8 @@ export function upsertAgentModelFitInIdentityContent(
 }
 
 export function resetAgentSessionsForModelChange(homeDir: string, agentId: string, stateRoot = path.join(homeDir, '.openclaw')): { ok: boolean; error?: string } {
+  const archived: Array<{ src: string; dst: string }> = []
+  const removed = new Set<string>()
   try {
     const sessionsDir = path.join(stateRoot, 'agents', agentId, 'sessions')
     if (!fs.existsSync(sessionsDir)) {
@@ -600,11 +602,26 @@ export function resetAgentSessionsForModelChange(homeDir: string, agentId: strin
       if (!entry.name.endsWith('.jsonl') && entry.name !== 'sessions.json') continue
       const src = path.join(sessionsDir, entry.name)
       const dst = path.join(archiveDir, `${stamp}-${entry.name}`)
-      fs.renameSync(src, dst)
+      // Reserve every archive name before removing any live session files.
+      fs.linkSync(src, dst)
+      archived.push({ src, dst })
+    }
+    for (const { src } of archived) {
+      fs.unlinkSync(src)
+      removed.add(src)
     }
 
     return { ok: true }
   } catch (err: any) {
+    for (const { src, dst } of archived.reverse()) {
+      try {
+        if (removed.has(src)) fs.linkSync(dst, src)
+        fs.unlinkSync(dst)
+      } catch {
+        // Keep the archive if another writer has already recreated the live path.
+        return { ok: false, error: 'Session archive recovery is required after a model change failure' }
+      }
+    }
     return { ok: false, error: err.message || String(err) }
   }
 }
