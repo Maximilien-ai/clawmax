@@ -530,6 +530,12 @@ test('workflow report headings do not turn successful responses into failures', 
   assert(detectParticipantReportedFailure('Failed to connect to gateway') !== null, 'Action failure must remain visible')
 })
 
+test('a blank participant response cannot complete a workflow step', () => {
+  for (const response of ['', '  \n  ']) {
+    assert(detectParticipantReportedFailure(response) === 'Agent returned an empty workflow response.', 'Blank output must explain the failed step')
+  }
+})
+
 test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
   assert(detectParticipantReportedFailure('COMMS FAIL') === 'COMMS FAIL', 'Expected COMMS FAIL to be treated as failure')
   assert(detectParticipantReportedFailure('FAIL\nNeed retry') === 'FAIL', 'Expected FAIL line to be treated as failure')

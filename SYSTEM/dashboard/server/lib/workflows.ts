@@ -799,7 +799,7 @@ function buildMockWorkflowResponse(
 
 export function detectParticipantReportedFailure(agentText: string): string | null {
   const text = agentText.trim()
-  if (!text) return null
+  if (!text) return 'Agent returned an empty workflow response.'
 
   const lines = text.split('\n').map((line) => line.trim()).filter(Boolean)
   for (const line of lines) {
