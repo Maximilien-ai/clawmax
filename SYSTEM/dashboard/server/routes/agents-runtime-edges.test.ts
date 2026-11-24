@@ -191,6 +191,29 @@ async function run() {
     assert.strictEqual(res.jsonBody.error, 'IDENTITY.md not found')
   })
 
+  await test('live logs stream complete records from the pinned CLI', async () => {
+    const previous = process.env.OPENCLAW_BIN
+    const cli = path.join(tmpHome, 'test-cli')
+    fs.writeFileSync(cli, '#!/bin/sh\n[ "$1" = logs ] || exit 1\nprintf "sample"\nprintf " line\\n"\n', { mode: 0o700 })
+    process.env.OPENCLAW_BIN = cli
+    try {
+      await withModuleOverrides(workspaceModulePath, { listAgents: () => [baseAgent] }, async () => {
+        const records: string[] = []
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Log stream did not end')), 5000)
+          getRouteHandler('get', '/:id/logs')(makeReq({ params: { id: baseAgent.id } }), {
+            writeHead() {}, write(record: string) { records.push(record) },
+            end() { clearTimeout(timeout); resolve() },
+          })
+        })
+        assert.deepStrictEqual(records, ['data: {"line":"sample line"}\n\n'])
+      })
+    } finally {
+      if (previous === undefined) delete process.env.OPENCLAW_BIN
+      else process.env.OPENCLAW_BIN = previous
+    }
+  })
+
   await test('health uses profile mode when a profile state directory exists', async () => {
     fs.mkdirSync(path.join(tmpHome, '.openclaw-runtime-agent'), { recursive: true })
 

@@ -1,3 +1,4 @@
+import { createInterface } from 'readline'
 import express, { Router } from 'express'
 import { execFileSync, execSync, spawn } from 'child_process'
 import path from 'path'
@@ -4133,6 +4134,8 @@ router.get('/:id/logs', (req, res) => {
   const profileStateDir = path.join(HOME, `.openclaw-${id}`)
   const isProfile = fs.existsSync(profileStateDir)
 
+  const cli = resolveOpenClawCliPath()
+  if (!cli) return res.status(503).json({ error: 'Configured OpenClaw CLI is unavailable' })
   // Set up SSE headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -4141,24 +4144,21 @@ router.get('/:id/logs', (req, res) => {
   })
 
   const profileFlag = isProfile ? ['--profile', id] : []
-  const child = spawn('openclaw', [...profileFlag, 'logs', '--follow', '--limit', '200'], {
+  const child = spawn(cli, [...profileFlag, 'logs', '--follow', '--plain', '--no-color', '--limit', '200'], {
     env: safeEnv(),
   })
 
-  child.stdout.on('data', (data) => {
-    const lines = data.toString().split('\n').filter((l: string) => l.trim())
-    lines.forEach((line: string) => {
-      res.write(`data: ${JSON.stringify({ line })}\n\n`)
-    })
+  createInterface({ input: child.stdout }).on('line', line => {
+    if (line.trim() && !res.destroyed) res.write(`data: ${JSON.stringify({ line })}\n\n`)
   })
-
-  child.stderr.on('data', (data) => {
-    res.write(`data: ${JSON.stringify({ error: data.toString() })}\n\n`)
-  })
-
-  child.on('close', () => {
+  child.stderr.resume()
+  const finish = (failed: boolean) => {
+    if (res.destroyed || res.writableEnded) return
+    if (failed) res.write(`data: ${JSON.stringify({ error: 'Gateway log stream failed. Check runtime diagnostics.' })}\n\n`)
     res.end()
-  })
+  }
+  child.once('error', () => finish(true))
+  child.once('close', code => finish(code !== 0))
 
   req.on('close', () => {
     child.kill()
