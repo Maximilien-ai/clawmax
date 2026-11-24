@@ -26,3 +26,7 @@ Development revision `b3a2a3b2`. The [isolated dev instance](http://localhost:35
 - Verify model-change failures with a gateway disconnect and retained history (#440).
 - Verify child-model and harness availability and authorization (#437, #439).
 - Provide confirmed, owner-assisted recovery for pre-receipt conversations after identity or model changes (#420).
+
+### Model-change failure investigation
+
+An isolated route diagnostic forced the session-reset helper to fail after a valid configuration update. The Dashboard returned HTTP 500 and the new identity marker remained on disk. This reproduces a partial write on the configuration route. The reported event 502 remains uncorrelated. Cover the model and configuration edit paths, including a reset that fails after moving one session file, before accepting #440. On-prem upgrade testing should use an existing agent with known conversation history.
