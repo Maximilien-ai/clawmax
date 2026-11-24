@@ -1,4 +1,5 @@
 import assert from 'assert'
+import { prepareProvisionDirectory } from '../lib/provision-directory'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -600,6 +601,32 @@ async function run() {
     })
     } finally {
       workspaceState.clearPinnedOpenClawWorkspaceState = originalClear
+    }
+  })
+
+  await test('failed or cancelled provisioning releases only its own empty workspace', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'provision-directory-'))
+    const directory = path.join(root, 'agent')
+    try {
+      const fail = prepareProvisionDirectory(directory)
+      assert.throws(() => prepareProvisionDirectory(directory), /in progress/)
+      fail(false)
+      assert.ok(!fs.existsSync(directory))
+      const cancel = prepareProvisionDirectory(directory)
+      fail(false)
+      assert.ok(fs.existsSync(directory))
+      cancel(false)
+      assert.ok(!fs.existsSync(directory))
+      prepareProvisionDirectory(directory)(true)
+      prepareProvisionDirectory(directory)(false)
+      assert.ok(fs.existsSync(directory))
+      fs.rmdirSync(directory)
+      const partial = prepareProvisionDirectory(directory)
+      fs.writeFileSync(path.join(directory, 'notes.md'), 'keep')
+      partial(false)
+      assert.equal(fs.readFileSync(path.join(directory, 'notes.md'), 'utf8'), 'keep')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
     }
   })
 

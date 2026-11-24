@@ -1,3 +1,4 @@
+import { prepareProvisionDirectory } from '../lib/provision-directory'
 import { createInterface } from 'readline'
 import express, { Router } from 'express'
 import { execFileSync, execSync, spawn } from 'child_process'
@@ -1109,7 +1110,9 @@ router.post('/provision', async (req, res) => {
   res.setHeader('Connection', 'keep-alive')
   res.flushHeaders()
 
+  let settleDirectory: ((success: boolean) => void) | undefined
   const send = (type: string, data: string) => {
+    if (type === 'error' || type === 'done') settleDirectory?.(type === 'done' && data === 'ok')
     res.write(`data: ${JSON.stringify({ type, data })}\n\n`)
   }
 
@@ -1252,7 +1255,7 @@ router.post('/provision', async (req, res) => {
 
   // Ensure workspace directory exists before registering agent
   try {
-    fs.mkdirSync(workspaceArg, { recursive: true })
+    settleDirectory = prepareProvisionDirectory(workspaceArg)
     send('log', `Created workspace directory: ${workspaceArg}\n`)
   } catch (err: any) {
     send('error', `Failed to create workspace directory: ${err.message}`)
