@@ -359,11 +359,12 @@ fi
 
 TEST_STATUS=0
 if [ "$RUN_COVERAGE" = true ]; then
+  COVERAGE_MINIMUM=(--check-coverage --statements=80 --branches=80 --functions=80 --lines=80)
   if [ "${#FORWARDED_ARGS[@]}" -gt 0 ]; then
     (
       cd "$ROOT_DIR/SYSTEM/dashboard" || exit 1
       rm -rf coverage
-      npx c8 \
+      npx c8 "${COVERAGE_MINIMUM[@]}" \
         --reporter=text-summary \
         --reporter=json-summary \
         --reporter=html \
@@ -374,7 +375,7 @@ if [ "$RUN_COVERAGE" = true ]; then
     (
       cd "$ROOT_DIR/SYSTEM/dashboard" || exit 1
       rm -rf coverage
-      npx c8 \
+      npx c8 "${COVERAGE_MINIMUM[@]}" \
         --reporter=text-summary \
         --reporter=json-summary \
         --reporter=html \
@@ -382,7 +383,7 @@ if [ "$RUN_COVERAGE" = true ]; then
         bash ../test.sh
     ) || TEST_STATUS=$?
   fi
-  print_coverage_summary || true
+  print_coverage_summary || TEST_STATUS=1
   print_perf_summary || true
 else
   if [ "${#FORWARDED_ARGS[@]}" -gt 0 ]; then

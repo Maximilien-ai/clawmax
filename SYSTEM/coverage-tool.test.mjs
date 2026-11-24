@@ -85,6 +85,22 @@ test('an unmet branch threshold cannot report success', () => {
   })
 })
 
+test('Dashboard coverage gate requires each of the four metrics to reach 80 percent', () => {
+  const wrapper = fs.readFileSync(new URL('./test-with-server.sh', import.meta.url), 'utf8')
+  const gate = wrapper.match(/^  COVERAGE_MINIMUM=\(([^)]+)\)$/m)?.[1].split(/\s+/)
+  assert.deepEqual(gate, ['--check-coverage', '--statements=80', '--branches=80', '--functions=80', '--lines=80'])
+  fixture(({ root, write, coverage, report }) => {
+    write('main.cjs', "require('./math.cjs').choose(true);\n")
+    const options = [...gate, '--include=**/math.cjs']
+    const partial = coverage([process.execPath, path.join(root, 'main.cjs')], options)
+    assert.notEqual(partial.status, 0)
+    assert(report(partial).total.branches.pct < 80)
+    write('main.cjs', "const { choose } = require('./math.cjs');choose(false);choose(true);\n")
+    const complete = coverage([process.execPath, path.join(root, 'main.cjs')], options)
+    assert.equal(complete.status, 0, complete.stderr)
+  })
+})
+
 test('ts-node coverage is remapped to the original TypeScript file', () => {
   fixture(({ root, write, coverage, report, entry }) => {
     write('source.ts', "function choose(value: boolean): string {\n  if (value) return 'yes';\n  return 'no';\n}\nif (choose(true) !== 'yes' || choose(false) !== 'no') throw new Error('fixture mismatch');\n")
