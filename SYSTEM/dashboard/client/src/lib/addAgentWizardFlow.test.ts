@@ -1,4 +1,6 @@
 import assert from 'assert'
+import fs from 'fs'
+import path from 'path'
 import { normalizePromptInput, resolveAddAgentWizardLaunchState } from './addAgentWizardFlow'
 
 function test(name: string, fn: () => void) {
@@ -35,6 +37,13 @@ test('non-AI add-agent launch does not prefill AI state', () => {
 
 test('normalizePromptInput falls back cleanly for non-string overrides', () => {
   assert.equal(normalizePromptInput(undefined, '  fallback prompt  '), 'fallback prompt')
+})
+
+test('confirmed creation refreshes lists before optional channel setup and incomplete streams surface an error', () => {
+  const wizard = fs.readFileSync(path.join(__dirname, '../components/AddAgentWizard.tsx'), 'utf8')
+  const success = wizard.slice(wizard.indexOf("if (msg.data === 'ok')"))
+  assert.match(success, /dispatchEvent\(new CustomEvent\('agents-updated'\)\)[\s\S]*?await connectSelectedChannels/)
+  assert.match(success, /if \(!settled\)[\s\S]*?connection closed before provisioning was confirmed/)
 })
 
 console.log('addAgentWizardFlow.test.ts: ok')

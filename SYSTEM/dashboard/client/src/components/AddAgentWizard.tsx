@@ -730,6 +730,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       const reader = resp.body.getReader()
       const decoder = new TextDecoder()
       let buf = ''
+      let settled = false
 
       while (true) {
         const { done: streamDone, value } = await reader.read()
@@ -743,23 +744,29 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
             const msg = JSON.parse(line.slice(6)) as { type: string; data: string }
             if (msg.type === 'log' || msg.type === 'start') {
               setLogs(l => [...l, msg.data])
-            } else if (msg.type === 'done') {
+            } else if (msg.type === 'done' && !settled) {
+              settled = true
               if (msg.data === 'ok') {
+                window.dispatchEvent(new CustomEvent('agents-updated'))
                 const results = await connectSelectedChannels(form.name)
                 setChannelResults(results)
                 onDone(form.name)
-                window.dispatchEvent(new CustomEvent('agents-updated'))
                 setDone(true)
               } else {
                 setProvError(friendlyProvisionError(`Setup failed: ${msg.data}`))
               }
               setProvisioning(false)
-            } else if (msg.type === 'error') {
+            } else if (msg.type === 'error' && !settled) {
+              settled = true
               setProvError(friendlyProvisionError(msg.data))
               setProvisioning(false)
             }
           } catch {}
         }
+      }
+      if (!settled) {
+        setProvError('The connection closed before provisioning was confirmed. Check Agents before retrying.')
+        setProvisioning(false)
       }
     } catch (e) {
       setProvError(friendlyProvisionError(String(e)))

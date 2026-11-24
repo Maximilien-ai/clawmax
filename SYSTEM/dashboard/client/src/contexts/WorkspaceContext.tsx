@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { useToast } from '../components/Toast'
 import { applyWorkspaceOrder, reorderWorkspaceList, serializeWorkspaceOrder } from '../lib/workspace-order'
 import { setActiveWorkspaceSecretScope } from '../lib/localSecrets'
@@ -75,7 +75,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const latestRefresh = useRef(0)
   const refreshWorkspaces = useCallback(async () => {
+    const request = ++latestRefresh.current
     try {
       const [workspacesRes, activeRes] = await Promise.all([
         fetch('/api/workspaces'),
@@ -86,6 +88,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         const workspacesData = await workspacesRes.json()
         const activeData = await activeRes.json()
 
+        if (request !== latestRefresh.current) return
         const nextWorkspaces = applyWorkspaceOrder<Workspace>(workspacesData.workspaces || [], getSavedWorkspaceOrder())
         setWorkspaces(nextWorkspaces)
         setActiveWorkspace(activeData.workspace || null)
@@ -95,15 +98,18 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         saveWorkspaceOrder(nextWorkspaces)
       }
     } catch (err) {
+      if (request !== latestRefresh.current) return
       console.error('Failed to load workspaces:', err)
       showError('Failed to load workspaces')
     } finally {
-      setLoading(false)
+      if (request === latestRefresh.current) setLoading(false)
     }
   }, [showError])
 
   useEffect(() => {
     refreshWorkspaces()
+    window.addEventListener('agents-updated', refreshWorkspaces)
+    return () => window.removeEventListener('agents-updated', refreshWorkspaces)
   }, [refreshWorkspaces])
 
   const switchWorkspace = useCallback(async (id: string) => {
