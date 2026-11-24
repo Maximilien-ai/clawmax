@@ -331,7 +331,7 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
       {/* Logs */}
       <div className="flex-1 overflow-hidden flex flex-col">
         <div className="px-6 py-2 bg-gray-50 border-b border-gray-200 dark:border-gray-700 dark:bg-gray-900">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Live Logs</h3>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Live Gateway Logs</h3>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3 bg-gray-900">
           {logs.length === 0 && (
