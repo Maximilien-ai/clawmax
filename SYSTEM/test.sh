@@ -2466,6 +2466,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running AI Builder routing unit tests...${NC}"
+if node client/src/lib/dashboard-panels-render.test.mjs; then
+  pass "Builder prompt and agent chat initial render"
+else
+  fail "Builder prompt and agent chat initial render"
+fi
 if node client/src/lib/builderFallback.test.mjs; then
   pass "Builder local recommendation fallback"
 else
