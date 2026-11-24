@@ -393,7 +393,38 @@ export interface WorkflowExecutionParticipant {
   startedAt?: string
   completedAt?: string
   result?: any
+  response?: string
   error?: string
+}
+
+export async function dispatchWorkflowParticipants(
+  workflow: Pick<Workflow, 'executionMode' | 'owner' | 'targeting'>,
+  participants: WorkflowExecutionParticipant[],
+  run: (participant: WorkflowExecutionParticipant, handoff?: string) => Promise<void>,
+): Promise<void> {
+  if (workflow.executionMode !== 'managed') {
+    await Promise.all(participants.map(participant => run(participant)))
+    return
+  }
+  const order = [...new Set([workflow.owner, ...(workflow.targeting.agents || [])])]
+  const rank = (id: string) => {
+    const index = order.indexOf(id)
+    return index < 0 ? order.length : index
+  }
+  let previous: WorkflowExecutionParticipant | undefined
+  for (const participant of [...participants].sort((a, b) => rank(a.agentId) - rank(b.agentId))) {
+    if (previous && previous.status !== 'completed') {
+      participant.status = 'cancelled'
+      participant.completedAt = new Date().toISOString()
+      participant.error = 'Skipped because the preceding managed workflow step did not complete.'
+      continue
+    }
+    const handoff = previous?.response
+      ? `Handoff from ${previous.agentId}:\n${compactWorkflowExecutionContent(previous.response, 12000)}`
+      : undefined
+    await run(participant, handoff)
+    previous = participant
+  }
 }
 
 export interface WorkflowExecution {
@@ -2240,7 +2271,7 @@ export function triggerWorkflow(workflowId: string, options?: {
       }
     }
     const compactedWorkflowContent = compactWorkflowExecutionContent(workflow.content || 'Execute workflow')
-    const executionMessage = runtimeContextLines.length > 0
+    const workflowMessage = runtimeContextLines.length > 0
       ? `${compactedWorkflowContent}\n\n---\nWorkspace Integration Defaults:\n${runtimeContextLines.join('\n')}\n---\n`
       : compactedWorkflowContent
 
@@ -2339,7 +2370,8 @@ export function triggerWorkflow(workflowId: string, options?: {
         return
       }
 
-      const runParticipant = async (participant: WorkflowExecutionParticipant) => {
+      const runParticipant = async (participant: WorkflowExecutionParticipant, handoff?: string) => {
+        const executionMessage = handoff ? `${workflowMessage}\n\n${handoff}` : workflowMessage
         try {
           if (isExecutionCancelled(executionId)) {
             participant.status = 'cancelled'
@@ -2625,7 +2657,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           const reportedFailure = detectParticipantReportedFailure(agentText)
 
           participant.status = reportedFailure ? 'failed' as any : 'completed' as any
-          ;(participant as any).response = agentText
+          ;participant.response = agentText
           if (reportedFailure) {
             ;(participant as any).error = formatParticipantFailure(reportedFailure)
           }
@@ -2769,7 +2801,7 @@ export function triggerWorkflow(workflowId: string, options?: {
         }
       }
 
-      await Promise.all(executionParticipants.map(runParticipant))
+      await dispatchWorkflowParticipants(workflow, executionParticipants, runParticipant)
 
       if (isExecutionCancelled(executionId)) {
         execution.status = 'cancelled'

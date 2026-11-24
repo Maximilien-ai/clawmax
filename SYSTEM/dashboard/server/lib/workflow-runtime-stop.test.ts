@@ -98,6 +98,21 @@ async function main() {
       await lock
     }
   }
+  const { dispatchWorkflowParticipants } = require('./workflows')
+  for (const failOwner of [false, true]) {
+    const participants = ['writer', 'research'].map(agentId => ({ agentId, status: 'pending', response: '' }))
+    const calls: string[] = []
+    await dispatchWorkflowParticipants({
+      executionMode: 'managed', owner: 'research', targeting: { agents: ['writer'] },
+    }, participants, async (p: typeof participants[number], handoff?: string) => {
+      calls.push(p.agentId)
+      if (p.agentId === 'writer') assert.match(handoff || '', /research:.*findings/s)
+      p.status = failOwner ? 'failed' : 'completed'
+      p.response = 'findings'
+    })
+    assert.deepEqual(calls, failOwner ? ['research'] : ['research', 'writer'])
+    assert.equal(participants[0].status, failOwner ? 'cancelled' : 'completed')
+  }
   console.log('Workflow runtime stop tests passed')
 }
 
