@@ -18,10 +18,11 @@ Development revision `b3a2a3b2`. The [isolated dev instance](http://localhost:35
 - On the seeded writer, a valid model update returned HTTP 200 and an image-only model returned HTTP 400. A fresh identity API read showed the prior model in both metadata and live config.
 - The standard Dashboard TypeScript command passed. The separate client project reported 272 diagnostics in both the pre-refresh snapshot and the updated project, with identical messages when line positions were excluded.
 
+- Chrome retained the saved model during a simulated discovery failure and showed newly created agents without reloading at 1440 px and 390 px (#331, #441).
+- Full integration with validation on `9f1b54fb` passed 586/586 top-level checks. Coverage passed the 80% minimum for statements (82.53%), branches (81.06%), functions (85.67%) and lines (82.53%).
+
 ## Outstanding engineering verification
 
 - Verify model-change failures with a gateway disconnect and retained history (#440).
 - Verify child-model and harness availability and authorization (#437, #439).
 - Provide confirmed, owner-assisted recovery for pre-receipt conversations after identity or model changes (#420).
-- Verify the saved-model wizard with a configured provider and end-to-end creation refresh at desktop and mobile widths (#331, #441).
-- Run full integration, validation and coverage against the final revision. These checks are pending and the two batches are not yet accepted.
