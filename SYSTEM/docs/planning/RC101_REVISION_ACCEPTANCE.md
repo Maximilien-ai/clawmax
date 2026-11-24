@@ -32,6 +32,8 @@ Confirmed Documents, global search, skill export, Builder and Workflow Edit. Age
 
 Owner confirmed Agent Status and the Organization changes. Three follow-up checks remain on the local preview.
 
-- [ ] Open Test Lead → Status. Live Logs should populate with gateway log lines.
-- [ ] In Organization, expand Communities and toggle Test Team twice. Its workflows should open and close with its members.
+- [x] Open Test Lead → Status. Live Logs should populate with gateway log lines.
+- [x] In Organization, expand Communities and toggle Test Team twice. Its workflows should open and close with its members.
 - [ ] Edit RC101 Quarter Manual Review. Confirm the Basics, Schedule & limits, and Inputs & outputs tabs show the saved workflow, the four-run limit and the Report handoff. Save Changes is reachable from each tab.
+
+The owner confirmed the original tab layout. For the revised editor, check that Basics contains name, description and instructions, Execution contains mode and managed owner, and Participants contains targeting.

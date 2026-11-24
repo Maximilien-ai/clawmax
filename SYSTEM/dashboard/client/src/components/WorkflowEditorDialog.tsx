@@ -129,9 +129,16 @@ function buildWorkflowFormData(initialData?: Partial<WorkflowFormData>): Workflo
   }
 }
 
-const editorTabs = ['Basics', 'Schedule & limits', 'Inputs & outputs'] as const
+const editorTabs = ['Basics', 'Execution', 'Participants', 'Schedule & limits', 'Inputs & outputs'] as const
 type EditorTab = typeof editorTabs[number]
-const tabForField = (field: string): EditorTab => field === 'schedule' ? 'Schedule & limits' : 'Basics'
+function tabForField(field: string): EditorTab {
+  switch (field) {
+    case 'schedule': return 'Schedule & limits'
+    case 'owner': return 'Execution'
+    case 'targeting': return 'Participants'
+    default: return 'Basics'
+  }
+}
 
 export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialData, mode }: WorkflowEditorDialogProps) {
   const [activeTab, setActiveTab] = useState<EditorTab>('Basics')
@@ -421,13 +428,14 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
           </div>
 
           {mode === 'edit' && (
-            <div role="tablist" aria-label="Workflow settings" className="flex shrink-0 border-b dark:border-gray-700">
+            <div role="tablist" aria-label="Workflow settings" className="grid grid-cols-3 sm:grid-cols-5 shrink-0 border-b dark:border-gray-700">
               {editorTabs.map((tab, index) => (
                 <button key={tab} id={`workflow-tab-${index}`} role="tab" type="button"
                   aria-selected={activeTab === tab} aria-controls="workflow-edit-panel" tabIndex={activeTab === tab ? 0 : -1}
                   onClick={() => setActiveTab(tab)}
                   onKeyDown={event => {
-                    const positions: Record<string, number> = { ArrowLeft: (index + 2) % 3, ArrowRight: (index + 1) % 3, Home: 0, End: 2 }
+                    const count = editorTabs.length
+                    const positions: Record<string, number> = { ArrowLeft: (index + count - 1) % count, ArrowRight: (index + 1) % count, Home: 0, End: count - 1 }
                     const next = positions[event.key]
                     if (next === undefined) return
                     event.preventDefault()
@@ -735,7 +743,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               </p>
             </div>
             </>}
-            {visible('Basics') && <>
+            {visible('Execution') && <>
             {/* Execution Mode */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
@@ -802,6 +810,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               </div>
             )}
 
+            </>}
+            {visible('Participants') && <>
             {/* Agent Targeting */}
             <div>
               <label ref={el => { fieldRefs.current.targeting = el }} tabIndex={-1} className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
@@ -1032,6 +1042,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               )}
             </div>
 
+            </>}
+            {visible('Basics') && <>
             {/* Workflow Content */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
