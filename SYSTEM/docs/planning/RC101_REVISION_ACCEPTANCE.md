@@ -29,3 +29,9 @@ For the 25% milestone, open **RC101 Quarter Manual Review** in the Workflows edi
 ## November 24 owner walkthrough
 
 Confirmed Documents, global search, skill export, Builder and Workflow Edit. Agent Status remains open after the gateway rejected the status handshake. Organization needs a recheck for group collapse and nested-team output navigation. Workflow Edit tabs are a follow-up design suggestion.
+
+Owner confirmed Agent Status and the Organization changes. Three follow-up checks remain on the local preview.
+
+- [ ] Open Test Lead → Status. Live Logs should populate with gateway log lines.
+- [ ] In Organization, expand Communities and toggle Test Team twice. Its workflows should open and close with its members.
+- [ ] Edit RC101 Quarter Manual Review. Confirm the Basics, Schedule & limits, and Inputs & outputs tabs show the saved workflow, the four-run limit and the Report handoff. Save Changes is reachable from each tab.
