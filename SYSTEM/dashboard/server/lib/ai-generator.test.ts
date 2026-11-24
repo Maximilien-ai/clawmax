@@ -25,6 +25,7 @@ import {
   generateCronFromText,
   generateWorkflowFromNL,
   generateTemplateFromNL,
+  generateAgentFiles,
   normalizeChannelDraft,
   isOneTimeScheduleRequest,
   normalizeGeneratedSkillScaffold,
@@ -142,6 +143,33 @@ test('workflow generation normalizes the actual provider response before returni
   } finally {
     setRequestByokKeys(undefined)
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+    resetWorkspaceManagerForTests()
+  }
+})
+
+test('agent generation uses the selected compatible model for all three persisted file drafts', async () => {
+  const models: string[] = []
+  const server = http.createServer(async (request, response) => {
+    let raw = ''
+    for await (const chunk of request) raw += chunk
+    const body = JSON.parse(raw)
+    models.push(body.model)
+    const fields = { role: 'market researcher', vibe: 'precise', role_description: 'Collect market evidence.',
+      personality: 'Write clearly.', tools_section: 'Use the local research index.' }
+    response.setHeader('Content-Type', 'application/json')
+    response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(fields) } }] }))
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    setRequestByokKeys({ openaiCompatibleBaseUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}/v1`, openaiCompatibleDefaultModel: 'fixture-model' })
+    const files = await generateAgentFiles({ name: 'research', description: 'Study market demand', tags: ['research'] })
+    assert.deepEqual(models, ['fixture-model', 'fixture-model', 'fixture-model'])
+    assert.match(files.identity, /market researcher/)
+    assert.match(files.soul, /Collect market evidence/)
+    assert.match(files.tools, /local research index/)
+  } finally {
+    setRequestByokKeys(undefined)
+    await new Promise<void>(resolve => server.close(() => resolve()))
     resetWorkspaceManagerForTests()
   }
 })
