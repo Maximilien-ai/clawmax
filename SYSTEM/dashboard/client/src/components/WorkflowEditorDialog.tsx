@@ -129,7 +129,20 @@ function buildWorkflowFormData(initialData?: Partial<WorkflowFormData>): Workflo
   }
 }
 
+const editorTabs = ['Basics', 'Execution', 'Participants', 'Schedule & limits', 'Inputs & outputs'] as const
+type EditorTab = typeof editorTabs[number]
+function tabForField(field: string): EditorTab {
+  switch (field) {
+    case 'schedule': return 'Schedule & limits'
+    case 'owner': return 'Execution'
+    case 'targeting': return 'Participants'
+    default: return 'Basics'
+  }
+}
+
 export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialData, mode }: WorkflowEditorDialogProps) {
+  const [activeTab, setActiveTab] = useState<EditorTab>('Basics')
+  const visible = (tab: EditorTab) => mode === 'create' || activeTab === tab
   const [loadingDetails, setLoadingDetails] = useState(false)
   const [detailsError, setDetailsError] = useState('')
   const [formData, setFormData] = useState<WorkflowFormData>(() => buildWorkflowFormData(initialData))
@@ -205,6 +218,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   useEffect(() => {
     if (!isOpen) return
     const controller = new AbortController()
+    setActiveTab('Basics')
     setFormData(buildWorkflowFormData(initialData))
     setProducesMarkdownOutput(Boolean(initialData?.outputDefinitions?.length))
     setDetailsError('')
@@ -319,6 +333,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors)
       const first = Object.keys(errors)[0]
+      setActiveTab(tabForField(first))
       requestAnimationFrame(() => {
         fieldRefs.current[first]?.scrollIntoView({ block: 'center', behavior: 'auto' })
         fieldRefs.current[first]?.focus({ preventScroll: true })
@@ -398,7 +413,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
       {/* Dialog */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-auto">
-        <div role="dialog" aria-modal="true" aria-label={mode === 'edit' ? 'Edit Workflow' : 'Create Workflow'} className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+        <div role="dialog" aria-modal="true" aria-label={mode === 'edit' ? 'Edit Workflow' : 'Create Workflow'} className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
           {/* Header */}
           <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 px-6 py-4 flex items-center justify-between dark:border-gray-700">
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
@@ -412,11 +427,33 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
             </button>
           </div>
 
+          {mode === 'edit' && (
+            <div role="tablist" aria-label="Workflow settings" className="grid grid-cols-3 sm:grid-cols-5 shrink-0 border-b dark:border-gray-700">
+              {editorTabs.map((tab, index) => (
+                <button key={tab} id={`workflow-tab-${index}`} role="tab" type="button"
+                  aria-selected={activeTab === tab} aria-controls="workflow-edit-panel" tabIndex={activeTab === tab ? 0 : -1}
+                  onClick={() => setActiveTab(tab)}
+                  onKeyDown={event => {
+                    const count = editorTabs.length
+                    const positions: Record<string, number> = { ArrowLeft: (index + count - 1) % count, ArrowRight: (index + 1) % count, Home: 0, End: count - 1 }
+                    const next = positions[event.key]
+                    if (next === undefined) return
+                    event.preventDefault()
+                    setActiveTab(editorTabs[next])
+                    document.getElementById(`workflow-tab-${next}`)?.focus()
+                  }}
+                  className={`flex-1 border-b-2 px-2 py-2 text-sm ${activeTab === tab ? 'border-sky-500 font-semibold text-sky-700 dark:text-sky-300' : 'border-transparent'}`}>
+                  {tab}{Object.entries(validationErrors).some(([field, error]) => error && tabForField(field) === tab) && ' ⚠'}
+                </button>
+              ))}
+            </div>
+          )}
           {/* Form */}
-          <div className="p-6 space-y-6">
+          <div id="workflow-edit-panel" role={mode === 'edit' ? 'tabpanel' : undefined} aria-labelledby={mode === 'edit' ? `workflow-tab-${editorTabs.indexOf(activeTab)}` : undefined} className="min-h-0 overflow-y-auto p-6 space-y-6">
             {loadingDetails && <p role="status">Loading saved workflow settings…</p>}
             {detailsError && <p role="alert" className="text-red-600">{detailsError}</p>}
             {initialData?.id?.startsWith('tr-') && <p className="text-sm text-gray-500">Schedules and instructions can be edited here. Template participants stay bound to their revision; changing participants requires a revised Template. Each successful dev run saves a brief automatically.</p>}
+            {visible('Basics') && <>
             {/* Name */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
@@ -477,7 +514,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 <p className="text-xs text-red-600 mt-1">{validationErrors.description}</p>
               )}
             </div>
-
+            </>}
+            {visible('Schedule & limits') && <>
             {/* Schedule */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
@@ -704,7 +742,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 Cron schedules and next-run previews are evaluated in this IANA timezone.
               </p>
             </div>
-
+            </>}
+            {visible('Execution') && <>
             {/* Execution Mode */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
@@ -771,6 +810,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               </div>
             )}
 
+            </>}
+            {visible('Participants') && <>
             {/* Agent Targeting */}
             <div>
               <label ref={el => { fieldRefs.current.targeting = el }} tabIndex={-1} className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
@@ -1001,6 +1042,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
               )}
             </div>
 
+            </>}
+            {visible('Basics') && <>
             {/* Workflow Content */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-gray-300">
@@ -1029,7 +1072,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 This content will be sent to all matching agents when the workflow executes
               </p>
             </div>
-
+            </>}
+            {visible('Inputs & outputs') && <>
             {initialData?.id?.startsWith('tr-') ? (
               <div className="rounded-lg border border-sky-200 p-4 text-sm dark:border-sky-800">
                 <h3 className="font-semibold">Automatic brief</h3>
@@ -1244,6 +1288,8 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
             </div>
 
             }
+            </>}
+            {visible('Schedule & limits') && <>
             {/* Enabled + Run Limit */}
             <div className="space-y-3">
               <label className="flex items-center gap-2">
@@ -1281,10 +1327,11 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 )}
               </div>
             </div>
+            </>}
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex flex-wrap items-center justify-end gap-3 dark:border-gray-700 dark:bg-gray-900">
+          <div className="shrink-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex flex-wrap items-center justify-end gap-3 dark:border-gray-700 dark:bg-gray-900">
             {(saveError || validationMessages.length > 0) && (
               <div role="alert" className="w-full text-sm text-red-700 dark:text-red-300">
                 {saveError || `Cannot save yet: ${validationMessages.join('. ')}.`}

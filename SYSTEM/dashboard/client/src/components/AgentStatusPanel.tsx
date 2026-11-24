@@ -108,13 +108,17 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
           try {
             const data = JSON.parse(line.slice(6))
 
-            if (data.type === 'logs' && data.data) {
+            if (typeof data.line === 'string') {
+              setLogs(prev => [...prev, data.line].slice(-1000))
+            } else if (typeof data.error === 'string') {
+              setError(data.error)
+            } else if (data.type === 'logs' && data.data) {
               // Initial logs payload
               const logLines = Array.isArray(data.data) ? data.data : [data.data]
-              setLogs(prev => [...prev, ...logLines])
+              setLogs(prev => [...prev, ...logLines].slice(-1000))
             } else if (data.type === 'log' && data.data) {
               // Single log line
-              setLogs(prev => [...prev, data.data])
+              setLogs(prev => [...prev, data.data].slice(-1000))
             } else if (data.type === 'error') {
               setError(data.data || 'Log streaming error')
             }
@@ -327,7 +331,7 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
       {/* Logs */}
       <div className="flex-1 overflow-hidden flex flex-col">
         <div className="px-6 py-2 bg-gray-50 border-b border-gray-200 dark:border-gray-700 dark:bg-gray-900">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Live Logs</h3>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Live Gateway Logs</h3>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3 bg-gray-900">
           {logs.length === 0 && (

@@ -4,8 +4,15 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/agentCardPresentation.test.ts
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import assert from 'node:assert/strict'
 import { formatAgentGroupCount, getAgentBudgetPresentation, getVisibleAgentTags } from './agentList'
+
+const page = readFileSync(join(__dirname, '../pages/Agents.tsx'), 'utf8')
+const detailProps = page.slice(page.indexOf('<AgentCard\n'), page.indexOf('/>', page.indexOf('<AgentCard\n')))
+assert.match(detailProps, /onStatus=\{\(\) => setStatusTarget\(agent\)\}/)
+assert.match(page, /function AgentCard\(\{[^}]*\bonStatus\b/)
 
 {
   const preview = getVisibleAgentTags(['built-in', 'assistant', 'email', 'ops'], 3)

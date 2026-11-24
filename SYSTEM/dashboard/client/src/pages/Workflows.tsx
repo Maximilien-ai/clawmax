@@ -32,6 +32,7 @@ import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 import {
   getWorkflowWorkspaceLoadKey,
+  workflowCollectionState,
   shouldFetchWorkflowsForWorkspace,
   shouldRunInitialWorkflowPoll,
 } from '../lib/workflowLoading'
@@ -71,7 +72,7 @@ interface Workflow {
   runCount?: number
   lastRun?: string
   progress?: number
-  status?: 'idle' | 'running' | 'completed' | 'blocked' | 'failed'
+  status?: 'idle' | 'running' | 'completed' | 'blocked' | 'failed' | 'paused'
   dependsOn?: string[]
   secretRequirements?: SecretRequirement[]
   outputDefinitions?: Array<{
@@ -547,8 +548,18 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     onNavigateToDoc(resolvedPath)
   }, [docEntries, onNavigateToDoc])
 
+  const collectionRequest = useRef(0)
+  const applyWorkflowCollection = useCallback((nextWorkflows: Workflow[]) => {
+    const { statuses, running } = workflowCollectionState(nextWorkflows)
+    setLatestExecutionStatuses(statuses)
+    setRunningWorkflows(running)
+    setWorkflows(nextWorkflows)
+    setLoading(false)
+  }, [])
+
   const fetchWorkflows = (silent = false) => {
     if (Date.now() < rateLimitedUntil) return
+    const request = ++collectionRequest.current
     lastWorkflowFetchStartedAtRef.current = Date.now()
     loadedWorkflowWorkspaceRef.current = getWorkflowWorkspaceLoadKey(activeWorkspace?.id)
     if (!silent) setLoading(true)
@@ -561,10 +572,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         return r.ok ? r.json() : Promise.reject(new Error('Failed to load workflows'))
       })
       .then(data => {
-        setWorkflows(Array.isArray(data.workflows) ? data.workflows : [])
-        setLoading(false)
+        if (request === collectionRequest.current) applyWorkflowCollection(Array.isArray(data.workflows) ? data.workflows : [])
       })
       .catch((err) => {
+        if (request !== collectionRequest.current) return
         console.warn('Failed to load workflows:', err)
         setLoading(false)
       })
@@ -953,6 +964,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     const pollWorkflows = async () => {
       if (document.visibilityState !== 'visible') return
       if (Date.now() < rateLimitedUntil) return
+      const request = collectionRequest.current
       try {
         const res = await fetch(buildWorkflowsCollectionPath(activeWorkspace?.id))
         if (res.status === 429) {
@@ -962,13 +974,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         if (!res.ok) return
         const data = await res.json()
         const nextWorkflows = Array.isArray(data?.workflows) ? data.workflows : []
-        const running = new Set(nextWorkflows.filter((workflow: Workflow) => workflow.status === 'running').map((workflow: Workflow) => workflow.id))
-        const latestStatuses = Object.fromEntries(
-          nextWorkflows.map((workflow: Workflow) => [workflow.id, workflow.status as WorkflowExecution['status'] | undefined])
-        )
-        setLatestExecutionStatuses(latestStatuses)
-        setWorkflows(nextWorkflows)
-        setRunningWorkflows(running)
+        if (request !== collectionRequest.current) return
+        applyWorkflowCollection(nextWorkflows)
         void fetchPipelineState()
       } catch (err) {
         console.error('Error polling workflows:', err)

@@ -1,3 +1,4 @@
+import { deepStrictEqual } from 'node:assert/strict'
 /**
  * Workflow loading helper tests
  *
@@ -82,6 +83,12 @@ test('skips the immediate workflow poll after the workspace just loaded', () => 
     nowMs: 6200,
     cooldownMs: 5000,
   }), 'Expected workflow poll to resume after cooldown')
+})
+
+test('derives initial workflow statuses from the loaded collection', () => {
+  const snapshot = require('./workflowLoading').workflowCollectionState(['running', 'failed', 'paused', 'idle'].map(status => ({ id: status, status })))
+  deepStrictEqual([...snapshot.running], ['running'])
+  deepStrictEqual(snapshot.statuses, { running: 'running', failed: 'failed', paused: 'paused' })
 })
 
 let passed = 0

@@ -29,3 +29,13 @@ export function shouldRunInitialWorkflowPoll(input: {
   const cooldownMs = input.cooldownMs ?? 5000
   return input.nowMs - input.lastFetchStartedAtMs >= cooldownMs
 }
+
+export function workflowCollectionState(workflows: Array<{ id: string; status?: string }>) {
+  const running = new Set<string>()
+  const statuses: Record<string, 'running' | 'completed' | 'paused' | 'failed'> = {}
+  for (const { id, status } of workflows) {
+    if (status === 'running') running.add(id)
+    if (status === 'running' || status === 'completed' || status === 'paused' || status === 'failed') statuses[id] = status
+  }
+  return { statuses, running }
+}

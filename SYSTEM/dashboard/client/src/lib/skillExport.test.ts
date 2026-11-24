@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { buildSkillExportFilename, getSelectedSkillForExport } from './skillExport'
+import { buildSkillExportFilename, getSelectedSkillForExport, readSkillExport } from './skillExport'
 
 function test(name: string, fn: () => void) {
   try {
@@ -36,4 +36,11 @@ test('selected skill export returns the single selected skill', () => {
   assert.equal(selected?.name, 'resend-cli')
 })
 
-console.log('skillExport.test.ts: ok')
+async function checkExportResponses() {
+  await assert.rejects(readSkillExport(Response.json({ error: 'Skill unavailable' }, { status: 503 })), /Skill unavailable/)
+  for (const response of [new Response('HTML'), Response.json({})]) {
+    await assert.rejects(readSkillExport(response), /try exporting again/)
+  }
+  assert.equal(await readSkillExport(Response.json({ content: '# Recovered' })), '# Recovered')
+}
+checkExportResponses().then(() => console.log('skillExport.test.ts: ok')).catch(error => { console.error(error); process.exitCode = 1 })

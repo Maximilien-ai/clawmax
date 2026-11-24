@@ -209,7 +209,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const selectedEntry = useMemo(() => entries.find((entry) => entry.path === selected) || null, [entries, selected])
   const selectedIsAgentAsset = !!selectedEntry && selectedEntry.section === 'AGENTS' && !selectedEntry.isAgentWorkspace
   const selectedAgentAssetSource = selectedIsAgentAsset ? (selectedEntry?.assetSource || 'uploaded') : null
-  const selectedIsMarkdown = !!selected && selected.endsWith('.md')
+  const selectedIsMarkdown = !!selected && selected.toLowerCase().endsWith('.md')
   const selectedIsTextPreview = previewKind === 'text'
   const selectedIsCodePreview = previewKind === 'code'
   const selectedIsImagePreview = previewKind === 'image'
@@ -351,6 +351,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     const sequence = ++loadSequence.current
     selectedPathRef.current = path
     setSelected(path)
+    setContent('')
+    setDraft('')
     setMobileTreeOpen(false) // Close mobile sidebar when selecting a file
     setLoading(true)
     setError(null)
@@ -380,6 +382,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
     fetch(`/api/docs/content?path=${encodeURIComponent(path)}`)
       .then(r => {
+        if (r.status === 415) throw new Error('Preview and download are unavailable for this file type.')
+        if (r.status === 404) throw new Error('File not found in this workspace.')
         if (!r.ok) throw new Error('Failed to load file')
         return r.json()
       })
@@ -412,9 +416,9 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
         }
         setLoading(false)
       })
-      .catch(() => {
+      .catch((err: Error) => {
         if (sequence !== loadSequence.current) return
-        setError('Failed to load file')
+        setError(err.message || 'Failed to load file')
         setLoading(false)
       })
   }
@@ -424,6 +428,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   }
 
   function startEdit() {
+    if (loading || error || !selectedIsMarkdown) return
     setDraft(content)
     setEditMode(true)
     setSaveError(null)
@@ -439,7 +444,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   }
 
   function saveFile() {
-    if (!selected || saving) return
+    if (!selected || loading || error || !editMode || !selectedIsMarkdown || saving) return
     const savePath = selected
     const savedDraft = draft
     setSaving(true)
@@ -579,7 +584,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       setCreateError('Path is required')
       return
     }
-    if (!trimmedPath.endsWith('.md')) {
+    if (!trimmedPath.toLowerCase().endsWith('.md')) {
       setCreateError('Path must end with .md')
       return
     }
@@ -756,7 +761,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
       await refreshEntries()
       setUploadSuccess(`Uploaded ${uploadFiles.length} file${uploadFiles.length === 1 ? '' : 's'} to ${target}`)
-      const firstMarkdown = uploadedPaths.find((entry) => entry.endsWith('.md'))
+      const firstMarkdown = uploadedPaths.find((entry) => entry.toLowerCase().endsWith('.md'))
       if (firstMarkdown) {
         openEntry({ path: firstMarkdown, section: 'AGENTS', kind: 'markdown' })
       }
@@ -1077,7 +1082,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   <button
                     key={result.path}
                     onClick={() => {
-                      openEntry({ path: result.path, section: (result.path.split('/')[0] as DocSection) || 'SYSTEM', kind: result.path.endsWith('.md') ? 'markdown' : 'asset' })
+                      openEntry({ path: result.path, section: (result.path.split('/')[0] as DocSection) || 'SYSTEM', kind: result.path.toLowerCase().endsWith('.md') ? 'markdown' : 'asset' })
                       clearSearch()
                     }}
                     className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded border border-sky-200 hover:border-sky-400 hover:bg-sky-50 transition-colors"
@@ -1295,14 +1300,14 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                       {saving ? 'Saving…' : 'Save'}
                     </button>
                   </>
-                ) : (
+                ) : selectedIsMarkdown ? (
                   <button
                     onClick={startEdit}
                     className="text-xs px-3 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                   >
                     Edit
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
 

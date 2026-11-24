@@ -272,6 +272,46 @@ async function run() {
     assert((searchRes.jsonBody?.results || []).some((entry: any) => entry.path === 'SYSTEM/brief.md'), 'Expected search results to include written brief')
   })
 
+  await test('uploaded markdown retains its case through list, preview and save', async () => {
+    const upload = getRouteHandler('post', '/upload')
+    const list = getRouteHandler('get', '/')
+    const read = getRouteHandler('get', '/content')
+    const save = getRouteHandler('post', '/content')
+    for (const name of ['lower.md', 'upper.MD', 'mixed.Md']) {
+      const file = `SYSTEM/${name}`
+      const uploaded = makeRes()
+      await upload(makeReq({ query: { target: 'SYSTEM' }, headers: { 'x-file-name': name }, body: Buffer.from('# Original') }), uploaded)
+      assert.strictEqual(uploaded.statusCode, 200)
+      const listing = makeRes()
+      await list(makeReq(), listing)
+      assert.strictEqual(listing.jsonBody.entries.filter((e: any) => e.path === file).length, 1)
+      const preview = makeRes()
+      await read(makeReq({ query: { path: file } }), preview)
+      assert.strictEqual(preview.jsonBody.content, '# Original')
+      const saved = makeRes()
+      await save(makeReq({ body: { path: file, content: '# Updated' } }), saved)
+      assert.strictEqual(saved.statusCode, 200)
+      assert.strictEqual(fs.readFileSync(path.join(workspacePath, file), 'utf8'), '# Updated')
+    }
+  })
+
+  await test('unsupported binary and missing document cannot produce a successful empty preview', async () => {
+    const bytes = Buffer.from([0, 255, 13, 10, 128])
+    const upload = makeRes()
+    await getRouteHandler('post', '/upload')(makeReq({
+      query: { target: 'SYSTEM' }, headers: { 'x-file-name': 'sample.bin' }, body: bytes,
+    }), upload)
+    assert.strictEqual(upload.statusCode, 200)
+    const preview = getRouteHandler('get', '/content')
+    for (const [file, status] of [['sample.bin', 415], ['missing.md', 404]] as const) {
+      const res = makeRes()
+      await preview(makeReq({ query: { path: 'SYSTEM/' + file } }), res)
+      assert.strictEqual(res.statusCode, status)
+      assert.strictEqual(res.jsonBody.content, undefined)
+    }
+    assert.deepStrictEqual(fs.readFileSync(path.join(workspacePath, 'SYSTEM/sample.bin')), bytes)
+  })
+
   await test('upload route rejects missing target or file header', async () => {
     const handler = getRouteHandler('post', '/upload')
 

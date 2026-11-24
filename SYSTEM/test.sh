@@ -2466,6 +2466,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running AI Builder routing unit tests...${NC}"
+if node client/src/lib/builderFallback.test.mjs; then
+  pass "Builder local recommendation fallback"
+else
+  fail "Builder local recommendation fallback"
+fi
 if node "$SYSTEM_DIR/test-builder-routing-runner.test.mjs"; then
   pass "AI Builder routing runner exit-status regression"
 else

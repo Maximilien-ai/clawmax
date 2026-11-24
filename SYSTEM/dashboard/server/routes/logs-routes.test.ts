@@ -216,6 +216,33 @@ async function run() {
     assert.strictEqual(sockets[0].sent.length, 1, 'Expected only connect request to be sent')
   })
 
+  await test('device identity rejection uses the signed CLI for the configured gateway', async () => {
+    const fs = require('fs')
+    const dir = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'gateway-status-test-'))
+    const previous = process.env.OPENCLAW_BIN
+    try {
+      const bin = dir + '/openclaw'
+      fs.writeFileSync(bin, `#!/bin/sh\n[ "$OPENCLAW_GATEWAY_URL" = "ws://localhost:18789" ] && [ "$OPENCLAW_GATEWAY_TOKEN" = "synthetic" ] && [ "$3" = "status" ] || exit 1\necho '{"runtimeVersion":"test"}'\n`, { mode: 0o700 })
+      process.env.OPENCLAW_BIN = bin
+      let socket!: FakeWebSocket
+      class Socket extends FakeWebSocket {
+        constructor(url: string, options: any) { super(url, options); socket = this }
+      }
+      const router = loadRouterWithOverrides({ WebSocket: Socket, workspace: {
+        getAgentGatewayConfig: () => ({ port: 18789, wsUrl: 'ws://localhost:18789', token: 'synthetic' }),
+      } })
+      const res = makeRes()
+      const done = getRouteHandler(router, 'get', '/:id/status')(makeReq({params: {id: 'test'}}), res)
+      socket.emit('message', Buffer.from(JSON.stringify({ type: 'res', ok: false, error: {details: {code: 'CONTROL_UI_DEVICE_IDENTITY_REQUIRED'}} })))
+      await done
+      assert.equal(res.jsonBody?.status?.version, 'test')
+    } finally {
+      if (previous === undefined) delete process.env.OPENCLAW_BIN
+      else process.env.OPENCLAW_BIN = previous
+      fs.rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
   await test('status route returns gateway status payload after successful handshake', async () => {
     const sockets: FakeWebSocket[] = []
     const WebSocketMock = class extends FakeWebSocket {

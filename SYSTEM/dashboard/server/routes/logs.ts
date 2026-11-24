@@ -1,5 +1,9 @@
 import { Router } from 'express'
 import WebSocket from 'ws'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+import { safeEnv } from '../lib/safe-env'
+import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import { randomUUID } from 'crypto'
 import { getAgentGatewayConfig } from '../lib/workspace'
 import { GATEWAY_PROTOCOL_VERSION } from '../lib/gateway-rpc'
@@ -76,7 +80,7 @@ router.get('/:id/status', async (req, res) => {
       // Wait for connect.challenge
     })
 
-    ws.on('message', (data: Buffer) => {
+    ws.on('message', async (data: Buffer) => {
       try {
         const message = JSON.parse(data.toString())
 
@@ -102,6 +106,25 @@ router.get('/:id/status', async (req, res) => {
               params: {}
             }
             ws.send(JSON.stringify(statusRequest))
+          } else if (message.error?.details?.code === 'CONTROL_UI_DEVICE_IDENTITY_REQUIRED') {
+            clearTimeout(timeout)
+            ws.removeAllListeners('close')
+            ws.close()
+            try {
+              const cli = resolveOpenClawCliPath()
+              if (!cli) throw new Error('CLI unavailable')
+              const { stdout } = await promisify(execFile)(cli, ['gateway', 'call', 'status', '--json', '--timeout', '8000'], {
+                env: safeEnv({ OPENCLAW_GATEWAY_URL: gatewayConfig.wsUrl || `ws://127.0.0.1:${gatewayConfig.port}`, OPENCLAW_GATEWAY_TOKEN: gatewayConfig.token }),
+                timeout: 10000,
+                maxBuffer: 2 * 1024 * 1024,
+              })
+              const status = JSON.parse(stdout)
+              if (!status || typeof status !== 'object' || status.ok === false) throw new Error('Status unavailable')
+              res.json({ available: true, port: gatewayConfig.port, status: { version: status.runtimeVersion || status.version, uptime: status.uptime } })
+            } catch {
+              res.status(503).json({ available: false, error: 'Signed gateway status request failed', code: 'gateway_status_error' })
+            }
+            resolve()
           } else {
             clearTimeout(timeout)
             ws.close()

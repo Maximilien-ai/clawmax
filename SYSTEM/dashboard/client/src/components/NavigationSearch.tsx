@@ -26,6 +26,7 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
   const [error, setError] = useState(false)
   const [items, setItems] = useState<{ agents: Record<string, unknown>[]; workflows: Record<string, unknown>[]; communities: Record<string, unknown>[]; groups: Record<string, unknown>[]; templates: Record<string, unknown>[]; skills: Record<string, unknown>[]; partners: Record<string, unknown>[]; documents: Record<string, unknown>[]; modelsByProvider: Record<string, { name?: unknown; models?: unknown }> }>({ agents: [], workflows: [], communities: [], groups: [], templates: [], skills: [], partners: [], documents: [], modelsByProvider: {} })
   const inputRef = useRef<HTMLInputElement>(null)
+  const keyboardSelection = useRef(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const workspaceKey = activeWorkspace?.id || activeWorkspace?.path || ''
 
@@ -96,6 +97,11 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
 
   const entries = useMemo(() => buildNavigationDestinations({ pages, ...items }), [pages, items])
   const results = useMemo(() => searchNavigationDestinations(entries, query), [entries, query])
+  useEffect(() => {
+    if (open && keyboardSelection.current) {
+      document.getElementById(`clawmax-search-${selected}`)?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [selected, open, results])
   const choose = (destination: SearchDestination) => { setOpen(false); onNavigate(destination) }
 
   return <>
@@ -116,8 +122,8 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
         <div className="flex items-center gap-2 border-b border-gray-200 p-3 dark:border-gray-700">
           <input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setSelected(0) }} onKeyDown={(event) => {
             if (event.key === 'Escape') { event.preventDefault(); setOpen(false) }
-            if (event.key === 'ArrowDown') { event.preventDefault(); setSelected((current) => Math.min(current + 1, results.length - 1)) }
-            if (event.key === 'ArrowUp') { event.preventDefault(); setSelected((current) => Math.max(0, current - 1)) }
+            if (event.key === 'ArrowDown') { event.preventDefault(); keyboardSelection.current = true; setSelected((current) => Math.max(0, Math.min(current + 1, results.length - 1))) }
+            if (event.key === 'ArrowUp') { event.preventDefault(); keyboardSelection.current = true; setSelected((current) => Math.max(0, current - 1)) }
             if (event.key === 'Enter' && results[selected]) { event.preventDefault(); choose(results[selected]) }
           }} aria-label="Search pages, actions, agents, workflows, templates, skills, partners, files, and models" aria-controls="clawmax-navigation-results" aria-activedescendant={results[selected] ? `clawmax-search-${selected}` : undefined} role="combobox" aria-expanded="true" autoComplete="off" placeholder="Search pages, agents, workflows, files, models…" className="min-w-0 flex-1 bg-transparent px-1 py-1 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100" />
           <button type="button" onClick={() => setOpen(false)} aria-label="Close search" className="rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Esc</button>
@@ -126,7 +132,7 @@ export function NavigationSearch({ pages, onNavigate }: Props) {
           {loading && <p className="px-3 py-2 text-sm text-gray-500">Loading workspace items…</p>}
           {error && <p role="status" className="px-3 py-2 text-sm text-amber-700 dark:text-amber-300">Some workspace items could not load. Page results remain available.</p>}
           {results.length === 0 && !loading && <p className="px-3 py-4 text-sm text-gray-500">No results in this workspace.</p>}
-          {results.map((entry, index) => <button id={`clawmax-search-${index}`} role="option" aria-selected={selected === index} key={entry.key} type="button" onMouseEnter={() => setSelected(index)} onClick={() => choose(entry)} className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm ${selected === index ? 'bg-sky-50 text-sky-900 dark:bg-sky-900/40 dark:text-sky-100' : 'text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-700'}`}>
+          {results.map((entry, index) => <button id={`clawmax-search-${index}`} role="option" aria-selected={selected === index} key={entry.key} type="button" onMouseMove={() => { keyboardSelection.current = false; setSelected(index) }} onClick={() => choose(entry)} className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm ${selected === index ? 'bg-sky-50 text-sky-900 dark:bg-sky-900/40 dark:text-sky-100' : 'text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-700'}`}>
             <span className="min-w-0 truncate">{entry.title}</span><span className="min-w-0 max-w-[45%] truncate text-right text-xs text-gray-500 dark:text-gray-400">{entry.subtitle}</span>
           </button>)}
         </div>
