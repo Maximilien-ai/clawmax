@@ -98,7 +98,21 @@ async function main() {
       await lock
     }
   }
-  const { dispatchWorkflowParticipants } = require('./workflows')
+  const { dispatchWorkflowParticipants, triggerWorkflow, getExecution, isWorkflowExecutionActive } = require('./workflows')
+  require('./agent-execution').resolveAgentExecutionConfig = () => ({
+    runtime: 'openclaw', provider: 'openai', model: 'openai/gpt-image-1',
+  })
+  const rejected = triggerWorkflow('runtime-stop-claude', { manual: true })
+  assert.ok(rejected.success, rejected.error)
+  const deadline = Date.now() + 5000
+  while (isWorkflowExecutionActive('runtime-stop-claude', rejected.executionId)) {
+    assert.ok(Date.now() < deadline, 'Unsupported model must settle promptly')
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+  const rejectedRun = getExecution('runtime-stop-claude', rejected.executionId)
+  assert.equal(rejectedRun.status, 'failed')
+  assert.match(rejectedRun.participants[0].error, /generates images/)
+
   for (const failOwner of [false, true]) {
     const participants = ['writer', 'research'].map(agentId => ({ agentId, status: 'pending', response: '' }))
     const calls: string[] = []

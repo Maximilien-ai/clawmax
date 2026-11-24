@@ -1,3 +1,4 @@
+import { describeOpenClawModelRejection } from './openclaw-model-catalog'
 import fs from 'fs'
 import { isPlainPathSegment } from './path-segment'
 import { openClawStatePath } from './openclaw-profile-paths'
@@ -2462,6 +2463,8 @@ export function triggerWorkflow(workflowId: string, options?: {
 
             const openclawCliPath = resolveWorkflowOpenClawCliPath()
             const executeAttempt = async (attemptModel: string | undefined, attemptProvider: typeof resolvedAgent.provider) => {
+              const rejection = describeOpenClawModelRejection([{ model: attemptModel, label: 'workflow model' }])
+              if (rejection) throw new Error(rejection)
               const useOpenAiCompatible = attemptProvider === 'openai-compatible'
               const executionEnv = workflowExecutionEnv({
                 openai: attemptProvider === 'openai' ? options?.byok?.openai : undefined,
