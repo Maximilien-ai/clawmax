@@ -2277,8 +2277,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                       </svg>
                     </button>
 
-                    {/* Group Workflows - Always show */}
-                    {groupWorkflows.has(group.name) && (
+                    {expandedGroups.has(group.name) && groupWorkflows.has(group.name) && (
                       <div className="ml-10 mt-3 pl-4 border-l-2 border-indigo-200">
                         <div className="mb-2">
                           <h4 className="text-xs font-semibold text-indigo-700 mb-1.5">

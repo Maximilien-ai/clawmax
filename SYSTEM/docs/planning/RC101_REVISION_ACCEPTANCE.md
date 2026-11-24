@@ -25,3 +25,7 @@ After sign-off, record accepted issue IDs, the merged SHA and reporter dispositi
 On November 23, Chrome exercised Suggested requests with wheel input, focus and Space, then clicked the single result-panel toggle in both states and checked transcript height. Viewports were 390×844, 820×1180, 1024×560/640, 1280×720 and 1440×760/900. Both added issues concern behavior already present in the tested product source.
 
 For the 25% milestone, open **RC101 Quarter Manual Review** in the Workflows editor. Expect a manual schedule, a run limit of four, a Report output and a test-kickoff input. Engineering verified persistence via local HTTP, rejection of invalid cron and time zones, scheduler isolation and disabled ticks. Model discovery and default-model suites passed for the existing chat-model filtering behavior. No provider key change is needed.
+
+## November 24 owner walkthrough
+
+Confirmed Documents, global search, skill export, Builder and Workflow Edit. Agent Status remains open after the gateway rejected the status handshake. Organization needs a recheck for group collapse and nested-team output navigation. Workflow Edit tabs are a follow-up design suggestion.
