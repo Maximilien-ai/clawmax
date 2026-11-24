@@ -24,6 +24,7 @@ import {
   generateBuilderStarterPromptsWithAI,
   generateCronFromText,
   generateWorkflowFromNL,
+  generateTemplateFromNL,
   normalizeChannelDraft,
   isOneTimeScheduleRequest,
   normalizeGeneratedSkillScaffold,
@@ -141,6 +142,41 @@ test('workflow generation normalizes the actual provider response before returni
   } finally {
     setRequestByokKeys(undefined)
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+    resetWorkspaceManagerForTests()
+  }
+})
+
+test('generated teams and companies get usable workflow handoffs from a sparse provider draft', async () => {
+  const payload = {
+    name: 'Research Desk',
+    agents: [{ id: 'lead', name: 'Research Lead' }, { id: 'writer', name: 'Writer' }],
+  }
+  const server = http.createServer((_req, res) => {
+    res.setHeader('Content-Type', 'application/json')
+    res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(payload) } }] }))
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    setRequestByokKeys({ openaiCompatibleBaseUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}/v1`, openaiCompatibleDefaultModel: 'fixture-model' })
+    for (const target of ['team', 'company'] as const) {
+      const draft = await generateTemplateFromNL('Research multiple markets and send findings to a writer', target)
+      assert.ok(draft.communities.length)
+      assert.ok(draft.groups.every((group: any) => draft.communities.some((community: any) => community.name === group.community)))
+      assert.ok(draft.workflows.length >= 2)
+      const ids = new Set(draft.workflows.map((workflow: any) => workflow.id))
+      assert.equal(ids.size, draft.workflows.length)
+      for (const workflow of draft.workflows) {
+        assert.ok(workflow.content.trim())
+        for (const ref of workflow.inputRefs || []) {
+          const upstream = draft.workflows.find((candidate: any) => candidate.id === ref.workflowId)
+          assert.ok(upstream?.outputDefinitions?.some((output: any) => output.key === ref.outputKey))
+        }
+      }
+      assert.ok(draft.workflows.some((workflow: any) => workflow.inputRefs?.length))
+    }
+  } finally {
+    setRequestByokKeys(undefined)
+    await new Promise<void>(resolve => server.close(() => resolve()))
     resetWorkspaceManagerForTests()
   }
 })
