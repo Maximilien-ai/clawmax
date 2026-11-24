@@ -99,20 +99,21 @@ async function main() {
     }
   }
   const { dispatchWorkflowParticipants, triggerWorkflow, getExecution, isWorkflowExecutionActive } = require('./workflows')
-  require('./agent-execution').resolveAgentExecutionConfig = () => ({
-    runtime: 'openclaw', provider: 'openai', model: 'openai/gpt-image-1',
-  })
-  const rejected = triggerWorkflow('runtime-stop-claude', { manual: true })
-  assert.ok(rejected.success, rejected.error)
-  const deadline = Date.now() + 5000
-  while (isWorkflowExecutionActive('runtime-stop-claude', rejected.executionId)) {
-    assert.ok(Date.now() < deadline, 'Unsupported model must settle promptly')
-    await new Promise(resolve => setTimeout(resolve, 10))
+  for (const disabledPinnedRuntime of [undefined, 'droid']) {
+    require('./agent-execution').resolveAgentExecutionConfig = () => ({
+      runtime: 'openclaw', provider: 'openai', model: 'openai/gpt-image-1', disabledPinnedRuntime,
+    })
+    const rejected = triggerWorkflow('runtime-stop-claude', { manual: true })
+    assert.ok(rejected.success, rejected.error)
+    const deadline = Date.now() + 5000
+    while (isWorkflowExecutionActive('runtime-stop-claude', rejected.executionId)) {
+      assert.ok(Date.now() < deadline, 'Unsupported model must settle promptly')
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    const rejectedRun = getExecution('runtime-stop-claude', rejected.executionId)
+    assert.equal(rejectedRun.status, 'failed')
+    assert.match(rejectedRun.participants[0].error, disabledPinnedRuntime ? /droid runtime is disabled/ : /generates images/)
   }
-  const rejectedRun = getExecution('runtime-stop-claude', rejected.executionId)
-  assert.equal(rejectedRun.status, 'failed')
-  assert.match(rejectedRun.participants[0].error, /generates images/)
-
   for (const failOwner of [false, true]) {
     const participants = ['writer', 'research'].map(agentId => ({ agentId, status: 'pending', response: '' }))
     const calls: string[] = []

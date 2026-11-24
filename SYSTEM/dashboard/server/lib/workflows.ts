@@ -2412,6 +2412,9 @@ export function triggerWorkflow(workflowId: string, options?: {
           // to the registry and unstoppable by anything, including the "stop this agent" path.
           const agentResponse = await withRegisteredTurn(participant.agentId, (turn) => runExclusiveAgentExecution(participant.agentId, async () => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
+            if (resolvedAgent.disabledPinnedRuntime) {
+              throw new Error(`The selected ${resolvedAgent.disabledPinnedRuntime} runtime is disabled. Enable it in BYOK or change the agent runtime before retrying.`)
+            }
             if (resolvedAgent.runtime !== 'openclaw') {
               // Stopped while this step waited for the agent's lock, as the openclaw path checks too.
               if (isExecutionCancelled(executionId)) throw new Error('Workflow execution was cancelled')
