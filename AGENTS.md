@@ -29,6 +29,10 @@ this repository or its public image.
 - Add focused tests for behavior changes; run TypeScript and affected suites.
   Check changed UI at desktop/mobile widths. Full integration, validation, and
   coverage are required before an RC.
+- Use one base tag per release candidate (`rcN`). Batch fixes on the candidate
+  branch through acceptance and validation, then publish the tag once. Reserve
+  patch tags (`rcN.1`, `rcN.2`) for fixes that need a new image after `rcN`
+  has already shipped. Keep each published tag pinned to its original source.
 - Preserve authorization, privacy, persisted state, and explicit user choices.
   Sensitive exports require the consent contract linked below.
 - Before handoff, commit/push every owning repository, record SHAs and CI links,
