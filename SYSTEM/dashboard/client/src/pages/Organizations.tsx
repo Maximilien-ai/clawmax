@@ -2067,8 +2067,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                       </svg>
                     </button>
 
-                    {/* Community Workflows - Always show */}
-                    {communityWorkflows.has(community.name) && (
+                    {expandedCommunities.has(community.name) && communityWorkflows.has(community.name) && (
                       <div className="ml-10 mt-3 pl-4 border-l-2 border-purple-200">
                         <div className="mb-2">
                           <h4 className="text-xs font-semibold text-purple-700 mb-1.5">
