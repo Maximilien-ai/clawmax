@@ -29,43 +29,75 @@ async function main() {
   process.env.CLAWMAX_TEST_WORKSPACE = workspace
   require('./workspace-manager').resetWorkspaceManagerForTests()
 
-  const agentId = 'runtime-stop-agent'
-  const agentDir = path.join(workspace, 'AGENTS', agentId)
-  fs.mkdirSync(agentDir, { recursive: true })
-  fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), '# IDENTITY.md\n\n- **Name:** Runtime Stop\n- **Model:** anthropic/claude-sonnet-4-5\n- **Runtime:** claude\n')
+  for (const runtime of ['claude', 'droid']) {
+    const agentId = 'runtime-stop-' + runtime
+    const agentDir = path.join(workspace, 'AGENTS', agentId)
+    fs.mkdirSync(agentDir, { recursive: true })
+    fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), '# IDENTITY.md\n\n- **Name:** Runtime Stop\n- **Model:** anthropic/claude-sonnet-4-5\n- **Runtime:** claude\n')
 
-  // The agent's runtime and its CLI turn are the boundary: stubbed, so nothing is spawned or billed.
-  const agentExecution = require('./agent-execution')
-  agentExecution.resolveAgentExecutionConfig = () => ({ runtime: 'claude', provider: 'anthropic', model: 'anthropic/claude-sonnet-4-5', workspace: agentDir })
-  let stepStarted: () => void = () => {}
-  const started = new Promise<void>((resolve) => { stepStarted = resolve })
-  let sawAbort = false
-  require('./agent-runtime').executeAgentRuntimeTurn = (options: { signal: AbortSignal }) => new Promise((resolve) => {
-    stepStarted()
-    options.signal.addEventListener('abort', () => {
-      sawAbort = true
-      resolve({ text: '', errorText: 'Turn cancelled' })
+    // The agent's runtime and its CLI turn are the boundary: stubbed, so nothing is spawned or billed.
+    const agentExecution = require('./agent-execution')
+    agentExecution.resolveAgentExecutionConfig = () => ({ runtime, provider: 'anthropic', model: 'anthropic/claude-sonnet-4-5', workspace: agentDir })
+    let stepStarted: () => void = () => {}
+    const started = new Promise<void>((resolve) => { stepStarted = resolve })
+    let sawAbort = false
+    require('./agent-runtime').executeAgentRuntimeTurn = (options: { signal: AbortSignal }) => new Promise((resolve) => {
+      stepStarted()
+      options.signal.addEventListener('abort', () => {
+        sawAbort = true
+        resolve({ text: '', errorText: 'Turn cancelled' })
+      })
     })
-  })
 
-  const { createWorkflow, triggerWorkflow, cancelExecution, getExecution } = require('./workflows')
-  const created = createWorkflow({
-    name: 'Runtime Stop',
-    description: 'Stop a Claude Code step',
-    schedule: 'manual',
-    content: '# A long step',
-    executionMode: 'automated',
-    targeting: { agents: [agentId], groups: [], tags: [], communities: [] },
-  })
-  assert.ok(created.success && created.id, `Workflow should be created: ${created.error}`)
+    const { createWorkflow, triggerWorkflow, cancelExecution, getExecution } = require('./workflows')
+    const created = createWorkflow({
+      name: 'Runtime Stop ' + runtime,
+      description: 'Stop a Claude Code step',
+      schedule: 'manual',
+      content: '# A long step',
+      executionMode: 'automated',
+      targeting: { agents: [agentId], groups: [], tags: [], communities: [] },
+    })
+    assert.ok(created.success && created.id, `Workflow should be created: ${created.error}`)
 
-  const run = triggerWorkflow(created.id, { manual: true })
-  assert.ok(run.success && run.executionId, `Run should start: ${run.error}`)
-  await withTimeout(started, 10_000, () => `The Claude Code step never started: ${JSON.stringify(getExecution(created.id, run.executionId)?.logs?.slice(-4))}`)
+    const run = triggerWorkflow(created.id, { manual: true })
+    assert.ok(run.success && run.executionId, `Run should start: ${run.error}`)
+    await withTimeout(started, 10_000, () => `The Claude Code step never started: ${JSON.stringify(getExecution(created.id, run.executionId)?.logs?.slice(-4))}`)
 
-  assert.ok(cancelExecution(created.id, run.executionId).success, 'Stop should be accepted')
-  assert.ok(sawAbort, 'Stop must abort the running Claude Code step, not only mark the run cancelled')
+    assert.ok(cancelExecution(created.id, run.executionId).success, 'Stop should be accepted')
+    assert.ok(sawAbort, 'Stop must abort the running Claude Code step, not only mark the run cancelled')
 
+    const { isWorkflowExecutionActive } = require('./workflows')
+    const waitForSettlement = async (executionId: string) => {
+      const deadline = Date.now() + 5000
+      while (isWorkflowExecutionActive(created.id, executionId)) {
+        assert.ok(Date.now() < deadline, 'Stopped workflow must release the runner')
+        await new Promise(resolve => setTimeout(resolve, 10))
+      }
+      assert.equal(getExecution(created.id, executionId)?.status, 'cancelled')
+    }
+    await waitForSettlement(run.executionId)
+
+    let release!: () => void
+    const gate = new Promise<void>(resolve => { release = resolve })
+    const lock = agentExecution.runExclusiveAgentExecution(agentId, () => gate)
+    let queuedDispatches = 0
+    require('./agent-runtime').executeAgentRuntimeTurn = async () => {
+      queuedDispatches++
+      return { text: 'unexpected dispatch' }
+    }
+    try {
+      const queued = triggerWorkflow(created.id, { manual: true })
+      assert.ok(queued.success, queued.error)
+      assert.ok(cancelExecution(created.id, queued.executionId).success)
+      release()
+      await waitForSettlement(queued.executionId)
+      assert.equal(queuedDispatches, 0, 'Stop while queued must prevent runtime dispatch')
+    } finally {
+      release()
+      await lock
+    }
+  }
   console.log('Workflow runtime stop tests passed')
 }
 
