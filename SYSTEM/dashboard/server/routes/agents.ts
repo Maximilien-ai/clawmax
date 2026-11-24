@@ -3461,9 +3461,13 @@ router.patch('/:id/model', (req, res) => {
   const identityPath = path.join(agentDir, 'IDENTITY.md')
 
   try {
+    if (!fs.existsSync(identityPath)) {
+      return res.status(404).json({ error: 'Agent identity was not found in this workspace', code: 'agent_identity_missing' })
+    }
+    const identityContent = fs.readFileSync(identityPath, 'utf-8')
     const admission = validateAgentModelPolicy(id, normalizedModel, typeof backupModel === 'string' ? backupModel : undefined)
     if (!admission.ok) return res.status(409).json({ error: admission.error, code: 'model_policy_conflict' })
-    const identityRuntime = fs.existsSync(identityPath) ? parseIdentity(fs.readFileSync(identityPath, 'utf-8')).runtime : undefined
+    const identityRuntime = parseIdentity(identityContent).runtime
     const runtimeRejection = describeNewOpenClawModelRejection(id, identityRuntime, normalizedModel, typeof backupModel === 'string' ? normalizeAgentModelInput(backupModel) : undefined)
     if (runtimeRejection) return res.status(400).json({ error: runtimeRejection, code: 'model_runtime_unsupported' })
     const configUpdate = updateAgentModelInConfig(id, normalizedModel)
@@ -3475,7 +3479,6 @@ router.patch('/:id/model', (req, res) => {
       return res.status(500).json({ error: backupConfigUpdate.error || 'Failed to update live backup model config' })
     }
 
-    const identityContent = fs.readFileSync(identityPath, 'utf-8')
     fs.writeFileSync(identityPath, syncAgentIdentityModels(
       identityContent,
       configUpdate.model || normalizedModel,

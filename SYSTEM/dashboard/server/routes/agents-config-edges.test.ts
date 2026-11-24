@@ -405,6 +405,21 @@ async function run() {
     })
   })
 
+  await test('missing identity fails before a model change can write runtime config', async () => {
+    let writes = 0
+    await withAgentModelOverrides({
+      upsertAgentModelInConfigFile: () => { writes++; return { ok: true } },
+    }, async () => {
+      const res = makeRes()
+      await getRouteHandler('patch', '/:id/model')(makeReq({
+        params: { id: 'missing-agent' }, body: { model: 'openai/gpt-5.4-mini' },
+      }), res)
+      assert.equal(res.statusCode, 404)
+      assert.equal(res.jsonBody.code, 'agent_identity_missing')
+      assert.equal(writes, 0)
+    })
+  })
+
   await test('model route updates IDENTITY.md and skips runtime reset when the model is unchanged', async () => {
     let resetCalls = 0
     await withAgentModelOverrides({
