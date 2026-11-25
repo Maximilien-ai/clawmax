@@ -30,3 +30,5 @@ Development revision `b3a2a3b2`. The [isolated dev instance](http://localhost:35
 ### Model-change failure investigation
 
 An isolated route diagnostic forced the session-reset helper to fail after a valid configuration update. The Dashboard returned HTTP 500 and the new identity marker remained on disk. This reproduces a partial write on the configuration route. The reported event 502 remains uncorrelated. Cover the model and configuration edit paths, including a reset that fails after moving one session file, before accepting #440. On-prem upgrade testing should use an existing agent with known conversation history.
+
+November 25 follow-up: PUT configuration and PATCH model now defer workspace edits until session reset succeeds. Both routes restored the original roster and preserved the workspace files byte-for-byte under a forced reset failure. The route suite passed 22 cases, the agent-model suite passed 47, and the Dashboard TypeScript check passed. The event 502 and upgraded-instance history still require verification.

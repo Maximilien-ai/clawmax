@@ -405,6 +405,28 @@ async function run() {
     })
   })
 
+  for (const method of ['patch', 'put'] as const) {
+    await test(method + ' preserves roster and workspace files after session reset failure', async () => {
+      const dir = path.join(workspacePath, 'AGENTS', 'plain-agent')
+      const files = [path.join(tmpHome, '.openclaw', 'openclaw.json'), ...['IDENTITY.md', 'SOUL.md', 'TOOLS.md'].map(name => path.join(dir, name))]
+      const before = files.map(file => fs.readFileSync(file))
+      let resets = 0
+      await withAgentModelOverrides({
+        resetAgentSessionsForModelChange: () => { resets++; return { ok: false, error: 'synthetic reset failure' } },
+      }, async () => {
+        const configEdit = method === 'put'
+        const res = makeRes()
+        await getRouteHandler(method, configEdit ? '/:id/config' : '/:id/model')(makeReq({
+          params: { id: 'plain-agent' },
+          body: configEdit ? { identity: '# IDENTITY.md\n- **Name:** plain-agent\n- **Model:** openai/gpt-5\n', soul: '# SOUL\nChanged', tools: '# TOOLS\nChanged' } : { model: 'openai/gpt-5' },
+        }), res)
+        assert.strictEqual(resets, 1)
+        assert.strictEqual(res.statusCode, 500)
+        files.forEach((file, index) => assert.deepStrictEqual(fs.readFileSync(file), before[index]))
+      })
+    })
+  }
+
   await test('missing identity fails before a model change can write runtime config', async () => {
     let writes = 0
     await withAgentModelOverrides({

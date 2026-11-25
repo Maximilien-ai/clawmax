@@ -238,6 +238,28 @@ function resetAgentRuntimeForModelChange(agentId: string) {
   }
 }
 
+// Model writes use the home roster. Keep its original bytes, including policy
+// and legacy fields, until the synchronous session reset has succeeded.
+function prepareModelReset(agentId: string) {
+  const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
+  const before = fs.existsSync(configPath) ? fs.readFileSync(configPath) : undefined
+  return () => {
+    const written = fs.existsSync(configPath) ? fs.readFileSync(configPath) : undefined
+    try {
+      resetAgentRuntimeForModelChange(agentId)
+    } catch (error) {
+      if (written && !written.equals(before ?? Buffer.alloc(0))) {
+        if (!fs.readFileSync(configPath).equals(written)) {
+          throw new Error('Model configuration changed during session recovery')
+        }
+        if (before) fs.writeFileSync(configPath, before)
+        else fs.unlinkSync(configPath)
+      }
+      throw error
+    }
+  }
+}
+
 function summarizeAiGenerationError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error || '')
   const collectCauseMessages = (value: any, messages: string[] = []): string[] => {
@@ -3379,6 +3401,7 @@ router.put('/:id/config', (req, res) => {
         if (!admission.ok) return res.status(409).json({ error: admission.error, code: 'model_policy_conflict' })
         const runtimeRejection = describeNewOpenClawModelRejection(id, parsedIdentity.runtime, identityModel, identityBackupModel)
         if (runtimeRejection) return res.status(400).json({ error: runtimeRejection, code: 'model_runtime_unsupported' })
+        const reset = prepareModelReset(id)
         configUpdate = updateAgentModelInConfig(id, identityModel)
         if (!configUpdate.ok) {
           return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
@@ -3387,6 +3410,7 @@ router.put('/:id/config', (req, res) => {
         if (!backupConfigUpdate.ok) {
           return res.status(500).json({ error: backupConfigUpdate.error || 'Failed to update live backup model config' })
         }
+        if (configUpdate.changed || backupConfigUpdate.changed) reset()
         identityToWrite = syncAgentIdentityModels(
           identityToWrite,
           configUpdate.model || identityModel,
@@ -3403,9 +3427,6 @@ router.put('/:id/config', (req, res) => {
     }
     if (typeof tools === 'string') {
       fs.writeFileSync(path.join(agentDir, 'TOOLS.md'), tools, 'utf-8')
-    }
-    if (configUpdate?.changed || backupConfigUpdate?.changed) {
-      resetAgentRuntimeForModelChange(id)
     }
     const modifiedSections = [
       typeof identity === 'string' ? 'IDENTITY.md' : '',
@@ -3470,6 +3491,7 @@ router.patch('/:id/model', (req, res) => {
     const identityRuntime = parseIdentity(identityContent).runtime
     const runtimeRejection = describeNewOpenClawModelRejection(id, identityRuntime, normalizedModel, typeof backupModel === 'string' ? normalizeAgentModelInput(backupModel) : undefined)
     if (runtimeRejection) return res.status(400).json({ error: runtimeRejection, code: 'model_runtime_unsupported' })
+    const reset = prepareModelReset(id)
     const configUpdate = updateAgentModelInConfig(id, normalizedModel)
     if (!configUpdate.ok) {
       return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
@@ -3479,6 +3501,7 @@ router.patch('/:id/model', (req, res) => {
       return res.status(500).json({ error: backupConfigUpdate.error || 'Failed to update live backup model config' })
     }
 
+    if (configUpdate.changed || backupConfigUpdate.changed) reset()
     fs.writeFileSync(identityPath, syncAgentIdentityModels(
       identityContent,
       configUpdate.model || normalizedModel,
@@ -3488,9 +3511,6 @@ router.patch('/:id/model', (req, res) => {
         preference: modelPreference as AgentModelPreference | undefined,
       },
     ), 'utf-8')
-    if (configUpdate.changed || backupConfigUpdate.changed) {
-      resetAgentRuntimeForModelChange(id)
-    }
     if (configUpdate.changed) {
       recordAgentLifecycleAuditEvent(id, {
         type: 'model',
