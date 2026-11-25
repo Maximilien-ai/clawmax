@@ -3143,6 +3143,25 @@ async function run() {
       assert.deepStrictEqual(restored.jsonBody.messages.map((m: any) => m.content), ['Remember this conversation', reply])
       assert.deepStrictEqual(fs.readFileSync(filename), before, 'Read/Clear/History/Continue cannot modify native SQLite bytes')
       assert(!fs.existsSync(path.join(directory, '..', 'sessions', 'sessions.json')), 'Native history cannot create a legacy index')
+      if (id === 'native--history-') {
+        const invalidBodies = [
+          { frame: Buffer.from('invalid frame'), message: /could not be decoded/i },
+          { frame: zstdCompressSync(Buffer.alloc(9 * 1024 * 1024, 97)), message: /could not be decoded/i },
+          { frame: null, message: /no stored body/i },
+        ]
+        for (const { frame, message } of invalidBodies) {
+          const damaged = new DatabaseSync(filename)
+          try {
+            damaged.prepare('UPDATE transcript_events SET event_zstd = ? WHERE session_id = ? AND seq = 2').run(frame, sid)
+          } finally {
+            damaged.close()
+          }
+          const read = makeRes()
+          await getRouteHandler('get', '/:id/chat/messages')(makeReq({ params: { id } }), read)
+          assert.strictEqual(read.statusCode, 500, 'Damaged history must not look like a successful partial conversation')
+          assert.match(read.jsonBody.error, message)
+        }
+      }
     })
   }
 

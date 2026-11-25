@@ -42,3 +42,7 @@ November 25 follow-up: PUT configuration and PATCH model now defer workspace edi
 
 - #361: Chrome at 1440 and 390 px received simulated activity and metering HTTP 503s, recovered to populated metering, retained $1.48 through a failed refresh with a stale notice, then recovered to genuine empty results. Provider request and parse failures now propagate as errors.
 - #362: The metering API reconciles scoped observations by trace ID before deriving header totals and breakdowns. It reports an observed window of up to 10,000 traces per cache key since startup. The focused metering suite passed 50 cases, including disjoint, overlapping and replayed windows, and the budget suite passed eight. Standard Dashboard TypeScript passed.
+
+### Long replies after reload (#216)
+
+The native SQLite fixture preserved the complete compressed reply on two history reads and after Clear/Continue. The history endpoint returned HTTP 500 with an explicit error for corrupt, oversized, and missing event bodies. The native store suite, 92 agent-route cases, 77 execution cases, eight turn-registry cases and Dashboard TypeScript passed. The turn suite verified a failed turn cannot replay the previous answer. For combined dev acceptance, reload an agent chat with a known long reply and check its final paragraph; this can share the existing model/history check. Changed-identity legacy recovery remains tracked separately in #420.
