@@ -54,3 +54,7 @@ The Dashboard startup config repair removes the three reported CLI-only names fr
 ### Droid tool compatibility (#313)
 
 Verified Factory's macOS arm64 Droid 0.247.0 binary against its published SHA-256. Its tool catalog confirmed all four automation mutation/run tools disabled by the corrected invocation. The reported version uses that invocation for chat and workflows; the packaged 0.158.0 retains its tested restrictions. Dashboard TypeScript and 92 runtime adapter tests passed. A real turn reached authentication and returned zero turns in the isolated profile. One successful turn on an authenticated 0.247.0 instance remains pending.
+
+### Delegated runtime evidence (#439)
+
+The pinned OpenClaw 2026.9.7 Gateway sessions.create model suite passed all 13 cases, including refusal of a disabled fixture harness and admission of an enabled one. Dashboard chat and workflow summaries now preserve the model, required harness and operator remedy for that specific native refusal. TypeScript and 37 focused Dashboard checks passed. An actual delegation from a parent turn with persisted child failure evidence remains pending.

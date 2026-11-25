@@ -1,3 +1,4 @@
+import { describeUnavailableHarness } from '../../../server/lib/harness-error'
 import { createFenceTracker } from '../../../server/lib/chat-normalization'
 /** Mirrors describeGatewayFailure in server/routes/chat.ts, and keeps its already-specific
  * messages ("OpenClaw Gateway ...") instead of replacing them with the generic gateway text. */
@@ -29,6 +30,8 @@ function describeGatewayFailure(text: string): string | null {
 export function summarizeAgentChatFailure(message: string, options?: { agentId?: string; transportFailure?: boolean }): string {
   const text = String(message || '').trim()
   if (!text) return 'No reply from agent.'
+  const harnessFailure = describeUnavailableHarness(text)
+  if (harnessFailure) return harnessFailure
   if (options?.transportFailure && /(?:TypeError:\s*)?(?:network error|failed to fetch|networkerror|load failed)/i.test(text)) {
     return 'The connection to this chat was interrupted. The agent may still be working; check its status before retrying so a tool action is not repeated.'
   }

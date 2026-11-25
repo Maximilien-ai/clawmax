@@ -1,3 +1,4 @@
+import { describeUnavailableHarness } from '../lib/harness-error'
 import { openClawStatePath } from '../lib/openclaw-profile-paths'
 import { Router, type Request, type Response } from 'express'
 import WebSocket from 'ws'
@@ -503,6 +504,8 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
   const runtimeLabel = context?.runtimeLabel
   const text = raw.trim()
   if (!text) return 'No reply from agent.'
+  const harnessFailure = describeUnavailableHarness(text)
+  if (harnessFailure) return harnessFailure
   if (/OpenClaw agent database is unavailable while agent .* is deleted/i.test(text)) {
     return 'This agent was deleted from OpenClaw and can no longer chat. Close this chat and refresh Agents; recreate the agent if you still need it.'
   }

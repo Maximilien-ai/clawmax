@@ -24,7 +24,15 @@ function test(name: string, fn: () => void) {
 function run() {
   console.log(`\n${YELLOW}=== Workflow Runtime Errors Test Suite ===${RESET}\n`)
 
-  test('summarizeWorkflowParticipantFailure normalizes missing provider credentials', () => {
+  test('preserves the selected model and missing harness through repeated formatting', () => {
+  const raw = 'sessions.create: Model openai/example requires agent harness "codex", but no enabled plugin provides it. Restart the Gateway.'
+  const message = summarizeWorkflowParticipantFailure(raw)
+  assert(message.includes('openai/example') && message.includes('"codex"'), 'Expected model and harness details')
+  assert(message.includes('instance owner'), 'Expected an explicit remediation')
+  assert(summarizeWorkflowParticipantFailure(message) === message, 'Already formatted detail must survive a second pass')
+})
+
+test('summarizeWorkflowParticipantFailure normalizes missing provider credentials', () => {
     const message = summarizeWorkflowParticipantFailure('No API key found for provider "openai"')
     assert(/No model provider credentials are configured for this workflow run/i.test(message), `Unexpected message: ${message}`)
     assert(!/provider "openai"/i.test(message), 'Expected raw provider detail to be hidden')

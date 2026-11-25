@@ -1,6 +1,9 @@
+import { describeUnavailableHarness } from '../../../server/lib/harness-error'
 export function summarizeWorkflowParticipantFailure(message: string): string {
   const text = String(message || '').trim()
   if (!text) return 'Workflow participant failed.'
+  const harnessFailure = describeUnavailableHarness(text)
+  if (harnessFailure) return harnessFailure
   if (/^Agent reported failure:\s*/i.test(text)) {
     return summarizeWorkflowParticipantFailure(text.replace(/^Agent reported failure:\s*/i, ''))
   }

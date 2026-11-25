@@ -26,6 +26,14 @@ function assert(condition: boolean, message: string) {
 
 console.log(`\n${YELLOW}=== Chat Runtime Errors Test Suite ===${RESET}\n`)
 
+test('preserves the selected model and missing harness through repeated formatting', () => {
+  const raw = 'sessions.create: Model openai/example requires agent harness "codex", but no enabled plugin provides it. Restart the Gateway.'
+  const message = summarizeAgentChatFailure(raw)
+  assert(message.includes('openai/example') && message.includes('"codex"'), 'Expected model and harness details')
+  assert(message.includes('instance owner'), 'Expected an explicit remediation')
+  assert(summarizeAgentChatFailure(message) === message, 'Already formatted detail must survive a second pass')
+})
+
 test('model policy rejection survives gateway wrappers and repeated presentation', () => {
   const message = summarizeAgentChatFailure('Gateway error: Model override "ollama/qwen2.5:latest" is not allowed by agents.defaults.modelPolicy.allow')
   assert(/model is blocked/i.test(message), 'Expected model policy guidance')

@@ -399,6 +399,7 @@ test('deriveChatError tells Gateway failures apart without echoing raw details',
     ['gateway remote mode misconfigured: gateway.remote.url missing\nConfig: /x/openclaw.json', /^OpenClaw Gateway is set to remote mode without gateway\.remote\.url\./],
     ['gateway closed (1006): ', /^OpenClaw Gateway closed the connection \(code 1006\)\. It may be restarting/],
     // An unrecognized Gateway failure keeps the existing generic message.
+    ['Model openai/example requires agent harness "codex", but no enabled plugin provides it. Restart the Gateway.', /requires agent harness "codex".*instance owner/],
     ['gateway request failed: something new', /^Agent chat could not reach the gateway runtime\.$/],
   ]
   for (const [raw, expected] of cases) {
