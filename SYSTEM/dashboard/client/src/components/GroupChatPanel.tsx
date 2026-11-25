@@ -19,7 +19,7 @@ import { createPromptAttachment } from '../lib/promptAttachments'
 import { useAuth } from '../contexts/AuthContext'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
-import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
+import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, resolveWorkspaceDocPath, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import { shouldSendChatOnKeyDown } from '../lib/chatComposer'
 import { readChatComposerExpanded, saveChatComposerExpanded } from '../lib/chatComposerSize'
 
@@ -180,10 +180,23 @@ function GroupChatConversation({ channel, onClose, mode = 'overlay', onExpand, o
   ), [docEntries])
 
   const refreshDocEntries = React.useCallback(async () => {
-    const response = await fetch('/api/docs')
-    const data = response.ok ? await response.json() : {}
-    setDocEntries(parseWorkspaceDocEntriesResponse(data))
-  }, [])
+    const response = await fetch('/api/docs', { headers: { 'X-Clawmax-Workspace': workspaceId } })
+    if (!response.ok) throw new Error('Cannot read Documents in this workspace. Check workspace access and retry.')
+    const entries = parseWorkspaceDocEntriesResponse(await response.json())
+    if (live.current) setDocEntries(entries)
+    return entries
+  }, [workspaceId])
+
+  async function openChatDocument(file: string) {
+    try {
+      const target = resolveWorkspaceDocPath(file, await refreshDocEntries())
+      if (!live.current) return
+      if (!target) throw new Error('File unavailable or name ambiguous. Open Documents and search for its full workspace path.')
+      onNavigateToDoc?.(target)
+    } catch (err) {
+      if (live.current) setError(err instanceof Error ? err.message : 'Cannot open document.')
+    }
+  }
 
   useEffect(() => {
     fetchMessages()
@@ -824,14 +837,13 @@ function GroupChatConversation({ channel, onClose, mode = 'overlay', onExpand, o
       components={{
         table: ScrollableMarkdownTable,
         a: ({ href, children }) => {
-          if (href?.startsWith('workspace-file:') && onNavigateToDoc) {
-            const file = href.replace('workspace-file:', '')
-            const resolvedPath = resolveCommunicationDocPath(file, docEntries)
-            if (!resolvedPath) return <span>{children}</span>
+          const workspaceFile = href && (href.startsWith('workspace-file:') || /^(?:(?:AGENTS|WORKFLOWS|ORG|GROUPS|COMMUNITIES|SYSTEM)\/|[\w%.-]+\.[\w]+$)/.test(href))
+          if (workspaceFile && onNavigateToDoc) {
+            const file = href.replace(/^workspace-file:/, '')
             return (
               <button
                 type="button"
-                onClick={() => onNavigateToDoc(resolvedPath)}
+                onClick={() => void openChatDocument(file)}
                 className="text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 underline"
               >
                 {children}
@@ -1005,7 +1017,7 @@ function GroupChatConversation({ channel, onClose, mode = 'overlay', onExpand, o
                       <button
                         key={`${msg.id}-${path}`}
                         type="button"
-                        onClick={() => onNavigateToDoc(path)}
+                        onClick={() => void openChatDocument(path)}
                         className="cursor-pointer text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 underline decoration-sky-300 underline-offset-2 hover:bg-sky-200 hover:text-sky-900 dark:bg-sky-900/30 dark:text-sky-300 dark:decoration-sky-500 dark:hover:bg-sky-900/50"
                         title="Open in Documents"
                       >

@@ -4,8 +4,6 @@ import GroupChatPanel from '../components/GroupChatPanel'
 import { useToast } from '../components/Toast'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { buildBulkHistoryClearPlan, getChannelHistoryClearEndpoint } from '../lib/communicationBulkActions'
-import { resolveCommunicationDocPath } from '../lib/communicationMessages'
-import { parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import {
   headerPrimaryButtonClass,
   headerSecondaryButtonActiveClass,
@@ -69,9 +67,6 @@ interface Channel {
   members: Agent[]
 }
 
-interface DocEntry {
-  path: string
-}
 
 const STATUS_DOT: Record<string, string> = {
   online: 'bg-green-400',
@@ -90,7 +85,6 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const { showSuccess } = useToast()
   const { activeWorkspace } = useWorkspace()
   const [agents, setAgents] = useState<Agent[]>([])
-  const [docEntries, setDocEntries] = useState<DocEntry[]>([])
   const [workspaceCommunities, setWorkspaceCommunities] = useState<GroupEntry[]>([])
   const [workspaceGroups, setWorkspaceGroups] = useState<GroupEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -184,20 +178,6 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   }, [])
 
   useEffect(() => {
-    if (!isActive) return
-    let cancelled = false
-    fetch('/api/docs')
-      .then((r) => r.ok ? r.json() : {})
-      .then((data) => {
-        if (!cancelled) setDocEntries(parseWorkspaceDocEntriesResponse(data))
-      })
-      .catch(() => {
-        if (!cancelled) setDocEntries([])
-      })
-    return () => { cancelled = true }
-  }, [activeWorkspace?.id, isActive])
-
-  useEffect(() => {
     setChatPanelChannel(null)
     setSelectedChannelKeys(new Set())
     setHighlightedChannel(null)
@@ -211,11 +191,9 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   }, [activeWorkspace?.id])
 
   const handleNavigateToDoc = useCallback((target: string) => {
-    const resolvedPath = resolveCommunicationDocPath(target, docEntries)
-    if (!resolvedPath) return
     setChatPanelChannel(null)
-    onNavigateToDoc?.(resolvedPath)
-  }, [docEntries, onNavigateToDoc])
+    onNavigateToDoc?.(target)
+  }, [onNavigateToDoc])
 
   const closeChatPanel = useCallback(() => {
     setChatPanelChannel(null)
@@ -1263,7 +1241,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             channel={chatPanelChannel}
             onClose={closeChatPanel}
             mode="pane"
-            onNavigateToDoc={handleNavigateToDoc}
+            onNavigateToDoc={onNavigateToDoc && handleNavigateToDoc}
             onMessageSent={handleChatMessageSent}
           />
         </div>
@@ -1276,7 +1254,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         channel={chatPanelChannel}
         onClose={closeChatPanel}
         mode="overlay"
-        onNavigateToDoc={handleNavigateToDoc}
+        onNavigateToDoc={onNavigateToDoc && handleNavigateToDoc}
         onMessageSent={handleChatMessageSent}
       />
     )}

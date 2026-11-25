@@ -81,10 +81,12 @@ export function linkifyWorkspaceFiles(content: string): string {
   return content.split('\n').map((line) => {
     if (isFenced(line)) return line
     const codeSpans = Array.from(line.matchAll(/`[^`]*`/g), (span) => [span.index ?? 0, (span.index ?? 0) + span[0].length])
+    // Preserve authored Markdown links (including their labels and encoded destinations).
+    const links = Array.from(line.matchAll(/!?\[[^\]\n]*\]\([^\n)]*\)/g), match => [match.index!, match.index! + match[0].length])
     return line.replace(
       /(^|[\s(])((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg)|[A-Za-z0-9][A-Za-z0-9._-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg))(?!\])/gm,
       (match, prefix, target, offset: number) => {
-        if (codeSpans.some(([start, end]) => offset >= start && offset < end)) return match
+        if ([...codeSpans, ...links].some(([start, end]) => offset + prefix.length >= start && offset + prefix.length < end)) return match
         const normalized = normalizeWorkspaceFileTarget(target)
         if (!isOpenableWorkspaceFileMention(normalized)) return `${prefix}${target}`
         if (!normalized.includes('/')) {

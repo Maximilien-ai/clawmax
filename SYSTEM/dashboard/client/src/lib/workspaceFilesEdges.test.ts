@@ -19,6 +19,11 @@ function run() {
     ['AGENTS/jarvis/show.pdf']
   )
 
+  const authored = '[Open report](WORKFLOWS/outputs/team%20report.md)'
+  assert.strictEqual(linkifyWorkspaceFiles(authored), authored)
+  assert.strictEqual(resolveWorkspaceDocPath('WORKFLOWS/outputs/team%20report.md', [{ path: 'WORKFLOWS/outputs/team report.md' }]), 'WORKFLOWS/outputs/team report.md')
+  assert.strictEqual(resolveWorkspaceDocPath('WORKFLOWS/outputs/team%20report.md', []), null)
+
   const linked = linkifyWorkspaceFiles('Compare AGENTS/jarvis/show.pdf and auth-profiles.json before review.')
   assert(
     linked.includes('[AGENTS/jarvis/show.pdf](workspace-file:AGENTS/jarvis/show.pdf)'),
