@@ -1,3 +1,4 @@
+import { parseLogLine } from './logEntry'
 import assert from 'assert'
 import { detectLogRuntimeSignal } from './logRuntimeSignals'
 
@@ -39,6 +40,21 @@ test('returns null for ordinary healthy logs', () => {
     detectLogRuntimeSignal(['gateway started', 'status ok', 'logs tail connected']),
     null
   )
+})
+
+test('preserves historical offset and legacy timestamps without assigning subsystems to agents', () => {
+  for (const timestamp of ['2026-10-30T00:01:17.659+00:00', '2026-10-29T17:01:17.659-07:00', '2024-01-15 10:30:45']) {
+    const line = timestamp + ' info cron cron: job added'
+    assert.deepStrictEqual(parseLogLine(line), { timestamp, level: 'INFO', agent: undefined, message: line, raw: line })
+  }
+})
+
+test('attributes explicit agent fields and leaves continuation lines unattributed', () => {
+  assert.strictEqual(parseLogLine('[WARN] [agent:research] retry').agent, 'research')
+  for (const line of ['[System] Reading logs', 'Saved result', 'Return: OK']) {
+    assert.strictEqual(parseLogLine(line).agent, undefined)
+    assert.strictEqual(parseLogLine(line).timestamp, '—')
+  }
 })
 
 let passed = 0

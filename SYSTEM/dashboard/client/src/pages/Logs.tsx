@@ -3,13 +3,7 @@ import { detectDoctorRuntimeSignal } from '../lib/doctorRuntimeSignals'
 import { detectLogRuntimeSignal } from '../lib/logRuntimeSignals'
 import LogsActionsMenu from '../components/LogsActionsMenu'
 
-interface LogEntry {
-  timestamp: string
-  level: string
-  agent?: string
-  message: string
-  raw: string
-}
+import { parseLogLine, type LogEntry } from '../lib/logEntry'
 
 type DoctorResults = {
   healthy: boolean
@@ -61,6 +55,7 @@ export default function Logs() {
   const logsEndRef = useRef<HTMLDivElement>(null)
   const logsContainerRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const pausedRef = useRef(false)
   const pausedLogsBufferRef = useRef<LogEntry[]>([])
 
   useEffect(() => {
@@ -113,46 +108,17 @@ export default function Logs() {
       eventSourceRef.current = null
     }
     pausedLogsBufferRef.current = []
+    pausedRef.current = false
     setPaused(false)
     setRefreshNonce((value) => value + 1)
   }
 
-  // Parse log line into structured entry
-  const parseLogLine = (line: string): LogEntry => {
-    // Example formats:
-    // 2024-01-15 10:30:45 [INFO] [agent-name] Message here
-    // [agent-name] Message
-    // Or just plain text
-    const timestampMatch = line.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/)
-    const levelMatch = line.match(/\b(ERROR|WARN|WARNING|INFO|DEBUG)\b/i)
-
-    // Try multiple patterns for agent name
-    let agent: string | undefined
-    // Pattern 1: [agent-name]
-    const bracketMatch = line.match(/\[([a-z0-9_-]+)\]/i)
-    if (bracketMatch && bracketMatch[1] && !['ERROR', 'WARN', 'WARNING', 'INFO', 'DEBUG'].includes(bracketMatch[1].toUpperCase())) {
-      agent = bracketMatch[1]
-    }
-    // Pattern 2: agent:message or agent -
-    if (!agent) {
-      const colonMatch = line.match(/^([a-z0-9_-]+)[:|\s-]/i)
-      if (colonMatch) {
-        agent = colonMatch[1]
-      }
-    }
-
-    return {
-      timestamp: timestampMatch?.[1] || new Date().toISOString().split('T').join(' ').split('.')[0],
-      level: levelMatch?.[1]?.toUpperCase() || 'INFO',
-      agent,
-      message: line,
-      raw: line
-    }
-  }
-
   // Connect to SSE stream
   useEffect(() => {
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    let disposed = false
     const connectSSE = () => {
+      if (disposed) return
       setError(null)
       const eventSource = new EventSource('/api/system/logs')
       eventSourceRef.current = eventSource
@@ -168,7 +134,8 @@ export default function Logs() {
           if (data.line) {
             const entry = parseLogLine(data.line)
 
-            if (paused) {
+            if (pausedRef.current) {
+              if (pausedLogsBufferRef.current.length >= 1000) pausedLogsBufferRef.current.shift()
               pausedLogsBufferRef.current.push(entry)
             } else {
               setLogs(prev => [...prev, entry].slice(-1000)) // Keep last 1000 logs
@@ -187,18 +154,20 @@ export default function Logs() {
         setError('Log stream interrupted — retrying...')
         eventSource.close()
         // Retry after 3 seconds
-        setTimeout(connectSSE, 3000)
+        retryTimer = setTimeout(connectSSE, 3000)
       }
     }
 
     connectSSE()
 
     return () => {
+      disposed = true
+      clearTimeout(retryTimer)
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
       }
     }
-  }, [paused, refreshNonce])
+  }, [refreshNonce])
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -214,9 +183,11 @@ export default function Logs() {
   // Resume from pause - apply buffered logs
   const handleResume = () => {
     if (pausedLogsBufferRef.current.length > 0) {
-      setLogs(prev => [...prev, ...pausedLogsBufferRef.current].slice(-1000))
+      const buffered = pausedLogsBufferRef.current
+      setLogs(prev => [...prev, ...buffered].slice(-1000))
       pausedLogsBufferRef.current = []
     }
+    pausedRef.current = false
     setPaused(false)
   }
 
@@ -283,7 +254,10 @@ export default function Logs() {
               🩺 Doctor
             </button>
             <LogsActionsMenu paused={paused} autoScroll={autoScroll} empty={filteredLogs.length === 0}
-              onPauseResume={() => paused ? handleResume() : setPaused(true)}
+              onPauseResume={() => {
+                if (paused) handleResume()
+                else { pausedRef.current = true; setPaused(true) }
+              }}
               onAutoScroll={() => setAutoScroll(value => !value)} onRefresh={refreshLogs}
               onDownload={downloadLogs} onClear={() => { setLogs([]); pausedLogsBufferRef.current = [] }} />
           </div>
