@@ -544,8 +544,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const openWorkflowDoc = useCallback((target: string) => {
     if (!onNavigateToDoc) return
     const resolvedPath = resolveNavigableWorkspaceDocPath(target, docEntries)
-    if (!resolvedPath) return
-    onNavigateToDoc(resolvedPath)
+    // The output may have been created after the index was loaded. Documents
+    // checks access and displays the result of opening the named artifact.
+    const path = resolvedPath || resolveNavigableWorkspaceDocPath(target, [])
+    if (path) onNavigateToDoc(path)
   }, [docEntries, onNavigateToDoc])
 
   const collectionRequest = useRef(0)
@@ -2389,7 +2391,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                                           onClick={() => openWorkflowDoc(outputArtifactPath)}
                                           className="rounded border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30"
                                         >
-                                          Open Output File
+                                          Open output in Documents
                                         </button>
                                       )}
                                       <button

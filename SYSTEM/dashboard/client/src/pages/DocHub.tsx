@@ -290,9 +290,15 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   )
 
   useEffect(() => {
-    fetch('/api/docs')
-      .then(r => r.json())
+    const controller = new AbortController()
+    fetch('/api/docs', { signal: controller.signal })
+      .then(r => {
+        if (r.status === 403) throw new Error('You do not have permission to view Documents in this workspace.')
+        if (!r.ok) throw new Error('Documents could not be loaded. Refresh to try again.')
+        return r.json()
+      })
       .then(d => {
+        if (controller.signal.aborted) return
         const list: DocEntry[] = d.entries ?? []
         setEntries(list)
         // If initialFile provided, load it; otherwise load MASTER_PLAN
@@ -310,7 +316,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
         const mp = list.find(e => e.path === 'ORG/MASTER_PLAN.md') ?? list.find(e => e.path.endsWith('MASTER_PLAN.md'))
         if (mp) openEntry(mp)
       })
-      .catch(() => setError('Failed to load file list'))
+      .catch(err => { if (!controller.signal.aborted) setError(err.message || 'Failed to load file list') })
+    return () => controller.abort()
   }, [initialFile])
 
   useEffect(() => {
@@ -382,6 +389,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
     fetch(`/api/docs/content?path=${encodeURIComponent(path)}`)
       .then(r => {
+        if (r.status === 403) throw new Error('You do not have permission to open this file. Check access with the workspace owner.')
         if (r.status === 415) throw new Error('Preview and download are unavailable for this file type.')
         if (r.status === 404) throw new Error('File not found in this workspace.')
         if (!r.ok) throw new Error('Failed to load file')
@@ -1196,7 +1204,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                 )
               })}
 
-              {entries.length === 0 && (
+              {!error && entries.length === 0 && (
                 <p className="px-4 py-4 text-sm text-gray-400">No documents found</p>
               )}
             </div>

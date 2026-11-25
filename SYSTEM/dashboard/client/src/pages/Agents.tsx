@@ -3792,7 +3792,7 @@ const AgentCard = React.memo(function AgentCard({
                             className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
                           >
                             <ProductIconCell iconName="docs" label="Docs" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" />
-                            Docs
+                            Agent documents
                           </button>
                         )}
                       </div>
@@ -4335,9 +4335,9 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
             <button
               onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
               className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none"
-              title="View docs"
+              title="View agent documents"
             >
-              <ProductIconCell iconName="docs" label="View docs" size="sm" className="border-transparent bg-transparent text-current" />
+              <ProductIconCell iconName="docs" label="View agent documents" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           )}
         </div>
@@ -4449,7 +4449,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                           className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
                         >
                           <ProductIconCell iconName="docs" label="Docs" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" />
-                          Docs
+                          Agent documents
                         </button>
                       )}
                     </div>
