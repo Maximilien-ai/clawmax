@@ -56,6 +56,35 @@ function cleanup(value) {
   fs.rmSync(value.root, { recursive: true, force: true })
 }
 
+test('an omitted native transcript is bundled independently and missing transcript bytes block verification', () => {
+  const fx = fixture()
+  try {
+    const sessions = path.join(fx.state, 'agents', 'agent-one', 'sessions')
+    fs.mkdirSync(sessions, { recursive: true })
+    fs.writeFileSync(path.join(sessions, 'legacy.jsonl'), '{"type":"message"}\n')
+    createBundle({ ...fx, writersStopped: true })
+    const asset = path.join(fx.output, 'transcripts', '0')
+    assert.equal(fs.readFileSync(asset, 'utf8'), '{"type":"message"}\n')
+    fs.unlinkSync(asset)
+    assert.throws(() => verifyBundle(fx.output, fx), /transcript missing/)
+  } finally { cleanup(fx) }
+})
+
+test('a transcript removed during native backup blocks publication', () => {
+  const fx = fixture()
+  try {
+    const sessions = path.join(fx.state, 'agents', 'agent-one', 'sessions')
+    fs.mkdirSync(sessions, { recursive: true })
+    const transcript = path.join(sessions, 'vanishing.jsonl')
+    fs.writeFileSync(transcript, '{}\n')
+    const fake = fs.readFileSync(fx.openclawBin, 'utf8')
+    fs.writeFileSync(fx.openclawBin, fake.replace("  fs.writeFileSync(output,",
+      `  fs.unlinkSync(${JSON.stringify(transcript)})\n  fs.writeFileSync(output,`))
+    assert.throws(() => createBundle({ ...fx, writersStopped: true }))
+    assert.equal(fs.existsSync(fx.output), false)
+  } finally { cleanup(fx) }
+})
+
 test('offline backup inventories Dashboard data and verifies OpenClaw state without copying it raw', () => {
   const fx = fixture()
   try {
@@ -392,11 +421,36 @@ test('pinned OpenClaw migrates an isolated candidate', { skip: !process.env.CLAW
   const fx = fixture()
   try {
     const openclawBin = process.env.CLAWMAX_TEST_NATIVE_OPENCLAW
+    const sessions = path.join(fx.state, 'agents', 'agent-one', 'sessions')
+    fs.mkdirSync(sessions, { recursive: true })
+    const id = '11111111-1111-4111-8111-111111111111'
+    const sessionFile = path.join(sessions, id + '.jsonl')
+    const message = 'Synthetic transcript preservation fixture.'
+    fs.writeFileSync(path.join(sessions, 'sessions.json'), JSON.stringify({
+      'agent:agent-one:main': { sessionId: id, updatedAt: Date.now(), sessionFile },
+    }))
+    const timestamp = new Date().toISOString()
+    const events = [
+      { type: 'session', version: 3, id, timestamp, cwd: fx.dataRoot },
+      { type: 'message', id: 'fixture-message', parentId: null, timestamp,
+        message: { role: 'user', content: [{ type: 'text', text: message }], timestamp: Date.now() } },
+    ]
+    fs.writeFileSync(sessionFile, events.map(event => JSON.stringify(event)).join('\n') + '\n')
     createBundle({ dataRoot: fx.dataRoot, output: fx.output, writersStopped: true, openclawBin })
     fs.renameSync(fx.dataRoot, path.join(fx.root, 'original-DATA'))
     fs.mkdirSync(path.join(fx.dataRoot, '.home', '.openclaw'), { recursive: true })
     const result = restoreBundle({ bundle: fx.output, candidateRoot: fx.dataRoot, writersStopped: true, openclawBin })
     assert.equal(result.status, 'restored')
+    const reopened = spawnSync(process.execPath, ['--input-type=module', '-e', `
+      import { DatabaseSync } from 'node:sqlite'
+      const db = new DatabaseSync(process.argv[1], { readOnly: true })
+      const rows = db.prepare('SELECT event_json FROM transcript_events WHERE session_id = ?').all(process.argv[2])
+      const found = rows.some(row => JSON.parse(row.event_json).message?.content?.some(part => part.text === process.argv[3]))
+      db.close()
+      process.exit(found ? 0 : 1)
+    `, path.join(fx.state, 'agents', 'agent-one', 'agent', 'openclaw-agent.sqlite'), id, message])
+    assert.equal(reopened.status, 0, 'Known message must survive migration and database reopen')
+
     assert(fs.existsSync(path.join(fx.dataRoot, 'default', 'AGENTS', 'agent-one', 'IDENTITY.md')))
     assert(fs.existsSync(path.join(fx.root, 'original-DATA', '.home', '.openclaw', 'auth-profiles.json')))
   } finally { cleanup(fx) }

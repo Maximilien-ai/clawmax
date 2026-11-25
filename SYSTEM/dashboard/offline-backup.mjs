@@ -137,8 +137,36 @@ function collectData(source, destination, entries, directories, symlinks, relati
   }
 }
 
+// The native archive can omit legacy JSONL even when its session index is included.
+function transcriptInventory(state) {
+  const result = []
+  function entries(directory) {
+    const stat = fs.lstatSync(directory, { throwIfNoEntry: false })
+    if (!stat) return []
+    assert(stat.isDirectory(), 'unsupported_layout', 'Legacy session inventory requires real directories')
+    return fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))
+  }
+  for (const agent of entries(path.join(state, 'agents'))) {
+    assert(!agent.isSymbolicLink(), 'unsupported_layout', 'Linked agent requires operator review')
+    if (!agent.isDirectory()) continue
+    const sessions = path.join(state, 'agents', agent.name, 'sessions')
+    for (const file of entries(sessions)) {
+      assert(!file.isDirectory() && !file.isSymbolicLink(), 'unsupported_layout', 'Nested or linked session assets require operator review')
+      if (!file.name.includes('.jsonl')) continue
+      assert(file.isFile(), 'unsupported_file', 'Unsupported legacy transcript asset')
+      const relative = safeRelative(`agents/${agent.name}/sessions/${file.name}`)
+      result.push({ path: relative, sha256: sha256(path.join(state, relative)) })
+    }
+  }
+  return result
+}
+
+function transcriptAsset(bundle, index) {
+  return path.join(bundle, 'transcripts', String(index))
+}
+
 function validateManifest(manifest) {
-  assert(manifest && manifest.apiVersion === API_VERSION && manifest.kind === BUNDLE_KIND && [1, 2].includes(manifest.schemaVersion),
+  assert(manifest && manifest.apiVersion === API_VERSION && manifest.kind === BUNDLE_KIND && [1, 2, 3].includes(manifest.schemaVersion),
     'unsupported_bundle_version', 'Unsupported offline backup manifest')
   assert(typeof manifest.bundleId === 'string' && /^[0-9a-f-]{36}$/.test(manifest.bundleId), 'invalid_manifest', 'Invalid bundle ID')
   assert(Array.isArray(manifest.files) && Array.isArray(manifest.directories), 'invalid_manifest', 'Incomplete bundle inventory')
@@ -156,7 +184,7 @@ function validateManifest(manifest) {
     assert(!seen.has(name), 'invalid_manifest', 'Duplicate bundle path')
     seen.add(name)
   }
-  if (manifest.schemaVersion === 2) {
+  if (manifest.schemaVersion >= 2) {
     assert(Array.isArray(manifest.symlinks), 'invalid_manifest', 'Missing bundle link inventory')
     for (const entry of manifest.symlinks) {
       const name = safeRelative(entry?.path)
@@ -172,6 +200,18 @@ function validateManifest(manifest) {
         'invalid_manifest', 'Missing version provenance')
     }
   }
+  if (manifest.schemaVersion === 3) {
+    assert(Array.isArray(manifest.transcripts), 'invalid_manifest', 'Missing transcript inventory')
+    const paths = new Set()
+    for (const entry of manifest.transcripts) {
+      const name = safeRelative(entry?.path)
+      assert(/^agents\/[^/]+\/sessions\/[^/]+\.jsonl[^/]*$/.test(name) && !paths.has(name) &&
+        /^[a-f0-9]{64}$/.test(entry.sha256), 'invalid_manifest', 'Invalid transcript inventory')
+      paths.add(name)
+    }
+  } else {
+    assert(manifest.transcripts === undefined, 'invalid_manifest', 'Unsupported legacy transcript inventory')
+  }
   assert(manifest.openclaw?.archive === OPENCLAW_ARCHIVE && Number.isSafeInteger(manifest.openclaw.bytes)
     && /^[a-f0-9]{64}$/.test(manifest.openclaw.sha256), 'invalid_manifest', 'Missing OpenClaw archive inventory')
 }
@@ -186,6 +226,15 @@ export function verifyBundle(bundle, { home, openclawBin = 'openclaw' } = {}) {
   for (const entry of manifest.files) expected.add(`dashboard/${entry.path}`)
   for (const name of manifest.directories) expected.add(`dashboard/${name}`)
   for (const entry of manifest.symlinks || []) expected.add(`dashboard/${entry.path}`)
+  let transcriptBytes = 0
+  if (manifest.transcripts?.length) expected.add('transcripts')
+  for (const [index, entry] of (manifest.transcripts || []).entries()) {
+    expected.add(`transcripts/${index}`)
+    const asset = transcriptAsset(root, index)
+    assert(fs.lstatSync(path.dirname(asset), { throwIfNoEntry: false })?.isDirectory() && fs.lstatSync(asset, { throwIfNoEntry: false })?.isFile()
+      && sha256(asset) === entry.sha256, 'integrity_failed', 'Legacy transcript missing or changed')
+    transcriptBytes += fs.statSync(asset).size
+  }
   const actual = new Set()
   function walk(relative = '') {
     for (const dirent of fs.readdirSync(path.join(root, relative), { withFileTypes: true })) {
@@ -219,7 +268,8 @@ export function verifyBundle(bundle, { home, openclawBin = 'openclaw' } = {}) {
     openclawVersion: manifest.versions?.openclaw?.value || manifest.openclawVersion,
     versions: manifest.versions,
     assets: { files: manifest.files.length, symlinks: manifest.symlinks?.length || 0,
-      bytes: manifest.files.reduce((sum, entry) => sum + entry.bytes, 0) + archiveStat.size },
+      transcripts: manifest.transcripts?.length || 0,
+      bytes: transcriptBytes + manifest.files.reduce((sum, entry) => sum + entry.bytes, 0) + archiveStat.size },
     checks: { manifest: 'passed', hashes: 'passed', openclaw: 'passed' },
   }
 }
@@ -244,6 +294,7 @@ export function createBundle({ dataRoot, output, writersStopped = false, opencla
   const staging = path.join(parent, `.${path.basename(output)}.partial-${crypto.randomUUID()}`)
   fs.mkdirSync(staging, { mode: 0o700 })
   try {
+    const transcripts = transcriptInventory(state)
     const archive = path.join(staging, OPENCLAW_ARCHIVE)
     // Native publication may leave temporary siblings beside the verified archive.
     const nativeWork = fs.mkdtempSync(path.join(staging, '.native-'))
@@ -259,9 +310,19 @@ export function createBundle({ dataRoot, output, writersStopped = false, opencla
     const symlinks = []
     fs.mkdirSync(path.join(staging, 'dashboard'), { mode: 0o700 })
     collectData(source, path.join(staging, 'dashboard'), files, directories, symlinks)
+    if (transcripts.length) fs.mkdirSync(path.join(staging, 'transcripts'), { mode: 0o700 })
+    for (const [index, entry] of transcripts.entries()) {
+      const sourceFile = path.join(state, entry.path)
+      const asset = transcriptAsset(staging, index)
+      fs.copyFileSync(sourceFile, asset, fs.constants.COPYFILE_EXCL)
+      fs.chmodSync(asset, 0o600)
+    }
+    assert(JSON.stringify(transcripts) === JSON.stringify(transcriptInventory(state)),
+      'source_changed', 'Legacy transcript inventory changed during backup')
     const archiveStat = fs.statSync(archive)
     const manifest = {
-      apiVersion: API_VERSION, kind: BUNDLE_KIND, schemaVersion: 2,
+      apiVersion: API_VERSION, kind: BUNDLE_KIND, schemaVersion: transcripts.length ? 3 : 2,
+      ...(transcripts.length ? { transcripts } : {}),
       bundleId: crypto.randomUUID(), createdAt: new Date().toISOString(),
       versions: {
         dashboard: sourceVersion(sourceDashboardVersion),
@@ -402,6 +463,12 @@ export function restoreBundle({ bundle, candidateRoot, writersStopped = false, o
     }
 
     const state = path.join(candidate, '.home', '.openclaw')
+    for (const [index, entry] of (manifest.transcripts || []).entries()) {
+      const destination = path.join(state, entry.path)
+      assert(fs.realpathSync(path.dirname(destination)) === path.dirname(destination),
+        'unsafe_symlink', 'Legacy transcript destination is not a real sessions directory')
+      copyRestoredTree(transcriptAsset(bundleRoot, index), destination)
+    }
     assert(fs.existsSync(path.join(state, 'openclaw.json')), 'verification_failed', 'Restored OpenClaw config is missing')
     nativeOpenClaw(['doctor', '--fix', '--non-interactive', '--yes'], path.join(candidate, '.home'), openclawBin, 'migration_failed')
     assert(legacyMigrationSources(state).length === 0, 'migration_failed', 'Legacy auth or session index remains after migration')

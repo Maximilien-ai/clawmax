@@ -148,6 +148,22 @@ telemetry, CI artifacts, cloud storage, and routine logs. Retention/rotation
 can follow after the first recovery contract; it must not delete the last
 known-good checkpoint automatically.
 
+## Legacy transcript qualification
+
+Native OpenClaw 2026.9.7 can verify an archive that includes the legacy session
+index while omitting its JSONL messages. For a stopped source with transcript
+files directly under `agents/<agent>/sessions/`, the Dashboard helper writes a
+schema 3 bundle with separate, checksummed transcript assets. Restore verifies
+those assets and copies them into the candidate before running native migration.
+Older bundles cannot establish transcript completeness retrospectively. Keep the
+stopped original available until a known message is readable after restart.
+
+A disposable RC99 runtime with the patched helper restored a synthetic legacy
+auth/session fixture from two read-only source mounts. The known user message
+was returned by `chat.history` on the candidate gateway before and after a
+gateway restart. This exercise used a helper overlay and synthetic data. Image
+qualification, private clone recovery, and rollback remain release gates.
+
 ## Release gate and missing fixture
 
 The first acceptance fixture is the failed M4 installation's RC57 data
