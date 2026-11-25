@@ -245,8 +245,14 @@ export function createBundle({ dataRoot, output, writersStopped = false, opencla
   fs.mkdirSync(staging, { mode: 0o700 })
   try {
     const archive = path.join(staging, OPENCLAW_ARCHIVE)
-    nativeOpenClaw(['backup', 'create', '--output', archive, '--verify', '--json'], home, openclawBin)
-    assert(fs.existsSync(archive), 'openclaw_backup_failed', 'OpenClaw did not produce a verified archive')
+    // Native publication may leave temporary siblings beside the verified archive.
+    const nativeWork = fs.mkdtempSync(path.join(staging, '.native-'))
+    const nativeArchive = path.join(nativeWork, OPENCLAW_ARCHIVE)
+    nativeOpenClaw(['backup', 'create', '--output', nativeArchive, '--verify', '--json'], home, openclawBin)
+    assert(fs.lstatSync(nativeArchive, { throwIfNoEntry: false })?.isFile(),
+      'openclaw_backup_failed', 'OpenClaw did not produce a regular verified archive')
+    fs.renameSync(nativeArchive, archive)
+    fs.rmSync(nativeWork, { recursive: true })
     fs.chmodSync(archive, 0o600)
     const files = []
     const directories = []

@@ -32,6 +32,7 @@ function fixture() {
     "} else if (args[0] === 'backup' && args[1] === 'create') {",
     "  if (process.env.FAKE_OPENCLAW_LOCKED === 'true') { console.error('database is locked'); process.exit(1) }",
     "  const output = args[args.indexOf('--output') + 1]",
+    "  fs.mkdtempSync(path.join(path.dirname(output), '.openclaw-backup-publish-'))",
     "  fs.writeFileSync(output, 'verified-openclaw-archive')",
     "} else if (args[0] === 'backup' && args[1] === 'verify') {",
     "  if (fs.readFileSync(args[2], 'utf8') !== 'verified-openclaw-archive') process.exit(1)",
