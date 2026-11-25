@@ -164,8 +164,10 @@ const clientHostCases: Array<[Record<string, string>, 'localhost' | true]> = [
 for (const [env, host] of clientHostCases) {
   assert.equal(resolveDashboardClientHost(env as NodeJS.ProcessEnv), host, `Dev client host for ${JSON.stringify(env)}`)
 }
+assert.equal(resolveDashboardClientHost({ BYPASS_OAUTH: 'false' }, { BYPASS_OAUTH: 'true' }), 'localhost', 'An inherited bypass survives a conflicting file value')
+assert.equal(resolveDashboardClientHost({ BYPASS_OAUTH: 'true' }, { BYPASS_OAUTH: 'false' }), 'localhost', 'A file bypass survives a conflicting inherited value')
 const viteConfigSource = fs.readFileSync(path.resolve(__dirname, '..', '..', 'vite.config.ts'), 'utf8')
-assert(viteConfigSource.includes('host: resolveDashboardClientHost(dashboardEnv)'), 'The dev server must take its host from the auth-aware rule')
+assert(viteConfigSource.includes('host: resolveDashboardClientHost(dashboardEnv, process.env)'), 'The dev server must take its host from the auth-aware rule')
 const composeSource = fs.readFileSync(path.resolve(__dirname, '..', '..', '..', '..', 'docker-compose.yml'), 'utf8')
 assert(composeSource.includes('${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_PORT:-3001}:3001'), 'Compose must publish the dashboard on host loopback by default')
 

@@ -156,8 +156,8 @@ export function resolveDashboardBindHost(
  * the API takes it from the inherited environment, the dev server from .env, and a disagreement must
  * fail closed. `localhost` rather than 127.0.0.1 keeps the URL Vite prints equal to DASHBOARD_APP_URL.
  */
-export function resolveDashboardClientHost(env: NodeJS.ProcessEnv): 'localhost' | true {
-  return isDashboardAuthBypassRequested(env) && env.DASHBOARD_ALLOW_UNAUTHENTICATED_NETWORK_BIND !== 'true'
+export function resolveDashboardClientHost(env: NodeJS.ProcessEnv, inherited: NodeJS.ProcessEnv = env): 'localhost' | true {
+  return (isDashboardAuthBypassRequested(env) || isDashboardAuthBypassRequested(inherited)) && env.DASHBOARD_ALLOW_UNAUTHENTICATED_NETWORK_BIND !== 'true'
     ? 'localhost'
     : true
 }

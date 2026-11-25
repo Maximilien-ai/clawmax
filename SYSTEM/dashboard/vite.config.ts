@@ -22,7 +22,7 @@ export default defineConfig({
   plugins: [react({ jsxRuntime: 'automatic' })],
   server: {
     port: clientPort,
-    host: resolveDashboardClientHost(dashboardEnv), // External access only with authentication
+    host: resolveDashboardClientHost(dashboardEnv, process.env), // External access only with authentication
     allowedHosts,
     proxy: {
       '/api': {
