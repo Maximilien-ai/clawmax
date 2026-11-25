@@ -60,6 +60,7 @@ export interface WorkspaceMetering {
   }
   byAgent: AgentMetering[]
   byWorkflow: WorkflowMetering[]
+  coverage?: 'observed-traces'
   period: string
 }
 
@@ -230,6 +231,8 @@ export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<
   const agentMap = new Map<string, AgentMetering>()
   const workflowMap = new Map<string, WorkflowMetering>()
 
+  let totalTokens = 0
+  let totalCost = 0
   let totalInput = 0
   let totalOutput = 0
 
@@ -237,6 +240,11 @@ export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<
     const meta = trace.metadata || {}
     const traceCost = estimateTraceCostUsd(meta)
 
+    const tokens = meta.tokens_total ?? ((meta.tokens_input || 0) + (meta.tokens_output || 0))
+    totalTokens += tokens
+    totalInput += meta.tokens_input || 0
+    totalOutput += meta.tokens_output || 0
+    totalCost += traceCost
     if (trace.name.startsWith('agent.chat.')) {
       const agentId = meta.agent_id || trace.name.replace('agent.chat.', '')
       const existing = agentMap.get(agentId) || createEmptyAgentMetering(agentId)
@@ -244,7 +252,7 @@ export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<
       existing.totalCalls++
       existing.totalInputTokens += meta.tokens_input || 0
       existing.totalOutputTokens += meta.tokens_output || 0
-      existing.totalTokens += meta.tokens_total || 0
+      existing.totalTokens += tokens
       existing.estimatedCostUsd += traceCost
       existing.avgDurationMs = ((existing.avgDurationMs * (existing.totalCalls - 1)) + (meta.duration_ms || 0)) / existing.totalCalls
       if (!existing.lastActivity || trace.start_time > existing.lastActivity) {
@@ -253,8 +261,6 @@ export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<
       const model: string = meta.model || 'unknown'
       ;(existing.models as Record<string, number>)[model] = ((existing.models as Record<string, number>)[model] || 0) + 1
 
-      totalInput += meta.tokens_input || 0
-      totalOutput += meta.tokens_output || 0
       agentMap.set(agentId, existing)
 
       if (meta.workflow_id) {
@@ -268,7 +274,7 @@ export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<
           avgDurationMs: 0,
           lastRun: '',
         }
-        workflowExisting.totalTokens += meta.tokens_total || 0
+        workflowExisting.totalTokens += tokens
         workflowExisting.estimatedCostUsd += traceCost
         if (!workflowExisting.lastRun || trace.start_time > workflowExisting.lastRun) {
           workflowExisting.lastRun = trace.start_time
@@ -288,7 +294,7 @@ export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<
       }
 
       existing.totalRuns++
-      existing.totalTokens += meta.tokens_total || 0
+      existing.totalTokens += tokens
       existing.estimatedCostUsd += traceCost
       existing.avgDurationMs = ((existing.avgDurationMs * (existing.totalRuns - 1)) + (meta.duration_ms || 0)) / existing.totalRuns
       if (!existing.lastRun || trace.start_time > existing.lastRun) {
@@ -301,14 +307,13 @@ export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<
 
   const byAgent = Array.from(agentMap.values()).sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd)
   const byWorkflow = Array.from(workflowMap.values()).sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd)
-  const totalCost = byAgent.reduce((s, a) => s + a.estimatedCostUsd, 0)
   const dailyCost = buildDailyCostSeries(traces)
 
   return {
     totalTraces: traces.length,
     totalInputTokens: totalInput,
     totalOutputTokens: totalOutput,
-    totalTokens: totalInput + totalOutput,
+    totalTokens,
     estimatedCostUsd: Math.round(totalCost * 10000) / 10000,
     dailyCost,
     costSummary: summarizeCostWindows(dailyCost),
@@ -321,8 +326,8 @@ export function buildDailyCostSeries(traces: TraceData[], days = 7): Array<{ dat
   const buckets = new Map<string, { date: string; estimatedCostUsd: number; traceCount: number }>()
   for (let i = days - 1; i >= 0; i -= 1) {
     const date = new Date()
-    date.setHours(0, 0, 0, 0)
-    date.setDate(date.getDate() - i)
+    date.setUTCHours(0, 0, 0, 0)
+    date.setUTCDate(date.getUTCDate() - i)
     const isoDate = date.toISOString().slice(0, 10)
     buckets.set(isoDate, { date: isoDate, estimatedCostUsd: 0, traceCount: 0 })
   }
@@ -379,12 +384,13 @@ function getWorkspaceTraceIds(workspaceId?: string): string[] {
 const METERING_CACHE_TTL_MS = 30_000
 
 interface MeteringCacheEntry {
+  traces: TraceData[]
   data: WorkspaceMetering
   fetchedAt: number
-  refreshPromise?: Promise<WorkspaceMetering>
 }
 
 const meteringCache = new Map<string, MeteringCacheEntry>()
+const pendingMetering = new Map<string, Promise<WorkspaceMetering>>()
 
 function getViewerCacheKey(viewer?: MeteringViewer): string {
   if (!viewer) return 'viewer:public'
@@ -557,11 +563,11 @@ function fetchOpikTraces(projectName: string, size: number = 100): Promise<Trace
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data)
+          if (res.statusCode !== 200 || !Array.isArray(parsed.content)) throw new Error()
           clearMeteringFetchFailureState()
-          resolve(parsed.content || [])
+          resolve(parsed.content)
         } catch {
-          clearMeteringFetchFailureState()
-          resolve([])
+          reject(new Error('Metering provider is unavailable'))
         }
       })
     })
@@ -570,7 +576,7 @@ function fetchOpikTraces(projectName: string, size: number = 100): Promise<Trace
       if (message) {
         console.warn('[Metering] Failed to fetch traces:', message)
       }
-      resolve([])
+      reject(new Error('Metering provider is unavailable'))
     })
     req.end()
   })
@@ -627,6 +633,22 @@ export function traceMatchesWorkspace(trace: Pick<TraceData, 'metadata'>, worksp
   return typeof id === 'string' && workspaceIds.has(id)
 }
 
+// Keep only accounting fields from traces already admitted for this viewer and workspace.
+export function reconcileObservedTraces(previous: TraceData[], next: TraceData[]): TraceData[] {
+  const byId = new Map(previous.map(trace => [trace.id, trace]))
+  for (const trace of next) {
+    if (!trace.id) throw new Error('Metering trace is missing its identifier')
+    const metadata: Record<string, any> = {}
+    for (const key of ['agent_id', 'workflow_id', 'workflow_name', 'model', 'tokens_input', 'tokens_output', 'tokens_total', 'estimated_cost_usd', 'duration_ms']) {
+      if (trace.metadata?.[key] !== undefined) metadata[key] = trace.metadata[key]
+    }
+    byId.delete(trace.id)
+    byId.set(trace.id, { id: trace.id, name: trace.name, start_time: trace.start_time, end_time: trace.end_time, metadata })
+  }
+  // Bound the retained observation window per workspace, viewer and period.
+  return [...byId.values()].slice(-10000)
+}
+
 export async function getWorkspaceMetering(workspaceId?: string, viewer?: MeteringViewer, period: 'all' | 'month' = 'all'): Promise<WorkspaceMetering> {
   const scopedWorkspaceId = workspaceId || getWorkspaceManager().getActiveWorkspace().id
   const requestTime = new Date()
@@ -649,31 +671,21 @@ export async function getWorkspaceMetering(workspaceId?: string, viewer?: Meteri
       // legacy trace cannot safely be charged to any workspace budget.
       return traceMatchesWorkspace(trace, workspaceIds)
     })
+    const observed = reconcileObservedTraces(meteringCache.get(cacheKey)?.traces ?? [], traces)
     const fresh = {
-      ...aggregateWorkspaceMeteringFromTraces(traces),
+      coverage: 'observed-traces' as const,
+      ...aggregateWorkspaceMeteringFromTraces(observed),
       period,
     }
     const enrichedFresh = enrichWorkspaceMeteringWithAgentMetadata(fresh, getWorkspaceAgentMetadata(scopedWorkspaceId))
-    const previous = meteringCache.get(cacheKey)?.data
-    const merged = previous ? mergeWorkspaceMetering(previous, enrichedFresh) : enrichedFresh
-    meteringCache.set(cacheKey, {
-      data: merged,
-      fetchedAt: Date.now(),
-    })
-    return merged
+    meteringCache.set(cacheKey, { data: enrichedFresh, traces: observed, fetchedAt: Date.now() })
+    return enrichedFresh
   }
 
-  if (cached?.data) {
-    if (!cached.refreshPromise && now - cached.fetchedAt >= METERING_CACHE_TTL_MS) {
-      cached.refreshPromise = fetchFresh()
-        .catch(() => cached.data)
-        .finally(() => {
-          const latest = meteringCache.get(cacheKey)
-          if (latest) delete latest.refreshPromise
-        })
-    }
-    return cached.data
-  }
-
-  return fetchFresh()
+  if (cached && now - cached.fetchedAt < METERING_CACHE_TTL_MS) return cached.data
+  const pending = pendingMetering.get(cacheKey)
+  if (pending) return pending
+  const refresh = fetchFresh().finally(() => { pendingMetering.delete(cacheKey) })
+  pendingMetering.set(cacheKey, refresh)
+  return refresh
 }

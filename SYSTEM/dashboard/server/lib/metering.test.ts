@@ -10,6 +10,7 @@ import {
   enrichWorkspaceMeteringWithAgentMetadata,
   getMeteringPeriodCacheSuffix,
   mergeWorkspaceMetering,
+  reconcileObservedTraces,
   recordMeteringFetchFailure,
   resetMeteringFetchFailureStateForTests,
   summarizeCostWindows,
@@ -45,6 +46,20 @@ function assert(condition: boolean, message: string) {
 console.log(`\n${YELLOW}=== Metering Test Suite ===${RESET}\n`)
 
 async function run() {
+  await test('overlapping and repeated observations count each trace once across breakdowns', () => {
+    const trace = (id: string, cost: number) => ({ id, name: 'agent.chat.' + id, start_time: new Date().toISOString(), end_time: '', metadata: { workflow_id: 'pipeline', tokens_total: 10, estimated_cost_usd: cost, prompt: 'private' } })
+    const a = trace('a', 1)
+    const b = trace('b', 2)
+    const c = trace('c', 3)
+    let seen = reconcileObservedTraces([a], [b])
+    seen = reconcileObservedTraces(seen, [b, c])
+    seen = reconcileObservedTraces(seen, [b, c])
+    const totals = aggregateWorkspaceMeteringFromTraces(seen)
+    assert(totals.totalTraces === 3 && totals.totalTokens === 30, 'Distinct usage survives repeated windows')
+    assert(totals.estimatedCostUsd === 6 && totals.costSummary.last7dCostUsd === 6, 'Daily and header cost agree')
+    assert(totals.byWorkflow[0].estimatedCostUsd === 6, 'Workflow attribution does not double count the header')
+    assert(!('prompt' in seen.find(t => t.id === 'b')!.metadata), 'Cache retains only accounting fields')
+  })
   await test('workspace spend excludes unscoped and other-workspace traces even when agent IDs overlap', () => {
     const ids = new Set(['workspace-a', 'workspace-a-path'])
     assert(traceMatchesWorkspace({ metadata: { workspace_id: 'workspace-a', agent_id: 'collector' } }, ids), 'Expected current workspace trace')

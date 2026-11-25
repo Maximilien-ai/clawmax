@@ -37,3 +37,8 @@ November 25 follow-up: PUT configuration and PATCH model now defer workspace edi
 
 - #359 preserves ISO timestamps including offset and fractional seconds, and legacy timestamps. Untimed continuation lines have no occurrence time. Explicit agent fields populate the agent filter.
 - #360 keeps the same stream through pause/resume. Chrome with a controlled log stream at 1440 and 390 px passed two pause/resume cycles per width. The download contained the historical line once and both identical new events in order. The six log helper tests and standard Dashboard TypeScript check passed.
+
+### Activity and metering batch
+
+- #361: Chrome at 1440 and 390 px received simulated activity and metering HTTP 503s, recovered to populated metering, retained $1.48 through a failed refresh with a stale notice, then recovered to genuine empty results. Provider request and parse failures now propagate as errors.
+- #362: The metering API reconciles scoped observations by trace ID before deriving header totals and breakdowns. It reports an observed window of up to 10,000 traces per cache key since startup. The focused metering suite passed 50 cases, including disjoint, overlapping and replayed windows, and the budget suite passed eight. Standard Dashboard TypeScript passed.

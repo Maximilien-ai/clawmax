@@ -10,6 +10,7 @@ import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 
 interface MeteringData {
+  coverage?: string
   enabled?: boolean
   reason?: string
   totalTraces: number
@@ -37,17 +38,6 @@ interface MeteringData {
     totalTokens: number
     estimatedCostUsd: number
   }>
-}
-
-const EMPTY_METERING: MeteringData = {
-  enabled: true,
-  totalTraces: 0,
-  totalInputTokens: 0,
-  totalOutputTokens: 0,
-  totalTokens: 0,
-  estimatedCostUsd: 0,
-  byAgent: [],
-  byWorkflow: [],
 }
 
 const cachedActivityMeteringByWorkspace: Record<string, MeteringData | null> = {}
@@ -149,6 +139,9 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   const [showDoctor, setShowDoctor] = useState(false)
   const [metering, setMetering] = useState<MeteringData | null>(cachedActivityMeteringByWorkspace[workspaceCacheKey] ?? null)
   const [meteringLoading, setMeteringLoading] = useState(!(cachedActivityMeteringByWorkspace[workspaceCacheKey] ?? null))
+  const [meteringError, setMeteringError] = useState(false)
+  const feedRequest = useRef(0)
+  const usageRequest = useRef(0)
   const [showMetering, setShowMetering] = useState(true)
   const [costBudgetEnabled, setCostBudgetEnabled] = useState(cachedActivityCostBudgetEnabledByWorkspace[workspaceCacheKey] ?? true)
   const [costBudgetReason, setCostBudgetReason] = useState(cachedActivityCostBudgetReasonByWorkspace[workspaceCacheKey] ?? '')
@@ -166,6 +159,10 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
     const nextBudgetEnabled = cachedActivityCostBudgetEnabledByWorkspace[workspaceCacheKey] ?? true
     const nextBudgetReason = cachedActivityCostBudgetReasonByWorkspace[workspaceCacheKey] ?? ''
 
+    setError(null)
+    setFeed([])
+    setLoading(true)
+    setMeteringError(false)
     setMetering(nextMetering)
     setMeteringLoading(!nextMetering)
     setBudget(nextBudget)
@@ -193,27 +190,35 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   }
 
   const fetchFeed = useCallback(() => {
+    const request = ++feedRequest.current
     fetch('/api/activity')
       .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load activity')))
       .then(d => {
-        setFeed(Array.isArray(d.feed) ? d.feed : [])
+        if (request !== feedRequest.current) return
+        if (!Array.isArray(d?.feed)) throw new Error('Invalid activity response')
+        setFeed(d.feed)
         setError(null)
         setLoading(false)
         setLastRefreshed(Date.now())
       })
-      .catch((err) => {
-        console.warn('Failed to load activity:', err)
+      .catch(() => {
+        if (request !== feedRequest.current) return
+        setError('File activity is unavailable. Use Refresh to retry.')
         setLoading(false)
       })
   }, [])
 
   const fetchMetering = useCallback(() => {
+    const request = ++usageRequest.current
     if (!cachedActivityMeteringByWorkspace[workspaceCacheKey]) {
       setMeteringLoading(true)
     }
     fetch(buildWorkspaceScopedPath('/api/metering', activeWorkspace?.id))
-      .then(r => r.ok ? r.json() : null)
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('Metering unavailable')))
       .then(d => {
+        if (request !== usageRequest.current) return
+        if (d?.enabled !== false && !isMeteringResponse(d)) throw new Error('Invalid metering response')
+        setMeteringError(false)
         if (d && d.enabled === false) {
           setCostBudgetEnabled(false)
           setCostBudgetReason(typeof d.reason === 'string' ? d.reason : 'Opik is not configured for this instance.')
@@ -227,17 +232,14 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
         setCostBudgetReason('')
         cachedActivityCostBudgetEnabledByWorkspace[workspaceCacheKey] = true
         cachedActivityCostBudgetReasonByWorkspace[workspaceCacheKey] = ''
-        const nextMetering = isMeteringResponse(d) ? d : EMPTY_METERING
+        const nextMetering = d
         cachedActivityMeteringByWorkspace[workspaceCacheKey] = nextMetering
         setMetering(nextMetering)
       })
       .catch(() => {
-        if (!cachedActivityMeteringByWorkspace[workspaceCacheKey]) {
-          cachedActivityMeteringByWorkspace[workspaceCacheKey] = EMPTY_METERING
-          setMetering(EMPTY_METERING)
-        }
+        if (request === usageRequest.current) setMeteringError(true)
       })
-      .finally(() => setMeteringLoading(false))
+      .finally(() => { if (request === usageRequest.current) setMeteringLoading(false) })
   }, [activeWorkspace?.id, workspaceCacheKey])
 
   const fetchAgentCostLimits = useCallback(() => {
@@ -284,7 +286,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   useEffect(() => {
     refreshActivityPage()
     const interval = setInterval(fetchFeed, 30000)
-    return () => clearInterval(interval)
+    return () => { clearInterval(interval); feedRequest.current++; usageRequest.current++ }
   }, [fetchFeed, refreshActivityPage])
 
   useEffect(() => {
@@ -478,6 +480,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
         </div>
       )}
 
+      {meteringError && <p role="status" className="mb-4 text-sm">Metering is unavailable. {metering && 'Showing the last successful reading. '}Use Refresh to retry.</p>}
       {/* Metering Stats */}
       {costBudgetEnabled && metering && showMetering && (
         <div className="mb-6">
@@ -485,11 +488,12 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Token Metering</h2>
             <button onClick={() => setShowMetering(false)} className="text-xs text-gray-400 hover:text-gray-600">Hide</button>
           </div>
+          {metering.coverage === 'observed-traces' && <p className="mb-2 text-xs text-gray-500">Totals cover up to 10,000 traces observed by this dashboard since startup.</p>}
           {meteringLoading ? (
             <div className="mb-4 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 px-4 py-3 text-sm text-sky-800 dark:text-sky-200">
               Collecting Opik metering data for this workspace…
             </div>
-          ) : metering.totalTraces === 0 ? (
+          ) : !meteringError && metering.totalTraces === 0 ? (
             <div className="mb-4 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
               No metering data yet. Run an agent or workflow and this workspace will start showing token and cost activity once traces arrive.
             </div>
@@ -609,7 +613,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
         </div>
       )}
 
-      {!loading && !error && rows.length > 0 && (
+      {!loading && rows.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 shadow-sm overflow-hidden dark:border-gray-700">
           <table className="w-full text-sm">
             <thead>
