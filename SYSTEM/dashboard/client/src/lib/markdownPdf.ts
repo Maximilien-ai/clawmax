@@ -1,3 +1,4 @@
+import { documentReference } from './documentReference'
 import { decodeString } from 'micromark-util-decode-string'
 import { presentCitationMarkers } from './citationPresentation'
 import { lexer, type Token, type Tokens } from 'marked'
@@ -15,13 +16,8 @@ export function markdownBody(source: string): string {
 
 // Never fetch arbitrary URLs, including same-origin API URLs embedded in a document.
 export function workspaceImagePath(documentPath: string, href: string): string | null {
-  if (!href || /^(?:[a-z][\w+.-]*:|\/|\\)/i.test(href) || /[?#\\]/.test(href)) return null
-  const parts = documentPath.split('/').slice(0, -1)
-  for (const part of href.split('/')) {
-    if (part === '..') { if (parts.length <= 1) return null; parts.pop() }
-    else if (part && part !== '.') parts.push(part)
-  }
-  const path = parts.join('/')
+  const path = documentReference(documentPath, href)
+  if (!path) return null
   return /\.(png|jpe?g)$/i.test(path) ? path : null
 }
 

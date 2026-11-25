@@ -1,12 +1,26 @@
+import { documentReference } from '../lib/documentReference'
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from './PresentedMarkdown'
 import remarkGfm from 'remark-gfm'
 import { createDocumentPdfSession, type PdfArtifact } from '../lib/documentPdfSession'
 import { isStalePdfAssetError } from '../lib/pdfLoadError'
 
+function WorkspaceImage({ path, alt }: { path: string; alt?: string }) {
+  const [url, setUrl] = useState('')
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('/api/docs/content?path=' + encodeURIComponent(path), { signal: controller.signal })
+      .then(async response => response.ok ? response.json() : null)
+      .then(data => { if (!controller.signal.aborted && data?.kind === 'image') setUrl(data.dataUrl) })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [path])
+  return url ? <img src={url} alt={alt || ''} /> : <span>{alt || 'Image'} (image unavailable)</span>
+}
+
 const buttonClass = 'rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800'
 
-export function MarkdownDocumentViewer({ source, path, onDownloadMarkdown }: { source: string; path: string; onDownloadMarkdown: () => void }) {
+export function MarkdownDocumentViewer({ source, path, onDownloadMarkdown, onOpenDocument }: { source: string; path: string; onDownloadMarkdown: () => void; onOpenDocument?: (target: string) => void }) {
   const [view, setView] = useState<'preview' | 'markdown' | 'pdf'>('preview')
   const [artifact, setArtifact] = useState<PdfArtifact | null>(null)
   const [busy, setBusy] = useState(false)
@@ -70,7 +84,17 @@ export function MarkdownDocumentViewer({ source, path, onDownloadMarkdown }: { s
       ? <button className={buttonClass} onClick={() => window.location.reload()}>Reload dashboard</button>
       : <button className={buttonClass} onClick={() => void preparePdf()}>Retry PDF</button>}</div>}
     {artifact && artifact.warnings.length > 0 && <div role="status" className="rounded border border-amber-300 p-3 text-sm text-amber-800 dark:text-amber-200">{artifact.warnings.join(' ')}</div>}
-    {view === 'preview' && <div className="prose max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{source.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim()}</ReactMarkdown></div>}
+    {view === 'preview' && <div className="prose max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+      a: ({ href, children }) => {
+        const target = documentReference(path, href || '')
+        if (target && onOpenDocument) return <button className="text-sky-600 underline" onClick={() => onOpenDocument(target)}>{children}</button>
+        return href && /^(https?:|mailto:|#)/i.test(href) ? <a href={href}>{children}</a> : <span>{children}</span>
+      },
+      img: ({ src, alt }) => {
+        const target = documentReference(path, src || '')
+        return target ? <WorkspaceImage key={target} path={target} alt={alt} /> : <img src={src && /^https?:/i.test(src) ? src : undefined} alt={alt} />
+      },
+    }}>{source.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim()}</ReactMarkdown></div>}
     {view === 'markdown' && <pre className="whitespace-pre-wrap break-words rounded bg-gray-50 p-4 text-sm text-gray-800 dark:bg-gray-900 dark:text-gray-200">{source}</pre>}
     {view === 'pdf' && artifact && <div className="space-y-2">
       <p className="text-xs text-gray-600 dark:text-gray-300">Generated locally from the saved document. Preview unavailable? <a className="underline" href={artifact.url} download={(path.split('/').pop() || 'document.md').replace(/\.md$/i, '') + '.pdf'}>Download PDF</a></p>

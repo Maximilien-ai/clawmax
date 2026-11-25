@@ -1451,7 +1451,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   ) : selectedIsTextPreview ? (
                     <pre className="whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">{content}</pre>
                   ) : previewKind === 'markdown' ? (
-                    <MarkdownDocumentViewer key={`${selected}\u0000${content}`} source={content} path={selected} onDownloadMarkdown={downloadSelectedFile} />
+                    <MarkdownDocumentViewer key={`${selected}\u0000${content}`} source={content} path={selected} onOpenDocument={loadFile} onDownloadMarkdown={downloadSelectedFile} />
                   ) : (
                     <div className="prose">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(content)}</ReactMarkdown>
