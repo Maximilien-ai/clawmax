@@ -1865,6 +1865,13 @@ async function run() {
     modelDiscovery.getAvailableModelsCached = () => ['ollama/qwen2.5:latest']
     childProcess.spawn = (command: string, args: string[]) => {
       spawnCalls.push({ command, args })
+      if (args[2]?.startsWith('cli-policy-')) {
+        const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+        const roster = require('../lib/openclaw-config')
+        roster.materializeDashboardAgentList(config).push({ id: args[2], workspace: args[args.indexOf('--workspace') + 1] })
+        roster.writeDashboardManagedOpenClawConfig(configPath, config, 'test native registration')
+      }
       const listeners: Record<string, Function> = {}
       return {
         stdout: { on() {} },
@@ -1905,6 +1912,29 @@ async function run() {
       assert(addCall, 'Expected openclaw agents add to be invoked')
       assert(addCall!.args.includes('openai/gpt-5'), 'Expected provisioning to keep the preferred hosted model')
       assert(!writes.some(chunk => chunk.includes('Using fallback model: "ollama/qwen2.5:latest"')), 'Expected provisioning to avoid falling back to the local Ollama model')
+
+      const runtimeCatalog = require('../lib/agent-runtime')
+      const originalCatalog = runtimeCatalog.listRuntimeModels
+      try {
+        runtimeCatalog.listRuntimeModels = async () => ['haiku', 'sonnet', 'claude-haiku-5-5']
+        for (const model of ['haiku', 'sonnet', 'claude-haiku-5-5']) {
+          const runtime = model === 'claude-haiku-5-5' ? 'droid' : 'claude'
+          const name = 'cli-policy-' + model
+          const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+          const before = JSON.parse(fs.readFileSync(configPath, 'utf8')).agents.defaults
+          writes.length = 0
+          const response = { ...res, writableEnded: false }
+          await handler(makeReq({ body: { name, model, runtime }, on() {} }), response)
+          for (let attempt = 0; !response.writableEnded && attempt < 50; attempt++) await new Promise(resolve => setTimeout(resolve, 10))
+          const add = spawnCalls.find(call => call.args.slice(0, 3).join(' ') === 'agents add ' + name)
+          assert(add && !add.args.includes('--model'), 'CLI model must stay out of native registration: ' + model)
+          assert(fs.readFileSync(path.join(workspacePath, 'AGENTS', name, 'IDENTITY.md'), 'utf8').includes(model))
+          assert(writes.some(chunk => chunk.includes('"type":"done"')), 'Expected completed provision')
+          assert.deepStrictEqual(JSON.parse(fs.readFileSync(configPath, 'utf8')).agents.defaults, before, 'Dashboard must not append a CLI model to native policy')
+        }
+      } finally {
+        runtimeCatalog.listRuntimeModels = originalCatalog
+      }
     } finally {
       childProcess.spawn = originalSpawn
       modelDiscovery.getAvailableModelsCached = originalGetAvailableModelsCached

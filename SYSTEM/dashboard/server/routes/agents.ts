@@ -1079,6 +1079,7 @@ router.post('/provision', async (req, res) => {
   }
 
   const provisionRuntime = normalizeAgentRuntime(runtime)
+  const registerOpenClawModel = (provisionRuntime || resolveWorkspaceRuntime()) === 'openclaw'
   const provisionRuntimeModels = provisionRuntime ? await listRuntimeModels(provisionRuntime) : []
   // Never write an agent whose pinned runtime cannot run its model. The pair was only checked at
   // chat time, so a mismatch reached disk and surfaced later as a runtime error on the agent's
@@ -1094,7 +1095,7 @@ router.post('/provision', async (req, res) => {
     return
   }
   // The same guarantee for OpenClaw, whose catalog is what resolves provider models at chat time.
-  const openClawModelRejection = (provisionRuntime || resolveWorkspaceRuntime()) === 'openclaw'
+  const openClawModelRejection = registerOpenClawModel
     ? describeOpenClawModelRejection([
       { model: resolvedModel, label: 'primary model' },
       { model: backupModel ? normalizeAgentModelInput(backupModel) : undefined, label: 'backup model' },
@@ -1207,11 +1208,17 @@ router.post('/provision', async (req, res) => {
 
   const syncProvisionedAgentModels = () => {
     const identityPath = path.join(getAgentsDir(), validatedName, 'IDENTITY.md')
-    const configUpdate = updateAgentModelInConfig(validatedName, validatedModel)
+    // External CLI model names belong to the workspace identity. OpenClaw still
+    // registers the agent but cannot validate or authorize those model names.
+    const configUpdate: AgentModelConfigUpdateResult = registerOpenClawModel
+      ? updateAgentModelInConfig(validatedName, validatedModel)
+      : { ok: true, model: validatedModel }
     if (!configUpdate.ok) {
       throw new Error(configUpdate.error || 'Failed to update live model config')
     }
-    const backupConfigUpdate = updateAgentBackupModelInConfig(validatedName, validatedBackupModel)
+    const backupConfigUpdate: AgentModelConfigUpdateResult = registerOpenClawModel
+      ? updateAgentBackupModelInConfig(validatedName, validatedBackupModel)
+      : { ok: true, backupModel: validatedBackupModel }
     if (!backupConfigUpdate.ok) {
       throw new Error(backupConfigUpdate.error || 'Failed to update live backup model config')
     }
@@ -1339,7 +1346,7 @@ router.post('/provision', async (req, res) => {
   }
 
   const args: string[] = ['agents', 'add', validatedName, '--workspace', workspaceArg, '--agent-dir', agentDirArg, '--non-interactive']
-  if (normalizedModel) args.push('--model', normalizedModel)
+  if (registerOpenClawModel && normalizedModel) args.push('--model', normalizedModel)
   // --port is not supported by openclaw agents add command
   // --whatsapp is not supported by current openclaw agents add builds; WhatsApp is linked later via the pairing route.
   // Profile support removed - not currently used
@@ -1393,7 +1400,7 @@ router.post('/provision', async (req, res) => {
       if (!fs.existsSync(configPath)) {
         const configContent = [
           `name: ${validatedName}`,
-          `model: ${normalizedModel || 'anthropic/claude-sonnet-4-20250514'}`,
+          ...(registerOpenClawModel ? [`model: ${normalizedModel}`] : []),
           `workspace: ${workspaceArg}`,
           `created: ${new Date().toISOString()}`,
         ].join('\n')
@@ -1401,6 +1408,14 @@ router.post('/provision', async (req, res) => {
         send('log', `Wrote agent config: ${configPath}\n`)
       }
 
+      if (!registerOpenClawModel) {
+        const rosterPath = path.join(HOME, '.openclaw', 'openclaw.json')
+        const roster = fs.existsSync(rosterPath) ? JSON.parse(fs.readFileSync(rosterPath, 'utf8')) : {}
+        const entries = materializeDashboardAgentList(roster)
+        if (entries.some(entry => entry.id === validatedName)) throw new Error('Agent registration already exists')
+        entries.push({ id: validatedName, name: validatedName, workspace: workspaceArg, agentDir: agentDirArg })
+        writeDashboardManagedOpenClawConfig(rosterPath, roster, 'register external runtime agent')
+      }
       send('log', `Agent ${validatedName} registered successfully (without openclaw CLI)\n`)
       send('log', `ℹ️  Install openclaw CLI for full agent management: brew tap maximilien-ai/openclaw && brew install openclaw\n`)
     } catch (err: any) {
