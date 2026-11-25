@@ -1,3 +1,4 @@
+import { hasNamedAgentIdentity } from './workspace-agent-identity'
 import fs from 'fs'
 import path from 'path'
 import { AsyncLocalStorage } from 'async_hooks'
@@ -34,29 +35,6 @@ const workspaceContext = new AsyncLocalStorage<{ workspaceId: string }>()
 export function hasScopedWorkspace(): boolean { return !!workspaceContext.getStore() }
 export class WorkspaceContextUnavailableError extends Error {
   constructor(id: string) { super(`Workspace not found: ${id}`) }
-}
-
-function extractIdentityField(content: string, field: string): string {
-  const match = content.match(new RegExp(`\\*\\*${field}:\\*\\*[ \\t]*([^\\n]*)`, 'i'))
-  return match?.[1]?.trim() || ''
-}
-
-function isManagedAgentWorkspaceDir(agentDir: string): boolean {
-  try {
-    const stats = fs.statSync(agentDir)
-    if (!stats.isDirectory()) return false
-  } catch {
-    return false
-  }
-
-  try {
-    const identityPath = path.join(agentDir, 'IDENTITY.md')
-    const identity = fs.readFileSync(identityPath, 'utf-8')
-    const name = extractIdentityField(identity, 'Name')
-    return !!name
-  } catch {
-    return false
-  }
 }
 
 export class WorkspaceManager {
@@ -159,20 +137,13 @@ export class WorkspaceManager {
       if (workspaceRecoveryBlocked(workspace.path)) continue
       try {
         const agentsDir = path.join(workspace.path, 'AGENTS')
-        if (fs.existsSync(agentsDir)) {
-          const entries = fs.readdirSync(agentsDir, { withFileTypes: true })
-          workspace.agentCount = entries.filter(e =>
-            e.isDirectory()
-            && !e.name.startsWith('.')
-            && !e.name.startsWith('_')
-            && e.name !== 'archive'
-            && isManagedAgentWorkspaceDir(path.join(agentsDir, e.name))
-          ).length
-        } else {
-          workspace.agentCount = 0
-        }
+        const entries = fs.readdirSync(agentsDir, { withFileTypes: true })
+        workspace.agentCount = entries.filter(entry =>
+          entry.isDirectory() && !entry.name.startsWith('.') && !entry.name.startsWith('_')
+          && entry.name !== 'archive' && hasNamedAgentIdentity(path.join(agentsDir, entry.name))
+        ).length
       } catch {
-        // Keep existing count if scan fails
+        workspace.agentCount = undefined
       }
     }
     return registry.workspaces.map(workspace => workspaceRecoveryBlocked(workspace.path)

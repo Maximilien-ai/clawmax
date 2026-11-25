@@ -42,6 +42,26 @@ function createManager() {
   return new WorkspaceManager(registryPath)
 }
 
+test('selector counts plain and Markdown identities across creation, archive, deletion and inventory loss', () => {
+  const manager = createManager()
+  const workspace = manager.createWorkspace('Count fixture', path.join(tmpRoot, 'count-fixture'))
+  const agents = path.join(workspace.path, 'AGENTS')
+  const count = () => manager.listWorkspaces().find(w => w.id === workspace.id)?.agentCount
+  assert(count() === 0, 'Readable empty inventory')
+  for (const [id, identity] of [['alpha', 'Name: Alpha'], ['beta', '- **Name:** Beta']]) {
+    fs.mkdirSync(path.join(agents, id))
+    fs.writeFileSync(path.join(agents, id, 'IDENTITY.md'), identity)
+  }
+  assert(count() === 2, 'Both supported identity formats')
+  fs.mkdirSync(path.join(agents, 'archive'), { recursive: true })
+  fs.renameSync(path.join(agents, 'alpha'), path.join(agents, 'archive', 'alpha'))
+  assert(count() === 1, 'Archive excluded')
+  fs.rmSync(path.join(agents, 'beta'), { recursive: true })
+  assert(count() === 0, 'Deletion reflected')
+  fs.renameSync(agents, agents + '-offline')
+  assert(count() === undefined, 'Missing inventory is unavailable')
+})
+
 test('explicit registry wins over an isolated environment registry', () => {
   const previous = process.env.CLAWMAX_WORKSPACE_REGISTRY_PATH
   const isolated = path.join(tmpRoot, 'isolated', 'registry.json')

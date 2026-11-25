@@ -582,11 +582,11 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                         )}
                       </div>
                       <div className="mt-0.5 text-xs text-gray-500">
-                        {workspace.agentCount !== undefined && (
+                        {workspace.agentCount !== undefined ? (
                           <span>
                             {workspace.agentCount} agent{workspace.agentCount !== 1 ? 's' : ''}
                           </span>
-                        )}
+                        ) : 'Agent count unavailable'}
                       </div>
                     </div>
                   </button>
