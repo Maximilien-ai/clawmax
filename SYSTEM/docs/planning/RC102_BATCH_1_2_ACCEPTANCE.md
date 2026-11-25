@@ -50,3 +50,7 @@ The native SQLite fixture preserved the complete compressed reply on two history
 ### CLI provisioning recovery (#312)
 
 The Dashboard startup config repair removes the three reported CLI-only names from a migrated default allowlist while preserving provider-qualified entries. If no qualified entry remains, the repair refuses the write and asks the operator to select an allowed provider/model. The dedicated OpenClaw 2026.9.7 Gateway smoke reproduced the native validator error, repaired the file, passed native validation, and passed authenticated Gateway health without issuing a Gateway stop. Rerun with `node SYSTEM/test-isolated-gateway.mjs --model-policy-repair-smoke-only`. All 11 config tests and Dashboard TypeScript passed. This complements the three-model creation regression at 27251548.
+
+### Droid tool compatibility (#313)
+
+Verified Factory's macOS arm64 Droid 0.247.0 binary against its published SHA-256. Its tool catalog confirmed all four automation mutation/run tools disabled by the corrected invocation. The reported version uses that invocation for chat and workflows; the packaged 0.158.0 retains its tested restrictions. Dashboard TypeScript and 92 runtime adapter tests passed. A real turn reached authentication and returned zero turns in the isolated profile. One successful turn on an authenticated 0.247.0 instance remains pending.

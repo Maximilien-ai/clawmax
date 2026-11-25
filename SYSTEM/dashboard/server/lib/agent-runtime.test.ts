@@ -591,6 +591,19 @@ test('buildRuntimePlan(droid) includes -m only when a model is given, always -o 
   })
 })
 
+test('Droid 0.247.0 uses its supported automation selectors for chat and workflow turns', () => {
+  withStubbedClis(dir => {
+    writeFakeCli(path.join(dir, 'droid'), '0.247.0')
+    for (const mode of ['chat', 'json'] as const) {
+      const { args } = buildRuntimePlan({ runtime: 'droid', mode, agentId: 'test', scopedSessionId: 'session', message: 'hello', agentDir: dir, resume: false })
+      const index = args.indexOf('--remove-tools')
+      assert(index >= 0)
+      assert.strictEqual(args[index + 1], 'automation-create-cli,automation-edit-cli,automation-delete-cli,automation-run-cli')
+      assert(!args.includes('--disabled-tools'))
+    }
+  })
+})
+
 test('droid is denied every tool whose payoff outlives the turn, but keeps Task -- passed as one comma-joined value', () => {
   // Mirrors the claude test above. Reproduced directly against droid 0.158.0: a CronCreate call in
   // one process was visible to a CronList call in a second, unrelated process sharing the session.

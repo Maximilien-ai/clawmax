@@ -398,6 +398,28 @@ export const DROID_POST_TURN_TOOLS = [
   'DeleteAutomation',
 ] as const
 
+// Droid 0.247.0 removed the Cron tools and renamed the tool selection flag.
+const droidToolCache = new Map<string, { mtimeMs: number; modern: boolean }>()
+function droidToolRestrictions(cli: string | null): string[] {
+  let modern = false
+  if (cli) {
+    try {
+      const { mtimeMs } = fs.statSync(cli)
+      const cached = droidToolCache.get(cli)
+      if (cached?.mtimeMs === mtimeMs) modern = cached.modern
+      else {
+        const version = execFileSync(cli, ['--version'], { encoding: 'utf8', timeout: 5000, env: safeEnv(), stdio: ['ignore', 'pipe', 'ignore'] })
+        modern = version.trim() === '0.247.0'
+        if (droidToolCache.size >= 64) droidToolCache.clear()
+        droidToolCache.set(cli, { mtimeMs, modern })
+      }
+    } catch { /* Keep the restrictive legacy invocation if discovery fails. */ }
+  }
+  return modern
+    ? ['--remove-tools', 'automation-create-cli,automation-edit-cli,automation-delete-cli,automation-run-cli']
+    : ['--disabled-tools', DROID_POST_TURN_TOOLS.join(',')]
+}
+
 export function buildRuntimePlan(o: {
   runtime: AgentRuntimeId
   mode: 'chat' | 'json'
@@ -446,7 +468,7 @@ export function buildRuntimePlan(o: {
     '--auto', 'high',
     '-o', 'json',
     '--cwd', o.agentDir,
-    '--disabled-tools', DROID_POST_TURN_TOOLS.join(','),
+    ...droidToolRestrictions(cliPath),
     ...(o.systemPrompt ? ['--append-system-prompt', o.systemPrompt] : []),
   ]
   return { cliPath, args, missingCliError, streamsDeltas: false }
