@@ -46,3 +46,7 @@ November 25 follow-up: PUT configuration and PATCH model now defer workspace edi
 ### Long replies after reload (#216)
 
 The native SQLite fixture preserved the complete compressed reply on two history reads and after Clear/Continue. The history endpoint returned HTTP 500 with an explicit error for corrupt, oversized, and missing event bodies. The native store suite, 92 agent-route cases, 77 execution cases, eight turn-registry cases and Dashboard TypeScript passed. The turn suite verified a failed turn cannot replay the previous answer. For combined dev acceptance, reload an agent chat with a known long reply and check its final paragraph; this can share the existing model/history check. Changed-identity legacy recovery remains tracked separately in #420.
+
+### CLI provisioning recovery (#312)
+
+The Dashboard startup config repair removes the three reported CLI-only names from a migrated default allowlist while preserving provider-qualified entries. If no qualified entry remains, the repair refuses the write and asks the operator to select an allowed provider/model. The dedicated OpenClaw 2026.9.7 Gateway smoke reproduced the native validator error, repaired the file, passed native validation, and passed authenticated Gateway health without issuing a Gateway stop. Rerun with `node SYSTEM/test-isolated-gateway.mjs --model-policy-repair-smoke-only`. All 11 config tests and Dashboard TypeScript passed. This complements the three-model creation regression at 27251548.

@@ -249,6 +249,21 @@ test('write creates a canonical config and heal safely handles invalid JSON and 
   assert(healed.agents.entries.same.workspace === '/active', 'Expected healing to retain the last duplicate record')
 })
 
+test('repairs known CLI names without opening a restricted model policy', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cli-policy-repair-'))
+  try {
+    const file = path.join(dir, 'openclaw.json')
+    const config = { meta: { migrations: { modelPolicyAllowlist: true } }, agents: { defaults: { modelPolicy: { allow: ['haiku', 'sonnet', 'claude-haiku-5-5', 'openai/gpt-5'] } } } }
+    fs.writeFileSync(file, JSON.stringify(config))
+    assert(healDashboardManagedOpenClawConfig(file, 'test').ok, 'Repair should succeed')
+    assert(JSON.stringify(JSON.parse(fs.readFileSync(file, 'utf8')).agents.defaults.modelPolicy.allow) === '["openai/gpt-5"]', 'Only intended provider ref retained')
+    config.agents.defaults.modelPolicy.allow = ['haiku']
+    fs.writeFileSync(file, JSON.stringify(config))
+    assert(!healDashboardManagedOpenClawConfig(file, 'test').ok, 'An empty replacement policy requires operator input')
+    assert(fs.readFileSync(file, 'utf8') === JSON.stringify(config), 'Refusal leaves the file intact')
+  } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+})
+
 console.log(`\nTests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
 

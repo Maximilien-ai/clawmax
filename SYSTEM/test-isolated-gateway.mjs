@@ -88,8 +88,9 @@ async function main() {
     }
     console.log(`Dedicated test gateway ready on 127.0.0.1:${port}; isolated workspace and registry.`)
     if (process.argv.includes('--gateway-smoke-only')) return
-    if (process.argv.includes('--scheduler-smoke-only')) {
-      runner = spawn(process.execPath, [path.join(system, 'dashboard/node_modules/ts-node/dist/bin.js'), '--transpileOnly', 'scripts/test-scheduler-isolated-gateway.ts'], {
+    const policyRepair = process.argv.includes('--model-policy-repair-smoke-only')
+    if (policyRepair || process.argv.includes('--scheduler-smoke-only')) {
+      runner = spawn(process.execPath, [path.join(system, 'dashboard/node_modules/ts-node/dist/bin.js'), '--transpileOnly', policyRepair ? 'scripts/test-policy-repair-isolated-gateway.ts' : 'scripts/test-scheduler-isolated-gateway.ts'], {
         env, cwd: path.join(system, 'dashboard'), detached: true, stdio: 'inherit',
       })
     } else {

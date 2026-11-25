@@ -164,6 +164,19 @@ export function healDashboardManagedOpenClawConfig(configPath: string, context: 
       return { ok: true, changed: false }
     }
     const before = JSON.stringify(current)
+    // RC94 provisioning could copy a CLI-only model name into OpenClaw's
+    // migrated default policy. Never turn a restricted policy into allow-all.
+    const policy = current.agents?.defaults?.modelPolicy
+    const cliNames = new Set(['haiku', 'sonnet', 'claude-haiku-5-5'])
+    if (current.meta?.migrations?.modelPolicyAllowlist === true && Array.isArray(policy?.allow)) {
+      const retained = policy.allow.filter((ref: unknown) => !cliNames.has(String(ref)))
+      if (retained.length !== policy.allow.length) {
+        if (!retained.some((ref: unknown) => typeof ref === 'string' && /^[^/\s]+\/[^/\s]+$/.test(ref))) {
+          return { ok: false, changed: false, error: 'Set an allowed provider/model in agents.defaults.modelPolicy.allow before repairing CLI model names.' }
+        }
+        policy.allow = retained
+      }
+    }
     stripUnsupportedDashboardAgentKeys(current)
     normalizeDashboardOpenClaw2Config(current)
     stampDashboardMetadata(current)
