@@ -30,6 +30,17 @@ on `837a5d9b`. Statements and lines reached 82.56%, branches 81.11%, and
 functions 85.70%. The tagged revision `953e4b92` adds this acceptance checklist
 to the tested application source. [Public image CI](https://github.com/Maximilien-ai/clawmax/actions/runs/45866539740).
 
+### Published images
+
+Both images use tag `2.0.0-test-rc102` for linux/amd64 and linux/arm64. GCP pull verification passed for both platforms in us-east1 and us-west1.
+
+| Image | Immutable reference | Evidence |
+| --- | --- | --- |
+| Dashboard | `ghcr.io/maximilien-ai/clawmax-dashboard@sha256:b64db82f99ca5c435742879ab8896d4d524db87d37e99b8bbcce227a7e8f7cd5` | [Build](https://github.com/Maximilien-ai/clawmax/actions/runs/45866539740), [GCP mirror](https://github.com/Maximilien-ai/clawmax/actions/runs/45874094630) |
+| Combined | `ghcr.io/maximilien-ai/clawmax-plugins@sha256:3757d39d9939040cfd0d372645bd9af04296a9474d1b76eeed34a37d2e2f4136` | [Build](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/45874203639), [GCP mirror](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/45875907559) |
+
+The private source is `eb9af8eb05988a7c5ed307e7aff3788a81107fab`. The [native packaged recovery and lifecycle run](https://github.com/Maximilien-ai/clawmax/actions/runs/45874013691) used validation source `da7177e9` against the public RC102 image on both architectures. Private-clone rollback and owner acceptance remain pending.
+
 ## Engineering evidence
 
 - 84 workflow cases and 20 agent-config route cases passed. Workflow runtime checks cover running/queued cancellation for Claude and Droid, unsupported-model rejection, disabled runtime rejection, ordered handoff, and an upstream failure.
