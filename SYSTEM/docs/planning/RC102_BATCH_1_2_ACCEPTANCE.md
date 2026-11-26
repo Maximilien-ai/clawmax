@@ -23,6 +23,13 @@ Engineering covers empty outputs, failed upstream steps, interrupted model chang
 | Model change (#440) | Change a test agent's model, reload, and check the selection and chat history. Record any 502 with the time and endpoint only. |
 | Provisioning cleanup (#315) | Engineering checks an empty directory created by a failed attempt is released and a pre-existing directory or one containing data is preserved. |
 
+## Candidate validation
+
+The full local integration run with validation and coverage passed **586/586**
+on `837a5d9b`. Statements and lines reached 82.56%, branches 81.11%, and
+functions 85.70%. The tagged revision `953e4b92` adds this acceptance checklist
+to the tested application source. [Public image CI](https://github.com/Maximilien-ai/clawmax/actions/runs/45866539740).
+
 ## Engineering evidence
 
 - 84 workflow cases and 20 agent-config route cases passed. Workflow runtime checks cover running/queued cancellation for Claude and Droid, unsupported-model rejection, disabled runtime rejection, ordered handoff, and an upstream failure.
