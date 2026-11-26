@@ -1,6 +1,18 @@
 # RC102 workflow and agent acceptance
 
-Development revision `b3a2a3b2`. The [isolated dev instance](http://localhost:35125/workflows) has a manual **RC102 managed handoff** workflow with agents **rc102-research** and **rc102-writer**. Set a development provider in BYOK for live generation. Keep issues open until the complete issue has engineering evidence and user acceptance.
+Development source `837a5d9b`. Open the [isolated dev dashboard](http://localhost:35129/workflows). This workspace has two test agents and the **RC102 managed handoff** workflow. Configure a development provider in BYOK before running live turns.
+
+## One acceptance pass
+
+- [ ] **Workflows:** Run **RC102 managed handoff**. Check that the writer quotes the researcher's unique phrase and both outputs remain visible when you reopen history.
+- [ ] **Agents:** Create an agent with AI using your saved default. Check that it appears immediately, then change its model, reload, and confirm the selection persists.
+- [ ] **Chat history:** Ask for a multi-paragraph reply with a distinctive last line. Reload and confirm that line is still there.
+- [ ] **Logs:** Pause while the agent is active, resume, and check that new lines appear once. Download and compare the timestamps.
+- [ ] **Activity & Budget:** After the live turns, open the same time window in both views. Compare the total and the breakdown, then refresh.
+
+Engineering covers empty outputs, failed upstream steps, interrupted model changes, unavailable metering, and synthetic offline recovery. Provider-specific and private-clone checks are tracked separately below and in the recovery runbook.
+
+## Detailed checks
 
 | Check | Expected result |
 | --- | --- |
