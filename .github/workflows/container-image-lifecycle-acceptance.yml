@@ -62,6 +62,20 @@ jobs:
         shell: bash
         run: docker pull --platform "${{ matrix.platform }}" "${{ inputs.image_tag }}-${{ matrix.arch }}"
 
+      - name: Recover a known message with the packaged offline backup helper
+        shell: bash
+        env:
+          IMAGE: ${{ inputs.image_tag }}-${{ matrix.arch }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          docker run --rm --network none --platform "$PLATFORM" \
+            --mount "type=bind,source=$PWD/SYSTEM/dashboard/offline-backup.test.mjs,target=/app/SYSTEM/dashboard/offline-backup.test.mjs,readonly" \
+            --entrypoint sh "$IMAGE" -ec '
+              export CLAWMAX_TEST_NATIVE_OPENCLAW="$(command -v openclaw)"
+              test -n "$CLAWMAX_TEST_NATIVE_OPENCLAW"
+              node --test --test-name-pattern="pinned OpenClaw" /app/SYSTEM/dashboard/offline-backup.test.mjs
+            '
+
       - name: Verify populated persistence and startup acceptance
         shell: bash
         env:
